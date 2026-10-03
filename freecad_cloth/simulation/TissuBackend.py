@@ -91,6 +91,7 @@ class TissuBackend(ClothSimulationBackend):
         stitches: Iterable[Tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "torso-envelope",
+        stitch_compliance: float = 0.0,
     ):
         try:
             from tissu import Simulation
@@ -103,7 +104,9 @@ class TissuBackend(ClothSimulationBackend):
         self._triangles = tuple(tuple(int(i) for i in tri) for tri in triangles)
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
-        self._stitch_compliance = 0.0
+        self._stitch_compliance = float(stitch_compliance)
+        if self._stitch_compliance < 0.0:
+            raise ValueError("stitch_compliance must be >= 0")
         self._source_collision_surface = collision_surface
         collision_limit = _tissu_collision_triangle_limit()
         if collision_surface is not None and collision_mode == "mesh" and collision_limit:
