@@ -1,5 +1,7 @@
 # CLO-style research and feature model
 
+This document is a durable design-research summary, not a current implementation or release-status record. Verify implementation claims against the current branch and current-state records.
+
 ## Product boundary
 
 The target is a FreeCAD-native garment workflow with CLO-like interactions, not a clone of proprietary internals.
@@ -59,9 +61,7 @@ Use one target-neutral interface:
                    Simulation
 ```
 
-The current deterministic native mannequin is the release baseline. It should be recognizably human and persist measurements, pose and rebuild state. A normal FreeCAD Shape/PartDesign/Body/Mesh must be selectable without manual conversion. Visual and collision representations may differ, but both providers expose the same target contract.
-
-A higher-fidelity generated/imported human body is a later provider, not a prerequisite and not a new solver path.
+The deterministic native mannequin is the release baseline for the documented release slice. A higher-fidelity generated/imported human body is a later provider, not a prerequisite and not a new solver path. Current implementation status must be taken from the current repository, not this design summary.
 
 ## UI/UX model
 
