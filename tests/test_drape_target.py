@@ -1,5 +1,6 @@
 """Regression tests for the target-neutral draping contract."""
 import unittest
+from pathlib import Path
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 
 
@@ -84,3 +85,12 @@ class DrapeTargetTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+def test_stale_guard_installation_is_not_silently_suppressed():
+    root = Path(__file__).resolve().parents[1]
+    drape = (root / "freecad_cloth" / "simulation" / "DrapeTarget.py").read_text(encoding="utf-8")
+    guard = (root / "freecad_cloth" / "simulation" / "SimulationStaleGuard.py").read_text(encoding="utf-8")
+    assert "_install_simulation_guard()" in drape
+    assert "except (ImportError, AttributeError, TypeError):" not in drape.split("_install_simulation_guard", 1)[0][-300:]
+    assert "except (ImportError, AttributeError, TypeError):" not in guard[-250:]
