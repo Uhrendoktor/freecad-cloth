@@ -33,7 +33,7 @@ def events():
         app.processEvents()
 
 
-def wait_for_gui_ready(timeout_seconds=15.0):
+def wait_for_gui_ready(timeout_seconds=5.0)
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         window = Gui.getMainWindow()
@@ -42,7 +42,7 @@ def wait_for_gui_ready(timeout_seconds=15.0):
             events()
             return window
         events()
-        time.sleep(0.05)
+        time.sleep(0.02)
     raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
 
 

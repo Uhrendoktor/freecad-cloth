@@ -36,6 +36,6 @@ def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flag
     assert "tests/freecad_sketcher_acceptance.py" in job
     assert "-M /tmp/freecad-mod" not in job
     assert "-P /tmp/freecad-mod/freecad-cloth" not in job
-    assert "timeout-minutes: 10" in job
-    assert "300s" in job
+    assert "timeout-minutes: 5" in job
+    assert "30s" in job
     assert 'grep -q "native Sketcher acceptance passed"' in job
