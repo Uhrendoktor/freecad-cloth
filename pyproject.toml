@@ -12,6 +12,19 @@ license = {text = "LGPL-2.1-or-later"}
 dependencies = [
   "triangle==20250106",
 ]
+
+[project.optional-dependencies]
+simulation = [
+  "numpy>=2,<3",
+  "pytissu==1.1.0",
+]
+dev = [
+  "import-linter==2.15",
+  "pre-commit==4.6.2",
+  "pyright==1.1.414",
+  "pytest>=9,<10",
+  "ruff==0.16.10",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -30,3 +43,23 @@ freecad_cloth = ["resources/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "UP",
+  "B",
+  "SIM",
+]
+ignore = ["E501"]
+
+[tool.ruff.format]
+docstring-code-format = true
