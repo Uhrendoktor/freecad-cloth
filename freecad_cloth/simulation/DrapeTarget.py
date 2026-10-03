@@ -44,9 +44,9 @@ def _point_coordinates(point):
     if values is not None and len(values) >= 3:
         return tuple(round(float(c), 6) for c in values[:3])
     return (
-        round(float(getattr(point, "x")), 6),
-        round(float(getattr(point, "y")), 6),
-        round(float(getattr(point, "z")), 6),
+        round(float(point.x), 6),
+        round(float(point.y), 6),
+        round(float(point.z), 6),
     )
 
 
