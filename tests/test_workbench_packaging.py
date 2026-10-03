@@ -15,50 +15,30 @@ def _load_init_gui():
     return module
 
 
-def _icon_path(workbench):
-    """Resolve a FreeCAD icon resource the same way the package does.
-
-    FreeCAD receives the icon basename after ``Gui.addIconPath`` registers the
-    package icon directory.  A headless test running from the repository root
-    cannot resolve that basename through FreeCAD's resource search path, so
-    resolve it against the package's registered icon directory here.
-    """
-    icon = Path(workbench.Icon)
-    return icon if icon.is_absolute() else ICON_DIR / icon
-
-
 def test_workbench_metadata_and_icons():
     module = _load_init_gui()
     workbenches = (
-        module.ClothPatternWorkbench,
-        module.ClothSimulationWorkbench,
-        module.ClothSewingWorkbench,
+        module.ClothPatternWorkbench(),
+        module.ClothSimulationWorkbench(),
+        module.ClothSewingWorkbench(),
     )
     names = {workbench.MenuText for workbench in workbenches}
     assert names == {"Cloth Pattern", "Cloth Simulation", "Cloth Sewing"}
     assert all(workbench.ToolTip for workbench in workbenches)
-    assert all(workbench.GetClassName(None) == "Gui::PythonWorkbench" for workbench in workbenches)
-    assert all(_icon_path(workbench).is_file() for workbench in workbenches)
+    assert all(workbench.GetClassName() == "Gui::PythonWorkbench" for workbench in workbenches)
+    assert all((Path(workbench.Icon) if Path(workbench.Icon).is_absolute() else ICON_DIR / workbench.Icon).is_file() for workbench in workbenches)
 
 
 def test_workbench_command_groups_are_declared_once():
     module = _load_init_gui()
-    assert (
-        len(
-            {
-                module.ClothPatternWorkbench.Icon,
-                module.ClothSimulationWorkbench.Icon,
-                module.ClothSewingWorkbench.Icon,
-            }
-        )
-        == 3
-    )
-    for workbench in (
+    workbenches = (
         module.ClothPatternWorkbench(),
         module.ClothSimulationWorkbench(),
         module.ClothSewingWorkbench(),
-    ):
-        assert workbench.commands == ()
+    )
+    assert len({workbench.Icon for workbench in workbenches}) == 3
+    for workbench in workbenches:
+        assert workbench.commands == []
 
 
 def test_addon_metadata_is_valid():
@@ -70,12 +50,5 @@ def test_addon_metadata_is_valid():
     assert root.findtext(namespace + "license") == "LGPL-2.1-or-later"
     assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
     workbenches = root.find(namespace + "content")
-    declared = {
-        item.findtext(namespace + "classname")
-        for item in workbenches.findall(namespace + "workbench")
-    }
-    assert declared == {
-        "ClothPatternWorkbench",
-        "ClothSewingWorkbench",
-        "ClothSimulationWorkbench",
-    }
+    declared = {item.findtext(namespace + "classname") for item in workbenches.findall(namespace + "workbench")}
+    assert declared == {"ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"}
