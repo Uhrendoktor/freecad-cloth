@@ -46,44 +46,51 @@ permissions:
   packages: read
 
 jobs:
-  python_style_migration:
-    name: One-time Ruff source normalization
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/agent/architecture-tooling-docs') || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
+  python:
+    name: Python quality and unit tests
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - name: Log selected execution mode
+        run: |
+          set -euo pipefail
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          python-version: '3.12'
-      - name: Install Ruff
-        run: python -m pip install --disable-pip-version-check ruff==0.16.10
-      - name: Apply Ruff fixes and formatting
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run static quality gates and Python tests
         run: |
           set -euo pipefail
-          ruff check --fix --unsafe-fixes . || true
-          ruff format .
-      - name: Commit normalized Python sources
-        run: |
-          set -euo pipefail
-          if git log -1 --format=%s | grep -Fq '[stylebot]'; then
-            echo 'Ruff migration commit already present.'
-            exit 0
-          fi
-          if git diff --quiet; then
-            echo 'Ruff produced no source changes.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- '*.py'
-          git commit -m 'style: normalize Python sources [stylebot]'
-          git push origin HEAD:agent/architecture-tooling-docs
+          mkdir -p artifacts
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g             -e PYTHONPATH=/workspace -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --disable-pip-version-check -e ".[dev]"
+              python3 -m ruff check .
+              python3 -m ruff format --check .
+              python3 tools/check_documentation_contract.py
+              lint-imports
+              pyright
+              python3 -m compileall -q .
+              python3 -m pytest -q tests/test_*.py
+            ')"
+          cleanup() {
+            set +e
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker cp "$PWD/." "$CID:/workspace/"
+          docker start -a "$CID"
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ github.event_name != 'schedule' }}
