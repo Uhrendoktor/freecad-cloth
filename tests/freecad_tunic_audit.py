@@ -14,6 +14,10 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+# Mesh collision resolution is discrete at Tissu particle updates; use enough internal
+# substeps here to resolve the 2 mm collision thickness under the audit gravity
+# without changing the production workflow default substep budget.
+os.environ["CLOTH_TISSU_SUBSTEPS"] = "32"
 
 SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
         seam = Seam(
