@@ -211,7 +211,9 @@ def create_sewing_operation():
     try:
         a, b = pieces[str(seam.PieceA)], pieces[str(seam.PieceB)]
     except KeyError as exc:
-        raise ValueError("the seam references pattern pieces that are not in the active document") from exc
+        raise ValueError(
+            "the seam references pattern pieces that are not in the active document"
+        ) from exc
     n = len([o for o in doc.Objects if getattr(o, "SewingType", "") == "SewingOperation"]) + 1
     obj = add_sewing_operation(doc, seam, a, b, "SewingOperation%d" % n)
     doc.recompute()

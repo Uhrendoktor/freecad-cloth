@@ -537,9 +537,7 @@ class SimulationProxy:
                 c = (j + 1) * nx + i + 1
                 d = (j + 1) * nx + i
                 tris.extend(((a, b, c), (a, c, d)))
-        triangles = tuple(tris) + tuple(
-            (a + offset, b + offset, c + offset) for a, b, c in tris
-        )
+        triangles = tuple(tris) + tuple((a + offset, b + offset, c + offset) for a, b, c in tris)
         constraints = list(left.constraints) + [
             type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints
         ]

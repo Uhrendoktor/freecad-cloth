@@ -23,7 +23,6 @@ from freecad_cloth.avatar.AvatarModel import (
     Pose,
     generate_mesh,
 )
-from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
@@ -33,6 +32,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     fit_makehuman_mesh,
     parse_obj,
 )
+from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
 
 class AvatarFittingTests(unittest.TestCase):

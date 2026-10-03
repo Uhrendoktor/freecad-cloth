@@ -207,11 +207,7 @@ def _resolve_piece_ir(piece, curve_samples):
 def _piece_model(piece, *, native):
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     label = str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece_id)
-    outline = (
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
-        if native
-        else _legacy_outline(piece)
-    )
+    outline = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)] if native else _legacy_outline(piece)
     return PatternPiece(
         label,
         outline,
