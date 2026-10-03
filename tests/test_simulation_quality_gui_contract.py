@@ -15,7 +15,8 @@ def test_quality_panel_captures_panel_open_state():
     assert '"AvatarSkinOffset"' in GUI
     assert '"Steps"' in GUI
     assert "def _capture_snapshot(self):" in GUI
-    assert "self._snapshot = {name: getattr(self.scene, name)" in GUI
+    assert "self._snapshot = {" in GUI
+    assert "getattr(self.scene, name)" in GUI
 
 
 def test_quality_panel_cancel_restores_persistent_values_before_close():
