@@ -11,6 +11,7 @@ Compact live supervisor/recovery record. Do not use this file as an experiment l
 - No production Tissu contact repair is merged.
 
 ## Current open diagnostic/research lanes
+- #2578 — native-Sketcher tunic audit diagnostics for GUI/process failures.
 - #2577 — independent human challenge of a proposed Tissu substep production remedy.
 - #2576 — bounded Tissu substep probe (16/20/32).
 - #2575 — avatar collision coarsening/coverage audit.
