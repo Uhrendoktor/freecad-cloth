@@ -53,10 +53,13 @@ class HumanoidMeshError(RuntimeError):
 
 @dataclass(frozen=True)
 class MeshData:
+    """Public data model or service class for MeshData."""
+
     vertices: tuple[tuple[float, float, float], ...]
     triangles: tuple[tuple[int, int, int], ...]
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
         count = len(self.vertices)
@@ -245,6 +248,7 @@ def _load_source_vertices(path: str | None = None) -> tuple[tuple[float, float, 
 
 @lru_cache(maxsize=4)
 def load_makehuman_skeleton(path: str | None = None) -> dict:
+    """Load and return the requested makehuman skeleton resource."""
     source = ensure_makehuman_skeleton(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
@@ -311,6 +315,7 @@ def parse_obj(text: str) -> MeshData:
 
 @lru_cache(maxsize=4)
 def load_makehuman_mesh(path: str | None = None) -> MeshData:
+    """Load and return the requested makehuman mesh resource."""
     source = ensure_makehuman_base(path)
     try:
         return parse_obj(source.read_text(encoding="utf-8", errors="strict"))

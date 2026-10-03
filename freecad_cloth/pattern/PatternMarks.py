@@ -59,6 +59,7 @@ def add_mark(
     length=40.0,
     text="",
 ):
+    """Add the requested mark data."""
     if not mark_type.strip():
         raise ValueError("mark type must not be empty")
     if not piece_id.strip():
@@ -92,6 +93,7 @@ def add_mark(
 
 
 def add_notch():
+    """Add the requested notch data."""
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
@@ -107,6 +109,7 @@ def add_notch():
 
 
 def add_grainline():
+    """Add the requested grainline data."""
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
@@ -123,6 +126,7 @@ def add_grainline():
 
 
 def add_internal_mark():
+    """Add the requested internal mark data."""
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")

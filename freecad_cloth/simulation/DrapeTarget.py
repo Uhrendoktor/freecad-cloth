@@ -9,6 +9,8 @@ from freecad_cloth.avatar.AvatarCollision import CollisionSurface, surface_from_
 
 @dataclass(frozen=True)
 class DrapeTargetSpec:
+    """Public data model or service class for DrapeTargetSpec."""
+
     target_type: str
     source_name: str
     deflection: float = 1.0
@@ -17,6 +19,7 @@ class DrapeTargetSpec:
     VALID_TYPES = ("Mannequin", "FreeCAD Geometry")
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.target_type not in self.VALID_TYPES:
             raise ValueError("unsupported drape target type")
         if not self.source_name.strip():
@@ -28,6 +31,7 @@ class DrapeTargetSpec:
 
 
 def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
+    """Return a collision-ready surface representation."""
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
@@ -102,6 +106,7 @@ def _geometry_signature(target):
 
 
 def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
+    """Provide the public source signature operation."""
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None
@@ -201,6 +206,7 @@ def target_status(target):
 
 
 def refresh_drape_target(target):
+    """Provide the public refresh drape target operation."""
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise ValueError("drape target source is required")
@@ -210,6 +216,7 @@ def refresh_drape_target(target):
 def create_drape_target(
     doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0
 ):
+    """Create and return the requested drape target object."""
     if target_type not in DrapeTargetSpec.VALID_TYPES:
         raise ValueError("unsupported drape target type")
     if deflection <= 0 or thickness < 0:
@@ -248,6 +255,7 @@ def create_drape_target(
 
 
 def assign_drape_target(target, source, target_type: str | None = None):
+    """Provide the public assign drape target operation."""
     if source is None:
         raise ValueError("drape target source is required")
     kind = str(target_type or getattr(target, "TargetType", "FreeCAD Geometry"))

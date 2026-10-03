@@ -227,6 +227,7 @@ class PatternPieceProxy:
     Type = "ClothPatternPiece"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         width = float(obj.Width)
         height = float(obj.Height)
         allowance = float(obj.SeamAllowance)
@@ -298,6 +299,7 @@ class SeamProxy:
     Type = "ClothSeam"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         import Part
 
         document = getattr(obj, "Document", None)
@@ -360,6 +362,7 @@ class SeamProxy:
 
 
 def add_seam(doc, seam: Seam):
+    """Add a seam relationship to this collection."""
     seam.validate()
     piece_a = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_a), None)
     piece_b = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_b), None)

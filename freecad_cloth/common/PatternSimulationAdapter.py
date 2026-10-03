@@ -31,12 +31,14 @@ class ResolvedSimulationPattern:
     signature: tuple[object, ...]
 
     def piece(self, piece_id: str):
+        """Provide the public piece operation."""
         return self.pattern.piece(piece_id)
 
 
 def is_sketch_authoritative(piece) -> bool:
     # The persisted authority flag is itself part of the fail-closed contract:
     # a missing Sketch on a Sketcher-authoritative piece must not trigger legacy fallback.
+    """Provide the public is sketch authoritative operation."""
     return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
 
 

@@ -9,28 +9,35 @@ Point = tuple[float, float]
 
 @dataclass(frozen=True)
 class LineSegment:
+    """Public data model or service class for LineSegment."""
+
     id: str
     start: Point
     end: Point
 
     def point(self, t: float) -> Point:
+        """Return the point at the requested parameter."""
         return (
             self.start[0] + (self.end[0] - self.start[0]) * t,
             self.start[1] + (self.end[1] - self.start[1]) * t,
         )
 
     def length(self) -> float:
+        """Return the geometric length represented by this object."""
         return hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
 
 
 @dataclass(frozen=True)
 class QuadraticBezier:
+    """Public data model or service class for QuadraticBezier."""
+
     id: str
     start: Point
     control: Point
     end: Point
 
     def point(self, t: float) -> Point:
+        """Return the point at the requested parameter."""
         u = 1.0 - t
         return (
             u * u * self.start[0] + 2 * u * t * self.control[0] + t * t * self.end[0],
@@ -38,6 +45,7 @@ class QuadraticBezier:
         )
 
     def polyline(self, samples: int = 32) -> list[Point]:
+        """Return sampled polyline points for this geometry."""
         if samples < 2:
             raise ValueError("samples must be at least 2")
         return [self.point(i / (samples - 1)) for i in range(samples)]
@@ -56,13 +64,16 @@ class PolylineSegment:
 
     @property
     def start(self) -> Point:
+        """Provide the public start operation."""
         return self.points[0]
 
     @property
     def end(self) -> Point:
+        """End the synchronized editing session."""
         return self.points[-1]
 
     def point(self, t: float) -> Point:
+        """Return the point at the requested parameter."""
         fraction = min(1.0, max(0.0, float(t)))
         lengths = [0.0]
         for a, b in zip(self.points, self.points[1:], strict=False):
@@ -80,9 +91,11 @@ class PolylineSegment:
         return self.points[-1]
 
     def polyline(self, samples: int = 32) -> list[Point]:
+        """Return sampled polyline points for this geometry."""
         return list(self.points)
 
     def length(self) -> float:
+        """Return the geometric length represented by this object."""
         return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
 
 
@@ -101,6 +114,7 @@ class ParametricPattern:
         self.validate()
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if len(self.segments) < 3:
             raise ValueError("pattern needs at least three boundary segments")
         ids = [segment.id for segment in self.segments]
@@ -112,9 +126,11 @@ class ParametricPattern:
                 raise ValueError(f"boundary is not closed between {segment.id} and {following.id}")
 
     def by_id(self) -> dict[str, Segment]:
+        """Provide the public by id operation."""
         return {segment.id: segment for segment in self.segments}
 
     def sampled_outline(self, curve_samples: int = 32) -> list[Point]:
+        """Provide the public sampled outline operation."""
         result: list[Point] = []
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -124,6 +140,7 @@ class ParametricPattern:
         return result
 
     def lengths(self, curve_samples: int = 128) -> dict[str, float]:
+        """Provide the public lengths operation."""
         values: dict[str, float] = {}
         for segment in self.segments:
             if isinstance(segment, LineSegment):

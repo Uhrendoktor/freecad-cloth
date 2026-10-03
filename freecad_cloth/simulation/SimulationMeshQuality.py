@@ -4,6 +4,7 @@ from math import hypot
 
 
 def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
+    """Provide the public quality piece mesh operation."""
     from freecad_cloth.common.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,

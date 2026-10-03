@@ -48,6 +48,7 @@ class AvatarService:
         raise KeyError(key)
 
     def measurement(self, name):
+        """Return the requested body measurement."""
         return self._parameters.measurement(str(name))
 
     def measurements(self):
@@ -57,7 +58,9 @@ class AvatarService:
         )
 
     def pose(self):
+        """Provide the public pose operation."""
         return self._parameters.pose
 
     def skin_offset(self):
+        """Provide the public skin offset operation."""
         return float(self._parameters.skin_offset)

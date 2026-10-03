@@ -247,9 +247,12 @@ def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
 
 
 class SewingOperationProxy:
+    """Public data model or service class for SewingOperationProxy."""
+
     Type = "ClothSewingOperation"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         import Part
 
         seam = getattr(obj, "Seam", None)
@@ -324,6 +327,7 @@ class SewingOperationProxy:
 
 
 def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
+    """Add the requested sewing operation data."""
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"

@@ -53,6 +53,8 @@ LIMITS = {
 
 @dataclass(frozen=True)
 class Pose:
+    """Public data model or service class for Pose."""
+
     preset: str = "standing"
     left_arm_angle: float = 12.0
     right_arm_angle: float = 12.0
@@ -61,6 +63,7 @@ class Pose:
     VALID_PRESETS = ("standing", "sewing", "sitting")
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.preset not in self.VALID_PRESETS:
             raise ValueError(f"unsupported avatar pose: {self.preset}")
         for name in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"):
@@ -71,12 +74,16 @@ class Pose:
 
 @dataclass(frozen=True)
 class Landmark:
+    """Public data model or service class for Landmark."""
+
     name: str
     position: tuple
 
 
 @dataclass(frozen=True)
 class AvatarParameters:
+    """Public data model or service class for AvatarParameters."""
+
     measurements: dict = field(default_factory=lambda: dict(DEFAULT_MEASUREMENTS))
     # The mannequin is a bare body surface by default. Cloth collision padding
     # remains a target setting rather than a visible layer on the avatar.
@@ -91,6 +98,7 @@ class AvatarParameters:
         self.validate()
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.schema_version != 1:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
@@ -113,16 +121,19 @@ class AvatarParameters:
         self.pose.validate()
 
     def measurement(self, name):
+        """Return the requested body measurement."""
         if name not in self.measurements:
             raise KeyError(name)
         return float(self.measurements[name])
 
     def with_measurements(self, **changes):
+        """Return a copy with updated body measurements."""
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
 
     def to_json(self):
+        """Serialize this object to JSON."""
         self.validate()
         return json.dumps(
             {
@@ -144,6 +155,7 @@ class AvatarParameters:
 
     @classmethod
     def from_json(cls, payload):
+        """Create an object from serialized JSON."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")

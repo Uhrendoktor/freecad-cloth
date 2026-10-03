@@ -43,15 +43,18 @@ class Transform3D:
 
     @classmethod
     def identity(cls):
+        """Provide the public identity operation."""
         return cls()
 
     @classmethod
     def translation(cls, x: float, y: float, z: float = 0.0):
+        """Provide the public translation operation."""
         values = list(cls().matrix)
         values[3], values[7], values[11] = float(x), float(y), float(z)
         return cls(tuple(values))
 
     def apply(self, point: Sequence[float]) -> tuple[float, float, float]:
+        """Provide the public apply operation."""
         if len(point) != 3:
             raise ValueError("point must contain three coordinates")
         x, y, z = point
@@ -84,22 +87,27 @@ class SeamPair:
 
     @property
     def id(self):
+        """Return the stable identifier."""
         return self.seam.id
 
     @property
     def piece_a(self):
+        """Return the first referenced pattern piece."""
         return self.seam.piece_a
 
     @property
     def edge_a(self):
+        """Return the first referenced edge."""
         return self.seam.edge_a
 
     @property
     def piece_b(self):
+        """Return the second referenced pattern piece."""
         return self.seam.piece_b
 
     @property
     def edge_b(self):
+        """Return the second referenced edge."""
         return self.seam.edge_b
 
     @property
@@ -108,6 +116,7 @@ class SeamPair:
         return self.seam.reversed_b
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         self.seam.validate()
         if self.stitch_group != (self.seam.stitch_group or self.seam.id):
             raise ValueError("stitch group disagrees with canonical seam metadata")
@@ -124,6 +133,7 @@ class SeamGraph:
     assembly_transforms: dict[str, Transform3D] = field(default_factory=dict)
 
     def add_piece(self, piece: PatternPiece) -> None:
+        """Add a pattern piece to this collection."""
         piece.validate()
         if piece.id in self.pieces:
             raise ValueError(f"duplicate pattern piece id: {piece.id}")
@@ -133,6 +143,7 @@ class SeamGraph:
     def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "endpoints") -> None:
         # Compatibility adapters such as SewingSemantics.SeamConstraint can
         # hand us their canonical Seam without making the graph depend on them.
+        """Add a seam relationship to this collection."""
         if not isinstance(seam, Seam):
             to_seam = getattr(seam, "to_seam", None)
             if to_seam is None:
@@ -152,12 +163,14 @@ class SeamGraph:
         self.seams[seam.id] = pair
 
     def set_transform(self, piece_id: str, transform: Transform3D) -> None:
+        """Set the transform associated with an object."""
         self._require_piece(piece_id)
         if not isinstance(transform, Transform3D):
             raise TypeError("transform must be a Transform3D")
         self.assembly_transforms[piece_id] = transform
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         for piece in self.pieces.values():
             piece.validate()
         for pair in self.seams.values():

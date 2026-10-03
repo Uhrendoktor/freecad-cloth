@@ -17,6 +17,8 @@ class AvatarVisualSanityError(ValueError):
 
 @dataclass(frozen=True)
 class AvatarVisualSanity:
+    """Public data model or service class for AvatarVisualSanity."""
+
     height: float
     width: float
     depth: float
@@ -25,6 +27,7 @@ class AvatarVisualSanity:
 
     @property
     def state(self) -> str:
+        """Return the current state summary."""
         return "Valid"
 
 

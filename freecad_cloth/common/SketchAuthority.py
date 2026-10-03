@@ -56,6 +56,7 @@ class SketchAuthorityProxy:
     Type = "ClothPatternPieceSketchAuthority"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
             from freecad_cloth.pattern.PatternObjects import PatternPieceProxy

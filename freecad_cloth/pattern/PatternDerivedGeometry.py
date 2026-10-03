@@ -16,12 +16,15 @@ from freecad_cloth.pattern.PatternGeometry import (
 
 @dataclass(frozen=True)
 class Notch:
+    """Public data model or service class for Notch."""
+
     id: str
     segment_id: str
     t: float
     depth: float = 3.0
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id:
             raise ValueError("notch ID must not be empty")
         if not 0.0 <= self.t <= 1.0:
@@ -43,6 +46,7 @@ class PatternMark:
     text: str = ""
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip() or not self.kind.strip():
             raise ValueError("pattern mark ID and kind must not be empty")
         if not 0.0 <= self.t <= 1.0:
@@ -53,12 +57,16 @@ class PatternMark:
 
 @dataclass(frozen=True)
 class OffsetEdge:
+    """Public data model or service class for OffsetEdge."""
+
     id: str
     points: tuple[Point, ...]
 
 
 @dataclass(frozen=True)
 class DerivedPattern:
+    """Public data model or service class for DerivedPattern."""
+
     sewing_boundary: ParametricPattern
     cut_boundary: tuple[OffsetEdge, ...]
     notches: tuple[Notch, ...]
@@ -72,6 +80,7 @@ def derive_cut_boundary(
     curve_samples: int = 32,
     miter_limit: float = 4.0,
 ) -> DerivedPattern:
+    """Provide the public derive cut boundary operation."""
     if width < 0:
         raise ValueError("seam allowance width must be non-negative")
     if curve_samples < 2:
@@ -102,6 +111,7 @@ def derive_cut_boundary(
 
 
 def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPattern:
+    """Add the requested notches data."""
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.notches)
     ids = {n.id for n in result} | {m.id for m in derived.marks}
@@ -119,6 +129,7 @@ def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPat
 
 
 def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedPattern:
+    """Add the requested marks data."""
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.marks)
     ids = {n.id for n in derived.notches} | {m.id for m in result}
@@ -136,6 +147,7 @@ def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedP
 
 
 def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
+    """Provide the public notch point operation."""
     notch.validate()
     segment = pattern.by_id().get(notch.segment_id)
     if segment is None:
@@ -144,6 +156,7 @@ def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
 
 
 def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
+    """Provide the public mark point operation."""
     mark.validate()
     if not mark.segment_id:
         return pattern.sampled_outline(2)[0]

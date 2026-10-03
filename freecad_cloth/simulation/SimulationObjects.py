@@ -355,6 +355,8 @@ def _collision_for_scene(obj):
 
 
 class SimulationProxy:
+    """Public data model or service class for SimulationProxy."""
+
     Type = "ClothSimulation"
 
     def __init__(self):
@@ -385,6 +387,7 @@ class SimulationProxy:
         self.collision_surface = None
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
@@ -588,6 +591,7 @@ class SimulationProxy:
         return obj if obj is not None else _mesh_object(doc, name, name)
 
     def reset(self, obj):
+        """Reset the runtime state to its initial values."""
         if self.backend is not None:
             self.backend.reset()
         obj.Steps = 0
@@ -685,6 +689,7 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
 
 
 def create_simulation_scene(doc, build=True):
+    """Create and return the requested simulation scene object."""
     from freecad_cloth.simulation.DrapeTarget import create_drape_target
 
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
@@ -736,12 +741,14 @@ def create_simulation_scene(doc, build=True):
 
 
 def step_scene(scene, steps=1):
+    """Provide the public step scene operation."""
     scene.Steps = int(scene.Steps) + int(steps)
     scene.Document.recompute()
     return scene
 
 
 def reset_scene(scene):
+    """Provide the public reset scene operation."""
     proxy = getattr(scene, "Proxy", None)
     if proxy is not None and hasattr(proxy, "reset"):
         proxy.reset(scene)
@@ -750,6 +757,7 @@ def reset_scene(scene):
 
 
 def create_drape_scene(doc):
+    """Create and return the requested drape scene object."""
     scene = create_simulation_scene(doc)
     step_scene(scene, 30)
     return scene

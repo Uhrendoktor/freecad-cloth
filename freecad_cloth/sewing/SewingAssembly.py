@@ -36,6 +36,7 @@ class SewingPair:
 
     @property
     def seam_id(self):
+        """Provide the public seam id operation."""
         return self._seam_id
 
     @property
@@ -53,6 +54,7 @@ class SewingPair:
         self._legacy_reversed = None
 
     def validate(self, graph: SeamGraph) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.seam_id.strip():
             raise ValueError("seam id must not be empty")
         if self.seam_id not in graph.seams:
@@ -80,6 +82,7 @@ class SewingAssembly:
     def add_pair(
         self, seam_id: str, stitch_group: str = "", alignment: str = "endpoints"
     ) -> SewingPair:
+        """Add a sewing relationship to this collection."""
         if seam_id in self.pairs:
             raise ValueError(f"seam is already paired: {seam_id}")
         if seam_id not in self.graph.seams:
@@ -91,19 +94,23 @@ class SewingAssembly:
         return pair
 
     def remove_pair(self, seam_id: str) -> None:
+        """Remove a sewing relationship from this collection."""
         if seam_id not in self.pairs:
             raise ValueError(f"unknown sewing pair: {seam_id}")
         del self.pairs[seam_id]
 
     def set_piece_transform(self, piece_id: str, transform: Transform3D) -> None:
+        """Set the transform for a pattern piece."""
         self.graph.set_transform(piece_id, transform)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         self.graph.validate()
         for pair in self.pairs.values():
             pair.validate(self.graph)
 
     def to_metadata(self) -> dict:
+        """Return persistent metadata for this object."""
         self.validate()
         return {
             "pairs": tuple(

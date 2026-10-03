@@ -24,6 +24,7 @@ class TriangleMesh:
     boundary_edge_segment_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if len(self.vertices) < 3:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
@@ -39,12 +40,14 @@ class TriangleMesh:
 
     @property
     def area(self) -> float:
+        """Provide the public area operation."""
         return sum(
             abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
             for a, b, c in self.triangles
         )
 
     def boundary_edges(self) -> tuple[tuple[int, int], ...]:
+        """Provide the public boundary edges operation."""
         indices = self.boundary_vertex_indices
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
 

@@ -24,6 +24,7 @@ class PatternPiece:
     metadata: dict = field(default_factory=dict)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
             raise ValueError("pattern piece name must not be empty")
         if not self.outline or len(self.outline) < 3:
@@ -59,6 +60,7 @@ class Seam:
     kind: str = "plain"
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
             raise ValueError("seam id must not be empty")
         if self.piece_a == self.piece_b and self.edge_a == self.edge_b:

@@ -150,6 +150,7 @@ class QualitySimulationProxy:
         )
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         ensure_quality_properties(obj)
         base = self._base_or_restore()
         signature = self._signature(obj)
@@ -316,6 +317,7 @@ class QualitySimulationProxy:
                 pass
 
     def reset(self, obj):
+        """Reset the runtime state to its initial values."""
         self._base_or_restore().reset(obj)
 
 

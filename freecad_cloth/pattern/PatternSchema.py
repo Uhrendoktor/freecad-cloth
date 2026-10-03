@@ -19,6 +19,7 @@ class PatternDocument:
     schema_version: int = SCHEMA_VERSION
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.pattern_id.strip():
             raise ValueError("pattern_id must not be empty")
         if not self.name.strip():
@@ -38,6 +39,7 @@ class PatternDocument:
 
 
 def to_dict(document: PatternDocument) -> dict[str, Any]:
+    """Serialize this object to a dictionary."""
     document.validate()
     return asdict(document)
 
@@ -48,6 +50,7 @@ def dumps(document: PatternDocument) -> str:
 
 
 def loads(text: str) -> PatternDocument:
+    """Provide the public loads operation."""
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:

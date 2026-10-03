@@ -9,6 +9,7 @@ import sys
 
 
 def main() -> None:
+    """Provide the public main operation."""
     root = pathlib.Path(sys.argv[1])
     names = ["Pattern", "Sewing", "Simulation"]
     data = [json.loads((root / f"{name}.json").read_text(encoding="utf-8")) for name in names]

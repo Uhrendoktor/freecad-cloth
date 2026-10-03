@@ -31,6 +31,7 @@ class BoundaryIR:
     parameter_range: tuple[float, float] = (0.0, 1.0)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
             raise ValueError("boundary id must not be empty")
         if self.kind not in {"line", "arc", "bspline", "bezier", "curve"}:
@@ -43,6 +44,7 @@ class BoundaryIR:
 
     @property
     def length(self) -> float:
+        """Return the geometric length represented by this object."""
         return sum(
             hypot(b[0] - a[0], b[1] - a[1])
             for a, b in zip(self.samples, self.samples[1:], strict=False)
@@ -60,6 +62,7 @@ class PieceIR:
     seam_allowance: float = 0.0
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
             raise ValueError("piece id must not be empty")
         if not self.boundaries:
@@ -92,6 +95,7 @@ class SeamIR:
     kind: str = "plain"
 
     def validate(self, pieces: Mapping[str, PieceIR]) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
             raise ValueError("seam id must not be empty")
         for piece_id, edge_id in ((self.piece_a, self.edge_a), (self.piece_b, self.edge_b)):
@@ -117,6 +121,7 @@ class PatternIR:
     metadata: Mapping[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         piece_map = {piece.id: piece for piece in self.pieces}
         if len(piece_map) != len(self.pieces):
             raise ValueError("pattern piece IDs must be unique")
@@ -129,12 +134,14 @@ class PatternIR:
             seam.validate(piece_map)
 
     def piece(self, piece_id: str) -> PieceIR:
+        """Provide the public piece operation."""
         for piece in self.pieces:
             if piece.id == piece_id:
                 return piece
         raise KeyError(piece_id)
 
     def boundary(self, piece_id: str, edge_id: str) -> BoundaryIR:
+        """Provide the public boundary operation."""
         piece = self.piece(piece_id)
         for edge in piece.boundaries:
             if edge.id == edge_id:

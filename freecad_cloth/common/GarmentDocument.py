@@ -42,6 +42,7 @@ def _children(container):
 
 
 def garment_root(doc):
+    """Provide the public garment root operation."""
     if doc is None:
         return None
     for obj in getattr(doc, "Objects", ()):
@@ -54,6 +55,7 @@ def garment_root(doc):
 
 
 def garment_group(doc, role):
+    """Provide the public garment group operation."""
     root = garment_root(doc)
     if root is None:
         return None
@@ -80,6 +82,7 @@ def _ensure_group(doc, root, role):
 
 
 def ensure_fabric_material(doc, root=None):
+    """Ensure the requested fabric material state exists."""
     root = root or garment_root(doc)
     if root is None:
         return None

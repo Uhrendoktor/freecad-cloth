@@ -59,6 +59,7 @@ def to_svg(
     seam_ids=(),
     seam_allowance: float = 0.0,
 ) -> str:
+    """Provide the public to svg operation."""
     if not units.strip():
         raise ValueError("units must not be empty")
     sewing = _sampled_sewing(pattern, curve_samples)
@@ -135,6 +136,7 @@ def to_dxf(
     seam_ids=(),
     seam_allowance: float = 0.0,
 ) -> str:
+    """Provide the public to dxf operation."""
     if not units.strip():
         raise ValueError("units must not be empty")
     sewing = _sampled_sewing(pattern, curve_samples)
@@ -191,6 +193,7 @@ def to_dxf(
 
 
 def from_dxf_metadata(dxf: str) -> dict:
+    """Provide the public from dxf metadata operation."""
     marker = "$COMMENT\n1\n"
     if marker not in dxf:
         raise ValueError("DXF does not contain cloth-pattern metadata")

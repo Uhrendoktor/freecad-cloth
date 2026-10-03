@@ -40,26 +40,32 @@ class SeamConstraint:
 
     @property
     def id(self):
+        """Return the stable identifier."""
         return self._seam.id
 
     @property
     def piece_a(self):
+        """Return the first referenced pattern piece."""
         return self._seam.piece_a
 
     @property
     def edge_a(self):
+        """Return the first referenced edge."""
         return self._seam.edge_a
 
     @property
     def piece_b(self):
+        """Return the second referenced pattern piece."""
         return self._seam.piece_b
 
     @property
     def edge_b(self):
+        """Return the second referenced edge."""
         return self._seam.edge_b
 
     @property
     def reversed_b(self):
+        """Return whether the second reference is reversed."""
         return self._seam.reversed_b
 
     def validate(self, pieces: set[str], edges: dict[str, set[str]]) -> None:

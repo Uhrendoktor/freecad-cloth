@@ -28,6 +28,7 @@ def build_hierarchical_avatar_mesh(parameters) -> MeshData:
 
 
 def generate_hierarchical_mesh(parameters):
+    """Provide the public generate hierarchical mesh operation."""
     mesh = build_hierarchical_avatar_mesh(parameters)
     from freecad_cloth.avatar.AvatarModel import _landmarks
 

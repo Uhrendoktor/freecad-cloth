@@ -12,6 +12,8 @@ Point3 = tuple[float, float, float]
 
 @dataclass(frozen=True)
 class DrapeVisualMetrics:
+    """Public data model or service class for DrapeVisualMetrics."""
+
     vertices: int
     bounds: tuple[float, float, float, float, float, float]
     spans: tuple[float, float, float]
@@ -38,6 +40,7 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
 
 
 def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
+    """Provide the public minimum vertex distance operation."""
     if not source or not target:
         return None
     best = float("inf")
@@ -167,6 +170,7 @@ def inspect_drape(
 
 
 def summarize(metrics: DrapeVisualMetrics) -> dict:
+    """Provide the public summarize operation."""
     return {
         "state": metrics.state,
         "vertices": metrics.vertices,

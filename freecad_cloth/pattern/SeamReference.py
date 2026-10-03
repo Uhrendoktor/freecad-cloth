@@ -63,6 +63,7 @@ class EdgeReference:
             raise ValueError("signature must not be empty")
 
     def as_dict(self):
+        """Serialize this reference to a dictionary."""
         return {
             "piece_id": self.piece_id,
             "edge_id": self.edge_id,
@@ -71,6 +72,7 @@ class EdgeReference:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]):
+        """Create a reference from a serialized dictionary."""
         try:
             return cls(
                 str(value["piece_id"]),

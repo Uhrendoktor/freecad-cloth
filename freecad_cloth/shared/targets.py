@@ -24,7 +24,9 @@ class DrapeTargetRef:
     surface_ids: tuple[str, ...] = ()
 
     def is_human(self) -> bool:
+        """Provide the public is human operation."""
         return self.provider == "human"
 
     def is_freecad_object(self) -> bool:
+        """Provide the public is freecad object operation."""
         return self.provider == "freecad"

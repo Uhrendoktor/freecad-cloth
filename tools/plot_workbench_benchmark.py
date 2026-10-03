@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_metric(names, values, title, ylabel, out):
+    """Provide the public plot metric operation."""
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.bar(names, values)
     ax.set_title(title)
@@ -22,6 +23,7 @@ def plot_metric(names, values, title, ylabel, out):
 
 
 def main() -> None:
+    """Provide the public main operation."""
     src = pathlib.Path(sys.argv[1])
     out = pathlib.Path(sys.argv[2])
     data = json.loads(src.read_text(encoding="utf-8"))

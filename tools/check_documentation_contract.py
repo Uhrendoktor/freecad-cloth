@@ -29,6 +29,7 @@ def _requires_api_docs(path: Path) -> bool:
 
 
 def check(path: Path) -> list[str]:
+    """Provide the public check operation."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError) as exc:
@@ -64,6 +65,7 @@ def check(path: Path) -> list[str]:
 
 
 def main() -> int:
+    """Provide the public main operation."""
     errors = [error for path in _python_files(sys.argv[1:]) for error in check(path)]
     if errors:
         print("\n".join(errors))

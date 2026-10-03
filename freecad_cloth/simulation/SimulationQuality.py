@@ -10,6 +10,8 @@ from dataclasses import dataclass, replace
 
 @dataclass(frozen=True)
 class SimulationQuality:
+    """Public data model or service class for SimulationQuality."""
+
     name: str
     particle_distance: float
     solver_iterations: int
@@ -55,6 +57,7 @@ class FabricMaterial:
     transparency: float = 0.0
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.density_g_m2 <= 0:
             raise ValueError("density must be positive")
         if self.thickness_mm <= 0:
@@ -77,10 +80,12 @@ class FabricMaterial:
     @property
     def mass_per_area_kg_mm2(self):
         # g/m^2 -> kg/mm^2
+        """Provide the public mass per area kg mm2 operation."""
         return self.density_g_m2 * 1e-9
 
 
 def preset(name: str) -> SimulationQuality:
+    """Provide the public preset operation."""
     try:
         return QUALITY_PRESETS[str(name)]
     except KeyError as exc:
@@ -98,6 +103,7 @@ def apply_quality(quality: SimulationQuality, *, iterations=None, substeps=None)
 
 
 def solver_parameters(quality: SimulationQuality, material: FabricMaterial):
+    """Provide the public solver parameters operation."""
     material.validate()
     quality = apply_quality(quality)
     return {

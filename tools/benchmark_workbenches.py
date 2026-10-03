@@ -36,16 +36,20 @@ class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
 
     def appendToolbar(self, _name, _commands):
+        """Provide the public appendToolbar operation."""
         return None
 
     def appendMenu(self, _name, _commands):
+        """Provide the public appendMenu operation."""
         return None
 
     def appendContextMenu(self, _name, _commands):
+        """Provide the public appendContextMenu operation."""
         return None
 
 
 def trace(message: str) -> None:
+    """Provide the public trace operation."""
     with (
         contextlib.suppress(OSError),
         pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8") as handle,
@@ -55,6 +59,7 @@ def trace(message: str) -> None:
 
 
 def fail(context: str, exc: BaseException) -> None:
+    """Provide the public fail operation."""
     detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     trace(f"benchmark: FAILURE: {context}: {exc!r}")
     with contextlib.suppress(OSError):
@@ -63,6 +68,7 @@ def fail(context: str, exc: BaseException) -> None:
 
 
 def source_lines(path: pathlib.Path) -> int:
+    """Provide the public source lines operation."""
     try:
         return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
     except (UnicodeDecodeError, OSError):
@@ -70,6 +76,7 @@ def source_lines(path: pathlib.Path) -> int:
 
 
 def static_metrics(name: str) -> dict:
+    """Provide the public static metrics operation."""
     directory = PACKAGE_DIRS[name]
     py_files = sorted(directory.glob("*.py"))
     tests = [
@@ -89,10 +96,12 @@ def static_metrics(name: str) -> dict:
 
 
 def median_ms(samples: list[float]) -> float:
+    """Provide the public median ms operation."""
     return round(statistics.median(samples) * 1000.0, 3)
 
 
 def runtime_metrics(name: str, repeats: int) -> dict:
+    """Provide the public runtime metrics operation."""
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
     try:
@@ -149,6 +158,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
 
 
 def close_gui():
+    """Provide the public close gui operation."""
     try:
         import FreeCADGui as Gui
         from PySide import QtWidgets
@@ -167,6 +177,7 @@ def close_gui():
 
 
 def main() -> None:
+    """Provide the public main operation."""
     trace("benchmark: script entered")
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")

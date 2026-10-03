@@ -22,6 +22,7 @@ METRIC_DEFINITIONS = {
 
 
 def metric_definition(name: str) -> dict:
+    """Provide the public metric definition operation."""
     key = str(name).strip().lower()
     try:
         return dict(METRIC_DEFINITIONS[key])
@@ -70,6 +71,7 @@ class DiagnosticResult:
     maximum: float
 
     def metric(self, name: str) -> tuple[float, ...]:
+        """Return the diagnostic metric represented by this result."""
         try:
             return getattr(self, str(name))
         except AttributeError as exc:

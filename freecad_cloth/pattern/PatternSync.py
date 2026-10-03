@@ -28,6 +28,7 @@ class PatternSourceSnapshot:
 
     @classmethod
     def from_graph(cls, graph: SeamGraph) -> "PatternSourceSnapshot":
+        """Provide the public from graph operation."""
         graph.validate()
         pieces = tuple(
             (
@@ -67,6 +68,7 @@ class PatternSourceSnapshot:
         return cls(digest, pieces, seams, transforms)
 
     def diff(self, newer: "PatternSourceSnapshot") -> "SnapshotDelta":
+        """Return the changes between snapshots."""
         if not isinstance(newer, PatternSourceSnapshot):
             raise TypeError("newer snapshot must be a PatternSourceSnapshot")
         old_pieces = {item[0]: item for item in self.pieces}
@@ -135,23 +137,28 @@ class SynchronizationState:
 
     @property
     def simulation_active(self) -> bool:
+        """Return whether simulation editing is active."""
         return self._simulation_active
 
     @property
     def active_snapshot(self):
+        """Return the active synchronized snapshot."""
         return self._active_snapshot
 
     def begin(self, snapshot: PatternSourceSnapshot) -> None:
+        """Begin a synchronized editing session."""
         if not isinstance(snapshot, PatternSourceSnapshot):
             raise TypeError("simulation snapshot must be a PatternSourceSnapshot")
         self._active_snapshot = snapshot
         self._simulation_active = True
 
     def end(self) -> None:
+        """End the synchronized editing session."""
         self._active_snapshot = None
         self._simulation_active = False
 
     def require_editable(self) -> None:
+        """Require the current state to be editable."""
         if self._simulation_active:
             raise SimulationLockedError(
                 "pattern/seam edits are disabled while simulation is active"

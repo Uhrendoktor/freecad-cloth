@@ -27,15 +27,19 @@ class AvatarProvider:
     info = AvatarProviderInfo("unknown", "Unknown", "unknown")
 
     def parameters(self):
+        """Return the current provider parameters."""
         raise NotImplementedError
 
     def surface(self):
+        """Return the current surface mesh."""
         raise NotImplementedError
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         raise NotImplementedError
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         raise NotImplementedError
 
 
@@ -48,15 +52,19 @@ class ParametricAvatarProvider(AvatarProvider):
         self._service = AvatarService(parameters)
 
     def parameters(self):
+        """Return the current provider parameters."""
         return self._service.parameters()
 
     def surface(self):
+        """Return the current surface mesh."""
         return self._service.surface()
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         return self._service.collision_mesh()
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         return self._service.landmarks()
 
 
@@ -86,16 +94,20 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
             raise ValueError("thickness must not be negative")
 
     def parameters(self):
+        """Return the current provider parameters."""
         return None
 
     def surface(self):
+        """Return the current surface mesh."""
         surface = collision_surface(self.source, self.deflection, self.thickness)
         return surface.vertices, surface.triangles
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         return self.surface()
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         return ()
 
 

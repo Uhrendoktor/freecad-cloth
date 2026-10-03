@@ -10,6 +10,8 @@ from freecad_cloth.pattern.PatternModel import Seam
 
 @dataclass(frozen=True)
 class Stitch:
+    """Public data model or service class for Stitch."""
+
     vertex_a: int
     vertex_b: int
     rest_length: float = 0.0
@@ -17,10 +19,13 @@ class Stitch:
 
 @dataclass(frozen=True)
 class SewingConstraintSet:
+    """Public data model or service class for SewingConstraintSet."""
+
     stitches: tuple[Stitch, ...]
     seam_map: dict[str, tuple[tuple[int, int], ...]]
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         for stitch in self.stitches:
             if stitch.vertex_a == stitch.vertex_b:
                 raise ValueError("a stitch cannot connect a vertex to itself")

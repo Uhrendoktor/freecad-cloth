@@ -26,6 +26,7 @@ class SewingMember:
     end: float = 1.0
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not str(self.piece_id).strip():
             raise ValueError("sewing member piece id must not be empty")
         if isinstance(self.edge, bool) or not isinstance(self.edge, int) or self.edge < 0:
@@ -207,6 +208,7 @@ class SewingNetworkProxy:
     Type = "ClothSewingNetwork"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
