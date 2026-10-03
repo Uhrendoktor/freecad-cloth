@@ -25,7 +25,8 @@ class DrapeGuiTests(unittest.TestCase):
     def test_panel_exposes_both_target_providers(self):
         self.assertIn('("Mannequin", "FreeCAD Geometry")', GUI)
         self.assertIn('getattr(obj, "AvatarType", "") == "ClothAvatar"', GUI)
-        self.assertIn('hasattr(obj, "Shape") or hasattr(obj, "Mesh")', GUI)
+        self.assertIn('hasattr(obj, "Shape")', GUI)
+        self.assertIn('hasattr(obj, "Mesh")', GUI)
 
     def test_quality_presets_are_explicit(self):
         self.assertIn('("Preview", 2.5)', GUI)
