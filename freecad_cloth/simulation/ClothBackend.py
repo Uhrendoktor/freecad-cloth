@@ -50,11 +50,7 @@ def validate_pinned_stitch_pairs(
     pinned = frozenset(int(index) for index in pinned_indices)
     if epsilon < 0.0:
         raise ValueError("stitch validation epsilon must be non-negative")
-    candidates = (
-        (record[0], pair)
-        for record in tuple(seam_pair_records)
-        for pair in record[3]
-    )
+    candidates = ((record[0], pair) for record in tuple(seam_pair_records) for pair in record[3])
     seen: set[tuple[int, int]] = set()
     for seam_id, pair in candidates:
         a, b = int(pair[0]), int(pair[1])
