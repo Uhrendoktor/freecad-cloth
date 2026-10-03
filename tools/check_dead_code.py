@@ -22,9 +22,9 @@ def allowed(path: Path) -> bool:
         relative = resolved.relative_to(ROOT)
     except ValueError:
         return False
-    return any(resolved.is_relative_to(root) for root in ALLOWED_ROOTS) and not relative.name.endswith(
-        ("Gui.py", "Commands.py", "workbench.py")
-    )
+    return any(
+        resolved.is_relative_to(root) for root in ALLOWED_ROOTS
+    ) and not relative.name.endswith(("Gui.py", "Commands.py", "workbench.py"))
 
 
 def main() -> int:
@@ -32,9 +32,7 @@ def main() -> int:
     paths = tuple(str(Path(value)) for value in sys.argv[1:] if allowed(Path(value)))
     if not paths:
         return 0
-    return subprocess.call(
-        [sys.executable, "-m", "vulture", "--min-confidence", "100", *paths]
-    )
+    return subprocess.call([sys.executable, "-m", "vulture", "--min-confidence", "100", *paths])
 
 
 if __name__ == "__main__":
