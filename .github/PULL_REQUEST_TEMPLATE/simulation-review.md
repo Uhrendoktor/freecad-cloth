@@ -1,6 +1,9 @@
 ## Scope
 <!-- One bounded hypothesis. State what is deliberately unchanged. -->
 
+## Current commit / governing issue
+<!-- State the exact head SHA and the one governing issue. -->
+
 ## Visual hypothesis
 <!-- What should a human see if the hypothesis is correct? -->
 
@@ -12,7 +15,8 @@ The canonical workflow will post actual rendered screenshots inline. Artifact ZI
 
 ## Numerical / provenance evidence
 
-## Supersession / historical context
+## Historical context
+<!-- Summarize only the historical evidence needed to interpret this exact change. Do not paste long issue/PR conversations. -->
 
 ## Acceptance
 - [ ] Actual screenshots are visible inline in the PR.
