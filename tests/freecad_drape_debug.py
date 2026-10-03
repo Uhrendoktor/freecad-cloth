@@ -180,7 +180,7 @@ def run():
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
 
-    backend_requested = os.environ.get("CLOTH_SIMULATION_BACKEND", "auto")
+    backend_requested = "tissu"
     log("backend=%s collision=%s" % (backend_requested, os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")))
 
     doc = App.newDocument("ClothDrapeDebug")
