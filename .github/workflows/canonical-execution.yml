@@ -68,7 +68,7 @@ jobs:
         run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
       - name: Upload selected execution mode evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runner-mode
           path: artifacts/runner-mode.txt
@@ -141,11 +141,11 @@ jobs:
           set -euo pipefail
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -383,7 +383,7 @@ jobs:
           PY
       - name: Upload contact diagnostics
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tissu-contact-diagnostics
           path: |
@@ -402,13 +402,13 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Report canonical runner mode
         run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -499,7 +499,7 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -507,7 +507,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/freecad_tunic_audit.py --syntax-check
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -579,7 +579,7 @@ jobs:
           grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sewing-creation-smoke
           path: artifacts/sewing-creation-smoke.log
@@ -596,11 +596,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -661,7 +661,7 @@ jobs:
           grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
       - name: Upload Sketcher acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sketcher-acceptance
           path: |
@@ -679,11 +679,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -734,7 +734,7 @@ jobs:
           grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
       - name: Upload pattern export evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pattern-production-export
           path: artifacts/pattern-production-export.log
@@ -757,11 +757,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -956,7 +956,7 @@ jobs:
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
       - name: Upload tunic visual audit
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tunic-visual-audit
           path: |
@@ -1037,11 +1037,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1180,7 +1180,7 @@ jobs:
           done
       - name: Upload README turntable evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: readme-turntables
           path: |
@@ -1215,11 +1215,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1307,7 +1307,7 @@ jobs:
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: blanket-visual-example
           path: |
@@ -1331,17 +1331,17 @@ jobs:
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
       - name: Download turntables
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: readme-turntables
           path: turntables
       - name: Download blanket visual example
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: blanket-visual-example
           path: blanket
       - name: Download tunic visual audit
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: tunic-visual-audit
           path: tunic
@@ -1439,7 +1439,7 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -1503,7 +1503,7 @@ jobs:
           "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: workbench-benchmark
           path: artifacts/workbench-benchmark
