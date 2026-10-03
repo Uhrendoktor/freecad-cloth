@@ -82,7 +82,7 @@ def _literal_commands(module_name):
         "PatternCommands": "freecad_cloth/pattern/PatternCommands",
         "SewingCommands": "freecad_cloth/sewing/SewingCommands",
         "SewingNetworkCommands": "freecad_cloth/sewing/SewingNetworkCommands",
-        "FittingCommands": "freecad_cloth/simulation/FittingCommands",
+        "FittingCommands": "freecad_cloth/avatar/FittingCommands",
         "AvatarCommands": "freecad_cloth/avatar/AvatarCommands",
         "SimulationCommands": "freecad_cloth/simulation/SimulationCommands",
     }
