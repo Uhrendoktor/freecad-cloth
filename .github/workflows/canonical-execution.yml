@@ -3,7 +3,7 @@ run-name: Canonical execution
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/architecture-tooling-docs]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -48,7 +48,7 @@ permissions:
 jobs:
   python_style_migration:
     name: One-time Ruff source normalization
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs' }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/agent/architecture-tooling-docs') || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/architecture-tooling-docs') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
