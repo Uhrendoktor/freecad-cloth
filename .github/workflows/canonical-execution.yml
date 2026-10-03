@@ -161,7 +161,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
@@ -204,7 +204,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
@@ -269,7 +269,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_TISSU_COLLISION_MODE=mesh -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
@@ -802,7 +802,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
@@ -1081,8 +1081,8 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
-            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
+            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
               set -euo pipefail
@@ -1457,7 +1457,7 @@ jobs:
           set -uo pipefail
           rm -rf artifacts/workbench-benchmark
           mkdir -p artifacts/workbench-benchmark
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
             mkdir -p "$XDG_RUNTIME_DIR"
