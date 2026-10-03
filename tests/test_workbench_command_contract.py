@@ -6,9 +6,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 _WORKBENCHES = {
-    "freecad_cloth.pattern.workbench": ("ClothPatternWorkbench", "Cloth Pattern", ("freecad_cloth.pattern.PatternCommands", "freecad_cloth.pattern.PatternMarks")),
-    "freecad_cloth.simulation.workbench": ("ClothSimulationWorkbench", "Cloth Simulation", ("freecad_cloth.simulation.SimulationCommands", "freecad_cloth.simulation.DrapeCommands")),
-    "freecad_cloth.sewing.workbench": ("ClothSewingWorkbench", "Cloth Sewing", ("freecad_cloth.sewing.SewingCommands", "freecad_cloth.sewing.SewingNetworkCommands", "freecad_cloth.avatar.FittingCommands", "freecad_cloth.avatar.AvatarCommands")),
+    "freecad_cloth.pattern.workbench": (
+        "ClothPatternWorkbench",
+        "Cloth Pattern",
+        ("freecad_cloth.pattern.PatternCommands", "freecad_cloth.pattern.PatternMarks"),
+    ),
+    "freecad_cloth.simulation.workbench": (
+        "ClothSimulationWorkbench",
+        "Cloth Simulation",
+        ("freecad_cloth.simulation.SimulationCommands", "freecad_cloth.simulation.DrapeCommands"),
+    ),
+    "freecad_cloth.sewing.workbench": (
+        "ClothSewingWorkbench",
+        "Cloth Sewing",
+        (
+            "freecad_cloth.sewing.SewingCommands",
+            "freecad_cloth.sewing.SewingNetworkCommands",
+            "freecad_cloth.avatar.FittingCommands",
+            "freecad_cloth.avatar.AvatarCommands",
+        ),
+    ),
 }
 
 
@@ -39,12 +56,24 @@ def test_init_gui_is_bootstrap_only():
     assert "from freecad_cloth.pattern.workbench import ClothPatternWorkbench" in source
     assert "from freecad_cloth.sewing.workbench import ClothSewingWorkbench" in source
     assert "from freecad_cloth.simulation.workbench import ClothSimulationWorkbench" in source
-    for legacy in ("import PatternCommands", "import SewingNetworkCommands", "import SewingNetworkGui", "import SimulationStaleGuard", "import DrapeTarget"):
+    for legacy in (
+        "import PatternCommands",
+        "import SewingNetworkCommands",
+        "import SewingNetworkGui",
+        "import SimulationStaleGuard",
+        "import DrapeTarget",
+    ):
         assert legacy not in source
 
 
 def test_all_implementation_python_files_are_inside_package_tree():
-    forbidden = {"PatternCommands.py", "SewingNetworkCommands.py", "SewingNetworkGui.py", "SimulationStaleGuard.py", "FittingCommands.py"}
+    forbidden = {
+        "PatternCommands.py",
+        "SewingNetworkCommands.py",
+        "SewingNetworkGui.py",
+        "SimulationStaleGuard.py",
+        "FittingCommands.py",
+    }
     root_python = {path.name for path in ROOT.glob("*.py")}
     assert root_python <= {"Init.py", "InitGui.py", "sitecustomize.py"}
     assert not root_python.intersection(forbidden)
