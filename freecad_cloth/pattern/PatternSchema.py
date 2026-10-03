@@ -19,9 +19,9 @@ class PatternDocument:
 
     pattern_id: str
     name: str
-    pieces: list[JSONRecord] = field(default_factory=list)
-    seams: list[JSONRecord] = field(default_factory=list)
-    metadata: JSONObject = field(default_factory=dict)
+    pieces: list[JSONRecord] = field(default_factory=lambda: cast(list[JSONRecord], []))
+    seams: list[JSONRecord] = field(default_factory=lambda: cast(list[JSONRecord], []))
+    metadata: JSONObject = field(default_factory=lambda: cast(JSONObject, {}))
     schema_version: int = SCHEMA_VERSION
 
     def validate(self) -> None:
@@ -73,10 +73,11 @@ def _records(raw: JSONObject, key: str) -> list[JSONRecord]:
     if not isinstance(value, list):
         raise ValueError(f"{key} must be a list")
     records: list[JSONRecord] = []
-    for item in value:
+    for item in cast(list[object], value):
         if not isinstance(item, dict):
             raise ValueError(f"every {key} entry must be an object")
-        records.append(dict(item))
+        mapping = cast(dict[object, object], item)
+        records.append({str(name): value for name, value in mapping.items()})
     return records
 
 
@@ -95,12 +96,13 @@ def loads(text: str) -> PatternDocument:
         raise ValueError("metadata must be an object")
     if type(schema_value) is not int:
         raise ValueError("schema_version must be an integer")
+    metadata_mapping = cast(dict[object, object], metadata_value)
     document = PatternDocument(
         pattern_id=_required_string(raw, "pattern_id"),
         name=_required_string(raw, "name"),
         pieces=_records(raw, "pieces"),
         seams=_records(raw, "seams"),
-        metadata=dict(metadata_value),
+        metadata={str(name): value for name, value in metadata_mapping.items()},
         schema_version=schema_value,
     )
     document.validate()
