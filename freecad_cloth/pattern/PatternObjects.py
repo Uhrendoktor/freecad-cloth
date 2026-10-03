@@ -1,7 +1,7 @@
 """FreeCAD document objects for the cloth pattern model."""
 import ast
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.sewing.SeamReference import (
+from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
