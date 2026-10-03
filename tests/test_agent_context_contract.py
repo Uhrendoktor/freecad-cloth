@@ -110,3 +110,21 @@ def test_dead_screenshot_runner_and_stack_inspection_are_removed():
     assert "freecad_screenshot.py" not in pattern_commands
     assert "inspect.stack" not in sitecustomize
     assert "freecad_screenshot.py" not in sitecustomize
+
+
+def test_live_state_files_are_compact_and_free_of_historical_issue_routing():
+    for path in (ROOT / "AGENT_STATUS.md", ROOT / "TOOL_STATE.md"):
+        text = path.read_text(encoding="utf-8")
+        assert len(text.splitlines()) <= 80
+        assert not re.search(r"#\d+", text)
+        assert "active_diagnostics" not in text
+        assert "completed_diagnostics" not in text
+        assert "supervisor_issue" not in text
+        assert "production_tissu_fix_merged" not in text
+        assert "main_head_at_audit" not in text
+
+
+def test_live_state_requires_current_head_verification():
+    status = (ROOT / "AGENT_STATUS.md").read_text(encoding="utf-8")
+    assert "Verify the checked-out branch and HEAD before treating any state as current." in status
+    assert "issue numbers, historical lane lists, or old commit baselines" in status
