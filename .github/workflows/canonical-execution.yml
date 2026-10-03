@@ -168,21 +168,21 @@ jobs:
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
               rm -f /workspace/artifacts/tissu-contact-diagnostics/app-run.log
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py > /workspace/artifacts/tissu-contact-diagnostics/app-run.log 2>&1 &
               APP_PID=$!
-              APP_DEADLINE=$((SECONDS + 300))
-              echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=300"
+              APP_DEADLINE=$((SECONDS + 45))
+              echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=45"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
-                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=45" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -210,14 +210,14 @@ jobs:
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/cube-ladder-run.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=3s 180s /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/cube-ladder-run.log
             '
       - name: Validate cube ladder artifact
         run: |
@@ -276,14 +276,14 @@ jobs:
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_avatar_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/avatar-ladder-run.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=3s 180s /opt/freecad/AppRun /workspace/tests/freecad_tissu_avatar_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/avatar-ladder-run.log
             '
       - name: Validate avatar ladder artifact
         run: |
@@ -422,7 +422,7 @@ jobs:
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g \
             -e PYTHONPATH=/workspace -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               test "$(python3 -c "import sys; print(sys.version_info[:2])")" = "(3, 12)"
               python3 -m compileall -q .
               python3 -m pytest --version
@@ -493,7 +493,7 @@ jobs:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Log selected execution mode
         run: |
@@ -534,14 +534,14 @@ jobs:
             -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
             '
       - name: Restore workspace from Docker volume
@@ -638,9 +638,9 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Restore workspace from Docker volume
@@ -706,14 +706,14 @@ jobs:
           mkdir -p artifacts
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
               test -s /workspace/artifacts/pattern-production-export.log
             '
       - name: Restore workspace from Docker volume
@@ -741,6 +741,39 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
+  tissu_runtime_publish:
+    name: Publish Tissu runtime image
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    needs: [local_runner_readiness]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable Tissu runtime image when absent
+        env:
+          TISSU_IMAGE_REPOSITORY: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci
+        run: |
+          set -euo pipefail
+          image_key="$(cat docker/freecad-ci/Dockerfile docker/freecad-ci/apply-tissu-contact-fix.py | sha256sum | awk '{print substr($1,1,16)}')"
+          image_ref="$TISSU_IMAGE_REPOSITORY:tissu-contact-fix-$image_key"
+          if docker pull "$image_ref"; then
+            echo "tissu-image=already-published ref=$image_ref"
+            exit 0
+          fi
+          docker build --pull --progress=plain -t "$image_ref" -f docker/freecad-ci/Dockerfile .
+          docker push "$image_ref"
+          echo "tissu-image=published ref=$image_ref"
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness]
@@ -762,10 +795,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build patched FreeCAD image
+      - name: Prepare Tissu runtime image
+        env:
+          TISSU_IMAGE_REPOSITORY: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci
         run: |
           set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+          image_key="$(cat docker/freecad-ci/Dockerfile docker/freecad-ci/apply-tissu-contact-fix.py | sha256sum | awk '{print substr($1,1,16)}')"
+          image_ref="$TISSU_IMAGE_REPOSITORY:tissu-contact-fix-$image_key"
+          if docker pull "$image_ref"; then
+            docker tag "$image_ref" "$FREECAD_TUNIC_IMAGE"
+            echo "tissu-image=published-cache-hit ref=$image_ref"
+          else
+            docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+            echo "tissu-image=local-rebuild-fallback ref=$image_ref"
+          fi
       - name: Capture Tissu provenance
         run: |
           set -euo pipefail
@@ -802,15 +845,16 @@ jobs:
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
+            -e CLOTH_TUNIC_SIMULATION_BUDGET_MS="$CLOTH_TUNIC_SIMULATION_BUDGET_MS" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
               set -u -o pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              : > /tmp/triangle-install.log
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/tunic-audit
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
 
               app_log=/workspace/artifacts/tunic-audit/freecad-tunic-audit.log
@@ -827,12 +871,12 @@ jobs:
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
               APP_PID=$!
               TIMED_OUT=0
-              APP_DEADLINE=$((SECONDS + 300))
-              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=300"
+              APP_DEADLINE=$((SECONDS + 60))
+              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=60"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
                   TIMED_OUT=1
-                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a "$app_log"
+                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=120" | tee -a "$app_log"
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -854,7 +898,7 @@ jobs:
                   echo "tunic-audit-termination=process-exit exit_code=$APP_STATUS"
                 fi
                 echo "--- freecad process snapshot ---"
-                ps -efww | grep -E '(/opt/freecad|FreeCAD|freecad_tunic)' | grep -v grep || true
+                ps -efww | grep -E "(/opt/freecad|FreeCAD|freecad_tunic)" | grep -v grep || true
                 echo "--- Xvfb log ---"
                 cat /tmp/xvfb.log || true
                 echo "--- openbox log ---"
@@ -870,7 +914,7 @@ jobs:
               fi
 
               echo "tunic-audit-supervisor=running-realtime-benchmark"
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/tunic-audit/freecad-realtime-benchmark.log 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=3s 15s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/tunic-audit/freecad-realtime-benchmark.log 2>&1
               BENCHMARK_STATUS=$?
               cat /workspace/artifacts/tunic-audit/freecad-realtime-benchmark.log
               if [ "$BENCHMARK_STATUS" -ne 0 ]; then
@@ -914,10 +958,11 @@ jobs:
           import json
           from pathlib import Path
           m = json.loads(Path("artifacts/freecad-realtime/metrics.json").read_text(encoding="utf-8"))
+          assert m["backend"] == "tissu", m
           assert m["finite"], m
           assert m["mean_frame_ms"] <= m["frame_budget_ms"], m
-          assert m["p95_frame_ms"] <= 50.0, m
-          print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
+          assert m["p95_frame_ms"] <= 33.333, m
+          print("realtime-performance=passed backend=%s mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["backend"], m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
           PY
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
           grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
@@ -1045,9 +1090,10 @@ jobs:
           gh pr comment "$PR_NUMBER" --body-file "$body"
   gui-turntables:
     name: README simulation turntable
-    needs: [local_runner_readiness]
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    needs: [local_runner_readiness, gui-tunic-visual]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 25
+    timeout-minutes: 10
     env:
       FREECAD_TISSU_IMAGE: freecad-cloth-ci:tissu-contact-fix
     steps:
@@ -1064,10 +1110,16 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build patched FreeCAD image
+      - name: Pull published Tissu image
+        env:
+          TISSU_IMAGE_REPOSITORY: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci
         run: |
           set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TISSU_IMAGE" -f docker/freecad-ci/Dockerfile .
+          image_key="$(cat docker/freecad-ci/Dockerfile docker/freecad-ci/apply-tissu-contact-fix.py | sha256sum | awk '{print substr($1,1,16)}')"
+          image_ref="$TISSU_IMAGE_REPOSITORY:tissu-contact-fix-$image_key"
+          docker pull "$image_ref"
+          docker tag "$image_ref" "$FREECAD_TISSU_IMAGE"
+          echo "tissu-image-ref=$image_ref"
       - name: Capture Tissu provenance
         run: |
           set -euo pipefail
@@ -1104,15 +1156,15 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              : > /tmp/triangle-install.log
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+              timeout --signal=TERM --kill-after=3s 15s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=3s 90s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -1225,6 +1277,7 @@ jobs:
 
   gui-visual-examples:
     name: Basic blanket visual example
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
@@ -1268,7 +1321,7 @@ jobs:
             -e CLOTH_SIMULATION_BACKEND=xpbd-cpu \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              python3 -c "import triangle; print(triangle.__file__)" >/tmp/triangle-install.log 2>&1
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
               mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
               rm -rf /tmp/freecad-mod
@@ -1277,9 +1330,9 @@ jobs:
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
+              timeout --signal=TERM --kill-after=3s 30s /opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -1448,9 +1501,8 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
-    needs: [local_runner_readiness]
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - name: Log selected execution mode
@@ -1482,12 +1534,12 @@ jobs:
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
             trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-            for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+            for i in $(seq 1 10); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.1; done
             xdpyinfo -display :99 >/dev/null 2>&1
             for wb in Pattern Sewing Simulation; do
               echo "=== benchmark: $wb ==="
               rm -f /tmp/cloth-benchmark-trace.log
-              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=10s 180s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
+              CLOTH_BENCHMARK_WORKBENCH="$wb" CLOTH_BENCHMARK_OUTPUT="artifacts/workbench-benchmark/$wb.json" CLOTH_BENCHMARK_REPEATS=7 timeout --signal=TERM --kill-after=3s 60s /opt/freecad/AppRun tests/freecad_workbench_benchmark.py
               test -s "artifacts/workbench-benchmark/$wb.json"
             done
           ')"
