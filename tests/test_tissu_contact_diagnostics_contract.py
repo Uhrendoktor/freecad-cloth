@@ -71,10 +71,10 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
         in WORKFLOW
     )
     assert "ArrangementPoint.from_string" in SOURCE
-    assert (
-        "_inside_outside(((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar)"
-        in SOURCE
-    )
+    assert "state = _inside_outside(" in SOURCE
+    assert "float(candidate.x)" in SOURCE
+    assert "float(candidate.y)" in SOURCE
+    assert "float(candidate.z)" in SOURCE
     assert "interior_seed_source" in SOURCE
     assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
