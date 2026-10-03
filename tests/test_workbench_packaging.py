@@ -53,8 +53,19 @@ def test_workbench_command_groups_are_declared_once():
 
 def test_addon_metadata_is_valid():
     root = ET.parse(ROOT / "package.xml").getroot()
-    assert root.tag == "package"
-    assert root.findtext("name") == "freecad-cloth"
-    assert root.findtext("version")
-    assert root.findtext("license")
-    assert root.findtext("url") == "https://github.com/Uhrendoktor/freecad-cloth"
+    namespace = "{https://wiki.freecad.org/Package_Metadata}"
+    assert root.tag == namespace + "package"
+    assert root.findtext(namespace + "name") == "FreeCAD Cloth"
+    assert root.findtext(namespace + "version") == "0.1.0"
+    assert root.findtext(namespace + "license") == "LGPL-2.1-or-later"
+    assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
+    workbenches = root.find(namespace + "content")
+    declared = {
+        item.findtext(namespace + "classname")
+        for item in workbenches.findall(namespace + "workbench")
+    }
+    assert declared == {
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+    }
