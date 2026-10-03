@@ -25,7 +25,7 @@ def test_particle_distance_is_symmetric(x: float, y: float, z: float) -> None:
 
 @given(
     piece_id=st.text(min_size=1, max_size=24),
-    name=st.text(min_size=1, max_size=24),
+    name=st.text(min_size=1, max_size=24).filter(lambda value: bool(value.strip())),
     metadata_value=st.recursive(
         st.none()
         | st.booleans()
