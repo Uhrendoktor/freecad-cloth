@@ -87,6 +87,7 @@ anchor = """    for batch in (15, 15, 15, 15, 15, 15):
         simulation_panel.step(batch)
         doc.recompute()
         events()
+"""
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 timed_anchor = """    from time import perf_counter
