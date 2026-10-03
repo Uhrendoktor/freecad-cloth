@@ -16,6 +16,16 @@ Use fully qualified package imports in implementation and tests, for example `fr
 
 Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation` own their domain implementations; `common` and `shared` contain only genuinely reusable contracts/utilities. Duplicate implementation files across packages are prohibited.
 
+## Python quality gates
+
+Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
+
+CI runs the full repository Ruff check and formatter check. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+
+## Documentation contract
+
+Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+
 ## Non-negotiable CI contract
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
@@ -42,7 +52,7 @@ Choose the smallest evidence set that proves the change:
 - FreeCAD document/API change → real FreeCAD smoke test;
 - task-panel/UI change → real FreeCAD/Xvfb scenario;
 - persistent data change → save/reload test;
-- simulation change → deterministic reference-solver regression;
+- simulation change → Tissu integration/solver regression and deterministic input-model tests;
 - screenshot-facing change → all canonical screenshot states remain valid;
 - backend/dependency change → import the dependency in the same Python 3.12 FreeCAD runtime used by CI.
 
@@ -76,7 +86,7 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 ## Prototype → MVP → production
 
-**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, CPU reference simulation, save/reload and invalidation.
+**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, Tissu simulation, save/reload and invalidation.
 
 **MVP:** make a repeatable garment workflow with robust semantic references/topology repair, 1:N/M:N/free sewing, arrangement points, mannequin measurements/poses, generic CAD targets, quality/material presets, pinning and production-oriented 2D output.
 
