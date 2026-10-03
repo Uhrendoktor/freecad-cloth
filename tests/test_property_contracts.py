@@ -32,8 +32,10 @@ def test_particle_distance_is_symmetric(x: float, y: float, z: float) -> None:
         | st.integers()
         | st.floats(allow_nan=False, allow_infinity=False)
         | st.text(),
-        lambda children: st.lists(children, max_size=3)
-        | st.dictionaries(st.text(max_size=8), children, max_size=3),
+        lambda children: (
+            st.lists(children, max_size=3)
+            | st.dictionaries(st.text(max_size=8), children, max_size=3)
+        ),
         max_leaves=12,
     ),
 )
