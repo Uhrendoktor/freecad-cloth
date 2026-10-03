@@ -273,7 +273,6 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             scene.TimeStep,
             scene.Iterations,
             (scene.GravityX, scene.GravityY, scene.GravityZ),
-            None,
             proxy.collision_surface,
         )
     ]
