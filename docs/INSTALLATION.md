@@ -4,9 +4,10 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository itself is 
 
 ## Requirements
 
-- FreeCAD with Python 3.12 for the canonical development/CI environment.
+- FreeCAD **1.1.0 or newer** for user installation; this minimum is declared in `package.xml`.
+- Python **3.12** for repository development/CI and the Tissu-capable canonical environment.
 - The Python package `triangle==20250106` for constrained pattern meshing.
-- Optional: Tissu is used by the canonical visual regression path when the environment provides it. The reference CPU backend remains the fallback.
+- Tissu is optional for ordinary installations; the deterministic CPU backend remains the fallback when Tissu is unavailable.
 - A FreeCAD GUI session is required for the visual workbench tests.
 
 The repository publishes its exact CI image and dependency versions in `.github/workflows/canonical-execution.yml` and `docker/freecad-ci/Dockerfile`.
@@ -19,6 +20,8 @@ The repository publishes its exact CI image and dependency versions in `.github/
 4. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
 
 The repository supports both FreeCAD loader layouts: the classic root `Init.py`/`InitGui.py` layout for direct `Mod/freecad-cloth/` installation and the modern namespaced `freecad/freecad_cloth/` layout used by FreeCAD's package-aware loader. Both load the same `freecad_cloth/` implementation package.
+
+`package.xml` is the FreeCAD Addon Manager manifest. `pyproject.toml` describes the Python distribution/development environment; it is not the Addon Manager's installer manifest and its version/runtime fields should not be mechanically copied into `package.xml`.
 
 For an existing installation, remove the previous `freecad-cloth` directory before replacing it so stale Python modules cannot remain on the module search path.
 
