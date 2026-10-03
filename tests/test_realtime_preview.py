@@ -13,5 +13,6 @@ assert "def stop_realtime_preview" in source
 assert "QTimer" in source
 assert "ClothRealtimePreview" in source
 assert "RealtimePreview" in workbench
+assert "stitch_compliance=float(getattr(base.backend, "_stitch_compliance", 0.0))" in source
 assert "ClothRealtimePreview" in workbench
 print("realtime preview contract: ok")
