@@ -101,3 +101,32 @@ def test_canonical_workflow_keeps_simple_local_first_fallback():
     assert "runner_heartbeat:" not in workflow
     assert "sketcher-startup-diagnostic:" not in workflow
     assert "*/5 * * * *" not in workflow
+
+
+
+def test_seam_graph_has_one_canonical_implementation():
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "freecad_cloth" / "sewing" / "SeamGraph.py").is_file()
+    assert not (root / "freecad_cloth" / "pattern" / "SeamGraph.py").exists()
+
+
+def test_pattern_domain_does_not_import_seam_reference_through_compatibility_namespace():
+    root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for path in root.glob("freecad_cloth/**/*.py"):
+        if path.as_posix().endswith("freecad_cloth/sewing/SeamReference.py"):
+            continue
+        source = path.read_text(encoding="utf-8")
+        if "from freecad_cloth.sewing.SeamReference import" in source:
+            offenders.append(path.as_posix())
+    assert not offenders, offenders
+
+
+def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
+    root = Path(__file__).resolve().parents[1]
+    classic = (root / "InitGui.py").read_text(encoding="utf-8")
+    modern = (root / "freecad" / "freecad_cloth" / "init_gui.py").read_text(encoding="utf-8")
+    for workbench in ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"):
+        assert workbench in classic
+        assert workbench in modern
+    assert "loader layouts" in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
