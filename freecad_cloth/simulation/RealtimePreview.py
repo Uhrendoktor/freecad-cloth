@@ -84,6 +84,7 @@ def _select_preview_backend(scene):
         pins=pins,
         stitches=stitches,
         collision_surface=collision_surface,
+        stitch_compliance=float(getattr(base.backend, "_stitch_compliance", 0.0)),
     )
     base.backend = backend
     base.last_steps = 0
