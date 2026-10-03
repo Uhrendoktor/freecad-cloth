@@ -1,18 +1,21 @@
 [importlinter]
 root_package = freecad_cloth
 
-[contract:forbidden]
+[importlinter:contract:pattern-no-simulation]
 name = Pattern must not depend on Simulation
+type = forbidden
 source_modules = freecad_cloth.pattern
 forbidden_modules = freecad_cloth.simulation
 
-[contract:forbidden]
+[importlinter:contract:sewing-no-simulation]
 name = Sewing must not depend on Simulation
+type = forbidden
 source_modules = freecad_cloth.sewing
 forbidden_modules = freecad_cloth.simulation
 
-[contract:forbidden]
+[importlinter:contract:shared-no-domain]
 name = Shared contracts must not depend on domain packages
+type = forbidden
 source_modules = freecad_cloth.shared
 forbidden_modules =
     freecad_cloth.pattern
