@@ -55,12 +55,10 @@ class ClothSystem:
     ):
         self.particles = list(particles)
         self.constraints = list(constraints)
-        self.stitches = list(stitches)
+        self.stitches = []
         self.pins = {}
-        self.add_stitches(())
+        self.add_stitches(stitches)
         self.pin(pins)
-        if stitches:
-            self.add_stitches(stitches)
 
     @classmethod
     def grid(
