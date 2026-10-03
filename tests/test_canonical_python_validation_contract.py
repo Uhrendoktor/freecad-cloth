@@ -12,9 +12,13 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     pytest_start = workflow.index(pytest_marker)
     pytest_end = workflow.index("\n            '", pytest_start)
     pytest_list = workflow[pytest_start:pytest_end]
-    assert "tests/test_tunic_audit_contract.py" in pytest_list
-    assert "tests/test_readme_visual_contract.py" in pytest_list
-    assert "tests/test_cloth_diagnostics.py" in pytest_list
+    for module in (
+        "tests/test_tunic_audit_contract.py",
+        "tests/test_readme_visual_contract.py",
+        "tests/test_cloth_diagnostics.py",
+        "tests/test_canonical_python_validation_contract.py",
+    ):
+        assert module in pytest_list
     assert "python3 -m pytest -q" in pytest_list
     assert 'python3 "$test"' in workflow
 
@@ -29,13 +33,18 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    start = workflow.index("      - name: Publish inline simulation evidence for human review")
+    start = workflow.index("  publish-pr-simulation-evidence:")
     end = workflow.index("  gui-turntables:", start)
     publisher = workflow[start:end]
-    assert (
-        "EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-        in publisher
-    )
+    assert "EVIDENCE_HEAD: ${{ github.event.pull_request.head.sha }}" in publisher
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in publisher
+    assert "actions/download-artifact@" in publisher
+    assert "Publish rendered evidence without executing PR code" in publisher
+    assert "git clone --filter=blob:none --no-checkout" in publisher
+    assert "git checkout --detach origin/main" in publisher
+    assert 'git push origin "HEAD:$evidence_branch"' in publisher
+    assert 'gh pr comment "$PR_NUMBER" --body-file "$body"' in publisher
+    assert "http.extraheader" not in publisher
     assert 'git remote set-url origin "https://github.com/$REPOSITORY.git"' in publisher
     assert "gh auth setup-git" in publisher
     assert (
