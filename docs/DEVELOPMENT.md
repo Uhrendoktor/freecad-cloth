@@ -96,6 +96,6 @@ Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are current-state summa
 
 ## Simulation review evidence
 
-Simulation changes are governed by [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) and root issue #2492. Actual rendered screenshots are the primary human-review evidence; logs, metrics and artifact archives are secondary.
+Simulation changes are governed by [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) and the current coordination ledger named in `AGENT_STATUS.md`. Actual rendered screenshots are the primary human-review evidence; logs, metrics and artifact archives are secondary.
 
 A simulation change is not considered visually reviewed until a human records what the rendered geometry does and the screenshots correspond to the exact commit under discussion. Fork PRs do not receive write credentials for evidence publication; contributors must attach the rendered evidence manually in the governing PR/issue.
