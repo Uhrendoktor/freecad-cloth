@@ -4,12 +4,9 @@ import ast
 from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
-from freecad_cloth.sewing.workbench import (
-    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-    TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS,
-    ClothSewingWorkbench,
-    _validate_sewing_command_groups,
-)
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
+from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS
+from freecad_cloth.sewing.workbench import ClothSewingWorkbench, _validate_sewing_command_groups
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
