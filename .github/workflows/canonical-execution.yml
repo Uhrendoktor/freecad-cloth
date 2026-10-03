@@ -68,7 +68,7 @@ jobs:
             echo 'main-is-already-ancestor'
             exit 0
           fi
-          git merge -X ours --no-edit origin/main
+          git merge --no-edit origin/main
           git push origin HEAD:agent/architecture-tooling-docs
   python_style_migration:
     name: One-time Ruff source normalization
