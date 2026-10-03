@@ -1,6 +1,8 @@
 """Benchmark the production FreeCAD realtime preview loop at interactive quality."""
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -24,10 +26,17 @@ def main():
     doc = App.newDocument("ClothRealtimeBenchmark")
     try:
         init_gui = ROOT / "InitGui.py"
-        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+        exec(
+            compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
+            globals(),
+            globals(),
+        )
         Gui.updateGui()
         from freecad_cloth.simulation.RealtimePreview import _prepare
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
+        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+            create_quality_simulation_scene,
+        )
+
         scene = create_quality_simulation_scene(doc)
         _prepare(scene)
         backend = scene.Proxy._base_or_restore().backend
@@ -63,13 +72,15 @@ def main():
         }
         (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, sort_keys=True), flush=True)
-        if not result["finite"] or result["mean_frame_ms"] > FRAME_BUDGET_MS or result["p95_frame_ms"] > 50.0:
+        if (
+            not result["finite"]
+            or result["mean_frame_ms"] > FRAME_BUDGET_MS
+            or result["p95_frame_ms"] > 50.0
+        ):
             raise SystemExit(2)
     finally:
-        try:
+        with contextlib.suppress(Exception):
             App.closeDocument(doc.Name)
-        except Exception:
-            pass
         try:
             window = Gui.getMainWindow()
             if window is not None:

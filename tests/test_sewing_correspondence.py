@@ -11,9 +11,9 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_REVERSED,
     STATUS_VALID,
     analyze_correspondence,
+    arc_length_vertex_indices,
     correspondence_recovery,
     correspondence_samples,
-    arc_length_vertex_indices,
     map_parameter,
 )
 
@@ -58,7 +58,7 @@ def test_samples_are_deterministic_and_include_endpoints():
     expected = ((0.2, 0.8), (0.4, 0.6), (0.6, 0.4), (0.8, 0.2))
     actual = correspondence_samples(4, 0.2, 0.8, 0.2, 0.8, True)
     assert len(actual) == len(expected)
-    for actual_pair, expected_pair in zip(actual, expected):
+    for actual_pair, expected_pair in zip(actual, expected, strict=False):
         assert actual_pair == pytest.approx(expected_pair)
 
 

@@ -32,6 +32,7 @@ def _standing_visual_parameters(params):
 
 _original_generate_mesh = _AvatarModel.generate_mesh
 if not getattr(_original_generate_mesh, "_cloth_avatar_mesh_sane", False):
+
     def _generate_mesh_sane(params):
         visual_params = _standing_visual_parameters(params)
         vertices, triangles, landmarks = _HierarchicalPose.generate_hierarchical_mesh(visual_params)

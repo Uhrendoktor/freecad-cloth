@@ -7,10 +7,9 @@ headless validation, and future mesh adapters without creating a second seam
 model.
 """
 
-from dataclasses import dataclass
 import bisect
 import math
-
+from dataclasses import dataclass
 
 STATUS_VALID = "valid"
 STATUS_REVERSED = "reversed"
@@ -68,6 +67,7 @@ def correspondence_status_label(report: CorrespondenceReport) -> str:
         return "Invalid range"
     return "Invalid"
 
+
 def correspondence_recovery(status: str) -> str:
     """Return deterministic recovery guidance for a correspondence status."""
     return {
@@ -79,11 +79,7 @@ def correspondence_recovery(status: str) -> str:
 
 
 def _range_is_valid(start: float, end: float) -> bool:
-    return (
-        math.isfinite(start)
-        and math.isfinite(end)
-        and 0.0 <= start < end <= 1.0
-    )
+    return math.isfinite(start) and math.isfinite(end) and 0.0 <= start < end <= 1.0
 
 
 def analyze_correspondence(
@@ -130,8 +126,7 @@ def analyze_correspondence(
     if relative_difference > length_tolerance:
         return CorrespondenceReport(
             STATUS_LENGTH_MISMATCH,
-            "seam lengths differ by %.2f%% (limit %.2f%%)"
-            % (relative_difference * 100.0, length_tolerance * 100.0),
+            f"seam lengths differ by {relative_difference * 100.0:.2f}% (limit {length_tolerance * 100.0:.2f}%)",
             float(length_a),
             float(length_b),
             float(ratio),
@@ -157,7 +152,6 @@ def analyze_correspondence(
     )
 
 
-
 def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
     """Select existing edge vertices by physical arc length over a normalized range."""
     if int(count) < 2:
@@ -180,10 +174,10 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         raise ValueError("arc-length sampling points must be finite")
 
     cumulative = [0.0]
-    for first, second in zip(points, points[1:]):
+    for first, second in zip(points, points[1:], strict=False):
         cumulative.append(
             cumulative[-1]
-            + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second)))
+            + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second, strict=False)))
         )
     total = cumulative[-1]
     if total <= 0.0:
@@ -253,6 +247,8 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
         result.append(index)
 
     return tuple(values[index] for index in result)
+
+
 def map_parameter(
     parameter_a: float,
     start_a: float = 0.0,

@@ -4,10 +4,11 @@ The checks are intentionally geometry-only and solver-neutral. They are useful
 for deciding whether a generated avatar can meaningfully serve as a visual
 reference target before a garment simulation is evaluated.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 
 class AvatarVisualSanityError(ValueError):
@@ -41,7 +42,10 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
     if any(len(point) != 3 for point in vertices):
         raise AvatarVisualSanityError("avatar vertices must be 3D coordinates")
     vertex_count = len(vertices)
-    if any(len(tri) != 3 or any(int(index) < 0 or int(index) >= vertex_count for index in tri) for tri in triangles):
+    if any(
+        len(tri) != 3 or any(int(index) < 0 or int(index) >= vertex_count for index in tri)
+        for tri in triangles
+    ):
         raise AvatarVisualSanityError("avatar mesh contains an invalid triangle index")
 
     mins = tuple(min(float(point[axis]) for point in vertices) for axis in range(3))
@@ -57,12 +61,12 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
             raise AvatarVisualSanityError("expected avatar height must be positive")
         if not math.isclose(height, expected_height, rel_tol=0.02, abs_tol=1.0):
             raise AvatarVisualSanityError(
-                "avatar height %.3f differs from expected %.3f" % (height, expected_height)
+                f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
             )
 
     ratio = width / height
     if ratio > float(max_lateral_height_ratio):
         raise AvatarVisualSanityError(
-            "avatar lateral span %.3f is too large for height %.3f" % (width, height)
+            f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
         )
     return AvatarVisualSanity(height, width, depth, len(triangles), ratio)

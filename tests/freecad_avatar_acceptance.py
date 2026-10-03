@@ -1,4 +1,6 @@
 """Canonical FreeCAD/Xvfb acceptance for avatar provider lifecycle."""
+
+import contextlib
 import os
 import tempfile
 
@@ -39,7 +41,9 @@ def _mesh_topology(mesh):
     if topology is None:
         raise RuntimeError("avatar mesh topology is unavailable")
     vertices, triangles = topology
-    return tuple(tuple(float(c) for c in vertex) for vertex in vertices), tuple(tuple(int(i) for i in tri) for tri in triangles)
+    return tuple(tuple(float(c) for c in vertex) for vertex in vertices), tuple(
+        tuple(int(i) for i in tri) for tri in triangles
+    )
 
 
 def run_acceptance():
@@ -66,7 +70,9 @@ def run_acceptance():
         if avatar_mesh is None:
             raise RuntimeError("generated mannequin has no mesh")
         vertices, triangles = _mesh_topology(avatar_mesh)
-        sanity = inspect_avatar_mesh(vertices, triangles, expected_height=float(getattr(avatar, "Height", 1750.0)))
+        sanity = inspect_avatar_mesh(
+            vertices, triangles, expected_height=float(getattr(avatar, "Height", 1750.0))
+        )
         if sanity.triangle_count < 100:
             raise RuntimeError("generated mannequin mesh is implausibly small")
         identity = avatar.Name
@@ -147,10 +153,8 @@ def run_acceptance():
         if doc is not None and doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
         if path:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(path)
-            except OSError:
-                pass
 
 
 if __name__ == "__main__":

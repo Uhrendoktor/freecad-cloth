@@ -4,6 +4,7 @@ FreeCAD requires ``InitGui.py`` at the workbench root when the repository is
 installed directly as a Mod. All workbench implementation remains under the
 ``freecad_cloth`` package tree.
 """
+
 from pathlib import Path
 
 try:
@@ -13,7 +14,6 @@ except ImportError:
 
 # Install the target execute/recompute guard before GUI workbench activation.
 import freecad_cloth.simulation.DrapeTarget  # noqa: F401
-
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench

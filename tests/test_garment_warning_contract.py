@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -20,22 +19,23 @@ def test_fitting_pattern_links_are_explicitly_global_and_visual_sync_is_not_recu
     assert "Document.recompute()" not in source[start:end]
 
 
-
-
 def test_fitting_visual_outputs_are_non_dependency_name_references():
     source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert 'App::PropertyStringList", "ArrangementPointObjects"' in source
     assert 'App::PropertyStringList", "BoundingVolumeObjects"' in source
-    assert 'scene.ArrangementPointObjects = [obj.Name for obj in point_objects]' in source
-    assert 'scene.BoundingVolumeObjects = [obj.Name for obj in volume_objects]' in source
+    assert "scene.ArrangementPointObjects = [obj.Name for obj in point_objects]" in source
+    assert "scene.BoundingVolumeObjects = [obj.Name for obj in volume_objects]" in source
     start = source.index("def _migrate_visual_output_references")
     end = source.index("def create_fitting_scene")
     helper = source[start:end]
-    assert 'removeProperty(name)' in helper
-    assert 'App::PropertyStringList' in helper
+    assert "removeProperty(name)" in helper
+    assert "App::PropertyStringList" in helper
+
 
 def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment_roles():
-    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
+    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(
+        encoding="utf-8"
+    )
     assert 'App::PropertyLinkListGlobal", "ClothPieces"' in source
     assert 'App::PropertyLinkListGlobal", "DrapePanels"' in source
     assert 'App::PropertyLinkGlobal", "DrapeTarget"' in source

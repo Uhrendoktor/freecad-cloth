@@ -1,7 +1,13 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
+from freecad_cloth.avatar.AvatarModel import (
+    DEFAULT_MEASUREMENTS,
+    AvatarParameters,
+    Pose,
+    generate_mesh,
+)
 
 
 def test_default_avatar_is_valid_and_deterministic():
@@ -11,7 +17,14 @@ def test_default_avatar_is_valid_and_deterministic():
     assert first == second
     assert len(first[0]) > 100
     assert len(first[1]) > 100
-    assert {landmark.name for landmark in first[2]} >= {"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"}
+    assert {landmark.name for landmark in first[2]} >= {
+        "neck",
+        "chest",
+        "waist",
+        "hip",
+        "shoulder_left",
+        "shoulder_right",
+    }
 
 
 def test_measurement_change_changes_geometry_without_mutating_source():

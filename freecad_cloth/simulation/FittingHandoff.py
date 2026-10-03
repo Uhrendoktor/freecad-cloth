@@ -8,7 +8,11 @@ same persistent DrapeTarget into fitting, preserving HomePlacements/Reset.
 
 def _fitting_scene(doc):
     return next(
-        (obj for obj in getattr(doc, "Objects", ()) if getattr(obj, "FittingType", "") == "FittingScene"),
+        (
+            obj
+            for obj in getattr(doc, "Objects", ())
+            if getattr(obj, "FittingType", "") == "FittingScene"
+        ),
         None,
     )
 
@@ -27,7 +31,12 @@ def fitting_stage_status(simulation):
     state = str(getattr(fitting, "FitStatus", "Unassigned"))
     noun = "piece" if pieces == 1 else "pieces"
     message = "%s | %d %s assigned | %d/%d saved placement(s) | %d arrangement point(s)" % (
-        state, pieces, noun, placements, pieces, points,
+        state,
+        pieces,
+        noun,
+        placements,
+        pieces,
+        points,
     )
     return message, bool(tuple(getattr(fitting, "HomePlacements", ()) or ()))
 
@@ -36,10 +45,12 @@ def open_arrange_fit_from_simulation(simulation):
     """Open the existing fitting stage for the simulation's pieces and target."""
     import FreeCAD as App
     import FreeCADGui as Gui
+
     doc = getattr(simulation, "Document", None) or App.ActiveDocument
     if doc is None:
         raise RuntimeError("open a document before opening Arrange / Fit")
     from freecad_cloth.avatar import FittingCommands
+
     fitting = FittingCommands.create_fitting_scene()
     target = getattr(simulation, "DrapeTarget", None)
     if target is not None:
@@ -62,4 +73,5 @@ def open_arrange_fit_from_simulation(simulation):
 def reset_arrangement_from_simulation():
     """Reset the existing fitting scene to its saved home placements."""
     from freecad_cloth.avatar import FittingCommands
+
     return FittingCommands.reset_arrangement()

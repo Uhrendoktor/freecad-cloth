@@ -8,12 +8,13 @@ geometry signature and resolves only an exact id/signature match.
 The module is FreeCAD-independent so it can be used by document adapters and
 headless tests without importing the GUI runtime.
 """
-from dataclasses import dataclass
+
 import hashlib
 import json
-from typing import Iterable, Mapping, Sequence, Tuple
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
 
@@ -22,8 +23,7 @@ def _normalize_provenance(value, precision=9):
     """Convert native PatternIR provenance into deterministic JSON data."""
     if isinstance(value, Mapping):
         return {
-            str(key): _normalize_provenance(value[key], precision)
-            for key in sorted(value, key=str)
+            str(key): _normalize_provenance(value[key], precision) for key in sorted(value, key=str)
         }
     if isinstance(value, (list, tuple)):
         return [_normalize_provenance(item, precision) for item in value]
@@ -78,7 +78,7 @@ class EdgeReference:
                 str(value["signature"]),
             )
         except KeyError as exc:
-            raise ValueError("edge reference is missing %s" % exc.args[0]) from exc
+            raise ValueError(f"edge reference is missing {exc.args[0]}") from exc
 
 
 def semantic_edge_id(piece_id: str, ordinal: int) -> str:
@@ -100,8 +100,7 @@ def edge_signature(
     if len(points) < 2:
         raise ValueError("an edge needs at least two points")
     normalized = [
-        (round(float(point[0]), precision), round(float(point[1]), precision))
-        for point in points
+        (round(float(point[0]), precision), round(float(point[1]), precision)) for point in points
     ]
     if provenance is None:
         payload = normalized
@@ -146,24 +145,29 @@ def resolve_edge_reference(
     changed geometry raises an explicit error rather than returning another
     edge with a coincidentally similar ordinal.
     """
-    candidates = [edge for edge in edges if str(edge.get("piece_id", reference.piece_id)) == reference.piece_id]
-    match = next((edge for edge in candidates if str(edge.get("id", "")) == reference.edge_id), None)
+    candidates = [
+        edge
+        for edge in edges
+        if str(edge.get("piece_id", reference.piece_id)) == reference.piece_id
+    ]
+    match = next(
+        (edge for edge in candidates if str(edge.get("id", "")) == reference.edge_id), None
+    )
     if match is None:
         raise MissingEdgeReference(
-            "semantic edge reference %s is missing from pattern piece %s"
-            % (reference.edge_id, reference.piece_id)
+            f"semantic edge reference {reference.edge_id} is missing from pattern piece {reference.piece_id}"
         )
     points = match.get("points")
     if points is None:
         raise ChangedEdgeReference(
-            "semantic edge reference %s has no current geometry" % reference.edge_id
+            f"semantic edge reference {reference.edge_id} has no current geometry"
         )
     native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
     provenance = match.get("provenance") if native_reference else None
     current = edge_signature(points, provenance=provenance)
     if current != reference.signature:
         raise ChangedEdgeReference(
-            "semantic edge reference %s geometry/provenance changed" % reference.edge_id
+            f"semantic edge reference {reference.edge_id} geometry/provenance changed"
         )
     return match
 

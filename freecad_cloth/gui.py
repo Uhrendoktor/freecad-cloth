@@ -41,7 +41,9 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
             group_commands = self.normalize_commands(commands)
             duplicates = [c for c in group_commands if c in seen]
             if duplicates:
-                raise ValueError("commands registered in multiple groups: %s" % ", ".join(duplicates))
+                raise ValueError(
+                    "commands registered in multiple groups: {}".format(", ".join(duplicates))
+                )
             if group_name and group_commands:
                 normalized.append((str(group_name), group_commands))
                 seen.extend(group_commands)

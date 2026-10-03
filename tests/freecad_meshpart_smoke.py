@@ -1,6 +1,8 @@
 """Real FreeCAD smoke test for the optional MeshPart pattern adapter."""
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import rectangle

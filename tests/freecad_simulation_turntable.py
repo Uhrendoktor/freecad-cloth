@@ -1,4 +1,5 @@
 """Render a deterministic simple blanket-over-cube simulation for the README."""
+
 import hashlib
 import os
 import sys
@@ -10,6 +11,7 @@ ROOT = "/workspace"
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
 try:
     from PySide import QtWidgets
 except ImportError:
@@ -19,18 +21,23 @@ from pivy import coin
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+import contextlib
+
 from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-
 
 # Keep the README turntable on the same geometry-appropriate collision path as
 # the standalone blanket acceptance when the target is generic FreeCAD geometry.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-BLANKET_SIZE = 200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
-BLANKET_PARTICLE_DISTANCE = 16.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
+BLANKET_SIZE = (
+    200.0  # Validated 200 mm release fixture; keep pins/placement derived from this value.
+)
+BLANKET_PARTICLE_DISTANCE = (
+    16.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
+)
 BLANKET_START_Z = 95.0  # Validated README release fixture baseline.
 # The README fixture uses the same pinned Tissu mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
@@ -61,9 +68,9 @@ def _png_has_visible_content(path):
     width = height = bit_depth = color_type = None
     compressed = bytearray()
     while offset + 8 <= len(raw):
-        length = struct.unpack(">I", raw[offset:offset + 4])[0]
-        kind = raw[offset + 4:offset + 8]
-        payload = raw[offset + 8:offset + 8 + length]
+        length = struct.unpack(">I", raw[offset : offset + 4])[0]
+        kind = raw[offset + 4 : offset + 8]
+        payload = raw[offset + 8 : offset + 8 + length]
         offset += 12 + length
         if kind == b"IHDR":
             width, height, bit_depth, color_type = struct.unpack(">IIBB", payload[:10])
@@ -73,7 +80,13 @@ def _png_has_visible_content(path):
             compressed.extend(payload)
         elif kind == b"IEND":
             break
-    if width != 640 or height != 480 or bit_depth != 8 or color_type not in (2, 6) or not compressed:
+    if (
+        width != 640
+        or height != 480
+        or bit_depth != 8
+        or color_type not in (2, 6)
+        or not compressed
+    ):
         return False
     channels = 4 if color_type == 6 else 3
     stride = width * channels
@@ -86,7 +99,7 @@ def _png_has_visible_content(path):
     for _ in range(height):
         filter_type = data[index]
         index += 1
-        row = bytearray(data[index:index + stride])
+        row = bytearray(data[index : index + stride])
         index += stride
         for col in range(stride):
             left = row[col - channels] if col >= channels else 0
@@ -109,7 +122,7 @@ def _png_has_visible_content(path):
                 return False
         for pixel in range(width):
             base = pixel * channels
-            if max(row[base:base + 3]) < 245:
+            if max(row[base : base + 3]) < 245:
                 visible += 1
                 if visible >= 1000:
                     return True
@@ -127,7 +140,7 @@ def wait_for_gui_ready(timeout_seconds=15.0):
             return window
         events()
         time.sleep(0.05)
-    raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
+    raise RuntimeError(f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s")
 
 
 def save_png(view, path, state):
@@ -159,12 +172,11 @@ def save_png(view, path, state):
                     return
             log("png-capture=retry state=%s attempts=%d" % (state, capture_index))
         finally:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(temp_path)
-            except FileNotFoundError:
-                pass
         time.sleep(0.05)
-    raise RuntimeError("PNG capture contains no visible rendered content for %s" % state)
+    raise RuntimeError(f"PNG capture contains no visible rendered content for {state}")
+
 
 def combined_center(objects):
     boxes = []
@@ -227,7 +239,9 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         # Start from a cloth-visible angle, then cover a full 360 degrees
         # without duplicating frame 000 at the end.
         angle = start_angle + 2.0 * pi * frame / frame_total
-        camera.position = coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
+        camera.position = (
+            coin.SbRotation(coin.SbVec3f(0.0, 0.0, 1.0), angle).multVec(base_offset) + target
+        )
         camera.pointAt(target, up)
         if hasattr(view, "redraw"):
             view.redraw()
@@ -242,7 +256,7 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
                 % (frame_dir, frame + 1, frame_total, 1000.0 * (time.monotonic() - stage_started))
             )
     if len(frame_hashes) != frame_total or len(set(frame_hashes)) != frame_total:
-        raise RuntimeError("turntable frames are not all distinct: %s" % frame_dir)
+        raise RuntimeError(f"turntable frames are not all distinct: {frame_dir}")
     camera.position = base_position
     camera.pointAt(target, up)
     if hasattr(view, "redraw"):
@@ -258,6 +272,7 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
 def _make_rectangle_sketch(doc, name, width, height):
     import Part
     import Sketcher
+
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     points = (
         (-0.5 * width, -0.5 * height),
@@ -265,21 +280,26 @@ def _make_rectangle_sketch(doc, name, width, height):
         (0.5 * width, 0.5 * height),
         (-0.5 * width, 0.5 * height),
     )
-    sketch.addGeometry([
-        Part.LineSegment(
-            App.Vector(points[i][0], points[i][1], 0),
-            App.Vector(points[(i + 1) % 4][0], points[(i + 1) % 4][1], 0),
-        ) for i in range(4)
-    ], False)
-    sketch.addConstraint([
-        Sketcher.Constraint("Coincident", i, 2, (i + 1) % 4, 1) for i in range(4)
-    ])
+    sketch.addGeometry(
+        [
+            Part.LineSegment(
+                App.Vector(points[i][0], points[i][1], 0),
+                App.Vector(points[(i + 1) % 4][0], points[(i + 1) % 4][1], 0),
+            )
+            for i in range(4)
+        ],
+        False,
+    )
+    sketch.addConstraint(
+        [Sketcher.Constraint("Coincident", i, 2, (i + 1) % 4, 1) for i in range(4)]
+    )
     doc.recompute()
     return sketch
 
 
 def _adopt_sketch(sketch, name):
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
     piece = create_pattern_piece_from_selected_sketch(name=name, allowance=5.0, grainline=0.0)
@@ -298,11 +318,15 @@ def _style_mesh(obj):
 
 def _opposite_top_edge_pins(piece, positions, panel_indices):
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
-    boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+    boundary_vertices = tuple(
+        sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
+    )
     if not boundary_vertices:
         raise RuntimeError("blanket quality mesh has no boundary vertices")
     top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-    top_edge = tuple(index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9)
+    top_edge = tuple(
+        index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
+    )
     if len(top_edge) < 2:
         raise RuntimeError("blanket top edge has fewer than two boundary vertices")
     top = (
@@ -311,7 +335,7 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
     if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % span)
+        raise RuntimeError(f"blanket pins are not opposite top-edge corners: span={span:.3f}")
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
@@ -339,18 +363,10 @@ def _center_z(points):
 
 
 def validate_blanket_drape(panel, cube):
-    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
-    from freecad_cloth.common.MeshValidation import validate_mesh
 
     vertices, triangles = panel.Mesh.Topology
-    points = tuple(
-        (float(vertex.x), float(vertex.y), float(vertex.z))
-        for vertex in vertices
-    )
-    faces = tuple(
-        tuple(int(index) for index in triangle)
-        for triangle in triangles
-    )
+    points = tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in vertices)
+    faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
     mesh_result = validate_mesh(points, faces, prefer_trimesh=False)
     shape = mesh_shape_sanity(points, faces)
     target_points = tuple(
@@ -365,16 +381,16 @@ def validate_blanket_drape(panel, cube):
         target_width=max(float(target_box.XLength), float(target_box.YLength)),
     )
     if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
-        raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
+        raise RuntimeError(f"blanket mesh failed structural validation: {mesh_result!r}")
     if (
         not shape["finite"]
         or shape["edge_spike_ratio"] > 4.0
         or shape["spike_edge_fraction"] > 0.02
         or shape["footprint_aspect_ratio"] > 4.0
     ):
-        raise RuntimeError("blanket mesh has spike/outlier geometry: %r" % shape)
+        raise RuntimeError(f"blanket mesh has spike/outlier geometry: {shape!r}")
     if not drape.finite or drape.state != "structurally-plausible":
-        raise RuntimeError("blanket drape sanity check failed: %r" % drape)
+        raise RuntimeError(f"blanket drape sanity check failed: {drape!r}")
     log(
         "mesh-quality=passed vertices=%d faces=%d components=%d "
         "spikes=%.3f spike_fraction=%.6f aspect=%.3f drape=%s"
@@ -394,17 +410,24 @@ def validate_blanket_drape(panel, cube):
 def build_simulation_state(doc):
     stage_started = time.monotonic()
     log(
-        "stage=scene-build-start particle_distance=%.1f solver_iterations=4 solver_substeps=1"
-        % BLANKET_PARTICLE_DISTANCE
+        f"stage=scene-build-start particle_distance={BLANKET_PARTICLE_DISTANCE:.1f} solver_iterations=4 solver_substeps=1"
     )
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
+    from freecad_cloth.simulation.SimulationObjects import (
+        create_simulation_scene,
+        set_avatar_collision_source,
+    )
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+        QualitySimulationProxy,
+        ensure_quality_properties,
+    )
 
     sketch = _make_rectangle_sketch(doc, "BlanketSource", BLANKET_SIZE, BLANKET_SIZE)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
-    blanket = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
+    blanket = create_pattern_piece_from_selected_sketch(
+        name="Blanket", allowance=0.0, grainline=0.0
+    )
     if blanket.Sketch is not sketch:
         raise RuntimeError("pattern piece did not retain native sketch")
     placement = App.Placement(App.Vector(0.0, 0.0, BLANKET_START_Z), App.Rotation())
@@ -444,7 +467,7 @@ def build_simulation_state(doc):
     panel_indices = tuple(proxy.panel_indices[panel.Name])
     pins, span = _opposite_top_edge_pins(blanket, positions, panel_indices)
     scene.PinSelection = [str(index) for index in pins]
-    log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (span, pins))
+    log(f"blanket-pins=passed opposite-corners span={span:.3f} indices={pins}")
     doc.recompute()
 
     sketch.ViewObject.Visibility = False
@@ -476,8 +499,7 @@ def main():
         pass
     window = wait_for_gui_ready()
     log(
-        "stage=fixture-start backend=tissu collision_mode=%s tissu_substeps=%s steps=%s"
-        % (
+        "stage=fixture-start backend=tissu collision_mode={} tissu_substeps={} steps={}".format(
             os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
             os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
             os.environ.get("CLOTH_BLANKET_STEPS", "120"),
@@ -485,7 +507,9 @@ def main():
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+        exec(
+            compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()
+        )
     events()
 
     doc = App.newDocument("ClothBlanketTurntable")
@@ -494,7 +518,9 @@ def main():
         view = Gui.activeDocument().activeView()
         arranged_objects = [cube, panel]
         arranged_started = time.monotonic()
-        render_turntable(view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"))
+        render_turntable(
+            view, arranged_objects, os.path.join(OUT, "cloth-simulation-arranged-turntable-frames")
+        )
         log(
             "stage=arranged-render-pass frames=73 elapsed_ms=%.1f"
             % (1000.0 * (time.monotonic() - arranged_started))
@@ -515,28 +541,44 @@ def main():
         scene.Steps = steps
         doc.recompute()
         events()
-        if int(scene.Steps) != steps or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
+        if (
+            int(scene.Steps) != steps
+            or float(scene.SimulatedTime) <= 0.0
+            or not bool(scene.FiniteState)
+        ):
             raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
         if panel.Mesh.CountFacets <= 50:
             raise RuntimeError("blanket drape mesh is too small")
         final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d" % (float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount), steps))
+        log(
+            "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
+            % (
+                float(scene.ParticleDistance),
+                int(scene.SolverIterations),
+                int(scene.ParticleCount),
+                steps,
+            )
+        )
         initial_z = _center_z(initial_positions)
         final_z = _center_z(final_positions)
         displacement = abs(final_z - initial_z)
         minimum_z = min(float(position[2]) for position in final_positions)
         cube_top = float(cube.Shape.BoundBox.ZMax)
-        log("blanket-motion-diagnostic max_centroid_displacement_mm=%.2f final_centroid_z_mm=%.2f min_z_mm=%.2f cube_top_z_mm=%.2f" % (
-            displacement, final_z, minimum_z, cube_top,
-        ))
+        log(
+            f"blanket-motion-diagnostic max_centroid_displacement_mm={displacement:.2f} final_centroid_z_mm={final_z:.2f} min_z_mm={minimum_z:.2f} cube_top_z_mm={cube_top:.2f}"
+        )
         log(
             "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
             % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
         )
         if displacement < 40.0:
-            raise RuntimeError("blanket moved only %.2f mm; expected real draping motion" % displacement)
+            raise RuntimeError(
+                f"blanket moved only {displacement:.2f} mm; expected real draping motion"
+            )
         if minimum_z > cube_top + 35.0:
-            raise RuntimeError("blanket did not approach cube surface: min_z=%.2f cube_top=%.2f" % (minimum_z, cube_top))
+            raise RuntimeError(
+                f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
+            )
 
         validation_started = time.monotonic()
         log("stage=validation-start")
@@ -545,16 +587,19 @@ def main():
         doc.recompute()
         shape, drape = validate_blanket_drape(panel, cube)
         log(
-            "stage=validation-pass state=%s clearance_mm=%s elapsed_ms=%.1f"
-            % (
+            "stage=validation-pass state={} clearance_mm={} elapsed_ms={:.1f}".format(
                 drape.state,
-                "none" if drape.target_vertex_clearance is None else "%.2f" % drape.target_vertex_clearance,
+                "none"
+                if drape.target_vertex_clearance is None
+                else f"{drape.target_vertex_clearance:.2f}",
                 1000.0 * (time.monotonic() - validation_started),
             )
         )
 
         draped_started = time.monotonic()
-        render_turntable(view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames"))
+        render_turntable(
+            view, [cube, panel], os.path.join(OUT, "cloth-simulation-draped-turntable-frames")
+        )
         log(
             "stage=draped-render-pass frames=73 elapsed_ms=%.1f"
             % (1000.0 * (time.monotonic() - draped_started))
@@ -574,7 +619,7 @@ def main():
 try:
     main()
 except BaseException as error:
-    print("SIMULATION TURNTABLE FAILURE: %r" % (error,), flush=True)
+    print(f"SIMULATION TURNTABLE FAILURE: {error!r}", flush=True)
     print(traceback.format_exc(), flush=True)
-    log("simulation-turntable-fail exception=%r" % (error,))
+    log(f"simulation-turntable-fail exception={error!r}")
     os._exit(1)

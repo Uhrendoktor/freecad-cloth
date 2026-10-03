@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
@@ -27,7 +28,9 @@ def test_repair_invalid_range_restores_full_ranges():
         status = "invalid_range"
 
     seam = Seam()
-    assert repair_correspondence_settings(seam, Report()) == "invalid ranges reset to full seam edges"
+    assert (
+        repair_correspondence_settings(seam, Report()) == "invalid ranges reset to full seam edges"
+    )
     assert (seam.StartA, seam.EndA, seam.StartB, seam.EndB) == (0.0, 1.0, 0.0, 1.0)
 
 
@@ -51,10 +54,11 @@ def test_repair_does_not_hide_physical_length_mismatch():
 
 def test_repair_command_is_registered_with_context_activation():
     from freecad_cloth.sewing import SewingCommands
+
     assert "ClothSewing_RepairSeam" in SewingCommands.COMMANDS
     assert "ClothSewing_RepairSeam" in SewingCommands._COMMAND_HANDLERS
     assert "ClothSewing_RepairSeam" in SewingCommands._ACTIVATION
-    assert "Repair Seam" == SewingCommands._MENU_TEXT["ClothSewing_RepairSeam"]
+    assert SewingCommands._MENU_TEXT["ClothSewing_RepairSeam"] == "Repair Seam"
 
 
 if __name__ == "__main__":

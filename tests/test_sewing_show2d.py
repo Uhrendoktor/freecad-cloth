@@ -5,7 +5,12 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SewingView import apply_seam_colors, pattern_pieces_for_2d, seam_color_map, seam_visual_markers
+from freecad_cloth.sewing.SewingView import (
+    apply_seam_colors,
+    pattern_pieces_for_2d,
+    seam_color_map,
+    seam_visual_markers,
+)
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():
@@ -26,8 +31,6 @@ def test_2d_focus_ignores_unrelated_objects_without_freecad_runtime():
     assert [obj.Name for obj in result] == ["Pattern"]
 
 
-
-
 def test_seam_colors_are_distinct_and_stable_by_seam_id():
     seam_ids = ["seam-3", "seam-1", "seam-2"]
     forward = seam_color_map(seam_ids)
@@ -46,11 +49,16 @@ def test_seam_colors_do_not_reassign_when_other_seams_are_added_or_removed():
 
 
 def test_same_seam_id_always_maps_to_one_pair_identity_color():
-    assert seam_color_map(["pair-42", "pair-42"])["pair-42"] == seam_color_map(["pair-42", "pair-7"])["pair-42"]
+    assert (
+        seam_color_map(["pair-42", "pair-42"])["pair-42"]
+        == seam_color_map(["pair-42", "pair-7"])["pair-42"]
+    )
 
 
 def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
-    source = (Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py").read_text(encoding="utf-8")
+    source = (
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingObjects.py"
+    ).read_text(encoding="utf-8")
     assert '"SeamId", "Sewing"' in source
     assert 'obj.SeamId = str(getattr(seam, "SeamId", "") or "")' in source
     assert "apply_seam_colors(doc.Objects)" in source
@@ -93,7 +101,9 @@ def test_show_2d_does_not_select_seams_over_their_colors():
             self.fit += 1
 
     view = View()
-    active = SimpleNamespace(Document=SimpleNamespace(Objects=[piece, seam]), activeView=lambda: view)
+    active = SimpleNamespace(
+        Document=SimpleNamespace(Objects=[piece, seam]), activeView=lambda: view
+    )
     gui = SimpleNamespace(Selection=Selection, activeDocument=lambda: active)
     previous_gui = sys.modules.get("FreeCADGui")
     sys.modules["FreeCADGui"] = gui
@@ -140,6 +150,7 @@ def test_seam_visual_markers_reject_mismatched_correspondence():
         assert "equal length" in str(exc)
     else:
         raise AssertionError("marker builder must reject mismatched correspondence")
+
 
 if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()

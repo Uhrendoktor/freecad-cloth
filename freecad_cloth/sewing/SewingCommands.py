@@ -1,6 +1,7 @@
 """Commands for the Cloth Sewing workbench."""
-from pathlib import Path
 
+import contextlib
+from pathlib import Path
 
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
@@ -11,6 +12,7 @@ def _seams(doc):
 
 def _selected_seam(doc):
     import FreeCADGui as Gui
+
     for obj in Gui.Selection.getSelection():
         if getattr(obj, "SeamId", ""):
             return obj
@@ -21,12 +23,17 @@ def _selected_seam(doc):
 
 
 def _pieces_by_id(doc):
-    return {getattr(o, "PieceId", ""): o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"}
+    return {
+        getattr(o, "PieceId", ""): o
+        for o in doc.Objects
+        if getattr(o, "PatternType", "") == "PatternPiece"
+    }
 
 
 def _collect_selected_pattern_edges():
     """Return all selected semantic pattern-piece edges in selection order."""
     import FreeCADGui as Gui
+
     edges = []
     seen = set()
     for selection in Gui.Selection.getSelectionEx():
@@ -56,7 +63,7 @@ def _selected_pattern_edges(allow_many=False):
     edges = _collect_selected_pattern_edges()
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
-        raise ValueError("select %s edges on pattern pieces" % count)
+        raise ValueError(f"select {count} edges on pattern pieces")
     if len({id(obj) for obj, _edge in edges}) != 2:
         raise ValueError("a sewing relationship must connect two different pattern pieces")
     return edges
@@ -81,6 +88,7 @@ def get_active_staged_sewing_task_panel():
 def start_staged_seam_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+
     _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("seam")
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
@@ -88,6 +96,7 @@ def start_staged_seam_creation():
 def start_staged_mn_sewing_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+
     _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("mn")
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
@@ -95,6 +104,7 @@ def start_staged_mn_sewing_creation():
 def start_staged_free_sewing_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
+
     _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("free")
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
@@ -118,8 +128,10 @@ def _has_mn_selection():
 def create_seam_from_selection():
     """Create a persistent canonical seam from two selected pattern edges."""
     import FreeCAD as App
+
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before creating a seam")
@@ -139,8 +151,10 @@ def create_seam_from_selection():
 def create_mn_sewing_from_selection():
     """Create a persistent 1:N, M:1, or M:N sewing network."""
     import FreeCAD as App
+
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before creating sewing")
@@ -154,13 +168,26 @@ def create_mn_sewing_from_selection():
     if len(piece_ids) != 2:
         raise ValueError("select edges from exactly two pattern pieces")
     first_piece = piece_ids[0]
-    side_a = tuple(SewingMember(first_piece, edge) for piece, edge in selected if str(piece.PieceId) == first_piece)
-    side_b = tuple(SewingMember(piece_ids[1], edge) for piece, edge in selected if str(piece.PieceId) == piece_ids[1])
+    side_a = tuple(
+        SewingMember(first_piece, edge)
+        for piece, edge in selected
+        if str(piece.PieceId) == first_piece
+    )
+    side_b = tuple(
+        SewingMember(piece_ids[1], edge)
+        for piece, edge in selected
+        if str(piece.PieceId) == piece_ids[1]
+    )
     lengths = {}
     from freecad_cloth.sewing.SewingObjects import _edge_length
+
     for member in side_a + side_b:
         lengths[(member.piece_id, member.edge)] = _edge_length(pieces[member.piece_id], member.edge)
-    existing_ids = {str(getattr(obj, "RelationshipId", "")) for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"}
+    existing_ids = {
+        str(getattr(obj, "RelationshipId", ""))
+        for obj in doc.Objects
+        if getattr(obj, "SewingType", "") == "SewingNetwork"
+    }
     index = len(existing_ids) + 1
     relationship_id = "sewing-%d" % index
     while relationship_id in existing_ids:
@@ -175,7 +202,9 @@ def create_mn_sewing_from_selection():
 
 def create_sewing_operation():
     import FreeCAD as App
+
     from freecad_cloth.sewing.SewingObjects import add_sewing_operation
+
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     seam = _selected_seam(doc)
     pieces = _pieces_by_id(doc)
@@ -197,16 +226,26 @@ def get_active_sewing_operation_task_panel():
 def edit_sewing_operation():
     global _ACTIVE_SEWING_OPERATION_TASK_PANEL
     import FreeCADGui as Gui
-    obj = next((o for o in Gui.Selection.getSelection() if getattr(o, "SewingType", "") == "SewingOperation"), None)
+
+    obj = next(
+        (
+            o
+            for o in Gui.Selection.getSelection()
+            if getattr(o, "SewingType", "") == "SewingOperation"
+        ),
+        None,
+    )
     if obj is None:
         raise ValueError("select a sewing operation before editing it")
     from freecad_cloth.sewing.SewingGui import show_sewing_task
+
     _ACTIVE_SEWING_OPERATION_TASK_PANEL = show_sewing_task(obj)
     return _ACTIVE_SEWING_OPERATION_TASK_PANEL
 
 
 def reverse_selected_seam():
     import FreeCAD as App
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before changing seam orientation")
@@ -218,6 +257,7 @@ def reverse_selected_seam():
 
 def toggle_selected_alignment():
     import FreeCAD as App
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before changing seam alignment")
@@ -229,6 +269,7 @@ def toggle_selected_alignment():
 
 def validate_seams():
     import FreeCAD as App
+
     doc = App.ActiveDocument
     if doc is None:
         return []
@@ -237,33 +278,41 @@ def validate_seams():
     for obj in ops + networks:
         obj.Proxy.execute(obj)
     doc.recompute()
-    return ([(o.Name, o.Status, float(o.LengthDifference)) for o in ops] +
-            [(o.Name, o.Status, float(o.LengthDifference)) for o in networks])
+    return [(o.Name, o.Status, float(o.LengthDifference)) for o in ops] + [
+        (o.Name, o.Status, float(o.LengthDifference)) for o in networks
+    ]
 
 
 def repair_selected_seam():
     import FreeCAD as App
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before repairing a seam")
     seam = _selected_seam(doc)
     from freecad_cloth.sewing.SewingGui import correspondence_report, repair_correspondence_settings
+
     length_a = float(getattr(seam, "LengthA", 0.0))
     length_b = float(getattr(seam, "LengthB", 0.0))
     if length_a <= 0.0 or length_b <= 0.0:
         pieces = _pieces_by_id(doc)
         try:
             from freecad_cloth.sewing.SewingObjects import _edge_length
+
             length_a = _edge_length(pieces[str(seam.PieceA)], int(seam.EdgeA))
             length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
-            raise ValueError("cannot determine seam lengths for repair: %s" % exc) from exc
+            raise ValueError(f"cannot determine seam lengths for repair: {exc}") from exc
     # Refresh only the existing semantic edge IDs. Never use a changed ordinal
     # to retarget a seam to another edge; topology repair is an explicit operation.
     pieces = _pieces_by_id(doc)
     refreshed = []
     try:
-        from freecad_cloth.pattern.PatternObjects import _edge_records, refresh_edge_reference_signature
+        from freecad_cloth.pattern.PatternObjects import (
+            _edge_records,
+            refresh_edge_reference_signature,
+        )
+
         for side, edge_attr, piece_attr, id_attr, sig_attr in (
             ("A", "EdgeA", "PieceA", "EdgeAId", "EdgeASignature"),
             ("B", "EdgeB", "PieceB", "EdgeBId", "EdgeBSignature"),
@@ -271,20 +320,20 @@ def repair_selected_seam():
             piece_id = str(getattr(seam, piece_attr, ""))
             piece = pieces.get(piece_id)
             if piece is None:
-                raise ValueError("cannot repair seam %s: pattern piece %s is missing" % (side, piece_id))
+                raise ValueError(f"cannot repair seam {side}: pattern piece {piece_id} is missing")
             edge_id = str(getattr(seam, id_attr, "")).strip()
             if not edge_id:
-                raise ValueError("cannot repair seam %s: semantic edge ID is missing" % side)
+                raise ValueError(f"cannot repair seam {side}: semantic edge ID is missing")
             signature = refresh_edge_reference_signature(piece, edge_id)
             record = next(
                 (item for item in _edge_records(piece) if str(item.get("id")) == edge_id),
                 None,
             )
             if record is None:
-                raise ValueError("cannot repair seam %s: semantic edge ID disappeared" % side)
+                raise ValueError(f"cannot repair seam {side}: semantic edge ID disappeared")
             refreshed.append((edge_attr, sig_attr, int(record["ordinal"]), signature))
     except (KeyError, IndexError, TypeError, ValueError, RuntimeError) as exc:
-        raise ValueError("cannot refresh stale seam edge references: %s" % exc) from exc
+        raise ValueError(f"cannot refresh stale seam edge references: {exc}") from exc
     for edge_attr, sig_attr, edge_index, signature in refreshed:
         setattr(seam, edge_attr, edge_index)
         setattr(seam, sig_attr, signature)
@@ -299,11 +348,13 @@ def focus_selected_seam_3d():
     """Fit the 3D viewport to the selected semantic seam."""
     import FreeCAD as App
     import FreeCADGui as Gui
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before focusing a seam")
     seam = _selected_seam(doc)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     apply_seam_colors(doc.Objects)
     if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
         raise ValueError("selected seam has no presentation geometry")
@@ -323,16 +374,15 @@ def focus_selected_seam_3d():
         doc.recompute()
     finally:
         for obj, visible in previous:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 obj.ViewObject.Visibility = visible
-            except (AttributeError, RuntimeError):
-                pass
     return seam
 
 
 def _edit_selected_seam_side(side):
     import FreeCAD as App
     import FreeCADGui as Gui
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before editing a seam")
@@ -344,12 +394,14 @@ def _edit_selected_seam_side(side):
     semantic_id = str(getattr(seam, "EdgeAId" if side == "A" else "EdgeBId", "")).strip()
     sketch = getattr(piece, "Sketch", None) if piece is not None else None
     if sketch is None or not semantic_id:
-        raise ValueError("selected seam side %s has no native Sketcher source" % side)
+        raise ValueError(f"selected seam side {side} has no native Sketcher source")
     semantic_ids = tuple(str(value) for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
     try:
         edge_index = semantic_ids.index(semantic_id)
     except ValueError as exc:
-        raise ValueError("seam side %s is not present in the Sketcher semantic edge map" % side) from exc
+        raise ValueError(
+            f"seam side {side} is not present in the Sketcher semantic edge map"
+        ) from exc
     focus_selected_seam_3d()
     if Gui.activeDocument().getInEdit():
         Gui.activeDocument().resetEdit()
@@ -371,9 +423,11 @@ def edit_selected_seam_side_b():
 
 def show_sewing_2d():
     import FreeCADGui as Gui
+
     if not Gui.activeDocument():
         return
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     document = Gui.activeDocument().Document
     apply_seam_colors(document.Objects)
     Gui.Selection.clearSelection()
@@ -383,10 +437,18 @@ def show_sewing_2d():
 
 
 COMMANDS = [
-    "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateOperation",
-    "ClothSewing_EditOperation", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
-    "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D",
-    "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D",
+    "ClothSewing_CreateSeam",
+    "ClothSewing_CreateMNSewing",
+    "ClothSewing_CreateOperation",
+    "ClothSewing_EditOperation",
+    "ClothSewing_ReverseSeam",
+    "ClothSewing_ToggleAlignment",
+    "ClothSewing_Validate",
+    "ClothSewing_RepairSeam",
+    "ClothSewing_FocusSeam3D",
+    "ClothSewing_EditSeamSideA",
+    "ClothSewing_EditSeamSideB",
+    "ClothSewing_Show2D",
 ]
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": start_staged_seam_creation,
@@ -430,42 +492,61 @@ _TOOLTIPS = {
     "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
 }
+
+
 def _has_active_document():
     try:
         import FreeCAD as App
+
         return App.ActiveDocument is not None
     except ImportError:
         return False
 
+
 def _has_selected_seam():
     try:
         import FreeCADGui as Gui
+
         return any(getattr(o, "SeamId", "") for o in Gui.Selection.getSelection())
     except ImportError:
         return False
 
+
 def _has_selected_operation():
     try:
         import FreeCADGui as Gui
-        return any(getattr(o, "SewingType", "") == "SewingOperation" for o in Gui.Selection.getSelection())
+
+        return any(
+            getattr(o, "SewingType", "") == "SewingOperation" for o in Gui.Selection.getSelection()
+        )
     except ImportError:
         return False
+
+
 class _SewingCommand:
     def __init__(self, function, active, tooltip, menu_text=None, pixmap=None):
         self.function, self.active, self.tooltip = function, active, tooltip
         self.menu_text = menu_text or function.__name__.replace("_", " ").title()
         self.pixmap = pixmap
-    def Activated(self): return self.function()
-    def IsActive(self): return bool(self.active())
+
+    def Activated(self):
+        return self.function()
+
+    def IsActive(self):
+        return bool(self.active())
+
     def GetResources(self):
         resources = {"MenuText": self.menu_text, "ToolTip": self.tooltip}
         if self.pixmap:
             resources["Pixmap"] = self.pixmap
         return resources
 
+
 _ACTIVATION = {
     "ClothSewing_CreateSeam": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
-    "ClothSewing_CreateMNSewing": lambda: _has_active_document() and _has_any_selected_pattern_edges(),
+    "ClothSewing_CreateMNSewing": lambda: (
+        _has_active_document() and _has_any_selected_pattern_edges()
+    ),
     "ClothSewing_CreateOperation": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_EditOperation": lambda: _has_active_document() and _has_selected_operation(),
     "ClothSewing_ReverseSeam": lambda: _has_active_document() and _has_selected_seam(),
@@ -480,10 +561,16 @@ _ACTIVATION = {
 
 try:
     import FreeCADGui as Gui
+
     for name, function in _COMMAND_HANDLERS.items():
         icon_path = _ICON_DIR / (name + ".svg")
         if not icon_path.is_file() and name == "ClothSewing_RepairSeam":
             icon_path = _ICON_DIR / "ClothSewing_Validate.svg"
-        Gui.addCommand(name, _SewingCommand(function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name], str(icon_path)))
+        Gui.addCommand(
+            name,
+            _SewingCommand(
+                function, _ACTIVATION[name], _TOOLTIPS[name], _MENU_TEXT[name], str(icon_path)
+            ),
+        )
 except (ImportError, AttributeError):
     pass

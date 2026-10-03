@@ -1,9 +1,10 @@
 """FreeCAD-independent parametric 2D pattern geometry primitives."""
+
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import hypot
-from typing import Dict, Iterable, List, Sequence, Tuple
 
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,7 @@ class QuadraticBezier:
             u * u * self.start[1] + 2 * u * t * self.control[1] + t * t * self.end[1],
         )
 
-    def polyline(self, samples: int = 32) -> List[Point]:
+    def polyline(self, samples: int = 32) -> list[Point]:
         if samples < 2:
             raise ValueError("samples must be at least 2")
         return [self.point(i / (samples - 1)) for i in range(samples)]
@@ -47,7 +48,7 @@ class PolylineSegment:
     """A deterministic sampled native curve segment used for derived export."""
 
     id: str
-    points: Tuple[Point, ...]
+    points: tuple[Point, ...]
 
     def __post_init__(self):
         if len(self.points) < 2:
@@ -64,7 +65,7 @@ class PolylineSegment:
     def point(self, t: float) -> Point:
         fraction = min(1.0, max(0.0, float(t)))
         lengths = [0.0]
-        for a, b in zip(self.points, self.points[1:]):
+        for a, b in zip(self.points, self.points[1:], strict=False):
             lengths.append(lengths[-1] + _distance(a, b))
         total = lengths[-1]
         if total <= 1e-12:
@@ -78,11 +79,11 @@ class PolylineSegment:
                 return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
         return self.points[-1]
 
-    def polyline(self, samples: int = 32) -> List[Point]:
+    def polyline(self, samples: int = 32) -> list[Point]:
         return list(self.points)
 
     def length(self) -> float:
-        return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:]))
+        return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
 
 
 Segment = LineSegment | QuadraticBezier | PolylineSegment
@@ -110,11 +111,11 @@ class ParametricPattern:
             if _distance(segment.end, following.start) > 1e-7:
                 raise ValueError(f"boundary is not closed between {segment.id} and {following.id}")
 
-    def by_id(self) -> Dict[str, Segment]:
+    def by_id(self) -> dict[str, Segment]:
         return {segment.id: segment for segment in self.segments}
 
-    def sampled_outline(self, curve_samples: int = 32) -> List[Point]:
-        result: List[Point] = []
+    def sampled_outline(self, curve_samples: int = 32) -> list[Point]:
+        result: list[Point] = []
         for segment in self.segments:
             if isinstance(segment, LineSegment):
                 result.append(segment.start)
@@ -122,18 +123,22 @@ class ParametricPattern:
                 result.extend(segment.polyline(curve_samples)[:-1])
         return result
 
-    def lengths(self, curve_samples: int = 128) -> Dict[str, float]:
-        values: Dict[str, float] = {}
+    def lengths(self, curve_samples: int = 128) -> dict[str, float]:
+        values: dict[str, float] = {}
         for segment in self.segments:
             if isinstance(segment, LineSegment):
                 values[segment.id] = segment.length()
             else:
                 points = segment.polyline(curve_samples)
-                values[segment.id] = sum(_distance(a, b) for a, b in zip(points, points[1:]))
+                values[segment.id] = sum(
+                    _distance(a, b) for a, b in zip(points, points[1:], strict=False)
+                )
         return values
 
 
-def seam_allowance_outline(pattern: ParametricPattern, allowance: float, curve_samples: int = 32) -> List[Point]:
+def seam_allowance_outline(
+    pattern: ParametricPattern, allowance: float, curve_samples: int = 32
+) -> list[Point]:
     """Return a deterministic cut-line outline offset from a sewing boundary.
 
     The pattern boundary remains the source of truth; this function only
@@ -162,13 +167,11 @@ def seam_allowance_outline(pattern: ParametricPattern, allowance: float, curve_s
         length = hypot(dx, dy)
         if length < 1e-12:
             raise ValueError("pattern outline contains a zero-length edge")
-        if ccw:
-            normal = (dy / length, -dx / length)
-        else:
-            normal = (-dy / length, dx / length)
+        normal = (dy / length, -dx / length) if ccw else (-dy / length, dx / length)
         offset = (normal[0] * allowance, normal[1] * allowance)
-        edges.append(((start[0] + offset[0], start[1] + offset[1]),
-                      (end[0] + offset[0], end[1] + offset[1])))
+        edges.append(
+            ((start[0] + offset[0], start[1] + offset[1]), (end[0] + offset[0], end[1] + offset[1]))
+        )
 
     result = []
     for index in range(len(edges)):
@@ -204,12 +207,14 @@ def rectangle(width: float, height: float) -> ParametricPattern:
     """Create a deterministic rectangular pattern from dimensions in mm."""
     if width <= 0 or height <= 0:
         raise ValueError("rectangle dimensions must be positive")
-    return ParametricPattern([
-        LineSegment("bottom", (0.0, 0.0), (width, 0.0)),
-        LineSegment("right", (width, 0.0), (width, height)),
-        LineSegment("top", (width, height), (0.0, height)),
-        LineSegment("left", (0.0, height), (0.0, 0.0)),
-    ])
+    return ParametricPattern(
+        [
+            LineSegment("bottom", (0.0, 0.0), (width, 0.0)),
+            LineSegment("right", (width, 0.0), (width, height)),
+            LineSegment("top", (width, height), (0.0, height)),
+            LineSegment("left", (0.0, height), (0.0, 0.0)),
+        ]
+    )
 
 
 def _distance(a: Point, b: Point) -> float:

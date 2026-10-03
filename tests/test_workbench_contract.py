@@ -3,12 +3,12 @@
 This deliberately avoids FreeCAD/Qt: the implementation must remain import-safe
 while command modules are loaded lazily by each workbench's ``Initialize``.
 """
+
 from __future__ import annotations
 
 import ast
 import importlib
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,8 +52,7 @@ def _literal_commands(module_name):
     tree = ast.parse((ROOT / f"{module_name}.py").read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "COMMANDS"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "COMMANDS" for target in node.targets
         ):
             value = ast.literal_eval(node.value)
             assert isinstance(value, list), f"{module_name}.COMMANDS must be a list"
@@ -65,11 +64,7 @@ def test_registered_workbenches_and_command_groups():
     gui_source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
     tree = ast.parse(gui_source)
 
-    classes = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef)
-    }
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
     assert set(EXPECTED) <= classes
 
     for class_name, spec in EXPECTED.items():
@@ -88,7 +83,8 @@ def test_registered_workbenches_and_command_groups():
         commands = attributes["commands"]
         assert isinstance(commands, ast.Tuple) and not commands.elts
         initialize = next(
-            node2 for node2 in node.body
+            node2
+            for node2 in node.body
             if isinstance(node2, ast.FunctionDef) and node2.name == "Initialize"
         )
         imported = {

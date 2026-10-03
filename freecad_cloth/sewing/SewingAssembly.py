@@ -4,11 +4,11 @@ The persisted FreeCAD Seam object is the document source of truth; ``PatternMode
 user-facing adapter that references that canonical seam and stores only
 presentation-level pairing metadata.
 """
-from dataclasses import dataclass, field
-from typing import Dict
 
+from dataclasses import dataclass, field
+
+from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
-from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 
 
 class SewingPair:
@@ -20,7 +20,9 @@ class SewingPair:
     the canonical seam from that graph.
     """
 
-    def __init__(self, seam_or_id, stitch_group: str, alignment: str = "endpoints", reversed_b=None):
+    def __init__(
+        self, seam_or_id, stitch_group: str, alignment: str = "endpoints", reversed_b=None
+    ):
         if isinstance(seam_or_id, Seam):
             self._seam = seam_or_id
             self._seam_id = seam_or_id.id
@@ -71,10 +73,13 @@ class SewingPair:
 @dataclass
 class SewingAssembly:
     """Validated collection of sewing pairs and deterministic piece transforms."""
-    graph: SeamGraph
-    pairs: Dict[str, SewingPair] = field(default_factory=dict)
 
-    def add_pair(self, seam_id: str, stitch_group: str = "", alignment: str = "endpoints") -> SewingPair:
+    graph: SeamGraph
+    pairs: dict[str, SewingPair] = field(default_factory=dict)
+
+    def add_pair(
+        self, seam_id: str, stitch_group: str = "", alignment: str = "endpoints"
+    ) -> SewingPair:
         if seam_id in self.pairs:
             raise ValueError(f"seam is already paired: {seam_id}")
         if seam_id not in self.graph.seams:
@@ -109,7 +114,9 @@ class SewingAssembly:
         }
 
 
-def pair_seam(graph: SeamGraph, seam_id: str, stitch_group: str = "", alignment: str = "endpoints") -> SewingPair:
+def pair_seam(
+    graph: SeamGraph, seam_id: str, stitch_group: str = "", alignment: str = "endpoints"
+) -> SewingPair:
     """Validate a seam and return its user-facing pairing metadata."""
     assembly = SewingAssembly(graph)
     return assembly.add_pair(seam_id, stitch_group, alignment)

@@ -3,6 +3,7 @@
 Command implementations remain in the package tree; this module owns the
 FreeCAD workbench boundary and resolves its icon to the installed root resource.
 """
+
 from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
@@ -14,18 +15,22 @@ class ClothPatternWorkbench(ClothWorkbenchBase):
 
     def __init__(self):
         super().__init__()
-        self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothPattern.svg")
+        self.Icon = str(
+            Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothPattern.svg"
+        )
 
     def Activated(self):
         import FreeCAD as App
+
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+
         if App.ActiveDocument is not None:
             apply_seam_colors(App.ActiveDocument.Objects)
-
 
     def Initialize(self):
         if self.commands:
             return
         import freecad_cloth.pattern.PatternCommands as PatternCommands
         import freecad_cloth.pattern.PatternMarks as PatternMarks
+
         self.register((("Pattern", PatternCommands.COMMANDS + PatternMarks.COMMANDS),))

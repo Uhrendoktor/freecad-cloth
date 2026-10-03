@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Render benchmark JSON into small, reviewable PNG plots."""
+
 from __future__ import annotations
 
 import json
@@ -27,10 +28,34 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     names = list(data["workbenches"])
     wb = data["workbenches"]
-    plot_metric(names, [wb[n]["nonblank_loc"] for n in names], "Workbench implementation size", "Non-blank Python lines", out / "implementation-size.png")
-    plot_metric(names, [wb[n]["related_test_files"] for n in names], "Workbench test coverage surface", "Related test files", out / "test-surface.png")
-    plot_metric(names, [wb[n]["registered_commands"] for n in names], "Registered command surface", "Commands", out / "command-surface.png")
-    plot_metric(names, [wb[n]["initialize_ms"] for n in names], "Workbench initialization cost", "Median milliseconds", out / "initialize-time.png")
+    plot_metric(
+        names,
+        [wb[n]["nonblank_loc"] for n in names],
+        "Workbench implementation size",
+        "Non-blank Python lines",
+        out / "implementation-size.png",
+    )
+    plot_metric(
+        names,
+        [wb[n]["related_test_files"] for n in names],
+        "Workbench test coverage surface",
+        "Related test files",
+        out / "test-surface.png",
+    )
+    plot_metric(
+        names,
+        [wb[n]["registered_commands"] for n in names],
+        "Registered command surface",
+        "Commands",
+        out / "command-surface.png",
+    )
+    plot_metric(
+        names,
+        [wb[n]["initialize_ms"] for n in names],
+        "Workbench initialization cost",
+        "Median milliseconds",
+        out / "initialize-time.png",
+    )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """Regression tests for the shared headless-safe FreeCAD command adapter."""
+
 import sys
 from pathlib import Path
 

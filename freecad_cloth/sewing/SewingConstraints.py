@@ -1,7 +1,7 @@
 """Solver-neutral sewing constraints derived from pattern seams."""
+
 from dataclasses import dataclass
 from math import hypot
-from typing import Dict, List, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
@@ -17,8 +17,8 @@ class Stitch:
 
 @dataclass(frozen=True)
 class SewingConstraintSet:
-    stitches: Tuple[Stitch, ...]
-    seam_map: Dict[str, Tuple[Tuple[int, int], ...]]
+    stitches: tuple[Stitch, ...]
+    seam_map: dict[str, tuple[tuple[int, int], ...]]
 
     def validate(self) -> None:
         for stitch in self.stitches:
@@ -28,9 +28,14 @@ class SewingConstraintSet:
                 raise ValueError("stitch rest length cannot be negative")
 
 
-def build_sewing_constraints(pattern_a: ParametricPattern, mesh_a: TriangleMesh,
-                             pattern_b: ParametricPattern, mesh_b: TriangleMesh,
-                             seam: Seam, samples: int = 8) -> SewingConstraintSet:
+def build_sewing_constraints(
+    pattern_a: ParametricPattern,
+    mesh_a: TriangleMesh,
+    pattern_b: ParametricPattern,
+    mesh_b: TriangleMesh,
+    seam: Seam,
+    samples: int = 8,
+) -> SewingConstraintSet:
     """Map corresponding seam samples to mesh boundary vertices."""
     seam.validate()
     if samples < 2:
@@ -44,8 +49,8 @@ def build_sewing_constraints(pattern_a: ParametricPattern, mesh_a: TriangleMesh,
     seg_a, seg_b = pattern_a.segments[seam.edge_a], pattern_b.segments[seam.edge_b]
     boundary_a = mesh_a.boundary_vertex_indices
     boundary_b = mesh_b.boundary_vertex_indices
-    stitches: List[Stitch] = []
-    pairs: List[Tuple[int, int]] = []
+    stitches: list[Stitch] = []
+    pairs: list[tuple[int, int]] = []
     for i in range(samples):
         t = i / (samples - 1)
         va = _nearest_boundary_vertex(mesh_a, boundary_a, seg_a.point(t))
@@ -63,4 +68,6 @@ def build_sewing_constraints(pattern_a: ParametricPattern, mesh_a: TriangleMesh,
 def _nearest_boundary_vertex(mesh: TriangleMesh, indices, point):
     if not indices:
         raise ValueError("mesh has no boundary vertices")
-    return min(indices, key=lambda i: hypot(mesh.vertices[i][0] - point[0], mesh.vertices[i][1] - point[1]))
+    return min(
+        indices, key=lambda i: hypot(mesh.vertices[i][0] - point[0], mesh.vertices[i][1] - point[1])
+    )

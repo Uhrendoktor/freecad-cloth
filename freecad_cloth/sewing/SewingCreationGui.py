@@ -5,6 +5,7 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
+
 def _close_active_task_dialog():
     import FreeCADGui as Gui
 
@@ -15,6 +16,7 @@ def _close_active_task_dialog():
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -71,7 +73,8 @@ class SewingCreationSession:
     @staticmethod
     def _new_objects(before_names, doc):
         return tuple(
-            obj for obj in getattr(doc, "Objects", ())
+            obj
+            for obj in getattr(doc, "Objects", ())
             if str(getattr(obj, "Name", "")) not in before_names
         )
 
@@ -85,8 +88,12 @@ class SewingCreationSession:
             if sewing_type in {"SewingNetwork", "SewingOperation"} or seam_id:
                 status = str(getattr(obj, "Status", "Valid"))
                 if status != "Valid":
-                    identity = seam_id or str(getattr(obj, "RelationshipId", "")) or str(getattr(obj, "Name", "<unnamed>"))
-                    invalid.append("%s: %s" % (identity, status))
+                    identity = (
+                        seam_id
+                        or str(getattr(obj, "RelationshipId", ""))
+                        or str(getattr(obj, "Name", "<unnamed>"))
+                    )
+                    invalid.append(f"{identity}: {status}")
         if invalid:
             raise ValueError("Preview validation failed: " + "; ".join(invalid))
 
@@ -185,7 +192,7 @@ class SewingCreationTaskPanel:
         if App.ActiveDocument is None:
             raise ValueError("open a document before creating sewing")
         if kind not in self._TRANSACTION_NAMES:
-            raise ValueError("unsupported staged sewing creation: %s" % kind)
+            raise ValueError(f"unsupported staged sewing creation: {kind}")
         self.App, self.Gui = App, Gui
         self.kind = kind
         self.form = QtWidgets.QWidget()
@@ -232,16 +239,20 @@ class SewingCreationTaskPanel:
     def _builder(self):
         if self.kind == "seam":
             from freecad_cloth.sewing.SewingCommands import create_seam_from_selection
+
             return create_seam_from_selection()
         if self.kind == "mn":
             from freecad_cloth.sewing.SewingCommands import create_mn_sewing_from_selection
+
             return create_mn_sewing_from_selection()
         from freecad_cloth.sewing.SewingNetworkCommands import create_free_sewing_from_selection
+
         return create_free_sewing_from_selection(open_editor=False)
 
     def _refresh_selection(self):
         try:
             from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
             count = len(_collect_selected_pattern_edges())
         except (ImportError, ValueError):
             count = 0
@@ -252,8 +263,7 @@ class SewingCreationTaskPanel:
 
     def _show_error(self, exc):
         self.feedback.setText(
-            "Preview rejected: %s. Adjust the selection, then press Preview again."
-            % str(exc)
+            f"Preview rejected: {str(exc)}. Adjust the selection, then press Preview again."
         )
         self.feedback.setStyleSheet("font-weight: bold;")
         self.commit_button.setEnabled(False)

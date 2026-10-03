@@ -5,11 +5,11 @@ requiring a running FreeCAD GUI. The public registration contract is the
 stable bridge between the three workbenches and FreeCAD's native menus and
 commands.
 """
+
 from __future__ import annotations
 
 import ast
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SEWING_GROUPS = [
@@ -70,10 +70,7 @@ def _parse_initgui():
 
 
 def _class(tree, name):
-    return next(
-        node for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == name
-    )
+    return next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name)
 
 
 def _literal_commands(module_name):
@@ -90,8 +87,7 @@ def _literal_commands(module_name):
     tree = ast.parse((ROOT / f"{pkg}.py").read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "COMMANDS"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "COMMANDS" for target in node.targets
         ):
             value = ast.literal_eval(node.value)
             assert isinstance(value, list), f"{module_name}.COMMANDS must be a list"
@@ -103,12 +99,12 @@ def _literal_constant(tree, name):
     """Resolve a constant from InitGui.py source or runtime."""
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == name
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
         ):
             return ast.literal_eval(node.value)
     # Fallback: read from runtime namespace
     import InitGui
+
     val = getattr(InitGui, name, None)
     if val is not None:
         return set(val)
@@ -118,9 +114,9 @@ def _literal_constant(tree, name):
 def _initialize_method(tree, class_name):
     workbench = _class(tree, class_name)
     return next(
-        node for node in workbench.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "Initialize"
+        node
+        for node in workbench.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "Initialize"
     )
 
 
@@ -140,13 +136,11 @@ def test_sewing_menu_groups_have_stable_names_order_and_complete_commands():
     tree = _parse_initgui()
     groups = _literal_constant(tree, "SEWING_COMMAND_GROUPS")
     assert groups == tuple(
-        (name, tuple(commands))
-        for name, commands in EXPECTED_SEWING_GROUPS[:-1]
+        (name, tuple(commands)) for name, commands in EXPECTED_SEWING_GROUPS[:-1]
     )
 
-    sewing_commands = (
-        _literal_commands("SewingCommands")
-        | _literal_commands("SewingNetworkCommands")
+    sewing_commands = _literal_commands("SewingCommands") | _literal_commands(
+        "SewingNetworkCommands"
     )
     grouped = set(command for _name, commands in groups for command in commands)
     assert grouped == sewing_commands
@@ -159,7 +153,8 @@ def test_fitting_and_avatar_form_the_final_sewing_menu_group():
     tree = _parse_initgui()
     initialize = _initialize_method(tree, "ClothSewingWorkbench")
     group_append = next(
-        node for node in ast.walk(initialize)
+        node
+        for node in ast.walk(initialize)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "append"
@@ -169,13 +164,17 @@ def test_fitting_and_avatar_form_the_final_sewing_menu_group():
     group_name = ast.literal_eval(group_append.args[0].elts[0])
     group_commands = _module_command_union(group_append.args[0].elts[1])
     assert group_name == "Fitting & Avatar"
-    assert group_commands == _literal_commands("FittingCommands") | _literal_commands("AvatarCommands")
+    assert group_commands == _literal_commands("FittingCommands") | _literal_commands(
+        "AvatarCommands"
+    )
 
 
 def test_sewing_toolbar_is_stable_and_subset_of_registered_commands():
     tree = _parse_initgui()
     toolbar = _literal_constant(tree, "SEWING_TOOLBAR_COMMANDS")
-    assert set(toolbar) == set(EXPECTED_SEWING_TOOLBAR), f"Expected {EXPECTED_SEWING_TOOLBAR}, got {toolbar}"
+    assert set(toolbar) == set(EXPECTED_SEWING_TOOLBAR), (
+        f"Expected {EXPECTED_SEWING_TOOLBAR}, got {toolbar}"
+    )
     assert len(toolbar) == len(set(toolbar))
 
     all_commands = (
@@ -191,7 +190,8 @@ def test_sewing_registration_passes_group_and_toolbar_constants_to_freecad():
     tree = _parse_initgui()
     initialize = _initialize_method(tree, "ClothSewingWorkbench")
     calls = [
-        node for node in ast.walk(initialize)
+        node
+        for node in ast.walk(initialize)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "_register_groups"
@@ -243,6 +243,5 @@ def test_workbench_command_groups_do_not_overlap():
         for command in commands:
             previous = names.setdefault(command, workbench)
             assert previous == workbench, (
-                f"command {command!r} is registered by both "
-                f"{previous} and {workbench}"
+                f"command {command!r} is registered by both {previous} and {workbench}"
             )

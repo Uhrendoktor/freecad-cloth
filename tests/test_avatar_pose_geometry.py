@@ -1,4 +1,5 @@
 """Regression tests for articulated HM08 arm posing."""
+
 import unittest
 
 from freecad_cloth.avatar.HumanoidMesh import _arm_pose_weight

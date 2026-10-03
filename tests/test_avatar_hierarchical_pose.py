@@ -3,13 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
 from freecad_cloth.avatar.HumanoidMesh import (
     _bone_source_endpoints,
     _joint_point,
     load_makehuman_skeleton,
 )
-from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 
 class AvatarHierarchicalPoseTests(unittest.TestCase):
@@ -23,7 +23,10 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
             "bones": {"upperarm01.L": {"head": "h", "tail": "t"}},
             "joints": {"h": [0], "t": [1]},
         }
-        self.assertEqual(_bone_source_endpoints(vertices, skeleton, "upperarm01.L"), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
+        self.assertEqual(
+            _bone_source_endpoints(vertices, skeleton, "upperarm01.L"),
+            ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)),
+        )
 
     def test_pinned_makehuman_skeleton_has_wrist_child_of_forearm(self):
         skeleton = load_makehuman_skeleton()
@@ -36,11 +39,18 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         self.assertTrue(mesh.triangles)
 
     def test_weight_fixture_is_structurally_authored(self):
-        payload = {"weights": {"upperarm01.L": [[0, 0.4]], "wrist.L": [[1, 0.6]], "finger2-1.L": [[1, 0.2]]}}
+        payload = {
+            "weights": {
+                "upperarm01.L": [[0, 0.4]],
+                "wrist.L": [[1, 0.6]],
+                "finger2-1.L": [[1, 0.2]],
+            }
+        }
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "weights.mhw"
             path.write_text(json.dumps(payload), encoding="utf-8")
             from freecad_cloth.avatar.HumanoidMesh import load_makehuman_arm_weights
+
             left, right = load_makehuman_arm_weights(2, str(path))
         self.assertAlmostEqual(left[0], 0.4)
         self.assertAlmostEqual(left[1], 0.8)

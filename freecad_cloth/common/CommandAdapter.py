@@ -1,6 +1,6 @@
 """Small headless-safe adapter for FreeCAD GUI command registration."""
-from pathlib import Path
 
+from pathlib import Path
 
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 

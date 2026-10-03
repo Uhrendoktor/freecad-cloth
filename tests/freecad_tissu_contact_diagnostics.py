@@ -3,15 +3,16 @@
 This script is intentionally diagnostic-only. It exercises the existing FreeCAD/Tissu
 runtime without changing physics, solver budgets, canonical fixtures, or release gates.
 """
+
 from __future__ import annotations
 
 import faulthandler
 import json
 import math
 import os
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -23,9 +24,10 @@ PROGRESS = OUT / "progress.log"
 _PROGRESS_HANDLE = PROGRESS.open("a", encoding="utf-8", buffering=1)
 faulthandler.enable(file=_PROGRESS_HANDLE)
 _PROGRESS_HANDLE.write("\n=== diagnostic contact controls start ===\n")
-_PROGRESS_HANDLE.write("entrypoint __name__=%r\n" % __name__)
+_PROGRESS_HANDLE.write(f"entrypoint __name__={__name__!r}\n")
 _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
+
 
 def _import_progress(label):
     line = "import: " + str(label)
@@ -33,14 +35,20 @@ def _import_progress(label):
         handle.write(line + "\n")
     print(line, flush=True)
 
+
 _import_progress("FreeCAD begin")
 import FreeCAD as App
+
 _import_progress("FreeCAD complete")
 _import_progress("FreeCADGui begin")
 import FreeCADGui as Gui
+
 _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
+import contextlib
+
 import Part
+
 _import_progress("Part complete")
 
 STEPS = (0, 1)
@@ -75,7 +83,6 @@ def _ensure_gui_ready():
 
 
 def _add_rectangle_sketch(doc, name, width, height):
-    import Sketcher
 
     sketch = doc.addObject("Sketcher::SketchObject", name)
     pts = (
@@ -99,6 +106,7 @@ def _add_rectangle_sketch(doc, name, width, height):
 
 def _adopt_sketch(sketch, name):
     import FreeCADGui as Gui
+
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 
     Gui.Selection.clearSelection()
@@ -121,7 +129,9 @@ def _mesh_geometry(obj):
             return points, tris
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
-        raise RuntimeError("missing mesh or shape geometry on %s" % getattr(obj, "Name", "object"))
+        raise RuntimeError(
+            "missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object"))
+        )
     vertices, triangles = shape.tessellate(1.0)
     points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
     tris = tuple(tuple(int(i) for i in tri) for tri in triangles)
@@ -169,7 +179,7 @@ def _nearest_surface_observation(garment_points, surface):
     point = None
     for source in garment_points:
         for target in vertices:
-            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target))
+            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
             if d2 < best:
                 best = d2
                 point = tuple(float(c) for c in target)
@@ -179,10 +189,11 @@ def _nearest_surface_observation(garment_points, surface):
 def _ray_intersection_x(point, a, b, c):
     px, py, pz = point
     ay, az = float(a[1]) - py, float(a[2]) - pz
-    by, bz = float(b[1]) - py, float(b[2]) - pz
-    cy, cz = float(c[1]) - py, float(c[2]) - pz
-    det = ((float(b[1]) - float(a[1])) * (float(c[2]) - float(a[2])) -
-           (float(b[2]) - float(a[2])) * (float(c[1]) - float(a[1])))
+    _by, _bz = float(b[1]) - py, float(b[2]) - pz
+    _cy, _cz = float(c[1]) - py, float(c[2]) - pz
+    det = (float(b[1]) - float(a[1])) * (float(c[2]) - float(a[2])) - (
+        float(b[2]) - float(a[2])
+    ) * (float(c[1]) - float(a[1]))
     if abs(det) <= 1e-12:
         return False
     u = (ay * (float(c[2]) - float(a[2])) - az * (float(c[1]) - float(a[1]))) / det
@@ -238,6 +249,7 @@ def _point_inside_mesh(point, vertices, triangles):
             hits += 1
     return bool(hits % 2)
 
+
 def _inside_outside(points, source):
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
@@ -283,6 +295,7 @@ def _inside_outside(points, source):
     try:
         import numpy as np
         import trimesh
+
         target_mesh = trimesh.Trimesh(
             vertices=np.asarray(vertices, dtype=float),
             faces=np.asarray(triangles, dtype=int),
@@ -290,7 +303,9 @@ def _inside_outside(points, source):
         )
         if not target_mesh.is_watertight:
             raise RuntimeError("target mesh is not watertight")
-        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
+        states = [
+            bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
+        ]
     except (ImportError, RuntimeError, TypeError, ValueError):
         states = [_point_inside_mesh(point, vertices, triangles) for point in points[:64]]
     if not states:
@@ -306,9 +321,12 @@ def _bounds(points):
     if not points:
         raise RuntimeError("cannot measure empty point set")
     return (
-        min(p[0] for p in points), max(p[0] for p in points),
-        min(p[1] for p in points), max(p[1] for p in points),
-        min(p[2] for p in points), max(p[2] for p in points),
+        min(p[0] for p in points),
+        max(p[0] for p in points),
+        min(p[1] for p in points),
+        max(p[1] for p in points),
+        min(p[2] for p in points),
+        max(p[2] for p in points),
     )
 
 
@@ -327,14 +345,15 @@ def _nearest_surface_distance(garment_points, surface):
     if triangles:
         try:
             from freecad_cloth.common.MeshValidation import nearest_surface_clearance
+
             return float(nearest_surface_clearance(garment_points, vertices, triangles))
         except (ImportError, RuntimeError, ValueError):
             pass
-    sample = vertices[::max(1, len(vertices) // 4096)]
+    sample = vertices[:: max(1, len(vertices) // 4096)]
     best = float("inf")
     for source in garment_points:
         for target in sample:
-            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target))
+            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
             if d2 < best:
                 best = d2
     return math.sqrt(best) if math.isfinite(best) else None
@@ -350,8 +369,20 @@ def _target_signature(target):
         "source_name": str(getattr(source, "Name", "")),
         "source_label": str(getattr(source, "Label", "")),
         "source_revision": int(getattr(source, "AvatarRevision", 0)),
-        "source_vertices": int(getattr(source, "MeshVertexCount", getattr(mesh, "CountPoints", 0) if mesh is not None else 0)),
-        "source_triangles": int(getattr(source, "MeshTriangleCount", getattr(mesh, "CountFacets", 0) if mesh is not None else 0)),
+        "source_vertices": int(
+            getattr(
+                source,
+                "MeshVertexCount",
+                getattr(mesh, "CountPoints", 0) if mesh is not None else 0,
+            )
+        ),
+        "source_triangles": int(
+            getattr(
+                source,
+                "MeshTriangleCount",
+                getattr(mesh, "CountFacets", 0) if mesh is not None else 0,
+            )
+        ),
         "collision_triangles_authored": int(getattr(target, "CollisionTriangleCount", 0)),
         "collision_vertices_authored": int(getattr(target, "CollisionVertexCount", 0)),
     }
@@ -363,14 +394,26 @@ def _screenshot(view, path):
     _events()
     view.saveImage(str(path), 1280, 720, "White")
     if not path.is_file() or path.stat().st_size <= 0:
-        raise RuntimeError("screenshot missing: %s" % path)
+        raise RuntimeError(f"screenshot missing: {path}")
 
 
-def _case_record(case_id, rung, target, source, cloth_points_before, cloth_points_after, panel_triangles, collision_surface, steps, image_paths, runtime_ms):
+def _case_record(
+    case_id,
+    rung,
+    target,
+    source,
+    cloth_points_before,
+    cloth_points_after,
+    panel_triangles,
+    collision_surface,
+    steps,
+    image_paths,
+    runtime_ms,
+):
     before_centroid = _centroid(cloth_points_before)
     after_centroid = _centroid(cloth_points_after)
     before_bounds = _bounds(cloth_points_before)
-    after_bounds = _bounds(cloth_points_after)
+    _bounds(cloth_points_after)
     before_distance = _nearest_surface_distance(cloth_points_before, collision_surface)
     after_distance = _nearest_surface_distance(cloth_points_after, collision_surface)
     _, before_nearest_point = _nearest_surface_observation(cloth_points_before, collision_surface)
@@ -378,11 +421,16 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
     displacement = math.sqrt(sum((after_centroid[i] - before_centroid[i]) ** 2 for i in range(3)))
     max_vertex_displacement = max(
         math.sqrt(sum((after[i] - before[i]) ** 2 for i in range(3)))
-        for before, after in zip(cloth_points_before, cloth_points_after)
+        for before, after in zip(cloth_points_before, cloth_points_after, strict=False)
     )
     before_inside = _inside_outside(cloth_points_before, source)
     after_inside = _inside_outside(cloth_points_after, source)
-    if max_vertex_displacement > 0.01 and before_distance is not None and after_distance is not None and after_distance >= before_distance:
+    if (
+        max_vertex_displacement > 0.01
+        and before_distance is not None
+        and after_distance is not None
+        and after_distance >= before_distance
+    ):
         contact_state = "projection-or-contact-response-observed"
     elif max_vertex_displacement <= 0.01:
         contact_state = "no-observable-response"
@@ -393,8 +441,16 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
     target_bounds = _bounds(target_points)
     target_sig = _target_signature(target)
     target_surface_triangles = int(len(getattr(collision_surface, "triangles", ()) or ()))
-    signed_before = None if before_distance is None else (-before_distance if before_inside in {"inside", "mixed"} else before_distance)
-    signed_after = None if after_distance is None else (-after_distance if after_inside in {"inside", "mixed"} else after_distance)
+    signed_before = (
+        None
+        if before_distance is None
+        else (-before_distance if before_inside in {"inside", "mixed"} else before_distance)
+    )
+    signed_after = (
+        None
+        if after_distance is None
+        else (-after_distance if after_inside in {"inside", "mixed"} else after_distance)
+    )
     after_components = _connected_components(cloth_points_after, panel_triangles)
     finite = all(math.isfinite(float(c)) for point in cloth_points_after for c in point)
 
@@ -483,12 +539,16 @@ def _case_record(case_id, rung, target, source, cloth_points_before, cloth_point
 
 
 def _build_scene(doc):
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.simulation.SimulationObjects import (
+        create_simulation_scene,
+        set_avatar_collision_source,
+    )
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
         QualitySimulationProxy,
         ensure_quality_properties,
     )
+
     scene = create_simulation_scene(doc, build=False)
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):
@@ -538,25 +598,30 @@ def _run_case(case_id, rung, scene, piece, camera):
     base = scene.Proxy._base_or_restore()
     backend = getattr(base, "backend", None)
     if backend is None:
-        raise RuntimeError("%s did not build a simulation backend" % case_id)
+        raise RuntimeError(f"{case_id} did not build a simulation backend")
     _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
     _progress(
-        "tissu-env: collision_mode=%s collision_triangles=%s backend_module=%s"
-        % (
+        "tissu-env: collision_mode={} collision_triangles={} backend_module={}".format(
             os.environ.get("CLOTH_TISSU_COLLISION_MODE", "<unset>"),
             os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "<unset>"),
-            getattr(__import__("freecad_cloth.simulation.TissuBackend", fromlist=["__file__"]), "__file__", "<unknown>"),
+            getattr(
+                __import__("freecad_cloth.simulation.TissuBackend", fromlist=["__file__"]),
+                "__file__",
+                "<unknown>",
+            ),
         )
     )
     target = scene.DrapeTarget
     if target is None:
-        raise RuntimeError("%s has no DrapeTarget" % case_id)
-    status = __import__("freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]).target_status(target)
+        raise RuntimeError(f"{case_id} has no DrapeTarget")
+    status = __import__(
+        "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
+    ).target_status(target)
     if status["state"] != "ready":
-        raise RuntimeError("%s DrapeTarget is not ready: %s" % (case_id, status))
+        raise RuntimeError(f"{case_id} DrapeTarget is not ready: {status}")
     panel = next((obj for obj in scene.DrapePanels if obj.Name), None)
     if panel is None:
-        raise RuntimeError("%s did not create a drape panel" % case_id)
+        raise RuntimeError(f"{case_id} did not create a drape panel")
     before, panel_triangles = _mesh_geometry(panel)
     solver_collision_surface = getattr(
         getattr(base, "backend", None),
@@ -564,10 +629,12 @@ def _run_case(case_id, rung, scene, piece, camera):
         getattr(base, "collision_surface", None),
     )
     solver_triangle_count = len(getattr(solver_collision_surface, "triangles", ()) or ())
-    _progress(f"{case_id}: panel-vertices={len(before)} collision-triangles={solver_triangle_count}")
+    _progress(
+        f"{case_id}: panel-vertices={len(before)} collision-triangles={solver_triangle_count}"
+    )
     view = Gui.activeDocument().activeView()
     if view is None:
-        raise RuntimeError("%s has no active FreeCAD view" % case_id)
+        raise RuntimeError(f"{case_id} has no active FreeCAD view")
     _screenshot(view, OUT / (case_id + "-step-000.png"))
     _progress(f"{case_id}: screenshot-000")
     if camera == "front":
@@ -592,7 +659,7 @@ def _run_case(case_id, rung, scene, piece, camera):
     ]
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise RuntimeError("%s target source missing" % case_id)
+        raise RuntimeError(f"{case_id} target source missing")
     record = _case_record(
         case_id,
         rung,
@@ -620,8 +687,11 @@ def _run_control_cube():
         cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
         doc.recompute()
         from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
-        if scene.AvatarProxy.SourceObject is not None and hasattr(scene.AvatarProxy.SourceObject, "ViewObject"):
+        if scene.AvatarProxy.SourceObject is not None and hasattr(
+            scene.AvatarProxy.SourceObject, "ViewObject"
+        ):
             scene.AvatarProxy.SourceObject.ViewObject.Visibility = False
         piece = _build_piece(
             doc,
@@ -648,7 +718,11 @@ def _run_control_avatar():
 
         def arrangement_world(name):
             raw = next(
-                (value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name),
+                (
+                    value
+                    for value in getattr(avatar, "ArrangementPoints", ())
+                    if str(value).split("|", 1)[0] == name
+                ),
                 None,
             )
             if raw is None:
@@ -692,7 +766,9 @@ def _run_control_avatar():
                         y_mid + y_factor * max(80.0, min(220.0, y_span)),
                         hip_z + z_factor * z_span,
                     )
-                    state = _inside_outside(((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar)
+                    state = _inside_outside(
+                        ((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar
+                    )
                     if state == "inside":
                         center = candidate
                         break
@@ -705,8 +781,7 @@ def _run_control_avatar():
                 "control-0a-avatar could not find a deterministic interior arrangement-point probe"
             )
         _progress(
-            "control-0a-avatar: interior-seed=%.2f,%.2f,%.2f"
-            % (float(center.x), float(center.y), float(center.z))
+            f"control-0a-avatar: interior-seed={float(center.x):.2f},{float(center.y):.2f},{float(center.z):.2f}"
         )
 
         # _build_piece seeds the panel at local z=120 mm; +90° X rotation
@@ -718,18 +793,19 @@ def _run_control_avatar():
         )
         piece = _build_piece(doc, "AvatarCloth", placement, width=72.0, height=72.0)
         avatar.ViewObject.Visibility = True
-        try:
+        with contextlib.suppress(AttributeError, TypeError, ValueError):
             avatar.ViewObject.Transparency = 70
-        except (AttributeError, TypeError, ValueError):
-            pass
         record = _run_case("control-0a-avatar", 0, scene, piece, "front")
         if record["control"]["inside_outside_before"] not in {"inside", "mixed"}:
             raise RuntimeError(
-                "control-0a-avatar did not create a true interior pre-step state: %s"
-                % record["control"]["inside_outside_before"]
+                "control-0a-avatar did not create a true interior pre-step state: {}".format(
+                    record["control"]["inside_outside_before"]
+                )
             )
         record["control"]["interior_probe"] = True
-        record["control"]["interior_seed_source"] = "avatar-arrangement-points-with-mesh-inside-search"
+        record["control"]["interior_seed_source"] = (
+            "avatar-arrangement-points-with-mesh-inside-search"
+        )
         return record
     finally:
         App.closeDocument(doc.Name)
@@ -738,6 +814,7 @@ def _run_control_avatar():
 def close_gui():
     try:
         import FreeCADGui as Gui
+
         try:
             from PySide import QtWidgets
         except ImportError:
@@ -776,7 +853,9 @@ def main():
             "fabric_friction": 0.5,
         },
     }
-    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    (OUT / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
     _progress("main: manifest-written")
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
     return 0
@@ -792,7 +871,7 @@ def _shutdown_gui():
         if app is not None:
             app.quit()
     except Exception as exc:
-        _progress("qt-quit-failed=%r" % (exc,))
+        _progress(f"qt-quit-failed={exc!r}")
     _progress("gui-shutdown-requested")
 
 
@@ -801,12 +880,10 @@ def _scheduled_main():
     try:
         status = int(main() or 0)
     except BaseException as exc:
-        _progress("main-failed=%r" % (exc,))
+        _progress(f"main-failed={exc!r}")
     finally:
-        try:
+        with contextlib.suppress(Exception):
             faulthandler.cancel_dump_traceback_later()
-        except Exception:
-            pass
         _shutdown_gui()
         _PROGRESS_HANDLE.flush()
     os._exit(status)
@@ -827,4 +904,3 @@ def _schedule_main_once():
 
 if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
     _schedule_main_once()
-

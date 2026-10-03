@@ -1,12 +1,13 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_cube_ladder_contract_is_diagnostic_only_and_frozen():
     source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
 
     for case_id in (
         "rung-1-cube-pinned",

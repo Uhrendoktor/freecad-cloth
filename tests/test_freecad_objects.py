@@ -14,10 +14,17 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import contextlib
+
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.pattern.PatternObjects import PatternPieceProxy, add_pattern_piece, add_seam, refresh_edge_reference_signature
-from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
+from freecad_cloth.pattern.PatternObjects import (
+    PatternPieceProxy,
+    add_pattern_piece,
+    add_seam,
+    refresh_edge_reference_signature,
+)
 from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
 
 
 class Vector:
@@ -83,12 +90,15 @@ def test_pattern_piece_proxy_rejects_invalid_dimensions():
 
 def _set_native_boundary(sketch, arc):
     sketch.clear()
-    sketch.addGeometry([
-        Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
-        arc,
-        Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
-        Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
-    ], False)
+    sketch.addGeometry(
+        [
+            Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+            arc,
+            Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
+            Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
+        ],
+        False,
+    )
     sketch.SemanticEdgeIds = [
         "native-a:edge:0",
         "native-a:edge:1",
@@ -104,7 +114,10 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
     document = App.newDocument("AvatarCollisionScope")
     try:
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
-        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+        from freecad_cloth.simulation.SimulationObjects import (
+            create_simulation_scene,
+            set_avatar_collision_source,
+        )
 
         body = document.addObject("Part::Feature", "FixtureBody")
         body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
@@ -136,17 +149,14 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
 
+
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
         return
     document = App.newDocument("NativeSeamFingerprint")
     try:
-        piece_a = PatternPiece(
-            "NativeArcA", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-a"
-        )
-        piece_b = PatternPiece(
-            "NativeArcB", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-b"
-        )
+        piece_a = PatternPiece("NativeArcA", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-a")
+        piece_b = PatternPiece("NativeArcB", [(0, 0), (10, 0), (10, 10), (0, 10)], id="native-b")
         obj_a = add_pattern_piece(document, piece_a)
         obj_b = add_pattern_piece(document, piece_b)
         sketch_a = create_sketch_for_piece(piece_a, document)
@@ -161,8 +171,12 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
         )
         document.recompute()
 
-        seam_arc = add_seam(document, Seam(obj_a.PieceId, 1, obj_b.PieceId, 0, id="native-arc-seam"))
-        seam_line = add_seam(document, Seam(obj_a.PieceId, 0, obj_b.PieceId, 1, id="native-line-seam"))
+        seam_arc = add_seam(
+            document, Seam(obj_a.PieceId, 1, obj_b.PieceId, 0, id="native-arc-seam")
+        )
+        seam_line = add_seam(
+            document, Seam(obj_a.PieceId, 0, obj_b.PieceId, 1, id="native-line-seam")
+        )
         document.recompute()
         assert str(seam_arc.Status) == "Valid"
         assert str(seam_line.Status) == "Valid"
@@ -179,9 +193,15 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             document = None
             reloaded = App.openDocument(path)
             reloaded.recompute()
-            restored_arc = next(obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == "native-arc-seam")
-            restored_line = next(obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == "native-line-seam")
-            restored_piece = next(obj for obj in reloaded.Objects if getattr(obj, "PieceId", "") == "native-a")
+            restored_arc = next(
+                obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == "native-arc-seam"
+            )
+            restored_line = next(
+                obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == "native-line-seam"
+            )
+            restored_piece = next(
+                obj for obj in reloaded.Objects if getattr(obj, "PieceId", "") == "native-a"
+            )
             assert str(restored_arc.Status) == "Valid"
             assert str(restored_line.Status) == "Valid"
             assert str(restored_arc.EdgeASignature) == arc_signature
@@ -202,11 +222,14 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             assert str(restored_arc.EdgeASignature) == arc_signature
 
             sketch.clear()
-            sketch.addGeometry([
-                Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
-                Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
-                Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
-            ], False)
+            sketch.addGeometry(
+                [
+                    Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+                    Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
+                    Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
+                ],
+                False,
+            )
             sketch.SemanticEdgeIds = [
                 "native-a:edge:0",
                 "native-a:edge:2",
@@ -218,10 +241,8 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             assert str(restored_line.Status) == "Valid"
             App.closeDocument(reloaded.Name)
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(path)
-            except OSError:
-                pass
     finally:
         if document is not None and document.Name in App.listDocuments():
             App.closeDocument(document.Name)
@@ -242,17 +263,32 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
 
         def set_boundary(sketch, piece_id, arc):
             sketch.clear()
-            sketch.addGeometry([
-                Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
-                arc,
-                Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
-                Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
-            ], False)
+            sketch.addGeometry(
+                [
+                    Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+                    arc,
+                    Part.LineSegment(App.Vector(10, 10, 0), App.Vector(0, 10, 0)),
+                    Part.LineSegment(App.Vector(0, 10, 0), App.Vector(0, 0, 0)),
+                ],
+                False,
+            )
             sketch.SemanticEdgeIds = [f"{piece_id}:edge:{i}" for i in range(4)]
             sketch.GeometryAuthority = "Sketcher"
 
-        set_boundary(sketch_a, obj_a.PieceId, Part.ArcOfCircle(Part.Circle(App.Vector(10, 5, 0), App.Vector(0, 0, 1), 5), -math.pi / 2, math.pi / 2))
-        set_boundary(sketch_b, obj_b.PieceId, Part.ArcOfCircle(Part.Circle(App.Vector(10, 5, 0), App.Vector(0, 0, 1), 5), -math.pi / 2, math.pi / 2))
+        set_boundary(
+            sketch_a,
+            obj_a.PieceId,
+            Part.ArcOfCircle(
+                Part.Circle(App.Vector(10, 5, 0), App.Vector(0, 0, 1), 5), -math.pi / 2, math.pi / 2
+            ),
+        )
+        set_boundary(
+            sketch_b,
+            obj_b.PieceId,
+            Part.ArcOfCircle(
+                Part.Circle(App.Vector(10, 5, 0), App.Vector(0, 0, 1), 5), -math.pi / 2, math.pi / 2
+            ),
+        )
         document.recompute()
         relationship_id = "native-mn"
         models = build_mn_seams(
@@ -260,8 +296,10 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
             [SewingMember(obj_a.PieceId, 0), SewingMember(obj_a.PieceId, 1)],
             [SewingMember(obj_b.PieceId, 0), SewingMember(obj_b.PieceId, 1)],
             {
-                (obj_a.PieceId, 0): 10.0, (obj_a.PieceId, 1): 10.0,
-                (obj_b.PieceId, 0): 10.0, (obj_b.PieceId, 1): 10.0,
+                (obj_a.PieceId, 0): 10.0,
+                (obj_a.PieceId, 1): 10.0,
+                (obj_b.PieceId, 0): 10.0,
+                (obj_b.PieceId, 1): 10.0,
             },
             reversed_b=True,
         )
@@ -271,29 +309,66 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
         assert len(network.Seams) == 2
         assert str(network.Status) == "Valid"
         endpoint_pairs = tuple(
-            (str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB), bool(seam.ReversedB))
+            (
+                str(seam.SeamId),
+                str(seam.EdgeAId),
+                str(seam.EdgeBId),
+                float(seam.StartA),
+                float(seam.EndA),
+                float(seam.StartB),
+                float(seam.EndB),
+                bool(seam.ReversedB),
+            )
             for seam in network.Seams
         )
-        fd, path = tempfile.mkstemp(suffix=".FCStd"); os.close(fd)
+        fd, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(fd)
         document.saveAs(path)
-        App.closeDocument(document.Name); document = None
-        reloaded = App.openDocument(path); reloaded.recompute()
-        network = next(obj for obj in reloaded.Objects if str(getattr(obj, "RelationshipId", "")) == relationship_id)
+        App.closeDocument(document.Name)
+        document = None
+        reloaded = App.openDocument(path)
+        reloaded.recompute()
+        network = next(
+            obj
+            for obj in reloaded.Objects
+            if str(getattr(obj, "RelationshipId", "")) == relationship_id
+        )
         restored_pairs = tuple(
-            (str(seam.SeamId), str(seam.EdgeAId), str(seam.EdgeBId), float(seam.StartA), float(seam.EndA), float(seam.StartB), float(seam.EndB), bool(seam.ReversedB))
+            (
+                str(seam.SeamId),
+                str(seam.EdgeAId),
+                str(seam.EdgeBId),
+                float(seam.StartA),
+                float(seam.EndA),
+                float(seam.StartB),
+                float(seam.EndB),
+                bool(seam.ReversedB),
+            )
             for seam in network.Seams
         )
         assert restored_pairs == endpoint_pairs
         assert str(network.Status) == "Valid"
-        restored_piece_a = next(obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == obj_a.PieceId)
-        set_boundary(restored_piece_a.Sketch, restored_piece_a.PieceId, Part.ArcOfCircle(Part.Circle(App.Vector(5, 5, 0), App.Vector(0, 0, 1), math.sqrt(50)), -math.pi / 4, math.pi / 4))
+        restored_piece_a = next(
+            obj for obj in reloaded.Objects if str(getattr(obj, "PieceId", "")) == obj_a.PieceId
+        )
+        set_boundary(
+            restored_piece_a.Sketch,
+            restored_piece_a.PieceId,
+            Part.ArcOfCircle(
+                Part.Circle(App.Vector(5, 5, 0), App.Vector(0, 0, 1), math.sqrt(50)),
+                -math.pi / 4,
+                math.pi / 4,
+            ),
+        )
         reloaded.recompute()
         changed = [seam for seam in network.Seams if str(seam.Status) == "Changed reference"]
         valid = [seam for seam in network.Seams if str(seam.Status) == "Valid"]
         assert len(changed) == 1 and len(valid) == 1
         assert str(network.Status) == "Invalid"
         changed_seam = changed[0]
-        changed_seam.EdgeASignature = refresh_edge_reference_signature(changed_seam.PatternA, changed_seam.EdgeAId)
+        changed_seam.EdgeASignature = refresh_edge_reference_signature(
+            changed_seam.PatternA, changed_seam.EdgeAId
+        )
         reloaded.recompute()
         assert all(str(seam.Status) == "Valid" for seam in network.Seams)
         assert str(network.Status) == "Valid"

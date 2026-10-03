@@ -3,6 +3,7 @@
 
 def _gui_modules():
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -15,16 +16,22 @@ class PatternTopologyRepairTaskPanel:
 
     def __init__(self, doc):
         Gui, QtWidgets = _gui_modules()
-        from freecad_cloth.pattern.PatternTopologyRepair import current_edge_candidates, invalid_seam_sides
+        from freecad_cloth.pattern.PatternTopologyRepair import (
+            current_edge_candidates,
+            invalid_seam_sides,
+        )
+
         self.Gui = Gui
         self.doc = doc
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Cloth Pattern — Repair topology")
         outer = QtWidgets.QVBoxLayout(self.form)
-        outer.addWidget(QtWidgets.QLabel(
-            "Sketch topology changed. Select the intended current edge for each invalid seam side. "
-            "Nothing is remapped automatically."
-        ))
+        outer.addWidget(
+            QtWidgets.QLabel(
+                "Sketch topology changed. Select the intended current edge for each invalid seam side. "
+                "Nothing is remapped automatically."
+            )
+        )
         self.rows = []
         grid = QtWidgets.QGridLayout()
         for col, title in enumerate(("Seam", "Side", "Reason", "Current edge")):
@@ -47,14 +54,19 @@ class PatternTopologyRepairTaskPanel:
 
     def accept(self):
         from freecad_cloth.pattern.PatternTopologyRepair import apply_repair_plan
-        repairs = [(seam, side, combo.currentData()) for seam, side, combo in self.rows if combo.currentData()]
+
+        repairs = [
+            (seam, side, combo.currentData())
+            for seam, side, combo in self.rows
+            if combo.currentData()
+        ]
         if not repairs:
             self.status.setText("Select at least one replacement edge before applying repair.")
             return False
         try:
             plan = apply_repair_plan(self.doc, repairs)
         except Exception as exc:
-            self.status.setText("Repair failed: %s" % exc)
+            self.status.setText(f"Repair failed: {exc}")
             return False
         self.status.setText("Repaired %d seam side(s)." % len(plan))
         self.Gui.Control.closeDialog()

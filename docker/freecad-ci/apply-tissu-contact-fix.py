@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Apply the pinned Tissu contact-response fix with fail-closed source anchors."""
+
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 import subprocess
 import sys
-
+from pathlib import Path
 
 ROOT = Path("/tmp/Tissu")
 EXPECTED_COMMIT = "c28a3c7504ddc782bef844ab5bd4cd0bde14b628"

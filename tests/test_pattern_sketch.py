@@ -1,17 +1,31 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern import PatternCommands
+from freecad_cloth.pattern.PatternDrafting import (
+    add_point,
+    bounds,
+    parse_points,
+    remove_point,
+    serialize_points,
+)
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
-from freecad_cloth.pattern.PatternDrafting import parse_points, serialize_points, add_point, remove_point, bounds
 
 
 def test_pattern_sketch_module_is_headless_safe():
-    piece = PatternPiece("Front", [(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)], id="front")
+    piece = PatternPiece(
+        "Front", [(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)], id="front"
+    )
     piece.validate()
-    assert [f"{piece.id}:edge:{i}" for i in range(4)] == ["front:edge:0", "front:edge:1", "front:edge:2", "front:edge:3"]
+    assert [f"{piece.id}:edge:{i}" for i in range(4)] == [
+        "front:edge:0",
+        "front:edge:1",
+        "front:edge:2",
+        "front:edge:3",
+    ]
 
 
 def test_pattern_sketch_requires_freecad_when_called():
@@ -35,13 +49,17 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
             self.recompute_calls += 1
 
     document = Document()
-    piece = type("PatternPieceObject", (), {
-        "Label": "Bodice",
-        "PieceId": "pattern-piece-1",
-        "SeamAllowance": 8.0,
-        "GrainlineAngle": 0.0,
-        "SewingOutline": "[(0, 0), (100, 0), (100, 60), (0, 60)]",
-    })()
+    piece = type(
+        "PatternPieceObject",
+        (),
+        {
+            "Label": "Bodice",
+            "PieceId": "pattern-piece-1",
+            "SeamAllowance": 8.0,
+            "GrainlineAngle": 0.0,
+            "SewingOutline": "[(0, 0), (100, 0), (100, 60), (0, 60)]",
+        },
+    )()
     calls = []
     original_create = PatternCommands.create_pattern_piece
     old_freecad = sys.modules.get("FreeCAD")
@@ -54,7 +72,9 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
         calls.append((model, doc))
         return "Sketch"
 
-    sys.modules["freecad_cloth.pattern.PatternSketch"] = type("PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece})
+    sys.modules["freecad_cloth.pattern.PatternSketch"] = type(
+        "PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece}
+    )
     try:
         assert "ClothPattern_CreatePieceWithSketch" in PatternCommands.COMMANDS
         result = PatternCommands.create_pattern_piece_with_sketch()
@@ -91,11 +111,15 @@ def test_create_pattern_piece_with_sketch_does_not_duplicate_existing_native_ske
 
     document = Document()
     existing_sketch = object()
-    piece = type("PatternPieceObject", (), {
-        "Label": "ExistingSketchPiece",
-        "PieceId": "pattern-piece-2",
-        "Sketch": existing_sketch,
-    })()
+    piece = type(
+        "PatternPieceObject",
+        (),
+        {
+            "Label": "ExistingSketchPiece",
+            "PieceId": "pattern-piece-2",
+            "Sketch": existing_sketch,
+        },
+    )()
     calls = []
     original_create = PatternCommands.create_pattern_piece
     old_freecad = sys.modules.get("FreeCAD")
@@ -146,7 +170,9 @@ def test_edit_sketch_enters_native_editor_for_selected_piece():
     old_gui = sys.modules.get("FreeCADGui")
     gui = type("FreeCADGui", (), {})()
     gui.Selection = type("Selection", (), {"getSelection": staticmethod(lambda: [Piece()])})()
-    gui.activeDocument = staticmethod(lambda: type("DocGui", (), {"setEdit": lambda self, name: edits.append(name)})())
+    gui.activeDocument = staticmethod(
+        lambda: type("DocGui", (), {"setEdit": lambda self, name: edits.append(name)})()
+    )
     sys.modules["FreeCADGui"] = gui
     try:
         result = PatternCommands.edit_pattern_sketch()
@@ -181,22 +207,26 @@ def test_garment_pattern_sketch_scope_contract():
     assert 'link_garment_object(existing, "PatternSketch", document)' in source
     assert 'link_garment_object(sketch, "PatternSketch", document)' in source
 
+
 def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
     from freecad_cloth.common.SketchAuthority import _piece_model
 
-    legacy = type("LegacyPatternPiece", (), {
-        "Label": "Legacy Front",
-        "PieceId": "legacy-front",
-        "DraftingBoundary": "[(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]",
-        "Width": 120.0,
-        "Height": 70.0,
-        "SeamAllowance": 8.0,
-        "GrainlineAngle": 0.0,
-    })()
+    legacy = type(
+        "LegacyPatternPiece",
+        (),
+        {
+            "Label": "Legacy Front",
+            "PieceId": "legacy-front",
+            "DraftingBoundary": "[(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]",
+            "Width": 120.0,
+            "Height": 70.0,
+            "SeamAllowance": 8.0,
+            "GrainlineAngle": 0.0,
+        },
+    )()
     piece = _piece_model(legacy)
     assert piece.outline == [(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]
     assert piece.id == "legacy-front"
-
 
 
 if __name__ == "__main__":

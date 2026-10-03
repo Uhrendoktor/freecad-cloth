@@ -18,14 +18,16 @@ def normalize_points(points):
 
 
 def serialize_points(points):
-    return ";".join("%.9g,%.9g" % (x, y) for x, y in normalize_points(points))
+    return ";".join(f"{x:.9g},{y:.9g}" for x, y in normalize_points(points))
 
 
 def parse_points(value):
     if not value:
         return ()
     try:
-        return normalize_points(tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";")))
+        return normalize_points(
+            tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";"))
+        )
     except (TypeError, ValueError):
         raise ValueError("invalid drafting boundary")
 
@@ -61,12 +63,19 @@ def remove_point(points, index):
 
 def bounds(points):
     values = normalize_points(points)
-    xs, ys = zip(*values)
+    xs, ys = zip(*values, strict=False)
     return min(xs), min(ys), max(xs), max(ys)
 
 
 def seam_allowance_preview(points, allowance):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, seam_allowance_outline
+    from freecad_cloth.pattern.PatternGeometry import (
+        LineSegment,
+        ParametricPattern,
+        seam_allowance_outline,
+    )
+
     values = normalize_points(points)
-    segments = [LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))]
+    segments = [
+        LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))
+    ]
     return tuple(seam_allowance_outline(ParametricPattern(segments), max(0.0, float(allowance))))

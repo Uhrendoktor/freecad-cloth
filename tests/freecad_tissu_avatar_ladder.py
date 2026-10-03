@@ -5,6 +5,7 @@
 This module is diagnostic-only. It reuses the existing Tissu/FreeCAD runtime and
 frozen solver settings; it does not participate in release acceptance.
 """
+
 from __future__ import annotations
 
 import os
@@ -16,9 +17,11 @@ OUT.mkdir(parents=True, exist_ok=True)
 _BOOT_LOG = OUT / "avatar-ladder-bootstrap.log"
 _TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
 
+
 def _boot(message):
     _TRACE_HANDLE.write(str(message) + "\n")
     _TRACE_HANDLE.flush()
+
 
 import faulthandler
 import json
@@ -31,17 +34,20 @@ import zlib
 _boot("script-start")
 _boot("before-import-FreeCAD")
 import FreeCAD as App
+
 _boot("import-FreeCAD-complete")
+import contextlib
+
 import FreeCADGui as Gui
+
 _boot("import-FreeCADGui-complete")
-import Part
 _boot("import-Part-complete")
 try:
     faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
     faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
     _boot("diagnostic-faulthandler-ready")
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
-    _boot("diagnostic-faulthandler-unavailable=%r" % (exc,))
+    _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
 _boot("before-shared-helper-runpath")
 _shared = runpy.run_path(
@@ -81,22 +87,26 @@ def _seam_geometry(backend, seam_stitch_pairs):
             a = positions[int(left)]
             b = positions[int(right)]
             distance = math.sqrt(sum((a[index] - b[index]) ** 2 for index in range(3)))
-            measurements.append({
-                "particle_a": int(left),
-                "particle_b": int(right),
-                "a_world_mm": [round(value, 6) for value in a],
-                "b_world_mm": [round(value, 6) for value in b],
-                "distance_mm": round(distance, 6),
-            })
+            measurements.append(
+                {
+                    "particle_a": int(left),
+                    "particle_b": int(right),
+                    "a_world_mm": [round(value, 6) for value in a],
+                    "b_world_mm": [round(value, 6) for value in b],
+                    "distance_mm": round(distance, 6),
+                }
+            )
         distances = [item["distance_mm"] for item in measurements]
-        result.append({
-            "seam_id": str(seam_id),
-            "pair_count": len(measurements),
-            "min_span_mm": round(min(distances), 6) if distances else 0.0,
-            "max_span_mm": round(max(distances), 6) if distances else 0.0,
-            "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
-            "pairs": measurements,
-        })
+        result.append(
+            {
+                "seam_id": str(seam_id),
+                "pair_count": len(measurements),
+                "min_span_mm": round(min(distances), 6) if distances else 0.0,
+                "max_span_mm": round(max(distances), 6) if distances else 0.0,
+                "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
+                "pairs": measurements,
+            }
+        )
     return result
 
 
@@ -106,10 +116,9 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
         try:
             import numpy as np
             import trimesh  # noqa: F401
+
             if points:
-                _, distances, _ = proximity_mesh.nearest.on_surface(
-                    np.asarray(points, dtype=float)
-                )
+                _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))
                 unsigned = float(np.min(distances)) if len(distances) else float("inf")
         except (ImportError, RuntimeError, TypeError, ValueError):
             unsigned = None
@@ -129,6 +138,7 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
     if not inside and proximity_mesh is not None and points:
         try:
             import numpy as np
+
             inside = bool(np.any(proximity_mesh.contains(np.asarray(points, dtype=float))))
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
             pass
@@ -137,8 +147,6 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
 
 def _avatar_png_has_visible_content(path, minimum_pixels=128):
     """Return True when an 8-bit RGB/RGBA PNG contains visible non-background pixels."""
-    import struct
-    import zlib
 
     data = Path(path).read_bytes()
     signature = b"\x89PNG\r\n\x1a\n"
@@ -148,8 +156,8 @@ def _avatar_png_has_visible_content(path, minimum_pixels=128):
     width = height = bit_depth = color_type = None
     idat = bytearray()
     while offset + 8 <= len(data):
-        length = struct.unpack(">I", data[offset:offset + 4])[0]
-        chunk_type = data[offset + 4:offset + 8]
+        length = struct.unpack(">I", data[offset : offset + 4])[0]
+        chunk_type = data[offset + 4 : offset + 8]
         payload_start = offset + 8
         payload_end = payload_start + length
         if payload_end + 4 > len(data):
@@ -190,7 +198,7 @@ def _avatar_png_has_visible_content(path, minimum_pixels=128):
     for row in range(int(height)):
         base = row * stride
         filter_type = raw[base]
-        encoded = raw[base + 1:base + stride]
+        encoded = raw[base + 1 : base + stride]
         decoded = bytearray(row_bytes)
         for i, value in enumerate(encoded):
             left = decoded[i - channels] if i >= channels else 0
@@ -232,15 +240,18 @@ def _avatar_screenshot(view, path):
     _screenshot(view, path)
     if _avatar_png_has_visible_content(path):
         return
-    _progress("png-capture=retry path=%s" % path)
+    _progress(f"png-capture=retry path={path}")
     view.redraw()
     time.sleep(0.10)
     _events()
     _screenshot(view, path)
     if not _avatar_png_has_visible_content(path):
-        raise RuntimeError("PNG capture contains no visible rendered content: %s" % path)
+        raise RuntimeError(f"PNG capture contains no visible rendered content: {path}")
 
-def _checkpoint_record(step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh):
+
+def _checkpoint_record(
+    step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh
+):
     finite = all(math.isfinite(float(c)) for point in positions for c in point)
     signed_clearance, unsigned_clearance = _surface_signed_clearance(
         positions,
@@ -273,27 +284,39 @@ def _build_avatar_scene(doc):
         raise RuntimeError("diagnostic avatar target is not the production ClothAvatar")
     target = getattr(scene, "DrapeTarget", None)
     if target is None or getattr(target, "SourceObject", None) is not avatar:
-        raise RuntimeError("diagnostic avatar scene DrapeTarget does not reference production ClothAvatar")
-    status = __import__("freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]).target_status(target)
+        raise RuntimeError(
+            "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
+        )
+    status = __import__(
+        "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
+    ).target_status(target)
     if status["state"] != "ready":
-        raise RuntimeError("diagnostic avatar DrapeTarget is not ready: %s" % status)
+        raise RuntimeError(f"diagnostic avatar DrapeTarget is not ready: {status}")
     avatar.ViewObject.Visibility = True
-    try:
+    with contextlib.suppress(AttributeError, TypeError, ValueError):
         avatar.ViewObject.Transparency = 70
-    except (AttributeError, TypeError, ValueError):
-        pass
     doc.recompute()
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
     def arrangement_world(name):
-        raw = next((value for value in getattr(avatar, "ArrangementPoints", ()) if str(value).split("|", 1)[0] == name), None)
+        raw = next(
+            (
+                value
+                for value in getattr(avatar, "ArrangementPoints", ())
+                if str(value).split("|", 1)[0] == name
+            ),
+            None,
+        )
         if raw is None:
-            raise RuntimeError("diagnostic avatar is missing arrangement point %s" % name)
+            raise RuntimeError(f"diagnostic avatar is missing arrangement point {name}")
         point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
+
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
     from freecad_cloth.simulation.DrapeTarget import collision_surface
+
     target_surface = collision_surface(
         avatar,
         float(getattr(target, "CollisionDeflection", 1.0)),
@@ -301,17 +324,22 @@ def _build_avatar_scene(doc):
     )
     target_vertices = [App.Vector(*vertex) for vertex in getattr(target_surface, "vertices", ())]
     if not target_vertices:
-        raise RuntimeError("diagnostic avatar DrapeTarget has no authoritative world-space vertices")
+        raise RuntimeError(
+            "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
+        )
     x_mid_target = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     target_y_candidates = [
         float(point.y)
         for point in target_vertices
-        if abs(float(point.x) - x_mid_target) <= max(
-            40.0, abs(float(shoulder_right.x - shoulder_left.x)) * 0.9
-        )
+        if abs(float(point.x) - x_mid_target)
+        <= max(40.0, abs(float(shoulder_right.x - shoulder_left.x)) * 0.9)
         and float(hip_point.z) - 100.0 <= float(point.z) <= float(shoulder_left.z) + 100.0
     ]
-    target_y = min(target_y_candidates) if target_y_candidates else min(float(point.y) for point in target_vertices)
+    target_y = (
+        min(target_y_candidates)
+        if target_y_candidates
+        else min(float(point.y) for point in target_vertices)
+    )
     body_depth = max(
         120.0,
         min(
@@ -324,11 +352,15 @@ def _build_avatar_scene(doc):
     x_mid = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     z_mid = (float(shoulder_left.z) + float(hip_point.z)) / 2.0
     panel_y = target_y - clearance
-    return scene, avatar, {
-        "x_mid": x_mid,
-        "z_mid": z_mid,
-        "panel_y": panel_y,
-    }
+    return (
+        scene,
+        avatar,
+        {
+            "x_mid": x_mid,
+            "z_mid": z_mid,
+            "panel_y": panel_y,
+        },
+    )
 
 
 def _add_seam(doc, piece_a, piece_b, seam_id="avatar-seam"):
@@ -430,17 +462,17 @@ def _run_ladder_case(case_id):
 
         base = scene.Proxy._base_or_restore()
         if base.backend is None:
-            raise RuntimeError("%s did not build a Tissu backend" % case_id)
+            raise RuntimeError(f"{case_id} did not build a Tissu backend")
         collision_surface = getattr(
             base.backend,
             "solver_collision_surface",
             getattr(base, "collision_surface", None),
         )
         if collision_surface is None:
-            raise RuntimeError("%s did not expose a collision surface" % case_id)
+            raise RuntimeError(f"{case_id} did not expose a collision surface")
         solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
         if solver_triangles <= 0:
-            raise RuntimeError("%s has no solver collision triangles" % case_id)
+            raise RuntimeError(f"{case_id} has no solver collision triangles")
         positions = _positions_tuple(base.backend)
         panel_triangles = tuple(
             triangle
@@ -461,6 +493,7 @@ def _run_ladder_case(case_id):
         try:
             import numpy as np
             import trimesh
+
             proximity_mesh = trimesh.Trimesh(
                 vertices=np.asarray(getattr(collision_surface, "vertices", ()), dtype=float),
                 faces=np.asarray(getattr(collision_surface, "triangles", ()), dtype=int),
@@ -495,7 +528,7 @@ def _run_ladder_case(case_id):
 
         view = Gui.activeDocument().activeView()
         if view is None:
-            raise RuntimeError("%s has no active FreeCAD view" % case_id)
+            raise RuntimeError(f"{case_id} has no active FreeCAD view")
         images = {}
         checkpoints = []
         for step in CHECKPOINTS:
@@ -557,9 +590,12 @@ def _run_ladder_case(case_id):
                 "source_triangles": int(target_sig["source_triangles"]),
                 "solver_triangles": int(solver_triangles),
                 "target_bounds": {
-                    "x_min": float(avatar.Mesh.BoundBox.XMin), "x_max": float(avatar.Mesh.BoundBox.XMax),
-                    "y_min": float(avatar.Mesh.BoundBox.YMin), "y_max": float(avatar.Mesh.BoundBox.YMax),
-                    "z_min": float(avatar.Mesh.BoundBox.ZMin), "z_max": float(avatar.Mesh.BoundBox.ZMax),
+                    "x_min": float(avatar.Mesh.BoundBox.XMin),
+                    "x_max": float(avatar.Mesh.BoundBox.XMax),
+                    "y_min": float(avatar.Mesh.BoundBox.YMin),
+                    "y_max": float(avatar.Mesh.BoundBox.YMax),
+                    "z_min": float(avatar.Mesh.BoundBox.ZMin),
+                    "z_max": float(avatar.Mesh.BoundBox.ZMax),
                 },
                 "target_topology_summary": {
                     "vertices": int(target_sig["source_vertices"]),
@@ -612,14 +648,13 @@ def _run_ladder_case(case_id):
                 "fixed Tissu backend; solver/collision budgets unchanged; release gate unaffected"
             ),
         }
-        _boot("case-complete=%s runtime_ms=%.3f" % (case_id, record["runtime_ms"]))
+        _boot("case-complete={} runtime_ms={:.3f}".format(case_id, record["runtime_ms"]))
         return record
     finally:
         try:
             _boot(f"case-finally={case_id}")
         finally:
             App.closeDocument(doc.Name)
-
 
 
 def _structural_ladder_checks(records):
@@ -647,9 +682,13 @@ def _structural_ladder_checks(records):
             and [item["step"] for item in record["checkpoints"]] == list(CHECKPOINTS)
         )
         if rung <= 7:
-            ok = ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
+            ok = (
+                ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
+            )
         elif rung == 8:
-            ok = ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
+            ok = (
+                ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
+            )
         else:
             seam_count = len(record["pre_step"]["seam_world_spans_mm"])
             ok = ok and record["case"]["piece_count"] == 2 and seam_count == 1
@@ -715,7 +754,7 @@ def _run_and_shutdown():
     try:
         status = int(main() or 0)
     except BaseException as exc:
-        _progress("avatar-ladder: main-failed=%r" % (exc,))
+        _progress(f"avatar-ladder: main-failed={exc!r}")
     finally:
         _boot(f"shutdown-status={status}")
         _shutdown_gui()
@@ -723,7 +762,7 @@ def _run_and_shutdown():
     os._exit(status)
 
 
-_boot("entrypoint-name=%r" % __name__)
+_boot(f"entrypoint-name={__name__!r}")
 _boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
 _freecad_entrypoint_name = Path(__file__).stem
 _freecad_gui_hosted = bool(getattr(App, "GuiUp", False))

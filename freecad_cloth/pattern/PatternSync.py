@@ -5,10 +5,10 @@ contains only immutable, derived synchronization metadata.  UI/document objects
 can retain a snapshot while a simulation is running without creating another
 mutable copy of pattern or seam semantics.
 """
-from dataclasses import dataclass
+
 import hashlib
 import json
-from typing import Dict, Iterable, Tuple
+from dataclasses import dataclass
 
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
@@ -22,9 +22,9 @@ class PatternSourceSnapshot:
     """Immutable representation of all inputs that affect derived simulation data."""
 
     digest: str
-    pieces: Tuple[tuple, ...]
-    seams: Tuple[tuple, ...]
-    assembly_transforms: Tuple[tuple, ...]
+    pieces: tuple[tuple, ...]
+    seams: tuple[tuple, ...]
+    assembly_transforms: tuple[tuple, ...]
 
     @classmethod
     def from_graph(cls, graph: SeamGraph) -> "PatternSourceSnapshot":
@@ -77,9 +77,27 @@ class PatternSourceSnapshot:
         new_transforms = {item[0]: item for item in newer.assembly_transforms}
         return SnapshotDelta(
             changed=self.digest != newer.digest,
-            changed_pieces=tuple(sorted(k for k in set(old_pieces) | set(new_pieces) if old_pieces.get(k) != new_pieces.get(k))),
-            changed_seams=tuple(sorted(k for k in set(old_seams) | set(new_seams) if old_seams.get(k) != new_seams.get(k))),
-            changed_transforms=tuple(sorted(k for k in set(old_transforms) | set(new_transforms) if old_transforms.get(k) != new_transforms.get(k))),
+            changed_pieces=tuple(
+                sorted(
+                    k
+                    for k in set(old_pieces) | set(new_pieces)
+                    if old_pieces.get(k) != new_pieces.get(k)
+                )
+            ),
+            changed_seams=tuple(
+                sorted(
+                    k
+                    for k in set(old_seams) | set(new_seams)
+                    if old_seams.get(k) != new_seams.get(k)
+                )
+            ),
+            changed_transforms=tuple(
+                sorted(
+                    k
+                    for k in set(old_transforms) | set(new_transforms)
+                    if old_transforms.get(k) != new_transforms.get(k)
+                )
+            ),
         )
 
 
@@ -88,9 +106,9 @@ class SnapshotDelta:
     """Derived change classification between two source snapshots."""
 
     changed: bool
-    changed_pieces: Tuple[str, ...] = ()
-    changed_seams: Tuple[str, ...] = ()
-    changed_transforms: Tuple[str, ...] = ()
+    changed_pieces: tuple[str, ...] = ()
+    changed_seams: tuple[str, ...] = ()
+    changed_transforms: tuple[str, ...] = ()
 
     @property
     def requires_rebuild(self) -> bool:
@@ -135,14 +153,19 @@ class SynchronizationState:
 
     def require_editable(self) -> None:
         if self._simulation_active:
-            raise SimulationLockedError("pattern/seam edits are disabled while simulation is active")
+            raise SimulationLockedError(
+                "pattern/seam edits are disabled while simulation is active"
+            )
 
 
-def _freeze_mapping(value: Dict) -> tuple:
+def _freeze_mapping(value: dict) -> tuple:
     """Recursively convert metadata to deterministic immutable tuples."""
     if not isinstance(value, dict):
         raise TypeError("pattern metadata must be a dictionary")
-    return tuple((str(key), _freeze_value(item)) for key, item in sorted(value.items(), key=lambda pair: str(pair[0])))
+    return tuple(
+        (str(key), _freeze_value(item))
+        for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+    )
 
 
 def _freeze_value(value):
@@ -158,4 +181,6 @@ def _freeze_value(value):
 
 
 def _canonical_json(value) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=list)
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=list
+    )

@@ -4,8 +4,9 @@
 stores that object directly; ``SeamPair`` is only presentation metadata and a
 compatibility adapter, not a second seam representation.
 """
+
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
@@ -15,11 +16,23 @@ from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 class Transform3D:
     """Rigid-free assembly transform represented by a 4x4 row-major matrix."""
 
-    matrix: Tuple[float, ...] = (
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0,
+    matrix: tuple[float, ...] = (
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
     )
 
     def __post_init__(self):
@@ -38,7 +51,7 @@ class Transform3D:
         values[3], values[7], values[11] = float(x), float(y), float(z)
         return cls(tuple(values))
 
-    def apply(self, point: Sequence[float]) -> Tuple[float, float, float]:
+    def apply(self, point: Sequence[float]) -> tuple[float, float, float]:
         if len(point) != 3:
             raise ValueError("point must contain three coordinates")
         x, y, z = point
@@ -62,8 +75,12 @@ class SeamPair:
     alignment: str = ""
 
     def __post_init__(self):
-        object.__setattr__(self, "stitch_group", self.seam.stitch_group or self.stitch_group or self.seam.id)
-        object.__setattr__(self, "alignment", self.seam.alignment if not self.alignment else self.alignment)
+        object.__setattr__(
+            self, "stitch_group", self.seam.stitch_group or self.stitch_group or self.seam.id
+        )
+        object.__setattr__(
+            self, "alignment", self.seam.alignment if not self.alignment else self.alignment
+        )
 
     @property
     def id(self):
@@ -102,9 +119,9 @@ class SeamPair:
 class SeamGraph:
     """Validated seam graph for a set of pattern pieces."""
 
-    pieces: Dict[str, PatternPiece] = field(default_factory=dict)
-    seams: Dict[str, SeamPair] = field(default_factory=dict)
-    assembly_transforms: Dict[str, Transform3D] = field(default_factory=dict)
+    pieces: dict[str, PatternPiece] = field(default_factory=dict)
+    seams: dict[str, SeamPair] = field(default_factory=dict)
+    assembly_transforms: dict[str, Transform3D] = field(default_factory=dict)
 
     def add_piece(self, piece: PatternPiece) -> None:
         piece.validate()
@@ -152,10 +169,10 @@ class SeamGraph:
 
     def stitch_pairs(
         self,
-        edge_vertices: Mapping[Tuple[str, int], Sequence[int]],
+        edge_vertices: Mapping[tuple[str, int], Sequence[int]],
         seam_ids: Iterable[str] = (),
-        edge_points: Mapping[Tuple[str, int], Sequence[Sequence[float]]] | None = None,
-    ) -> Tuple[Tuple[int, int], ...]:
+        edge_points: Mapping[tuple[str, int], Sequence[Sequence[float]]] | None = None,
+    ) -> tuple[tuple[int, int], ...]:
         """Return deterministic particle-index stitch pairs for selected seams."""
         selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
         pairs = []
@@ -176,7 +193,7 @@ class SeamGraph:
                 b_sel = arc_length_vertex_indices(b, b_points, count, seam.start_b, seam.end_b)
             if seam.reversed_b:
                 b_sel = tuple(reversed(b_sel))
-            pairs.extend(zip(a_sel, b_sel))
+            pairs.extend(zip(a_sel, b_sel, strict=False))
         return tuple(pairs)
 
     @staticmethod

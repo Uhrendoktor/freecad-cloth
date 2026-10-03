@@ -5,11 +5,15 @@ records sharing one relationship id. Member ranges may cover arbitrary
 sub-ranges of an edge, so the same machinery handles free sewing and 1:1,
 1:N, M:1, and M:N relationships.
 """
+
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_recovery, correspondence_status_label
+from freecad_cloth.sewing.SewingCorrespondence import (
+    analyze_correspondence,
+    correspondence_status_label,
+)
 
 
 @dataclass(frozen=True)
@@ -42,7 +46,7 @@ def _member_length(member: SewingMember, edge_lengths) -> float:
     return length * (float(member.end) - float(member.start))
 
 
-def _breakpoints(lengths: Sequence[float]) -> List[float]:
+def _breakpoints(lengths: Sequence[float]) -> list[float]:
     total = sum(lengths)
     if total <= 0.0:
         raise ValueError("sewing relationship has zero total length")
@@ -62,7 +66,7 @@ def build_mn_seams(
     reversed_b: bool = False,
     alignment: str = "uniform",
     kind: str = "plain",
-) -> Tuple[Seam, ...]:
+) -> tuple[Seam, ...]:
     """Expand an M:N relationship into deterministic canonical seam segments.
 
     Members are ordered as supplied. Their physical lengths define cumulative
@@ -98,25 +102,39 @@ def build_mn_seams(
         if hi > lo + 1e-12:
             a_span = a_breaks[i + 1] - a_breaks[i]
             b_span = b_breaks[j + 1] - b_breaks[j]
-            a_start = float(a[i].start) + (float(a[i].end) - float(a[i].start)) * (lo - a_breaks[i]) / a_span
-            a_end = float(a[i].start) + (float(a[i].end) - float(a[i].start)) * (hi - a_breaks[i]) / a_span
-            b_start = float(b[j].start) + (float(b[j].end) - float(b[j].start)) * (lo - b_breaks[j]) / b_span
-            b_end = float(b[j].start) + (float(b[j].end) - float(b[j].start)) * (hi - b_breaks[j]) / b_span
-            seams.append(Seam(
-                piece_a=a[i].piece_id,
-                edge_a=a[i].edge,
-                piece_b=b[j].piece_id,
-                edge_b=b[j].edge,
-                id=f"{relationship_id}-{i + 1}-{j + 1}",
-                start_a=a_start,
-                end_a=a_end,
-                start_b=b_start,
-                end_b=b_end,
-                reversed_b=bool(reversed_b),
-                alignment=alignment,
-                stitch_group=relationship_id,
-                kind=kind,
-            ))
+            a_start = (
+                float(a[i].start)
+                + (float(a[i].end) - float(a[i].start)) * (lo - a_breaks[i]) / a_span
+            )
+            a_end = (
+                float(a[i].start)
+                + (float(a[i].end) - float(a[i].start)) * (hi - a_breaks[i]) / a_span
+            )
+            b_start = (
+                float(b[j].start)
+                + (float(b[j].end) - float(b[j].start)) * (lo - b_breaks[j]) / b_span
+            )
+            b_end = (
+                float(b[j].start)
+                + (float(b[j].end) - float(b[j].start)) * (hi - b_breaks[j]) / b_span
+            )
+            seams.append(
+                Seam(
+                    piece_a=a[i].piece_id,
+                    edge_a=a[i].edge,
+                    piece_b=b[j].piece_id,
+                    edge_b=b[j].edge,
+                    id=f"{relationship_id}-{i + 1}-{j + 1}",
+                    start_a=a_start,
+                    end_a=a_end,
+                    start_b=b_start,
+                    end_b=b_end,
+                    reversed_b=bool(reversed_b),
+                    alignment=alignment,
+                    stitch_group=relationship_id,
+                    kind=kind,
+                )
+            )
         if a_breaks[i + 1] < b_breaks[j + 1] - 1e-12:
             i += 1
         elif b_breaks[j + 1] < a_breaks[i + 1] - 1e-12:
@@ -154,11 +172,13 @@ def _network_lengths(seams):
     for seam in seams:
         document = getattr(seam, "Document", None)
         if document is not None:
-            pieces.update({
-                str(getattr(piece, "PieceId", "")): piece
-                for piece in getattr(document, "Objects", ())
-                if getattr(piece, "PatternType", "") == "PatternPiece"
-            })
+            pieces.update(
+                {
+                    str(getattr(piece, "PieceId", "")): piece
+                    for piece in getattr(document, "Objects", ())
+                    if getattr(piece, "PatternType", "") == "PatternPiece"
+                }
+            )
         piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
         piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
         if piece_a is None or piece_b is None:
@@ -263,17 +283,33 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = relationship_id
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingNetwork"
-    obj.addProperty("App::PropertyString", "RelationshipId", "Sewing").RelationshipId = relationship_id
+    obj.addProperty(
+        "App::PropertyString", "RelationshipId", "Sewing"
+    ).RelationshipId = relationship_id
     obj.addProperty("App::PropertyLinkList", "Seams", "Sewing").Seams = list(seams)
-    obj.addProperty("App::PropertyInteger", "SideACount", "Sewing").SideACount = len({(s.PieceA, s.EdgeA) for s in seams})
-    obj.addProperty("App::PropertyInteger", "SideBCount", "Sewing").SideBCount = len({(s.PieceB, s.EdgeB) for s in seams})
+    obj.addProperty("App::PropertyInteger", "SideACount", "Sewing").SideACount = len(
+        {(s.PieceA, s.EdgeA) for s in seams}
+    )
+    obj.addProperty("App::PropertyInteger", "SideBCount", "Sewing").SideBCount = len(
+        {(s.PieceB, s.EdgeB) for s in seams}
+    )
     obj.addProperty("App::PropertyInteger", "SegmentCount", "Sewing").SegmentCount = len(seams)
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
-    obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
-    obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
-    obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = "seam correspondence is valid"
-    obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "no repair required"
-    obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "info"
+    obj.addProperty(
+        "App::PropertyFloat", "RelativeTolerance", "Validation"
+    ).RelativeTolerance = 0.05
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceStatus", "Validation"
+    ).CorrespondenceStatus = "valid"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceMessage", "Validation"
+    ).CorrespondenceMessage = "seam correspondence is valid"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceRecovery", "Validation"
+    ).CorrespondenceRecovery = "no repair required"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceSeverity", "Validation"
+    ).CorrespondenceSeverity = "info"
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0.0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0.0
     obj.addProperty("App::PropertyLength", "LengthDifference", "Validation").LengthDifference = 0.0
@@ -287,5 +323,6 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
+
     link_garment_object(obj, "SewingNetwork", doc)
     return obj

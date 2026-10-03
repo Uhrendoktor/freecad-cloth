@@ -1,7 +1,8 @@
 """Headless checks for installable FreeCAD workbench registration."""
-from pathlib import Path
+
 import importlib.util
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -42,7 +43,16 @@ def test_workbench_metadata_and_icons():
 
 def test_workbench_command_groups_are_declared_once():
     module = _load_init_gui()
-    assert len({module.ClothPatternWorkbench.Icon, module.ClothSimulationWorkbench.Icon, module.ClothSewingWorkbench.Icon}) == 3
+    assert (
+        len(
+            {
+                module.ClothPatternWorkbench.Icon,
+                module.ClothSimulationWorkbench.Icon,
+                module.ClothSewingWorkbench.Icon,
+            }
+        )
+        == 3
+    )
     for workbench in (
         module.ClothPatternWorkbench(),
         module.ClothSimulationWorkbench(),

@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 def _qt():
-    import FreeCAD as App, FreeCADGui as Gui
+    import FreeCAD as App
+    import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -14,9 +16,16 @@ def _qt():
 
 def _selected_piece(doc):
     import FreeCADGui as Gui
+
     return next(
-        (obj for obj in Gui.Selection.getSelection() if getattr(obj, "PatternType", "") == "PatternPiece"),
-        next((obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None),
+        (
+            obj
+            for obj in Gui.Selection.getSelection()
+            if getattr(obj, "PatternType", "") == "PatternPiece"
+        ),
+        next(
+            (obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"), None
+        ),
     )
 
 
@@ -43,8 +52,9 @@ class PatternExportTaskPanel:
         path_row.addWidget(self.path)
         path_row.addWidget(self.browse)
         self.status = QtWidgets.QLabel(
-            "Source: %s | Piece ID: %s | Export is derived/read-only" %
-            (getattr(self.piece, "Label", self.piece.Name), getattr(self.piece, "PieceId", ""))
+            "Source: {} | Piece ID: {} | Export is derived/read-only".format(
+                getattr(self.piece, "Label", self.piece.Name), getattr(self.piece, "PieceId", "")
+            )
         )
         self.status.setWordWrap(True)
         layout.addRow("Format", self.format)
@@ -65,7 +75,9 @@ class PatternExportTaskPanel:
     def _browse(self):
         _, _, QtWidgets = _qt()
         suffix = "SVG (*.svg)" if self.format.currentText().lower() == "svg" else "DXF (*.dxf)"
-        path, _selected = QtWidgets.QFileDialog.getSaveFileName(self.form, "Export Cloth Pattern", "", suffix)
+        path, _selected = QtWidgets.QFileDialog.getSaveFileName(
+            self.form, "Export Cloth Pattern", "", suffix
+        )
         if path:
             self.path.setText(path)
 
@@ -74,6 +86,7 @@ class PatternExportTaskPanel:
         if not path:
             raise ValueError("choose an output path before exporting")
         from freecad_cloth.pattern.PatternExport import export_pattern_piece
+
         try:
             result = export_pattern_piece(
                 self.piece,
@@ -83,12 +96,12 @@ class PatternExportTaskPanel:
                 curve_samples=int(self.curve_samples.value()),
             )
         except (OSError, ValueError, RuntimeError) as exc:
-            self.status.setText("Export blocked: %s" % exc)
+            self.status.setText(f"Export blocked: {exc}")
             return False
         metadata = result["metadata"]
         self.status.setText(
-            "Exported %s | %s | edges=%d | seams=%d | scale=%s | read-only source" %
-            (
+            "Exported %s | %s | edges=%d | seams=%d | scale=%s | read-only source"
+            % (
                 Path(path).name,
                 result["format"].upper(),
                 len(metadata.get("edge_ids", ())),

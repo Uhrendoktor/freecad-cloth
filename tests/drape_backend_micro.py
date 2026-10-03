@@ -1,4 +1,5 @@
 """Realtime backend smoke/performance check without FreeCAD GUI overhead."""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
-from freecad_cloth.simulation.TissuBackend import TissuBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 OUT = Path(os.environ.get("CLOTH_MICRO_DIR", "artifacts/drape-backend-micro"))
@@ -27,13 +27,12 @@ def make_system():
     offset = len(left.particles)
     particles = left.particles + right.particles
     constraints = list(left.constraints) + [
-        type(c)(c.a + offset, c.b + offset, c.rest, c.compliance)
-        for c in right.constraints
+        type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints
     ]
     system = ClothSystem(particles, constraints)
     top = tuple(range(nx - 1, -1, -1))
     right_top = tuple(offset + i for i in range(nx))
-    stitches = tuple((a, b) for a, b in zip(top, right_top))
+    stitches = tuple((a, b) for a, b in zip(top, right_top, strict=False))
     system.add_stitches(stitches)
     system.pin((0, nx - 1, offset, offset + nx - 1))
     triangles = []
@@ -55,13 +54,28 @@ def make_collision_surface():
     y0, y1 = -55.0, 55.0
     z0, z1 = 105.0, 225.0
     vertices = (
-        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+        (x0, y0, z0),
+        (x1, y0, z0),
+        (x1, y1, z0),
+        (x0, y1, z0),
+        (x0, y0, z1),
+        (x1, y0, z1),
+        (x1, y1, z1),
+        (x0, y1, z1),
     )
     triangles = (
-        (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
-        (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
-        (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
+        (0, 1, 2),
+        (0, 2, 3),
+        (4, 6, 5),
+        (4, 7, 6),
+        (0, 4, 5),
+        (0, 5, 1),
+        (1, 5, 6),
+        (1, 6, 2),
+        (2, 6, 7),
+        (2, 7, 3),
+        (3, 7, 4),
+        (3, 4, 0),
     )
     return CollisionSurface(vertices, triangles, "micro-torso", 2.0)
 
@@ -107,7 +121,9 @@ def main():
         "particles": len(backend.positions()),
         "stitches": len(stitches),
         "collision_triangles": len(collision.triangles),
-        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1")) if backend_name == "tissu" else 1,
+        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"))
+        if backend_name == "tissu"
+        else 1,
         "elapsed_s": elapsed,
         "mean_step_ms": 1000.0 * sum(times) / len(times),
         "p95_step_ms": 1000.0 * p95,
@@ -118,7 +134,11 @@ def main():
     }
     (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, sort_keys=True), flush=True)
-    if not result["finite"] or result["mean_step_ms"] > FRAME_BUDGET_MS or result["p95_step_ms"] > 50.0:
+    if (
+        not result["finite"]
+        or result["mean_step_ms"] > FRAME_BUDGET_MS
+        or result["p95_step_ms"] > 50.0
+    ):
         raise SystemExit(2)
 
 

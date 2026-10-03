@@ -5,6 +5,7 @@ solver details. A provider supplies authoritative parameters, a visual/collision
 surface and stable landmarks. The built-in human provider uses a real MakeHuman
 HM08 polygon mesh; a CAD provider adapts an existing FreeCAD object.
 """
+
 from dataclasses import dataclass
 
 from freecad_cloth.avatar.AvatarService import AvatarService
@@ -98,12 +99,13 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         return ()
 
 
-def provider_from_target(source, target_type="FreeCAD Geometry", parameters=None,
-                         deflection=1.0, thickness=0.0):
+def provider_from_target(
+    source, target_type="FreeCAD Geometry", parameters=None, deflection=1.0, thickness=0.0
+):
     """Build the appropriate provider without coupling callers to a class."""
     kind = str(target_type)
     if kind == "Mannequin":
         return ParametricAvatarProvider(parameters)
     if kind == "FreeCAD Geometry":
         return FreeCADGeometryAvatarProvider(source, deflection, thickness)
-    raise ValueError("unsupported avatar provider target type: %s" % kind)
+    raise ValueError(f"unsupported avatar provider target type: {kind}")

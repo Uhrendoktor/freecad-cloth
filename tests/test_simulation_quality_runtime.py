@@ -14,8 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_quality_names_and_discretization_are_materially_distinct():
     assert QUALITY_NAMES == ("Fast", "Balanced", "Final")
     counts = [
-        quality_discretization(4, 400.0, preset(name).particle_distance)
-        for name in QUALITY_NAMES
+        quality_discretization(4, 400.0, preset(name).particle_distance) for name in QUALITY_NAMES
     ]
     assert counts[0] < counts[1] < counts[2]
 
@@ -58,9 +57,9 @@ def test_material_defaults_are_document_metadata():
 
 
 def test_runtime_has_no_legacy_backend_or_damping_path():
-    source = (
-        ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "default_backend_registry" not in source
     assert "preferred_backend_name" not in source

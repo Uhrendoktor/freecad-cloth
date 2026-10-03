@@ -25,11 +25,19 @@ def test_valid_plan_reports_counts():
 
 
 def test_unknown_piece_is_rejected():
-    assert_raises(ValueError, "unknown piece", lambda: validate_sewing_plan(pieces(), [Seam("front", 1, "missing", 0, id="bad")]))
+    assert_raises(
+        ValueError,
+        "unknown piece",
+        lambda: validate_sewing_plan(pieces(), [Seam("front", 1, "missing", 0, id="bad")]),
+    )
 
 
 def test_edge_index_is_checked_against_outline():
-    assert_raises(ValueError, "out of range", lambda: validate_sewing_plan(pieces(), [Seam("front", 4, "back", 0, id="bad")]))
+    assert_raises(
+        ValueError,
+        "out of range",
+        lambda: validate_sewing_plan(pieces(), [Seam("front", 4, "back", 0, id="bad")]),
+    )
 
 
 def test_duplicate_seam_ids_are_rejected():

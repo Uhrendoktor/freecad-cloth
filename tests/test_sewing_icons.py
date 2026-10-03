@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
 COMMANDS = (
@@ -35,7 +34,13 @@ def test_sewing_command_resources_reference_command_icons():
         handler = SewingCommands._COMMAND_HANDLERS[command]
         active = SewingCommands._ACTIVATION[command]
         icon = str(ICON_DIR / f"{command}.svg")
-        wrapper = SewingCommands._SewingCommand(handler, active, SewingCommands._TOOLTIPS[command], SewingCommands._MENU_TEXT[command], icon)
+        wrapper = SewingCommands._SewingCommand(
+            handler,
+            active,
+            SewingCommands._TOOLTIPS[command],
+            SewingCommands._MENU_TEXT[command],
+            icon,
+        )
         resources = wrapper.GetResources()
         assert resources["Pixmap"] == icon
         assert resources["MenuText"] == SewingCommands._MENU_TEXT[command]

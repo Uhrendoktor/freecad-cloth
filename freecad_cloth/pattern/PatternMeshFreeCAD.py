@@ -5,8 +5,9 @@ adapter converts a sampled sewing boundary into a planar Part face, delegates
 tessellation to MeshPart, and canonicalizes the result back into TriangleMesh
 while retaining stable pattern-segment provenance.
 """
+
+from collections.abc import Iterable, Sequence
 from math import hypot
-from typing import Dict, Iterable, List, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
@@ -54,8 +55,8 @@ def mesh_shape_from_outline(outline, linear_deflection=1.0, angular_deflection=0
         raise ValueError("outline needs at least three points")
     try:
         import FreeCAD as App
-        import Part
         import MeshPart
+        import Part
     except ImportError as exc:
         raise RuntimeError("FreeCAD Part/MeshPart is required") from exc
     points = [App.Vector(float(x), float(y), 0.0) for x, y in outline]
@@ -74,7 +75,7 @@ def boundary_provenance(outline):
     return tuple((i, f"edge:{i}") for i in range(len(outline)))
 
 
-def _mesh_topology(native) -> Tuple[List[Point], List[Tuple[int, int, int]]]:
+def _mesh_topology(native) -> tuple[list[Point], list[tuple[int, int, int]]]:
     topology = getattr(native, "Topology", None)
     if topology is not None:
         points, facets = topology
@@ -99,13 +100,15 @@ def _mesh_topology(native) -> Tuple[List[Point], List[Tuple[int, int, int]]]:
 def _canonical_triangle_mesh(
     pattern: ParametricPattern,
     vertices: Sequence[Point],
-    triangles: Sequence[Tuple[int, int, int]],
+    triangles: Sequence[tuple[int, int, int]],
 ) -> TriangleMesh:
     if len(vertices) < 3 or not triangles:
         raise ValueError("native tessellator returned an empty mesh")
     order = sorted(range(len(vertices)), key=lambda index: _point_key(vertices[index]))
     remap = {old: new for new, old in enumerate(order)}
-    canonical_vertices = tuple((float(vertices[index][0]), float(vertices[index][1])) for index in order)
+    canonical_vertices = tuple(
+        (float(vertices[index][0]), float(vertices[index][1])) for index in order
+    )
     canonical_triangles = tuple(
         tuple(remap[index] for index in triangle)
         for triangle in triangles
@@ -113,7 +116,9 @@ def _canonical_triangle_mesh(
     )
     if not canonical_triangles:
         raise ValueError("native tessellator returned no triangular facets")
-    boundary_loop = _canonical_boundary_loop(_boundary_edges(canonical_triangles), canonical_vertices)
+    boundary_loop = _canonical_boundary_loop(
+        _boundary_edges(canonical_triangles), canonical_vertices
+    )
     edge_ids = tuple(
         _nearest_segment_id(pattern, _midpoint(canonical_vertices[a], canonical_vertices[b]))
         for a, b in _loop_edges(boundary_loop)
@@ -123,12 +128,12 @@ def _canonical_triangle_mesh(
     return mesh
 
 
-def _point_key(point: Point) -> Tuple[float, float]:
+def _point_key(point: Point) -> tuple[float, float]:
     return (round(float(point[0]), 12), round(float(point[1]), 12))
 
 
-def _boundary_edges(triangles: Sequence[Tuple[int, int, int]]) -> List[Tuple[int, int]]:
-    counts: Dict[Tuple[int, int], int] = {}
+def _boundary_edges(triangles: Sequence[tuple[int, int, int]]) -> list[tuple[int, int]]:
+    counts: dict[tuple[int, int], int] = {}
     for a, b, c in triangles:
         for start, end in ((a, b), (b, c), (c, a)):
             edge = (start, end) if start < end else (end, start)
@@ -136,10 +141,12 @@ def _boundary_edges(triangles: Sequence[Tuple[int, int, int]]) -> List[Tuple[int
     return [edge for edge, count in counts.items() if count == 1]
 
 
-def _canonical_boundary_loop(edges: Sequence[Tuple[int, int]], vertices: Sequence[Point]) -> List[int]:
+def _canonical_boundary_loop(
+    edges: Sequence[tuple[int, int]], vertices: Sequence[Point]
+) -> list[int]:
     if len(edges) < 3:
         raise ValueError("native tessellator returned no closed boundary")
-    adjacency: Dict[int, List[int]] = {}
+    adjacency: dict[int, list[int]] = {}
     for a, b in edges:
         adjacency.setdefault(a, []).append(b)
         adjacency.setdefault(b, []).append(a)
@@ -173,7 +180,7 @@ def _signed_loop_area(loop: Sequence[int], vertices: Sequence[Point]) -> float:
     )
 
 
-def _loop_edges(loop: Sequence[int]) -> Iterable[Tuple[int, int]]:
+def _loop_edges(loop: Sequence[int]) -> Iterable[tuple[int, int]]:
     return ((loop[index], loop[(index + 1) % len(loop)]) for index in range(len(loop)))
 
 
@@ -187,7 +194,10 @@ def _nearest_segment_id(pattern: ParametricPattern, point: Point) -> str:
     for segment in pattern.segments:
         if hasattr(segment, "control"):
             samples = segment.polyline(64)
-            distance = min(_point_to_segment_distance(point, a, b) for a, b in zip(samples, samples[1:]))
+            distance = min(
+                _point_to_segment_distance(point, a, b)
+                for a, b in zip(samples, samples[1:], strict=False)
+            )
         else:
             distance = _point_to_segment_distance(point, segment.start, segment.end)
         if distance < best_distance:

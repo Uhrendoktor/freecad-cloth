@@ -3,15 +3,15 @@
 The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
+
 from dataclasses import dataclass
 from math import ceil
-from typing import Tuple
 
 
 @dataclass(frozen=True)
 class CollisionSurface:
-    vertices: Tuple[Tuple[float, float, float], ...]
-    triangles: Tuple[Tuple[int, int, int], ...]
+    vertices: tuple[tuple[float, float, float], ...]
+    triangles: tuple[tuple[int, int, int], ...]
     region: str = "body"
     thickness: float = 0.0
 
@@ -28,7 +28,7 @@ class CollisionSurface:
             raise ValueError("collision region must not be empty")
 
     @property
-    def center(self) -> Tuple[float, float, float]:
+    def center(self) -> tuple[float, float, float]:
         n = len(self.vertices)
         if not n:
             return (0.0, 0.0, 0.0)
@@ -56,7 +56,9 @@ class AvatarSpec:
             self.collision.validate()
 
 
-def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
+def coarsen_collision_surface(
+    surface: CollisionSurface, max_triangles: int = 1024
+) -> CollisionSurface:
     """Derive a spatially covered collision surface from a real authored mesh.
 
     The visible avatar remains the full MakeHuman mesh. The solver does not need
@@ -144,7 +146,9 @@ def surface_from_freecad(obj, deflection: float = 1.0, thickness: float = 0.0) -
         triangles = tuple(tuple(int(i) for i in face) for face in faces)
     else:
         raise TypeError("expected a FreeCAD shape or mesh object")
-    surface = CollisionSurface(points, triangles, getattr(obj, "Label", "body") or "body", float(thickness))
+    surface = CollisionSurface(
+        points, triangles, getattr(obj, "Label", "body") or "body", float(thickness)
+    )
     surface.validate()
     return surface
 

@@ -1,10 +1,11 @@
 """Static checks for the real FreeCAD GUI layer."""
+
 import ast
 from pathlib import Path
 
-from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
 from freecad_cloth.gui import ClothWorkbenchBase
 from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
+from InitGui import SEWING_COMMAND_GROUPS, SEWING_TOOLBAR_COMMANDS, ClothSewingWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
 init_gui = (ROOT / "InitGui.py").read_text()
@@ -73,19 +74,40 @@ assert '"upper_arm": "Upper_Arm"' in avatar_commands
 
 def test_sewing_command_groups_are_unique_and_complete():
     groups = dict(SEWING_COMMAND_GROUPS)
-    assert tuple(groups) == ("Sewing Creation", "Sewing Editing", "Validation & View", "Fitting & Avatar")
+    assert tuple(groups) == (
+        "Sewing Creation",
+        "Sewing Editing",
+        "Validation & View",
+        "Fitting & Avatar",
+    )
     assert groups["Fitting & Avatar"] == ()
     commands = [command for group in groups.values() for command in group]
     assert len(commands) == len(set(commands))
     assert commands == [
-        "ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork", "ClothSewing_FreeSewing",
-        "ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment",
-        "ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D", "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D",
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateMNSewing",
+        "ClothSewing_CreateNetwork",
+        "ClothSewing_FreeSewing",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_EditOperation",
+        "ClothSewing_EditNetwork",
+        "ClothSewing_ReverseSeam",
+        "ClothSewing_ToggleAlignment",
+        "ClothSewing_Validate",
+        "ClothSewing_RepairSeam",
+        "ClothSewing_FocusSeam3D",
+        "ClothSewing_EditSeamSideA",
+        "ClothSewing_EditSeamSideB",
+        "ClothSewing_Show2D",
     ]
 
 
 def test_sewing_toolbar_is_small_and_stable():
-    assert SEWING_TOOLBAR_COMMANDS == ("ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate")
+    assert SEWING_TOOLBAR_COMMANDS == (
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_Validate",
+    )
     grouped = {command for _group, commands in SEWING_COMMAND_GROUPS for command in commands}
     assert set(SEWING_TOOLBAR_COMMANDS) <= grouped
     assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
@@ -93,12 +115,17 @@ def test_sewing_toolbar_is_small_and_stable():
 
 def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset(monkeypatch):
     import freecad_cloth.gui as gui_module
+
     monkeypatch.setattr(gui_module, "Gui", object())
     workbench = ClothSewingWorkbench()
     calls = []
     workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
     workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
-    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText, toolbar_commands=SEWING_TOOLBAR_COMMANDS)
+    workbench._register_groups(
+        SEWING_COMMAND_GROUPS,
+        toolbar_name=workbench.MenuText,
+        toolbar_commands=SEWING_TOOLBAR_COMMANDS,
+    )
     assert calls[0] == ("toolbar", "Cloth Sewing", list(SEWING_TOOLBAR_COMMANDS))
     assert calls[1:] == [
         ("menu", ["Cloth Sewing", "Sewing Creation"], list(SEWING_COMMAND_GROUPS[0][1])),
@@ -125,6 +152,7 @@ def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_comma
 
 def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands(monkeypatch):
     import freecad_cloth.gui as gui_module
+
     monkeypatch.setattr(gui_module, "Gui", object())
     workbench = ClothSewingWorkbench()
     calls = []
@@ -134,7 +162,9 @@ def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_comma
     first_calls = list(calls)
     workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
     assert calls == first_calls
-    assert workbench.commands == [command for _group, commands in SEWING_COMMAND_GROUPS for command in commands]
+    assert workbench.commands == [
+        command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
+    ]
     assert [kind for kind, _name, _commands in calls] == ["toolbar", "menu", "menu", "menu"]
     assert calls[0][1] == "Cloth Sewing"
     assert calls[0][2] == workbench.commands
@@ -155,7 +185,7 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         assert path.is_file(), path
         content = path.read_text(encoding="utf-8").lstrip()
         assert content.startswith("<svg "), path
-        assert "xmlns=\"http://www.w3.org/2000/svg\"" in content
+        assert 'xmlns="http://www.w3.org/2000/svg"' in content
 
 
 def test_pattern_authoring_command_surface_is_sketcher_backed():
@@ -185,8 +215,11 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
     assert "Edit native Sketch" in pattern_gui
     assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
 
+
 def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
-    handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(encoding="utf-8")
+    handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(
+        encoding="utf-8"
+    )
     assert 'QtWidgets.QGroupBox("Context")' in quality_gui
     assert 'QtWidgets.QGroupBox("Arrange / Fit")' in quality_gui
     assert 'QPushButton("Arrange / Fit…")' in quality_gui

@@ -1,4 +1,5 @@
 """Regression tests for Pattern workbench mark command enablement."""
+
 import sys
 import types
 

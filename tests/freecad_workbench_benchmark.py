@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """FreeCAD GUI entry point for the workbench benchmark."""
+
 from __future__ import annotations
 
 import pathlib

@@ -1,11 +1,14 @@
 import sys
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.sewing.SewingNetworkGui import network_reference_errors, validate_network_for_edit
 from freecad_cloth.sewing import SewingNetworkCommands
+from freecad_cloth.sewing.SewingNetworkGui import (
+    network_reference_errors,
+    validate_network_for_edit,
+)
 
 
 class _Seam:
@@ -33,9 +36,10 @@ class SewingNetworkGuiContractTests(unittest.TestCase):
 
     def test_missing_reference_is_reported_without_silent_edit(self):
         network = _Network([_Seam("s-missing", "Missing reference")])
-        with self.assertRaisesRegex(ValueError, r"invalid seam references.*s-missing: Missing reference"):
+        with self.assertRaisesRegex(
+            ValueError, r"invalid seam references.*s-missing: Missing reference"
+        ):
             validate_network_for_edit(network)
-
 
     def test_active_network_task_panel_accessor_is_deterministic(self):
         sentinel = object()

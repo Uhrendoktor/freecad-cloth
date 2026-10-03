@@ -1,19 +1,20 @@
 """Solver-neutral visual sanity metrics for generated garment drapes."""
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite, sqrt
 from statistics import median
-from typing import Sequence, Tuple
 
-Point3 = Tuple[float, float, float]
+Point3 = tuple[float, float, float]
 
 
 @dataclass(frozen=True)
 class DrapeVisualMetrics:
     vertices: int
-    bounds: Tuple[float, float, float, float, float, float]
-    spans: Tuple[float, float, float]
+    bounds: tuple[float, float, float, float, float, float]
+    spans: tuple[float, float, float]
     centroid: Point3
     vertical_span_ratio: float
     lateral_span_ratio: float
@@ -22,7 +23,7 @@ class DrapeVisualMetrics:
     state: str
 
 
-def _bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, float, float, float]:
+def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
     if not vertices:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     xs = [float(v[0]) for v in vertices]
@@ -78,8 +79,7 @@ def seam_correspondence_gap(
 
     def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
         return tuple(
-            float(left[i]) + (float(right[i]) - float(left[i])) * fraction
-            for i in range(3)
+            float(left[i]) + (float(right[i]) - float(left[i])) * fraction for i in range(3)
         )  # type: ignore[return-value]
 
     maximum = 0.0
@@ -111,17 +111,33 @@ def inspect_drape(
     make a wide, flattened or side-on garment look healthy by mistake.
     """
     if not garment_vertices:
-        return DrapeVisualMetrics(0, (0.0,) * 6, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "empty")
+        return DrapeVisualMetrics(
+            0, (0.0,) * 6, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "empty"
+        )
     finite = all(isfinite(float(c)) for v in garment_vertices for c in v)
     if not finite:
-        return DrapeVisualMetrics(len(garment_vertices), _bounds(garment_vertices), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "nonfinite")
+        return DrapeVisualMetrics(
+            len(garment_vertices),
+            _bounds(garment_vertices),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0),
+            0.0,
+            0.0,
+            None,
+            False,
+            "nonfinite",
+        )
 
     b = _bounds(garment_vertices)
     spans = (b[1] - b[0], b[3] - b[2], b[5] - b[4])
     vertical = spans[2]
     lateral_width = max(spans[0], spans[1])
-    vertical_span_ratio = vertical / float(target_height) if target_height and target_height > 0 else 0.0
-    lateral_span_ratio = lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
+    vertical_span_ratio = (
+        vertical / float(target_height) if target_height and target_height > 0 else 0.0
+    )
+    lateral_span_ratio = (
+        lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
+    )
     clearance = minimum_vertex_distance(garment_vertices, target_vertices)
     centroid = _centroid(garment_vertices)
 
@@ -132,13 +148,21 @@ def inspect_drape(
         state = "flat-or-collapsed"
     elif target_height and vertical_span_ratio < 0.15:
         state = "short-drape-candidate"
-    elif clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0):
+    elif (
+        clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0)
+    ):
         state = "detached-candidate"
 
     return DrapeVisualMetrics(
-        len(garment_vertices), b, spans, centroid,
-        vertical_span_ratio, lateral_span_ratio, clearance,
-        True, state,
+        len(garment_vertices),
+        b,
+        spans,
+        centroid,
+        vertical_span_ratio,
+        lateral_span_ratio,
+        clearance,
+        True,
+        state,
     )
 
 
@@ -156,13 +180,14 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
     }
 
 
-
 _FATAL_VISUAL_STATES = frozenset({"detached-candidate"})
-_FATAL_VISUAL_DIAGNOSTICS = frozenset({
-    "lateral-detached-candidate",
-    "collapsed-candidate",
-    "below-hem-candidate",
-})
+_FATAL_VISUAL_DIAGNOSTICS = frozenset(
+    {
+        "lateral-detached-candidate",
+        "collapsed-candidate",
+        "below-hem-candidate",
+    }
+)
 
 
 def assert_drape_diagnostics(records: Sequence[dict]) -> None:
@@ -174,17 +199,14 @@ def assert_drape_diagnostics(records: Sequence[dict]) -> None:
         diagnostics = {str(item) for item in record.get("diagnostics", ())}
         if state in _FATAL_VISUAL_STATES or diagnostics & _FATAL_VISUAL_DIAGNOSTICS:
             failures.append(
-                "%s: classification=%s diagnostics=%s"
-                % (
+                "{}: classification={} diagnostics={}".format(
                     str(record.get("panel", "<unknown>")),
                     state or "none",
                     ",".join(sorted(diagnostics)),
                 )
             )
     if failures:
-        raise RuntimeError(
-            "drape visual acceptance failed closed: " + "; ".join(failures)
-        )
+        raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
 
 
 def mesh_shape_sanity(vertices, triangles):
@@ -244,13 +266,19 @@ def mesh_shape_sanity(vertices, triangles):
         median_edge = float(median(lengths))
         max_edge = float(max(lengths))
         spike_ratio = max_edge / median_edge if median_edge > 1e-12 else float("inf")
-        spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(len(lengths))
+        spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(
+            len(lengths)
+        )
 
     xs = [float(vertex[0]) for vertex in vertices]
     ys = [float(vertex[1]) for vertex in vertices]
     span_x = max(xs) - min(xs)
     span_y = max(ys) - min(ys)
-    small = min(value for value in (span_x, span_y) if value > 1e-12) if max(span_x, span_y) > 1e-12 else 0.0
+    small = (
+        min(value for value in (span_x, span_y) if value > 1e-12)
+        if max(span_x, span_y) > 1e-12
+        else 0.0
+    )
     aspect = max(span_x, span_y) / small if small > 0.0 else float("inf")
 
     return {

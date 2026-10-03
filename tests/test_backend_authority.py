@@ -18,8 +18,12 @@ def test_backend_boundary_is_small_and_solver_neutral():
 
 
 def test_tissu_is_the_only_runtime_backend_implementation():
-    backend_source = (ROOT / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(encoding="utf-8")
-    tissu_source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
+    backend_source = (ROOT / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(
+        encoding="utf-8"
+    )
+    tissu_source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "default_backend_registry" not in backend_source
     assert "preferred_backend_name" not in backend_source

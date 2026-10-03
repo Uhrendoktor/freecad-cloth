@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.DrapeQuality import assert_quality, benchmark, measure
+
+from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 from freecad_cloth.simulation.SimulationCommands import _drape_target_guard
 
@@ -21,7 +23,13 @@ def test_metrics_capture_constraint_residual_and_displacement():
 
 
 def test_benchmark_repeats_are_deterministic():
-    result = benchmark(lambda: ClothSystem.grid(30, 15, nx=4, ny=3), steps=4, iterations=6, repeats=2, gravity=(0, 0, -98.1))
+    result = benchmark(
+        lambda: ClothSystem.grid(30, 15, nx=4, ny=3),
+        steps=4,
+        iterations=6,
+        repeats=2,
+        gravity=(0, 0, -98.1),
+    )
     assert len(result["runs"]) == 2
     assert result["runs"][0]["metrics"] == result["runs"][1]["metrics"]
     assert result["runs"][0]["runtime_seconds"] >= 0
@@ -32,24 +40,36 @@ def test_quality_rejects_non_finite_state():
     system.particles[0].x = float("nan")
     metrics = measure(system)
     assert not metrics.finite
-    try: assert_quality(metrics)
-    except AssertionError: pass
-    else: raise AssertionError("non-finite state must fail quality gate")
+    try:
+        assert_quality(metrics)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("non-finite state must fail quality gate")
 
 
 def test_drape_target_contract_tracks_source_changes():
     class Vec:
-        def __init__(self, x=0, y=0, z=0): self.x, self.y, self.z = x, y, z
+        def __init__(self, x=0, y=0, z=0):
+            self.x, self.y, self.z = x, y, z
+
     class Rot:
         Angle = 0.0
         Axis = Vec(0, 0, 1)
+
     class PlacementType:
         Base = Vec()
         Rotation = Rot()
+
     class ShapeType:
         value = 1
-        def isNull(self): return False
-        def hashCode(self): return self.value
+
+        def isNull(self):
+            return False
+
+        def hashCode(self):
+            return self.value
+
     class Target:
         Name = "Target"
         Label = "Target"
@@ -63,9 +83,11 @@ def test_drape_target_contract_tracks_source_changes():
         CollisionTriangleCount = 0
         CollisionDeflection = 1.0
         CollisionThickness = 2.0
+
     DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
     DrapeTargetSpec("FreeCAD Geometry", "Target", 1.0, 2.0).validate()
-    target = Target(); baseline = source_signature(target, 1.0, 2.0)
+    target = Target()
+    baseline = source_signature(target, 1.0, 2.0)
     target.Shape.value = 2
     assert source_signature(target, 1.0, 2.0) != baseline
 
@@ -80,6 +102,7 @@ def test_disabled_drape_target_is_explicitly_blocked():
         CollisionTriangleCount = 12
         CollisionDeflection = 1.0
         CollisionThickness = 2.0
+
     target = Target()
     status = target_status(target)
     assert status["state"] == "disabled"
@@ -93,7 +116,8 @@ def test_disabled_drape_target_is_explicitly_blocked():
 
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
-        if name.startswith("test_"): fn()
+        if name.startswith("test_"):
+            fn()
     print("drape quality and target tests passed")
 
 
@@ -106,6 +130,7 @@ def test_canonical_tunic_fixture_has_swapped_panel_placement():
 def test_canonical_tunic_fixture_uses_narrow_panel_ease():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "chest = 860.0; hip = 880.0; ease = 10.0" in fixture
+
 
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")

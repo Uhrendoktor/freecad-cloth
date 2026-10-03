@@ -9,6 +9,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -20,30 +21,54 @@ class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
 
     PROPERTY_MAP = {
-        "height": "Height", "neck": "Neck", "shoulder": "Shoulder",
-        "chest": "Chest", "underbust": "Underbust", "waist": "Waist",
-        "high_hip": "High_Hip", "hip": "Hip", "upper_arm": "Upper_Arm",
-        "elbow": "Elbow", "wrist": "Wrist", "thigh": "Thigh",
-        "knee": "Knee", "calf": "Calf", "ankle": "Ankle",
-        "inseam": "Inseam", "torso": "Torso", "front_waist": "Front_Waist",
+        "height": "Height",
+        "neck": "Neck",
+        "shoulder": "Shoulder",
+        "chest": "Chest",
+        "underbust": "Underbust",
+        "waist": "Waist",
+        "high_hip": "High_Hip",
+        "hip": "Hip",
+        "upper_arm": "Upper_Arm",
+        "elbow": "Elbow",
+        "wrist": "Wrist",
+        "thigh": "Thigh",
+        "knee": "Knee",
+        "calf": "Calf",
+        "ankle": "Ankle",
+        "inseam": "Inseam",
+        "torso": "Torso",
+        "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
     BODY = (
-        ("height", "Height"), ("neck", "Neck circumference"),
-        ("shoulder", "Shoulder breadth"), ("chest", "Chest / bust"),
-        ("underbust", "Underbust"), ("waist", "Waist"),
-        ("high_hip", "High hip"), ("hip", "Hip"),
-        ("upper_arm", "Upper arm"), ("elbow", "Elbow"),
-        ("wrist", "Wrist"), ("thigh", "Thigh"),
-        ("knee", "Knee"), ("calf", "Calf"), ("ankle", "Ankle"),
+        ("height", "Height"),
+        ("neck", "Neck circumference"),
+        ("shoulder", "Shoulder breadth"),
+        ("chest", "Chest / bust"),
+        ("underbust", "Underbust"),
+        ("waist", "Waist"),
+        ("high_hip", "High hip"),
+        ("hip", "Hip"),
+        ("upper_arm", "Upper arm"),
+        ("elbow", "Elbow"),
+        ("wrist", "Wrist"),
+        ("thigh", "Thigh"),
+        ("knee", "Knee"),
+        ("calf", "Calf"),
+        ("ankle", "Ankle"),
     )
     PROPORTIONS = (
-        ("inseam", "Inseam"), ("torso", "Torso length"),
-        ("front_waist", "Front waist length"), ("back_waist", "Back waist length"),
+        ("inseam", "Inseam"),
+        ("torso", "Torso length"),
+        ("front_waist", "Front waist length"),
+        ("back_waist", "Back waist length"),
     )
     POSE_FIELDS = (
-        ("left_arm_angle", "Left arm"), ("right_arm_angle", "Right arm"),
-        ("left_elbow_angle", "Left elbow bend"), ("right_elbow_angle", "Right elbow bend"),
+        ("left_arm_angle", "Left arm"),
+        ("right_arm_angle", "Right arm"),
+        ("left_elbow_angle", "Left elbow bend"),
+        ("right_elbow_angle", "Right elbow bend"),
     )
     PROVIDERS = (
         ("makehuman-hm08", "MakeHuman HM08 humanoid mesh"),
@@ -76,10 +101,14 @@ class AvatarTaskPanel:
         self.provider = QtWidgets.QComboBox()
         self.provider.addItems([label for _key, label in self.PROVIDERS])
         self._provider_ids = [key for key, _label in self.PROVIDERS]
-        self.provider.setToolTip("Swap the geometry provider without replacing the mannequin object or garment relationships.")
+        self.provider.setToolTip(
+            "Swap the geometry provider without replacing the mannequin object or garment relationships."
+        )
         provider_layout.addRow("Provider", self.provider)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
-        self.provider_source.setToolTip("Select a body or mesh in the 3D view, then stage it as the FreeCAD geometry provider.")
+        self.provider_source.setToolTip(
+            "Select a body or mesh in the 3D view, then stage it as the FreeCAD geometry provider."
+        )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
         provider_layout.addRow(self.provider_source)
@@ -109,7 +138,9 @@ class AvatarTaskPanel:
         self.skin_offset.setDecimals(1)
         self.skin_offset.setSuffix(" mm")
         self.show_measurements = QtWidgets.QCheckBox("Show measurement landmarks")
-        self.show_measurements.setToolTip("Show the stable named landmarks stored by the mannequin.")
+        self.show_measurements.setToolTip(
+            "Show the stable named landmarks stored by the mannequin."
+        )
         display_layout.addRow("Collision / skin offset", self.skin_offset)
         display_layout.addRow(self.show_measurements)
         content_layout.addWidget(display)
@@ -117,7 +148,9 @@ class AvatarTaskPanel:
         arrangement = QtWidgets.QGroupBox("Arrangement points")
         arrangement_layout = QtWidgets.QVBoxLayout(arrangement)
         self.arrangement_points = QtWidgets.QListWidget()
-        self.arrangement_points.setToolTip("Persistent local fitting points used as a foundation for garment placement.")
+        self.arrangement_points.setToolTip(
+            "Persistent local fitting points used as a foundation for garment placement."
+        )
         self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         arrangement_layout.addWidget(self.arrangement_points)
         content_layout.addWidget(arrangement)
@@ -202,7 +235,12 @@ class AvatarTaskPanel:
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
         self.pose.blockSignals(False)
-        pose_values = {"left_arm_angle": 12.0, "right_arm_angle": 12.0, "left_elbow_angle": 0.0, "right_elbow_angle": 0.0}
+        pose_values = {
+            "left_arm_angle": 12.0,
+            "right_arm_angle": 12.0,
+            "left_elbow_angle": 0.0,
+            "right_elbow_angle": 0.0,
+        }
         for key, box in self._pose_boxes.items():
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self._pose_property(key), pose_values[key])))
@@ -217,49 +255,82 @@ class AvatarTaskPanel:
 
     @staticmethod
     def _pose_property(key):
-        return {"left_arm_angle": "LeftArmAngle", "right_arm_angle": "RightArmAngle", "left_elbow_angle": "LeftElbowAngle", "right_elbow_angle": "RightElbowAngle"}[key]
+        return {
+            "left_arm_angle": "LeftArmAngle",
+            "right_arm_angle": "RightArmAngle",
+            "left_elbow_angle": "LeftElbowAngle",
+            "right_elbow_angle": "RightElbowAngle",
+        }[key]
 
     def _provider_changed(self, _index):
         self._dirty = True
         self._refresh_provider_source()
-        self._refresh_status("Avatar provider change is staged. Apply & Rebuild to swap the body source.")
+        self._refresh_status(
+            "Avatar provider change is staged. Apply & Rebuild to swap the body source."
+        )
 
     def _use_selected_provider_source(self):
         if self.avatar is None:
             return
         selection = [obj for obj in self.Gui.Selection.getSelection() if obj is not self.avatar]
         if not selection:
-            self._refresh_status("Select a FreeCAD body or mesh first, then use it as the provider source.")
+            self._refresh_status(
+                "Select a FreeCAD body or mesh first, then use it as the provider source."
+            )
             return
         self.provider.setCurrentIndex(self._provider_ids.index("freecad-geometry"))
         self._provider_source_object = selection[0]
         self._dirty = True
         self._refresh_provider_source()
-        self._refresh_status("Provider source staged: %s. Apply & Rebuild to use it." % getattr(selection[0], "Label", selection[0].Name))
+        self._refresh_status(
+            "Provider source staged: {}. Apply & Rebuild to use it.".format(
+                getattr(selection[0], "Label", selection[0].Name)
+            )
+        )
 
     def _refresh_provider_source(self):
         if self.avatar is None:
             self.provider_source_label.setText("Source: none")
             return
-        source = getattr(self, "_provider_source_object", None) or getattr(self.avatar, "ProviderSource", None)
+        source = getattr(self, "_provider_source_object", None) or getattr(
+            self.avatar, "ProviderSource", None
+        )
         if source is None:
             text = "Source: none"
         else:
-            text = "Source: %s" % getattr(source, "Label", getattr(source, "Name", "FreeCAD object"))
+            text = "Source: {}".format(
+                getattr(source, "Label", getattr(source, "Name", "FreeCAD object"))
+            )
         self.provider_source_label.setText(text)
-        self.provider_source.setEnabled(self.provider.currentIndex() == self._provider_ids.index("freecad-geometry"))
+        self.provider_source.setEnabled(
+            self.provider.currentIndex() == self._provider_ids.index("freecad-geometry")
+        )
 
     def _preset_changed(self, preset):
         self._staged_changed()
 
     def _staged_changed(self):
         self._dirty = True
-        self._refresh_status("Unsaved mannequin edits are staged. Apply & Rebuild to update the body.")
+        self._refresh_status(
+            "Unsaved mannequin edits are staged. Apply & Rebuild to update the body."
+        )
 
     def _staged_parameters(self):
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
+
         values = {key: box.value() for key, box in self._boxes.items()}
-        pose = Pose(str(self.pose.currentText()), *(self._pose_boxes[key].value() for key in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle")))
+        pose = Pose(
+            str(self.pose.currentText()),
+            *(
+                self._pose_boxes[key].value()
+                for key in (
+                    "left_arm_angle",
+                    "right_arm_angle",
+                    "left_elbow_angle",
+                    "right_elbow_angle",
+                )
+            ),
+        )
         return AvatarParameters(values, self.skin_offset.value(), pose)
 
     def _apply(self):
@@ -267,9 +338,15 @@ class AvatarTaskPanel:
             return False
         params = self._staged_parameters()
         provider_id = self._provider_ids[self.provider.currentIndex()]
-        provider_source = getattr(self, "_provider_source_object", None) or getattr(self.avatar, "ProviderSource", None)
-        if provider_id == "freecad-geometry" and (provider_source is None or provider_source is self.avatar):
-            self._refresh_status("A FreeCAD body or mesh must be selected before switching to the FreeCAD geometry provider.")
+        provider_source = getattr(self, "_provider_source_object", None) or getattr(
+            self.avatar, "ProviderSource", None
+        )
+        if provider_id == "freecad-geometry" and (
+            provider_source is None or provider_source is self.avatar
+        ):
+            self._refresh_status(
+                "A FreeCAD body or mesh must be selected before switching to the FreeCAD geometry provider."
+            )
             return False
         for key, property_name in self.PROPERTY_MAP.items():
             setattr(self.avatar, property_name, params.measurements[key])
@@ -277,7 +354,16 @@ class AvatarTaskPanel:
         self.avatar.SkinOffset = params.skin_offset
         self.avatar.AvatarProviderId = provider_id
         self.avatar.ProviderSource = provider_source if provider_id == "freecad-geometry" else None
-        for key, value in zip(("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"), (params.pose.left_arm_angle, params.pose.right_arm_angle, params.pose.left_elbow_angle, params.pose.right_elbow_angle)):
+        for key, value in zip(
+            ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"),
+            (
+                params.pose.left_arm_angle,
+                params.pose.right_arm_angle,
+                params.pose.left_elbow_angle,
+                params.pose.right_elbow_angle,
+            ),
+            strict=False,
+        ):
             setattr(self.avatar, self._pose_property(key), value)
         self._dirty = False
         self._rebuild_geometry()
@@ -290,6 +376,7 @@ class AvatarTaskPanel:
 
     def _rebuild_geometry(self):
         from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
+
         rebuild_avatar()
 
     def _update_arrangement_points(self):
@@ -302,7 +389,9 @@ class AvatarTaskPanel:
                 name, coords = str(item).split("|", 1)
             except ValueError:
                 continue
-            self.arrangement_points.addItem("%s: (%s)" % (name.replace("_", " ").title(), coords))
+            self.arrangement_points.addItem(
+                "{}: ({})".format(name.replace("_", " ").title(), coords)
+            )
 
     def _update_landmarks(self):
         if self.avatar is None or not self.show_measurements.isChecked():
@@ -314,7 +403,7 @@ class AvatarTaskPanel:
                 name, coords = str(item).split("|", 1)
             except ValueError:
                 continue
-            entries.append("%s: (%s)" % (name.replace("_", " ").title(), coords))
+            entries.append("{}: ({})".format(name.replace("_", " ").title(), coords))
         self.landmarks.setText("<b>Landmarks</b><br>" + "<br>".join(entries))
 
     def _landmarks_visibility_changed(self, _checked):
@@ -325,11 +414,15 @@ class AvatarTaskPanel:
             self.status.setText(message or "No mannequin selected.")
             return
         suffix = " | staged changes" if self._dirty else ""
-        self.status.setText(message or "Avatar status: %s | provider: %s | pose: %s%s" % (
-            str(getattr(self.avatar, "AvatarStatus", "Unknown")),
-            str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08")),
-            str(getattr(self.avatar, "PosePreset", "standing")), suffix,
-        ))
+        self.status.setText(
+            message
+            or "Avatar status: {} | provider: {} | pose: {}{}".format(
+                str(getattr(self.avatar, "AvatarStatus", "Unknown")),
+                str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08")),
+                str(getattr(self.avatar, "PosePreset", "standing")),
+                suffix,
+            )
+        )
 
     def _fit_view(self):
         if self.Gui.activeDocument():

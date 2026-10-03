@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXEMPT_API_FILES = {"workbench.py", "gui.py"}
@@ -42,7 +42,9 @@ def check(path: Path) -> list[str]:
         return errors
 
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not node.name.startswith("_"):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        ) and not node.name.startswith("_"):
             if ast.get_docstring(node) is None:
                 errors.append(
                     f"{path}:{node.lineno}: missing docstring for public {type(node).__name__.lower()} {node.name}"

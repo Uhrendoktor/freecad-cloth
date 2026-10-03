@@ -1,22 +1,26 @@
 """Temporary boundary probe for the Native Sketcher GUI acceptance path."""
+
 import math
-import os
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
+
 def mark(stage: str) -> None:
     print("stage=" + stage, flush=True)
 
+
 mark("script-loaded")
 import FreeCAD as App  # noqa: E402
+
 mark("freecad-imported")
 import FreeCADGui as Gui  # noqa: E402
+
 mark("freecadgui-imported")
 import Part  # noqa: E402
+
 mark("part-imported")
 
 mark("process-start")
@@ -99,13 +103,16 @@ sketch.GeometryAuthority = "Sketcher"
 mark("geometry-authority-assigned")
 
 import Sketcher  # noqa: E402
-sketch.addConstraint([
-    Sketcher.Constraint("Coincident", 0, 2, 1, 1),
-    Sketcher.Constraint("Coincident", 1, 2, 2, 1),
-    Sketcher.Constraint("Coincident", 2, 2, 3, 1),
-    Sketcher.Constraint("Coincident", 3, 2, 0, 1),
-    Sketcher.Constraint("Horizontal", 0),
-])
+
+sketch.addConstraint(
+    [
+        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+        Sketcher.Constraint("Coincident", 3, 2, 0, 1),
+        Sketcher.Constraint("Horizontal", 0),
+    ]
+)
 mark("geometric-constraints-added")
 
 width_index = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 100.0))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Merge per-workbench benchmark JSON files into one reviewable artifact."""
+
 from __future__ import annotations
 
 import json
@@ -10,10 +11,7 @@ import sys
 def main() -> None:
     root = pathlib.Path(sys.argv[1])
     names = ["Pattern", "Sewing", "Simulation"]
-    data = [
-        json.loads((root / f"{name}.json").read_text(encoding="utf-8"))
-        for name in names
-    ]
+    data = [json.loads((root / f"{name}.json").read_text(encoding="utf-8")) for name in names]
     merged = {
         "schema": data[0]["schema"],
         "python": data[0]["python"],

@@ -1,7 +1,7 @@
 import sys
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
-import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -65,14 +65,18 @@ class SewingCreationSessionContractTests(unittest.TestCase):
         self.assertEqual(doc.Objects[0].Status, "Valid")
         self.assertEqual(tuple(gui.Selection.selected), preview)
         session.commit()
-        self.assertEqual([call[0] for call in doc.calls], ["open", "recompute", "recompute", "commit"])
+        self.assertEqual(
+            [call[0] for call in doc.calls], ["open", "recompute", "recompute", "commit"]
+        )
         self.assertEqual(len(doc.Objects), 1)
         with self.assertRaisesRegex(ValueError, "already been committed"):
             session.commit()
 
         doc_cancel = _Document()
         gui_cancel = SimpleNamespace(Selection=_Selection([anchor]))
-        session_cancel = SewingCreationSession(doc_cancel, gui_cancel, "Create Seam", _builder(doc_cancel))
+        session_cancel = SewingCreationSession(
+            doc_cancel, gui_cancel, "Create Seam", _builder(doc_cancel)
+        )
         session_cancel.preview()
         self.assertEqual(len(doc_cancel.Objects), 1)
         session_cancel.cancel()

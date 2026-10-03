@@ -1,10 +1,11 @@
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
-from pathlib import Path
+
 import hashlib
 import math
 import os
-import tempfile
 import sys
+import tempfile
+from pathlib import Path
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -25,7 +26,11 @@ def _ensure_workbench_registration():
     expected = (
         ("ClothPatternWorkbench", "freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
         ("ClothSewingWorkbench", "freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
-        ("ClothSimulationWorkbench", "freecad_cloth.simulation.workbench", "ClothSimulationWorkbench"),
+        (
+            "ClothSimulationWorkbench",
+            "freecad_cloth.simulation.workbench",
+            "ClothSimulationWorkbench",
+        ),
     )
     missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
     if missing:
@@ -43,7 +48,7 @@ def _ensure_workbench_registration():
     missing = [name for name, _, _ in expected if name not in Gui.listWorkbenches()]
     if missing:
         raise RuntimeError(
-            "standalone workbench bootstrap did not register: %s" % ",".join(missing)
+            "standalone workbench bootstrap did not register: {}".format(",".join(missing))
         )
     _record("workbench-bootstrap=passed")
 
@@ -73,8 +78,7 @@ def _wait_task_close():
         if active is None or not bool(active):
             return
     print(
-        "TASK_CLOSE_DIAGNOSTIC activeDialog=%r type=%s bool=%s"
-        % (active, type(active).__name__, bool(active)),
+        f"TASK_CLOSE_DIAGNOSTIC activeDialog={active!r} type={type(active).__name__} bool={bool(active)}",
         flush=True,
     )
     raise RuntimeError("task dialog did not close after the requested public action")
@@ -85,7 +89,7 @@ def _activate(name, commands):
     _events()
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("commands are not registered: %s" % ",".join(missing))
+        raise RuntimeError("commands are not registered: {}".format(",".join(missing)))
 
 
 def _dialog_text(dialog):
@@ -108,7 +112,7 @@ def _dialog_text(dialog):
 def _require_dialog(required, label, panel=None):
     dialog = Gui.Control.activeDialog()
     if dialog is None:
-        raise RuntimeError("%s did not open an active public task dialog" % label)
+        raise RuntimeError(f"{label} did not open an active public task dialog")
 
     target = panel if panel is not None else dialog
     visible_text = _dialog_text(target)
@@ -133,8 +137,10 @@ def _require_dialog(required, label, panel=None):
         if all(item in dock_text for item in required):
             return target
 
-    missing = [item for item in required if item not in (dock_text if dock is not None else visible_text)]
-    raise RuntimeError("%s task panel missing visible text: %s" % (label, ",".join(missing)))
+    missing = [
+        item for item in required if item not in (dock_text if dock is not None else visible_text)
+    ]
+    raise RuntimeError("{} task panel missing visible text: {}".format(label, ",".join(missing)))
 
 
 def _find_pattern_pieces(doc):
@@ -154,14 +160,16 @@ def _make_curved(piece, doc):
     sketch.Geometry = geometry
     sketch.SemanticEdgeIds = [f"{piece_id}:edge:{index}" for index in range(4)]
     sketch.GeometryAuthority = "Sketcher"
-    sketch.addConstraint([
-        Sketcher.Constraint("Coincident", 0, 2, 1, 1),
-        Sketcher.Constraint("Coincident", 1, 2, 2, 1),
-        Sketcher.Constraint("Coincident", 2, 2, 3, 1),
-        Sketcher.Constraint("Coincident", 3, 2, 0, 1),
-        Sketcher.Constraint("Horizontal", 0),
-        Sketcher.Constraint("Vertical", 3),
-    ])
+    sketch.addConstraint(
+        [
+            Sketcher.Constraint("Coincident", 0, 2, 1, 1),
+            Sketcher.Constraint("Coincident", 1, 2, 2, 1),
+            Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+            Sketcher.Constraint("Coincident", 3, 2, 0, 1),
+            Sketcher.Constraint("Horizontal", 0),
+            Sketcher.Constraint("Vertical", 3),
+        ]
+    )
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
         raise RuntimeError("curved pattern did not produce native geometry")
@@ -214,6 +222,7 @@ def _open_staged(command):
     Gui.runCommand(command, 0)
     _events()
     from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+
     panel = get_active_staged_sewing_task_panel()
     if panel is None:
         raise RuntimeError(command + " did not expose its public staged sewing task panel")
@@ -246,11 +255,21 @@ def _open_quality_panel():
     Gui.runCommand("ClothSimulation_Edit", 0)
     _events()
     from freecad_cloth.simulation.SimulationCommands import get_active_simulation_quality_task_panel
+
     panel = get_active_simulation_quality_task_panel()
     if panel is None:
         raise RuntimeError("ClothSimulation_Edit did not expose its public simulation task panel")
     _require_dialog(
-        ("Preset", "Particle distance", "Density", "Avatar skin offset", "Simulation steps", "Step", "Run 30", "Reset"),
+        (
+            "Preset",
+            "Particle distance",
+            "Density",
+            "Avatar skin offset",
+            "Simulation steps",
+            "Step",
+            "Run 30",
+            "Reset",
+        ),
         "ClothSimulation_Edit",
         panel=panel,
     )
@@ -262,9 +281,12 @@ def _open_diagnostics_panel():
     Gui.runCommand("ClothDrape_Diagnostics", 0)
     _events()
     from freecad_cloth.simulation.DrapeCommands import get_active_diagnostics_task_panel
+
     panel = get_active_diagnostics_task_panel()
     if panel is None:
-        raise RuntimeError("ClothDrape_Diagnostics did not expose its public diagnostics task panel")
+        raise RuntimeError(
+            "ClothDrape_Diagnostics did not expose its public diagnostics task panel"
+        )
     _require_dialog(
         ("Refresh analysis", "Create diagnostic map", "Export analysis data"),
         "ClothDrape_Diagnostics",
@@ -275,6 +297,7 @@ def _open_diagnostics_panel():
 
 def _export_pair(piece, output_dir, export_format):
     from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+
     path_a = output_dir / ("canonical." + export_format.lower())
     path_b = output_dir / ("canonical-second." + export_format.lower())
     reader = from_svg_metadata if export_format == "SVG" else from_dxf_metadata
@@ -284,44 +307,49 @@ def _export_pair(piece, output_dir, export_format):
     Gui.runCommand("ClothPattern_Export", 0)
     _events()
     from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
+
     panel = get_active_pattern_export_task_panel()
     if panel is None:
-        raise RuntimeError("ClothPattern_Export did not expose its public pattern-export task panel")
+        raise RuntimeError(
+            "ClothPattern_Export did not expose its public pattern-export task panel"
+        )
     _require_dialog(("Production Export", "read-only"), "ClothPattern_Export", panel=panel)
     panel.format.setCurrentText(export_format)
     panel.path.setText(str(path_a))
     if not panel.accept():
-        raise RuntimeError("public export task panel rejected %s" % export_format)
+        raise RuntimeError(f"public export task panel rejected {export_format}")
     _events()
 
     first = path_a.read_bytes()
     if not first:
-        raise RuntimeError("%s export is empty" % export_format)
+        raise RuntimeError(f"{export_format} export is empty")
 
     _close_task()
     Gui.runCommand("ClothPattern_Export", 0)
     _events()
     panel = get_active_pattern_export_task_panel()
     if panel is None:
-        raise RuntimeError("second ClothPattern_Export did not expose its public pattern-export task panel")
+        raise RuntimeError(
+            "second ClothPattern_Export did not expose its public pattern-export task panel"
+        )
     _require_dialog(("Production Export", "read-only"), "ClothPattern_Export", panel=panel)
     panel.format.setCurrentText(export_format)
     panel.path.setText(str(path_b))
     if not panel.accept():
-        raise RuntimeError("second public export rejected %s" % export_format)
+        raise RuntimeError(f"second public export rejected {export_format}")
     _events()
 
     second = path_b.read_bytes()
     if first != second:
-        raise RuntimeError("%s export is not byte-deterministic" % export_format)
+        raise RuntimeError(f"{export_format} export is not byte-deterministic")
 
     metadata = reader(first.decode("utf-8"))
     if metadata.get("piece_id") != str(piece.PieceId):
-        raise RuntimeError("%s export lost piece identity" % export_format)
+        raise RuntimeError(f"{export_format} export lost piece identity")
     if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
-        raise RuntimeError("%s export lost units/scale" % export_format)
+        raise RuntimeError(f"{export_format} export lost units/scale")
     if not metadata.get("edge_ids"):
-        raise RuntimeError("%s export lost semantic edge IDs" % export_format)
+        raise RuntimeError(f"{export_format} export lost semantic edge IDs")
     return len(first), metadata
 
 
@@ -342,15 +370,30 @@ def run_acceptance():
         _events()
         doc = App.ActiveDocument
         if doc is None:
-            raise RuntimeError("public Garment creation command did not create an active FreeCAD document")
+            raise RuntimeError(
+                "public Garment creation command did not create an active FreeCAD document"
+            )
         from freecad_cloth.common.GarmentDocument import garment_structure
+
         initial_structure = garment_structure(doc)
-        if set(initial_structure["groups"]) != {"Patterns", "Sewing", "Fabric", "Avatar", "Simulation"}:
-            raise RuntimeError("public Garment creation command did not create the complete native hierarchy")
+        if set(initial_structure["groups"]) != {
+            "Patterns",
+            "Sewing",
+            "Fabric",
+            "Avatar",
+            "Simulation",
+        }:
+            raise RuntimeError(
+                "public Garment creation command did not create the complete native hierarchy"
+            )
         fabric_members = initial_structure["groups"]["Fabric"]
         if not any(item["role"] == "FabricMaterial" for item in fabric_members):
-            raise RuntimeError("public Garment creation command did not create the native FabricMaterial member")
-        fabric_material = next(obj for obj in doc.Objects if str(getattr(obj, "GarmentRole", "")) == "FabricMaterial")
+            raise RuntimeError(
+                "public Garment creation command did not create the native FabricMaterial member"
+            )
+        fabric_material = next(
+            obj for obj in doc.Objects if str(getattr(obj, "GarmentRole", "")) == "FabricMaterial"
+        )
         expected_color = (36.0 / 255.0, 82.0 / 255.0, 199.0 / 255.0)
         fabric_material.Color = expected_color
         fabric_material.Specular = 0.70
@@ -372,12 +415,17 @@ def run_acceptance():
 
         before_ids = [tuple(getattr(piece.Sketch, "SemanticEdgeIds", ())) for piece in pieces]
         if any(len(ids) != 4 for ids in before_ids):
-            raise RuntimeError("native Sketcher semantic edge IDs were not created for all pattern pieces")
+            raise RuntimeError(
+                "native Sketcher semantic edge IDs were not created for all pattern pieces"
+            )
 
         _select_objects(front)
         Gui.runCommand("ClothPattern_EditPiece", 0)
         _events()
-        _require_dialog(("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"), "ClothPattern_EditPiece")
+        _require_dialog(
+            ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"),
+            "ClothPattern_EditPiece",
+        )
         _close_task()
 
         _activate(
@@ -403,7 +451,9 @@ def run_acceptance():
         before = {obj.Name for obj in doc.Objects}
         _select_edges((front, 0))
         panel = _open_staged("ClothSewing_CreateSeam")
-        if "Preview rejected" not in str(panel.feedback.text()) or "exactly two edges" not in str(panel.feedback.text()):
+        if "Preview rejected" not in str(panel.feedback.text()) or "exactly two edges" not in str(
+            panel.feedback.text()
+        ):
             raise RuntimeError("public staged sewing task panel did not reject invalid edge count")
         if {obj.Name for obj in doc.Objects} != before:
             raise RuntimeError("invalid staged sewing preview persisted document objects")
@@ -415,11 +465,15 @@ def run_acceptance():
         created_11 = tuple(panel.session.created)
         seam_11 = next((obj for obj in created_11 if getattr(obj, "SeamId", "")), None)
         if seam_11 is None or str(seam_11.Status) != "Valid":
-            raise RuntimeError("public staged Sewing command did not create a valid curved 1:1 seam")
+            raise RuntimeError(
+                "public staged Sewing command did not create a valid curved 1:1 seam"
+            )
         print("sewing-1to1-preview=passed type=curved", flush=True)
         _commit_staged(panel)
         doc.recompute()
-        seam_11 = next(obj for obj in doc.Objects if getattr(obj, "SeamId", "") == str(seam_11.SeamId))
+        seam_11 = next(
+            obj for obj in doc.Objects if getattr(obj, "SeamId", "") == str(seam_11.SeamId)
+        )
         if seam_11 is None or str(seam_11.Status) != "Valid":
             raise RuntimeError("curved 1:1 sewing commit did not persist a valid seam")
         _select_objects(seam_11)
@@ -427,7 +481,9 @@ def run_acceptance():
         Gui.runCommand("ClothSewing_ToggleAlignment", 0)
         doc.recompute()
         if not bool(seam_11.ReversedB) or str(seam_11.Alignment) != "uniform":
-            raise RuntimeError("public sewing direction/correspondence controls did not update seam metadata")
+            raise RuntimeError(
+                "public sewing direction/correspondence controls did not update seam metadata"
+            )
         Gui.runCommand("ClothSewing_ToggleAlignment", 0)
         Gui.runCommand("ClothSewing_ReverseSeam", 0)
         doc.recompute()
@@ -438,9 +494,13 @@ def run_acceptance():
         _select_edges((sleeve_a, 2), (sleeve_a, 3), (sleeve_b, 2), (sleeve_b, 3))
         panel = _open_staged("ClothSewing_CreateMNSewing")
         created_mn = tuple(panel.session.created)
-        network = next((obj for obj in created_mn if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
+        network = next(
+            (obj for obj in created_mn if getattr(obj, "SewingType", "") == "SewingNetwork"), None
+        )
         if network is None or str(network.Status) != "Valid" or len(network.Seams) != 2:
-            raise RuntimeError("public staged M:N preview did not create a valid two-segment network")
+            raise RuntimeError(
+                "public staged M:N preview did not create a valid two-segment network"
+            )
         print("sewing-mn-preview=passed sides=2,2 segments=2", flush=True)
         _commit_staged(panel)
         doc.recompute()
@@ -448,43 +508,79 @@ def run_acceptance():
         if len(networks) != 1:
             raise RuntimeError("expected exactly one committed M:N sewing network")
         network = networks[0]
-        if str(network.Status) != "Valid" or len(network.Seams) != 2 or int(network.SideACount) != 2 or int(network.SideBCount) != 2:
+        if (
+            str(network.Status) != "Valid"
+            or len(network.Seams) != 2
+            or int(network.SideACount) != 2
+            or int(network.SideBCount) != 2
+        ):
             raise RuntimeError("M:N sewing network did not persist valid 2:2 topology")
         if any(str(getattr(seam, "Status", "")) != "Valid" for seam in network.Seams):
             raise RuntimeError("M:N network retained an invalid member seam")
         from freecad_cloth.sewing.SewingObjects import _seam_length
+
         pieces_by_id = {str(piece.PieceId): piece for piece in pieces}
-        total_a = sum(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) for seam in network.Seams)
-        total_b = sum(float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")) for seam in network.Seams)
-        if abs(total_a - float(network.LengthA)) > 1e-6 or abs(total_b - float(network.LengthB)) > 1e-6:
-            raise RuntimeError("M:N physical member lengths do not agree with persisted network totals")
-        if float(network.LengthDifference) > 0.05 * min(float(network.LengthA), float(network.LengthB)):
-            raise RuntimeError("M:N curved physical correspondence exceeded the persisted mismatch tolerance")
+        total_a = sum(
+            float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) for seam in network.Seams
+        )
+        total_b = sum(
+            float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")) for seam in network.Seams
+        )
+        if (
+            abs(total_a - float(network.LengthA)) > 1e-6
+            or abs(total_b - float(network.LengthB)) > 1e-6
+        ):
+            raise RuntimeError(
+                "M:N physical member lengths do not agree with persisted network totals"
+            )
+        if float(network.LengthDifference) > 0.05 * min(
+            float(network.LengthA), float(network.LengthB)
+        ):
+            raise RuntimeError(
+                "M:N curved physical correspondence exceeded the persisted mismatch tolerance"
+            )
         pair_gaps = [
-            abs(float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A")) - float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B")))
+            abs(
+                float(_seam_length(pieces_by_id[str(seam.PieceA)], seam, "A"))
+                - float(_seam_length(pieces_by_id[str(seam.PieceB)], seam, "B"))
+            )
             for seam in network.Seams
         ]
-        if max(pair_gaps) > 0.05 * max(float(network.LengthA), float(network.LengthB)) / len(network.Seams) + 0.01:
+        if (
+            max(pair_gaps)
+            > 0.05 * max(float(network.LengthA), float(network.LengthB)) / len(network.Seams) + 0.01
+        ):
             raise RuntimeError("M:N curved physical member partition is not proportional")
         if not any(str(getattr(seam, "EdgeAId", "")).endswith(":edge:2") for seam in network.Seams):
             raise RuntimeError("M:N garment fixture did not retain the curved Sketcher edge")
         print("sewing-mn=passed sides=2,2 segments=2", flush=True)
-        print("sewing-mn-physical=passed curved-edge=true proportional=true max-pair-gap=%.6f" % max(pair_gaps), flush=True)
+        print(
+            f"sewing-mn-physical=passed curved-edge=true proportional=true max-pair-gap={max(pair_gaps):.6f}",
+            flush=True,
+        )
 
         marker_seam = network.Seams[0]
         if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
-            raise RuntimeError("public sewing seam visual shape is missing direction/notch/correspondence geometry")
+            raise RuntimeError(
+                "public sewing seam visual shape is missing direction/notch/correspondence geometry"
+            )
         _select_objects(marker_seam)
         Gui.runCommand("ClothSewing_Show2D", 0)
         _events()
         if marker_seam.Shape.isNull() or len(marker_seam.Shape.Edges) < 10:
-            raise RuntimeError("public sewing 2D command did not retain seam correspondence markers")
-        print("seam-markers=passed 3d-and-2d=true edges=%d" % len(marker_seam.Shape.Edges), flush=True)
+            raise RuntimeError(
+                "public sewing 2D command did not retain seam correspondence markers"
+            )
+        print(
+            "seam-markers=passed 3d-and-2d=true edges=%d" % len(marker_seam.Shape.Edges), flush=True
+        )
 
         _select_objects(seam_11)
         Gui.runCommand("ClothSewing_CreateOperation", 0)
         _events()
-        operations = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"]
+        operations = [
+            obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"
+        ]
         if len(operations) != 1 or str(operations[0].Status) != "Valid":
             raise RuntimeError("public Sewing operation command did not create a valid operation")
         operation = operations[0]
@@ -492,9 +588,12 @@ def run_acceptance():
         Gui.runCommand("ClothSewing_EditOperation", 0)
         _events()
         from freecad_cloth.sewing.SewingCommands import get_active_sewing_operation_task_panel
+
         operation_panel = get_active_sewing_operation_task_panel()
         if operation_panel is None:
-            raise RuntimeError("ClothSewing_EditOperation did not expose its public operation task panel")
+            raise RuntimeError(
+                "ClothSewing_EditOperation did not expose its public operation task panel"
+            )
         _require_dialog(
             ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
             "ClothSewing_EditOperation",
@@ -521,14 +620,20 @@ def run_acceptance():
         Gui.runCommand("ClothFitting_AddPieces", 0)
         Gui.runCommand("ClothFitting_CreateArrangementPoint", 0)
         _events()
-        point = next((obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "ArrangementPoint"), None)
+        point = next(
+            (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "ArrangementPoint"),
+            None,
+        )
         if point is None:
             raise RuntimeError("public Fitting command did not create an arrangement point")
         _select_objects(front, point)
         Gui.runCommand("ClothFitting_ApplyArrangementPoint", 0)
         _events()
         doc.recompute()
-        if len(fitting.PatternPieces) != 4 or str(fitting.FitStatus) not in {"Pieces assigned", "Ready"}:
+        if len(fitting.PatternPieces) != 4 or str(fitting.FitStatus) not in {
+            "Pieces assigned",
+            "Ready",
+        }:
             raise RuntimeError("public fitting scene did not persist all four pattern pieces")
         print("arrangement=passed pieces=4", flush=True)
 
@@ -540,23 +645,41 @@ def run_acceptance():
         for role, names in expected_members.items():
             actual = {item["name"] for item in structure["groups"].get(role, ())}
             if not names.issubset(actual):
-                raise RuntimeError("native garment hierarchy missing %s members: %s" % (role, sorted(names - actual)))
+                raise RuntimeError(
+                    f"native garment hierarchy missing {role} members: {sorted(names - actual)}"
+                )
         if not any(item["role"] == "FabricMaterial" for item in structure["groups"]["Fabric"]):
             raise RuntimeError("native garment hierarchy lost FabricMaterial")
-        print("garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True)
+        print(
+            "garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation", flush=True
+        )
 
         _activate(
             "ClothSimulationWorkbench",
-            ["ClothDrape_CreateMannequinTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Step", "ClothSimulation_Reset", "ClothSimulation_Edit"],
+            [
+                "ClothDrape_CreateMannequinTarget",
+                "ClothDrape_RefreshTarget",
+                "ClothSimulation_Step",
+                "ClothSimulation_Reset",
+                "ClothSimulation_Edit",
+            ],
         )
         Gui.runCommand("ClothDrape_CreateMannequinTarget", 0)
         _events()
         avatar = doc.getObject("ClothAvatar")
         target = doc.getObject("DrapeTarget")
         if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-            raise RuntimeError("public mannequin target command did not create the canonical ClothAvatar")
-        if target is None or target.SourceObject != avatar or str(getattr(target, "TargetType", "")) != "Mannequin":
-            raise RuntimeError("public mannequin DrapeTarget command did not persist the canonical human target")
+            raise RuntimeError(
+                "public mannequin target command did not create the canonical ClothAvatar"
+            )
+        if (
+            target is None
+            or target.SourceObject != avatar
+            or str(getattr(target, "TargetType", "")) != "Mannequin"
+        ):
+            raise RuntimeError(
+                "public mannequin DrapeTarget command did not persist the canonical human target"
+            )
         _activate(
             "ClothSewingWorkbench",
             ["ClothFitting_AssignAvatar", "ClothFitting_CreateSimulation"],
@@ -566,7 +689,9 @@ def run_acceptance():
         _events()
         doc.recompute()
         if fitting.AvatarProxy is None:
-            raise RuntimeError("public fitting avatar assignment did not persist the canonical avatar")
+            raise RuntimeError(
+                "public fitting avatar assignment did not persist the canonical avatar"
+            )
         print("drape-target=passed type=Mannequin", flush=True)
 
         _select_objects(fitting)
@@ -586,14 +711,22 @@ def run_acceptance():
         _events()
         target = doc.getObject("DrapeTarget")
         if target is None or scene.DrapeTarget != target or target.SourceObject != avatar:
-            raise RuntimeError("public mannequin DrapeTarget command did not attach the canonical human target to simulation")
+            raise RuntimeError(
+                "public mannequin DrapeTarget command did not attach the canonical human target to simulation"
+            )
 
         _select_objects(scene)
         quality_panel = _open_quality_panel()
-        if not hasattr(quality_panel, "arrange_fit_button") or not hasattr(quality_panel, "snap_to_target_button"):
-            raise RuntimeError("Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge")
+        if not hasattr(quality_panel, "arrange_fit_button") or not hasattr(
+            quality_panel, "snap_to_target_button"
+        ):
+            raise RuntimeError(
+                "Simulation quality task panel did not expose the Arrange / Fit / target-snap bridge"
+            )
         if not quality_panel.snap_to_target_button.isEnabled():
-            raise RuntimeError("Simulation panel did not expose enabled target-aware placement for a ready target")
+            raise RuntimeError(
+                "Simulation panel did not expose enabled target-aware placement for a ready target"
+            )
         quality_panel.quality.setCurrentText("Fast")
         if not quality_panel.accept():
             raise RuntimeError("public Simulation quality task panel rejected the selected preset")
@@ -649,7 +782,13 @@ def run_acceptance():
             scene = reloaded.getObject(scene_name)
             target = reloaded.getObject(target_name)
             reloaded_structure = garment_structure(reloaded)
-            if set(reloaded_structure["groups"]) != {"Patterns", "Sewing", "Fabric", "Avatar", "Simulation"}:
+            if set(reloaded_structure["groups"]) != {
+                "Patterns",
+                "Sewing",
+                "Fabric",
+                "Avatar",
+                "Simulation",
+            }:
                 raise RuntimeError("save/reload lost native garment hierarchy groups")
             hierarchy_names = {
                 role: {item["name"] for item in reloaded_structure["groups"].get(role, ())}
@@ -657,11 +796,16 @@ def run_acceptance():
             }
             for role, names in expected_members.items():
                 if not names.issubset(hierarchy_names[role]):
-                    raise RuntimeError("save/reload lost garment hierarchy membership for %s" % role)
-            if not any(item["role"] == "FabricMaterial" for item in reloaded_structure["groups"]["Fabric"]):
+                    raise RuntimeError(f"save/reload lost garment hierarchy membership for {role}")
+            if not any(
+                item["role"] == "FabricMaterial" for item in reloaded_structure["groups"]["Fabric"]
+            ):
                 raise RuntimeError("save/reload lost FabricMaterial")
             fabric_material = reloaded.getObject(fabric_material_name)
-            if fabric_material is None or str(getattr(fabric_material, "GarmentRole", "")) != "FabricMaterial":
+            if (
+                fabric_material is None
+                or str(getattr(fabric_material, "GarmentRole", "")) != "FabricMaterial"
+            ):
                 raise RuntimeError("save/reload lost the native FabricMaterial object")
             restored_color = tuple(float(value) for value in fabric_material.Color[:3])
             if any(abs(restored_color[index] - expected_color[index]) > 1e-6 for index in range(3)):
@@ -672,16 +816,31 @@ def run_acceptance():
                 raise RuntimeError("save/reload changed native FabricMaterial roughness")
             if abs(float(fabric_material.Transparency) - 12.0) > 1e-6:
                 raise RuntimeError("save/reload changed native FabricMaterial transparency")
-            print("material-presentation=passed native=true color=36/255,82/255,199/255 specular=0.70 roughness=0.20 transparency=12", flush=True)
+            print(
+                "material-presentation=passed native=true color=36/255,82/255,199/255 specular=0.70 roughness=0.20 transparency=12",
+                flush=True,
+            )
             if any(obj is None for obj in (seam_11, network, operation, fitting, scene, target)):
-                raise RuntimeError("garment fixture did not preserve sewing/fitting/simulation objects")
-            if str(seam_11.Status) != "Valid" or str(network.Status) != "Valid" or str(operation.Status) != "Valid":
+                raise RuntimeError(
+                    "garment fixture did not preserve sewing/fitting/simulation objects"
+                )
+            if (
+                str(seam_11.Status) != "Valid"
+                or str(network.Status) != "Valid"
+                or str(operation.Status) != "Valid"
+            ):
                 raise RuntimeError("save/reload changed sewing validity")
-            if len(network.Seams) != 2 or len(fitting.PatternPieces) != 4 or len(scene.ClothPieces) != 4:
+            if (
+                len(network.Seams) != 2
+                or len(fitting.PatternPieces) != 4
+                or len(scene.ClothPieces) != 4
+            ):
                 raise RuntimeError("save/reload changed sewing/fitting/simulation membership")
             if target.SourceObject is None or target.SourceObject.Name != target_body_name:
                 raise RuntimeError("save/reload lost persistent DrapeTarget source")
-            semantic_ids_after_reload = tuple(getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ()))
+            semantic_ids_after_reload = tuple(
+                getattr(reloaded_pieces[0].Sketch, "SemanticEdgeIds", ())
+            )
             if semantic_ids_after_reload != before_ids[0]:
                 raise RuntimeError("save/reload changed native Sketcher semantic edge IDs")
             print("save-reload=passed pieces=4 seam=1to1 network=2segment", flush=True)
@@ -696,8 +855,10 @@ def run_acceptance():
             if tuple(curved.Sketch.SemanticEdgeIds) != semantic_ids:
                 raise RuntimeError("native Sketcher edit changed semantic edge IDs")
             if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
-                raise RuntimeError("native Sketcher edit did not invalidate downstream curved seam: %s" % seam_11.Status)
-            print("invalidation=passed seam=%s" % seam_11.Status, flush=True)
+                raise RuntimeError(
+                    f"native Sketcher edit did not invalidate downstream curved seam: {seam_11.Status}"
+                )
+            print(f"invalidation=passed seam={seam_11.Status}", flush=True)
 
             # Keep the intentionally stale seam isolated from the simulation proxy while
             # verifying that restoring Sketch geometry does not silently retarget it.
@@ -706,7 +867,9 @@ def run_acceptance():
             curved.Sketch.setDatum(dimensional, App.Units.Quantity("50 mm"))
             reloaded.recompute()
             if str(seam_11.Status) not in {"Changed reference", "Missing reference"}:
-                raise RuntimeError("restoring native Sketch geometry unexpectedly retargeted the curved seam")
+                raise RuntimeError(
+                    "restoring native Sketch geometry unexpectedly retargeted the curved seam"
+                )
             _select_objects(seam_11)
             Gui.runCommand("ClothSewing_RepairSeam", 0)
             _events()
@@ -717,7 +880,9 @@ def run_acceptance():
                 raise RuntimeError("explicit seam repair did not recover the curved seam")
             print("invalidation-restore=passed seam=Valid", flush=True)
 
-            network_piece = reloaded.getObject(next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3"))
+            network_piece = reloaded.getObject(
+                next(obj.Name for obj in reloaded_pieces if obj.PieceId == "pattern-piece-3")
+            )
             if network_piece is None:
                 raise RuntimeError("could not locate an M:N member PatternPiece after reload")
             network_sketch = network_piece.Sketch
@@ -734,10 +899,15 @@ def run_acceptance():
             if tuple(network_sketch.SemanticEdgeIds) != network_ids:
                 raise RuntimeError("M:N native Sketcher edit changed semantic edge IDs")
             network = reloaded.getObject(network_name)
-            if str(network.Status) != "Invalid" or "Changed reference" not in str(network.InvalidReason):
-                raise RuntimeError("M:N network did not fail closed after upstream native geometry change")
+            if str(network.Status) != "Invalid" or "Changed reference" not in str(
+                network.InvalidReason
+            ):
+                raise RuntimeError(
+                    "M:N network did not fail closed after upstream native geometry change"
+                )
             stale_piece = next(
-                obj for obj in reloaded_pieces
+                obj
+                for obj in reloaded_pieces
                 if str(getattr(obj, "PieceId", "")) == "pattern-piece-3"
             )
             _select_objects(stale_piece)
@@ -745,9 +915,12 @@ def run_acceptance():
             Gui.runCommand("ClothPattern_Export", 0)
             _events()
             from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
+
             stale_export_panel = get_active_pattern_export_task_panel()
             if stale_export_panel is None:
-                raise RuntimeError("ClothPattern_Export did not expose its public pattern-export task panel")
+                raise RuntimeError(
+                    "ClothPattern_Export did not expose its public pattern-export task panel"
+                )
             _require_dialog(
                 ("Production Export", "read-only"),
                 "ClothPattern_Export stale validation",
@@ -757,7 +930,9 @@ def run_acceptance():
             stale_export_panel.format.setCurrentText("SVG")
             stale_export_panel.path.setText(str(stale_export_path))
             if stale_export_panel.accept():
-                raise RuntimeError("production export did not fail closed for a stale sewing reference")
+                raise RuntimeError(
+                    "production export did not fail closed for a stale sewing reference"
+                )
             if "Export blocked" not in str(stale_export_panel.status.text()):
                 raise RuntimeError("stale export did not report a deterministic blocked status")
             _close_task()
@@ -766,9 +941,15 @@ def run_acceptance():
             network_sketch.setDatum(network_dim, App.Units.Quantity("50 mm"))
             reloaded.recompute()
             network = reloaded.getObject(network_name)
-            invalid_members = [member for member in network.Seams if str(getattr(member, "Status", "Valid")) != "Valid"]
+            invalid_members = [
+                member
+                for member in network.Seams
+                if str(getattr(member, "Status", "Valid")) != "Valid"
+            ]
             if not invalid_members:
-                raise RuntimeError("restoring network source geometry unexpectedly retargeted all M:N seam references")
+                raise RuntimeError(
+                    "restoring network source geometry unexpectedly retargeted all M:N seam references"
+                )
             for member in invalid_members:
                 _select_objects(member)
                 Gui.runCommand("ClothSewing_RepairSeam", 0)
@@ -790,7 +971,9 @@ def run_acceptance():
             _events()
             reloaded.recompute()
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
-                raise RuntimeError("simulation did not rerun after save/reload and upstream invalidation")
+                raise RuntimeError(
+                    "simulation did not rerun after save/reload and upstream invalidation"
+                )
 
             diagnostics_panel = _open_diagnostics_panel()
             diagnostics_panel.metric.setCurrentText("stress")
@@ -822,7 +1005,7 @@ def run_acceptance():
             if first_signature != second_signature:
                 raise RuntimeError(
                     "repeated deterministic simulation run changed the rounded particle/mesh signature: "
-                    "first_sha256=%s second_sha256=%s" % (first_digest, second_digest)
+                    f"first_sha256={first_digest} second_sha256={second_digest}"
                 )
             print(
                 "determinism-signature=passed rounding=9 vertices=%d sha256=%s"
@@ -843,9 +1026,11 @@ def run_acceptance():
                 size, metadata = _export_pair(stale_piece, output_dir, export_format)
                 export_results[export_format] = size
                 if metadata.get("piece_id") != str(stale_piece.PieceId):
-                    raise RuntimeError("%s export lost piece identity" % export_format)
-                if float(metadata.get("seam_allowance_mm", 0.0)) != float(stale_piece.SeamAllowance):
-                    raise RuntimeError("%s export lost seam allowance" % export_format)
+                    raise RuntimeError(f"{export_format} export lost piece identity")
+                if float(metadata.get("seam_allowance_mm", 0.0)) != float(
+                    stale_piece.SeamAllowance
+                ):
+                    raise RuntimeError(f"{export_format} export lost seam allowance")
             source_after = (
                 str(stale_piece.Label),
                 str(stale_piece.PieceId),
@@ -857,8 +1042,9 @@ def run_acceptance():
             if source_before != source_after:
                 raise RuntimeError("production export mutated authoritative PatternPiece state")
             print(
-                "pattern-export=passed formats=SVG,DXF bytes=%s,%s"
-                % (export_results["SVG"], export_results["DXF"]),
+                "pattern-export=passed formats=SVG,DXF bytes={},{}".format(
+                    export_results["SVG"], export_results["DXF"]
+                ),
                 flush=True,
             )
 
@@ -878,6 +1064,7 @@ if __name__ == "__main__":
         run_acceptance()
     except BaseException:
         import traceback
+
         traceback.print_exc()
         sys.stdout.flush()
         os._exit(1)

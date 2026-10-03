@@ -1,4 +1,5 @@
 """Persisted semantic marks for the Cloth Pattern workbench."""
+
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
@@ -9,6 +10,7 @@ def _pieces(doc):
 def _selected_piece(doc):
     try:
         import FreeCADGui as Gui
+
         for obj in Gui.Selection.getSelection():
             if getattr(obj, "PatternType", "") == "PatternPiece":
                 return obj
@@ -24,8 +26,7 @@ def _native_default_segment_id(piece):
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     sketch = getattr(piece, "Sketch", None)
     semantic_ids = tuple(
-        str(value).strip()
-        for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+        str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if not piece_id:
         raise ValueError("selected pattern piece has no authored native edge identity")
@@ -38,12 +39,26 @@ def _native_default_segment_id(piece):
 def _has_selected_piece():
     try:
         import FreeCADGui as Gui
-        return any(getattr(obj, "PatternType", "") == "PatternPiece" for obj in Gui.Selection.getSelection())
+
+        return any(
+            getattr(obj, "PatternType", "") == "PatternPiece"
+            for obj in Gui.Selection.getSelection()
+        )
     except (ImportError, AttributeError):
         return True
 
 
-def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, angle=0.0, length=40.0, text=""):
+def add_mark(
+    doc,
+    mark_type,
+    piece_id,
+    segment_id="",
+    position=0.5,
+    depth=3.0,
+    angle=0.0,
+    length=40.0,
+    text="",
+):
     if not mark_type.strip():
         raise ValueError("mark type must not be empty")
     if not piece_id.strip():
@@ -54,11 +69,18 @@ def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, a
         raise ValueError("mark depth must be positive")
     if float(length) <= 0:
         raise ValueError("mark length must be positive")
-    name = "%s_%d" % (mark_type, 1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]))
+    name = "%s_%d" % (
+        mark_type,
+        1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]),
+    )
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = text.strip() or name
-    obj.addProperty("App::PropertyString", "PatternMarkId", "Pattern Mark").PatternMarkId = str(obj.Name)
-    obj.addProperty("App::PropertyString", "PatternMarkType", "Pattern Mark").PatternMarkType = mark_type
+    obj.addProperty("App::PropertyString", "PatternMarkId", "Pattern Mark").PatternMarkId = str(
+        obj.Name
+    )
+    obj.addProperty(
+        "App::PropertyString", "PatternMarkType", "Pattern Mark"
+    ).PatternMarkType = mark_type
     obj.addProperty("App::PropertyString", "PieceId", "Pattern Mark").PieceId = piece_id
     obj.addProperty("App::PropertyString", "SegmentId", "Pattern Mark").SegmentId = segment_id
     obj.addProperty("App::PropertyFloat", "Position", "Pattern Mark").Position = float(position)
@@ -71,6 +93,7 @@ def add_mark(doc, mark_type, piece_id, segment_id="", position=0.5, depth=3.0, a
 
 def add_notch():
     import FreeCAD as App
+
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     return add_mark(
@@ -85,6 +108,7 @@ def add_notch():
 
 def add_grainline():
     import FreeCAD as App
+
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     length = max(10.0, min(float(piece.Width), float(piece.Height)) * 0.6)
@@ -100,6 +124,7 @@ def add_grainline():
 
 def add_internal_mark():
     import FreeCAD as App
+
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = _selected_piece(doc)
     return add_mark(
@@ -138,9 +163,18 @@ COMMANDS = ["ClothPattern_AddNotch", "ClothPattern_AddGrainline", "ClothPattern_
 
 try:
     import FreeCADGui as Gui
+
     if hasattr(Gui, "addCommand"):
-        Gui.addCommand("ClothPattern_AddNotch", _FunctionCommand(add_notch, "ClothPattern_AddNotch"))
-        Gui.addCommand("ClothPattern_AddGrainline", _FunctionCommand(add_grainline, "ClothPattern_AddGrainline"))
-        Gui.addCommand("ClothPattern_AddInternalMark", _FunctionCommand(add_internal_mark, "ClothPattern_AddInternalMark"))
+        Gui.addCommand(
+            "ClothPattern_AddNotch", _FunctionCommand(add_notch, "ClothPattern_AddNotch")
+        )
+        Gui.addCommand(
+            "ClothPattern_AddGrainline",
+            _FunctionCommand(add_grainline, "ClothPattern_AddGrainline"),
+        )
+        Gui.addCommand(
+            "ClothPattern_AddInternalMark",
+            _FunctionCommand(add_internal_mark, "ClothPattern_AddInternalMark"),
+        )
 except (ImportError, AttributeError):
     pass

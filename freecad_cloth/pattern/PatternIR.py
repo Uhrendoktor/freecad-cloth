@@ -4,15 +4,16 @@ The IR deliberately contains no FreeCAD or solver types. Adapters may feed it
 from the native document layer, while solvers consume only this module's stable
 piece/edge/seam contracts.
 """
+
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import hypot
-from typing import Mapping, Sequence, Tuple
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
-Point3 = Tuple[float, float, float]
+Point3 = tuple[float, float, float]
 
 
 @dataclass(frozen=True)
@@ -26,8 +27,8 @@ class BoundaryIR:
 
     id: str
     kind: str
-    samples: Tuple[Point3, ...]
-    parameter_range: Tuple[float, float] = (0.0, 1.0)
+    samples: tuple[Point3, ...]
+    parameter_range: tuple[float, float] = (0.0, 1.0)
 
     def validate(self) -> None:
         if not self.id.strip():
@@ -44,7 +45,7 @@ class BoundaryIR:
     def length(self) -> float:
         return sum(
             hypot(b[0] - a[0], b[1] - a[1])
-            for a, b in zip(self.samples, self.samples[1:])
+            for a, b in zip(self.samples, self.samples[1:], strict=False)
         )
 
 
@@ -54,7 +55,7 @@ class PieceIR:
 
     id: str
     name: str
-    boundaries: Tuple[BoundaryIR, ...]
+    boundaries: tuple[BoundaryIR, ...]
     material: str = ""
     seam_allowance: float = 0.0
 
@@ -111,8 +112,8 @@ class SeamIR:
 class PatternIR:
     """Complete solver-neutral garment snapshot."""
 
-    pieces: Tuple[PieceIR, ...]
-    seams: Tuple[SeamIR, ...] = ()
+    pieces: tuple[PieceIR, ...]
+    seams: tuple[SeamIR, ...] = ()
     metadata: Mapping[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
@@ -160,7 +161,9 @@ class PatternIR:
         pieces = []
         for piece in graph.pieces.values():
             geometry = geometries.get(piece.id) or _line_geometry(piece)
-            boundaries = tuple(_boundary_ir(segment, curve_samples) for segment in geometry.segments)
+            boundaries = tuple(
+                _boundary_ir(segment, curve_samples) for segment in geometry.segments
+            )
             pieces.append(
                 PieceIR(
                     id=piece.id,
@@ -224,8 +227,12 @@ def _with_seams(
     seams = []
     for pair in graph.seams.values():
         seam = pair.seam
-        edge_a = _resolve_edge(seam.edge_a, piece_map[seam.piece_a], edge_index_maps.get(seam.piece_a))
-        edge_b = _resolve_edge(seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b))
+        edge_a = _resolve_edge(
+            seam.edge_a, piece_map[seam.piece_a], edge_index_maps.get(seam.piece_a)
+        )
+        edge_b = _resolve_edge(
+            seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b)
+        )
         seams.append(
             SeamIR(
                 id=seam.id,
@@ -285,11 +292,15 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
         boundaries.append(_native_boundary(native, edge_id, curve_samples))
 
     if not boundaries:
-        raise ValueError(f"Sketcher pattern has no non-construction boundary geometries: {piece_id}")
+        raise ValueError(
+            f"Sketcher pattern has no non-construction boundary geometries: {piece_id}"
+        )
     return _order_sketch_boundary(boundaries, piece_id), edge_index_map
 
 
-def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> Tuple[BoundaryIR, ...]:
+def _order_sketch_boundary(
+    boundaries: Sequence[BoundaryIR], piece_id: str
+) -> tuple[BoundaryIR, ...]:
     """Resolve a closed Sketcher boundary from endpoint connectivity.
 
     Sketcher geometry insertion order is not a topological contract. Every
@@ -306,7 +317,9 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
         boundary = boundaries[0]
         if _distance3(boundary.samples[0], boundary.samples[-1]) <= 1e-7:
             return tuple(boundaries)
-        raise ValueError(f"Sketcher boundary is open: the single boundary does not close ({piece_id})")
+        raise ValueError(
+            f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
+        )
 
     vertices = []
     edge_vertices = []
@@ -361,15 +374,16 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
 
     ordered = []
     visited = {start_index}
-    ordered.append(_orient_boundary(boundaries[start_index], edge_vertices[start_index], start_vertex))
+    ordered.append(
+        _orient_boundary(boundaries[start_index], edge_vertices[start_index], start_vertex)
+    )
     current_edge = start_index
 
     while len(visited) < len(boundaries):
         candidates = [
             index
             for index in adjacency[current_edge]
-            if index not in visited
-            and current_vertex in edge_vertices[index]
+            if index not in visited and current_vertex in edge_vertices[index]
         ]
         if not candidates:
             raise ValueError(
@@ -387,7 +401,9 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
             oriented = boundaries[next_edge]
         elif edge_end == current_vertex:
             next_vertex = edge_start
-            oriented = replace(boundaries[next_edge], samples=tuple(reversed(boundaries[next_edge].samples)))
+            oriented = replace(
+                boundaries[next_edge], samples=tuple(reversed(boundaries[next_edge].samples))
+            )
         else:
             raise ValueError(f"Sketcher boundary is disconnected near {boundaries[next_edge].id}")
         ordered.append(oriented)
@@ -396,7 +412,9 @@ def _order_sketch_boundary(boundaries: Sequence[BoundaryIR], piece_id: str) -> T
         current_vertex = next_vertex
 
     if start_vertex != current_vertex:
-        raise ValueError(f"Sketcher boundary is open: traversal did not return to its start ({piece_id})")
+        raise ValueError(
+            f"Sketcher boundary is open: traversal did not return to its start ({piece_id})"
+        )
     return tuple(ordered)
 
 
@@ -442,8 +460,8 @@ def _is_construction(sketch, index: int) -> bool:
 def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     type_name = type(native).__name__.lower()
     if type_name == "linesegment":
-        start = _point3(getattr(native, "StartPoint"))
-        end = _point3(getattr(native, "EndPoint"))
+        start = _point3(native.StartPoint)
+        end = _point3(native.EndPoint)
         return BoundaryIR(edge_id, "line", (start, end))
 
     kind = {
@@ -495,7 +513,9 @@ def _distance3(a: Point3, b: Point3) -> float:
     return hypot(a[0] - b[0], a[1] - b[1]) + abs(a[2] - b[2])
 
 
-def _resolve_edge(reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None) -> str:
+def _resolve_edge(
+    reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
+) -> str:
     if isinstance(reference, bool):
         raise ValueError("boolean edge references are invalid")
     if isinstance(reference, int):

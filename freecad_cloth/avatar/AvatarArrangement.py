@@ -7,8 +7,14 @@ anchor foundation needed by later CLO-like garment placement interactions.
 """
 
 ARRANGEMENT_POINT_NAMES = (
-    "neck", "chest", "waist", "hip",
-    "shoulder_left", "shoulder_right", "knee_left", "knee_right",
+    "neck",
+    "chest",
+    "waist",
+    "hip",
+    "shoulder_left",
+    "shoulder_right",
+    "knee_left",
+    "knee_right",
 )
 
 
@@ -21,7 +27,7 @@ def arrangement_points_from_landmarks(landmarks):
         except ValueError:
             continue
         if name in ARRANGEMENT_POINT_NAMES:
-            by_name[name] = "%s|%s" % (name, coords)
+            by_name[name] = f"{name}|{coords}"
     return [by_name[name] for name in ARRANGEMENT_POINT_NAMES if name in by_name]
 
 

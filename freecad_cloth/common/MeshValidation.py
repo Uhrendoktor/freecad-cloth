@@ -4,14 +4,15 @@ This module deliberately does not make trimesh a runtime dependency.  The
 adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
 for acceptance diagnostics, backend comparisons, and developer tooling.
 """
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite
-from typing import Sequence, Tuple
 
-Point3 = Tuple[float, float, float]
-Triangle = Tuple[int, int, int]
+Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int]
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class MeshValidationResult:
     vertices: int
     faces: int
     components: int
-    bounds: Tuple[float, float, float, float, float, float]
+    bounds: tuple[float, float, float, float, float, float]
     surface_area: float
     watertight: bool | None
     finite: bool
@@ -40,7 +41,7 @@ def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) 
             raise ValueError("mesh triangle index is out of range")
 
 
-def _fallback_bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, float, float, float]:
+def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
     if not vertices:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     xs = [float(vertex[0]) for vertex in vertices]
@@ -111,9 +112,12 @@ def validate_mesh(
                 faces=len(triangles),
                 components=len(mesh.split(only_watertight=False)),
                 bounds=(
-                    float(bounds[0][0]), float(bounds[1][0]),
-                    float(bounds[0][1]), float(bounds[1][1]),
-                    float(bounds[0][2]), float(bounds[1][2]),
+                    float(bounds[0][0]),
+                    float(bounds[1][0]),
+                    float(bounds[0][1]),
+                    float(bounds[1][1]),
+                    float(bounds[0][2]),
+                    float(bounds[1][2]),
                 ),
                 surface_area=float(mesh.area),
                 watertight=bool(mesh.is_watertight),
@@ -145,10 +149,10 @@ def nearest_target_clearance(
     best = float("inf")
     for source in garment_vertices:
         for target in target_vertices:
-            distance = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target))
+            distance = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
             if distance < best:
                 best = distance
-    return best ** 0.5
+    return best**0.5
 
 
 def nearest_surface_clearance(

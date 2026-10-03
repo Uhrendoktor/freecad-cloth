@@ -8,14 +8,25 @@ sampling used by older mesh/GUI paths until those consumers are migrated.
 
 
 def _piece_model(obj):
-    from freecad_cloth.pattern.PatternModel import PatternPiece
     import ast
+
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+
     try:
-        outline = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(getattr(obj, "DraftingBoundary", "")))]
+        outline = [
+            (float(p[0]), float(p[1]))
+            for p in ast.literal_eval(str(getattr(obj, "DraftingBoundary", "")))
+        ]
     except (ValueError, SyntaxError, TypeError, IndexError):
-        outline = [(0.0, 0.0), (float(obj.Width), 0.0), (float(obj.Width), float(obj.Height)), (0.0, float(obj.Height))]
+        outline = [
+            (0.0, 0.0),
+            (float(obj.Width), 0.0),
+            (float(obj.Width), float(obj.Height)),
+            (0.0, float(obj.Height)),
+        ]
     return PatternPiece(
-        str(obj.Label), outline,
+        str(obj.Label),
+        outline,
         id=str(obj.PieceId),
         seam_allowance=float(getattr(obj, "SeamAllowance", 0.0)),
         grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
@@ -25,6 +36,7 @@ def _piece_model(obj):
 def _resolve_sketch_ir(obj):
     from freecad_cloth.pattern.PatternIR import PatternIR
     from freecad_cloth.sewing.SeamGraph import SeamGraph
+
     piece = _piece_model(obj)
     graph = SeamGraph()
     graph.add_piece(piece)
@@ -32,7 +44,10 @@ def _resolve_sketch_ir(obj):
 
 
 def _sampled_outline(piece_ir):
-    return [(float(boundary.samples[0][0]), float(boundary.samples[0][1])) for boundary in piece_ir.boundaries]
+    return [
+        (float(boundary.samples[0][0]), float(boundary.samples[0][1]))
+        for boundary in piece_ir.boundaries
+    ]
 
 
 class SketchAuthorityProxy:
@@ -44,6 +59,7 @@ class SketchAuthorityProxy:
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
             from freecad_cloth.pattern.PatternObjects import PatternPieceProxy
+
             return PatternPieceProxy().execute(obj)
 
         piece_ir = _resolve_sketch_ir(obj)
@@ -58,6 +74,7 @@ class SketchAuthorityProxy:
         obj.Height = max(y for _, y in points) - min(y for _, y in points)
 
         from freecad_cloth.pattern.PatternObjects import PatternPieceProxy
+
         obj.GeometryMode = "Custom"
         PatternPieceProxy().execute(obj)
         obj.GeometryMode = "Sketch"
@@ -66,6 +83,7 @@ class SketchAuthorityProxy:
         if abs(float(getattr(obj, "SeamAllowance", 0.0))) <= 1e-12:
             try:
                 import Part
+
                 shape = sketch.Shape
                 if not shape.isNull():
                     if shape.Wires:

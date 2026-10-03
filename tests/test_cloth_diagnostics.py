@@ -2,7 +2,14 @@ import math
 
 import pytest
 
-from freecad_cloth.common.ClothDiagnostics import analyze_mesh, export_json, export_payload, fit_score, metric_definition, summarize
+from freecad_cloth.common.ClothDiagnostics import (
+    analyze_mesh,
+    export_json,
+    export_payload,
+    fit_score,
+    metric_definition,
+    summarize,
+)
 
 
 def _triangle(scale=1.0, z=0.0):
@@ -63,7 +70,6 @@ def test_summary_is_stable_for_export():
     assert summary["faces"] == 1
     assert math.isclose(summary["pressure_max"], 12.0)
     assert summary["stress_max"] > 0
-
 
 
 def test_metric_definition_is_explicit_and_stable():

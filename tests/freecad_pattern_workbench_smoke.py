@@ -1,4 +1,5 @@
 """FreeCAD GUI smoke test for the Cloth Pattern Design workbench."""
+
 import sys
 from pathlib import Path
 
@@ -6,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
 import InitGui
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel

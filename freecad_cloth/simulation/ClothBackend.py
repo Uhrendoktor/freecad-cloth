@@ -34,9 +34,7 @@ def validate_pinned_stitch_pairs(
         raise ValueError("stitch validation epsilon must be non-negative")
 
     candidates = (
-        (str(record[0]), pair)
-        for record in tuple(seam_pair_records)
-        for pair in record[3]
+        (str(record[0]), pair) for record in tuple(seam_pair_records) for pair in record[3]
     )
     seen = set()
     for seam_id, pair in candidates:

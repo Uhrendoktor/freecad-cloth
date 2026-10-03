@@ -100,9 +100,7 @@ class TissuBackend(ClothSimulationBackend):
             raise RuntimeError("simulation requires the 'pytissu' package") from exc
 
         collision_mode = (
-            str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode))
-            .strip()
-            .lower()
+            str(os.environ.get("CLOTH_TISSU_COLLISION_MODE", collision_mode)).strip().lower()
         )
         if collision_mode not in {"mesh", "torso-envelope"}:
             raise ValueError("unsupported Tissu collision mode")

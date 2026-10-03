@@ -1,11 +1,17 @@
-from pathlib import Path
-from types import SimpleNamespace
 import sys
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingNetwork import SewingMember, SewingNetworkProxy, build_mn_seams, network_invalid_reason
+from freecad_cloth.sewing.SewingNetwork import (
+    SewingMember,
+    SewingNetworkProxy,
+    build_mn_seams,
+    network_invalid_reason,
+)
 
 
 def lengths(mapping):
@@ -61,11 +67,17 @@ class SewingNetworkTests(unittest.TestCase):
             alignment="uniform",
         )
         self.assertEqual(len(seams), 3)
-        self.assertEqual([(round(s.start_a, 8), round(s.end_a, 8), round(s.start_b, 8), round(s.end_b, 8)) for s in seams], [
-            (0.0, round(2 / 3, 8), 0.0, 1.0),
-            (round(2 / 3, 8), 1.0, 0.0, round(1 / 3, 8)),
-            (0.0, 1.0, round(1 / 3, 8), 1.0),
-        ])
+        self.assertEqual(
+            [
+                (round(s.start_a, 8), round(s.end_a, 8), round(s.start_b, 8), round(s.end_b, 8))
+                for s in seams
+            ],
+            [
+                (0.0, round(2 / 3, 8), 0.0, 1.0),
+                (round(2 / 3, 8), 1.0, 0.0, round(1 / 3, 8)),
+                (0.0, 1.0, round(1 / 3, 8), 1.0),
+            ],
+        )
         self.assertTrue(all(s.reversed_b for s in seams))
         self.assertTrue(all(s.alignment == "uniform" for s in seams))
 
@@ -113,7 +125,9 @@ class SewingNetworkTests(unittest.TestCase):
         )
         SewingNetworkProxy().execute(network)
         self.assertEqual(network.Status, "Invalid")
-        self.assertEqual(network.InvalidReason, "Invalid member seam(s): rel-1-1-1: Changed reference")
+        self.assertEqual(
+            network.InvalidReason, "Invalid member seam(s): rel-1-1-1: Changed reference"
+        )
 
     def test_all_valid_member_statuses_have_no_invalid_reason(self):
         seam = _SeamStatus("rel-1-1-1", "Valid")
@@ -122,16 +136,34 @@ class SewingNetworkTests(unittest.TestCase):
     def test_network_uses_shared_relative_mismatch_contract(self):
         class Doc:
             Objects = ()
+
         a = SimpleNamespace(
-            SeamId="rel-1-1-1", Status="Valid", StitchGroup="rel-1", Document=Doc(),
-            PieceA="A", PieceB="B", EdgeA=0, EdgeB=0, StartA=0.0, EndA=1.0, StartB=0.0, EndB=1.0,
+            SeamId="rel-1-1-1",
+            Status="Valid",
+            StitchGroup="rel-1",
+            Document=Doc(),
+            PieceA="A",
+            PieceB="B",
+            EdgeA=0,
+            EdgeB=0,
+            StartA=0.0,
+            EndA=1.0,
+            StartB=0.0,
+            EndB=1.0,
         )
         network = SimpleNamespace(
-            Seams=(a,), RelationshipId="rel-1", Status="Valid", InvalidReason="",
-            SegmentCount=1, LengthA=100.0, LengthB=106.0, LengthDifference=6.0,
+            Seams=(a,),
+            RelationshipId="rel-1",
+            Status="Valid",
+            InvalidReason="",
+            SegmentCount=1,
+            LengthA=100.0,
+            LengthB=106.0,
+            LengthDifference=6.0,
             RelativeTolerance=0.05,
         )
         import freecad_cloth.sewing.SewingNetwork as module
+
         old = module._network_lengths
         module._network_lengths = lambda seams: (100.0, 106.0)
         try:

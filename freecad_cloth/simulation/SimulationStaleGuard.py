@@ -14,13 +14,20 @@ def _ensure_state_properties(obj):
     """Add serialized lifecycle properties to old/new simulation objects."""
     if not hasattr(obj, "SimulationState"):
         try:
-            obj.addProperty("App::PropertyString", "SimulationState", "State", "Simulation lifecycle state")
+            obj.addProperty(
+                "App::PropertyString", "SimulationState", "State", "Simulation lifecycle state"
+            )
             obj.SimulationState = "READY_FOR_SIMULATION"
         except (AttributeError, TypeError):
             pass
     if not hasattr(obj, "InvalidationReason"):
         try:
-            obj.addProperty("App::PropertyString", "InvalidationReason", "State", "Why simulation derived state is stale or invalid")
+            obj.addProperty(
+                "App::PropertyString",
+                "InvalidationReason",
+                "State",
+                "Why simulation derived state is stale or invalid",
+            )
             obj.InvalidationReason = ""
         except (AttributeError, TypeError):
             pass
@@ -43,11 +50,15 @@ def _guarded_execute(self, obj):
     try:
         status = target_status(target)
     except (AttributeError, TypeError, ValueError) as exc:
-        _set_state(obj, "STALE", "Cannot inspect drape target: %s" % exc)
+        _set_state(obj, "STALE", f"Cannot inspect drape target: {exc}")
         return None
 
     if status["state"] != "ready":
-        _set_state(obj, "STALE" if status.get("stale") else status["state"].upper(), status["reason"] or status["message"])
+        _set_state(
+            obj,
+            "STALE" if status.get("stale") else status["state"].upper(),
+            status["reason"] or status["message"],
+        )
         return None
 
     try:

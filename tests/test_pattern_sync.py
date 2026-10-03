@@ -1,9 +1,14 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.pattern.PatternSync import PatternSourceSnapshot, SimulationLockedError, SynchronizationState
+from freecad_cloth.pattern.PatternSync import (
+    PatternSourceSnapshot,
+    SimulationLockedError,
+    SynchronizationState,
+)
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 
 

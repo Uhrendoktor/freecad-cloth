@@ -6,9 +6,10 @@ physical panel boundary. Constrained Delaunay triangulation is delegated to
 Jonathan Shewchuk's Triangle library; the rest of this module preserves the
 workbench's semantic boundary/provenance contract.
 """
+
+from collections.abc import Sequence
 from dataclasses import dataclass
-from math import ceil, hypot, isfinite, isclose
-from typing import Dict, List, Sequence, Tuple
+from math import ceil, hypot, isclose, isfinite
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
@@ -16,10 +17,11 @@ from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 @dataclass(frozen=True)
 class TriangleMesh:
     """Triangle mesh in pattern coordinates, in millimetres."""
-    vertices: Tuple[Point, ...]
-    triangles: Tuple[Tuple[int, int, int], ...]
-    boundary_vertex_indices: Tuple[int, ...]
-    boundary_edge_segment_ids: Tuple[str, ...] = ()
+
+    vertices: tuple[Point, ...]
+    triangles: tuple[tuple[int, int, int], ...]
+    boundary_vertex_indices: tuple[int, ...]
+    boundary_edge_segment_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if len(self.vertices) < 3:
@@ -30,19 +32,26 @@ class TriangleMesh:
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
-        if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(self.boundary_vertex_indices):
+        if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(
+            self.boundary_vertex_indices
+        ):
             raise ValueError("boundary provenance must match boundary edge count")
 
     @property
     def area(self) -> float:
-        return sum(abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c])) for a, b, c in self.triangles)
+        return sum(
+            abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
+            for a, b, c in self.triangles
+        )
 
-    def boundary_edges(self) -> Tuple[Tuple[int, int], ...]:
+    def boundary_edges(self) -> tuple[tuple[int, int], ...]:
         indices = self.boundary_vertex_indices
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
 
 
-def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: float | None = None) -> TriangleMesh:
+def triangulate(
+    pattern: ParametricPattern, curve_samples: int = 16, max_area: float | None = None
+) -> TriangleMesh:
     """Triangulate a sampled simple polygon with constrained Delaunay Triangle.
 
     ``max_area`` delegates simulation mesh refinement to Triangle itself. The
@@ -57,7 +66,9 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
-    if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(pattern.segments):
+    if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(
+        pattern.segments
+    ):
         edge_ids = [segment.id for segment in pattern.segments]
     else:
         edge_ids = _edge_segment_ids(pattern, points)
@@ -88,7 +99,7 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
     )
     options = "pQ"
     if max_area is not None:
-        options += "Ya%.12g" % max_area
+        options += f"Ya{max_area:.12g}"
     result = tr.triangulate({"vertices": vertices_in, "segments": segments}, options)
     result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
     result_triangles = np.asarray(result.get("triangles", ()), dtype=np.int64)
@@ -101,22 +112,31 @@ def triangulate(pattern: ParametricPattern, curve_samples: int = 16, max_area: f
             "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
 
-    source_lookup: Dict[Tuple[float, float], int] = {
-        (_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)
-    }
-    boundary_indices: List[int] = []
-    for source_index, (x, y) in enumerate(points):
+    {(_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)}
+    boundary_indices: list[int] = []
+    for _source_index, (x, y) in enumerate(points):
         key = (_quantize(x), _quantize(y))
-        matches = [i for i, vertex in enumerate(result_vertices.tolist()) if (_quantize(vertex[0]), _quantize(vertex[1])) == key]
+        matches = [
+            i
+            for i, vertex in enumerate(result_vertices.tolist())
+            if (_quantize(vertex[0]), _quantize(vertex[1])) == key
+        ]
         if not matches:
             raise ValueError("Triangle dropped an authored boundary vertex")
         boundary_indices.append(matches[0])
 
-    triangles: List[Tuple[int, int, int]] = []
+    triangles: list[tuple[int, int, int]] = []
     for raw in result_triangles.tolist():
         a, b, c = int(raw[0]), int(raw[1]), int(raw[2])
         pa, pb, pc = result_vertices[a], result_vertices[b], result_vertices[c]
-        if _cross((float(pa[0]), float(pa[1])), (float(pb[0]), float(pb[1])), (float(pc[0]), float(pc[1]))) < 0.0:
+        if (
+            _cross(
+                (float(pa[0]), float(pa[1])),
+                (float(pb[0]), float(pb[1])),
+                (float(pc[0]), float(pc[1])),
+            )
+            < 0.0
+        ):
             b, c = c, b
         if len({a, b, c}) != 3:
             raise ValueError("Triangle returned a degenerate face")
@@ -155,21 +175,30 @@ def _quantize(value: float) -> float:
 
 
 def _nearest_point_index(points: Sequence[Point], point: Point) -> int:
-    return min(range(len(points)), key=lambda i: hypot(points[i][0] - point[0], points[i][1] - point[1]))
+    return min(
+        range(len(points)), key=lambda i: hypot(points[i][0] - point[0], points[i][1] - point[1])
+    )
 
 
-def _deduplicate_consecutive(points: Sequence[Point]) -> List[Point]:
-    result: List[Point] = []
+def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
+    result: list[Point] = []
     for point in points:
-        if not result or not (isclose(point[0], result[-1][0], abs_tol=1e-9) and isclose(point[1], result[-1][1], abs_tol=1e-9)):
+        if not result or not (
+            isclose(point[0], result[-1][0], abs_tol=1e-9)
+            and isclose(point[1], result[-1][1], abs_tol=1e-9)
+        ):
             result.append(point)
-    if len(result) > 1 and isclose(result[0][0], result[-1][0], abs_tol=1e-9) and isclose(result[0][1], result[-1][1], abs_tol=1e-9):
+    if (
+        len(result) > 1
+        and isclose(result[0][0], result[-1][0], abs_tol=1e-9)
+        and isclose(result[0][1], result[-1][1], abs_tol=1e-9)
+    ):
         result.pop()
     return result
 
 
-def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> List[str]:
-    result: List[str] = []
+def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
+    result: list[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
         midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
@@ -178,7 +207,10 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> Li
         for segment_index, segment in enumerate(pattern.segments):
             if hasattr(segment, "control"):
                 samples = segment.polyline(32)
-                distance = min(_point_to_segment_distance(midpoint, a, b) for a, b in zip(samples, samples[1:]))
+                distance = min(
+                    _point_to_segment_distance(midpoint, a, b)
+                    for a, b in zip(samples, samples[1:], strict=False)
+                )
             else:
                 distance = _point_to_segment_distance(midpoint, segment.start, segment.end)
             if distance < best_distance:
@@ -200,7 +232,10 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
 
 
 def _signed_area(points: Sequence[Point]) -> float:
-    return 0.5 * sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, list(points[1:]) + [points[0]]))
+    return 0.5 * sum(
+        a[0] * b[1] - b[0] * a[1]
+        for a, b in zip(points, list(points[1:]) + [points[0]], strict=False)
+    )
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:

@@ -4,12 +4,13 @@ The diagnostics layer consumes rest/current mesh data and optional material/targ
 measurements. It never advances or modifies the solver and can therefore be used
 by GUI, export, or headless validation code.
 """
+
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import sqrt
-from typing import Iterable, Sequence, Tuple
 
-Point3 = Tuple[float, float, float]
-Triangle = Tuple[int, int, int]
+Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int]
 
 
 METRIC_DEFINITIONS = {
@@ -25,7 +26,7 @@ def metric_definition(name: str) -> dict:
     try:
         return dict(METRIC_DEFINITIONS[key])
     except KeyError as exc:
-        raise ValueError("unknown diagnostic metric: %s" % name) from exc
+        raise ValueError(f"unknown diagnostic metric: {name}") from exc
 
 
 def export_payload(result: "DiagnosticResult") -> dict:
@@ -49,6 +50,7 @@ def export_payload(result: "DiagnosticResult") -> dict:
 def export_json(result: "DiagnosticResult", path) -> dict:
     """Write deterministic diagnostic data without mutating the FreeCAD model."""
     import json
+
     payload = export_payload(result)
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
@@ -60,22 +62,22 @@ def export_json(result: "DiagnosticResult", path) -> dict:
 class DiagnosticResult:
     """Per-face diagnostic values plus aggregate ranges."""
 
-    strain: Tuple[float, ...]
-    stress: Tuple[float, ...]
-    fit: Tuple[float, ...]
-    pressure: Tuple[float, ...]
+    strain: tuple[float, ...]
+    stress: tuple[float, ...]
+    fit: tuple[float, ...]
+    pressure: tuple[float, ...]
     minimum: float
     maximum: float
 
-    def metric(self, name: str) -> Tuple[float, ...]:
+    def metric(self, name: str) -> tuple[float, ...]:
         try:
             return getattr(self, str(name))
         except AttributeError as exc:
-            raise ValueError("unknown diagnostic metric: %s" % name) from exc
+            raise ValueError(f"unknown diagnostic metric: {name}") from exc
 
 
 def _distance(a: Point3, b: Point3) -> float:
-    return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b)))
+    return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
 
 
 def _triangle_edges(vertices: Sequence[Point3], tri: Triangle):
@@ -92,7 +94,7 @@ def _safe_strain(current: float, rest: float) -> float:
 def _average_edge_strain(rest_vertices, current_vertices, tri: Triangle) -> float:
     rest = _triangle_edges(rest_vertices, tri)
     current = _triangle_edges(current_vertices, tri)
-    return sum(_safe_strain(c, r) for r, c in zip(rest, current)) / 3.0
+    return sum(_safe_strain(c, r) for r, c in zip(rest, current, strict=False)) / 3.0
 
 
 def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
@@ -145,7 +147,11 @@ def analyze_mesh(
             fit_score(sum(float(clearances[int(i)]) for i in tri) / 3.0, fit_tolerance)
             for tri in triangles
         )
-    pressure = tuple(float(value) for value in pressures) if pressures is not None else tuple(0.0 for _ in triangles)
+    pressure = (
+        tuple(float(value) for value in pressures)
+        if pressures is not None
+        else tuple(0.0 for _ in triangles)
+    )
     values = strain + stress + fit + pressure
     return DiagnosticResult(
         strain=strain,

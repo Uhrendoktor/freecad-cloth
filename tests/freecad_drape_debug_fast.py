@@ -1,4 +1,5 @@
 """Fast deterministic visual/topology inspection of the production drape backend."""
+
 from __future__ import annotations
 
 import json
@@ -21,9 +22,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import contextlib
+
+from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
-from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -112,8 +115,13 @@ def update_debug_geometry(doc, seam_obj, pin_obj, backend, pins):
 
 def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, step):
     positions = backend.positions()
-    seam_gaps = [math.dist(positions[int(a)], positions[int(b)]) for a, b in getattr(backend, "_stitches", ())]
-    pin_drifts = [math.dist(positions[int(i)], p0) for i, p0 in zip(pins, initial_pins)]
+    seam_gaps = [
+        math.dist(positions[int(a)], positions[int(b)])
+        for a, b in getattr(backend, "_stitches", ())
+    ]
+    pin_drifts = [
+        math.dist(positions[int(i)], p0) for i, p0 in zip(pins, initial_pins, strict=False)
+    ]
     xs = [float(p[0]) for p in positions]
     ys = [float(p[1]) for p in positions]
     zs = [float(p[2]) for p in positions]
@@ -141,7 +149,7 @@ def run():
     signal.alarm(TIMEOUT_SECONDS)
     backend_requested = "tissu"
     collision_mode = os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
-    log("backend=%s collision=%s timeout=%ss" % (backend_requested, collision_mode, TIMEOUT_SECONDS))
+    log(f"backend={backend_requested} collision={collision_mode} timeout={TIMEOUT_SECONDS}s")
     doc = None
     backend = None
     checkpoints = []
@@ -150,7 +158,11 @@ def run():
         doc = App.newDocument("ClothDrapeDebugFast")
         log("create-quality-scene-start")
         scene = create_quality_simulation_scene(doc)
-        log("create-quality-scene-done particles=%s steps=%s" % (getattr(scene, "ParticleCount", "?"), getattr(scene, "Steps", "?")))
+        log(
+            "create-quality-scene-done particles={} steps={}".format(
+                getattr(scene, "ParticleCount", "?"), getattr(scene, "Steps", "?")
+            )
+        )
         avatar = getattr(scene.AvatarProxy, "SourceObject", None)
         if avatar is None:
             raise RuntimeError("production avatar missing")
@@ -158,12 +170,21 @@ def run():
         backend = getattr(base, "backend", None)
         if backend is None:
             raise RuntimeError("production simulation backend missing")
-        log("backend-ready name=%s particles=%s" % (getattr(backend, "name", "?"), len(backend.positions())))
-        pins = tuple(dict.fromkeys(int(i) for i in (
-            getattr(backend, "_pins", ())
-            or getattr(backend, "_pin_indices", ())
-            or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys())
-        )))
+        log(
+            "backend-ready name={} particles={}".format(
+                getattr(backend, "name", "?"), len(backend.positions())
+            )
+        )
+        pins = tuple(
+            dict.fromkeys(
+                int(i)
+                for i in (
+                    getattr(backend, "_pins", ())
+                    or getattr(backend, "_pin_indices", ())
+                    or tuple(getattr(getattr(backend, "system", None), "pins", {}).keys())
+                )
+            )
+        )
         stitches = tuple((int(a), int(b)) for a, b in getattr(backend, "_stitches", ()))
         if not stitches and hasattr(backend, "system"):
             stitches = tuple((int(c.a), int(c.b)) for c in getattr(backend.system, "stitches", ()))
@@ -184,7 +205,10 @@ def run():
                 pass
         if not triangles and hasattr(backend, "system"):
             triangles = tuple(getattr(backend.system, "triangles", ()))
-        log("mesh-analysis triangles=%d particle-distance=%s" % (len(triangles), getattr(scene, "ParticleDistance", "?")))
+        log(
+            "mesh-analysis triangles=%d particle-distance=%s"
+            % (len(triangles), getattr(scene, "ParticleDistance", "?"))
+        )
         for panel in scene.DrapePanels:
             panel.ViewObject.DisplayMode = "Flat Lines"
             panel.ViewObject.ShapeColor = (0.78, 0.16, 0.08)
@@ -204,54 +228,76 @@ def run():
         pin_obj.ViewObject.ShapeColor = (1.0, 0.10, 1.0)
         pin_obj.ViewObject.Transparency = 5
         update_debug_geometry(doc, seam_obj, pin_obj, backend, pins)
-        doc.recompute(); events()
+        doc.recompute()
+        events()
         log("debug-geometry-ready")
         panel = SimulationQualityTaskPanel(scene)
-        panel.accept(); close_task(); doc.recompute()
+        panel.accept()
+        close_task()
+        doc.recompute()
         log("task-panel-ready")
         for target_step in STEPS:
             log("checkpoint-start step=%d current=%s" % (target_step, getattr(scene, "Steps", "?")))
             while int(scene.Steps) < target_step:
                 panel.step(1)
-                log("solver-step-done step=%s" % getattr(scene, "Steps", "?"))
-            doc.recompute(); update_debug_geometry(doc, seam_obj, pin_obj, backend, pins); events()
-            checkpoints.append(checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, target_step))
+                log("solver-step-done step={}".format(getattr(scene, "Steps", "?")))
+            doc.recompute()
+            update_debug_geometry(doc, seam_obj, pin_obj, backend, pins)
+            events()
+            checkpoints.append(
+                checkpoint_metrics(
+                    backend, pins, initial_pins, target_vertices, triangles, target_step
+                )
+            )
             log("metrics-ready step=%d" % target_step)
             view = Gui.activeDocument().activeView()
-            view.setCameraType("Orthographic"); view.viewRear(); view.fitAll(); events()
-            view.saveImage(str(OUT / ("front-step-%03d.png" % target_step)), 1280, 720, "Current", 1)
+            view.setCameraType("Orthographic")
+            view.viewRear()
+            view.fitAll()
+            events()
+            view.saveImage(
+                str(OUT / ("front-step-%03d.png" % target_step)), 1280, 720, "Current", 1
+            )
             log("front-render-saved step=%d" % target_step)
             if target_step == 6:
-                view.viewLeft(); view.fitAll(); events()
+                view.viewLeft()
+                view.fitAll()
+                events()
                 view.saveImage(str(OUT / "left-step-006.png"), 1280, 720, "Current", 1)
                 log("left-render-saved step=6")
     finally:
         signal.alarm(0)
         close_task()
         try:
-            (OUT / "metrics.json").write_text(json.dumps({
-                "backend": getattr(backend, "name", backend_requested),
-                "collision_mode": collision_mode,
-                "checkpoints": checkpoints,
-            }, indent=2), encoding="utf-8")
+            (OUT / "metrics.json").write_text(
+                json.dumps(
+                    {
+                        "backend": getattr(backend, "name", backend_requested),
+                        "collision_mode": collision_mode,
+                        "checkpoints": checkpoints,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
         except Exception as exc:
-            log("metrics-write-failed %r" % (exc,))
+            log(f"metrics-write-failed {exc!r}")
         log("finally")
         if doc is not None:
             try:
                 App.closeDocument(doc.Name)
             except Exception as exc:
-                log("close-document-failed %r" % (exc,))
+                log(f"close-document-failed {exc!r}")
         try:
             app = QtWidgets.QApplication.instance()
             if app is not None:
                 app.quit()
         except Exception as exc:
-            log("qt-quit-failed %r" % (exc,))
+            log(f"qt-quit-failed {exc!r}")
         try:
             App.exit()
         except Exception as exc:
-            log("app-exit-failed %r" % (exc,))
+            log(f"app-exit-failed {exc!r}")
 
 
 if __name__ == "__main__":
@@ -259,9 +305,7 @@ if __name__ == "__main__":
         run()
         log("pass")
     except Exception as exc:
-        log("ERROR %r" % (exc,))
-        try:
+        log(f"ERROR {exc!r}")
+        with contextlib.suppress(Exception):
             App.exit()
-        except Exception:
-            pass
         raise

@@ -1,4 +1,5 @@
 """Structural checks for the canonical Python package tree."""
+
 from pathlib import Path
 
 
@@ -6,7 +7,7 @@ def test_project_metadata_exists():
     root = Path(__file__).resolve().parents[1]
     text = (root / "pyproject.toml").read_text(encoding="utf-8")
     assert "[project]" in text
-    assert "name = \"freecad-cloth\"" in text
+    assert 'name = "freecad-cloth"' in text
     assert "[build-system]" in text
 
 
@@ -21,8 +22,11 @@ def test_workbench_package_boundaries_exist():
 
 def test_only_bootstrap_python_files_remain_at_root():
     root = Path(__file__).resolve().parents[1]
-    assert {path.name for path in root.glob("*.py")} <= {"Init.py", "InitGui.py", "sitecustomize.py"}
-
+    assert {path.name for path in root.glob("*.py")} <= {
+        "Init.py",
+        "InitGui.py",
+        "sitecustomize.py",
+    }
 
 
 def test_root_initgui_does_not_swallow_drapetarget_import_errors():
@@ -30,7 +34,11 @@ def test_root_initgui_does_not_swallow_drapetarget_import_errors():
     source = (root / "InitGui.py").read_text(encoding="utf-8")
     assert "import freecad_cloth.simulation.DrapeTarget" in source
     assert "try:\n    import freecad_cloth.simulation.DrapeTarget" not in source
-    assert "except ImportError:" not in source.split("import freecad_cloth.simulation.DrapeTarget", 1)[0]
+    assert (
+        "except ImportError:"
+        not in source.split("import freecad_cloth.simulation.DrapeTarget", 1)[0]
+    )
+
 
 def test_freecad_entry_points_remain_at_root():
     root = Path(__file__).resolve().parents[1]
@@ -58,15 +66,18 @@ def test_human_documentation_contract():
     docs_readme = root / "docs" / "README.md"
     assert user_guide.is_file()
     assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+
+
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     assert "pull_request:" in workflow
     assert "pull_request_target:" not in workflow
     assert "types: [opened, synchronize, reopened]" in workflow
     assert "push:" in workflow
     assert "branches: [main]" in workflow
-
 
 
 def test_workbench_benchmark_merge_script_is_checked_in():
@@ -80,17 +91,22 @@ def test_workbench_benchmark_merge_script_is_checked_in():
 
 def test_blanket_evidence_validates_after_docker_restore():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    block = workflow.split("  gui-visual-examples:", 1)[1].split("  publish-readme-turntables:", 1)[0]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    block = workflow.split("  gui-visual-examples:", 1)[1].split("  publish-readme-turntables:", 1)[
+        0
+    ]
     restore = block.index("name: Restore workspace from Docker volume")
     validate = block.index("name: Validate blanket visual evidence")
     assert restore < validate
 
 
-
 def test_turntable_frame_counts_validate_after_restore():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     restore = block.index("name: Restore workspace from Docker volume")
     validate = block.index("name: Validate turntable frame counts on restored workspace")
@@ -99,7 +115,9 @@ def test_turntable_frame_counts_validate_after_restore():
 
 def test_canonical_workflow_keeps_simple_local_first_fallback():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     assert "runner_watchdog:" in workflow
     assert "runner-watchdog=fallback" in workflow
     assert "-f runner_mode=hosted" in workflow
@@ -109,7 +127,6 @@ def test_canonical_workflow_keeps_simple_local_first_fallback():
     assert "runner_heartbeat:" not in workflow
     assert "sketcher-startup-diagnostic:" not in workflow
     assert "*/5 * * * *" not in workflow
-
 
 
 def test_seam_graph_has_one_canonical_implementation():
@@ -130,13 +147,17 @@ def test_pattern_domain_does_not_import_seam_reference_through_compatibility_nam
     assert not offenders, offenders
 
 
-
-
 def test_pr_simulation_execution_and_publication_are_privilege_separated():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  publish-pr-simulation-evidence:", 1)[0]
-    publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split("  gui-turntables:", 1)[0]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  publish-pr-simulation-evidence:", 1)[
+        0
+    ]
+    publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split(
+        "  gui-turntables:", 1
+    )[0]
     assert "permissions:" not in gui
     assert "actions/checkout@" in gui
     assert "contents: write" in publish
@@ -151,7 +172,9 @@ def test_workflow_actions_use_immutable_release_pins():
     import re
 
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     references = re.findall(
         r"uses: (actions/(?:checkout|upload-artifact|download-artifact)|docker/login-action)@([0-9a-f]{40}) # (v[0-9.]+)",
         workflow,
@@ -166,6 +189,7 @@ def test_workflow_actions_use_immutable_release_pins():
     for action, sha, version in references:
         found.setdefault(action, set()).add((sha, version))
     assert {action: next(iter(values)) for action, values in found.items()} == expected
+
 
 def test_modern_loader_does_not_mutate_sys_path():
     root = Path(__file__).resolve().parents[1]
@@ -194,6 +218,7 @@ def test_manifest_declares_all_bundled_workbenches():
     assert manifest.count("<workbench>") == 3
     assert "<freecadmin>1.1.0</freecadmin>" in manifest
 
+
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
     classic = (root / "InitGui.py").read_text(encoding="utf-8")
@@ -201,4 +226,7 @@ def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned()
     for workbench in ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"):
         assert workbench in classic
         assert workbench in modern
-    assert "loader layouts" in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
+    assert (
+        "loader layouts"
+        in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
+    )

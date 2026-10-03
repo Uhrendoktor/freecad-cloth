@@ -1,9 +1,10 @@
 """Evidence-only classification of canonical drape outcomes."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
-
+from typing import Any
 
 STATES = (
     "empty",

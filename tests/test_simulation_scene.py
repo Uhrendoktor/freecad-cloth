@@ -1,10 +1,12 @@
 def test_stale_drape_target_recompute_guard_is_safe():
     from types import SimpleNamespace
+
     from freecad_cloth.simulation import SimulationStaleGuard
     from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
     source = SimpleNamespace(
-        Name="Body", Label="Body",
+        Name="Body",
+        Label="Body",
         Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
         Placement=SimpleNamespace(
             Base=SimpleNamespace(x=10.0, y=0.0, z=0.0),
@@ -12,10 +14,16 @@ def test_stale_drape_target_recompute_guard_is_safe():
         ),
     )
     target = SimpleNamespace(
-        TargetType="FreeCAD Geometry", SourceObject=source,
-        CollisionDeflection=1.0, CollisionThickness=0.0,
-        Enabled=True, CollisionVertexCount=3, CollisionTriangleCount=1,
-        SourceSignature=repr(("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
+        TargetType="FreeCAD Geometry",
+        SourceObject=source,
+        CollisionDeflection=1.0,
+        CollisionThickness=0.0,
+        Enabled=True,
+        CollisionVertexCount=3,
+        CollisionTriangleCount=1,
+        SourceSignature=repr(
+            ("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)
+        ),
     )
 
     class FakeScene:
@@ -32,6 +40,7 @@ def test_stale_drape_target_recompute_guard_is_safe():
 
 def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
     from types import SimpleNamespace
+
     from freecad_cloth.simulation import SimulationStaleGuard
 
     scene = SimpleNamespace(
@@ -54,7 +63,9 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
             Enabled=True,
             CollisionVertexCount=3,
             CollisionTriangleCount=1,
-            SourceSignature=repr(("Body", ("ShapeHash", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)),
+            SourceSignature=repr(
+                ("Body", ("ShapeHash", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)
+            ),
         ),
         SimulationState="READY_FOR_SIMULATION",
         InvalidationReason="",
@@ -75,6 +86,7 @@ def test_invalid_seam_recompute_guard_blocks_without_rethrowing():
 
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
     from types import SimpleNamespace
+
     from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 
     legacy = SimpleNamespace(PinSelection=[])
@@ -92,6 +104,7 @@ def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
 
 def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection():
     from types import SimpleNamespace
+
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
     source = SimpleNamespace(
@@ -123,14 +136,31 @@ def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection():
 
 def test_pin_selection_is_part_of_rebuild_signature():
     from types import SimpleNamespace
+
     from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
-    source = SimpleNamespace(Name="Body", Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123), Placement=SimpleNamespace(Base=SimpleNamespace(x=0.0, y=0.0, z=0.0), Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0))))
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
+        ),
+    )
     target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
-    scene_a = SimpleNamespace(DrapeTarget=target, PinSelection=["1", "2"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
-    scene_b = SimpleNamespace(DrapeTarget=target, PinSelection=["3", "4"], StitchSamples=8, Document=SimpleNamespace(Objects=[]))
+    scene_a = SimpleNamespace(
+        DrapeTarget=target,
+        PinSelection=["1", "2"],
+        StitchSamples=8,
+        Document=SimpleNamespace(Objects=[]),
+    )
+    scene_b = SimpleNamespace(
+        DrapeTarget=target,
+        PinSelection=["3", "4"],
+        StitchSamples=8,
+        Document=SimpleNamespace(Objects=[]),
+    )
     assert _simulation_source_signature(scene_a, []) != _simulation_source_signature(scene_b, [])
-
 
 
 def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
@@ -184,14 +214,16 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance():
     }
     pairs, records = _seam_pair_records(pattern, panel_data, seam_samples=3)
     assert pairs == ((0, 5), (1, 4), (2, 3))
-    assert records == (
-        ("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),
-    )
+    assert records == (("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),)
 
 
 def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
     from types import SimpleNamespace
-    from freecad_cloth.simulation.SimulationObjects import SimulationProxy, _simulation_source_signature
+
+    from freecad_cloth.simulation.SimulationObjects import (
+        SimulationProxy,
+        _simulation_source_signature,
+    )
 
     class FakeBackend:
         def __init__(self):
@@ -233,6 +265,7 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
     proxy.collision_surface = object()
     proxy.source_signature = _simulation_source_signature(scene, [])
     from freecad_cloth.simulation import SimulationStaleGuard
+
     SimulationStaleGuard._ORIGINAL_EXECUTE(proxy, scene)
 
     assert proxy.backend.calls == [
@@ -244,4 +277,3 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision():
             proxy.collision_surface,
         )
     ]
-

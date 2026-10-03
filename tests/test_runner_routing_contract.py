@@ -1,4 +1,5 @@
 """Contract checks for the canonical runner topology."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,7 +9,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "canonical-execution.yml"
 def _job_block(source: str, job: str) -> str:
     marker = f"  {job}:\n"
     start = source.index(marker)
-    remainder = source[start + len(marker):]
+    remainder = source[start + len(marker) :]
     next_job = remainder.find("\n  ")
     return remainder if next_job < 0 else remainder[:next_job]
 
@@ -45,7 +46,14 @@ def test_pull_requests_are_hosted_only():
 
 def test_trusted_runs_remain_local_first():
     source = WORKFLOW.read_text(encoding="utf-8")
-    for job in ("local_runner_readiness", "python", "gui-tunic-visual", "gui-turntables", "gui-visual-examples", "benchmark"):
+    for job in (
+        "local_runner_readiness",
+        "python",
+        "gui-tunic-visual",
+        "gui-turntables",
+        "gui-visual-examples",
+        "benchmark",
+    ):
         block = _job_block(source, job)
         assert "self-hosted" in block
     assert "inputs.runner_mode == 'hosted'" in source

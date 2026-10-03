@@ -36,11 +36,7 @@ class DistanceConstraint:
 
 def distance(a: Particle, b: Particle) -> float:
     """Return Euclidean distance between two particles."""
-    return sqrt(
-        (a.x - b.x) ** 2 +
-        (a.y - b.y) ** 2 +
-        (a.z - b.z) ** 2
-    )
+    return sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
 
 
 class ClothSystem:
@@ -141,8 +137,4 @@ class ClothSystem:
 
     def finite(self) -> bool:
         """Return whether all input particle coordinates are finite."""
-        return all(
-            isfinite(value)
-            for particle in self.particles
-            for value in particle.position()
-        )
+        return all(isfinite(value) for particle in self.particles for value in particle.position())

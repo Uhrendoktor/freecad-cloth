@@ -1,7 +1,8 @@
 """Versioned, deterministic serialization for sewing pattern documents."""
-from dataclasses import asdict, dataclass, field
+
 import json
-from typing import Any, Dict, List, Tuple
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 SCHEMA_VERSION = 1
 
@@ -9,11 +10,12 @@ SCHEMA_VERSION = 1
 @dataclass
 class PatternDocument:
     """GUI-independent document model suitable for JSON interchange."""
+
     pattern_id: str
     name: str
-    pieces: List[Dict[str, Any]] = field(default_factory=list)
-    seams: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    pieces: list[dict[str, Any]] = field(default_factory=list)
+    seams: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
     def validate(self) -> None:
@@ -35,7 +37,7 @@ class PatternDocument:
                 raise ValueError("seam references an unknown piece")
 
 
-def to_dict(document: PatternDocument) -> Dict[str, Any]:
+def to_dict(document: PatternDocument) -> dict[str, Any]:
     document.validate()
     return asdict(document)
 
@@ -57,7 +59,7 @@ def loads(text: str) -> PatternDocument:
     return document
 
 
-def migrate(raw: Dict[str, Any]) -> Dict[str, Any]:
+def migrate(raw: dict[str, Any]) -> dict[str, Any]:
     """Migration entry point; future schema versions can be added explicitly."""
     version = raw.get("schema_version", 0)
     if version == SCHEMA_VERSION:

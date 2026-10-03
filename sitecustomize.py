@@ -11,6 +11,7 @@ except ImportError:
 if QtGui is not None:
     QPixmap = QtGui.QPixmap
     if not hasattr(QPixmap, "pixel"):
+
         def _pixel(self, x, y):
             return self.toImage().pixel(x, y)
 
@@ -49,7 +50,7 @@ def _install_quality_backend_hook():
 
         requested_steps = int(getattr(obj, "Steps", 0))
         obj.Steps = 0
-        result = original_execute(self, obj)
+        original_execute(self, obj)
 
         base = self._base_or_restore()
         xpbd = getattr(base, "backend", None)

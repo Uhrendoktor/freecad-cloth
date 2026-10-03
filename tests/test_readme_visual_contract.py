@@ -19,9 +19,9 @@ def test_blanket_visual_fixture_has_no_runtime_backend_selector():
 
 def test_turntable_still_uses_persistent_drape_target():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    objects = (
-        ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py"
-    ).read_text(encoding="utf-8")
+    objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "DrapeTarget" in source
     assert "create_drape_target" in objects

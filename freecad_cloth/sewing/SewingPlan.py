@@ -4,6 +4,7 @@ The workbench-facing objects store seams as references to stable pattern-piece
 IDs.  This module keeps cross-object validation and topology analysis out of
 FreeCAD so it can be reused by GUI and simulation code and tested headlessly.
 """
+
 from collections import defaultdict, deque
 
 
