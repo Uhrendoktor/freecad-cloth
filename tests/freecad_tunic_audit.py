@@ -75,11 +75,6 @@ preview_probe = '''    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
 '''
-anchor = '''    for batch in (15,15,15,15,15,15):
-        simulation_panel.step(batch); doc.recompute(); events()
-'''
-if anchor not in source:
-    raise RuntimeError("simulation batch anchor missing")
 timed_anchor = '''    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
@@ -89,13 +84,27 @@ timed_anchor = '''    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
-        batch_started = perf_counter()
-        simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
-    log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
+    scene.Steps = 90
+    doc.recompute()
+    events()
+    simulation_elapsed_ms = 1000.0 * (perf_counter() - simulation_started)
+    log("tunic-simulation-batch steps=90 elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (
+        simulation_elapsed_ms, simulation_elapsed_ms, int(scene.ParticleCount),
+        int(scene.SolverIterations), int(scene.SolverSubsteps)
+    ))
+    simulation_budget_ms = float(os.environ.get("CLOTH_TUNIC_SIMULATION_BUDGET_MS", "3000"))
+    log("tunic-simulation-budget-ms=%.1f" % simulation_budget_ms)
+    if simulation_elapsed_ms > simulation_budget_ms:
+        raise RuntimeError(
+            "Tissu 90-step tunic simulation exceeded realtime CI budget: %.1f ms > %.1f ms"
+            % (simulation_elapsed_ms, simulation_budget_ms)
+        )
 '''
-source = source.replace(anchor, preview_probe + '\n' + timed_anchor, 1)
+source = source.replace(
+    "    for batch in (15,15,15,15,15,15):\n        simulation_panel.step(batch); doc.recompute(); events()\n",
+    preview_probe + "\n" + timed_anchor,
+    1,
+)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())

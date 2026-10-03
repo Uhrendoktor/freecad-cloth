@@ -6,6 +6,7 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.DrapeQuality import assert_quality, benchmark, measure
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 from freecad_cloth.simulation.SimulationCommands import _drape_target_guard
+from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
 
 
 def test_metrics_capture_constraint_residual_and_displacement():
@@ -110,3 +111,31 @@ def test_canonical_tunic_fixture_uses_narrow_panel_ease():
 def test_canonical_tunic_fixture_uses_experimental_clearance_profile():
     fixture = Path(__file__).with_name("freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "clearance = max(8.0, 0.025 * body_depth);" in fixture
+
+
+def test_drape_gate_rejects_fallen_below_avatar_candidate():
+    record = {
+        "panel": "Tunic Front",
+        "failure_classification": {"state": "structurally-plausible"},
+        "diagnostics": ["fallen-below-avatar-candidate"],
+    }
+    try:
+        assert_drape_diagnostics([record])
+    except RuntimeError as exc:
+        assert "fallen-below-avatar-candidate" in str(exc)
+    else:
+        raise AssertionError("fallen tunic must fail the visual acceptance gate")
+
+
+def test_drape_gate_rejects_low_torso_coverage_candidate():
+    record = {
+        "panel": "Tunic Back",
+        "failure_classification": {"state": "structurally-plausible"},
+        "diagnostics": ["torso-coverage-candidate"],
+    }
+    try:
+        assert_drape_diagnostics([record])
+    except RuntimeError as exc:
+        assert "torso-coverage-candidate" in str(exc)
+    else:
+        raise AssertionError("low torso coverage must fail the visual acceptance gate")
