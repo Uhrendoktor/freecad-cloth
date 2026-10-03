@@ -508,9 +508,8 @@ def main():
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(
-            compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals()
-        )
+        with open(init_gui, encoding="utf-8") as handle:
+            exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
     events()
 
     doc = App.newDocument("ClothBlanketTurntable")
