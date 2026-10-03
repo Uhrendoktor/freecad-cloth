@@ -39,7 +39,7 @@ def _simulation_data(scene):
 
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        raise RuntimeError(f"diagnostics blocked: cannot inspect DrapeTarget: {exc}")
+        raise RuntimeError(f"diagnostics blocked: cannot inspect DrapeTarget: {exc}") from exc
     if status["state"] != "ready":
         raise RuntimeError("diagnostics blocked: {}".format(status["message"]))
     proxy = getattr(scene, "Proxy", None)
