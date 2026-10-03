@@ -3,15 +3,26 @@
   <name>FreeCAD Cloth</name>
   <description>Parametric sewing patterns and cloth simulation workbenches for FreeCAD.</description>
   <version>0.1.0</version>
-  <date>2026-09-24</date>
+  <date>2026-10-03</date>
+  <freecadmin>1.1.0</freecadmin>
   <maintainer email="36703334+Uhrendoktor@users.noreply.github.com">Uhrendoktor</maintainer>
   <license file="LICENSE">LGPL-2.1-or-later</license>
   <url type="repository" branch="main">https://github.com/Uhrendoktor/freecad-cloth</url>
   <url type="readme">https://github.com/Uhrendoktor/freecad-cloth#readme</url>
   <content>
     <workbench>
-      <name>FreeCAD Cloth</name>
+      <name>FreeCAD Cloth Pattern</name>
       <classname>ClothPatternWorkbench</classname>
+      <subdirectory>./</subdirectory>
+    </workbench>
+    <workbench>
+      <name>FreeCAD Cloth Sewing</name>
+      <classname>ClothSewingWorkbench</classname>
+      <subdirectory>./</subdirectory>
+    </workbench>
+    <workbench>
+      <name>FreeCAD Cloth Simulation</name>
+      <classname>ClothSimulationWorkbench</classname>
       <subdirectory>./</subdirectory>
     </workbench>
   </content>

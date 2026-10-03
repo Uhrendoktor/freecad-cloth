@@ -173,6 +173,19 @@ def test_ci_tissu_hook_is_explicit_and_has_no_import_time_pip_install():
     assert 'os.environ.get("CLOTH_CI_ENABLE_TISSU", "0") == "1"' in source
     assert '"pip"' not in source
 
+
+def test_manifest_declares_all_bundled_workbenches():
+    root = Path(__file__).resolve().parents[1]
+    manifest = (root / "package.xml").read_text(encoding="utf-8")
+    for classname in (
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+    ):
+        assert f"<classname>{classname}</classname>" in manifest
+    assert manifest.count("<workbench>") == 3
+    assert "<freecadmin>1.1.0</freecadmin>" in manifest
+
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
     classic = (root / "InitGui.py").read_text(encoding="utf-8")
