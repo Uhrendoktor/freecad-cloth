@@ -47,9 +47,8 @@ class BenchmarkWorkbenchBackend:
 
 def trace(message: str) -> None:
     with contextlib.suppress(OSError):
-        pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8").write(
-            message + "\n"
-        )
+        with pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
     print(message, flush=True)
 
 
