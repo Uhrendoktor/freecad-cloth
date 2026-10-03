@@ -15,6 +15,7 @@ _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
 def ensure_quality_properties(scene):
+    """Create and validate persistent quality and presentation properties on a scene."""
     """Create and validate persistent simulation-quality properties on a scene."""
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
@@ -59,6 +60,7 @@ def _validate_properties(scene):
 
 def apply_quality_preset(scene, name=None):
     """Apply a named quality preset and return its normalized profile."""
+    """Apply a named quality preset and return its normalized profile."""
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
     scene.QualityPreset = quality.name
@@ -72,6 +74,7 @@ def apply_quality_preset(scene, name=None):
 
 
 def quality_discretization(point_count, perimeter, particle_distance):
+    """Return the sample count required by the requested particle spacing."""
     """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
         raise ValueError("point_count must be at least three")
@@ -154,8 +157,6 @@ class QualitySimulationProxy:
             else:
                 self._build_demo(obj, signature)
             self._sync_seam_stitch_provenance(base)
-            self._apply_material(obj)
-            self._apply_collision(obj)
         steps = int(obj.Steps)
         if steps > base.last_steps:
             dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
@@ -259,6 +260,7 @@ class QualitySimulationProxy:
 
 
 def create_quality_simulation_scene(doc):
+    """Create the quality-controlled FreeCAD simulation scene using Tissu."""
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     scene = create_simulation_scene(doc)
