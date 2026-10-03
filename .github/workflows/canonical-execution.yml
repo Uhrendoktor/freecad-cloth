@@ -543,6 +543,23 @@ jobs:
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
             '
+      - name: Report tunic audit diagnostics
+        if: ${{ always() }}
+        run: |
+          set +e
+          echo "=== native-Sketcher tunic audit runtime diagnostics ==="
+          if [ -f artifacts/tunic-audit/runtime-diagnostics.log ]; then
+            cat artifacts/tunic-audit/runtime-diagnostics.log
+          else
+            echo "runtime-diagnostics.log was not produced"
+          fi
+          echo "=== native-Sketcher tunic audit application log ==="
+          if [ -f artifacts/tunic-audit/freecad-tunic-audit.log ]; then
+            cat artifacts/tunic-audit/freecad-tunic-audit.log
+          else
+            echo "freecad-tunic-audit.log was not produced"
+          fi
+          exit 0
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
         run: |
@@ -796,27 +813,87 @@ jobs:
           CLOTH_TISSU_COLLISION_TRIANGLES: 2048
         run: |
           set -euo pipefail
-          rm -rf docs/images/generated
-          mkdir -p docs/images/generated
+          rm -rf docs/images/generated artifacts/tunic-audit
+          mkdir -p docs/images/generated artifacts/tunic-audit
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNIC_IMAGE" bash -lc '
-              set -euo pipefail
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TUNISU_IMAGE" bash -lc '
+              set -u -o pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/tunic-audit
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 12); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py
-              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py
+
+              app_log=/workspace/artifacts/tunic-audit/freecad-tunic-audit.log
+              : > "$app_log"
+              echo "tunic-audit-supervisor=starting"
+              echo "tunic-audit-command=/opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py"
+              echo "tunic-audit-display=$DISPLAY"
+              echo "tunic-audit-backend=$CLOTH_SIMULATION_BACKEND"
+              echo "tunic-audit-substeps=$CLOTH_TISSU_SUBSTEPS"
+              echo "tunic-audit-collision-mode=$CLOTH_TISSU_COLLISION_MODE"
+              echo "tunic-audit-collision-triangles=$CLOTH_TISSU_COLLISION_TRIANGLES"
+
+              set +e
+              setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
+              APP_PID=$!
+              APP_DEADLINE=$((SECONDS + 360))
+              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=360"
+              while kill -0 "$APP_PID" 2>/dev/null; do
+                if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
+                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=360" | tee -a "$app_log"
+                  kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
+                  sleep 5
+                  kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
+                  break
+                fi
+                sleep 1
+              done
+              wait "$APP_PID"
+              APP_STATUS=$?
+              set -e
+
+              {
+                echo "tunic-audit-supervisor=finished status=$APP_STATUS"
+                if [ "$APP_STATUS" -eq 124 ]; then
+                  echo "tunic-audit-termination=timeout"
+                elif [ "$APP_STATUS" -ge 128 ]; then
+                  echo "tunic-audit-termination=signal signal=$((APP_STATUS - 128))"
+                else
+                  echo "tunic-audit-termination=process-exit exit_code=$APP_STATUS"
+                fi
+                echo "--- freecad process snapshot ---"
+                ps -efww | grep -E '(/opt/freecad|FreeCAD|freecad_tunic)' | grep -v grep || true
+                echo "--- Xvfb log ---"
+                cat /tmp/xvfb.log || true
+                echo "--- openbox log ---"
+                cat /tmp/openbox.log || true
+                echo "--- triangle install log ---"
+                cat /tmp/triangle-install.log || true
+                echo "--- FreeCAD audit log ---"
+                cat "$app_log" || true
+              } | tee /workspace/artifacts/tunic-audit/runtime-diagnostics.log
+
+              if [ "$APP_STATUS" -ne 0 ]; then
+                exit "$APP_STATUS"
+              fi
+
+              echo "tunic-audit-supervisor=running-realtime-benchmark"
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_realtime_benchmark.py > /workspace/artifacts/tunic-audit/freecad-realtime-benchmark.log 2>&1
+              BENCHMARK_STATUS=$?
+              cat /workspace/artifacts/tunic-audit/freecad-realtime-benchmark.log
+              if [ "$BENCHMARK_STATUS" -ne 0 ]; then
+                exit "$BENCHMARK_STATUS"
+              fi
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
