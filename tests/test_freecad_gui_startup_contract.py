@@ -38,7 +38,9 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     guard_index = run.index(
         'if "ClothPatternWorkbench" not in Gui.listWorkbenches():', init_gui_index
     )
-    exec_index = run.index("exec(compile(init_gui.read_text", guard_index)
+    exec_index = run.index("exec(", guard_index)
+    compile_index = run.index("compile(", exec_index)
+    assert exec_index < compile_index
     post_events_index = run.index("events()", exec_index)
     registered_index = run.index("raise RuntimeError", post_events_index)
     document_index = run.index('doc = App.newDocument("ClothBlanketExample")', registered_index)
