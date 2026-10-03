@@ -47,6 +47,60 @@ permissions:
   packages: read
 
 jobs:
+  agent-quality:
+    name: Agent-oriented static and property gates
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install development toolchain
+        run: python -m pip install --disable-pip-version-check -e ".[dev]"
+      - name: Run agent-oriented static gates
+        run: |
+          set -euo pipefail
+          python -m ruff check .
+          python -m ruff format --check .
+          python tools/check_documentation_contract.py
+          lint-imports
+          pyright
+          python tools/check_dead_code.py $(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
+          python -m pytest -q tests/test_property_contracts.py
+          crosshair check --analysis_kind asserts tools/crosshair_contracts.py
+
+  duplication:
+    name: New Python duplication gate
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject newly introduced clones
+        uses: kucherenko/jscpd@v5
+        with:
+          path: "freecad_cloth tools"
+          format: "python"
+          min-lines: "8"
+          min-tokens: "70"
+          baseline-from-ref: "origin/${{ github.base_ref }}"
+          fail-on-new-clones: "true"
+          fail-on-empty: "true"
+
   python:
     name: Python quality and unit tests
     needs: [local_runner_readiness]
