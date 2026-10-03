@@ -23,12 +23,9 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | Seamly2D | Measurement-driven parametric patterns | Design/reference/interoperability research | GPL; do not embed core | **Reference only** |
 | FreeSewing | Parametric pattern design and plugins | Pattern-model/workflow reference; possible import bridge | JS ecosystem; do not embed core | **Reference only** |
 
-## Tissu implementation plan
+## Tissu status
 
-1. Create a `TissuBackend` adapter behind `ClothSimulationBackend`.
-2. Map `PatternIR` mesh + `SewingGraph` into Tissu cloth/stitch constraints.
-3. Map pins/material/quality/collision settings without changing public UI contracts.
-4. Adapt `DrapeTarget` to Tissu mesh/kinematic collision.
+The Tissu adapter is the production runtime boundary. PatternIR/SewingGraph/DrapeTarget remain authoritative; `ClothBackend` isolates FreeCAD document code from Tissu APIs. Do not introduce a second runtime solver without benchmark evidence showing a concrete limitation in the current Tissu path.
 5. Compare stretch, bend, stitches, collision and self-collision against the deterministic CPU backend.
 6. Compare repeatability for identical inputs.
 7. Compare simulation time and memory at Fast/Balanced/Final resolutions.
