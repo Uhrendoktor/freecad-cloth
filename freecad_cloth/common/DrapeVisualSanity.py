@@ -36,7 +36,11 @@ def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, flo
 
 def _centroid(vertices: Sequence[Point3]) -> Point3:
     count = float(len(vertices))
-    return tuple(sum(float(v[i]) for v in vertices) / count for i in range(3))  # type: ignore[return-value]
+    return (
+        sum(float(v[0]) for v in vertices) / count,
+        sum(float(v[1]) for v in vertices) / count,
+        sum(float(v[2]) for v in vertices) / count,
+    )
 
 
 def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
@@ -81,9 +85,11 @@ def seam_correspondence_gap(
         start_b, end_b = 1.0 - float(end_b), 1.0 - float(start_b)
 
     def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
-        return tuple(
-            float(left[i]) + (float(right[i]) - float(left[i])) * fraction for i in range(3)
-        )  # type: ignore[return-value]
+        return (
+            float(left[0]) + (float(right[0]) - float(left[0])) * fraction,
+            float(left[1]) + (float(right[1]) - float(left[1])) * fraction,
+            float(left[2]) + (float(right[2]) - float(left[2])) * fraction,
+        )
 
     maximum = 0.0
     for sample in range(int(samples)):
