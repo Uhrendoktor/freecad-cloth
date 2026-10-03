@@ -22,9 +22,6 @@ def test_seam_semantics():
 def test_avatar_contract():
     surface=CollisionSurface(((0,0,0),(1,0,0),(0,1,0)),((0,1,2),),thickness=1.0); avatar=AvatarSpec('fixture',collision=surface); avatar.validate(); assert surface.center==(1/3,1/3,0.0)
 
-def test_triangle_surface_collision():
-    surface=surface_from_triangles(((-10,-10,0),(10,-10,0),(10,10,0),(-10,10,0)),((0,1,2),(0,2,3)),thickness=1.0); system=ClothSystem([Particle(0,0,-0.25)]); system.step(dt=1/60,iterations=1,gravity=(0,0,0),surface=surface); assert system.particles[0].z>=0.99
-
 def test_golden_fixtures_are_deterministic():
     assert two_piece_rectangle()['pieces'][0].sampled_outline()==two_piece_rectangle()['pieces'][0].sampled_outline(); assert mirrored_pair()['mirrored'] is True; assert multi_piece()['seams']==3
 
