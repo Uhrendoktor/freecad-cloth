@@ -33,6 +33,19 @@ class SeamConstraint:
         )
         self.kind = kind
 
+    @staticmethod
+    def _legacy_edge(value):
+        """Normalize the legacy numeric edge ABI and reject ambiguous strings."""
+        if isinstance(value, bool):
+            raise ValueError("legacy seam edge references must be integer outline indices")
+        if isinstance(value, int):
+            if value < 0:
+                raise ValueError("legacy seam edge references must be non-negative")
+            return value
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        raise ValueError("legacy seam edge references must be integer outline indices")
+
     @property
     def seam(self) -> Seam:
         """Return the authoritative canonical seam object."""
