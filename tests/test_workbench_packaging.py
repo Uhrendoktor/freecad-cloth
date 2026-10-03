@@ -57,5 +57,8 @@ def test_addon_metadata_is_valid():
     assert root.findtext(namespace + "license") == "LGPL-2.1-or-later"
     assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
     workbenches = root.find(namespace + "content")
-    declared = {item.findtext(namespace + "classname") for item in workbenches.findall(namespace + "workbench")}
+    declared = {
+        item.findtext(namespace + "classname")
+        for item in workbenches.findall(namespace + "workbench")
+    }
     assert declared == {"ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"}
