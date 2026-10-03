@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
-FRAME_BUDGET_MS = 1000.0 / 30.0
+FRAME_BUDGET_MS = 1000.0 / 60.0
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "30"))
 
 
@@ -63,7 +63,9 @@ def main():
         }
         (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, sort_keys=True), flush=True)
-        if not result["finite"] or result["mean_frame_ms"] > FRAME_BUDGET_MS or result["p95_frame_ms"] > 50.0:
+        if result["backend"] != "tissu":
+            raise SystemExit("realtime benchmark did not execute the Tissu backend")
+        if not result["finite"] or result["mean_frame_ms"] > FRAME_BUDGET_MS or result["p95_frame_ms"] > 33.333:
             raise SystemExit(2)
     finally:
         try:
