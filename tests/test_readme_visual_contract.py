@@ -7,7 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_readme_turntable_uses_tissu_backend():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert "backend=tissu" in source
     assert "CLOTH_SIMULATION_BACKEND=tissu" in workflow
