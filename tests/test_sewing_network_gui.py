@@ -187,6 +187,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts():
     panel.reversed_b = Check()
     panel.warning = type("Label", (), {"setText": lambda self, text: None})()
     panel.status = type("Label", (), {"setText": lambda self, text: None})()
+    panel.correspondence = type("Label", (), {"setText": lambda self, text: None})()
     panel._transaction_active = True
     try:
         panel.accept()
