@@ -519,7 +519,7 @@ class SimulationProxy:
             self.panel_piece_names[panel.Name] = str(getattr(piece, "Name", ""))
         self.source_signature = signature or _simulation_source_signature(obj, pieces)
         self.last_steps = 0
-        self.collision_surface = collision_surface
+        self.collision_surface = getattr(self.backend, "solver_collision_surface", collision_surface)
         for panel in panels:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
@@ -577,7 +577,7 @@ class SimulationProxy:
         self.seam_stitch_pairs = {}
         self.source_signature = _simulation_source_signature(obj, ())
         self.last_steps = 0
-        self.collision_surface = collision_surface
+        self.collision_surface = getattr(self.backend, "solver_collision_surface", collision_surface)
         positions = self.backend.positions()
         for panel, key in zip(
             getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB"), strict=False
