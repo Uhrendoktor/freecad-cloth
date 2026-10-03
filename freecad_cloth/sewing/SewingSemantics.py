@@ -46,7 +46,9 @@ class SeamConstraint:
             if not value.strip():
                 raise ValueError("legacy seam edge references must not be empty")
             return int(value.strip()) if value.strip().isdigit() else value.strip()
-        raise ValueError("legacy seam edge references must be integer indices or stable identifiers")
+        raise ValueError(
+            "legacy seam edge references must be integer indices or stable identifiers"
+        )
 
     @property
     def seam(self) -> Seam:
