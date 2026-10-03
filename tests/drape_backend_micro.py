@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
-from freecad_cloth.simulation.ClothBackend import default_backend_registry
+from freecad_cloth.simulation.TissuBackend import TissuBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 OUT = Path(os.environ.get("CLOTH_MICRO_DIR", "artifacts/drape-backend-micro"))
@@ -67,9 +67,6 @@ def make_collision_surface():
 
 
 def main():
-    requested = os.environ.get("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")
-    registry = default_backend_registry()
-    backend_name = requested if requested in registry._factories else "xpbd-cpu"
     system, triangles, stitches = make_system()
     collision = make_collision_surface()
     if backend_name == "tissu":
@@ -104,7 +101,7 @@ def main():
     ordered = sorted(times)
     p95 = ordered[max(0, min(len(ordered) - 1, int(0.95 * len(ordered)) - 1))]
     result = {
-        "backend": backend_name,
+        "backend": backend.name,
         "steps": steps,
         "iterations": iterations,
         "particles": len(backend.positions()),
