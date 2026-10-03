@@ -46,6 +46,8 @@ Derived diagnostics
 
 ## Pattern model
 
+`PatternModel` contains the canonical in-memory/headless value types used by adapters and tests. The persisted FreeCAD document objects are the persistence authority; they must round-trip the same semantic state without creating a competing mutable model.
+
 A PatternPiece persists a stable piece ID, authoritative 2D geometry reference, semantic edge identities, seam allowance, grainline/notches/internal marks, measurements/validation metadata and simulation-resolution hints. Native Sketcher is the interactive geometry editor; Cloth must not duplicate Sketcher's dimensional/constraint solver.
 
 Semantic edge identity must survive recompute/save/reload and fail closed when topology is deleted, split or merged. Never silently retarget a seam to a different edge. Repair/remap is explicit.
@@ -54,9 +56,11 @@ Derived seam-allowance/offset geometry is for inspection/export and must not bec
 
 ## Sewing model
 
+The persisted FreeCAD Seam object is the document-level source of truth. `PatternModel.Seam` is its canonical immutable in-memory/value representation used by headless code and adapters; `SewingPair`/`SeamConstraint` are compatibility or presentation adapters.
+
 A seam/operation contains the participating piece/edge ranges, orientation/reversal, correspondence policy, stitch group/construction kind and validation state. The model must represent 1:1, 1:N, M:1 and M:N/free relationships without depending on particle or triangle counts.
 
-Selection is a GUI concern; the committed sewing graph is document authority. Curved correspondence must be length-aware and report mismatch/reversal before commit.
+Selection is a GUI concern; committed sewing state is stored on the document authority and projected into the canonical in-memory `SeamGraph` for processing. Curved correspondence must be length-aware and report mismatch/reversal before commit.
 
 ## Fitting and DrapeTarget
 
