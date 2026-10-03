@@ -161,12 +161,12 @@ jobs:
                 tests/test_pattern_simulation_adapter.py \
                 tests/test_freecad_gui_startup_contract.py; do
                 echo "running-script-test=$test"
-      python3 "$test"
+              python3 "$test"
               done
 
               # Pytest-style modules have no script runner; execute the tests explicitly.
               echo "running-pytest-suite"
-    python3 -m pytest -q \
+              python3 -m pytest -q \
                 tests/test_xpbd.py \
                 tests/test_side_tasks.py \
                 tests/test_pattern_export_semantics.py \
