@@ -47,9 +47,9 @@ def check(path: Path) -> list[str]:
             and not node.name.startswith("_")
             and ast.get_docstring(node) is None
         ):
-                errors.append(
-                    f"{path}:{node.lineno}: missing docstring for public {type(node).__name__.lower()} {node.name}"
-                )
+            errors.append(
+                f"{path}:{node.lineno}: missing docstring for public {type(node).__name__.lower()} {node.name}"
+            )
         if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
             for member in node.body:
                 if (
