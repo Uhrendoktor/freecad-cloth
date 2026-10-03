@@ -28,7 +28,7 @@ Agent-specific instructions live in [AGENTS.md](AGENTS.md). It is intentionally 
 
 ## Screenshots and simulation media
 
-The published FreeCAD/Xvfb media is evidence from specific validated runs. It is useful as a reproducible example of the workflow, but it is not a claim that the current `main` diagnostic state is green. Current simulation investigations are tracked under #2492 and must be judged from exact-head evidence.
+The published FreeCAD/Xvfb media is evidence from specific validated runs. It is useful as a reproducible example of the workflow, but it is not a claim that the current `main` diagnostic state is green. Current simulation investigations are tracked by the live coordination ledger named in `AGENT_STATUS.md` and must be judged from exact-head evidence.
 
 ### Pattern design
 
