@@ -199,3 +199,29 @@ def test_tissu_ci_handoff_preserves_stitch_compliance_contract():
     assert "stitch_compliances" in source
     assert "cannot preserve heterogeneous stitch compliance" in source
     assert "stitch_compliance=stitch_compliances[0] if stitch_compliances else 0.0" in source
+
+
+def test_tissu_pin_replacement_fails_closed_after_step(monkeypatch):
+    _install_fake_tissu(monkeypatch)
+
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    system = ClothSystem.grid(20, 20, nx=3, ny=2)
+    triangles = ((0, 1, 4), (0, 4, 3), (1, 5, 4), (2, 3, 5))
+    backend = TissuBackend(system, triangles=triangles, pins=(0,))
+
+    assert backend._sim.solver.pins == [(0, (0.0, 0.0, 0.0), 0.0)]
+
+    backend.pin((2,))
+
+    assert backend._pin_indices == (2,)
+    assert len(backend._sim.solver.pins) == 1
+    assert backend._sim.solver.pins[0][0] == 2
+
+    backend.step()
+
+    with pytest.raises(RuntimeError, match="cannot replace pins after simulation has advanced"):
+        backend.pin((1,))
+
+    assert backend._pin_indices == (2,)
+    assert backend._sim.solver.pins[0][0] == 2
