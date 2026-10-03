@@ -62,6 +62,15 @@ def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
         assert "AGENT_STATUS.md" in text
 
 
+def test_development_guide_points_to_the_canonical_prompt_schema():
+    root = ROOT / "docs" / "DEVELOPMENT.md"
+    text = root.read_text(encoding="utf-8")
+    assert "seven-field prompt contract in the root `AGENTS.md`" in text
+    assert "1. Objective." not in text
+    assert "2. Current evidence and exact commit/head." not in text
+    assert "7. Falsifier or stop condition." not in text
+
+
 def test_path_specific_agent_instructions_are_narrow_and_scoped():
     root = ROOT / ".github" / "instructions"
     simulation = (root / "simulation.instructions.md").read_text(encoding="utf-8")
