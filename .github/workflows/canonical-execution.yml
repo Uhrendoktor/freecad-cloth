@@ -68,7 +68,7 @@ jobs:
         run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
       - name: Upload selected execution mode evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runner-mode
           path: artifacts/runner-mode.txt
@@ -141,11 +141,11 @@ jobs:
           set -euo pipefail
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -161,7 +161,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
             -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
             -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
@@ -204,7 +204,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
@@ -269,7 +269,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_TISSU_COLLISION_MODE=mesh -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
@@ -383,7 +383,7 @@ jobs:
           PY
       - name: Upload contact diagnostics
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tissu-contact-diagnostics
           path: |
@@ -402,13 +402,13 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Report canonical runner mode
         run: echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -499,7 +499,7 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -507,7 +507,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/freecad_tunic_audit.py --syntax-check
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -579,7 +579,7 @@ jobs:
           grep -q 'stale-endpoint-invalidation=passed commit-blocked=true' artifacts/sewing-creation-smoke.log
       - name: Upload sewing creation smoke evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sewing-creation-smoke
           path: artifacts/sewing-creation-smoke.log
@@ -596,11 +596,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -661,7 +661,7 @@ jobs:
           grep -q "native Sketcher acceptance passed" artifacts/sketcher-acceptance.log
       - name: Upload Sketcher acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sketcher-acceptance
           path: |
@@ -679,11 +679,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -734,7 +734,7 @@ jobs:
           grep -q 'pattern-export-smoke=completed' artifacts/pattern-production-export.log
       - name: Upload pattern export evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pattern-production-export
           path: artifacts/pattern-production-export.log
@@ -743,10 +743,6 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
@@ -757,11 +753,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -802,7 +798,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
             -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
@@ -956,7 +952,7 @@ jobs:
           grep -q 'canonical garment end-to-end acceptance passed' artifacts/garment-e2e.log
       - name: Upload tunic visual audit
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tunic-visual-audit
           path: |
@@ -972,59 +968,81 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
-      - name: Publish inline simulation evidence for human review
-        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+  publish-pr-simulation-evidence:
+    name: Publish PR simulation evidence
+    needs: [gui-tunic-visual]
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download tunic visual audit artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tunic-visual-audit
+          path: tunic
+
+      - name: Publish rendered evidence without executing PR code
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_ID: ${{ github.run_id }}
           REPOSITORY: ${{ github.repository }}
-          EVIDENCE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          review_root="docs/images/generated"
+          review_root="tunic"
           evidence_branch="simulation-evidence/pr-$PR_NUMBER"
           worktree="$RUNNER_TEMP/simulation-evidence"
           rm -rf "$worktree"
-          git remote set-url origin "https://github.com/$REPOSITORY.git"
-          gh auth setup-git
-          git fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch" || true
-          if git show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
-            git worktree add --detach "$worktree" "refs/remotes/origin/$evidence_branch"
+          git clone --filter=blob:none --no-checkout "https://x-access-token:${GH_TOKEN}@github.com/$REPOSITORY.git" "$worktree"
+          git -C "$worktree" fetch origin main
+          git -C "$worktree" checkout --detach origin/main
+          if git -C "$worktree" show-ref --verify --quiet "refs/remotes/origin/$evidence_branch"; then
+            git -C "$worktree" fetch origin "refs/heads/$evidence_branch:refs/remotes/origin/$evidence_branch"
+            git -C "$worktree" checkout --detach "refs/remotes/origin/$evidence_branch"
           else
-            git worktree add --detach "$worktree" "$EVIDENCE_HEAD"
             git -C "$worktree" switch --orphan "$evidence_branch"
             git -C "$worktree" rm -rf . >/dev/null 2>&1 || true
           fi
           dest="$worktree/pr-$PR_NUMBER/run-$RUN_ID"
           mkdir -p "$dest"
-          mapfile -t images < <(find "$review_root" -maxdepth 1 -type f -iname '*.png' | sort | grep -Ei '(tunic|draped|step-(015|045|090)|front|rear|right|left|top|bottom|diagnostic)' | head -n 18 || true)
-          if [ ${#images[@]} -eq 0 ]; then mapfile -t images < <(find "$review_root" -maxdepth 1 -type f -iname '*.png' | sort | head -n 18 || true); fi
-          for image in "${images[@]}"; do cp "$image" "$dest/"; done
-          printf '%s\n' '# Simulation visual evidence' '' "PR #$PR_NUMBER, canonical workflow run $RUN_ID." '' 'Human review starts with the rendered PNGs. Logs and manifests are secondary evidence.' > "$dest/README.md"
-          if [ ${#images[@]} -gt 0 ]; then
-            (cd "$worktree" && git add "pr-$PR_NUMBER/run-$RUN_ID" && git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "simulation evidence PR #$PR_NUMBER run $RUN_ID")
-            git -C "$worktree" remote set-url origin "https://github.com/$REPOSITORY.git"
-            git -C "$worktree" push origin "HEAD:$evidence_branch"
+          mapfile -t images < <(find "$review_root" -type f -iname '*.png' | sort | grep -Ei '(tunic|draped|step-(015|045|090)|front|rear|right|left|top|bottom|diagnostic)' | head -n 18 || true)
+          if [ ${#images[@]} -eq 0 ]; then
+            mapfile -t images < <(find "$review_root" -type f -iname '*.png' | sort | head -n 18 || true)
           fi
+          for image in "${images[@]}"; do
+            cp "$image" "$dest/"
+          done
+          printf '%s\n' '# Simulation visual evidence' '' "PR #$PR_NUMBER, canonical workflow run $RUN_ID." "Source PR HEAD: $EVIDENCE_HEAD." '' 'Human review starts with the rendered PNGs. Logs and manifests are secondary evidence.' > "$dest/README.md"
+          if [ ${#images[@]} -eq 0 ]; then
+            body="$RUNNER_TEMP/simulation-review.md"
+            printf '%s\n\n%s\n' '<!-- simulation-evidence -->' "No PNG evidence was produced for PR #$PR_NUMBER. This simulation run is not human-reviewable." > "$body"
+            gh pr comment "$PR_NUMBER" --body-file "$body"
+            exit 1
+          fi
+          git -C "$worktree" add "pr-$PR_NUMBER/run-$RUN_ID"
+          git -C "$worktree" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "simulation evidence PR #$PR_NUMBER run $RUN_ID"
+          git -C "$worktree" push origin "HEAD:$evidence_branch"
           body="$RUNNER_TEMP/simulation-review.md"
           {
             echo '<!-- simulation-evidence -->'
             echo "## Simulation visual evidence — PR #$PR_NUMBER / run $RUN_ID"
-            if [ ${#images[@]} -eq 0 ]; then
-              echo; echo 'No PNG evidence was produced. This simulation run is not human-reviewable.'
-            else
-              echo; echo 'Inspect the rendered images before reading the logs.'
-              for image in "${images[@]:0:8}"; do
-                name=$(basename "$image")
-                url="https://raw.githubusercontent.com/$REPOSITORY/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID/$name"
-                echo; echo "**$name**"; echo "![${name}]($url)"
-              done
-              echo; echo "[Open complete evidence bundle](https://github.com/$REPOSITORY/tree/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID)"
-            fi
+            echo
+            echo 'Inspect the rendered images before reading the logs.'
+            for image in "${images[@]:0:8}"; do
+              name=$(basename "$image")
+              url="https://raw.githubusercontent.com/$REPOSITORY/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID/$name"
+              echo
+              echo "**$name**"
+              echo "![${name}]($url)"
+            done
+            echo
+            echo "[Open complete evidence bundle](https://github.com/$REPOSITORY/tree/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID)"
           } > "$body"
           gh pr comment "$PR_NUMBER" --body-file "$body"
-          if [ ${#images[@]} -eq 0 ]; then exit 1; fi
   gui-turntables:
     name: README simulation turntable
     needs: [local_runner_readiness]
@@ -1037,11 +1055,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1081,7 +1099,7 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
             -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
@@ -1180,7 +1198,7 @@ jobs:
           done
       - name: Upload README turntable evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: readme-turntables
           path: |
@@ -1215,11 +1233,11 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1307,7 +1325,7 @@ jobs:
           test -s docs/images/generated/blanket-example/blanket-motion.gif
       - name: Upload blanket visual evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: blanket-visual-example
           path: |
@@ -1331,17 +1349,17 @@ jobs:
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
       - name: Download turntables
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: readme-turntables
           path: turntables
       - name: Download blanket visual example
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: blanket-visual-example
           path: blanket
       - name: Download tunic visual audit
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: tunic-visual-audit
           path: tunic
@@ -1439,7 +1457,7 @@ jobs:
         run: |
           echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
           echo "runner=$RUNNER_NAME"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -1457,7 +1475,7 @@ jobs:
           set -uo pipefail
           rm -rf artifacts/workbench-benchmark
           mkdir -p artifacts/workbench-benchmark
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -w /workspace "$IMAGE" -euo pipefail -c '
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
             python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
             mkdir -p "$XDG_RUNTIME_DIR"
@@ -1503,7 +1521,7 @@ jobs:
           "$RUNNER_TEMP/workbench-benchmark-venv/bin/python" tools/plot_workbench_benchmark.py artifacts/workbench-benchmark/benchmark.json artifacts/workbench-benchmark/plots
       - name: Upload benchmark measurements and plots
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: workbench-benchmark
           path: artifacts/workbench-benchmark

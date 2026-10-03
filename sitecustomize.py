@@ -68,29 +68,16 @@ if _called_from_screenshot_runner():
 # enforcement scoped to that environment so the unit suite can still exercise
 # XPBD deterministically and independently.
 import os
-import subprocess
-import sys
 
 
-def _ensure_tissu():
+def _require_tissu():
     try:
         import tissu  # noqa: F401
-        return
-    except ImportError:
-        pass
-    subprocess.check_call(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "--no-cache-dir",
-            "pytissu==1.1.0",
-        ],
-        stdout=subprocess.DEVNULL,
-    )
-    import tissu  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "Tissu CI mode was explicitly enabled, but pytissu is unavailable; "
+            "use the pinned Tissu-capable CI image instead of installing dependencies at import time"
+        ) from exc
 
 
 def _install_quality_backend_hook():
@@ -143,7 +130,11 @@ def _install_quality_backend_hook():
     QualitySimulationProxy.execute = execute
 
 
-if os.environ.get("DISPLAY") == ":99" and os.environ.get("CLOTH_CI_DISABLE_TISSU", "0") != "1":
-    _ensure_tissu()
+if (
+    os.environ.get("DISPLAY") == ":99"
+    and os.environ.get("CLOTH_CI_ENABLE_TISSU", "0") == "1"
+    and os.environ.get("CLOTH_CI_DISABLE_TISSU", "0") != "1"
+):
+    _require_tissu()
     os.environ["CLOTH_SIMULATION_BACKEND"] = "tissu"
     _install_quality_backend_hook()

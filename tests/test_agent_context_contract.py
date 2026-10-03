@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +11,12 @@ def test_agent_context_contract_stays_compact_and_current_first():
     assert "current-state-first" in text
     assert "Closed issues/PRs, old branches, old commits, old workflow runs, and old artifacts" in text
     assert "read the smallest set of files needed" in text
+
+
+def test_issue_agent_metadata_is_not_project_state():
+    text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "YAML front matter or agent-routing fields" in text
+    assert "not repository state" in text
 
 
 def test_repository_has_one_canonical_roadmap_and_no_duplicate_packaging_proposal():
@@ -30,10 +37,10 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
 
 
 
-def test_agent_instructions_use_live_ledger_pointer_instead_of_hardcoding_one_issue():
+def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue():
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "current coordination ledger named in" in text
-    assert "currently #2492" in text
+    assert not re.search(r"#\d+", text)
 
 
 def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
@@ -42,6 +49,18 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
     assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture
     assert "canonical immutable in-memory/value representation" in architecture
     assert "persisted" in model and "in-memory/headless" in model
+
+
+def test_packaging_metadata_has_explicit_authority_split():
+    root = ROOT
+    architecture = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    manifest = (root / "package.xml").read_text(encoding="utf-8")
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert "package.xml" in architecture
+    assert "pyproject.toml" in architecture
+    assert "Do not assume their version values or content entries must match." in architecture
+    assert "<classname>ClothPatternWorkbench</classname>" in manifest
+    assert "version = \"0.1.0.dev0\"" in pyproject
 
 
 def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
@@ -54,8 +73,29 @@ def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
 
 
 
-def test_live_coordination_documents_do_not_hardcode_the_current_issue():
+def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
     for path in (ROOT / "README.md", ROOT / "docs" / "DEVELOPMENT.md", ROOT / ".github" / "ISSUE_TEMPLATE" / "simulation-review.md"):
         text = path.read_text(encoding="utf-8")
-        assert "#2492" not in text
+        assert not re.search(r"#\d+", text)
         assert "AGENT_STATUS.md" in text
+
+
+def test_development_guide_points_to_the_canonical_prompt_schema():
+    root = ROOT / "docs" / "DEVELOPMENT.md"
+    text = root.read_text(encoding="utf-8")
+    assert "seven-field prompt contract in the root `AGENTS.md`" in text
+    assert "1. Objective." not in text
+    assert "2. Current evidence and exact commit/head." not in text
+    assert "7. Falsifier or stop condition." not in text
+
+
+def test_path_specific_agent_instructions_are_narrow_and_scoped():
+    root = ROOT / ".github" / "instructions"
+    simulation = (root / "simulation.instructions.md").read_text(encoding="utf-8")
+    workflows = (root / "workflows.instructions.md").read_text(encoding="utf-8")
+    for text, marker in ((simulation, "freecad_cloth/simulation"), (workflows, ".github/workflows")):
+        assert text.startswith("---\napplyTo:")
+        assert marker in text
+        assert len(text.splitlines()) <= 14
+    assert "AGENTS.md" not in simulation
+    assert "AGENTS.md" not in workflows

@@ -62,17 +62,9 @@ When an issue is closed, use an explicit GitHub state reason (`completed`, `dupl
 
 ## Task prompt contract
 
-For non-trivial agent work, keep the prompt bounded and explicit:
+For non-trivial agent work, use the seven-field prompt contract in the root `AGENTS.md`. That file is the canonical prompt schema; this document defines the execution behavior around it.
 
-1. Objective.
-2. Current evidence and exact commit/head.
-3. Authoritative source.
-4. Scope.
-5. Non-goals/frozen behavior.
-6. Acceptance evidence.
-7. Falsifier or stop condition.
-
-Do not paste large historical conversations or logs. Give a link/identifier and ask the agent to inspect only the relevant evidence.
+Keep prompts bounded, omit historical conversations and large logs, and give links or identifiers so the agent can inspect only the relevant evidence.
 
 ## UI/UX contract
 

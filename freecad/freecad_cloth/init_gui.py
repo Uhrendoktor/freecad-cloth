@@ -1,11 +1,8 @@
 """FreeCAD 1.1 GUI entry point for FreeCAD Cloth."""
 
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 import FreeCADGui as Gui
 

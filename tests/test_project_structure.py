@@ -122,6 +122,57 @@ def test_pattern_domain_does_not_import_seam_reference_through_compatibility_nam
     assert not offenders, offenders
 
 
+
+
+def test_pr_simulation_execution_and_publication_are_privilege_separated():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  publish-pr-simulation-evidence:", 1)[0]
+    publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split("  gui-turntables:", 1)[0]
+    assert "permissions:" not in gui
+    assert "actions/checkout@" in gui
+    assert "contents: write" in publish
+    assert "pull-requests: write" in publish
+    assert "runs-on: ubuntu-latest" in publish
+    assert "actions/download-artifact@" in publish
+    assert "actions/checkout@" not in publish
+    assert "without executing PR code" in publish
+
+
+def test_workflow_actions_use_immutable_release_pins():
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    references = re.findall(
+        r"uses: (actions/(?:checkout|upload-artifact|download-artifact)|docker/login-action)@([0-9a-f]{40}) # (v[0-9.]+)",
+        workflow,
+    )
+    expected = {
+        "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
+        "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
+        "actions/download-artifact": ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
+        "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4.6.0"),
+    }
+    found = {}
+    for action, sha, version in references:
+        found.setdefault(action, set()).add((sha, version))
+    assert {action: next(iter(values)) for action, values in found.items()} == expected
+
+def test_modern_loader_does_not_mutate_sys_path():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad" / "freecad_cloth" / "init_gui.py").read_text(encoding="utf-8")
+    assert "sys.path" not in source
+
+
+def test_ci_tissu_hook_is_explicit_and_has_no_import_time_pip_install():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "sitecustomize.py").read_text(encoding="utf-8")
+    assert "CLOTH_CI_ENABLE_TISSU" in source
+    assert 'os.environ.get("DISPLAY") == ":99"' in source
+    assert 'os.environ.get("CLOTH_CI_ENABLE_TISSU", "0") == "1"' in source
+    assert '"pip"' not in source
+
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
     classic = (root / "InitGui.py").read_text(encoding="utf-8")
