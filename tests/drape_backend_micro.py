@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothSolver import ClothSystem
+from freecad_cloth.simulation.TissuBackend import TissuBackend
 
 OUT = Path(os.environ.get("CLOTH_MICRO_DIR", "artifacts/drape-backend-micro"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -83,19 +84,13 @@ def make_collision_surface():
 def main():
     system, triangles, stitches = make_system()
     collision = make_collision_surface()
-    if backend_name == "tissu":
-        backend = registry.create(
-            "tissu",
-            system,
-            triangles=triangles,
-            pins=(0, 11, 216, 227),
-            stitches=stitches,
-            collision_surface=collision,
-        )
-    else:
-        backend = registry.create("xpbd-cpu", system)
-        backend.pin((0, 11, 216, 227))
-        backend.set_stitches(stitches, compliance=0.0)
+    backend = TissuBackend(
+        system,
+        triangles,
+        pins=(0, 11, 216, 227),
+        stitches=stitches,
+        collision_surface=collision,
+    )
 
     iterations = int(os.environ.get("CLOTH_MICRO_ITERATIONS", "1"))
     steps = int(os.environ.get("CLOTH_MICRO_STEPS", "60"))
@@ -121,9 +116,7 @@ def main():
         "particles": len(backend.positions()),
         "stitches": len(stitches),
         "collision_triangles": len(collision.triangles),
-        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"))
-        if backend_name == "tissu"
-        else 1,
+        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1")),
         "elapsed_s": elapsed,
         "mean_step_ms": 1000.0 * sum(times) / len(times),
         "p95_step_ms": 1000.0 * p95,
