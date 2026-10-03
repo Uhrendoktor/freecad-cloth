@@ -1,7 +1,7 @@
 """Headless/static contract checks for package-owned workbench registration."""
 
-from pathlib import Path
 import importlib
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
