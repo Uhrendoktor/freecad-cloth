@@ -1,6 +1,6 @@
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
-from freecad_cloth.sewing.SeamReference import (
+from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
