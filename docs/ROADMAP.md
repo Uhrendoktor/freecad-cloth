@@ -7,7 +7,7 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 | Stage | Goal | Main work |
 |---|---|---|
 | P0 | Safe end-to-end garment slice | Pattern → Sewing → Arrange → DrapeTarget → Simulation → Save/Reload → Invalidate → Rebuild |
-| P1 | Repeatable garment-CAD workflow | curved authoring, Sketcher constraints, robust semantic repair, 1:N/M:N/free sewing, arrangement points, material/quality lifecycle, production 2D export |
+| P1 | Remaining repeatable garment-CAD work | richer curved authoring, explicit semantic repair/remap, richer fitting controls, multi-size foundations, expanded production validation |
 | Production | Manufacturing + fidelity | higher-fidelity avatar provider, richer targets, diagnostics, grading/nesting/validation, advanced construction, optional solver backends |
 
 ## P0 release-closeout gates — historical baseline
@@ -21,15 +21,13 @@ The release target is a complete, public FreeCAD workflow, not a feature-count c
 7. Target/pattern/sewing edits produce explicit stale derived state; document recompute remains safe.
 8. One canonical FreeCAD/Xvfb scenario proves the public workflow and preserves the four PNG artifacts.
 
-## P1 priorities — FUTURE ENHANCEMENTS
+## P1 priorities — REMAINING ENHANCEMENTS
 
-- Curved pattern authoring through native Sketcher/Part geometry.
-- Explicit topology repair/remap UI for semantic edge IDs.
-- Transactional Segment, Free, 1:N and M:N sewing with length-aware correspondence.
-- Arrangement points, wrap, superimpose and reset.
-- Parametric mannequin measurements and basic poses.
-- Particle-distance and physical fabric presets.
-- Seam allowance, notches, grainline/internal marks, grading foundations and TechDraw/DXF/SVG output.
+- Richer curved-pattern authoring and clearer topology-repair/remap workflows for semantic edge identities.
+- Additional mannequin measurement/pose and fitting controls where the current public workflow is still limited.
+- Sewing-assistance and correspondence UX beyond the existing transactional semantic seam model.
+- Multi-size/grading foundations and stronger production-pattern validation.
+- Expanded fit/quality inspection that consumes existing simulation results without creating a second simulation model.
 
 ## Production priorities — FUTURE ENHANCEMENTS
 
