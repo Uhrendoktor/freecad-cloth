@@ -64,12 +64,17 @@ def _install_quality_backend_hook():
             )
         )
         pins = tuple(getattr(system, "pins", {}).keys())
-        stitches = tuple((int(c.a), int(c.b)) for c in getattr(system, "stitches", ()))
+        stitch_constraints = tuple(getattr(system, "stitches", ()))
+        stitch_compliances = tuple(float(getattr(c, "compliance", 0.0)) for c in stitch_constraints)
+        if stitch_compliances and len(set(stitch_compliances)) != 1:
+            raise RuntimeError("Tissu CI hook cannot preserve heterogeneous stitch compliance")
+        stitches = tuple((int(c.a), int(c.b)) for c in stitch_constraints)
         base.backend = TissuBackend(
             system,
             triangles=triangles,
             pins=pins,
             stitches=stitches,
+            stitch_compliance=stitch_compliances[0] if stitch_compliances else 0.0,
             collision_surface=getattr(base, "collision_surface", None),
         )
         if getattr(base.backend, "name", None) != "tissu":
