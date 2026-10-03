@@ -462,6 +462,16 @@ jobs:
               # Pytest-style modules have no script runner; execute the tests explicitly.
               python3 -m pytest -q \
                 tests/test_xpbd.py \
+                tests/test_backend_adapter.py \
+                tests/test_backend_authority.py \
+                tests/test_simulation_dataflow.py \
+                tests/test_realtime_preview.py \
+                tests/test_runner_routing_contract.py \
+                tests/test_workbench_contract.py \
+                tests/test_workbench_packaging.py \
+                tests/test_workbench_registration.py \
+                tests/test_workbench_registration_audit.py \
+                tests/test_workbench_command_contract.py \
                 tests/test_side_tasks.py \
                 tests/test_pattern_export_semantics.py \
                 tests/test_sewing_correspondence.py \
