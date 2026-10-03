@@ -163,8 +163,7 @@ def run_canonical_acceptance():
         ),
     ):
         if name == "freecad_garment_e2e_smoke":
-            with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle:
-                with contextlib.redirect_stdout(handle):
+            with open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle, contextlib.redirect_stdout(handle):
                     load_and_run(os.path.join(ROOT, path), name)
         else:
             load_and_run(os.path.join(ROOT, path), name)
