@@ -207,12 +207,11 @@ def _resolve_piece_ir(piece, curve_samples):
 def _piece_model(piece, *, native):
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     label = str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece_id)
-    if native:
-        # PatternPiece is semantic metadata here. The synthetic outline is never
-        # used as geometry; Sketcher -> PatternIR is the sole native geometry path.
-        outline = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
-    else:
-        outline = _legacy_outline(piece)
+    outline = (
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        if native
+        else _legacy_outline(piece)
+    )
     return PatternPiece(
         label,
         outline,
@@ -231,10 +230,10 @@ def _legacy_outline(piece):
         try:
             values = ast.literal_eval(str(raw))
             points = [(float(point[0]), float(point[1])) for point in values]
-        except (ValueError, SyntaxError, TypeError, IndexError):
+        except (ValueError, SyntaxError, TypeError, IndexError) as exc:
             raise ValueError(
                 "invalid legacy pattern boundary on {}".format(getattr(piece, "PieceId", ""))
-            )
+            ) from exc
         if len(points) >= 3:
             return points
     width = float(piece.Width)
