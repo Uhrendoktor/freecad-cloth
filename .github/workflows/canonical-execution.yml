@@ -2,8 +2,9 @@ name: Canonical execution
 run-name: Canonical execution
 
 on:
+  # PR synchronize is the canonical gate for feature branches; push is reserved for main.
   push:
-    branches: [main, agent/architecture-tooling-docs]
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
