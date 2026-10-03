@@ -63,3 +63,10 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("backend authority tests passed")
+
+
+def test_simulation_workbench_does_not_force_optional_tissu_backend():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
+    assert 'CLOTH_SIMULATION_BACKEND", "tissu"' not in source
+    assert "preferred_backend_name" not in source
