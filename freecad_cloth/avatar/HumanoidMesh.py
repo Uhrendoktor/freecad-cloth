@@ -701,7 +701,10 @@ def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm, source_weight=None):
     pivot = abs(shoulder_pivot_x)
     lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
     nz = z / max(1.0, height_mm)
-    vertical = _smoothstep(0.56, 0.62, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
+    # The articulated hand/wrist can hang well below chest height; keep the
+    # geometric fallback active through the lower arm envelope while preserving
+    # the upper torso cutoff.
+    vertical = _smoothstep(0.28, 0.34, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
 
 
