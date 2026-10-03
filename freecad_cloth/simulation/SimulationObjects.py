@@ -56,27 +56,6 @@ def _parse_int_list(values, particle_count=None):
     return tuple(dict.fromkeys(result))
 
 
-def _placement_signature(piece):
-    placement = getattr(piece, "Placement", None)
-    if placement is None:
-        return ()
-    base = getattr(placement, "Base", None)
-    rotation = getattr(placement, "Rotation", None)
-    axis = getattr(rotation, "Axis", None) if rotation is not None else None
-    return (
-        float(getattr(base, "x", 0.0)),
-        float(getattr(base, "y", 0.0)),
-        float(getattr(base, "z", 0.0)),
-        float(getattr(rotation, "Angle", 0.0)) if rotation is not None else 0.0,
-        float(getattr(axis, "x", 0.0)) if axis is not None else 0.0,
-        float(getattr(axis, "y", 0.0)) if axis is not None else 0.0,
-        float(getattr(axis, "z", 1.0)) if axis is not None else 1.0,
-    )
-
-
-PIN_MODE_NAMES = ("Automatic", "Explicit", "None")
-
-
 def normalize_pin_mode(value):
     """Return a supported persistent pinning mode, preserving legacy defaults."""
     mode = str(value or "Automatic").strip()
@@ -346,11 +325,6 @@ def _boundary_vertices(piece_ir, edge_id, panel_data):
     )
 
 
-def _seam_pairs(pattern, panel_data, seam_samples=8):
-    """Return the exact particle pairs used as solver stitch constraints."""
-    return _seam_pair_records(pattern, panel_data, seam_samples)[0]
-
-
 def _collision_for_scene(obj):
     """Resolve collision strictly from the persistent DrapeTarget."""
     target = getattr(obj, "DrapeTarget", None)
@@ -365,15 +339,6 @@ def _collision_for_scene(obj):
             raise RuntimeError(status["message"])
         return collision_surface(source, float(getattr(target, "CollisionDeflection", 1.0)), float(getattr(target, "CollisionThickness", 0.0)))
     return None
-
-
-def _collision_surface_for_step(proxy):
-    """Return the exact backend surface required for a step without changing authority."""
-    authoritative = getattr(proxy, "collision_surface", None)
-    backend = getattr(proxy, "backend", None)
-    if getattr(backend, "name", "") == "tissu":
-        return getattr(backend, "solver_collision_surface", authoritative)
-    return authoritative
 
 
 class SimulationProxy:
@@ -413,23 +378,12 @@ class SimulationProxy:
             self._build(obj, signature)
         steps = int(obj.Steps)
         if steps > self.last_steps:
-            fallback_sphere = None
-            if (
-                getattr(self.backend, "name", "") != "tissu"
-                and getattr(self, "collision_surface", None) is None
-            ):
-                fallback_sphere = (
-                    float(obj.CollisionX),
-                    float(obj.CollisionY),
-                    float(obj.CollisionZ),
-                    float(obj.CollisionRadius),
-                )
             for _ in range(steps - self.last_steps):
                 self.backend.step(
-                    float(obj.TimeStep), int(obj.Iterations),
+                    float(obj.TimeStep),
+                    int(obj.Iterations),
                     (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                    fallback_sphere,
-                    _collision_surface_for_step(self),
+                    self.collision_surface,
                 )
             self.last_steps = steps
         positions = self.backend.positions()
@@ -448,8 +402,8 @@ class SimulationProxy:
 
     def _build_pattern_scene(self, obj, pieces, signature):
         from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry, preferred_backend_name
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+        from freecad_cloth.simulation.TissuBackend import TissuBackend
 
         start_height = float(getattr(obj, "StartHeight", 120.0))
         resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
@@ -511,17 +465,13 @@ class SimulationProxy:
         if pins:
             system.pin(pins)
         collision_surface = _collision_for_scene(obj)
-        registry = default_backend_registry()
-        backend_name = preferred_backend_name(registry)
-        backend_kwargs = {}
-        if backend_name == "tissu":
-            backend_kwargs = {
-                "triangles": tuple(triangles_global),
-                "pins": pins,
-                "stitches": seam_pairs,
-                "collision_surface": collision_surface,
-            }
-        self.backend = registry.create(backend_name, system, **backend_kwargs)
+        self.backend = TissuBackend(
+            system,
+            tuple(triangles_global),
+            pins=pins,
+            stitches=seam_pairs,
+            collision_surface=collision_surface,
+        )
         self.panel_indices = {}
         self.panel_triangles = {}
         self.panel_boundary_edges = {}
@@ -545,8 +495,8 @@ class SimulationProxy:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
     def _build_demo(self, obj):
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry
         from freecad_cloth.simulation.ClothSolver import ClothSystem
+        from freecad_cloth.simulation.TissuBackend import TissuBackend
         nx, ny = 8, 5
         left = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(-100.0, -30.0, 90.0))
         right = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(0.0, -30.0, 90.0))
@@ -562,15 +512,14 @@ class SimulationProxy:
         )
         if pins:
             system.pin(pins)
-        self.backend = default_backend_registry().create("xpbd-cpu", system)
-        tris = []
-        for j in range(ny - 1):
-            for i in range(nx - 1):
-                a = j * nx + i
-                b = a + 1
-                c = (j + 1) * nx + i + 1
-                d = (j + 1) * nx + i
-                tris.extend(((a, b, c), (a, c, d)))
+        collision_surface = _collision_for_scene(obj)
+        self.backend = TissuBackend(
+            system,
+            tuple(triangles),
+            pins=pins,
+            stitches=tuple((stitch.a, stitch.b) for stitch in system.stitches),
+            collision_surface=collision_surface,
+        )
         self.panel_indices = {"DrapePanelA": tuple(range(offset)), "DrapePanelB": tuple(range(offset, offset * 2))}
         self.panel_triangles = {"DrapePanelA": tuple(tris), "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris)}
         self.panel_boundary_edges = {}
@@ -578,7 +527,7 @@ class SimulationProxy:
         self.seam_stitch_pairs = {}
         self.source_signature = _simulation_source_signature(obj, ())
         self.last_steps = 0
-        self.collision_surface = _collision_for_scene(obj)
+        self.collision_surface = collision_surface
         positions = self.backend.positions()
         for panel, key in zip(getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB")):
             _write_grid_mesh(panel, positions, self.panel_indices[key], nx, ny)
