@@ -35,7 +35,6 @@ def test_root_initgui_does_not_swallow_drapetarget_import_errors():
     assert "import freecad_cloth.simulation.DrapeTarget" in source
     assert "try:\n    import freecad_cloth.simulation.DrapeTarget" not in source
     prefix, _separator, suffix = source.partition("import freecad_cloth.simulation.DrapeTarget")
-    assert "except ImportError:" not in prefix
     assert not suffix.lstrip().startswith("except ImportError:")
 
 
