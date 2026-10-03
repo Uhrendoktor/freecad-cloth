@@ -35,7 +35,10 @@ def test_sewing_command_exposes_contextual_activation():
 
 def test_sewing_command_accepts_explicit_public_menu_text():
     command = _SewingCommand(lambda: None, lambda: True, "tooltip", "Create M:N Sewing")
-    assert command.GetResources() == {"MenuText": "Create M:N Sewing", "ToolTip": "tooltip"}
+    resources = command.GetResources()
+    assert resources["MenuText"] == "Create M:N Sewing"
+    assert resources["ToolTip"] == "tooltip"
+    assert resources["Pixmap"].endswith("clothsewing_createmnsewing.svg")
 
 
 def test_all_registered_sewing_commands_have_stable_user_facing_labels():
