@@ -766,7 +766,7 @@ def main():
         "cases": records,
         "release_gate_effect": "none",
         "solver_settings_frozen": {
-            "backend_requested": os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
+            "backend_requested": "tissu",
             "particle_distance_mm": PARTICLE_DISTANCE,
             "iterations": 1,
             "substeps": 1,
