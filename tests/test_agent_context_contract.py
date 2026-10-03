@@ -51,6 +51,18 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
     assert "persisted" in model and "in-memory/headless" in model
 
 
+def test_packaging_metadata_has_explicit_authority_split():
+    root = ROOT
+    architecture = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    manifest = (root / "package.xml").read_text(encoding="utf-8")
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert "package.xml" in architecture
+    assert "pyproject.toml" in architecture
+    assert "Do not assume their version values or content entries must match." in architecture
+    assert "<classname>ClothPatternWorkbench</classname>" in manifest
+    assert "version = \"0.1.0.dev0\"" in pyproject
+
+
 def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
     feature_matrix = (ROOT / "docs" / "FEATURE_MATRIX.md").read_text(encoding="utf-8")
     library = (ROOT / "docs" / "LIBRARY_EVALUATION.md").read_text(encoding="utf-8")
