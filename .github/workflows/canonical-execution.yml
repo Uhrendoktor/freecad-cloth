@@ -393,6 +393,8 @@ jobs:
           retention-days: 14
           compression-level: 1
   python:
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 20
     steps:
       - name: Log selected execution mode
         run: |
