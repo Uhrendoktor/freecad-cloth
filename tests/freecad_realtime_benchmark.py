@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+from math import ceil
 from pathlib import Path
 
 import FreeCAD as App
@@ -16,8 +17,9 @@ if str(ROOT) not in sys.path:
 
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
-FRAME_BUDGET_MS = 1000.0 / 30.0
+FRAME_BUDGET_MS = 1000.0 / 60.0
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "30"))
+WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "3"))
 
 
 def main():
@@ -33,6 +35,12 @@ def main():
         backend = _select_preview_backend(scene)
         # _prepare builds the realtime-quality system; avoid an extra GUI panel entirely.
         view = Gui.activeDocument().activeView() if Gui.activeDocument() else None
+        for _ in range(max(0, WARMUP_FRAMES)):
+            scene.Steps = int(scene.Steps) + 1
+            doc.recompute()
+            if view is not None:
+                view.redraw()
+
         times = []
         started = time.perf_counter()
         for _ in range(FRAMES):
@@ -44,10 +52,11 @@ def main():
             times.append(time.perf_counter() - t0)
         elapsed = time.perf_counter() - started
         ordered = sorted(times)
-        p95 = ordered[max(0, min(len(ordered) - 1, int(0.95 * len(ordered)) - 1))]
+        p95 = ordered[max(0, min(len(ordered) - 1, ceil(0.95 * len(ordered)) - 1))]
         result = {
             "backend": getattr(backend, "name", "unknown"),
             "frames": FRAMES,
+            "warmup_frames": WARMUP_FRAMES,
             "particles": int(getattr(scene, "ParticleCount", 0)),
             "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
             "solver_iterations": int(getattr(scene, "SolverIterations", 0)),
@@ -63,7 +72,9 @@ def main():
         }
         (OUT / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(json.dumps(result, sort_keys=True), flush=True)
-        if not result["finite"] or result["mean_frame_ms"] > FRAME_BUDGET_MS or result["p95_frame_ms"] > 50.0:
+        if result["backend"] != "tissu":
+            raise SystemExit("realtime benchmark did not execute the Tissu backend")
+        if not result["finite"] or result["mean_frame_ms"] > FRAME_BUDGET_MS or result["p95_frame_ms"] > 33.333:
             raise SystemExit(2)
     finally:
         try:

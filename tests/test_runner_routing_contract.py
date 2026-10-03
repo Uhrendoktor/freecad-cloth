@@ -35,8 +35,6 @@ def test_pull_requests_are_hosted_only():
         "gui-sketcher-acceptance",
         "gui-pattern-export",
         "gui-tunic-visual",
-        "gui-turntables",
-        "gui-visual-examples",
     ):
         block = _job_block(source, job)
         assert "needs: [local_runner_readiness]" in block
@@ -45,9 +43,10 @@ def test_pull_requests_are_hosted_only():
 
 def test_trusted_runs_remain_local_first():
     source = WORKFLOW.read_text(encoding="utf-8")
-    for job in ("local_runner_readiness", "python", "gui-tunic-visual", "gui-turntables", "gui-visual-examples", "benchmark"):
+    for job in ("local_runner_readiness", "python", "gui-tunic-visual", "gui-turntables", "gui-visual-examples"):
         block = _job_block(source, job)
         assert "self-hosted" in block
+    assert "runs-on: ubuntu-latest" in _job_block(source, "benchmark")
     assert "inputs.runner_mode == 'hosted'" in source
 
 
@@ -81,3 +80,15 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "github.event.pull_request.head.sha" in source
     assert "persist-credentials: false" in source
+
+
+def test_expensive_demo_jobs_do_not_run_on_pull_requests():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    turntables = _job_block(source, "gui-turntables")
+    examples = _job_block(source, "gui-visual-examples")
+    benchmark = _job_block(source, "benchmark")
+    assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in turntables
+    assert "needs: [local_runner_readiness, gui-tunic-visual]" in turntables
+    assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in examples
+    assert "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'" in benchmark
+    assert "runs-on: ubuntu-latest" in benchmark

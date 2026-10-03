@@ -218,6 +218,27 @@ def _seam_coherence(panels, seam_records, proxy=None):
         "method": "solver-stitch-pairs",
     }
 
+def _tunic_adherence_metrics(vertices, hem_z, shoulder_z):
+    points = tuple(vertices)
+    if not points:
+        return {
+            "torso_coverage_fraction": 0.0,
+            "centroid_z": None,
+            "centroid_z_relative_to_hem": None,
+        }
+    height = max(1.0, float(shoulder_z) - float(hem_z))
+    torso_low = float(hem_z) - 0.25 * height
+    torso_high = float(shoulder_z) + 0.15 * height
+    centroid_z = sum(float(point[2]) for point in points) / len(points)
+    return {
+        "torso_coverage_fraction": sum(
+            1 for point in points if torso_low <= float(point[2]) <= torso_high
+        ) / float(len(points)),
+        "torso_band_z": [torso_low, torso_high],
+        "centroid_z": centroid_z,
+        "centroid_z_relative_to_hem": (centroid_z - float(hem_z)) / height,
+    }
+
 def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
@@ -234,10 +255,22 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
     records = []
     for panel in panels:
         vertices, triangles = _mesh_geometry(getattr(panel, "Mesh", None))
-        metrics = inspect_drape(vertices, avatar_vertices, target_height=target_height, target_width=target_width)
+        particle_distance = getattr(proxy, "ParticleDistance", 32.0) if proxy is not None else 32.0
+        metrics = inspect_drape(
+            vertices,
+            avatar_vertices,
+            target_height=target_height,
+            target_width=target_width,
+            particle_distance_mm=float(particle_distance),
+        )
         mesh_result = validate_mesh(vertices, triangles, prefer_trimesh=False)
         classification = classify_drape(metrics, components=mesh_result.components, target_width=target_width)
-        record = {"panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))), **summarize(metrics)}
+        adherence = _tunic_adherence_metrics(vertices, hem_z, shoulder_z)
+        record = {
+            "panel": str(getattr(panel, "Label", getattr(panel, "Name", ""))),
+            **summarize(metrics),
+            "tunic_adherence": adherence,
+        }
         diagnostics = []
         if not metrics.finite:
             raise RuntimeError("draped panel %s contains non-finite geometry" % record["panel"])
@@ -257,6 +290,21 @@ def write_drape_metrics(panels, avatar, center_x=None, shoulder_z=None, hem_z=No
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
+        if (
+            adherence["centroid_z"] is not None
+            and adherence["centroid_z"] < float(hem_z) - 0.50 * max(1.0, float(shoulder_z) - float(hem_z))
+            and adherence["torso_coverage_fraction"] < 0.25
+        ):
+            diagnostics.append("fallen-below-avatar-candidate")
+        if adherence["torso_coverage_fraction"] < 0.25:
+            diagnostics.append("torso-coverage-candidate")
+        median_distance = metrics.median_target_vertex_distance_mm
+        if (
+            metrics.near_target_fraction < 0.10
+            and median_distance is not None
+            and median_distance > metrics.near_target_band_mm
+        ):
+            diagnostics.append("avatar-adherence-candidate")
         record["connected_components"] = int(mesh_result.components)
         record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
