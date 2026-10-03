@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,10 +31,10 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
 
 
 
-def test_agent_instructions_use_live_ledger_pointer_instead_of_hardcoding_one_issue():
+def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue():
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "current coordination ledger named in" in text
-    assert "currently #2492" in text
+    assert not re.search(r"#\\d+", text)
 
 
 def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
