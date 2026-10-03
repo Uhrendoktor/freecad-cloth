@@ -214,8 +214,6 @@ def assign_drape_target(target, source, target_type: Optional[str] = None):
     return target
 
 
-try:
-    from freecad_cloth.simulation.SimulationStaleGuard import install as _install_simulation_guard
-    _install_simulation_guard()
-except (ImportError, AttributeError, TypeError):
-    pass
+from freecad_cloth.simulation.SimulationStaleGuard import install as _install_simulation_guard
+
+_install_simulation_guard()
