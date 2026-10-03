@@ -146,6 +146,12 @@ class QualitySimulationProxy:
             float(obj.ParticleDistance),
             int(obj.SolverIterations),
             int(obj.SolverSubsteps),
+            float(obj.FabricDensity),
+            float(obj.FabricThickness),
+            float(obj.FabricStretch),
+            float(obj.FabricShear),
+            float(obj.FabricBend),
+            float(obj.FabricFriction),
             float(obj.AvatarSkinOffset),
         )
 
