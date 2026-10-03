@@ -42,10 +42,11 @@ def check(path: Path) -> list[str]:
         return errors
 
     for node in tree.body:
-        if isinstance(
-            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-        ) and not node.name.startswith("_"):
-            if ast.get_docstring(node) is None:
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and not node.name.startswith("_")
+            and ast.get_docstring(node) is None
+        ):
                 errors.append(
                     f"{path}:{node.lineno}: missing docstring for public {type(node).__name__.lower()} {node.name}"
                 )
