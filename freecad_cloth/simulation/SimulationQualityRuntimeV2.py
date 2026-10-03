@@ -293,7 +293,9 @@ class QualitySimulationProxy:
         )
         base.source_signature = signature
         base.last_steps = 0
-        base.collision_surface = getattr(base.backend, "solver_collision_surface", collision_surface)
+        base.collision_surface = getattr(
+            base.backend, "solver_collision_surface", collision_surface
+        )
         positions = base.backend.positions()
         for panel, key in zip(
             getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB"), strict=False
