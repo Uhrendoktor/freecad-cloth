@@ -15,10 +15,10 @@ def test_function_command_uses_callable_metadata_and_returns_result():
 
     command = FunctionCommand(example_command)
     assert command.Activated() == 42
-    assert command.GetResources() == {
-        "MenuText": "Example Command",
-        "ToolTip": "Example command tooltip.",
-    }
+    resources = command.GetResources()
+    assert resources["MenuText"] == "Example Command"
+    assert resources["ToolTip"] == "Example command tooltip."
+    assert resources["Pixmap"].endswith("example_command.svg")
 
 
 def test_function_command_accepts_explicit_tooltip():
