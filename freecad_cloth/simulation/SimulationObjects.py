@@ -579,7 +579,9 @@ class SimulationProxy:
         self.seam_stitch_pairs = {}
         self.source_signature = _simulation_source_signature(obj, ())
         self.last_steps = 0
-        self.collision_surface = getattr(self.backend, "solver_collision_surface", collision_surface)
+        self.collision_surface = getattr(
+            self.backend, "solver_collision_surface", collision_surface
+        )
         positions = self.backend.positions()
         for panel, key in zip(
             getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB"), strict=False
