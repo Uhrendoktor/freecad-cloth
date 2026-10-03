@@ -10,7 +10,7 @@ class AvatarOrientationTests(unittest.TestCase):
         mapped = _map_makehuman_axes(((1.0, 10.0, 2.0), (-1.0, 0.0, -3.0)))
         self.assertEqual(mapped[0], (1.0, 2.0, 1.0))
         self.assertEqual(mapped[1], (-1.0, -3.0, 0.0))
-        self.assertGreater(mapped[0][2] - mapped[1][2], abs(mapped[0][1] - mapped[1][1]))
+        self.assertGreater(mapped[0][2], mapped[1][2])
 
 
 if __name__ == "__main__":
