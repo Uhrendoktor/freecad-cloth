@@ -489,7 +489,108 @@ jobs:
           docker cp "$PWD/." "$CID:/workspace/"
           docker start -a "$CID"
 
+  hosted-freecad-gui-suite:
+    name: Hosted FreeCAD GUI suite
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.runner_mode == 'hosted') }}
+    needs: [local_runner_readiness]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image once
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 120s docker pull "$FREECAD_IMAGE"
+      - name: Run GUI checks in one FreeCAD container
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/hosted-freecad
+          mkdir -p artifacts/hosted-freecad
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -u "$(id -u):$(id -g)" \
+            -e DISPLAY=:99 -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -e FREECAD_USER_HOME=/tmp/freecad-user -e FREECAD_USER_DATA=/tmp/freecad-user-data -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -uo pipefail
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/hosted-freecad
+              rm -rf /tmp/freecad-mod "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p /tmp/freecad-mod/freecad-cloth "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              cp -a /workspace/package.xml /workspace/resources /workspace/freecad_cloth /workspace/freecad /tmp/freecad-mod/freecad-cloth/
+
+              overall=0
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 100); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.05; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+
+              run_check() {
+                label="$1"
+                limit="$2"
+                shift 2
+                rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+                mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+                set +e
+                timeout --signal=TERM --kill-after=3s "$limit" "$@" > "/workspace/artifacts/hosted-freecad/$label.log" 2>&1
+                status=$?
+                set -e
+                echo "$label-status=$status" | tee -a "/workspace/artifacts/hosted-freecad/$label.log"
+                test "$status" -eq 0 || overall=1
+              }
+
+              rm -f /workspace/artifacts/sewing-creation-smoke.log
+              run_check sewing 30 \
+                env CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
+                /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+
+              run_check sketcher 30 \
+                env SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log \
+                /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py
+
+              rm -f /workspace/artifacts/pattern-production-export.log
+              run_check pattern 30 \
+                env CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log \
+                /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+
+              test -s /workspace/artifacts/sewing-creation-smoke.log || overall=1
+              grep -q "native Sketcher acceptance passed" /workspace/artifacts/hosted-freecad/sketcher.log || overall=1
+              grep -q "pattern-export=passed formats=SVG,DXF" /workspace/artifacts/pattern-production-export.log || overall=1
+              grep -q "pattern-export-smoke=completed" /workspace/artifacts/pattern-production-export.log || overall=1
+              echo "hosted-freecad-gui-suite-status=$overall"
+              exit "$overall"
+            '
+      - name: Upload hosted FreeCAD GUI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a0 # v7.0.1
+        with:
+          name: hosted-freecad-gui-suite
+          path: |
+            artifacts/hosted-freecad/**
+            artifacts/sewing-creation-smoke.log
+            artifacts/sketcher-stage.log
+            artifacts/pattern-production-export.log
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1
+
   gui-sewing-creation:
+    if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -587,6 +688,7 @@ jobs:
           compression-level: 1
 
   gui-sketcher-acceptance:
+    if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
     name: Native Sketcher seam presentation acceptance
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -670,6 +772,7 @@ jobs:
           if-no-files-found: error
           compression-level: 1
   gui-pattern-export:
+    if: ${{ github.event_name != 'pull_request' && inputs.runner_mode != 'hosted' }}
     name: Pattern production export smoke
     needs: [local_runner_readiness]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
@@ -771,8 +874,12 @@ jobs:
             echo "tissu-image=already-published ref=$image_ref"
             exit 0
           fi
-          docker build --pull --progress=plain -t "$image_ref" -f docker/freecad-ci/Dockerfile .
-          docker push "$image_ref"
+          docker buildx create --use --name cloth-tissu-builder >/dev/null 2>&1 || true
+          docker buildx build --progress=plain -f docker/freecad-ci/Dockerfile \
+            --tag "$image_ref" \
+            --cache-from type=gha,scope=freecad-cloth-tissu-runtime \
+            --cache-to type=gha,mode=max,scope=freecad-cloth-tissu-runtime \
+            --push .
           echo "tissu-image=published ref=$image_ref"
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
@@ -806,7 +913,12 @@ jobs:
             docker tag "$image_ref" "$FREECAD_TUNIC_IMAGE"
             echo "tissu-image=published-cache-hit ref=$image_ref"
           else
-            docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+            docker buildx create --use --name cloth-tissu-builder >/dev/null 2>&1 || true
+            docker buildx build --progress=plain -f docker/freecad-ci/Dockerfile \
+              --tag "$FREECAD_TUNIC_IMAGE" \
+              --load \
+              --cache-from type=gha,scope=freecad-cloth-tissu-runtime \
+              .
             echo "tissu-image=local-rebuild-fallback ref=$image_ref"
           fi
       - name: Capture Tissu provenance
