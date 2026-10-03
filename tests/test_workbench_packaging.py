@@ -26,7 +26,14 @@ def test_workbench_metadata_and_icons():
     assert names == {"Cloth Pattern", "Cloth Simulation", "Cloth Sewing"}
     assert all(workbench.ToolTip for workbench in workbenches)
     assert all(workbench.GetClassName() == "Gui::PythonWorkbench" for workbench in workbenches)
-    assert all((Path(workbench.Icon) if Path(workbench.Icon).is_absolute() else ICON_DIR / workbench.Icon).is_file() for workbench in workbenches)
+    assert all(
+        (
+            Path(workbench.Icon)
+            if Path(workbench.Icon).is_absolute()
+            else ICON_DIR / workbench.Icon
+        ).is_file()
+        for workbench in workbenches
+    )
 
 
 def test_workbench_command_groups_are_declared_once():
