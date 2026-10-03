@@ -102,7 +102,7 @@ jobs:
           fail-on-empty: "true"
 
   python:
-    name: Python quality and unit tests
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     needs: [local_runner_readiness]
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
