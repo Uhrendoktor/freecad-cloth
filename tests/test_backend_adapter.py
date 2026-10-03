@@ -177,3 +177,21 @@ def test_tissu_set_stitches_fails_closed_after_step(monkeypatch):
         backend.set_stitches(((2, 3),))
 
     assert backend._sim.solver.stitches == [(1, 2, 0.0)]
+
+
+def test_tissu_constructor_preserves_initial_stitch_compliance(monkeypatch):
+    _install_fake_tissu(monkeypatch)
+
+    from freecad_cloth.simulation.TissuBackend import TissuBackend
+
+    system = ClothSystem.grid(20, 20, nx=3, ny=2)
+    triangles = ((0, 1, 4), (0, 4, 3), (1, 2, 5), (1, 5, 4))
+    backend = TissuBackend(
+        system,
+        triangles=triangles,
+        stitches=((1, 2),),
+        stitch_compliance=0.25,
+    )
+
+    assert backend._stitch_compliance == pytest.approx(0.25)
+    assert backend._sim.solver.stitches == [(1, 2, 0.25)]
