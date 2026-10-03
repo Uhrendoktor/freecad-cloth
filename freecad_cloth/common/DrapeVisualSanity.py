@@ -39,13 +39,28 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
 def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
     if not source or not target:
         return None
-    best = float("inf")
-    for a in source:
-        for b in target:
-            d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-            if d2 < best:
-                best = d2
-    return sqrt(best) if isfinite(best) else None
+    try:
+        import numpy as np
+        source_array = np.asarray(source, dtype=np.float64)
+        target_array = np.asarray(target, dtype=np.float64)
+        best_squared = float("inf")
+        chunk_size = 256
+        for start in range(0, len(source_array), chunk_size):
+            chunk = source_array[start:start + chunk_size]
+            delta = chunk[:, None, :] - target_array[None, :, :]
+            distances_squared = np.einsum("ijk,ijk->ij", delta, delta, optimize=True)
+            chunk_best = float(np.min(distances_squared))
+            if chunk_best < best_squared:
+                best_squared = chunk_best
+        return sqrt(best_squared) if isfinite(best_squared) else None
+    except ImportError:
+        best = float("inf")
+        for a in source:
+            for b in target:
+                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
+                if d2 < best:
+                    best = d2
+        return sqrt(best) if isfinite(best) else None
 
 
 def seam_correspondence_gap(
