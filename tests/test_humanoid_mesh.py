@@ -6,6 +6,7 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MAKEHUMAN_BASE_URL,
+    HumanoidMeshError,
     MeshData,
     _map_makehuman_axes,
     _reoriented_triangles,
