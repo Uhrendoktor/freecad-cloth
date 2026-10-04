@@ -317,7 +317,14 @@ def _inside_target_count(points, target, collision_surface=None):
 
 
 def write_drape_metrics(
-    panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None
+    panels,
+    avatar,
+    center_x=None,
+    shoulder_z=None,
+    hem_z=None,
+    seam_records=(),
+    proxy=None,
+    collision_surface=None,
 ):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
