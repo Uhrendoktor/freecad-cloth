@@ -52,10 +52,15 @@ def test_simulation_visual_presentation_is_shaded_and_axonometric():
     assert 'panel.ViewObject.DisplayMode = "Shaded"' in visual
     assert "mode=Shaded" in visual
 
+
 def test_human_visual_validation_gallery_covers_the_full_flow():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
-    screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(
+        encoding="utf-8"
+    )
 
     for asset in (
         "cloth-pattern-design.png",
