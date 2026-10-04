@@ -196,7 +196,7 @@ def _metrics(
         "minimum_vertex_to_target_mm": _minimum_vertex_distance(positions, target_vertices),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
         "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
-        if getattr(backend, "name", "") == "pbd"
+        if getattr(backend, "name", "") == "position-based-dynamics"
         else "n/a",
     }
     metrics.update(_triangle_degeneracy(positions, triangles))
