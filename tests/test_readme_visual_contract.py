@@ -51,3 +51,26 @@ def test_simulation_visual_presentation_is_shaded_and_axonometric():
     assert "view.viewAxonometric()" in turntable
     assert 'panel.ViewObject.DisplayMode = "Shaded"' in visual
     assert "mode=Shaded" in visual
+
+def test_human_visual_validation_gallery_covers_the_full_flow():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+
+    for asset in (
+        "cloth-pattern-design.png",
+        "cloth-sewing.png",
+        "cloth-blanket-motion.gif",
+        "cloth-tunic-mannequin-motion.gif",
+        "cloth-simulation-arranged-turntable.gif",
+        "cloth-simulation-draped-turntable.gif",
+        "cloth-simulation-diagnostics.png",
+        "cloth-avatar-turntable.gif",
+    ):
+        assert asset in readme
+    assert "Simulation ladder" in readme
+    assert "penetration" in readme.lower()
+    assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
+    assert "simulation-ladder:" in workflow
+    assert "cloth-tunic-mannequin-motion.gif" in workflow
+
