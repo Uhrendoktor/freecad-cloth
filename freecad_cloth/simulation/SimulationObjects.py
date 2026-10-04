@@ -1,7 +1,7 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
-DEFAULT_TIME_STEP = 1.0 / 240.0
+DEFAULT_TIME_STEP = 1.0 / 60.0
 
 
 def _mesh_object(doc, name, label):
