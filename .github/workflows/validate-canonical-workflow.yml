@@ -15,11 +15,20 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
-      - name: Cancel stale canonical run
+      - name: Cancel stale canonical runs
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: gh api --method POST "repos/$REPO/actions/runs/37232028800/cancel" >/dev/null 2>&1 || true
+        run: |
+          set -euo pipefail
+          mapfile -t stale_runs < <(
+            gh api --paginate "repos/$REPO/actions/runs?branch=$GITHUB_HEAD_REF&per_page=100" |
+              jq -r '.workflow_runs[] | select(.name == "Canonical execution" and .head_sha != $sha and .status == "in_progress") | .id' --arg sha "$GITHUB_SHA"
+          )
+          for run_id in "${stale_runs[@]}"; do
+            echo "cancelling-stale-canonical-run=$run_id"
+            gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true
+          done
       - name: Validate workflow
         run: |
           set -euo pipefail
