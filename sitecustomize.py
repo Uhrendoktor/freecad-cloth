@@ -24,7 +24,6 @@ def _require_pbd():
         raise RuntimeError("PositionBasedDynamics CI mode requires pyPBD") from exc
 
 
-
 def _install_pbd_backend_hook():
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
