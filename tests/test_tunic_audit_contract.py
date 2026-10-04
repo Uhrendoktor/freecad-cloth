@@ -175,9 +175,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
 
 
 def test_tissu_backend_defaults_to_stable_internal_substeps():
-    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
     assert "_TISSU_SUBSTEPS_DEFAULT = 10" in source
     assert "str(_TISSU_SUBSTEPS_DEFAULT)" in source
 
