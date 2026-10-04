@@ -605,7 +605,9 @@ def _run_case(case_id, rung, scene, piece, camera):
             os.environ.get("CLOTH_PBD_COLLISION_MODE", "<unset>"),
             os.environ.get("CLOTH_PBD_COLLISION_TRIANGLES", "<unset>"),
             getattr(
-                __import__("freecad_cloth.simulation.PositionBasedDynamicsBackend", fromlist=["__file__"]),
+                __import__(
+                    "freecad_cloth.simulation.PositionBasedDynamicsBackend", fromlist=["__file__"]
+                ),
                 "__file__",
                 "<unknown>",
             ),

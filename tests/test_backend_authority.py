@@ -21,9 +21,9 @@ def test_pbd_is_the_only_runtime_backend_implementation():
     backend_source = (ROOT / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(
         encoding="utf-8"
     )
-    pbd_source = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
-        encoding="utf-8"
-    )
+    pbd_source = (
+        ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
+    ).read_text(encoding="utf-8")
 
     assert "default_backend_registry" not in backend_source
     assert "preferred_backend_name" not in backend_source

@@ -10,8 +10,10 @@ except ImportError:
 if QtGui is not None:
     QPixmap = QtGui.QPixmap
     if not hasattr(QPixmap, "pixel"):
+
         def _pixel(self, x, y):
             return self.toImage().pixel(x, y)
+
         QPixmap.pixel = _pixel
 
 
@@ -20,6 +22,8 @@ def _require_pbd():
         import pypbd  # noqa: F401
     except ImportError as exc:
         raise RuntimeError("PositionBasedDynamics CI mode requires pyPBD") from exc
+
+
 
 def _install_pbd_backend_hook():
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -37,9 +41,12 @@ def _install_pbd_backend_hook():
     execute._cloth_pbd_enforced = True
     QualitySimulationProxy.execute = execute
 
-if (os.environ.get("DISPLAY") == ":99"
+
+if (
+    os.environ.get("DISPLAY") == ":99"
     and os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"
-    and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"):
+    and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"
+):
     _require_pbd()
     os.environ["CLOTH_SIMULATION_BACKEND"] = "position-based-dynamics"
     os.environ.setdefault("CLOTH_PBD_SUBSTEPS", "1")

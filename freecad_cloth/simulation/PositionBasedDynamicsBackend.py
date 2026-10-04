@@ -103,7 +103,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._pbd = pypbd
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in triangle) for triangle in triangles)
-        system_pins = tuple(i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0)
+        system_pins = tuple(
+            i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0
+        )
         self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins)) or system_pins
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._stitch_compliance = 0.0
@@ -188,7 +190,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if particles.getNumberOfParticles() != self._particle_count:
             raise RuntimeError("PositionBasedDynamics did not preserve cloth particle ordering")
         pin_indices = set(self._pin_indices)
-        invalid_pins = [index for index in pin_indices if index < 0 or index >= self._particle_count]
+        invalid_pins = [
+            index for index in pin_indices if index < 0 or index >= self._particle_count
+        ]
         if invalid_pins:
             raise ValueError(f"pin index outside system: {invalid_pins!r}")
         for index in range(self._particle_count):

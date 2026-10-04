@@ -120,13 +120,17 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 
 def test_pbd_ci_image_is_pinned_and_preinstalled():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     assert "pypbd==2.2.2" in dockerfile
     assert "triangle==20250106" in dockerfile
     assert "/opt/pypbd-provenance.txt" in dockerfile
     assert "pbd_validation_image:" in workflow
     assert "FREECAD_PBD_IMAGE" in workflow
     assert "CLOTH_CI_ENABLE_PBD=1" in workflow
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit

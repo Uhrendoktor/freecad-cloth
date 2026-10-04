@@ -66,10 +66,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "gui-shutdown-requested" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
-    assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py"
-        in WORKFLOW
-    )
+    assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
     assert "ArrangementPoint.from_string" in SOURCE
     assert "state = _inside_outside(" in SOURCE
     assert "float(candidate.x)" in SOURCE
