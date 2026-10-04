@@ -128,6 +128,7 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     assert "resolution=resolution" in backend
     assert "max(configured_tolerance, surface_thickness)" in backend
 
+
 def test_pbd_ci_image_is_pinned_and_preinstalled():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
