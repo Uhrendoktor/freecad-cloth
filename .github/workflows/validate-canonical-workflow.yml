@@ -27,7 +27,7 @@ jobs:
           )
           for run_id in "${stale_runs[@]}"; do
             echo "cancelling-stale-canonical-run=$run_id"
-            gh api --method POST "repos/$REPO/actions/runs/$run_id/cancel" >/dev/null 2>&1 || true
+            gh api --method POST "repos/$REPO/actions/runs/$run_id/force-cancel" >/dev/null 2>&1 || true
           done
       - name: Validate workflow
         run: |
