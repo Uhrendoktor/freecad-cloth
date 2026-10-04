@@ -179,7 +179,7 @@ def test_tissu_backend_defaults_to_stable_internal_substeps():
         encoding="utf-8"
     )
     assert "_TISSU_SUBSTEPS_DEFAULT = 10" in source
-    assert 'str(_TISSU_SUBSTEPS_DEFAULT)' in source
+    assert "str(_TISSU_SUBSTEPS_DEFAULT)" in source
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
