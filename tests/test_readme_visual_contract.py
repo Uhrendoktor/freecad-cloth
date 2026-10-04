@@ -12,7 +12,7 @@ def test_readme_turntable_uses_pbd_backend():
     )
 
     assert "backend=pbd" in source
-    assert "CLOTH_SIMULATION_BACKEND=pbd" in workflow
+    assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in workflow
 
 
 def test_blanket_visual_fixture_has_no_runtime_backend_selector():
