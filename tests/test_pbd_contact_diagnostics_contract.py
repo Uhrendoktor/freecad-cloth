@@ -142,5 +142,3 @@ def test_progressive_collision_ladder_is_a_normal_gate():
     assert "simulation-collision-ladder=passed" in block
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in block
 
-
-
