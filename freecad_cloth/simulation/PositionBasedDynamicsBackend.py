@@ -20,6 +20,7 @@ _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _PBD_COLLISION_TRIANGLES_DEFAULT = 0
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
+_PBD_COLLISION_RESOLUTION_DEFAULT = 64
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
@@ -54,6 +55,19 @@ def _pbd_collision_tolerance_mm() -> float:
     if value < 0.0:
         raise ValueError("CLOTH_PBD_COLLISION_TOLERANCE_MM must be >= 0")
     return value
+
+def _pbd_collision_resolution() -> int:
+    value = int(
+        os.environ.get(
+            "CLOTH_PBD_COLLISION_RESOLUTION",
+            str(_PBD_COLLISION_RESOLUTION_DEFAULT),
+        )
+    )
+    if value < 16:
+        raise ValueError("CLOTH_PBD_COLLISION_RESOLUTION must be >= 16")
+    return value
+
+
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
@@ -167,19 +181,26 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
+        resolution = _pbd_collision_resolution()
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
             mesh,
             testMesh=True,
             generateCollisionObject=True,
-            resolution=[30, 30, 30],
+            resolution=[resolution, resolution, resolution],
         )
         rigid_body.setMass(0.0)
         rigid_body.setFrictionCoeff(0.5)
 
         collision_detection = sim.getTimeStep().getCollisionDetection()
-        collision_detection.setTolerance(_pbd_collision_tolerance_mm() / _MM)
+        configured_tolerance = _pbd_collision_tolerance_mm()
+        surface_thickness = (
+            float(getattr(collision_surface, "thickness", 0.0))
+            if collision_surface is not None
+            else 0.0
+        )
+        collision_detection.setTolerance(max(configured_tolerance, surface_thickness) / _MM)
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()
@@ -261,6 +282,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         timestep.setValueUInt(
             self._pbd.TimeStepController.MAX_ITERATIONS,
             _PBD_ITERATIONS_DEFAULT,
+        )
+        print(
+            "cloth-pbd-collision-settings "
+            f"resolution={_pbd_collision_resolution()} "
+            f"tolerance_mm={max(_pbd_collision_tolerance_mm(), float(getattr(self._collision_surface, 'thickness', 0.0)) if self._collision_surface is not None else 0.0):.3f}",
+            flush=True,
         )
 
     def step(
