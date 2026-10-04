@@ -449,7 +449,7 @@ def build_simulation_state(doc):
     scene.GravityX = 0.0
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.TimeStep = 1.0 / 240.0
+    scene.TimeStep = 1.0 / 60.0
     scene.ParticleDistance = max(BLANKET_PARTICLE_DISTANCE, float(scene.ParticleDistance))
     scene.SolverIterations = 4
     scene.SolverSubsteps = 1
@@ -503,7 +503,7 @@ def main():
         "stage=fixture-start backend=tissu collision_mode={} tissu_substeps={} steps={}".format(
             os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
             os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
-            os.environ.get("CLOTH_BLANKET_STEPS", "480"),
+            os.environ.get("CLOTH_BLANKET_STEPS", "120"),
         )
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
@@ -526,7 +526,7 @@ def main():
             % (1000.0 * (time.monotonic() - arranged_started))
         )
 
-        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))
+        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
         simulation_started = time.monotonic()
         log(
             "stage=simulation-start steps=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d tissu_substeps=%s"
