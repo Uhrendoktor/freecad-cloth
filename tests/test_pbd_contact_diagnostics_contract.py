@@ -129,3 +129,15 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert '_boot("freecad-hosted-entrypoint")' in source
     assert "__name__ == _freecad_entrypoint_name" in source
     assert '_boot("direct-entrypoint")' in source
+
+def test_progressive_collision_ladder_is_a_normal_gate():
+    assert "simulation-ladder:" in WORKFLOW
+    block = WORKFLOW.split("  simulation-ladder:", 1)[1].split("  gui-sewing-creation:", 1)[0]
+    assert "if: ${{ github.event_name != 'schedule' }}" in block
+    assert "CLOTH_PBD_SUBSTEPS: 8" in block
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in block
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in block
+    assert "max_penetration_mm" in block
+    assert "simulation-collision-ladder=passed" in block
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in block
+
