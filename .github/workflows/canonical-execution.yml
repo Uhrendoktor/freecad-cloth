@@ -1775,83 +1775,83 @@ jobs:
           """
           PY
           cat > sitecustomize.py <<'EOF_PBD_SITE'
-"""FreeCAD CI compatibility shims loaded before test scripts."""
-
-try:
-    from PySide6 import QtGui
-except ImportError:
-    QtGui = None
-
-if QtGui is not None:
-    QPixmap = QtGui.QPixmap
-    if not hasattr(QPixmap, "pixel"):
-        def _pixel(self, x, y):
+          """FreeCAD CI compatibility shims loaded before test scripts."""
+          
+          try:
+              from PySide6 import QtGui
+          except ImportError:
+              QtGui = None
+          
+          if QtGui is not None:
+              QPixmap = QtGui.QPixmap
+              if not hasattr(QPixmap, "pixel"):
+                  def _pixel(self, x, y):
             return self.toImage().pixel(x, y)
-        QPixmap.pixel = _pixel
-
-import os
-
-
-def _require_pbd():
-    try:
-        import pypbd  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError(
+                  QPixmap.pixel = _pixel
+          
+          import os
+          
+          
+          def _require_pbd():
+              try:
+                  import pypbd  # noqa: F401
+              except ImportError as exc:
+                  raise RuntimeError(
             "PositionBasedDynamics CI mode was explicitly enabled, but pyPBD is unavailable; "
             "use the pinned PositionBasedDynamics-capable CI image instead of installing dependencies at import time"
-        ) from exc
-
-
-def _install_pbd_backend_hook():
-    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
-    original_execute = QualitySimulationProxy.execute
-    if getattr(original_execute, "_cloth_pbd_enforced", False):
-        return
-
-    def execute(self, obj):
-        result = original_execute(self, obj)
-        backend = getattr(self._base_or_restore(), "backend", None)
-        if not isinstance(backend, PositionBasedDynamicsBackend):
+                  ) from exc
+          
+          
+          def _install_pbd_backend_hook():
+              from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+              from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+              original_execute = QualitySimulationProxy.execute
+              if getattr(original_execute, "_cloth_pbd_enforced", False):
+                  return
+          
+              def execute(self, obj):
+                  result = original_execute(self, obj)
+                  backend = getattr(self._base_or_restore(), "backend", None)
+                  if not isinstance(backend, PositionBasedDynamicsBackend):
             raise RuntimeError("canonical GUI simulation did not select PositionBasedDynamics")
-        print("cloth-ci-backend=position-based-dynamics", flush=True)
-        return result
-
-    execute._cloth_pbd_enforced = True
-    QualitySimulationProxy.execute = execute
-
-
-if (
-    os.environ.get("DISPLAY") == ":99"
-    and os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"
-    and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"
-):
-    _require_pbd()
-    os.environ["CLOTH_SIMULATION_BACKEND"] = "position-based-dynamics"
-    os.environ.setdefault("CLOTH_PBD_SUBSTEPS", "1")
-    _install_pbd_backend_hook()
-EOF_PBD_SITE
+                  print("cloth-ci-backend=position-based-dynamics", flush=True)
+                  return result
+          
+              execute._cloth_pbd_enforced = True
+              QualitySimulationProxy.execute = execute
+          
+          
+          if (
+              os.environ.get("DISPLAY") == ":99"
+              and os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"
+              and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"
+          ):
+              _require_pbd()
+              os.environ["CLOTH_SIMULATION_BACKEND"] = "position-based-dynamics"
+              os.environ.setdefault("CLOTH_PBD_SUBSTEPS", "1")
+              _install_pbd_backend_hook()
+          EOF_PBD_SITE
 
           cat > docker/freecad-ci/Dockerfile <<'EOF_PBD_DOCKER'
-FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
-        pypbd==2.2.2 \
-        triangle==20250106 \
-        pytest \
-    && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
-    && cat > /opt/pypbd-provenance.txt <<'EOF'
-Package: pyPBD
-Version: 2.2.2
-Import: pypbd
-Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
-SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
-EOF
-
-ENV PYTHONPATH=/workspace
-EOF_PBD_DOCKER
+          FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
+          
+          SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+          
+          RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
+                  pypbd==2.2.2 \
+                  triangle==20250106 \
+                  pytest \
+              && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
+              && cat > /opt/pypbd-provenance.txt <<'EOF'
+          Package: pyPBD
+          Version: 2.2.2
+          Import: pypbd
+          Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+          SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
+          EOF
+          
+          ENV PYTHONPATH=/workspace
+          EOF_PBD_DOCKER
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
