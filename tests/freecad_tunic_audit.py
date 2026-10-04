@@ -124,6 +124,8 @@ timed_anchor = """    from time import perf_counter
         0 if active_collision is None else len(active_collision.triangles),
     ))
     task_dock.hide(); events()
+    view.setCameraType("Orthographic"); view.viewAxonometric(); view.fitAll(); events()
+    save("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
     for frame_index, batch in enumerate((10,10,10,10,10,10,10,10,10), start=1):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
