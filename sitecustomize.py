@@ -15,8 +15,6 @@ if QtGui is not None:
         QPixmap.pixel = _pixel
 
 
-import os
-
 def _require_pbd():
     try:
         import pypbd  # noqa: F401
