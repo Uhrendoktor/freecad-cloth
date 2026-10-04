@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from freecad_cloth.simulation.TissuBackend import _tissu_substeps
 from freecad_cloth.simulation.ClothBackend import (
     ClothSimulationBackend,
     validate_pinned_stitch_pairs,
 )
+from freecad_cloth.simulation.TissuBackend import _tissu_substeps
 
 ROOT = Path(__file__).resolve().parents[1]
 
