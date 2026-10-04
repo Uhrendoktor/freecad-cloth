@@ -1161,6 +1161,9 @@ jobs:
           test -s docs/images/generated/cloth-simulation-draped-top.png
           test -s docs/images/generated/cloth-simulation-draped-bottom.png
           test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test "$(find docs/images/generated/cloth-tunic-mannequin-motion-frames -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 10
           grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
           grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
           test -s artifacts/garment-e2e.log
@@ -1187,7 +1190,10 @@ jobs:
         with:
           name: tunic-visual-audit
           path: |
+            docs/images/generated/cloth-pattern-design.png
+            docs/images/generated/cloth-sewing.png
             docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/cloth-tunic-mannequin-motion-frames/*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
