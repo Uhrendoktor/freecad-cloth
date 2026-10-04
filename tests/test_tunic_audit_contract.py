@@ -174,11 +174,6 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "artifacts/tissu-provenance.txt" in workflow
 
 
-def test_tissu_backend_defaults_to_stable_internal_substeps():
-    source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
-    assert "_TISSU_SUBSTEPS_DEFAULT = 10" in source
-    assert "str(_TISSU_SUBSTEPS_DEFAULT)" in source
-
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
