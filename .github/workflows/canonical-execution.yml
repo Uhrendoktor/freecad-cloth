@@ -1650,7 +1650,12 @@ jobs:
           cp ../tunic/docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-pattern-design.png
           cp ../tunic/docs/images/generated/cloth-sewing.png docs/images/generated/cloth-sewing.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
-          cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-draped-diagnostics.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-rear.png docs/images/generated/cloth-simulation-draped-rear.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-left.png docs/images/generated/cloth-simulation-draped-left.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-right.png docs/images/generated/cloth-simulation-draped-right.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-top.png docs/images/generated/cloth-simulation-draped-top.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-bottom.png docs/images/generated/cloth-simulation-draped-bottom.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-diagnostics.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
@@ -1661,7 +1666,12 @@ jobs:
             docs/images/generated/cloth-pattern-design.png \
             docs/images/generated/cloth-sewing.png \
             docs/images/generated/cloth-simulation-draped-front.png \
-            docs/images/generated/cloth-simulation-draped-diagnostics.png
+            docs/images/generated/cloth-simulation-draped-rear.png \
+            docs/images/generated/cloth-simulation-draped-left.png \
+            docs/images/generated/cloth-simulation-draped-right.png \
+            docs/images/generated/cloth-simulation-draped-top.png \
+            docs/images/generated/cloth-simulation-draped-bottom.png \
+            docs/images/generated/cloth-simulation-diagnostics.png
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0
