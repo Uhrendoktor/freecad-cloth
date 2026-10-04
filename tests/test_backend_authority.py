@@ -59,6 +59,7 @@ def test_simulation_workbench_does_not_force_a_backend_selector():
     assert "CLOTH_SIMULATION_BACKEND" not in source
     assert "preferred_backend_name" not in source
 
+
 def test_tissu_backend_defaults_to_stable_internal_substeps(monkeypatch):
     monkeypatch.delenv("CLOTH_TISSU_SUBSTEPS", raising=False)
     from freecad_cloth.simulation.TissuBackend import _tissu_substeps
