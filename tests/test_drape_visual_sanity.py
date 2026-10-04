@@ -4,6 +4,7 @@ from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summariz
 from freecad_cloth.common.DrapeVisualSanity import (
     inspect_drape,
     mesh_shape_sanity,
+    point_inside_closed_mesh,
     seam_correspondence_gap,
     summarize,
 )
@@ -18,6 +19,22 @@ class DrapeVisualSanityTests(unittest.TestCase):
             (-100.0, 50.0, 1750.0),
             (100.0, 50.0, 1750.0),
         )
+
+    def test_point_inside_closed_mesh_uses_ray_parity(self):
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        )
+        triangles = (
+            (0, 2, 1),
+            (0, 1, 3),
+            (0, 1, 2),
+            (2, 3, 1),
+        )
+        self.assertTrue(point_inside_closed_mesh((0.1, 0.1, 0.1), vertices, triangles))
+        self.assertFalse(point_inside_closed_mesh((1.1, 0.1, 0.1), vertices, triangles))
 
     def test_reports_structurally_plausible_drape(self):
         garment = (
