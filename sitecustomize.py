@@ -1,5 +1,7 @@
 """FreeCAD CI compatibility shims loaded before test scripts."""
 
+import os
+
 try:
     from PySide6 import QtGui
 except ImportError:
