@@ -20,7 +20,7 @@ _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _PBD_COLLISION_TRIANGLES_DEFAULT = 0
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
-_PBD_COLLISION_RESOLUTION_DEFAULT = 64
+_PBD_COLLISION_VOXEL_DEFAULT_MM = 12.0
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
@@ -56,16 +56,28 @@ def _pbd_collision_tolerance_mm() -> float:
         raise ValueError("CLOTH_PBD_COLLISION_TOLERANCE_MM must be >= 0")
     return value
 
-def _pbd_collision_resolution() -> int:
-    value = int(
+def _pbd_collision_voxel_mm() -> float:
+    value = float(
         os.environ.get(
-            "CLOTH_PBD_COLLISION_RESOLUTION",
-            str(_PBD_COLLISION_RESOLUTION_DEFAULT),
+            "CLOTH_PBD_COLLISION_VOXEL_MM",
+            str(_PBD_COLLISION_VOXEL_DEFAULT_MM),
         )
     )
-    if value < 16:
-        raise ValueError("CLOTH_PBD_COLLISION_RESOLUTION must be >= 16")
+    if value < 2.0:
+        raise ValueError("CLOTH_PBD_COLLISION_VOXEL_MM must be >= 2")
     return value
+
+
+def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
+    voxel_mm = _pbd_collision_voxel_mm()
+    spans = []
+    for axis in range(3):
+        values = [float(vertex[axis]) for vertex in surface.vertices]
+        span_mm = max(values) - min(values)
+        # pyPBD's generated cubic SDF extends each axis by 100 mm on both sides.
+        cells = int(ceil((span_mm + 200.0) / voxel_mm))
+        spans.append(max(16, min(256, cells)))
+    return spans
 
 
 
@@ -181,7 +193,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
-        resolution = _pbd_collision_resolution()
+        resolution = _pbd_collision_resolution(collision_surface)
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
@@ -285,7 +297,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         )
         print(
             "cloth-pbd-collision-settings "
-            f"resolution={_pbd_collision_resolution()} "
+            f"resolution={resolution} "
             f"tolerance_mm={max(_pbd_collision_tolerance_mm(), float(getattr(self._collision_surface, 'thickness', 0.0)) if self._collision_surface is not None else 0.0):.3f}",
             flush=True,
         )
