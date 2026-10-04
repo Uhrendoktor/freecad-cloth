@@ -130,6 +130,7 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "__name__ == _freecad_entrypoint_name" in source
     assert '_boot("direct-entrypoint")' in source
 
+
 def test_progressive_collision_ladder_is_a_normal_gate():
     assert "simulation-ladder:" in WORKFLOW
     block = WORKFLOW.split("  simulation-ladder:", 1)[1].split("  gui-sewing-creation:", 1)[0]
