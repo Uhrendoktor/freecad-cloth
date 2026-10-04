@@ -159,6 +159,8 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tissu-validation:" in image_job
     assert "TISSU_FIX_SHA256=" in dockerfile
     assert "tissu-cpp-regression-result=passed" in dockerfile
+    assert 'Solver.cpp spatial hash rebuild per substep' in script
+    assert 'm_spatialHash.build(m_particles);' in script
     assert "FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}" in tunic
     assert "docker run --rm --init" in tunic
     assert '"$FREECAD_TISSU_IMAGE" bash -lc' in tunic
