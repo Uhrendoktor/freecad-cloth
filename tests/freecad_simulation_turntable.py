@@ -568,9 +568,7 @@ def main():
         )
         log(f"collision-penetration=passed max_penetration_mm={max_penetration:.3f}")
         if max_penetration > 3.0:
-            raise RuntimeError(
-                f"blanket penetrated collision cube by {max_penetration:.2f} mm"
-            )
+            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
         log(
             "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
             % (
