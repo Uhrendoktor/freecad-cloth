@@ -179,15 +179,6 @@ patcher = Path("docker/freecad-ci/apply-tissu-contact-fix.py")
 if patcher.exists():
     patcher.unlink()
 
-workflow_path = Path(".github/workflows/canonical-execution.yml")
-workflow = rename_solver(load(workflow_path))
-workflow = re.sub(
-    r"\n  # AGENT-REFactor-BEGIN.*?\n  # AGENT-REFactor-END\n?",
-    "\n",
-    workflow,
-    flags=re.S,
-)
-workflow_path.write_text(workflow.rstrip() + "\n", encoding="utf-8")
 
 if Path("tools/agent_pbd_migrate.py").exists():
     Path("tools/agent_pbd_migrate.py").unlink()
