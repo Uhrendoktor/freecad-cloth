@@ -73,7 +73,10 @@ jobs:
           python tools/check_documentation_contract.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
-          python tools/check_dead_code.py $(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
+          mapfile -t changed_python < <(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
+          if ((${#changed_python[@]})); then
+            python tools/check_dead_code.py "${changed_python[@]}"
+          fi
           python -m pytest -q tests/test_property_contracts.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
 
