@@ -38,7 +38,7 @@ BLANKET_SIZE = (
 BLANKET_PARTICLE_DISTANCE = (
     16.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
 )
-BLANKET_START_Z = 95.0  # Validated README release fixture baseline.
+BLANKET_START_Z = 105.0  # PBD README fixture baseline leaves >40 mm validated drape travel.
 # The README fixture uses the same pinned PositionBasedDynamics mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.makedirs(OUT, exist_ok=True)
