@@ -523,10 +523,14 @@ def pattern_and_sewing():
 def style_mesh(obj, label):
     obj.Label = label
     try:
-        obj.ViewObject.DisplayMode = "Flat Lines"
-        obj.ViewObject.ShapeColor = (0.86, 0.20, 0.10)
-        obj.ViewObject.LineColor = (0.20, 0.02, 0.01)
-        obj.ViewObject.LineWidth = 1.5
+        obj.ViewObject.DisplayMode = "Shaded"
+        obj.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
+        obj.ViewObject.Transparency = 0
+        obj.ViewObject.LineWidth = 1.0
+        if hasattr(obj.ViewObject, "SpecularColor"):
+            obj.ViewObject.SpecularColor = (0.45, 0.45, 0.45)
+        if hasattr(obj.ViewObject, "Shininess"):
+            obj.ViewObject.Shininess = 45.0
     except (AttributeError, TypeError, ValueError):
         pass
 
