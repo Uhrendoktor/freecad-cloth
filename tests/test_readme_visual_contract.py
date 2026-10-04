@@ -79,5 +79,3 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "simulation-ladder:" in workflow
     assert "cloth-tunic-mannequin-motion.gif" in workflow
 
-
-
