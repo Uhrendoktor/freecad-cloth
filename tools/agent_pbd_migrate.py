@@ -186,7 +186,7 @@ workflow = re.sub(
     workflow,
     flags=re.S,
 )
-save(workflow_path, workflow)
+workflow_path.write_text(workflow.rstrip() + "\n", encoding="utf-8")
 
 if Path("tools/agent_pbd_migrate.py").exists():
     Path("tools/agent_pbd_migrate.py").unlink()
