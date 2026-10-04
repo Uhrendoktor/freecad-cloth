@@ -127,21 +127,19 @@ MeshOrientation inferMeshOrientation(
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
+    bending_cpp = ROOT / "core/src/physics/BendingConstraint.cpp"
+    replace_once(
+        bending_cpp,
+        """    Eigen::Vector3d n1 = e.cross(xC - xA);
+    Eigen::Vector3d n2 = e.cross(xD - xA);""",
+        """    Eigen::Vector3d n1 = e.cross(xC - xA);
+    // Match ClothMesh::calculateInitialAngle(), which defines the second
+    // triangle normal with the opposite cross-product order.
+    Eigen::Vector3d n2 = (xD - xA).cross(e);""",
+        "BendingConstraint rest-angle normal convention",
+    )
+
     replace_cpp = [
-        (
-            """    const double substepDt = deltaTime / static_cast<double>(m_substeps);
-    m_spatialHash.build(m_particles);
-
-    for (int i = 0; i < m_substeps; i++)
-        step(world, substepDt);""",
-            """    const double substepDt = deltaTime / static_cast<double>(m_substeps);
-
-    for (int i = 0; i < m_substeps; i++) {
-        m_spatialHash.build(m_particles);
-        step(world, substepDt);
-    }""",
-            "Solver.cpp spatial hash rebuild per substep",
-        ),
         (
             """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
@@ -308,7 +306,9 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
+        "core/src/physics/BendingConstraint.cpp",
         "tests/physics/test_mesh_collider.cpp",
+        "tests/physics/test_constraint_graph.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
