@@ -295,7 +295,7 @@ jobs:
         id: image
         run: |
           set -euo pipefail
-          digest="$(cat docker/freecad-ci/Dockerfile | sha256sum | cut -d" " -f1)"
+          digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d" " -f1)"
           echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:${digest:0:32}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
