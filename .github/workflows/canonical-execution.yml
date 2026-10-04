@@ -441,8 +441,8 @@ jobs:
           root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
-          assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
-          assert data["release_gate_effect"] == "none", data
+          assert data["purpose"] == "simulation-collision-ladder", data
+          assert data["release_gate_effect"] == "gate", data
           assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
           assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
           assert len(data["cases"]) == 5, data
@@ -508,8 +508,8 @@ jobs:
           root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "avatar-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
-          assert data["purpose"] == "diagnostic-only-avatar-complexity-ladder", data
-          assert data["release_gate_effect"] == "none", data
+          assert data["purpose"] == "simulation-avatar-ladder", data
+          assert data["release_gate_effect"] == "gate", data
           assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
           assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
           assert len(data["cases"]) == 5, data
