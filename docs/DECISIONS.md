@@ -95,3 +95,5 @@ Supersedes: D-0002
 The production cloth runtime is now the native PositionBasedDynamics Python binding (pyPBD==2.2.2). The existing ClothBackend adapter contract and headless ClothSystem input model remain solver-neutral. PositionBasedDynamics owns integration, XPBD cloth/stretch/shear constraints, XPBD bending, sewing distance constraints, pin masses, and DrapeTarget mesh collision. The canonical FreeCAD CI image preinstalls the pinned wheel; runtime code never installs or patches the solver.
 
 The migration keeps the persistent DrapeTarget / CollisionSurface boundary, the one-backend architecture, deterministic rebuild semantics, and the canonical GUI acceptance path. Tissu remains historical evidence only and is no longer a runtime dependency.
+
+- The Tissu→PositionBasedDynamics migration preserves the canonical GUI acceptance lanes; tunic screenshots, turntables, and visual examples execute against the pinned PBD validation image.
