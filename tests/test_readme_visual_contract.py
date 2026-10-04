@@ -39,6 +39,7 @@ def test_readme_turntable_builds_real_motion():
     assert "simulation-pass" in source
     assert "draped-render-pass" in source
 
+
 def test_simulation_visual_presentation_is_shaded_and_axonometric():
     runtime = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(
         encoding="utf-8"
