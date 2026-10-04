@@ -130,7 +130,9 @@ def test_pbd_ci_image_is_pinned_and_preinstalled():
     assert "pbd_validation_image:" in workflow
     assert "FREECAD_PBD_IMAGE" in workflow
     assert "CLOTH_CI_ENABLE_PBD=1" in workflow
-    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("      - name: Stage workspace in Docker volume", 1)[0]
+    gui = workflow.split("  gui-tunic-visual:", 1)[1].split(
+        "      - name: Stage workspace in Docker volume", 1
+    )[0]
     provenance = gui.split("      - name: Pull pinned PositionBasedDynamics validation image", 1)[1]
     assert "run: |" in provenance
     assert "mkdir -p artifacts" in provenance
