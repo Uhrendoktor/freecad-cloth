@@ -28,9 +28,11 @@ def _require_pbd():
 def _install_pbd_backend_hook():
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+
     original_execute = QualitySimulationProxy.execute
     if getattr(original_execute, "_cloth_pbd_enforced", False):
         return
+
     def execute(self, obj):
         result = original_execute(self, obj)
         backend = getattr(self._base_or_restore(), "backend", None)
