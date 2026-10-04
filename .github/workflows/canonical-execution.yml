@@ -1031,6 +1031,8 @@ jobs:
             -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" \
             -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
             -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" \
+            -e CLOTH_PBD_COLLISION_VOXEL_MM="$CLOTH_PBD_COLLISION_VOXEL_MM" \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM="$CLOTH_PBD_COLLISION_TOLERANCE_MM" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -u -o pipefail
