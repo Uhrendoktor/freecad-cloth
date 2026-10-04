@@ -765,8 +765,7 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-    motion_dir = os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")
-    os.makedirs(motion_dir, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -789,9 +788,6 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-        simulation_panel.step(batch)
-        doc.recompute()
-        events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
