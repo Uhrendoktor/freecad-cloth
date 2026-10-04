@@ -276,7 +276,6 @@ jobs:
 
   tissu_validation_image:
     name: Build/publish pinned Tissu validation image
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
