@@ -221,6 +221,30 @@ MeshOrientation inferMeshOrientation(
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
+    bending_test = r"""
+TEST(BendingConstraint, FlatQuadWithZeroRestAngleRemainsFlat) {
+    std::vector<Particle> particles = {
+        Particle(Eigen::Vector3d(0.0, 0.0, 0.0)),
+        Particle(Eigen::Vector3d(1.0, 1.0, 0.0)),
+        Particle(Eigen::Vector3d(1.0, 0.0, 0.0)),
+        Particle(Eigen::Vector3d(0.0, 1.0, 0.0)),
+    };
+    const auto before = particles;
+
+    BendingConstraint constraint(0, 1, 2, 3, 0.0, 0.0);
+    constraint.solve(particles, 0.01);
+
+    for (int id = 0; id < 4; ++id) {
+        EXPECT_NEAR((particles[id].getPosition() - before[id].getPosition()).norm(),
+                    0.0, 1.0e-12);
+    }
+}
+
+""";
+    const std::string bending_anchor = "TEST(ConstraintGraph, PinAndDistanceSharingParticleAreAdjacent) {";
+    if (test_cpp.count(bending_anchor) != 1)
+        throw RuntimeError("BendingConstraint test insertion anchor missing");
+    test_cpp = test_cpp.replace(bending_anchor, bending_test + bending_anchor, 1);
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
