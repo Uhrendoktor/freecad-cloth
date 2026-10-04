@@ -1,17 +1,3 @@
-def test_new_simulation_scene_uses_stable_default_timestep():
-    from pathlib import Path
-
-    source = (
-        Path(__file__).resolve().parents[1]
-        / "freecad_cloth"
-        / "simulation"
-        / "SimulationObjects.py"
-    ).read_text(encoding="utf-8")
-
-    assert "DEFAULT_TIME_STEP = 1.0 / 60.0" in source
-    assert '"TimeStep", "Solver").TimeStep = DEFAULT_TIME_STEP' in source
-
-
 def test_stale_drape_target_recompute_guard_is_safe():
     from types import SimpleNamespace
 

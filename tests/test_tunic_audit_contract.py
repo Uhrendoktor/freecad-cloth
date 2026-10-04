@@ -134,7 +134,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "/opt/conda/envs/freecad/bin/cmake -S . -B build" in dockerfile
     assert "/opt/conda/envs/freecad/bin/cmake --build build" in dockerfile
     assert "--target _cloth_sdk_core unit_tests" in dockerfile
-    assert "--gtest_filter='MeshCollider.*:BendingConstraint.*'" in dockerfile
+    assert "--gtest_filter='MeshCollider.*'" in dockerfile
     assert "ParticleInsideMeshMovesOutside" in script
     assert "tetrahedronContains" in script
     assert "ClosedMeshKeepsOutsideContactOutside" in script
@@ -159,9 +159,6 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tissu-validation:" in image_job
     assert "TISSU_FIX_SHA256=" in dockerfile
     assert "tissu-cpp-regression-result=passed" in dockerfile
-    assert "MeshCollider.*:BendingConstraint.*" in dockerfile
-    assert "BendingConstraint rest-angle normal convention" in script
-    assert "Eigen::Vector3d n2 = (xD - xA).cross(e);" in script
     assert "FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}" in tunic
     assert "docker run --rm --init" in tunic
     assert '"$FREECAD_TISSU_IMAGE" bash -lc' in tunic

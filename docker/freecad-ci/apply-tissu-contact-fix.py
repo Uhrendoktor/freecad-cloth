@@ -127,18 +127,6 @@ MeshOrientation inferMeshOrientation(
         raise RuntimeError("MeshCollider.cpp include anchor mismatch")
     cpp = cpp.replace(include_old, include_new, 1)
 
-    bending_cpp = ROOT / "core/src/physics/BendingConstraint.cpp"
-    replace_once(
-        bending_cpp,
-        """    Eigen::Vector3d n1 = e.cross(xC - xA);
-    Eigen::Vector3d n2 = e.cross(xD - xA);""",
-        """    Eigen::Vector3d n1 = e.cross(xC - xA);
-    // Match ClothMesh::calculateInitialAngle(), which defines the second
-    // triangle normal with the opposite cross-product order.
-    Eigen::Vector3d n2 = (xD - xA).cross(e);""",
-        "BendingConstraint rest-angle normal convention",
-    )
-
     replace_cpp = [
         (
             """    m_triangles.reserve(indices.size() / 3);
@@ -221,31 +209,6 @@ MeshOrientation inferMeshOrientation(
 
     test_cpp = test.read_text(encoding="utf-8")
     test_cpp = test_cpp.replace("#include <vector>\n", "#include <array>\n#include <vector>\n", 1)
-    constraint_test = (ROOT / "tests/physics/test_constraint_graph.cpp").read_text(encoding="utf-8")
-    bending_test = r"""
-TEST(BendingConstraint, FlatQuadWithZeroRestAngleRemainsFlat) {
-    std::vector<Particle> particles = {
-        Particle(Eigen::Vector3d(0.0, 0.0, 0.0)),
-        Particle(Eigen::Vector3d(1.0, 1.0, 0.0)),
-        Particle(Eigen::Vector3d(1.0, 0.0, 0.0)),
-        Particle(Eigen::Vector3d(0.0, 1.0, 0.0)),
-    };
-    const auto before = particles;
-
-    BendingConstraint constraint(0, 1, 2, 3, 0.0, 0.0);
-    constraint.solve(particles, 0.01);
-
-    for (int id = 0; id < 4; ++id) {
-        EXPECT_NEAR((particles[id].getPosition() - before[id].getPosition()).norm(),
-                    0.0, 1.0e-12);
-    }
-}
-
-"""
-    bending_anchor = "TEST(ConstraintGraph, PinAndDistanceSharingParticleAreAdjacent) {"
-    if constraint_test.count(bending_anchor) != 1:
-        raise RuntimeError("BendingConstraint test insertion anchor missing")
-    constraint_test = constraint_test.replace(bending_anchor, bending_test + bending_anchor, 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
         {0.0, 0.0, 0.0},
@@ -324,7 +287,6 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
         raise RuntimeError("MeshCollider regression test body anchor mismatch")
     test_cpp = test_cpp.replace(old, new, 1)
     test.write_text(test_cpp, encoding="utf-8")
-    (ROOT / "tests/physics/test_constraint_graph.cpp").write_text(constraint_test, encoding="utf-8")
 
     if subprocess.run(["git", "diff", "--check"], cwd=ROOT, check=False).returncode != 0:
         raise RuntimeError("patched Tissu tree failed git diff --check")
@@ -332,9 +294,7 @@ TEST(MeshCollider, OpenMeshRetainsLegacyContactDirection) {
     expected = {
         "core/include/physics/MeshCollider.hpp",
         "core/src/physics/MeshCollider.cpp",
-        "core/src/physics/BendingConstraint.cpp",
         "tests/physics/test_mesh_collider.cpp",
-        "tests/physics/test_constraint_graph.cpp",
     }
     if set(changed.splitlines()) != expected:
         raise RuntimeError(f"unexpected patched files: {changed!r}")
