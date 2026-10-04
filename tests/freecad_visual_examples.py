@@ -381,8 +381,8 @@ def main():
                     obj.ViewObject.Visibility = False
                 if str(getattr(obj, "AvatarType", "")) == "ClothAvatar" and obj is not cube:
                     obj.ViewObject.Visibility = False
-        panel.ViewObject.ShapeColor = (0.72, 0.34, 0.46)
-        panel.ViewObject.DisplayMode = "Flat Lines"
+        panel.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
+        panel.ViewObject.DisplayMode = "Shaded"
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
@@ -544,7 +544,12 @@ def main():
             raise RuntimeError("simulation viewport did not apply persisted fabric color")
         if int(panel.ViewObject.Transparency) != 12:
             raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
-        log("material-presentation=passed viewport=true color=0.14,0.32,0.78 transparency=12")
+        if str(panel.ViewObject.DisplayMode) != "Shaded":
+            raise RuntimeError("simulation viewport did not use shaded cloth presentation")
+        log(
+            "material-presentation=passed viewport=true mode=Shaded "
+            "color=0.14,0.32,0.78 transparency=12"
+        )
 
         log("blanket-visual-acceptance=passed")
     finally:
