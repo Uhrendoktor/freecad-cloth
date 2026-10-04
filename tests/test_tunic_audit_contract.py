@@ -146,7 +146,10 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
         )
     ]
     assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
-    assert "docker build --pull --progress=plain" in tunic
+    assert "docker/setup-buildx-action@" in tunic
+    assert "docker/build-push-action@" in tunic
+    assert "cache-from: type=gha,scope=freecad-cloth" in tunic
+    assert "cache-to: type=gha,mode=max,scope=freecad-cloth" in tunic
     assert "docker run --rm --init" in tunic
     assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
     assert "TISSU_FIX_SHA256=" in dockerfile
