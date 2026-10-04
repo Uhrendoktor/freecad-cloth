@@ -284,6 +284,7 @@ def _inside_target_count(points, target):
             raise RuntimeError("mannequin inside/outside collision test failed") from exc
     return count
 
+
 def write_drape_metrics(
     panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None
 ):
@@ -776,7 +777,11 @@ def simulation():
     view.viewAxonometric()
     view.fitAll()
     events()
-    save("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    save(
+        "cloth-tunic-mannequin-motion-frames/motion-000.png",
+        "mannequin drape step 0",
+        "production tunic before gravity",
+    )
     for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
         simulation_panel.step(batch)
         doc.recompute()
