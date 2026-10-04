@@ -36,7 +36,7 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     scene.Document.recompute()
     preview_base = scene.Proxy._base_or_restore()
     preview_backend = getattr(preview_base, "backend", None)
-    if getattr(preview_backend, "name", None) != "pbd":
+    if getattr(preview_backend, "name", None) != "position-based-dynamics":
         raise RuntimeError("Realtime Cloth Preview did not select the PositionBasedDynamics backend")
     for _ in range(12):
         events()
@@ -51,7 +51,7 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
-    log("realtime-preview=passed backend=pbd steps=%d" % preview_steps)
+    log("realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps)
 """
 anchor = "    for batch in (40,40,40):"
 if anchor not in source:
