@@ -61,7 +61,7 @@ def main():
             "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
             "solver_iterations": int(getattr(scene, "SolverIterations", 0)),
             "solver_substeps": int(getattr(scene, "SolverSubsteps", 0)),
-            "tissu_substeps": int(getattr(backend, "_substeps", 1)),
+            "pbd_substeps": int(getattr(backend, "_substeps", 1)),
             "elapsed_s": elapsed,
             "mean_frame_ms": 1000.0 * sum(times) / len(times),
             "p95_frame_ms": 1000.0 * p95,

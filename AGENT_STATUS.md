@@ -28,4 +28,7 @@ These lanes are intentionally narrow. Inspect only the lane relevant to the curr
 - #1017 — completed release project criterion; historical release context only.
 
 ## Current-state warning
-The repository contains historical release-closeout documents and evidence. They describe what was validated at a particular point in time and are not a substitute for current-main state. The current Tissu tunic behavior remains under diagnostic investigation in #2492; do not infer that current simulation behavior is green from older release-closeout prose or screenshots.
+The repository contains historical release-closeout documents and evidence. They describe what was validated at a particular point in time and are not a substitute for current-main state. The current PositionBasedDynamics runtime is authoritative. Historical Tissu diagnostic lanes and older release-closeout screenshots are context only; do not infer current simulation behavior from them.
+
+
+Current task: migrating the production simulation runtime from Tissu to PositionBasedDynamics (pyPBD 2.2.2). The DrapeTarget/CollisionSurface boundary remains authoritative.

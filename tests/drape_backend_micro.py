@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface
 from freecad_cloth.simulation.ClothSolver import ClothSystem
-from freecad_cloth.simulation.TissuBackend import TissuBackend
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
 OUT = Path(os.environ.get("CLOTH_MICRO_DIR", "artifacts/drape-backend-micro"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ def make_collision_surface():
 def main():
     system, triangles, stitches = make_system()
     collision = make_collision_surface()
-    backend = TissuBackend(
+    backend = PositionBasedDynamicsBackend(
         system,
         triangles,
         pins=(0, 11, 216, 227),
@@ -116,7 +116,7 @@ def main():
         "particles": len(backend.positions()),
         "stitches": len(stitches),
         "collision_triangles": len(collision.triangles),
-        "substeps": int(os.environ.get("CLOTH_TISSU_SUBSTEPS", "1")),
+        "substeps": int(os.environ.get("CLOTH_PBD_SUBSTEPS", "1")),
         "elapsed_s": elapsed,
         "mean_step_ms": 1000.0 * sum(times) / len(times),
         "p95_step_ms": 1000.0 * p95,

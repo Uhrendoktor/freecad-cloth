@@ -21,7 +21,7 @@ on:
         type: string
         default: ""
       diagnostic_controls:
-        description: "Run diagnostic-only Tissu contact controls; never part of release-gate dependencies."
+        description: "Run diagnostic-only PositionBasedDynamics contact controls; never part of release-gate dependencies."
         required: false
         type: boolean
         default: false
@@ -73,7 +73,10 @@ jobs:
           python tools/check_documentation_contract.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
-          python tools/check_dead_code.py $(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
+          mapfile -t changed_python < <(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py')
+          if ((${#changed_python[@]})); then
+            python tools/check_dead_code.py "${changed_python[@]}"
+          fi
           python -m pytest -q tests/test_property_contracts.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
 
@@ -184,8 +187,8 @@ jobs:
                 tests/test_readme_visual_contract.py \
                 tests/test_sketcher_bootstrap_contract.py \
                 tests/test_canonical_python_validation_contract.py \
-                tests/test_tissu_contact_diagnostics_contract.py \
-                tests/test_tissu_avatar_ladder_contract.py \
+                tests/test_pbd_contact_diagnostics_contract.py \
+                tests/test_pbd_avatar_ladder_contract.py \
                 tests/test_property_contracts.py
             ')"
           cleanup() {
@@ -274,8 +277,8 @@ jobs:
           gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null || true
           echo "runner-watchdog=local-run-cancel-requested source_run=$GITHUB_RUN_ID"
 
-  tissu_validation_image:
-    name: Build/publish pinned Tissu validation image
+  pbd_validation_image:
+    name: Build/publish pinned PositionBasedDynamics validation image
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -288,18 +291,18 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Derive immutable Tissu image tag
+      - name: Derive immutable PositionBasedDynamics image tag
         id: image
         run: |
           set -euo pipefail
-          digest="$(cat docker/freecad-ci/Dockerfile docker/freecad-ci/apply-tissu-contact-fix.py | sha256sum | cut -d' ' -f1)"
-          echo "image=ghcr.io/uhrendoktor/freecad-cloth/tissu-validation:${digest:0:32}" >> "$GITHUB_OUTPUT"
+          digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d' ' -f1)"
+          echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:${digest:0:32}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check for published Tissu image
+      - name: Check for published PositionBasedDynamics image
         id: image_cache
         env:
           IMAGE: ${{ steps.image.outputs.image }}
@@ -307,15 +310,15 @@ jobs:
           set -euo pipefail
           if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
             echo "hit=true" >> "$GITHUB_OUTPUT"
-            echo "Tissu image already published: $IMAGE"
+            echo "PositionBasedDynamics image already published: $IMAGE"
           else
             echo "hit=false" >> "$GITHUB_OUTPUT"
-            echo "Tissu image missing; source build required: $IMAGE"
+            echo "PositionBasedDynamics image missing; source build required: $IMAGE"
           fi
       - name: Set up Docker Buildx
         if: ${{ steps.image_cache.outputs.hit != 'true' }}
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - name: Build and publish pinned Tissu validation image
+      - name: Build and publish pinned PositionBasedDynamics validation image
         if: ${{ steps.image_cache.outputs.hit != 'true' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
@@ -324,26 +327,26 @@ jobs:
           push: true
           pull: true
           tags: ${{ steps.image.outputs.image }}
-          cache-from: type=gha,scope=freecad-cloth-tissu-validation
-          cache-to: type=gha,mode=max,scope=freecad-cloth-tissu-validation,ignore-error=true
-      - name: Pull pinned Tissu validation image
+          cache-from: type=gha,scope=freecad-cloth-pbd-validation
+          cache-to: type=gha,mode=max,scope=freecad-cloth-pbd-validation,ignore-error=true
+      - name: Pull pinned PositionBasedDynamics validation image
         env:
           IMAGE: ${{ steps.image.outputs.image }}
         run: |
           set -euo pipefail
           docker pull "$IMAGE"
 
-  diagnostic-tissu-contact:
-    name: Diagnostic Tissu contact controls
+  diagnostic-pbd-contact:
+    name: Diagnostic PositionBasedDynamics contact controls
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
-    needs: [local_runner_readiness, tissu_validation_image]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     permissions:
       contents: read
       packages: read
     env:
-      FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
       CLOTH_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Log selected execution mode
@@ -360,37 +363,37 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned Tissu validation image
-        run: docker pull "$FREECAD_TISSU_IMAGE"
+      - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
       - name: Run one-step contact controls
         run: |
           set -euo pipefail
-          mkdir -p artifacts/tissu-contact-diagnostics
+          mkdir -p artifacts/pbd-contact-diagnostics
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1 \
-            -e CLOTH_TISSU_SUBSTEPS=1 -e CLOTH_TISSU_COLLISION_MODE=mesh \
-            -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
-            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TISSU_IMAGE" bash -lc '
+            -e CLOTH_PBD_SUBSTEPS=1 -e CLOTH_PBD_COLLISION_MODE=mesh \
+            -e CLOTH_PBD_COLLISION_TRIANGLES=2048 \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              rm -f /workspace/artifacts/tissu-contact-diagnostics/app-run.log
-              setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py > /workspace/artifacts/tissu-contact-diagnostics/app-run.log 2>&1 &
+              rm -f /workspace/artifacts/pbd-contact-diagnostics/app-run.log
+              setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py > /workspace/artifacts/pbd-contact-diagnostics/app-run.log 2>&1 &
               APP_PID=$!
               APP_DEADLINE=$((SECONDS + 300))
               echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=300"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
-                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a /workspace/artifacts/pbd-contact-diagnostics/app-run.log
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -402,40 +405,40 @@ jobs:
               wait "$APP_PID"
               APP_STATUS=$?
               set -e
-              echo "diagnostic-contact-supervisor=finished status=$APP_STATUS" | tee -a /workspace/artifacts/tissu-contact-diagnostics/app-run.log
+              echo "diagnostic-contact-supervisor=finished status=$APP_STATUS" | tee -a /workspace/artifacts/pbd-contact-diagnostics/app-run.log
               exit "$APP_STATUS"
             '
       - name: Run cube complexity ladder
         run: |
           set -euo pipefail
-          rm -rf artifacts/tissu-contact-diagnostics/cube-ladder
+          rm -rf artifacts/pbd-contact-diagnostics/cube-ladder
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
-            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TISSU_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_cube_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/cube-ladder-run.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_pbd_cube_ladder.py 2>&1 | tee /workspace/artifacts/pbd-contact-diagnostics/cube-ladder-run.log
             '
       - name: Validate cube ladder artifact
         run: |
           set -euo pipefail
-          test -s artifacts/tissu-contact-diagnostics/cube-ladder-manifest.json
+          test -s artifacts/pbd-contact-diagnostics/cube-ladder-manifest.json
           python3 - <<'PY'
           import json
           import os
           from pathlib import Path
-          root = Path("artifacts/tissu-contact-diagnostics")
+          root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
@@ -454,7 +457,7 @@ jobs:
               case = record["case"]
               assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
               assert record["finite"], record
-              assert record["solver"]["backend"] == "tissu", record
+              assert record["solver"]["backend"] == "pbd", record
               assert record["solver"]["iterations"] == 1, record
               assert record["solver"]["substeps"] == 1, record
               assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
@@ -473,36 +476,36 @@ jobs:
       - name: Run avatar complexity ladder
         run: |
           set -euo pipefail
-          rm -rf artifacts/tissu-contact-diagnostics/avatar-ladder
+          rm -rf artifacts/pbd-contact-diagnostics/avatar-ladder
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
-            -e CLOTH_TISSU_COLLISION_MODE=mesh -e CLOTH_TISSU_COLLISION_TRIANGLES=2048 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_COLLISION_MODE=mesh -e CLOTH_PBD_COLLISION_TRIANGLES=2048 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
-            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/tissu-contact-diagnostics \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
-            -v "$PWD:/workspace" -w /workspace "$FREECAD_TISSU_IMAGE" bash -lc '
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/tissu-contact-diagnostics
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_tissu_avatar_ladder.py 2>&1 | tee /workspace/artifacts/tissu-contact-diagnostics/avatar-ladder-run.log
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_pbd_avatar_ladder.py 2>&1 | tee /workspace/artifacts/pbd-contact-diagnostics/avatar-ladder-run.log
             '
       - name: Validate avatar ladder artifact
         run: |
           set -euo pipefail
-          test -s artifacts/tissu-contact-diagnostics/avatar-ladder-manifest.json
+          test -s artifacts/pbd-contact-diagnostics/avatar-ladder-manifest.json
           python3 - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          root = Path("artifacts/tissu-contact-diagnostics")
+          root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "avatar-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["purpose"] == "diagnostic-only-avatar-complexity-ladder", data
@@ -521,7 +524,7 @@ jobs:
               case = record["case"]
               assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
               assert record["finite"], record
-              assert record["solver"]["backend"] == "tissu", record
+              assert record["solver"]["backend"] == "pbd", record
               assert record["solver"]["iterations"] == 1, record
               assert record["solver"]["substeps"] == 1, record
               assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
@@ -557,24 +560,22 @@ jobs:
       - name: Capture provenance
         run: |
           set -euo pipefail
-          docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc "cat /opt/tissu-provenance.txt" > artifacts/tissu-provenance.txt
-          test -s artifacts/tissu-provenance.txt
-          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
+          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc "cat /opt/pypbd-provenance.txt" > artifacts/pypbd-provenance.txt
+          test -s artifacts/pypbd-provenance.txt
+
       - name: Validate diagnostic artifact
         run: |
           set -euo pipefail
-          test -s artifacts/tissu-contact-diagnostics/manifest.json
+          test -s artifacts/pbd-contact-diagnostics/manifest.json
           python3 - <<'PY'
           import json
           from pathlib import Path
-          data = json.loads(Path("artifacts/tissu-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
           assert data["release_gate_effect"] == "none", data
           assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
           for case in data["cases"]:
-              assert case["solver"]["backend"] == "tissu", case
+              assert case["solver"]["backend"] == "pbd", case
               assert case["solver"]["iterations"] == 1, case
               assert case["solver"]["substeps"] == 1, case
               assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
@@ -586,17 +587,17 @@ jobs:
               assert case["checkpoints"][0]["finite"], case
               assert case["checkpoints"][1]["finite"], case
               for image in case["images"]:
-                  assert Path("artifacts/tissu-contact-diagnostics", image).is_file(), image
+                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
           print("diagnostic-contact-artifact=passed")
           PY
       - name: Upload contact diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: tissu-contact-diagnostics
+          name: pbd-contact-diagnostics
           path: |
-            artifacts/tissu-contact-diagnostics/**
-            artifacts/tissu-provenance.txt
+            artifacts/pbd-contact-diagnostics/**
+            artifacts/pypbd-provenance.txt
           if-no-files-found: warn
           retention-days: 14
           compression-level: 1
@@ -854,11 +855,11 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    needs: [local_runner_readiness, tissu_validation_image]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 20
     env:
-      FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -873,33 +874,30 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned Tissu validation image
-        run: docker pull "$FREECAD_TISSU_IMAGE"
-      - name: Capture Tissu provenance
+      - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Capture PositionBasedDynamics provenance
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc 'cat /opt/tissu-provenance.txt' > artifacts/tissu-provenance.txt
-          test -s artifacts/tissu-provenance.txt
-          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
+          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
+          test -s artifacts/pypbd-provenance.txt
 
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TISSU_IMAGE" -lc 'true')"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_PBD_IMAGE" -lc 'true')"
           echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
 
       - name: Run native-Sketcher tunic audit
         env:
-          CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 1
-          CLOTH_TISSU_COLLISION_MODE: mesh
-          CLOTH_TISSU_COLLISION_TRIANGLES: 2048
+          CLOTH_SIMULATION_BACKEND: position-based-dynamics
+          CLOTH_PBD_SUBSTEPS: 1
+          CLOTH_PBD_COLLISION_MODE: mesh
+          CLOTH_PBD_COLLISION_TRIANGLES: 2048
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/tunic-audit
@@ -907,12 +905,12 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
-            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
-            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" \
-            -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
-            -e CLOTH_TISSU_COLLISION_TRIANGLES="$CLOTH_TISSU_COLLISION_TRIANGLES" \
+            -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" \
+            -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_TISSU_IMAGE" bash -lc '
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -u -o pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/tunic-audit
@@ -928,9 +926,9 @@ jobs:
               echo "tunic-audit-command=/opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py"
               echo "tunic-audit-display=$DISPLAY"
               echo "tunic-audit-backend=$CLOTH_SIMULATION_BACKEND"
-              echo "tunic-audit-substeps=$CLOTH_TISSU_SUBSTEPS"
-              echo "tunic-audit-collision-mode=$CLOTH_TISSU_COLLISION_MODE"
-              echo "tunic-audit-collision-triangles=$CLOTH_TISSU_COLLISION_TRIANGLES"
+              echo "tunic-audit-substeps=$CLOTH_PBD_SUBSTEPS"
+              echo "tunic-audit-collision-mode=$CLOTH_PBD_COLLISION_MODE"
+              echo "tunic-audit-collision-triangles=$CLOTH_PBD_COLLISION_TRIANGLES"
 
               set +e
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
@@ -1029,7 +1027,7 @@ jobs:
           print("realtime-performance=passed mean_frame_ms=%.2f p95_frame_ms=%.2f fps=%.2f particles=%d" % (m["mean_frame_ms"], m["p95_frame_ms"], m["fps_mean"], m["particles"]))
           PY
           grep -q 'scenario-pass' docs/images/generated/gui-progress.log
-          grep -q 'realtime-preview=passed backend=tissu' docs/images/generated/gui-progress.log
+          grep -q 'realtime-preview=passed backend=position-based-dynamics' docs/images/generated/gui-progress.log
           grep -q 'drape-metrics=' docs/images/generated/gui-progress.log
           test -s docs/images/generated/cloth-simulation-draped.png
           test -s docs/images/generated/cloth-simulation-draped-front.png
@@ -1070,7 +1068,7 @@ jobs:
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
             artifacts/garment-e2e.log
-            artifacts/tissu-provenance.txt
+            artifacts/pypbd-provenance.txt
             artifacts/tunic-audit/freecad-tunic-audit.log
             artifacts/tunic-audit/freecad-realtime-benchmark.log
             artifacts/tunic-audit/runtime-diagnostics.log
@@ -1154,11 +1152,11 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"
   gui-turntables:
     name: README simulation turntable
-    needs: [local_runner_readiness, tissu_validation_image]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     env:
-      FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -1173,32 +1171,30 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned Tissu validation image
-        run: docker pull "$FREECAD_TISSU_IMAGE"
-      - name: Capture Tissu provenance
+      - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Capture PositionBasedDynamics provenance
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc 'cat /opt/tissu-provenance.txt' > artifacts/tissu-provenance.txt
-          test -s artifacts/tissu-provenance.txt
-          grep -q '^tissu-source-commit=c28a3c7504ddc782bef844ab5bd4cd0bde14b628$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-contact-fix-sha256=[0-9a-f]\{64\}$' artifacts/tissu-provenance.txt
-          grep -q '^tissu-cpp-regression-result=passed$' artifacts/tissu-provenance.txt
+          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
+          test -s artifacts/pypbd-provenance.txt
 
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TISSU_IMAGE" -lc 'true')"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_PBD_IMAGE" -lc 'true')"
           echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
 
       - name: Render avatar and blanket turntable frames
         env:
-          CLOTH_SIMULATION_BACKEND: tissu
-          CLOTH_TISSU_SUBSTEPS: 10
-          CLOTH_TISSU_COLLISION_MODE: mesh
+          CLOTH_SIMULATION_BACKEND: position-based-dynamics
+          CLOTH_PBD_SUBSTEPS: 10
+          CLOTH_PBD_COLLISION_MODE: mesh
+          CLOTH_BLANKET_STEPS: 180
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
@@ -1206,10 +1202,11 @@ jobs:
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_TISSU=1 \
-            -e CLOTH_TISSU_SUBSTEPS="$CLOTH_TISSU_SUBSTEPS" -e CLOTH_TISSU_COLLISION_MODE="$CLOTH_TISSU_COLLISION_MODE" \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_BLANKET_STEPS="$CLOTH_BLANKET_STEPS" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
@@ -1218,7 +1215,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_DISABLE_TISSU=1 timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              CLOTH_CI_DISABLE_PBD=1 timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
               timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
       - name: Restore workspace from Docker volume
@@ -1329,14 +1326,13 @@ jobs:
           if-no-files-found: ignore
           compression-level: 1
 
-
   gui-visual-examples:
     name: Basic blanket visual example
-    needs: [local_runner_readiness, tissu_validation_image]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 30
     env:
-      FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -1351,13 +1347,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned Tissu validation image
-        run: docker pull "$FREECAD_TISSU_IMAGE"
+      - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
           volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_TISSU_IMAGE" -lc 'true')"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_PBD_IMAGE" -lc 'true')"
           echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
           echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
           docker cp "$PWD/." "$carrier:/workspace/"
@@ -1374,8 +1370,8 @@ jobs:
             -e FREECAD_USER_TEMP=/tmp/freecad-user-temp \
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_TISSU_IMAGE" bash -lc '
+            -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
@@ -1584,9 +1580,9 @@ jobs:
           set -uo pipefail
           rm -rf artifacts/workbench-benchmark
           mkdir -p artifacts/workbench-benchmark
-          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=tissu -e CLOTH_CI_ENABLE_TISSU=1 -w /workspace "$IMAGE" -euo pipefail -c '
+          CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            python3 -c "import tissu, pytest; print(\"Tissu\", tissu.__file__); print(\"pytest\", pytest.__version__)"
+            python3 -c "import pbd, pytest; print(\"PositionBasedDynamics\", pbd.__file__); print(\"pytest\", pytest.__version__)"
             mkdir -p "$XDG_RUNTIME_DIR"
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!

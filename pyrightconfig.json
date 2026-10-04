@@ -13,7 +13,7 @@
     "freecad_cloth/simulation/SimulationQuality.py",
     "freecad_cloth/simulation/SimulationObjects.py",
     "freecad_cloth/simulation/SimulationQualityRuntimeV2.py",
-    "freecad_cloth/simulation/TissuBackend.py"
+    "freecad_cloth/simulation/PositionBasedDynamicsBackend.py"
   ],
   "exclude": [
     "**/*Gui.py",

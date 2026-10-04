@@ -29,7 +29,7 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 # Keep the README turntable on the same geometry-appropriate collision path as
 # the standalone blanket acceptance when the target is generic FreeCAD geometry.
-os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+os.environ.setdefault("CLOTH_PBD_COLLISION_MODE", "mesh")
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 BLANKET_SIZE = (
@@ -38,8 +38,8 @@ BLANKET_SIZE = (
 BLANKET_PARTICLE_DISTANCE = (
     16.0  # Match the validated blanket-over-cube release fixture; contract requires >= 12 mm.
 )
-BLANKET_START_Z = 95.0  # Validated README release fixture baseline.
-# The README fixture uses the same pinned Tissu mesh-collision runtime as the
+BLANKET_START_Z = 105.0  # PBD README fixture baseline leaves >40 mm validated drape travel.
+# The README fixture uses the same pinned PositionBasedDynamics mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
@@ -500,9 +500,9 @@ def main():
         pass
     window = wait_for_gui_ready()
     log(
-        "stage=fixture-start backend=tissu collision_mode={} tissu_substeps={} steps={}".format(
-            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
-            os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
+        "stage=fixture-start backend=pbd collision_mode={} pbd_substeps={} steps={}".format(
+            os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh"),
+            os.environ.get("CLOTH_PBD_SUBSTEPS", "1"),
             os.environ.get("CLOTH_BLANKET_STEPS", "120"),
         )
     )
@@ -529,13 +529,13 @@ def main():
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
         simulation_started = time.monotonic()
         log(
-            "stage=simulation-start steps=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d tissu_substeps=%s"
+            "stage=simulation-start steps=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d pbd_substeps=%s"
             % (
                 steps,
                 float(scene.ParticleDistance),
                 int(scene.SolverIterations),
                 int(scene.SolverSubsteps),
-                os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
+                os.environ.get("CLOTH_PBD_SUBSTEPS", "1"),
             )
         )
         scene.Steps = steps

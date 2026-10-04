@@ -4,13 +4,13 @@ Supervisor evaluation for `freecad-cloth`. External libraries are adapters/tools
 
 ## Python baseline
 
-The project-wide supported Python baseline is **3.12 or newer**. This is reflected in packaging and the canonical FreeCAD CI runtime so optional Tissu integration can execute inside the same FreeCAD Python environment. Current upstream Tissu documentation requires Python >=3.12.
+The project-wide supported Python baseline is **3.12 or newer**. This is reflected in packaging and the canonical FreeCAD CI runtime so optional PositionBasedDynamics integration can execute inside the same FreeCAD Python environment. Current upstream PositionBasedDynamics documentation requires Python >=3.12.
 
 ## Candidate matrix (research reference)
 
 | Candidate | Capability | Proposed use | License / risk | Decision |
 |---|---|---|---|---|
-| Tissu | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Production runtime solver | Apache-2.0; native dependency kept in the simulation extra | **Adopted** |
+| PositionBasedDynamics | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Production runtime solver | Apache-2.0; native dependency kept in the simulation extra | **Adopted** |
 | PositionBasedDynamics | PBD/XPBD constraints, arbitrary-mesh collision, SDF collision, Python bindings, substeps | Research comparator only | C++ dependency + ABI/build burden | **Research only** |
 | ezdxf | DXF read/write, broad version support | Production DXF adapter | MIT; relatively low integration risk | **Candidate / P2** |
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
@@ -23,13 +23,13 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | Seamly2D | Measurement-driven parametric patterns | Design/reference/interoperability research | GPL; do not embed core | **Reference only** |
 | FreeSewing | Parametric pattern design and plugins | Pattern-model/workflow reference; possible import bridge | JS ecosystem; do not embed core | **Reference only** |
 
-## Tissu status
+## PositionBasedDynamics status
 
-The Tissu adapter is the production runtime boundary. PatternIR/SewingGraph/DrapeTarget remain authoritative; `ClothBackend` isolates FreeCAD document code from Tissu APIs.
+The PositionBasedDynamics adapter is the production runtime boundary. PatternIR/SewingGraph/DrapeTarget remain authoritative; `ClothBackend` isolates FreeCAD document code from PositionBasedDynamics APIs.
 
 The deterministic `ClothSystem` is input construction and validation logic, not a second physics backend. There is no XPBD fallback or runtime solver registry.
 
-Tissu remains an optional **installation extra** so pattern/sewing-only installations can stay lightweight. When simulation is enabled, the workbench uses Tissu as the sole runtime physics implementation.
+PositionBasedDynamics remains an optional **installation extra** so pattern/sewing-only installations can stay lightweight. When simulation is enabled, the workbench uses PositionBasedDynamics as the sole runtime physics implementation.
 
 ## Historical research tasks
 
@@ -47,7 +47,7 @@ The library investigation was tracked through issues #479–#481. Those issues a
 
 ## Evidence reviewed
 
-- Tissu documents distance, bending, pin, stitch, mesh/kinematic collision, self-collision, spatial-hash broad phase, and a Python API; its current upstream README requires Python >=3.12 and Apache-2.0 licensing.
+- PositionBasedDynamics documents distance, bending, pin, stitch, mesh/kinematic collision, self-collision, spatial-hash broad phase, and a Python API; its current upstream README requires Python >=3.12 and Apache-2.0 licensing.
 - PositionBasedDynamics documents Python bindings, XPBD constraints, arbitrary-mesh and SDF collision, substepping, and parallelized solving.
 - libigl provides NumPy-native geometry processing and optional Triangle/CGAL-related modules.
 - pygalmesh provides a Python frontend to CGAL mesh generation.

@@ -25,7 +25,7 @@ classifiers = [
 [project.optional-dependencies]
 simulation = [
   "numpy>=2,<3",
-  "pytissu==1.1.0",
+  "pyPBD==2.2.2",
 ]
 dev = [
   "import-linter==2.15",

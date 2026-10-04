@@ -195,12 +195,12 @@ def test_modern_loader_does_not_mutate_sys_path():
     assert "sys.path" not in source
 
 
-def test_ci_tissu_hook_is_explicit_and_has_no_import_time_pip_install():
+def test_ci_pbd_hook_is_explicit_and_has_no_import_time_pip_install():
     root = Path(__file__).resolve().parents[1]
     source = (root / "sitecustomize.py").read_text(encoding="utf-8")
-    assert "CLOTH_CI_ENABLE_TISSU" in source
+    assert "CLOTH_CI_ENABLE_PBD" in source
     assert 'os.environ.get("DISPLAY") == ":99"' in source
-    assert 'os.environ.get("CLOTH_CI_ENABLE_TISSU", "0") == "1"' in source
+    assert 'os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"' in source
     assert '"pip"' not in source
 
 

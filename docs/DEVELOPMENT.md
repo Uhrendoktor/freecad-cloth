@@ -2,7 +2,7 @@
 
 ## Python runtime baseline
 
-The project-wide Python baseline is **3.12 or newer**. Use Python 3.12 for local development, packaging, tests, and the canonical FreeCAD CI image. This baseline is intentional: current upstream Tissu requires Python >=3.12, so keeping the workbench and optional solver backend on the same interpreter family avoids an unsupported embedded-runtime split.
+The project-wide Python baseline is **3.12 or newer**. Use Python 3.12 for local development, packaging, tests, and the canonical FreeCAD CI image. This baseline is intentional: current upstream PositionBasedDynamics requires Python >=3.12, so keeping the workbench and optional solver backend on the same interpreter family avoids an unsupported embedded-runtime split.
 
 FreeCAD remains a host-provided runtime for installations, but the supported development/CI FreeCAD environment must itself run Python 3.12 or newer.
 
@@ -64,7 +64,7 @@ Choose the smallest evidence set that proves the change:
 - FreeCAD document/API change → real FreeCAD smoke test;
 - task-panel/UI change → real FreeCAD/Xvfb scenario;
 - persistent data change → save/reload test;
-- simulation change → Tissu integration/solver regression and deterministic input-model tests;
+- simulation change → PositionBasedDynamics integration/solver regression and deterministic input-model tests;
 - screenshot-facing change → all canonical screenshot states remain valid;
 - backend/dependency change → import the dependency in the same Python 3.12 FreeCAD runtime used by CI.
 
@@ -98,7 +98,7 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 ## Prototype → MVP → production
 
-**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, Tissu simulation, save/reload and invalidation.
+**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, PositionBasedDynamics simulation, save/reload and invalidation.
 
 **MVP:** make a repeatable garment workflow with robust semantic references/topology repair, 1:N/M:N/free sewing, arrangement points, mannequin measurements/poses, generic CAD targets, quality/material presets, pinning and production-oriented 2D output.
 

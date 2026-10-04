@@ -1,4 +1,4 @@
-"""Headless model used to assemble deterministic inputs for Tissu.
+"""Headless model used to assemble deterministic inputs for PositionBasedDynamics.
 
 This module deliberately contains no physics integration or collision solver.
 Keeping the input model separate from the native runtime solver makes it safe

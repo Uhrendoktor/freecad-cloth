@@ -13,11 +13,11 @@ source = source_path.read_text(encoding="utf-8")
 
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
-os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
-# Mesh collision resolution is discrete at Tissu particle updates; use enough internal
+os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
+# Mesh collision resolution is discrete at PositionBasedDynamics particle updates; use enough internal
 # substeps here to resolve the 2 mm collision thickness under the audit gravity
 # without changing the production workflow default substep budget.
-os.environ["CLOTH_TISSU_SUBSTEPS"] = "32"
+os.environ["CLOTH_PBD_SUBSTEPS"] = "32"
 
 SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
         seam = Seam(
@@ -67,8 +67,8 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     scene.Document.recompute()
     preview_base = scene.Proxy._base_or_restore()
     preview_backend = getattr(preview_base, "backend", None)
-    if getattr(preview_backend, "name", None) != "tissu":
-        raise RuntimeError("Realtime Cloth Preview did not select the Tissu backend")
+    if getattr(preview_backend, "name", None) != "position-based-dynamics":
+        raise RuntimeError("Realtime Cloth Preview did not select the PositionBasedDynamics backend")
     from time import monotonic, sleep
     deadline = monotonic() + 2.0
     while int(scene.Steps) <= 0 and monotonic() < deadline:
@@ -86,7 +86,7 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
-    log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
+    log("realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps)
 """
 anchor = """    for batch in (15, 15, 15, 15, 15, 15):
         simulation_panel.step(batch)
@@ -114,7 +114,7 @@ source = source.replace(anchor, preview_probe + "\n" + timed_anchor, 1)
 
 seam_check = """    backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
-    if not simulated_positions: raise RuntimeError("Tissu backend returned no simulated particle positions")
+    if not simulated_positions: raise RuntimeError("PositionBasedDynamics backend returned no simulated particle positions")
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
@@ -172,7 +172,7 @@ if "--syntax-check" in sys.argv:
     raise SystemExit(0)
 
 # The source uses the production simulation path; this wrapper only stabilizes
-# the tunic fixture and verifies the realtime Tissu selector.
+# the tunic fixture and verifies the realtime PositionBasedDynamics selector.
 exec(compiled_source, globals(), globals())
 print("tunic-audit-process-exit=success", flush=True)
 os._exit(0)

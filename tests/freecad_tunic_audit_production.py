@@ -2,7 +2,7 @@
 
 Keep the production acceptance path on the repository's validated tunic profile
 instead of maintaining a second, divergent fixture implementation.  The delegated
-profile exercises the native Sketcher garment, Tissu realtime preview, finite
+profile exercises the native Sketcher garment, PositionBasedDynamics realtime preview, finite
 simulation, visual sanity checks, and the six-side screenshot audit.
 """
 

@@ -4,7 +4,7 @@ This is the durable decision log. It records choices that should remain true aft
 
 ## D-0001 — Python remains the application language
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Keep the external FreeCAD workbench, document adapters, GUI, persistence model and domain orchestration in Python.
@@ -17,7 +17,7 @@ Reference: https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Workb
 
 ## D-0002 — Tissu is the sole production runtime solver
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Tissu is the only runtime cloth solver. The workbench does not expose a solver registry or a user-selectable fallback physics engine.
@@ -30,7 +30,7 @@ References: Blender Cloth Modifier https://docs.blender.org/manual/en/5.2/modeli
 
 ## D-0003 — Rust is a future acceleration boundary
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Do not add Rust to the workbench until profiling identifies a bounded hotspot that remains material after algorithm and data-structure optimization. A future Rust module may expose a narrow PyO3 extension built with maturin and implement the existing ClothSimulationBackend contract.
@@ -39,7 +39,7 @@ Consequences: Rust must not become a second pattern model, document system, GUI 
 
 ## D-0004 — Ruff + pre-commit is the Python hygiene baseline
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Use pinned Ruff for linting/formatting and pre-commit for local enforcement. CI runs Ruff and the formatter as hard gates.
@@ -50,7 +50,7 @@ Reference: https://docs.astral.sh/ruff/integrations/
 
 ## D-0005 — Documentation is an enforced API contract
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Python modules and public domain APIs must document their contract close to the implementation. An AST contract checker enforces this independently of style linting.
@@ -61,7 +61,7 @@ Reference: https://peps.python.org/pep-0257/
 
 ## D-0006 — Persistent agent knowledge has explicit homes
 
-Date: 2026-10-03  
+Date: 2026-10-03
 Status: accepted
 
 Decision: Keep each kind of agent knowledge in one canonical location:
@@ -76,7 +76,7 @@ Operational rule: prefer one authoritative location per fact and link to it inst
 
 ## D-0007 — Agent-oriented verification gates
 
-Date: 2026-10-04  
+Date: 2026-10-04
 Status: accepted
 
 Decision: Use strict Pyright on deterministic core modules, Hypothesis property/stateful tests, CrossHair contracts for a small pure-function surface, high-confidence Vulture checks, and PR-only new-duplication detection.
@@ -84,3 +84,16 @@ Decision: Use strict Pyright on deterministic core modules, Hypothesis property/
 Why: Multi-agent failures are often semantically plausible but structurally or behaviorally wrong. Deterministic gates reduce the repository knowledge an agent must retain and turn architecture, typing and code-entropy constraints into executable checks.
 
 Consequences: Strict typing is expanded incrementally rather than imposed on dynamic FreeCAD GUI surfaces all at once. Vulture blocks only 100%-confidence dead code. jscpd compares pull requests with the base branch so historical duplication does not become an artificial migration blocker. CrossHair remains limited to deterministic, side-effect-free contracts.
+
+
+## D-0003 — PositionBasedDynamics is the sole production runtime solver
+
+Date: 2026-10-04
+Status: accepted
+Supersedes: D-0002
+
+The production cloth runtime is now the native PositionBasedDynamics Python binding (pyPBD==2.2.2). The existing ClothBackend adapter contract and headless ClothSystem input model remain solver-neutral. PositionBasedDynamics owns integration, XPBD cloth/stretch/shear constraints, XPBD bending, sewing distance constraints, pin masses, and DrapeTarget mesh collision. The canonical FreeCAD CI image preinstalls the pinned wheel; runtime code never installs or patches the solver.
+
+The migration keeps the persistent DrapeTarget / CollisionSurface boundary, the one-backend architecture, deterministic rebuild semantics, and the canonical GUI acceptance path. Tissu remains historical evidence only and is no longer a runtime dependency.
+
+- The Tissu→PositionBasedDynamics migration preserves the canonical GUI acceptance lanes; tunic screenshots, turntables, and visual examples execute against the pinned PBD validation image, with PNG evidence remaining the human-review boundary.

@@ -431,7 +431,9 @@ class SimulationProxy:
     def _build_pattern_scene(self, obj, pieces, signature):
         from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
-        from freecad_cloth.simulation.TissuBackend import TissuBackend
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
 
         start_height = float(getattr(obj, "StartHeight", 120.0))
         resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
@@ -494,7 +496,7 @@ class SimulationProxy:
         if pins:
             system.pin(pins)
         collision_surface = _collision_for_scene(obj)
-        self.backend = TissuBackend(
+        self.backend = PositionBasedDynamicsBackend(
             system,
             tuple(triangles_global),
             pins=pins,
@@ -527,7 +529,9 @@ class SimulationProxy:
 
     def _build_demo(self, obj):
         from freecad_cloth.simulation.ClothSolver import ClothSystem
-        from freecad_cloth.simulation.TissuBackend import TissuBackend
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
 
         nx, ny = 8, 5
         left = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(-100.0, -30.0, 90.0))
@@ -559,7 +563,7 @@ class SimulationProxy:
         if pins:
             system.pin(pins)
         collision_surface = _collision_for_scene(obj)
-        self.backend = TissuBackend(
+        self.backend = PositionBasedDynamicsBackend(
             system,
             tuple(triangles),
             pins=pins,

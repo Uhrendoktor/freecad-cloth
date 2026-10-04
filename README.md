@@ -8,9 +8,9 @@ Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D clot
 
 ## Python runtime
 
-The project targets **Python 3.12 or newer**. This is the supported development, packaging, test, and canonical FreeCAD CI baseline. Tissu is an optional installation extra for the simulation workbench, and it is the sole runtime physics solver. Tissu's current upstream repository requires Python >=3.12.
+The project targets **Python 3.12 or newer**. This is the supported development, packaging, test, and canonical FreeCAD CI baseline. PositionBasedDynamics is an optional installation extra for the simulation workbench, and it is the sole runtime physics solver. PositionBasedDynamics's current upstream repository requires Python >=3.12.
 
-For local FreeCAD development, use a FreeCAD build whose embedded Python runtime is 3.12 or newer. The canonical CI image uses FreeCAD 1.1.0 from conda-forge with Python 3.12; the upstream FreeCAD 1.1.3 AppImage still embeds Python 3.11, so it is not the supported Tissu-capable CI runtime.
+For local FreeCAD development, use a FreeCAD build whose embedded Python runtime is 3.12 or newer. The canonical CI image uses FreeCAD 1.1.0 from conda-forge with Python 3.12; the upstream FreeCAD 1.1.3 AppImage still embeds Python 3.11, so it is not the supported PositionBasedDynamics-capable CI runtime.
 
 ## Workflow
 
@@ -64,7 +64,7 @@ Internal imports use the canonical namespace, for example `freecad_cloth.pattern
 
 ## Current implementation
 
-The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. Fabric materials now persist presentation controls in addition to physical parameters. The deterministic ClothSystem is a lightweight reference for assembling particle and constraint inputs; Tissu is the runtime physics authority.
+The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. Fabric materials now persist presentation controls in addition to physical parameters. The deterministic ClothSystem is a lightweight reference for assembling particle and constraint inputs; PositionBasedDynamics is the runtime physics authority.
 
 The repository does not claim full commercial garment-suite parity. Advanced capabilities remain tracked in the roadmap and must pass their own executable/visual acceptance gates before being described as complete.
 

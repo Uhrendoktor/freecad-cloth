@@ -1,6 +1,6 @@
 """Diagnostic controls for separating target/contact behavior from gravity and garment complexity.
 
-This script is intentionally diagnostic-only. It exercises the existing FreeCAD/Tissu
+This script is intentionally diagnostic-only. It exercises the existing FreeCAD/PositionBasedDynamics
 runtime without changing physics, solver budgets, canonical fixtures, or release gates.
 """
 
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
+OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS = OUT / "progress.log"
 _PROGRESS_HANDLE = PROGRESS.open("a", encoding="utf-8", buffering=1)
@@ -488,7 +488,7 @@ def _case_record(
         },
     }
     solver = {
-        "backend": "tissu",
+        "backend": "pbd",
         "particle_distance_mm": PARTICLE_DISTANCE,
         "iterations": 1,
         "substeps": 1,
@@ -534,7 +534,7 @@ def _case_record(
             "centroid_displacement_mm": displacement,
         },
         "images": image_paths,
-        "notes": "diagnostic-only; one unchanged Tissu step; release gate unaffected",
+        "notes": "diagnostic-only; one unchanged PositionBasedDynamics step; release gate unaffected",
     }
 
 
@@ -601,11 +601,13 @@ def _run_case(case_id, rung, scene, piece, camera):
         raise RuntimeError(f"{case_id} did not build a simulation backend")
     _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
     _progress(
-        "tissu-env: collision_mode={} collision_triangles={} backend_module={}".format(
-            os.environ.get("CLOTH_TISSU_COLLISION_MODE", "<unset>"),
-            os.environ.get("CLOTH_TISSU_COLLISION_TRIANGLES", "<unset>"),
+        "pbd-env: collision_mode={} collision_triangles={} backend_module={}".format(
+            os.environ.get("CLOTH_PBD_COLLISION_MODE", "<unset>"),
+            os.environ.get("CLOTH_PBD_COLLISION_TRIANGLES", "<unset>"),
             getattr(
-                __import__("freecad_cloth.simulation.TissuBackend", fromlist=["__file__"]),
+                __import__(
+                    "freecad_cloth.simulation.PositionBasedDynamicsBackend", fromlist=["__file__"]
+                ),
                 "__file__",
                 "<unknown>",
             ),
@@ -679,7 +681,7 @@ def _run_case(case_id, rung, scene, piece, camera):
 
 def _run_control_cube():
     _progress("control-0-cube: start")
-    doc = App.newDocument("TissuContactControlCube")
+    doc = App.newDocument("PositionBasedDynamicsContactControlCube")
     try:
         scene = _build_scene(doc)
         cube = doc.addObject("Part::Feature", "DiagnosticCube")
@@ -707,7 +709,7 @@ def _run_control_cube():
 
 def _run_control_avatar():
     _progress("control-0a-avatar: start")
-    doc = App.newDocument("TissuContactControlAvatar")
+    doc = App.newDocument("PositionBasedDynamicsContactControlAvatar")
     try:
         scene = _build_scene(doc)
         avatar = scene.AvatarProxy.SourceObject
@@ -843,7 +845,7 @@ def main():
         "cases": records,
         "release_gate_effect": "none",
         "solver_settings_frozen": {
-            "backend_requested": "tissu",
+            "backend_requested": "pbd",
             "particle_distance_mm": PARTICLE_DISTANCE,
             "iterations": 1,
             "substeps": 1,

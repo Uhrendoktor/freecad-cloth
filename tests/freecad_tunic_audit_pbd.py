@@ -1,4 +1,4 @@
-"""CI entry point for the tunic visual/simulation audit using Tissu."""
+"""CI entry point for the tunic visual/simulation audit using PositionBasedDynamics."""
 
 from pathlib import Path
 
@@ -36,8 +36,8 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     scene.Document.recompute()
     preview_base = scene.Proxy._base_or_restore()
     preview_backend = getattr(preview_base, "backend", None)
-    if getattr(preview_backend, "name", None) != "tissu":
-        raise RuntimeError("Realtime Cloth Preview did not select the Tissu backend")
+    if getattr(preview_backend, "name", None) != "position-based-dynamics":
+        raise RuntimeError("Realtime Cloth Preview did not select the PositionBasedDynamics backend")
     for _ in range(12):
         events()
     preview_steps = int(scene.Steps)
@@ -51,14 +51,14 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
-    log("realtime-preview=passed backend=tissu steps=%d" % preview_steps)
+    log("realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps)
 """
 anchor = "    for batch in (40,40,40):"
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
 source = source.replace(anchor, preview_probe + "\n" + anchor, 1)
 
-# Validate seam closure against the actual Tissu particle positions. FreeCAD Mesh::Feature
+# Validate seam closure against the actual PositionBasedDynamics particle positions. FreeCAD Mesh::Feature
 # point ordering is a serialization detail and is not guaranteed to match particle indices.
 seam_check = """    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     front_positions, _front_triangles, front_boundary = quality_piece_mesh(front, 0.0, scene.ParticleDistance)
@@ -66,7 +66,7 @@ seam_check = """    from freecad_cloth.simulation.SimulationMeshQuality import q
     backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
     if not simulated_positions:
-        raise RuntimeError("Tissu backend returned no simulated particle positions")
+        raise RuntimeError("PositionBasedDynamics backend returned no simulated particle positions")
     back_offset = len(front_positions)
     seam_gaps = []
     for edge_a, edge_b in ((1, 1), (2, 6), (6, 2), (7, 7)):

@@ -1,57 +1,18 @@
 FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
-ARG TISSU_SOURCE_COMMIT=c28a3c7504ddc782bef844ab5bd4cd0bde14b628
-
-COPY docker/freecad-ci/apply-tissu-contact-fix.py /tmp/apply-tissu-contact-fix.py
-
-# Keep the pinned source build inside the hosted GUI job's effective execution budget.
-
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-LABEL org.opencontainers.image.source="https://github.com/Uhrendoktor/freecad-cloth"
-LABEL org.opencontainers.image.description="FreeCAD 1.1.0 conda-forge CI image using Python 3.12 for freecad-cloth with Tissu cloth backend"
+RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
+        pypbd==2.2.2 \
+        triangle==20250106 \
+        pytest \
+    && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
+    && cat > /opt/pypbd-provenance.txt <<'EOF'
+Package: pyPBD
+Version: 2.2.2
+Import: pypbd
+Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
+EOF
 
-RUN apt-get update -qq \
-    && apt-get install -y --no-install-recommends xvfb openbox x11-utils build-essential cmake git libomp-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && mamba install -y -n freecad -c conda-forge --freeze-installed cmake=3.31.6 \
-    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir pytissu==1.1.0 triangle==20250106 pytest \
-    && rm -rf /tmp/Tissu \
-    && git clone --no-checkout --filter=blob:none https://github.com/evanrock520-ciencias/Tissu.git /tmp/Tissu \
-    && cd /tmp/Tissu \
-    && git fetch --depth 1 origin "$TISSU_SOURCE_COMMIT" \
-    && git checkout --detach "$TISSU_SOURCE_COMMIT" \
-    && test "$(git rev-parse HEAD)" = "$TISSU_SOURCE_COMMIT" \
-    && /opt/conda/envs/freecad/bin/cmake --version \
-    && /opt/conda/envs/freecad/bin/python /tmp/apply-tissu-contact-fix.py \
-    && /opt/conda/envs/freecad/bin/cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBENCHMARK_ENABLE_WERROR=OFF -DTISSU_BUILD_VIEWER=OFF -DTISSU_ENABLE_TRACY=OFF -DCMAKE_C_FLAGS=-Wno-c2y-extensions \
-    && /opt/conda/envs/freecad/bin/cmake --build build --config Release --target _cloth_sdk_core unit_tests --parallel 4 \
-    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir --no-deps --no-build-isolation --force-reinstall . \
-    && /opt/conda/envs/freecad/bin/python -m pip check \
-    && /tmp/Tissu/build/bin/unit_tests --gtest_filter='MeshCollider.*' \
-    && TISSU_FIX_SHA256="$(sha256sum /tmp/apply-tissu-contact-fix.py | awk '{print $1}')" \
-    && TISSU_VERSION="$(/opt/conda/envs/freecad/bin/python -c "import importlib.metadata; print(importlib.metadata.version('pytissu'))")" \
-    && TISSU_MODULE="$(/opt/conda/envs/freecad/bin/python -c "import tissu; print(tissu.__file__)")" \
-    && printf '%s\n' \
-         "tissu-source-repository=https://github.com/evanrock520-ciencias/Tissu.git" \
-         "tissu-source-commit=$TISSU_SOURCE_COMMIT" \
-         "tissu-contact-fix-sha256=$TISSU_FIX_SHA256" \
-         "tissu-build=cmake-source" \
-         "tissu-cpp-regression=MeshCollider.*" \
-         "tissu-cpp-regression-result=passed" \
-         "tissu-python-package-version=$TISSU_VERSION" \
-         "tissu-python-module=$TISSU_MODULE" \
-       > /opt/tissu-provenance.txt \
-    && /opt/conda/envs/freecad/bin/python -c "import tissu, triangle, pytest; print('Tissu', tissu.__file__); print('Tissu source', '$TISSU_SOURCE_COMMIT'); print('Triangle', triangle.__file__); print('pytest', pytest.__version__)" \
-    && mamba clean --all --yes \
-    && mkdir -p /opt/freecad \
-    && printf '%s\n' '#!/bin/sh' 'exec /opt/conda/envs/freecad/bin/freecad "$@"' > /opt/freecad/AppRun \
-    && chmod +x /opt/freecad/AppRun
-
-ENV DISPLAY=:99 \
-    QT_X11_NO_MITSHM=1 \
-    QT_QPA_PLATFORM=xcb \
-    LIBGL_ALWAYS_SOFTWARE=1 \
-    PATH=/opt/conda/envs/freecad/bin:/opt/conda/bin:$PATH
-
-WORKDIR /workspace
+ENV PYTHONPATH=/workspace
