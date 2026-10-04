@@ -251,7 +251,7 @@ def render_motion(
 
 
 def _load_cloth_modules():
-    global inspect_drape, mesh_shape_sanity
+    global inspect_drape, maximum_box_penetration, mesh_shape_sanity
     global validate_mesh, rectangle, quality_piece_mesh
     global create_pattern_piece_from_selected_sketch
     global create_simulation_scene, set_avatar_collision_source
@@ -259,7 +259,11 @@ def _load_cloth_modules():
 
     site.addsitedir(str(ROOT))
 
-    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, maximum_box_penetration, mesh_shape_sanity
+    from freecad_cloth.common.DrapeVisualSanity import (
+        inspect_drape,
+        maximum_box_penetration,
+        mesh_shape_sanity,
+    )
     from freecad_cloth.common.MeshValidation import validate_mesh
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
