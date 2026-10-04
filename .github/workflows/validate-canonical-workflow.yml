@@ -19,11 +19,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          EXPECTED_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mapfile -t stale_runs < <(
             gh api --paginate "repos/$REPO/actions/runs?branch=$GITHUB_HEAD_REF&per_page=100" |
-              jq -r '.workflow_runs[] | select(.name == "Canonical execution" and .head_sha != $sha and .status == "in_progress") | .id' --arg sha "$GITHUB_SHA"
+              jq -r '.workflow_runs[] | select(.name == "Canonical execution" and .head_sha != $sha and .status == "in_progress") | .id' --arg sha "$EXPECTED_HEAD_SHA"
           )
           for run_id in "${stale_runs[@]}"; do
             echo "cancelling-stale-canonical-run=$run_id"
