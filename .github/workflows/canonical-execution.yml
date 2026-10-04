@@ -1503,6 +1503,9 @@ jobs:
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS=8 -e CLOTH_PBD_COLLISION_MODE=mesh \
+            -e CLOTH_PBD_COLLISION_TRIANGLES=2048 -e CLOTH_PBD_COLLISION_VOXEL_MM=8 \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM=2 \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
