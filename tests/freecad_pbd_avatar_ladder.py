@@ -270,7 +270,11 @@ def _checkpoint_record(
         ),
         "target_clearance_mm": signed_clearance,
         "target_unsigned_clearance_mm": unsigned_clearance,
-        "penetration_mm": round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None,
+        "penetration_mm": (
+            round(max(0.0, -float(signed_clearance)), 6)
+            if signed_clearance is not None
+            else None
+        ),
         "contact_state": "diagnostic-only-avatar",
         "seam_world_spans_mm": seam_geometry,
     }
@@ -566,7 +570,14 @@ def _run_ladder_case(case_id):
 
         final = checkpoints[-1]
         finite = all(item["finite"] for item in checkpoints)
-        max_penetration = max((float(item["penetration_mm"]) for item in checkpoints if item["penetration_mm"] is not None), default=0.0)
+        max_penetration = max(
+            (
+                float(item["penetration_mm"])
+                for item in checkpoints
+                if item["penetration_mm"] is not None
+            ),
+            default=0.0,
+        )
         seam_world_spans = [entry for entry in seam_pre]
         record = {
             "case_id": case_id,
