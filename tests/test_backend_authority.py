@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from freecad_cloth.simulation.TissuBackend import _tissu_substeps
 from freecad_cloth.simulation.ClothBackend import (
     ClothSimulationBackend,
     validate_pinned_stitch_pairs,
@@ -62,8 +63,6 @@ def test_simulation_workbench_does_not_force_a_backend_selector():
 
 def test_tissu_backend_defaults_to_stable_internal_substeps(monkeypatch):
     monkeypatch.delenv("CLOTH_TISSU_SUBSTEPS", raising=False)
-    from freecad_cloth.simulation.TissuBackend import _tissu_substeps
-
     assert _tissu_substeps() == 10
 
     monkeypatch.setenv("CLOTH_TISSU_SUBSTEPS", "1")
