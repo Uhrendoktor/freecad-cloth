@@ -1204,6 +1204,7 @@ jobs:
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_PBD=1 \
             -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_BLANKET_STEPS="$CLOTH_BLANKET_STEPS" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
