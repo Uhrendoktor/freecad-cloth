@@ -1,6 +1,7 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
+DEFAULT_TIME_STEP = 1.0 / 240.0
 
 
 def _mesh_object(doc, name, label):
@@ -699,7 +700,7 @@ def create_simulation_scene(doc, build=True):
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
-    scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
+    scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = DEFAULT_TIME_STEP
     scene.addProperty("App::PropertyInteger", "Steps", "Solver").Steps = 0
     scene.addProperty("App::PropertyFloat", "StartHeight", "Solver").StartHeight = 120.0
     scene.addProperty("App::PropertyInteger", "StitchSamples", "Sewing").StitchSamples = 8
