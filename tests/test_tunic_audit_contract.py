@@ -120,9 +120,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
 
 
 def test_pbd_collision_body_uses_coarsened_solver_surface():
-    backend = (
-        ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
-    ).read_text(encoding="utf-8")
+    backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
+        encoding="utf-8"
+    )
     start = backend.index("    def _add_collision_body(")
     end = backend.index("    def _build(", start)
     body_builder = backend[start:end]
