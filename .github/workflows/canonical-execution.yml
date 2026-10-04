@@ -691,15 +691,15 @@ jobs:
           from pathlib import Path
           root = Path("artifacts/simulation-ladder")
           specs = (
-              ("cube", root / "cube-ladder-manifest.json", 5, 3.0, "diagnostic-only-cube-complexity-ladder"),
-              ("avatar", root / "avatar-ladder-manifest.json", 5, 8.0, "diagnostic-only-avatar-complexity-ladder"),
+              ("cube", root / "cube-ladder-manifest.json", 5, 3.0, "simulation-collision-ladder"),
+              ("avatar", root / "avatar-ladder-manifest.json", 5, 8.0, "simulation-avatar-ladder"),
           )
           for name, path, count, max_penetration, purpose in specs:
               data = json.loads(path.read_text(encoding="utf-8"))
               assert data["schema"] == 1, data
               assert data["purpose"] == purpose, data
               assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
-              assert data["release_gate_effect"] == "none", data
+              assert data["release_gate_effect"] == "gate", data
               assert len(data["cases"]) == count, data
               for case in data["cases"]:
                   assert case["finite"], case
