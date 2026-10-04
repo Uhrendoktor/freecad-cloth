@@ -1,0 +1,23 @@
+name: Validate canonical workflow syntax
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate workflow
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" -w /repo rhysd/actionlint:1.7.7
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+          yaml.safe_load(Path(".github/workflows/canonical-execution.yml").read_text(encoding="utf-8"))
+          print("canonical-workflow-yaml=parsed")
+          PY
