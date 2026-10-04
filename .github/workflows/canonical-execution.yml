@@ -1194,6 +1194,7 @@ jobs:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
           CLOTH_PBD_SUBSTEPS: 10
           CLOTH_PBD_COLLISION_MODE: mesh
+          CLOTH_BLANKET_STEPS: 180
         run: |
           set -euo pipefail
           rm -rf docs/images/generated
