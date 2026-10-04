@@ -139,6 +139,7 @@ def save_view(name, state, proof):
     view.redraw()
     events()
     path = os.path.join(OUT, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     view.saveImage(path, 1280, 720, "White")
     if not os.path.isfile(path) or os.path.getsize(path) < 5000:
         raise RuntimeError(f"failed or suspiciously small 3D-view screenshot: {path}")
