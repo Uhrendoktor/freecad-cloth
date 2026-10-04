@@ -1,12 +1,14 @@
 """FreeCAD document objects for the cloth pattern model."""
+
 import ast
+
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
-    semantic_edge_id,
     resolve_edge_reference,
+    semantic_edge_id,
 )
 
 
@@ -15,8 +17,8 @@ def _parse_points(value):
         return []
     try:
         return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        raise ValueError("invalid pattern boundary")
+    except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+        raise ValueError("invalid pattern boundary") from exc
 
 
 def _rectangle_points(width, height):
@@ -30,19 +32,34 @@ def _is_rectangle(points, width, height):
 def _boundary_shape(points, allowance=0.0):
     import FreeCAD as App
     import Part
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, seam_allowance_outline
+
+    from freecad_cloth.pattern.PatternGeometry import (
+        LineSegment,
+        ParametricPattern,
+        seam_allowance_outline,
+    )
+
     values = list(points)
     if float(allowance) == 0.0:
         outline = values
-    elif _is_rectangle(values, max(p[0] for p in values) - min(p[0] for p in values), max(p[1] for p in values) - min(p[1] for p in values)):
+    elif _is_rectangle(
+        values,
+        max(p[0] for p in values) - min(p[0] for p in values),
+        max(p[1] for p in values) - min(p[1] for p in values),
+    ):
         width = max(p[0] for p in values) - min(p[0] for p in values)
         height = max(p[1] for p in values) - min(p[1] for p in values)
         a = float(allowance)
         outline = [(-a, -a), (width + a, -a), (width + a, height + a), (-a, height + a)]
     else:
-        segments = [LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))]
+        segments = [
+            LineSegment(str(i), values[i], values[(i + 1) % len(values)])
+            for i in range(len(values))
+        ]
         outline = seam_allowance_outline(ParametricPattern(segments), float(allowance))
-    wire = Part.makePolygon([App.Vector(x, y, 0) for x, y in outline] + [App.Vector(outline[0][0], outline[0][1], 0)])
+    wire = Part.makePolygon(
+        [App.Vector(x, y, 0) for x, y in outline] + [App.Vector(outline[0][0], outline[0][1], 0)]
+    )
     return Part.Face(wire)
 
 
@@ -53,6 +70,7 @@ def _native_edge_records(piece):
         return None
     try:
         from freecad_cloth.common.SketchAuthority import _resolve_sketch_ir
+
         piece_ir = _resolve_sketch_ir(piece)
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         return []
@@ -60,8 +78,7 @@ def _native_edge_records(piece):
     records = []
     for ordinal, boundary in enumerate(piece_ir.boundaries):
         samples = tuple(
-            (float(point[0]), float(point[1]), float(point[2]))
-            for point in boundary.samples
+            (float(point[0]), float(point[1]), float(point[2])) for point in boundary.samples
         )
         if len(samples) < 2:
             continue
@@ -93,16 +110,24 @@ def _native_edge_record_for_sketch_index(piece, edge):
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
         return None
-    semantic_ids = tuple(str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
+    semantic_ids = tuple(
+        str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+    )
     if edge < 0 or edge >= len(semantic_ids):
-        raise MissingEdgeReference(f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}")
+        raise MissingEdgeReference(
+            f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
+        )
     semantic_id = semantic_ids[edge]
     if not semantic_id:
-        raise MissingEdgeReference(f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}")
+        raise MissingEdgeReference(
+            f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
+        )
     records = _native_edge_records(piece) or ()
     record = next((value for value in records if str(value["id"]) == semantic_id), None)
     if record is None:
-        raise MissingEdgeReference(f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}")
+        raise MissingEdgeReference(
+            f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}"
+        )
     return record
 
 
@@ -144,9 +169,13 @@ def _seam_edge_id(piece, edge, prefix):
             record = native
         else:
             if edge < 0 or edge >= len(records):
-                raise MissingEdgeReference(f"seam edge {edge} is outside pattern piece {piece.PieceId}")
+                raise MissingEdgeReference(
+                    f"seam edge {edge} is outside pattern piece {piece.PieceId}"
+                )
             record = records[edge]
-        return record["id"], capture_edge_reference(piece.PieceId, record["id"], record["points"], record.get("provenance")).signature
+        return record["id"], capture_edge_reference(
+            piece.PieceId, record["id"], record["points"], record.get("provenance")
+        ).signature
     reference_id = str(edge)
     for record in records:
         if record["id"] == reference_id:
@@ -156,7 +185,9 @@ def _seam_edge_id(piece, edge, prefix):
                 record["points"],
                 record.get("provenance"),
             ).signature
-    raise MissingEdgeReference(f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}")
+    raise MissingEdgeReference(
+        f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}"
+    )
 
 
 def refresh_edge_reference_signature(piece, edge_id):
@@ -178,8 +209,9 @@ def refresh_edge_reference_signature(piece, edge_id):
             )
             return reference.signature
     raise MissingEdgeReference(
-        "semantic edge reference %s is missing from pattern piece %s" %
-        (reference_id, getattr(piece, "PieceId", ""))
+        "semantic edge reference {} is missing from pattern piece {}".format(
+            reference_id, getattr(piece, "PieceId", "")
+        )
     )
 
 
@@ -191,25 +223,37 @@ def _resolve_document_edge(piece, edge_id, signature):
 
 class PatternPieceProxy:
     """Recomputable native geometry for rectangular or custom pattern pieces."""
+
     Type = "ClothPatternPiece"
 
     def execute(self, obj):
-        width = float(obj.Width); height = float(obj.Height); allowance = float(obj.SeamAllowance)
-        if width <= 0 or height <= 0: raise ValueError("pattern piece dimensions must be positive")
-        if allowance < 0: raise ValueError("seam allowance cannot be negative")
+        """Recompute the FreeCAD object from its current source properties."""
+        width = float(obj.Width)
+        height = float(obj.Height)
+        allowance = float(obj.SeamAllowance)
+        if width <= 0 or height <= 0:
+            raise ValueError("pattern piece dimensions must be positive")
+        if allowance < 0:
+            raise ValueError("seam allowance cannot be negative")
         mode = str(getattr(obj, "GeometryMode", "Rectangle"))
         drafting = _parse_points(getattr(obj, "DraftingBoundary", ""))
         if mode == "Custom" or (mode == "Rectangle" and len(drafting) > 4):
             points = drafting
-            if len(points) < 3: raise ValueError("custom pattern outline needs at least three points")
+            if len(points) < 3:
+                raise ValueError("custom pattern outline needs at least three points")
             obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
             obj.Height = max(y for _, y in points) - min(y for _, y in points)
             obj.GeometryMode = "Custom"
         else:
-            points = _rectangle_points(width, height); obj.GeometryMode = "Rectangle"
-        obj.DraftingBoundary = repr(points); obj.SewingOutline = repr(points)
+            points = _rectangle_points(width, height)
+            obj.GeometryMode = "Rectangle"
+        obj.DraftingBoundary = repr(points)
+        obj.SewingOutline = repr(points)
         rectangle = _is_rectangle(points, float(obj.Width), float(obj.Height))
-        obj.SewingBoundary = ",".join(("bottom", "right", "top", "left")[i] if rectangle else f"edge:{i}" for i in range(len(points)))
+        obj.SewingBoundary = ",".join(
+            ("bottom", "right", "top", "left")[i] if rectangle else f"edge:{i}"
+            for i in range(len(points))
+        )
         obj.Shape = _boundary_shape(points, allowance)
 
 
@@ -218,33 +262,50 @@ def add_pattern_piece(doc, piece: PatternPiece):
     piece.validate()
     width = max(p[0] for p in piece.outline) - min(p[0] for p in piece.outline)
     height = max(p[1] for p in piece.outline) - min(p[1] for p in piece.outline)
-    obj = doc.addObject("Part::FeaturePython", piece.name); obj.Label = piece.name
+    obj = doc.addObject("Part::FeaturePython", piece.name)
+    obj.Label = piece.name
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = piece.id
     obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = width
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = height
-    obj.addProperty("App::PropertyLength", "SeamAllowance", "Cloth").SeamAllowance = piece.seam_allowance
-    obj.addProperty("App::PropertyAngle", "GrainlineAngle", "Cloth").GrainlineAngle = piece.grainline_angle
-    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = ["Rectangle", "Custom", "Sketch"]
+    obj.addProperty(
+        "App::PropertyLength", "SeamAllowance", "Cloth"
+    ).SeamAllowance = piece.seam_allowance
+    obj.addProperty(
+        "App::PropertyAngle", "GrainlineAngle", "Cloth"
+    ).GrainlineAngle = piece.grainline_angle
+    obj.addProperty("App::PropertyEnumeration", "GeometryMode", "Cloth").GeometryMode = [
+        "Rectangle",
+        "Custom",
+        "Sketch",
+    ]
     obj.GeometryMode = "Rectangle" if _is_rectangle(piece.outline, width, height) else "Custom"
-    obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(piece.outline)
+    obj.addProperty("App::PropertyString", "DraftingBoundary", "Cloth").DraftingBoundary = repr(
+        piece.outline
+    )
     obj.addProperty("App::PropertyString", "SewingBoundary", "Cloth")
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth")
-    obj.Proxy = PatternPieceProxy(); obj.Proxy.execute(obj)
+    obj.Proxy = PatternPieceProxy()
+    obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
+
     link_garment_object(obj, "PatternPiece", doc)
     return obj
 
 
 class SeamProxy:
     """Recompute semantic seam validity and visualization from pattern geometry."""
+
     Type = "ClothSeam"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         import Part
+
         document = getattr(obj, "Document", None)
         if document is not None:
             from freecad_cloth.sewing.SewingView import apply_seam_colors
+
             apply_seam_colors(getattr(document, "Objects", ()))
         piece_a = getattr(obj, "PatternA", None)
         piece_b = getattr(obj, "PatternB", None)
@@ -265,16 +326,29 @@ class SeamProxy:
             return
         obj.Status = "Valid"
         import FreeCAD as App
+
         aa, ab = a["points"]
         bb, bc = b["points"]
-        pa0 = App.Vector(aa[0] + (ab[0] - aa[0]) * obj.StartA, aa[1] + (ab[1] - aa[1]) * obj.StartA, 0.4)
-        pa1 = App.Vector(aa[0] + (ab[0] - aa[0]) * obj.EndA, aa[1] + (ab[1] - aa[1]) * obj.EndA, 0.4)
-        pb0 = App.Vector(bb[0] + (bc[0] - bb[0]) * obj.StartB, bb[1] + (bc[1] - bb[1]) * obj.StartB, 0.4)
-        pb1 = App.Vector(bb[0] + (bc[0] - bb[0]) * obj.EndB, bb[1] + (bc[1] - bb[1]) * obj.EndB, 0.4)
-        if obj.ReversedB: pb0, pb1 = pb1, pb0
-        if getattr(piece_a, "Placement", None) is not None: pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
-        if getattr(piece_b, "Placement", None) is not None: pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
+        pa0 = App.Vector(
+            aa[0] + (ab[0] - aa[0]) * obj.StartA, aa[1] + (ab[1] - aa[1]) * obj.StartA, 0.4
+        )
+        pa1 = App.Vector(
+            aa[0] + (ab[0] - aa[0]) * obj.EndA, aa[1] + (ab[1] - aa[1]) * obj.EndA, 0.4
+        )
+        pb0 = App.Vector(
+            bb[0] + (bc[0] - bb[0]) * obj.StartB, bb[1] + (bc[1] - bb[1]) * obj.StartB, 0.4
+        )
+        pb1 = App.Vector(
+            bb[0] + (bc[0] - bb[0]) * obj.EndB, bb[1] + (bc[1] - bb[1]) * obj.EndB, 0.4
+        )
+        if obj.ReversedB:
+            pb0, pb1 = pb1, pb0
+        if getattr(piece_a, "Placement", None) is not None:
+            pa0, pa1 = piece_a.Placement.multVec(pa0), piece_a.Placement.multVec(pa1)
+        if getattr(piece_b, "Placement", None) is not None:
+            pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
+
         obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
 
     def onDocumentRestored(self, obj):
@@ -283,10 +357,12 @@ class SeamProxy:
         if document is None:
             return
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+
         apply_seam_colors(getattr(document, "Objects", ()))
 
 
 def add_seam(doc, seam: Seam):
+    """Add a seam relationship to this collection."""
     seam.validate()
     piece_a = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_a), None)
     piece_b = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_b), None)
@@ -296,11 +372,15 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyString", "PieceA", "Seam").PieceA = seam.piece_a
     obj.addProperty("App::PropertyString", "EdgeAId", "Seam").EdgeAId = ""
     obj.addProperty("App::PropertyString", "EdgeASignature", "Seam").EdgeASignature = ""
-    obj.addProperty("App::PropertyInteger", "EdgeA", "Compatibility").EdgeA = int(seam.edge_a) if isinstance(seam.edge_a, int) else -1
+    obj.addProperty("App::PropertyInteger", "EdgeA", "Compatibility").EdgeA = (
+        int(seam.edge_a) if isinstance(seam.edge_a, int) else -1
+    )
     obj.addProperty("App::PropertyString", "PieceB", "Seam").PieceB = seam.piece_b
     obj.addProperty("App::PropertyString", "EdgeBId", "Seam").EdgeBId = ""
     obj.addProperty("App::PropertyString", "EdgeBSignature", "Seam").EdgeBSignature = ""
-    obj.addProperty("App::PropertyInteger", "EdgeB", "Compatibility").EdgeB = int(seam.edge_b) if isinstance(seam.edge_b, int) else -1
+    obj.addProperty("App::PropertyInteger", "EdgeB", "Compatibility").EdgeB = (
+        int(seam.edge_b) if isinstance(seam.edge_b, int) else -1
+    )
     obj.addProperty("App::PropertyLink", "PatternA", "Dependencies").PatternA = piece_a
     obj.addProperty("App::PropertyLink", "PatternB", "Dependencies").PatternB = piece_b
     obj.addProperty("App::PropertyFloat", "StartA", "Seam").StartA = seam.start_a
@@ -308,10 +388,23 @@ def add_seam(doc, seam: Seam):
     obj.addProperty("App::PropertyFloat", "StartB", "Seam").StartB = seam.start_b
     obj.addProperty("App::PropertyFloat", "EndB", "Seam").EndB = seam.end_b
     obj.addProperty("App::PropertyBool", "ReversedB", "Seam").ReversedB = seam.reversed_b
-    obj.addProperty("App::PropertyEnumeration", "Alignment", "Seam").Alignment = ["endpoints", "uniform"]
+    obj.addProperty("App::PropertyEnumeration", "Alignment", "Seam").Alignment = [
+        "endpoints",
+        "uniform",
+    ]
     obj.Alignment = seam.alignment
-    obj.addProperty("App::PropertyString", "StitchGroup", "Seam").StitchGroup = seam.stitch_group or seam.id
-    obj.addProperty("App::PropertyEnumeration", "Kind", "Seam").Kind = ["plain", "dart", "gather", "pleat", "hem", "fold", "closure"]
+    obj.addProperty("App::PropertyString", "StitchGroup", "Seam").StitchGroup = (
+        seam.stitch_group or seam.id
+    )
+    obj.addProperty("App::PropertyEnumeration", "Kind", "Seam").Kind = [
+        "plain",
+        "dart",
+        "gather",
+        "pleat",
+        "hem",
+        "fold",
+        "closure",
+    ]
     obj.Kind = seam.kind
     obj.addProperty("App::PropertyString", "Status", "Validation").Status = "Incomplete"
     if piece_a is not None:
@@ -321,20 +414,34 @@ def add_seam(doc, seam: Seam):
     obj.Proxy = SeamProxy()
     obj.Proxy.execute(obj)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     apply_seam_colors(doc.Objects)
     from freecad_cloth.common.GarmentDocument import link_garment_object
+
     link_garment_object(obj, "Seam", doc)
     return obj
 
 
 def add_pattern_mesh(doc, mesh, name="ClothMesh"):
     """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh."""
-    import Mesh, FreeCAD as App
+    import FreeCAD as App
+    import Mesh
+
     native = Mesh.Mesh()
     for a, b, c in mesh.triangles:
-        native.addFacet(App.Vector(mesh.vertices[a][0], mesh.vertices[a][1], 0.0), App.Vector(mesh.vertices[b][0], mesh.vertices[b][1], 0.0), App.Vector(mesh.vertices[c][0], mesh.vertices[c][1], 0.0))
-    obj = doc.addObject("Mesh::Feature", name); obj.Label = name; obj.Mesh = native
-    obj.addProperty("App::PropertyString", "ClothMeshType", "Cloth").ClothMeshType = "PatternSurface"
+        native.addFacet(
+            App.Vector(mesh.vertices[a][0], mesh.vertices[a][1], 0.0),
+            App.Vector(mesh.vertices[b][0], mesh.vertices[b][1], 0.0),
+            App.Vector(mesh.vertices[c][0], mesh.vertices[c][1], 0.0),
+        )
+    obj = doc.addObject("Mesh::Feature", name)
+    obj.Label = name
+    obj.Mesh = native
+    obj.addProperty(
+        "App::PropertyString", "ClothMeshType", "Cloth"
+    ).ClothMeshType = "PatternSurface"
     obj.addProperty("App::PropertyInteger", "VertexCount", "Cloth").VertexCount = len(mesh.vertices)
-    obj.addProperty("App::PropertyInteger", "TriangleCount", "Cloth").TriangleCount = len(mesh.triangles)
+    obj.addProperty("App::PropertyInteger", "TriangleCount", "Cloth").TriangleCount = len(
+        mesh.triangles
+    )
     return obj

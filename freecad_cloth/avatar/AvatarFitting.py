@@ -3,10 +3,10 @@
 This module intentionally does not import FreeCAD. The document workbench uses
 these immutable records as its source of truth for fitting metadata.
 """
-from dataclasses import dataclass, field
-import json
-from typing import Dict, Mapping, Tuple
 
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 _DEFAULT_MEASUREMENTS = {
     "height": 1700.0,
@@ -19,10 +19,13 @@ _DEFAULT_MEASUREMENTS = {
 
 @dataclass(frozen=True)
 class BodyMeasurements:
+    """Public data model or service class for BodyMeasurements."""
+
     values: Mapping[str, float] = field(default_factory=lambda: dict(_DEFAULT_MEASUREMENTS))
     unit: str = "mm"
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.unit not in {"mm", "cm", "m"}:
             raise ValueError("measurement unit must be mm, cm, or m")
         if not self.values:
@@ -33,16 +36,22 @@ class BodyMeasurements:
             if float(value) <= 0:
                 raise ValueError("body measurements must be positive")
 
-    def normalized(self) -> Tuple[Tuple[str, float], ...]:
+    def normalized(self) -> tuple[tuple[str, float], ...]:
+        """Provide the public normalized operation."""
         self.validate()
         return tuple(sorted((str(k), float(v)) for k, v in self.values.items()))
 
     def to_json(self) -> str:
-        return json.dumps({"unit": self.unit, "values": dict(self.normalized())},
-                          sort_keys=True, separators=(",", ":"))
+        """Serialize this object to JSON."""
+        return json.dumps(
+            {"unit": self.unit, "values": dict(self.normalized())},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def from_json(cls, payload: str) -> "BodyMeasurements":
+        """Create an object from serialized JSON."""
         data = json.loads(str(payload))
         result = cls(data["values"], data["unit"])
         result.validate()
@@ -51,24 +60,27 @@ class BodyMeasurements:
 
 @dataclass(frozen=True)
 class PiecePlacement:
+    """Public data model or service class for PiecePlacement."""
+
     piece_id: str
-    position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.piece_id.strip():
             raise ValueError("piece id must not be empty")
         if len(self.position) != 3:
             raise ValueError("position must contain three coordinates")
 
     def to_string(self) -> str:
+        """Provide the public to string operation."""
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g" % (
-            self.piece_id, self.position[0], self.position[1], self.position[2], self.rotation_z
-        )
+        return f"{self.piece_id}|{self.position[0]:.12g},{self.position[1]:.12g},{self.position[2]:.12g}|{self.rotation_z:.12g}"
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
+        """Provide the public from string operation."""
         piece_id, position, rotation = str(value).split("|")
         coords = tuple(float(v) for v in position.split(","))
         result = cls(piece_id, coords, float(rotation))
@@ -97,6 +109,7 @@ class ArrangementPoint:
     VALID_WRAP_DIRECTIONS = ("front", "back", "left", "right")
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
             raise ValueError("arrangement point name must not be empty")
         if self.wrap_direction not in self.VALID_WRAP_DIRECTIONS:
@@ -104,27 +117,35 @@ class ArrangementPoint:
         if self.symmetry_group and not self.symmetry_group.strip():
             raise ValueError("symmetry group must not be whitespace")
 
-    def position(self) -> Tuple[float, float, float]:
+    def position(self) -> tuple[float, float, float]:
+        """Provide the public position operation."""
         self.validate()
         return (float(self.x), float(self.y), float(self.offset))
 
     def mirrored(self, name=None) -> "ArrangementPoint":
+        """Provide the public mirrored operation."""
         self.validate()
-        mirror_wrap = {"left": "right", "right": "left"}.get(self.wrap_direction, self.wrap_direction)
+        mirror_wrap = {"left": "right", "right": "left"}.get(
+            self.wrap_direction, self.wrap_direction
+        )
         return ArrangementPoint(
-            name or (self.name + ".mirror"), -float(self.x), float(self.y), float(self.offset),
-            mirror_wrap, -float(self.rotation_z), self.symmetry_group,
+            name or (self.name + ".mirror"),
+            -float(self.x),
+            float(self.y),
+            float(self.offset),
+            mirror_wrap,
+            -float(self.rotation_z),
+            self.symmetry_group,
         )
 
     def to_string(self) -> str:
+        """Provide the public to string operation."""
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%s|%.12g|%s" % (
-            self.name, self.x, self.y, self.offset, self.wrap_direction,
-            self.rotation_z, self.symmetry_group,
-        )
+        return f"{self.name}|{self.x:.12g},{self.y:.12g},{self.offset:.12g}|{self.wrap_direction}|{self.rotation_z:.12g}|{self.symmetry_group}"
 
     @classmethod
     def from_string(cls, value: str) -> "ArrangementPoint":
+        """Provide the public from string operation."""
         parts = str(value).split("|")
         if len(parts) == 2:
             # Existing FreeCAD documents store landmark-backed arrangement
@@ -135,8 +156,9 @@ class ArrangementPoint:
         elif len(parts) == 5:
             name, position, wrap, rotation, symmetry = parts
         else:
-            raise ValueError("arrangement point requires name|x,y,z or "
-                             "name|x,y,z|wrap|rotation|symmetry")
+            raise ValueError(
+                "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
+            )
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
             raise ValueError("arrangement point position requires x, y, and offset")
@@ -145,16 +167,16 @@ class ArrangementPoint:
         return result
 
 
-
 @dataclass(frozen=True)
 class BoundingVolume:
     """Named axis-aligned avatar volume used for deterministic fitting metadata."""
 
     name: str
-    center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    size: Tuple[float, float, float] = (100.0, 100.0, 100.0)
+    center: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    size: tuple[float, float, float] = (100.0, 100.0, 100.0)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
             raise ValueError("bounding volume name must not be empty")
         if len(self.center) != 3 or len(self.size) != 3:
@@ -163,29 +185,38 @@ class BoundingVolume:
             raise ValueError("bounding volume size must be positive")
 
     def to_string(self) -> str:
+        """Provide the public to string operation."""
         self.validate()
-        return "%s|%.12g,%.12g,%.12g|%.12g,%.12g,%.12g" % (
+        return "{}|{:.12g},{:.12g},{:.12g}|{:.12g},{:.12g},{:.12g}".format(
             self.name, *self.center, *self.size
         )
 
     @classmethod
     def from_string(cls, value: str) -> "BoundingVolume":
+        """Provide the public from string operation."""
         name, center, size = str(value).split("|")
-        result = cls(name, tuple(float(v) for v in center.split(",")), tuple(float(v) for v in size.split(",")))
+        result = cls(
+            name,
+            tuple(float(v) for v in center.split(",")),
+            tuple(float(v) for v in size.split(",")),
+        )
         result.validate()
         return result
 
 
 @dataclass(frozen=True)
 class FittingScene:
+    """Public data model or service class for FittingScene."""
+
     measurements: BodyMeasurements = field(default_factory=BodyMeasurements)
     avatar_name: str = ""
-    pieces: Tuple[PiecePlacement, ...] = ()
-    arrangement_points: Tuple[ArrangementPoint, ...] = ()
-    bounding_volumes: Tuple[BoundingVolume, ...] = ()
+    pieces: tuple[PiecePlacement, ...] = ()
+    arrangement_points: tuple[ArrangementPoint, ...] = ()
+    bounding_volumes: tuple[BoundingVolume, ...] = ()
     symmetry_enabled: bool = True
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         self.measurements.validate()
         if self.avatar_name and not self.avatar_name.strip():
             raise ValueError("avatar name must not be whitespace")
@@ -208,30 +239,47 @@ class FittingScene:
                 raise ValueError("bounding volume names must be unique")
             names.add(volume.name)
 
-    def placement_map(self) -> Dict[str, PiecePlacement]:
+    def placement_map(self) -> dict[str, PiecePlacement]:
+        """Return placements keyed by stable piece identifier."""
         self.validate()
         return {item.piece_id: item for item in self.pieces}
 
-    def arrangement_map(self) -> Dict[str, ArrangementPoint]:
+    def arrangement_map(self) -> dict[str, ArrangementPoint]:
+        """Return arrangement points keyed by semantic name."""
         self.validate()
         return {item.name: item for item in self.arrangement_points}
 
     def to_json(self) -> str:
+        """Serialize this object to JSON."""
         self.validate()
-        return json.dumps({
-            "avatar": self.avatar_name,
-            "measurements": json.loads(self.measurements.to_json()),
-            "pieces": [item.to_string() for item in sorted(self.pieces, key=lambda p: p.piece_id)],
-            "arrangement_points": [item.to_string() for item in sorted(self.arrangement_points, key=lambda p: p.name)],
-            "bounding_volumes": [item.to_string() for item in sorted(self.bounding_volumes, key=lambda v: v.name)],
-            "symmetry_enabled": bool(self.symmetry_enabled),
-        }, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            {
+                "avatar": self.avatar_name,
+                "measurements": json.loads(self.measurements.to_json()),
+                "pieces": [
+                    item.to_string() for item in sorted(self.pieces, key=lambda p: p.piece_id)
+                ],
+                "arrangement_points": [
+                    item.to_string()
+                    for item in sorted(self.arrangement_points, key=lambda p: p.name)
+                ],
+                "bounding_volumes": [
+                    item.to_string() for item in sorted(self.bounding_volumes, key=lambda v: v.name)
+                ],
+                "symmetry_enabled": bool(self.symmetry_enabled),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def from_json(cls, payload: str) -> "FittingScene":
+        """Create an object from serialized JSON."""
         data = json.loads(str(payload))
         result = cls(
-            BodyMeasurements.from_json(json.dumps(data["measurements"], sort_keys=True, separators=(",", ":"))),
+            BodyMeasurements.from_json(
+                json.dumps(data["measurements"], sort_keys=True, separators=(",", ":"))
+            ),
             str(data.get("avatar", "")),
             tuple(PiecePlacement.from_string(v) for v in data.get("pieces", ())),
             tuple(ArrangementPoint.from_string(v) for v in data.get("arrangement_points", ())),

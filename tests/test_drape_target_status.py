@@ -1,4 +1,5 @@
 """Regression coverage for the persistent DrapeTarget state contract."""
+
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.DrapeTarget import source_signature, target_status

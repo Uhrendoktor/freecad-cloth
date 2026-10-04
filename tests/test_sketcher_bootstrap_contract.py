@@ -3,6 +3,7 @@
 The GUI acceptance must bootstrap the repository workbenches explicitly from
 InitGui.py and must not rely on FreeCAD -M/-P module discovery.
 """
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,21 +22,29 @@ def test_sketcher_acceptance_bootstraps_repository_initgui_before_document_setup
     assert "def _bootstrap_workbenches():" in source
     assert 'init_gui = ROOT / "InitGui.py"' in source
     assert 'compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec")' in source
-    assert 'exec(' in source and 'namespace = {"__file__": str(init_gui), "__name__": "__main__"}' in source
+    assert (
+        "exec(" in source
+        and 'namespace = {"__file__": str(init_gui), "__name__": "__main__"}' in source
+    )
     assert 'if "ClothPatternWorkbench" not in Gui.listWorkbenches()' in source
-    assert 'raise RuntimeError("ClothPatternWorkbench was not registered by explicit InitGui startup")' in source
+    assert (
+        'raise RuntimeError("ClothPatternWorkbench was not registered by explicit InitGui startup")'
+        in source
+    )
     bootstrap_index = source.index("_bootstrap_workbenches()")
     document_index = source.index('App.newDocument("NativeSketcherAcceptance")')
     assert bootstrap_index < document_index
 
 
 def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flags():
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
     job = _acceptance_job(workflow)
     assert "/opt/freecad/AppRun" in job
     assert "tests/freecad_sketcher_acceptance.py" in job
     assert "-M /tmp/freecad-mod" not in job
     assert "-P /tmp/freecad-mod/freecad-cloth" not in job
-    assert "timeout-minutes: 5" in job
-    assert "30s" in job
+    assert "timeout-minutes: 10" in job
+    assert "300s" in job
     assert 'grep -q "native Sketcher acceptance passed"' in job

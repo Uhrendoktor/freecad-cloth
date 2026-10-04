@@ -1,4 +1,5 @@
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
+
 import os
 import sys
 import time
@@ -7,6 +8,7 @@ from math import pi
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
 try:
     from PySide import QtWidgets
 except ImportError:
@@ -33,7 +35,7 @@ def events():
         app.processEvents()
 
 
-def wait_for_gui_ready(timeout_seconds=5.0)
+def wait_for_gui_ready(timeout_seconds=15.0):
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         window = Gui.getMainWindow()
@@ -42,8 +44,8 @@ def wait_for_gui_ready(timeout_seconds=5.0)
             events()
             return window
         events()
-        time.sleep(0.02)
-    raise RuntimeError("FreeCAD GUI did not become visible within %.1fs" % timeout_seconds)
+        time.sleep(0.05)
+    raise RuntimeError(f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s")
 
 
 def hide_task_docks(window):
@@ -55,7 +57,7 @@ def hide_task_docks(window):
             dock.hide()
             hidden.append(str(dock.windowTitle()))
     if hidden:
-        log("hidden-task-docks=%s" % ",".join(hidden))
+        log("hidden-task-docks={}".format(",".join(hidden)))
     events()
 
 
@@ -73,17 +75,16 @@ def save_png(view, path, width=1280, height=720, state="capture"):
     """Render only the 3D view so README images are unobstructed model evidence."""
     view.saveImage(path, width, height, "White")
     if not os.path.isfile(path) or os.path.getsize(path) < 5000:
-        raise RuntimeError("failed or suspiciously small screenshot: %s" % path)
+        raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
     with open(path, "rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
-        raise RuntimeError("invalid PNG capture for %s" % state)
+        raise RuntimeError(f"invalid PNG capture for {state}")
     rendered_width = int.from_bytes(header[16:20], "big")
     rendered_height = int.from_bytes(header[20:24], "big")
     if (rendered_width, rendered_height) != (width, height):
         raise RuntimeError(
-            "invalid rendered dimensions for %s: %sx%s"
-            % (state, rendered_width, rendered_height)
+            f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
         )
     log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
 
@@ -143,7 +144,8 @@ def main():
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
-    exec(compile(open(init_gui, encoding="utf-8").read(), init_gui, "exec"), globals(), globals())
+    with open(init_gui, encoding="utf-8") as handle:
+        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
     events()
     hide_task_docks(window)
 
@@ -154,7 +156,10 @@ def main():
         avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
             raise RuntimeError("avatar provider did not produce a valid mesh")
-        if int(getattr(avatar, "MeshVertexCount", 0)) <= 100 or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100:
+        if (
+            int(getattr(avatar, "MeshVertexCount", 0)) <= 100
+            or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100
+        ):
             raise RuntimeError("avatar visual fixture does not contain a real humanoid mesh")
         avatar.ViewObject.DisplayMode = "Flat Lines"
         avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
@@ -178,10 +183,10 @@ def main():
             zoom_for_direction(view, direction)
             save_png(
                 view,
-                os.path.join(OUT, "cloth-avatar-%s.png" % direction),
+                os.path.join(OUT, f"cloth-avatar-{direction}.png"),
                 1280,
                 720,
-                "Avatar audit %s" % direction,
+                f"Avatar audit {direction}",
             )
 
         center = avatar_center(avatar)
@@ -205,7 +210,7 @@ def main():
 try:
     main()
 except BaseException as error:
-    print("AVATAR SCREENSHOT FAILURE: %r" % (error,), flush=True)
+    print(f"AVATAR SCREENSHOT FAILURE: {error!r}", flush=True)
     print(traceback.format_exc(), flush=True)
-    log("avatar-script-fail exception=%r" % (error,))
+    log(f"avatar-script-fail exception={error!r}")
     os._exit(1)

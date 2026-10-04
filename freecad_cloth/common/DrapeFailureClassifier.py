@@ -1,8 +1,21 @@
 """Evidence-only classification of canonical drape outcomes."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Protocol
+
+
+class DrapeMetrics(Protocol):
+    """Describe the metric attributes consumed by the evidence classifier."""
+
+    finite: bool
+    vertices: int
+    state: str
+    vertical_span_ratio: float
+    lateral_span_ratio: float
+    target_vertex_clearance: float | None
 
 
 STATES = (
@@ -24,18 +37,18 @@ class DrapeClassification:
 
 
 def classify_drape(
-    metrics: Any,
+    metrics: DrapeMetrics,
     *,
     components: int | None = None,
     target_width: float | None = None,
 ) -> DrapeClassification:
     """Classify evidence from existing drape metrics without mutating them."""
-    finite = bool(getattr(metrics, "finite", False))
-    vertices = int(getattr(metrics, "vertices", 0))
-    state = str(getattr(metrics, "state", ""))
-    vertical_ratio = float(getattr(metrics, "vertical_span_ratio", 0.0))
-    lateral_ratio = float(getattr(metrics, "lateral_span_ratio", 0.0))
-    clearance = getattr(metrics, "target_vertex_clearance", None)
+    finite = metrics.finite
+    vertices = metrics.vertices
+    state = metrics.state
+    vertical_ratio = metrics.vertical_span_ratio
+    lateral_ratio = metrics.lateral_span_ratio
+    clearance = metrics.target_vertex_clearance
     reasons: list[str] = []
 
     if vertices <= 0 or state == "empty":

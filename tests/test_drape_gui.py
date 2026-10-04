@@ -1,7 +1,7 @@
 """Headless contract tests for the native DrapeTarget task-panel frontend."""
-from pathlib import Path
-import unittest
 
+import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GUI = (ROOT / "freecad_cloth" / "simulation" / "DrapeGui.py").read_text(encoding="utf-8")
@@ -23,14 +23,15 @@ class DrapeGuiTests(unittest.TestCase):
         self.assertIn("getStandardButtons", GUI)
 
     def test_panel_exposes_both_target_providers(self):
-        self.assertIn('(\"Mannequin\", \"FreeCAD Geometry\")', GUI)
+        self.assertIn('("Mannequin", "FreeCAD Geometry")', GUI)
         self.assertIn('getattr(obj, "AvatarType", "") == "ClothAvatar"', GUI)
-        self.assertIn("hasattr(obj, \"Shape\") or hasattr(obj, \"Mesh\")", GUI)
+        self.assertIn('hasattr(obj, "Shape")', GUI)
+        self.assertIn('hasattr(obj, "Mesh")', GUI)
 
     def test_quality_presets_are_explicit(self):
-        self.assertIn('(\"Preview\", 2.5)', GUI)
-        self.assertIn('(\"Normal\", 1.0)', GUI)
-        self.assertIn('(\"Final\", 0.35)', GUI)
+        self.assertIn('("Preview", 2.5)', GUI)
+        self.assertIn('("Normal", 1.0)', GUI)
+        self.assertIn('("Final", 0.35)', GUI)
 
     def test_public_edit_and_refresh_commands_are_registered(self):
         for command in ("ClothDrape_EditTarget", "ClothDrape_RefreshTarget"):

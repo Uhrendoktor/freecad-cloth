@@ -49,10 +49,14 @@ class _Sketch:
 
 class _Placement:
     Base = _Point(0.0, 0.0)
-    Rotation = type("_Rotation", (), {
-        "Angle": 0.0,
-        "Axis": _Point(0.0, 0.0, 1.0),
-    })()
+    Rotation = type(
+        "_Rotation",
+        (),
+        {
+            "Angle": 0.0,
+            "Axis": _Point(0.0, 0.0, 1.0),
+        },
+    )()
 
 
 class _Piece:
@@ -93,12 +97,14 @@ class _LegacyPiece:
         self.PieceId = piece_id
         self.Label = piece_id
         self.Name = piece_id
-        self.SewingOutline = repr([
-            (0.0, 0.0),
-            (10.0, 0.0),
-            (10.0, 10.0),
-            (0.0, 10.0),
-        ])
+        self.SewingOutline = repr(
+            [
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (10.0, 10.0),
+                (0.0, 10.0),
+            ]
+        )
         self.DraftingBoundary = self.SewingOutline
 
 
@@ -279,7 +285,9 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
     except ChangedEdgeReference:
         return
-    raise AssertionError("native Sketcher geometry changes must invalidate the simulation reference")
+    raise AssertionError(
+        "native Sketcher geometry changes must invalidate the simulation reference"
+    )
 
 
 def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
@@ -294,34 +302,79 @@ def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
 
 def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
     import freecad_cloth.pattern.PatternObjects as pattern_objects
-    sketch = _Sketch([LineSegment((0.0, 0.0), (10.0, 0.0)) for _ in range(8)], [f"piece:edge:{index}" for index in range(8)])
+
+    sketch = _Sketch(
+        [LineSegment((0.0, 0.0), (10.0, 0.0)) for _ in range(8)],
+        [f"piece:edge:{index}" for index in range(8)],
+    )
     piece = _Piece("piece", sketch)
     reordered = []
-    for edge_id in ("piece:edge:0", "piece:edge:7", "piece:edge:6", "piece:edge:5", "piece:edge:4", "piece:edge:3", "piece:edge:2", "piece:edge:1"):
-        index = int(edge_id.rsplit(":", 1)[1]); points = ((float(index), 0.0), (float(index) + 1.0, 0.0))
-        reordered.append({"id": edge_id, "points": points, "provenance": ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((points[0][0], points[0][1], 0.0), (points[1][0], points[1][1], 0.0)))})
-    original = pattern_objects._native_edge_records; pattern_objects._native_edge_records = lambda _piece: reordered
+    for edge_id in (
+        "piece:edge:0",
+        "piece:edge:7",
+        "piece:edge:6",
+        "piece:edge:5",
+        "piece:edge:4",
+        "piece:edge:3",
+        "piece:edge:2",
+        "piece:edge:1",
+    ):
+        index = int(edge_id.rsplit(":", 1)[1])
+        points = ((float(index), 0.0), (float(index) + 1.0, 0.0))
+        reordered.append(
+            {
+                "id": edge_id,
+                "points": points,
+                "provenance": (
+                    "PatternIR",
+                    "Sketcher",
+                    "line",
+                    (0.0, 1.0),
+                    ((points[0][0], points[0][1], 0.0), (points[1][0], points[1][1], 0.0)),
+                ),
+            }
+        )
+    original = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: reordered
     try:
         edge_id, signature = pattern_objects._seam_edge_id(piece, 5, "A")
     finally:
         pattern_objects._native_edge_records = original
     assert edge_id == "piece:edge:5"
-    assert signature == capture_edge_reference("piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]).signature
+    assert (
+        signature
+        == capture_edge_reference(
+            "piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]
+        ).signature
+    )
 
 
 def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     import freecad_cloth.pattern.PatternObjects as pattern_objects
-    sketch = _Sketch([LineSegment((0.0, 0.0), (10.0, 0.0)) for _ in range(4)], [f"piece:edge:{index}" for index in range(4)])
+
+    sketch = _Sketch(
+        [LineSegment((0.0, 0.0), (10.0, 0.0)) for _ in range(4)],
+        [f"piece:edge:{index}" for index in range(4)],
+    )
     piece = _Piece("piece", sketch)
     provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
-    records = [{"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}]
-    original = pattern_objects._native_edge_records; pattern_objects._native_edge_records = lambda _piece: records
+    records = [
+        {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
+    ]
+    original = pattern_objects._native_edge_records
+    pattern_objects._native_edge_records = lambda _piece: records
     try:
         edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
     finally:
         pattern_objects._native_edge_records = original
     assert edge_id == "piece:edge:2"
-    assert signature == capture_edge_reference("piece", "piece:edge:2", records[0]["points"], provenance).signature
+    assert (
+        signature
+        == capture_edge_reference(
+            "piece", "piece:edge:2", records[0]["points"], provenance
+        ).signature
+    )
+
 
 if __name__ == "__main__":
     for name, fn in globals().copy().items():

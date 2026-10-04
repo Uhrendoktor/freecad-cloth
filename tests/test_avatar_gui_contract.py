@@ -1,4 +1,5 @@
 """Headless contract checks for the native avatar task panel."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +37,10 @@ def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
     assert '"freecad-geometry", "FreeCAD body / imported geometry"' in source
     assert "Use selected FreeCAD object" in source
     assert "self.avatar.AvatarProviderId = provider_id" in source
-    assert "self.avatar.ProviderSource = provider_source if provider_id == \"freecad-geometry\" else None" in source
+    assert (
+        'self.avatar.ProviderSource = provider_source if provider_id == "freecad-geometry" else None'
+        in source
+    )
     assert "def set_avatar_provider(provider_id, source=None):" in commands
     assert "provider_id not in PROVIDER_IDS" in commands
 
@@ -46,7 +50,7 @@ def test_avatar_panel_uses_explicit_property_mapping():
     assert '"upper_arm": "Upper_Arm"' in source
     assert '"front_waist": "Front_Waist"' in source
     assert '"back_waist": "Back_Waist"' in source
-    assert 'PROPERTY_MAP = {' in commands
+    assert "PROPERTY_MAP = {" in commands
     assert '"high_hip": "High_Hip"' in commands
     assert '"upper_arm": "Upper_Arm"' in commands
     assert '"front_waist": "Front_Waist"' in commands
@@ -55,7 +59,7 @@ def test_avatar_panel_uses_explicit_property_mapping():
 
 def test_avatar_panel_exposes_persistent_fitting_points():
     assert "self.arrangement_points = QtWidgets.QListWidget()" in source
-    assert "getattr(self.avatar, \"ArrangementPoints\", [])" in source
+    assert 'getattr(self.avatar, "ArrangementPoints", [])' in source
     assert "self._update_arrangement_points()" in source
     assert '"ArrangementPoints"' in commands
     assert "def avatar_arrangement_points():" in commands

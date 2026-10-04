@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Measure the three public Cloth workbench boundaries."""
+
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import json
 import os
@@ -34,34 +36,39 @@ class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
 
     def appendToolbar(self, _name, _commands):
+        """Provide the public appendToolbar operation."""
         return None
 
     def appendMenu(self, _name, _commands):
+        """Provide the public appendMenu operation."""
         return None
 
     def appendContextMenu(self, _name, _commands):
+        """Provide the public appendContextMenu operation."""
         return None
 
 
 def trace(message: str) -> None:
-    try:
-        pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8").write(message + "\n")
-    except OSError:
-        pass
+    """Provide the public trace operation."""
+    with (
+        contextlib.suppress(OSError),
+        pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8") as handle,
+    ):
+        handle.write(message + "\n")
     print(message, flush=True)
 
 
 def fail(context: str, exc: BaseException) -> None:
+    """Provide the public fail operation."""
     detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     trace(f"benchmark: FAILURE: {context}: {exc!r}")
-    try:
+    with contextlib.suppress(OSError):
         pathlib.Path("/tmp/cloth-benchmark-traceback.log").write_text(detail, encoding="utf-8")
-    except OSError:
-        pass
     raise SystemExit(1)
 
 
 def source_lines(path: pathlib.Path) -> int:
+    """Provide the public source lines operation."""
     try:
         return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
     except (UnicodeDecodeError, OSError):
@@ -69,23 +76,32 @@ def source_lines(path: pathlib.Path) -> int:
 
 
 def static_metrics(name: str) -> dict:
+    """Provide the public static metrics operation."""
     directory = PACKAGE_DIRS[name]
     py_files = sorted(directory.glob("*.py"))
-    tests = [p.name for p in (ROOT / "tests").glob("test_*.py") if any(h in p.stem.lower() for h in TEST_HINTS[name])]
+    tests = [
+        p.name
+        for p in (ROOT / "tests").glob("test_*.py")
+        if any(h in p.stem.lower() for h in TEST_HINTS[name])
+    ]
     return {
         "python_files": len(py_files),
         "nonblank_loc": sum(source_lines(p) for p in py_files),
         "related_test_files": len(set(tests)),
         "related_tests": sorted(set(tests)),
-        "cloth_command_tokens": sum(p.read_text(encoding="utf-8").count('"Cloth') for p in py_files),
+        "cloth_command_tokens": sum(
+            p.read_text(encoding="utf-8").count('"Cloth') for p in py_files
+        ),
     }
 
 
 def median_ms(samples: list[float]) -> float:
+    """Provide the public median ms operation."""
     return round(statistics.median(samples) * 1000.0, 3)
 
 
 def runtime_metrics(name: str, repeats: int) -> dict:
+    """Provide the public runtime metrics operation."""
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
     try:
@@ -112,6 +128,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
     command_counts = []
     try:
         import FreeCADGui as Gui
+
         for sample in range(repeats):
             wb = wb_cls()
             existing = set(Gui.listWorkbenches())
@@ -125,10 +142,8 @@ def runtime_metrics(name: str, repeats: int) -> dict:
             wb.Initialize()
             initialize_samples.append(time.perf_counter() - t0)
             command_counts.append(len(getattr(wb, "commands", ())))
-            try:
+            with contextlib.suppress(BaseException):
                 Gui.removeWorkbench(registered_name)
-            except BaseException:
-                pass
             trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
     except BaseException as exc:
         fail(f"{name} initialization", exc)
@@ -143,6 +158,7 @@ def runtime_metrics(name: str, repeats: int) -> dict:
 
 
 def close_gui():
+    """Provide the public close gui operation."""
     try:
         import FreeCADGui as Gui
         from PySide import QtWidgets
@@ -161,17 +177,27 @@ def close_gui():
 
 
 def main() -> None:
+    """Provide the public main operation."""
     trace("benchmark: script entered")
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")
     parser.add_argument("--repeats", type=int, default=7)
-    parser.add_argument("--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench")
+    parser.add_argument(
+        "--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench"
+    )
     if os.environ.get("CLOTH_BENCHMARK_WORKBENCH"):
-        args = parser.parse_args([
-            "--workbench", os.environ["CLOTH_BENCHMARK_WORKBENCH"],
-            "--output", os.environ.get("CLOTH_BENCHMARK_OUTPUT", "artifacts/workbench-benchmark/benchmark.json"),
-            "--repeats", os.environ.get("CLOTH_BENCHMARK_REPEATS", "7"),
-        ])
+        args = parser.parse_args(
+            [
+                "--workbench",
+                os.environ["CLOTH_BENCHMARK_WORKBENCH"],
+                "--output",
+                os.environ.get(
+                    "CLOTH_BENCHMARK_OUTPUT", "artifacts/workbench-benchmark/benchmark.json"
+                ),
+                "--repeats",
+                os.environ.get("CLOTH_BENCHMARK_REPEATS", "7"),
+            ]
+        )
     else:
         args = parser.parse_args()
     if args.repeats < 3:
@@ -194,7 +220,10 @@ def main() -> None:
         "workbenches": {},
     }
     for name in names:
-        result["workbenches"][name] = {**static_metrics(name), **runtime_metrics(name, args.repeats)}
+        result["workbenches"][name] = {
+            **static_metrics(name),
+            **runtime_metrics(name, args.repeats),
+        }
 
     out = ROOT / args.output
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -2,21 +2,32 @@
 
 ## Python runtime baseline
 
-`freecad-cloth` now targets **Python >=3.12** across packaging, development, and the canonical FreeCAD CI runtime. This matches the current upstream Tissu build requirement and keeps the optional backend inside the same interpreter/runtime family as the workbench. The canonical CI FreeCAD image uses FreeCAD 1.1.0 from conda-forge with Python 3.12.
+`freecad-cloth` targets **Python >=3.12** across packaging, development, and the canonical FreeCAD CI runtime. This matches the current Tissu build requirement and keeps the workbench and its native solver adapter in one supported interpreter family.
 
 ## Backend contract
 
-`ClothSimulationBackend` is the only solver boundary. PatternIR/SewingGraph/SimulationScene/DrapeTarget remain authoritative. Backend implementations may be optional and must not mutate authoritative FreeCAD geometry.
+`ClothSimulationBackend` is the single application boundary for runtime simulation. PatternIR, SewingGraph, ClothSystem and DrapeTarget remain authoritative. Runtime solver code must consume those inputs without mutating authoritative FreeCAD geometry.
 
-## Candidate ladder
+## Runtime policy
 
-1. **CPU XPBD reference** — release correctness baseline and deterministic comparison target.
-2. **Tissu** — serious cloth-specific optional backend. Upstream currently exposes XPBD distance/bending/pin/stitch constraints, mesh/kinematic colliders and self-collision, plus a Python package. Its repository currently requires Python >=3.12. Tissu is therefore technically compatible with the project runtime baseline, but remains sandboxed until constraint/collision parity and packaging are demonstrated. See https://github.com/evanrock520-ciencias/Tissu.
-3. **PositionBasedDynamics** — research-grade PBD/XPBD comparator for collision and solver experiments; native build/ABI burden means later evaluation.
-4. **GPU XPBD research candidates** — ClothDD is MIT-licensed and demonstrates XPBD with CPU domain decomposition plus OpenGL 4.3 graph-colored GPU compute; this is a performance research reference, not a runtime dependency. See https://github.com/colingalbraith/ClothDD. XPBD-Cloth demonstrates a Vulkan 1.4/C++20 GPU path and is useful as a second research reference, but its platform/toolchain requirements make direct reuse inappropriate for the FreeCAD Python workbench. See https://github.com/steampower33/XPBD-Cloth.
+Tissu is the **sole runtime cloth solver**. The simulation package may keep Tissu as an installation extra so non-simulation users do not pay the native dependency cost, but there is no second runtime physics implementation or user-selectable fallback.
 
-## Decision gates
+`ClothBackend.py` contains only the small application-facing adapter contract. `ClothSolver.py` is a headless input model containing particles, constraints, stitches and pins; it deliberately contains no integration, collision projection or constraint solving.
 
-A backend must pass constraint mapping, DrapeTarget collision, self-collision, determinism, canonical garment visual parity, and Fast/Balanced/Final performance measurements before it can become user-selectable.
+## Research candidates
 
-A GPU backend must additionally prove that data transfer does not dominate simulation time and that the result can be synchronized back into FreeCAD without making the document state backend-specific.
+1. **Tissu** — adopted production solver. The upstream project is a C++ XPBD cloth SDK with distance, bending, volume, pin, stitch, mesh/kinematic collision and self-collision support, exposed through a Python package. Its current README requires Python >=3.12. See https://github.com/evanrock520-ciencias/Tissu
+2. **PositionBasedDynamics** — research comparator for future collision/solver investigations. It is not a runtime dependency and does not justify retaining a second in-tree solver.
+3. **GPU XPBD references** — useful for later performance research, but not runtime dependencies. A replacement must still implement the existing application boundary and prove a material end-to-end benefit.
+
+## Future replacement gate
+
+A new native or GPU backend may become a replacement candidate only after profiling identifies a concrete limitation in Tissu and the candidate proves, against the same contract:
+
+- stretch, bending, stitches, pinning and collision semantics;
+- deterministic or explicitly documented repeatability;
+- canonical garment visual parity;
+- performance and memory measurements at the repository's defined quality levels;
+- safe synchronization back into FreeCAD without backend-specific document state.
+
+Rust is therefore an **acceleration boundary**, not a second application architecture. It should only be introduced after profiling identifies a bounded hotspot that cannot be addressed adequately in Python-side algorithms or by the current Tissu path.

@@ -5,6 +5,7 @@ solver details. A provider supplies authoritative parameters, a visual/collision
 surface and stable landmarks. The built-in human provider uses a real MakeHuman
 HM08 polygon mesh; a CAD provider adapts an existing FreeCAD object.
 """
+
 from dataclasses import dataclass
 
 from freecad_cloth.avatar.AvatarService import AvatarService
@@ -26,15 +27,19 @@ class AvatarProvider:
     info = AvatarProviderInfo("unknown", "Unknown", "unknown")
 
     def parameters(self):
+        """Return the current provider parameters."""
         raise NotImplementedError
 
     def surface(self):
+        """Return the current surface mesh."""
         raise NotImplementedError
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         raise NotImplementedError
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         raise NotImplementedError
 
 
@@ -47,15 +52,19 @@ class ParametricAvatarProvider(AvatarProvider):
         self._service = AvatarService(parameters)
 
     def parameters(self):
+        """Return the current provider parameters."""
         return self._service.parameters()
 
     def surface(self):
+        """Return the current surface mesh."""
         return self._service.surface()
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         return self._service.collision_mesh()
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         return self._service.landmarks()
 
 
@@ -85,25 +94,30 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
             raise ValueError("thickness must not be negative")
 
     def parameters(self):
+        """Return the current provider parameters."""
         return None
 
     def surface(self):
+        """Return the current surface mesh."""
         surface = collision_surface(self.source, self.deflection, self.thickness)
         return surface.vertices, surface.triangles
 
     def collision_surface(self):
+        """Return a collision-ready surface representation."""
         return self.surface()
 
     def landmarks(self):
+        """Return the semantic avatar landmarks."""
         return ()
 
 
-def provider_from_target(source, target_type="FreeCAD Geometry", parameters=None,
-                         deflection=1.0, thickness=0.0):
+def provider_from_target(
+    source, target_type="FreeCAD Geometry", parameters=None, deflection=1.0, thickness=0.0
+):
     """Build the appropriate provider without coupling callers to a class."""
     kind = str(target_type)
     if kind == "Mannequin":
         return ParametricAvatarProvider(parameters)
     if kind == "FreeCAD Geometry":
         return FreeCADGeometryAvatarProvider(source, deflection, thickness)
-    raise ValueError("unsupported avatar provider target type: %s" % kind)
+    raise ValueError(f"unsupported avatar provider target type: {kind}")

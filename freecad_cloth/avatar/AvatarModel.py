@@ -3,31 +3,58 @@
 Anthropometric measurements remain authoritative; geometry is now backed by the
 real MakeHuman HM08 human base mesh and a deterministic measurement/pose fit.
 """
-from dataclasses import dataclass, field
+
 import json
+from dataclasses import dataclass, field
 
 DEFAULT_MEASUREMENTS = {
-    "height": 1750.0, "neck": 380.0, "shoulder": 440.0,
-    "chest": 980.0, "underbust": 850.0, "waist": 820.0,
-    "high_hip": 900.0, "hip": 1020.0, "upper_arm": 310.0,
-    "elbow": 270.0, "wrist": 170.0, "thigh": 570.0,
-    "knee": 390.0, "calf": 380.0, "ankle": 230.0,
-    "inseam": 800.0, "torso": 450.0, "front_waist": 430.0,
+    "height": 1750.0,
+    "neck": 380.0,
+    "shoulder": 440.0,
+    "chest": 980.0,
+    "underbust": 850.0,
+    "waist": 820.0,
+    "high_hip": 900.0,
+    "hip": 1020.0,
+    "upper_arm": 310.0,
+    "elbow": 270.0,
+    "wrist": 170.0,
+    "thigh": 570.0,
+    "knee": 390.0,
+    "calf": 380.0,
+    "ankle": 230.0,
+    "inseam": 800.0,
+    "torso": 450.0,
+    "front_waist": 430.0,
     "back_waist": 440.0,
 }
 LIMITS = {
-    "height": (1200, 2300), "neck": (250, 600), "shoulder": (250, 650),
-    "chest": (600, 1600), "underbust": (550, 1450), "waist": (500, 1500),
-    "high_hip": (600, 1550), "hip": (650, 1700), "upper_arm": (180, 550),
-    "elbow": (160, 500), "wrist": (110, 300), "thigh": (300, 850),
-    "knee": (250, 600), "calf": (250, 650), "ankle": (160, 350),
-    "inseam": (500, 1100), "torso": (300, 650),
-    "front_waist": (300, 650), "back_waist": (300, 650),
+    "height": (1200, 2300),
+    "neck": (250, 600),
+    "shoulder": (250, 650),
+    "chest": (600, 1600),
+    "underbust": (550, 1450),
+    "waist": (500, 1500),
+    "high_hip": (600, 1550),
+    "hip": (650, 1700),
+    "upper_arm": (180, 550),
+    "elbow": (160, 500),
+    "wrist": (110, 300),
+    "thigh": (300, 850),
+    "knee": (250, 600),
+    "calf": (250, 650),
+    "ankle": (160, 350),
+    "inseam": (500, 1100),
+    "torso": (300, 650),
+    "front_waist": (300, 650),
+    "back_waist": (300, 650),
 }
 
 
 @dataclass(frozen=True)
 class Pose:
+    """Public data model or service class for Pose."""
+
     preset: str = "standing"
     left_arm_angle: float = 12.0
     right_arm_angle: float = 12.0
@@ -36,22 +63,27 @@ class Pose:
     VALID_PRESETS = ("standing", "sewing", "sitting")
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.preset not in self.VALID_PRESETS:
-            raise ValueError("unsupported avatar pose: %s" % self.preset)
+            raise ValueError(f"unsupported avatar pose: {self.preset}")
         for name in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"):
             value = float(getattr(self, name))
             if not -90.0 <= value <= 90.0:
-                raise ValueError("%s must be between -90 and 90 degrees" % name)
+                raise ValueError(f"{name} must be between -90 and 90 degrees")
 
 
 @dataclass(frozen=True)
 class Landmark:
+    """Public data model or service class for Landmark."""
+
     name: str
     position: tuple
 
 
 @dataclass(frozen=True)
 class AvatarParameters:
+    """Public data model or service class for AvatarParameters."""
+
     measurements: dict = field(default_factory=lambda: dict(DEFAULT_MEASUREMENTS))
     # The mannequin is a bare body surface by default. Cloth collision padding
     # remains a target setting rather than a visible layer on the avatar.
@@ -66,15 +98,18 @@ class AvatarParameters:
         self.validate()
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.schema_version != 1:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
-            raise ValueError("missing avatar measurements: %s" % ", ".join(sorted(missing)))
+            raise ValueError("missing avatar measurements: {}".format(", ".join(sorted(missing))))
         for name, (low, high) in LIMITS.items():
             value = float(self.measurements[name])
             if not low <= value <= high:
-                raise ValueError("avatar measurement %s must be between %.0f and %.0f mm" % (name, low, high))
+                raise ValueError(
+                    f"avatar measurement {name} must be between {low:.0f} and {high:.0f} mm"
+                )
         if self.measurements["underbust"] > self.measurements["chest"]:
             raise ValueError("underbust circumference cannot exceed chest circumference")
         if self.measurements["inseam"] >= self.measurements["height"]:
@@ -86,27 +121,58 @@ class AvatarParameters:
         self.pose.validate()
 
     def measurement(self, name):
+        """Return the requested body measurement."""
         if name not in self.measurements:
             raise KeyError(name)
         return float(self.measurements[name])
 
     def with_measurements(self, **changes):
+        """Return a copy with updated body measurements."""
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
 
     def to_json(self):
+        """Serialize this object to JSON."""
         self.validate()
-        return json.dumps({"schema_version": self.schema_version, "units": "mm", "measurements": dict(sorted(self.measurements.items())), "skin_offset": float(self.skin_offset), "pose": {"preset": self.pose.preset, "left_arm_angle": self.pose.left_arm_angle, "right_arm_angle": self.pose.right_arm_angle, "left_elbow_angle": self.pose.left_elbow_angle, "right_elbow_angle": self.pose.right_elbow_angle}}, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            {
+                "schema_version": self.schema_version,
+                "units": "mm",
+                "measurements": dict(sorted(self.measurements.items())),
+                "skin_offset": float(self.skin_offset),
+                "pose": {
+                    "preset": self.pose.preset,
+                    "left_arm_angle": self.pose.left_arm_angle,
+                    "right_arm_angle": self.pose.right_arm_angle,
+                    "left_elbow_angle": self.pose.left_elbow_angle,
+                    "right_elbow_angle": self.pose.right_elbow_angle,
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def from_json(cls, payload):
+        """Create an object from serialized JSON."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
         p = data.get("pose", {})
-        pose = Pose(str(p.get("preset", "standing")), float(p.get("left_arm_angle", 12)), float(p.get("right_arm_angle", 12)), float(p.get("left_elbow_angle", 0)), float(p.get("right_elbow_angle", 0)))
-        return cls(data.get("measurements", {}), float(data.get("skin_offset", 0)), pose, int(data.get("schema_version", 1)))
+        pose = Pose(
+            str(p.get("preset", "standing")),
+            float(p.get("left_arm_angle", 12)),
+            float(p.get("right_arm_angle", 12)),
+            float(p.get("left_elbow_angle", 0)),
+            float(p.get("right_elbow_angle", 0)),
+        )
+        return cls(
+            data.get("measurements", {}),
+            float(data.get("skin_offset", 0)),
+            pose,
+            int(data.get("schema_version", 1)),
+        )
 
 
 def _landmarks(params):
@@ -123,13 +189,20 @@ def _landmarks(params):
     leg_x = max(55.0, float(m["hip"]) / (2.0 * 3.141592653589793) * 0.42)
     side_y = 230.0 if params.pose.preset == "sitting" else 0.0
     knees = {
-        "left": (-leg_x, side_y, pelvis_z - 15.0) if params.pose.preset == "sitting" else (-leg_x, 0.0, knee_z),
-        "right": (leg_x, side_y, pelvis_z - 15.0) if params.pose.preset == "sitting" else (leg_x, 0.0, knee_z),
+        "left": (-leg_x, side_y, pelvis_z - 15.0)
+        if params.pose.preset == "sitting"
+        else (-leg_x, 0.0, knee_z),
+        "right": (leg_x, side_y, pelvis_z - 15.0)
+        if params.pose.preset == "sitting"
+        else (leg_x, 0.0, knee_z),
     }
     arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
     default = arm_defaults[params.pose.preset]
     wrists = {}
-    for side, angle_value, elbow_value, label in ((-1.0, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"), (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right")):
+    for side, angle_value, elbow_value, label in (
+        (-1.0, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"),
+        (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right"),
+    ):
         angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
         a = angle * 3.141592653589793 / 180.0
         ex = side * shoulder_half + side * 125.0 * __import__("math").cos(a)
@@ -155,12 +228,15 @@ def _landmarks(params):
         "wrist_left": wrists["left"],
         "wrist_right": wrists["right"],
     }
-    return tuple(Landmark(name, tuple(map(float, position))) for name, position in sorted(landmarks.items()))
+    return tuple(
+        Landmark(name, tuple(map(float, position))) for name, position in sorted(landmarks.items())
+    )
 
 
 def generate_mesh(params):
     """Return ``(vertices, triangles, landmarks)`` from the real human mesh."""
     params.validate()
     from freecad_cloth.avatar.HumanoidMesh import build_humanoid_mesh
+
     mesh = build_humanoid_mesh(params)
     return mesh.vertices, mesh.triangles, _landmarks(params)

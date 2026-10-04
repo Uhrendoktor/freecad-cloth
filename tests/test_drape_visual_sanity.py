@@ -1,21 +1,30 @@
 import unittest
 
 from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity, seam_correspondence_gap, summarize
+from freecad_cloth.common.DrapeVisualSanity import (
+    inspect_drape,
+    mesh_shape_sanity,
+    seam_correspondence_gap,
+    summarize,
+)
 from freecad_cloth.common.MeshValidation import validate_mesh
 
 
 class DrapeVisualSanityTests(unittest.TestCase):
     def setUp(self):
         self.target = (
-            (-100.0, -50.0, 0.0), (100.0, -50.0, 0.0),
-            (-100.0, 50.0, 1750.0), (100.0, 50.0, 1750.0),
+            (-100.0, -50.0, 0.0),
+            (100.0, -50.0, 0.0),
+            (-100.0, 50.0, 1750.0),
+            (100.0, 50.0, 1750.0),
         )
 
     def test_reports_structurally_plausible_drape(self):
         garment = (
-            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
-            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+            (-140.0, -90.0, 250.0),
+            (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0),
+            (140.0, 90.0, 1500.0),
         )
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
         self.assertTrue(result.finite)
@@ -25,8 +34,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_vertical_ratio_uses_z_not_largest_footprint_axis(self):
         garment = (
-            (-1500.0, -40.0, 100.0), (1500.0, -40.0, 100.0),
-            (-1500.0, 40.0, 200.0), (1500.0, 40.0, 200.0),
+            (-1500.0, -40.0, 100.0),
+            (1500.0, -40.0, 100.0),
+            (-1500.0, 40.0, 200.0),
+            (1500.0, 40.0, 200.0),
         )
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=3000.0)
         self.assertAlmostEqual(result.vertical_span_ratio, 100.0 / 1750.0)
@@ -35,8 +46,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_lateral_ratio_uses_larger_footprint_axis(self):
         garment = (
-            (-20.0, -900.0, 300.0), (20.0, -900.0, 300.0),
-            (-20.0, 900.0, 1500.0), (20.0, 900.0, 1500.0),
+            (-20.0, -900.0, 300.0),
+            (20.0, -900.0, 300.0),
+            (-20.0, 900.0, 1500.0),
+            (20.0, 900.0, 1500.0),
         )
         result = inspect_drape(garment, self.target, target_height=1750.0, target_width=2000.0)
         self.assertAlmostEqual(result.vertical_span_ratio, 1200.0 / 1750.0)
@@ -66,8 +79,11 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_mesh_shape_sanity_rejects_long_edge_spike(self):
         vertices = (
-            (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0),
-            (0.0, 10.0, 0.0), (80.0, 80.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (10.0, 0.0, 0.0),
+            (10.0, 10.0, 0.0),
+            (0.0, 10.0, 0.0),
+            (80.0, 80.0, 0.0),
         )
         triangles = ((0, 1, 2), (0, 2, 3), (2, 4, 3))
         result = mesh_shape_sanity(vertices, triangles)
@@ -77,8 +93,12 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_mesh_shape_sanity_accepts_regular_grid(self):
         vertices = (
-            (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0),
-            (0.0, 10.0, 0.0), (10.0, 10.0, 0.0), (20.0, 10.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (10.0, 0.0, 0.0),
+            (20.0, 0.0, 0.0),
+            (0.0, 10.0, 0.0),
+            (10.0, 10.0, 0.0),
+            (20.0, 10.0, 0.0),
         )
         triangles = ((0, 1, 4), (0, 4, 3), (1, 2, 5), (1, 5, 4))
         result = mesh_shape_sanity(vertices, triangles)
@@ -88,8 +108,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_clean_canonical_style_mesh_has_one_component(self):
         vertices = (
-            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
-            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+            (-140.0, -90.0, 250.0),
+            (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0),
+            (140.0, 90.0, 1500.0),
         )
         triangles = ((0, 1, 2), (1, 3, 2))
         result = validate_mesh(vertices, triangles, prefer_trimesh=False)
@@ -98,8 +120,12 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_fragmented_geometry_has_two_components(self):
         vertices = (
-            (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
-            (100.0, 0.0, 0.0), (101.0, 0.0, 0.0), (100.0, 1.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (100.0, 0.0, 0.0),
+            (101.0, 0.0, 0.0),
+            (100.0, 1.0, 0.0),
         )
         triangles = ((0, 1, 2), (3, 4, 5))
         result = validate_mesh(vertices, triangles, prefer_trimesh=False)
@@ -107,8 +133,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_seam_correspondence_is_clean_for_matching_canonical_edges(self):
         boundary = (
-            (0.0, 0.0, 0.0), (100.0, 0.0, 0.0),
-            (100.0, 100.0, 0.0), (0.0, 100.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (100.0, 0.0, 0.0),
+            (100.0, 100.0, 0.0),
+            (0.0, 100.0, 0.0),
         )
         self.assertEqual(seam_correspondence_gap(boundary, boundary, 0, 0), 0.0)
 
@@ -145,8 +173,10 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
     def test_failure_classifier_summary_is_json_ready(self):
         garment = (
-            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
-            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+            (-140.0, -90.0, 250.0),
+            (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0),
+            (140.0, 90.0, 1500.0),
         )
         metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
         result = classify_drape(metrics, target_width=1000.0)

@@ -1,12 +1,16 @@
 import sys
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
-import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
-from freecad_cloth.sewing.SewingGui import repair_correspondence_settings, seam_reference_status, validate_seam_for_accept
+from freecad_cloth.sewing.SewingGui import (
+    repair_correspondence_settings,
+    seam_reference_status,
+    validate_seam_for_accept,
+)
 
 
 class SewingGuiContractTests(unittest.TestCase):
@@ -33,13 +37,17 @@ class SewingGuiContractTests(unittest.TestCase):
     def test_reverse_repair_is_explicit_and_reversible(self):
         seam = SimpleNamespace(ReversedB=True, StartA=0.0, EndA=1.0, StartB=0.0, EndB=1.0)
         report = analyze_correspondence(100.0, 100.0, reversed_b=True)
-        self.assertEqual(repair_correspondence_settings(seam, report), "reversed correspondence repaired")
+        self.assertEqual(
+            repair_correspondence_settings(seam, report), "reversed correspondence repaired"
+        )
         self.assertFalse(seam.ReversedB)
 
     def test_range_repair_resets_both_sides(self):
         seam = SimpleNamespace(ReversedB=False, StartA=0.2, EndA=0.8, StartB=0.1, EndB=0.9)
         report = analyze_correspondence(100.0, 100.0, start_a=0.8, end_a=0.2)
-        self.assertEqual(repair_correspondence_settings(seam, report), "invalid ranges reset to full seam edges")
+        self.assertEqual(
+            repair_correspondence_settings(seam, report), "invalid ranges reset to full seam edges"
+        )
         self.assertEqual((seam.StartA, seam.EndA, seam.StartB, seam.EndB), (0.0, 1.0, 0.0, 1.0))
 
     def test_length_mismatch_is_never_silently_repaired(self):

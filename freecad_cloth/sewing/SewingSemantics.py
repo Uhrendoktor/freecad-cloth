@@ -25,13 +25,30 @@ class SeamConstraint:
     ) -> None:
         self._seam = Seam(
             piece_a=piece_a,
-            edge_a=edge_a,
+            edge_a=self._legacy_edge(edge_a),
             piece_b=piece_b,
-            edge_b=edge_b,
+            edge_b=self._legacy_edge(edge_b),
             id=id,
             reversed_b=bool(reversed_b),
         )
         self.kind = kind
+
+    @staticmethod
+    def _legacy_edge(value):
+        """Normalize the legacy numeric edge ABI and reject ambiguous strings."""
+        if isinstance(value, bool):
+            raise ValueError("legacy seam edge references must be integer outline indices")
+        if isinstance(value, int):
+            if value < 0:
+                raise ValueError("legacy seam edge references must be non-negative")
+            return value
+        if isinstance(value, str):
+            if not value.strip():
+                raise ValueError("legacy seam edge references must not be empty")
+            return int(value.strip()) if value.strip().isdigit() else value.strip()
+        raise ValueError(
+            "legacy seam edge references must be integer indices or stable identifiers"
+        )
 
     @property
     def seam(self) -> Seam:
@@ -40,26 +57,32 @@ class SeamConstraint:
 
     @property
     def id(self):
+        """Return the stable identifier."""
         return self._seam.id
 
     @property
     def piece_a(self):
+        """Return the first referenced pattern piece."""
         return self._seam.piece_a
 
     @property
     def edge_a(self):
+        """Return the first referenced edge."""
         return self._seam.edge_a
 
     @property
     def piece_b(self):
+        """Return the second referenced pattern piece."""
         return self._seam.piece_b
 
     @property
     def edge_b(self):
+        """Return the second referenced edge."""
         return self._seam.edge_b
 
     @property
     def reversed_b(self):
+        """Return whether the second reference is reversed."""
         return self._seam.reversed_b
 
     def validate(self, pieces: set[str], edges: dict[str, set[str]]) -> None:

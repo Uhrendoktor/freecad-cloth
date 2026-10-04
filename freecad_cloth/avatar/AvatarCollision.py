@@ -3,19 +3,22 @@
 The model layer deliberately does not import FreeCAD.  ``surface_from_freecad``
 is the small GUI/runtime bridge used by the document workbench.
 """
+
 from dataclasses import dataclass
 from math import ceil
-from typing import Tuple
 
 
 @dataclass(frozen=True)
 class CollisionSurface:
-    vertices: Tuple[Tuple[float, float, float], ...]
-    triangles: Tuple[Tuple[int, int, int], ...]
+    """Public data model or service class for CollisionSurface."""
+
+    vertices: tuple[tuple[float, float, float], ...]
+    triangles: tuple[tuple[int, int, int], ...]
     region: str = "body"
     thickness: float = 0.0
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         n = len(self.vertices)
         if n < 3 or not self.triangles:
             raise ValueError("collision surface needs vertices and triangles")
@@ -28,13 +31,15 @@ class CollisionSurface:
             raise ValueError("collision region must not be empty")
 
     @property
-    def center(self) -> Tuple[float, float, float]:
+    def center(self) -> tuple[float, float, float]:
+        """Provide the public center operation."""
         n = len(self.vertices)
         if not n:
             return (0.0, 0.0, 0.0)
         return tuple(sum(v[i] for v in self.vertices) / n for i in range(3))
 
     def with_thickness(self, thickness: float) -> "CollisionSurface":
+        """Provide the public with thickness operation."""
         result = CollisionSurface(self.vertices, self.triangles, self.region, float(thickness))
         result.validate()
         return result
@@ -42,12 +47,15 @@ class CollisionSurface:
 
 @dataclass(frozen=True)
 class AvatarSpec:
+    """Public data model or service class for AvatarSpec."""
+
     name: str
     unit: str = "mm"
     coordinate_system: str = "RH-Z-up"
     collision: CollisionSurface | None = None
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip() or self.unit not in {"mm", "cm", "m"}:
             raise ValueError("invalid avatar identity or units")
         if self.coordinate_system != "RH-Z-up":
@@ -56,7 +64,9 @@ class AvatarSpec:
             self.collision.validate()
 
 
-def coarsen_collision_surface(surface: CollisionSurface, max_triangles: int = 1024) -> CollisionSurface:
+def coarsen_collision_surface(
+    surface: CollisionSurface, max_triangles: int = 1024
+) -> CollisionSurface:
     """Derive a spatially covered collision surface from a real authored mesh.
 
     The visible avatar remains the full MakeHuman mesh. The solver does not need
@@ -144,7 +154,9 @@ def surface_from_freecad(obj, deflection: float = 1.0, thickness: float = 0.0) -
         triangles = tuple(tuple(int(i) for i in face) for face in faces)
     else:
         raise TypeError("expected a FreeCAD shape or mesh object")
-    surface = CollisionSurface(points, triangles, getattr(obj, "Label", "body") or "body", float(thickness))
+    surface = CollisionSurface(
+        points, triangles, getattr(obj, "Label", "body") or "body", float(thickness)
+    )
     surface.validate()
     return surface
 

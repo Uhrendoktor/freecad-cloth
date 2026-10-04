@@ -1,6 +1,6 @@
 """Contract tests for the optional realtime-preview GUI integration."""
-from pathlib import Path
 
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "freecad_cloth" / "simulation" / "RealtimePreview.py"

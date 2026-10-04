@@ -56,6 +56,14 @@ Implementation code belongs under `freecad_cloth/`. The repository intentionally
 
 There is exactly one canonical CI workflow: `.github/workflows/canonical-execution.yml`. Do not create parallel workflows or weaken acceptance checks.
 
+## Planning contract
+
+For multi-step refactors or architectural changes, use `.agent/PLANS.md` as the bounded execution-plan template. Keep evidence and review discussion in the governing issue/PR; do not turn the plan into a history log.
+
+## Documentation contract
+
+Public Python APIs in `freecad_cloth/` and `tools/` require docstrings. Use a one-line summary first, then document non-obvious behavior, invariants, side effects, exceptions and lifecycle restrictions. Keep architecture in `docs/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing issue/PR.
+
 ## Verification
 
 Choose the smallest evidence set that proves the change. Use focused tests for core changes, real FreeCAD coverage for document/API changes, Xvfb for GUI changes, save/reload checks for persistence, deterministic solver checks for simulation changes, and the canonical workflow when its acceptance path is required.

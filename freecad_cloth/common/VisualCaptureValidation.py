@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import struct
 import zlib
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Tuple
-
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -56,7 +55,7 @@ def _unfilter_rows(raw: bytes, width: int, height: int, bytes_per_pixel: int) ->
         yield bytes(row)
 
 
-def _parse_png(path: Path) -> Tuple[int, int, bytes, int]:
+def _parse_png(path: Path) -> tuple[int, int, bytes, int]:
     data = path.read_bytes()
     if not data.startswith(PNG_SIGNATURE):
         raise ValueError("invalid PNG signature")

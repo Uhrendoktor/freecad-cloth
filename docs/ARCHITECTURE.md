@@ -43,9 +43,9 @@ PatternPiece + PatternMark
         ↓
 PatternIR + SewingGraph
         ↓
-SimulationScene + DrapeTarget
+ClothSystem input model + DrapeTarget
         ↓
-CPU reference solver / optional backend
+Tissu runtime solver
         ↓
 Derived diagnostics
 ```
@@ -93,6 +93,14 @@ Production adapters may target DXF/AAMA/ASTM-oriented pattern exchange, SVG/Tech
 ## UI consequence
 
 Task panels use **Context → Primary action → Secondary actions → Parameters → Recovery**. Persistent data remains inspectable in the document tree/Property Editor. Transient selection/previews never replace the document model.
+
+## Simulation implementation boundary
+
+Tissu is the only runtime cloth solver. It provides the production XPBD simulation, sewing constraints, collision handling and solver state. `freecad_cloth.simulation.ClothBackend` is a small adapter contract so the document layer does not depend on Tissu APIs directly.
+
+`ClothSolver.py` is not a second solver: it contains only the lightweight `Particle`, `DistanceConstraint` and `ClothSystem` input model used to assemble deterministic solver inputs. It must not contain time integration, collision projection, constraint solving or a user-selectable backend path.
+
+A future native implementation may replace Tissu only by implementing the same backend contract. Rust is an optional acceleration technology, not a second application architecture.
 
 ## Non-goals
 

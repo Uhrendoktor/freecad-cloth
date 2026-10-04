@@ -1,4 +1,5 @@
 """Regression tests for Pattern workbench mark command enablement."""
+
 import sys
 import types
 
@@ -41,7 +42,7 @@ def test_marks_require_selected_pattern_piece():
 
 def test_command_enablement_is_safe_without_freecad_gui():
     sys.modules.pop("FreeCADGui", None)
-    command = PatternMarks._FunctionCommand(PatternMarks.add_notch)
+    command = PatternMarks._FunctionCommand(PatternMarks.add_notch, "ClothPattern_AddNotch")
     assert command.IsActive()
 
 

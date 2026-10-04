@@ -2,6 +2,7 @@
 
 
 def compact_mesh(vertices, triangles):
+    """Provide the public compact mesh operation."""
     used = sorted({int(i) for tri in triangles for i in tri})
     remap = {old: new for new, old in enumerate(used)}
     compact_vertices = tuple(vertices[i] for i in used)

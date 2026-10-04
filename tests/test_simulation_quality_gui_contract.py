@@ -1,8 +1,11 @@
 """Static contract checks for the simulation quality task-panel UX."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GUI = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text(encoding="utf-8")
+GUI = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text(
+    encoding="utf-8"
+)
 
 
 def test_quality_panel_captures_panel_open_state():
@@ -12,7 +15,8 @@ def test_quality_panel_captures_panel_open_state():
     assert '"AvatarSkinOffset"' in GUI
     assert '"Steps"' in GUI
     assert "def _capture_snapshot(self):" in GUI
-    assert "self._snapshot = {name: getattr(self.scene, name)" in GUI
+    assert "self._snapshot = {" in GUI
+    assert "getattr(self.scene, name)" in GUI
 
 
 def test_quality_panel_cancel_restores_persistent_values_before_close():
@@ -25,4 +29,6 @@ def test_quality_panel_cancel_restores_persistent_values_before_close():
 
 def test_quality_panel_accept_commits_new_panel_baseline():
     assert "def accept(self):" in GUI
-    assert "self._parameters_changed(); self._capture_snapshot()" in GUI
+    accept = GUI.split("def accept(self):", 1)[1].split("def reject(self):", 1)[0]
+    assert "self._parameters_changed()" in accept
+    assert "self._capture_snapshot()" in accept

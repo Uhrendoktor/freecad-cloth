@@ -1,20 +1,46 @@
+import contextlib
 import json
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
-from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BodyMeasurements, BoundingVolume, FittingScene, PiecePlacement
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose, generate_mesh
+from freecad_cloth.avatar.AvatarArrangement import (
+    ARRANGEMENT_POINT_NAMES,
+    arrangement_point_map,
+    arrangement_points_from_landmarks,
+)
+from freecad_cloth.avatar.AvatarFitting import (
+    ArrangementPoint,
+    BodyMeasurements,
+    BoundingVolume,
+    FittingScene,
+    PiecePlacement,
+)
+from freecad_cloth.avatar.AvatarModel import (
+    DEFAULT_MEASUREMENTS,
+    AvatarParameters,
+    Pose,
+    generate_mesh,
+)
 from freecad_cloth.avatar.AvatarService import AvatarService
-from freecad_cloth.avatar.AvatarArrangement import ARRANGEMENT_POINT_NAMES, arrangement_point_map, arrangement_points_from_landmarks
-from freecad_cloth.avatar.HumanoidMesh import MeshData, MAKEHUMAN_BASE_SHA256, MAKEHUMAN_BASE_URL, MAKEHUMAN_BODY_VERTEX_COUNT, fit_makehuman_mesh, parse_obj
+from freecad_cloth.avatar.HumanoidMesh import (
+    MAKEHUMAN_BASE_SHA256,
+    MAKEHUMAN_BASE_URL,
+    MAKEHUMAN_BODY_VERTEX_COUNT,
+    MeshData,
+    fit_makehuman_mesh,
+    parse_obj,
+)
+from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
 
 class AvatarFittingTests(unittest.TestCase):
     def test_fitting_proxy_is_validation_only_during_recompute(self):
         root = Path(__file__).resolve().parents[1]
-        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(
+            encoding="utf-8"
+        )
         proxy_start = source.index("class _FittingProxy")
         proxy_end = source.index("\n\nCOMMANDS =", proxy_start)
         proxy_body = source[proxy_start:proxy_end]
@@ -26,21 +52,33 @@ class AvatarFittingTests(unittest.TestCase):
 
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
-        self.assertEqual(measurements.normalized(), (("chest", 900.0), ("height", 1700.0), ("waist", 760.0)))
-        self.assertEqual(measurements.to_json(), '{"unit":"mm","values":{"chest":900.0,"height":1700.0,"waist":760.0}}')
+        self.assertEqual(
+            measurements.normalized(), (("chest", 900.0), ("height", 1700.0), ("waist", 760.0))
+        )
+        self.assertEqual(
+            measurements.to_json(),
+            '{"unit":"mm","values":{"chest":900.0,"height":1700.0,"waist":760.0}}',
+        )
         self.assertEqual(BodyMeasurements.from_json(measurements.to_json()), measurements)
 
     def test_invalid_measurement_is_rejected(self):
-        with self.assertRaises(ValueError): BodyMeasurements({"waist": 0}).validate()
-        with self.assertRaises(ValueError): BodyMeasurements({"waist": 10}, "inch").validate()
+        with self.assertRaises(ValueError):
+            BodyMeasurements({"waist": 0}).validate()
+        with self.assertRaises(ValueError):
+            BodyMeasurements({"waist": 10}, "inch").validate()
 
     def test_scene_metadata_is_deterministic(self):
-        scene = FittingScene(BodyMeasurements({"hip": 960, "waist": 760}), "Avatar Collision Proxy", (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")))
+        scene = FittingScene(
+            BodyMeasurements({"hip": 960, "waist": 760}),
+            "Avatar Collision Proxy",
+            (PiecePlacement("piece-b", (10, 20, 30), 45), PiecePlacement("piece-a")),
+        )
         payload = scene.to_json()
         self.assertEqual(json.loads(payload)["pieces"], ["piece-a|0,0,0|0", "piece-b|10,20,30|45"])
 
     def test_duplicate_piece_placement_is_rejected(self):
-        with self.assertRaises(ValueError): FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
+        with self.assertRaises(ValueError):
+            FittingScene(pieces=(PiecePlacement("piece"), PiecePlacement("piece"))).validate()
 
     def test_piece_placement_round_trip(self):
         placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
@@ -71,12 +109,22 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(ArrangementPoint.from_string(canonical), point)
 
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
-        with self.assertRaises(ValueError): ArrangementPoint("", wrap_direction="front").validate()
-        with self.assertRaises(ValueError): ArrangementPoint("p", wrap_direction="inside").validate()
-        with self.assertRaises(ValueError): BoundingVolume("body", size=(1, 0, 2)).validate()
+        with self.assertRaises(ValueError):
+            ArrangementPoint("", wrap_direction="front").validate()
+        with self.assertRaises(ValueError):
+            ArrangementPoint("p", wrap_direction="inside").validate()
+        with self.assertRaises(ValueError):
+            BoundingVolume("body", size=(1, 0, 2)).validate()
 
     def test_fitting_scene_round_trip_preserves_arrangement_metadata(self):
-        scene = FittingScene(BodyMeasurements({"waist": 760}), "Avatar", (PiecePlacement("front", (1, 2, 3), 15),), (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),), (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),), False)
+        scene = FittingScene(
+            BodyMeasurements({"waist": 760}),
+            "Avatar",
+            (PiecePlacement("front", (1, 2, 3), 15),),
+            (ArrangementPoint("chest", 10, 20, 5, "front", 30, "torso"),),
+            (BoundingVolume("torso", (0, 0, 50), (400, 250, 800)),),
+            False,
+        )
         restored = FittingScene.from_json(scene.to_json())
         self.assertEqual(restored, scene)
         self.assertFalse(restored.symmetry_enabled)
@@ -93,7 +141,10 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(mesh.triangles, ((0, 1, 2),))
 
     def test_real_source_is_pinned(self):
-        self.assertIn(MAKEHUMAN_BASE_SHA256, "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c")
+        self.assertIn(
+            MAKEHUMAN_BASE_SHA256,
+            "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+        )
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
@@ -106,7 +157,9 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(fitted.triangles, ((0, 2, 1), (1, 2, 3), (0, 3, 2)))
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
-        self.assertGreater(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 0.0)
+        self.assertGreater(
+            max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 0.0
+        )
 
     def test_fit_normalizes_extreme_source_lateral_aspect_ratio(self):
         source = MeshData(
@@ -130,7 +183,10 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertGreater(len(first[0]), 100)
         self.assertGreater(len(first[1]), 100)
-        self.assertGreaterEqual({p.name for p in first[2]}, {"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"})
+        self.assertGreaterEqual(
+            {p.name for p in first[2]},
+            {"neck", "chest", "waist", "hip", "shoulder_left", "shoulder_right"},
+        )
 
     def test_mannequin_measurement_change_is_parametric(self):
         params = AvatarParameters()
@@ -156,7 +212,8 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(service.surface(), service.collision_mesh())
         self.assertGreater(len(service.surface()[0]), 100)
         self.assertEqual(service.landmark("chest").name, "chest")
-        with self.assertRaises(KeyError): service.landmark("does-not-exist")
+        with self.assertRaises(KeyError):
+            service.landmark("does-not-exist")
 
     def test_avatar_service_derives_geometry_from_new_parameters(self):
         base = AvatarParameters()
@@ -164,20 +221,30 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertNotEqual(AvatarService(base).surface(), AvatarService(wider).surface())
 
     def test_invalid_avatar_service_parameter_type_is_rejected(self):
-        with self.assertRaises(TypeError): AvatarService(object())
+        with self.assertRaises(TypeError):
+            AvatarService(object())
 
     def test_invalid_mannequin_measurements_are_rejected(self):
-        with self.assertRaises(ValueError): AvatarParameters().with_measurements(underbust=1200, chest=1000)
+        with self.assertRaises(ValueError):
+            AvatarParameters().with_measurements(underbust=1200, chest=1000)
 
     def test_avatar_arrangement_points_are_stable_and_landmark_backed(self):
         landmarks = [
-            "knee_right|55,0,400", "unknown|0,0,0", "waist|0,0,900",
-            "shoulder_left|-210,0,1050", "neck|0,0,1150", "malformed",
-            "hip|0,0,700", "shoulder_right|210,0,1050", "chest|0,0,980",
+            "knee_right|55,0,400",
+            "unknown|0,0,0",
+            "waist|0,0,900",
+            "shoulder_left|-210,0,1050",
+            "neck|0,0,1150",
+            "malformed",
+            "hip|0,0,700",
+            "shoulder_right|210,0,1050",
+            "chest|0,0,980",
             "knee_left|-55,0,400",
         ]
         points = arrangement_points_from_landmarks(landmarks)
-        self.assertEqual([record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES))
+        self.assertEqual(
+            [record.split("|", 1)[0] for record in points], list(ARRANGEMENT_POINT_NAMES)
+        )
         self.assertEqual(arrangement_point_map(points)["shoulder_left"], "-210,0,1050")
         self.assertEqual(arrangement_point_map(points)["knee_right"], "55,0,400")
 
@@ -186,7 +253,9 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(arrangement_point_map(["unknown|1,2,3", "bad"]), {})
 
     def test_avatar_arrangement_points_replace_duplicate_with_last_value(self):
-        points = arrangement_points_from_landmarks(["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"])
+        points = arrangement_points_from_landmarks(
+            ["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"]
+        )
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
@@ -249,13 +318,19 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertGreaterEqual(len(avatar.Landmarks), 6)
             self.assertEqual(len(avatar.ArrangementPoints), len(avatar.Landmarks))
             self.assertGreaterEqual(int(avatar.AvatarRevision), 1)
-            original_mesh = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in list(avatar.Mesh.Points)[:12])
+            original_mesh = tuple(
+                (round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3))
+                for p in list(avatar.Mesh.Points)[:12]
+            )
             original_chest = float(avatar.Chest)
             original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
             rebuild_avatar()
-            rebuilt_mesh = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in list(avatar.Mesh.Points)[:12])
+            rebuilt_mesh = tuple(
+                (round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3))
+                for p in list(avatar.Mesh.Points)[:12]
+            )
             self.assertNotEqual(rebuilt_mesh, original_mesh)
             self.assertEqual(float(avatar.Chest), original_chest + 40.0)
             self.assertEqual(avatar.AvatarStatus, "Valid")
@@ -283,10 +358,9 @@ class AvatarFittingTests(unittest.TestCase):
             if doc is not None and doc.Name in App.listDocuments():
                 App.closeDocument(doc.Name)
             if path:
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(path)
-                except OSError:
-                    pass
 
 
-if __name__ == "__main__": unittest.main()
+if __name__ == "__main__":
+    unittest.main()

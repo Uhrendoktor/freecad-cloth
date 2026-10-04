@@ -9,6 +9,7 @@ cancels the edit, following normal FreeCAD task-panel conventions.
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -108,19 +109,27 @@ class DrapeTargetTaskPanel:
         for obj in self.doc.Objects:
             if obj is self.target:
                 continue
-            if getattr(obj, "AvatarType", "") == "ClothAvatar" or hasattr(obj, "Shape") or hasattr(obj, "Mesh"):
+            if (
+                getattr(obj, "AvatarType", "") == "ClothAvatar"
+                or hasattr(obj, "Shape")
+                or hasattr(obj, "Mesh")
+            ):
                 self._source_objects.append(obj)
                 self.source.addItem(str(getattr(obj, "Label", getattr(obj, "Name", ""))))
 
     def _load(self):
         if self.target is None:
-            self.status.setText("Create a Drape Target first, or select a mannequin/FreeCAD object.")
+            self.status.setText(
+                "Create a Drape Target first, or select a mannequin/FreeCAD object."
+            )
             self.apply_button.setEnabled(False)
             return
         self._loading = True
         self.target_type.setCurrentText(str(getattr(self.target, "TargetType", "FreeCAD Geometry")))
         source_obj = getattr(self.target, "SourceObject", None)
-        source_index = next((i for i, obj in enumerate(self._source_objects) if obj is source_obj), -1)
+        source_index = next(
+            (i for i, obj in enumerate(self._source_objects) if obj is source_obj), -1
+        )
         if source_index >= 0:
             self.source.setCurrentIndex(source_index)
         self.deflection.setValue(float(getattr(self.target, "CollisionDeflection", 1.0)))
@@ -156,14 +165,16 @@ class DrapeTargetTaskPanel:
     def _preview_status(self, *_args):
         if self._loading:
             return
-        self.status.setText("Staged target edits. Apply & Refresh to rebuild collision geometry; Cancel leaves the document unchanged.")
+        self.status.setText(
+            "Staged target edits. Apply & Refresh to rebuild collision geometry; Cancel leaves the document unchanged."
+        )
 
     def _refresh_status(self):
         if self.target is None:
             return
         state = str(getattr(self.target, "TargetStatus", "unbuilt"))
         reason = str(getattr(self.target, "InvalidationReason", ""))
-        message = "Target status: %s" % state
+        message = f"Target status: {state}"
         if reason:
             message += " — " + reason
         self.status.setText(message)
@@ -183,6 +194,7 @@ class DrapeTargetTaskPanel:
             self.status.setText("Select a collision object before applying the target.")
             return False
         from freecad_cloth.simulation.DrapeTarget import assign_drape_target
+
         self.target.CollisionDeflection = self.deflection.value()
         self.target.CollisionThickness = self.thickness.value()
         self.target.Enabled = self.enabled.isChecked()

@@ -4,17 +4,20 @@ The ``V2`` filename is retained for compatibility with existing internal callers
 it is the current runtime authority, not an experimental second implementation.
 Do not create a ``V3``/parallel runtime module.
 """
-from math import ceil
-import weakref
 
-from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, normalize_color_rgb, preset
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices, _collision_surface_for_step
+import weakref
+from math import ceil
+
+from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
+from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
 def ensure_quality_properties(scene):
+    """Create and validate persistent quality and presentation properties on a scene."""
+    """Create and validate persistent simulation-quality properties on a scene."""
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
         ("ParticleDistance", "App::PropertyFloat", "Quality", None, 4.0),
@@ -49,7 +52,14 @@ def _validate_properties(scene):
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
     scene.FabricDensity = max(1e-9, float(scene.FabricDensity))
     scene.FabricThickness = max(1e-9, float(scene.FabricThickness))
-    for name in ("FabricStretch", "FabricShear", "FabricBend", "FabricFriction", "FabricSpecular", "FabricRoughness"):
+    for name in (
+        "FabricStretch",
+        "FabricShear",
+        "FabricBend",
+        "FabricFriction",
+        "FabricSpecular",
+        "FabricRoughness",
+    ):
         setattr(scene, name, min(1.0, max(0.0, float(getattr(scene, name)))))
     scene.FabricTransparency = min(100, max(0, int(scene.FabricTransparency)))
     scene.FabricColor = normalize_color_rgb(getattr(scene, "FabricColor", (0.72, 0.34, 0.46)))
@@ -57,6 +67,8 @@ def _validate_properties(scene):
 
 
 def apply_quality_preset(scene, name=None):
+    """Apply a named quality preset and return its normalized profile."""
+    """Apply a named quality preset and return its normalized profile."""
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
     scene.QualityPreset = quality.name
@@ -70,24 +82,11 @@ def apply_quality_preset(scene, name=None):
 
 
 def quality_discretization(point_count, perimeter, particle_distance):
+    """Return the sample count required by the requested particle spacing."""
+    """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
         raise ValueError("point_count must be at least three")
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
-
-
-def _material(scene):
-    return FabricMaterial(
-        density_g_m2=float(scene.FabricDensity),
-        thickness_mm=float(scene.FabricThickness),
-        stretch=float(scene.FabricStretch),
-        shear=float(scene.FabricShear),
-        bend=float(scene.FabricBend),
-        friction=float(scene.FabricFriction),
-        color_rgb=normalize_color_rgb(scene.FabricColor),
-        specular=float(scene.FabricSpecular),
-        roughness=float(scene.FabricRoughness),
-        transparency=float(scene.FabricTransparency),
-    ).validate()
 
 
 class QualitySimulationProxy:
@@ -101,6 +100,7 @@ class QualitySimulationProxy:
     @staticmethod
     def _new_base():
         from freecad_cloth.simulation.SimulationObjects import SimulationProxy
+
         return SimulationProxy()
 
     def _restore_base(self):
@@ -134,25 +134,47 @@ class QualitySimulationProxy:
     @staticmethod
     def _signature(obj):
         from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
-        pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
-        material = _material(obj)
+
+        pieces = [
+            p
+            for p in getattr(obj, "ClothPieces", ())
+            if getattr(p, "PatternType", "") == "PatternPiece"
+        ]
         return (
             _simulation_source_signature(obj, pieces),
             preset(obj.QualityPreset),
-            float(obj.ParticleDistance), int(obj.SolverIterations), int(obj.SolverSubsteps),
-            material, float(obj.AvatarSkinOffset),
+            float(obj.ParticleDistance),
+            int(obj.SolverIterations),
+            int(obj.SolverSubsteps),
+            float(obj.FabricDensity),
+            float(obj.FabricThickness),
+            float(obj.FabricStretch),
+            float(obj.FabricShear),
+            float(obj.FabricBend),
+            float(obj.FabricFriction),
+            float(obj.AvatarSkinOffset),
         )
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         ensure_quality_properties(obj)
         base = self._base_or_restore()
         signature = self._signature(obj)
-        pieces = [p for p in getattr(obj, "ClothPieces", ()) if getattr(p, "PatternType", "") == "PatternPiece"]
-        if base.backend is None or signature != base.source_signature or int(obj.Steps) < base.last_steps:
+        pieces = [
+            p
+            for p in getattr(obj, "ClothPieces", ())
+            if getattr(p, "PatternType", "") == "PatternPiece"
+        ]
+        if (
+            base.backend is None
+            or signature != base.source_signature
+            or int(obj.Steps) < base.last_steps
+        ):
             target = getattr(obj, "DrapeTarget", None)
             source = getattr(target, "SourceObject", None) if target is not None else None
             if target is not None:
                 from freecad_cloth.simulation.DrapeTarget import target_status
+
                 status = target_status(target)
                 if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
                     base.source_signature = None
@@ -161,38 +183,28 @@ class QualitySimulationProxy:
                     return None
                 if str(getattr(source, "AvatarType", "")) == "ClothAvatar":
                     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
+
                     refresh_drape_target(target)
             if pieces:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
                 self._build_demo(obj, signature)
             self._sync_seam_stitch_provenance(base)
-            self._apply_material(obj)
-            self._apply_collision(obj)
         steps = int(obj.Steps)
         if steps > base.last_steps:
-            material = _material(obj)
             dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
-            damping = 1.0 - 0.05 * material.friction
             for _ in range(steps - base.last_steps):
                 for _ in range(int(obj.SolverSubsteps)):
-                    sphere = None if getattr(base.backend, "name", "") == "tissu" else (
-                        float(obj.CollisionX), float(obj.CollisionY), float(obj.CollisionZ), float(obj.CollisionRadius)
-                    )
                     base.backend.step(
-                        dt, int(obj.SolverIterations),
+                        dt,
+                        int(obj.SolverIterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                        sphere,
-                        _collision_surface_for_step(base),
+                        base.collision_surface,
                     )
-                    system = getattr(base.backend, "system", None)
-                    for particle in getattr(system, "particles", ()):
-                        particle.x = particle.px + (particle.x - particle.px) * damping
-                        particle.y = particle.py + (particle.y - particle.py) * damping
-                        particle.z = particle.pz + (particle.z - particle.pz) * damping
                 base.last_steps += 1
         positions = base.backend.positions()
         from freecad_cloth.simulation.SimulationObjects import _write_mesh
+
         for panel in getattr(obj, "DrapePanels", ()):
             _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
         self._apply_presentation(obj)
@@ -204,13 +216,16 @@ class QualitySimulationProxy:
         """Use the authoritative base scene builder with quality tessellation."""
         from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+
         base = self._base_or_restore()
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: quality_piece_mesh(
-            piece,
-            start_height,
-            float(obj.ParticleDistance),
-            piece_ir=piece_ir,
+        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: (
+            quality_piece_mesh(
+                piece,
+                start_height,
+                float(obj.ParticleDistance),
+                piece_ir=piece_ir,
+            )
         )
         try:
             return base._build_pattern_scene(obj, pieces, signature)
@@ -218,21 +233,33 @@ class QualitySimulationProxy:
             SimulationObjects._piece_mesh = previous
 
     def _build_demo(self, obj, signature):
-        from freecad_cloth.simulation.ClothBackend import default_backend_registry
         from freecad_cloth.simulation.ClothSolver import ClothSystem
-        from freecad_cloth.simulation.SimulationObjects import _parse_pair_list, _write_grid_mesh
+        from freecad_cloth.simulation.SimulationObjects import (
+            _collision_for_scene,
+            _parse_pair_list,
+            _write_grid_mesh,
+        )
+        from freecad_cloth.simulation.TissuBackend import TissuBackend
+
         base = self._base_or_restore()
         spacing = max(0.25, float(obj.ParticleDistance))
         width, height = 100.0, 60.0
         nx = max(3, int(round(width / spacing)) + 1)
         ny = max(3, int(round(height / spacing)) + 1)
-        left = ClothSystem.grid(width, height, nx, ny, origin=(-100.0, -30.0, float(obj.StartHeight)))
+        left = ClothSystem.grid(
+            width, height, nx, ny, origin=(-100.0, -30.0, float(obj.StartHeight))
+        )
         right = ClothSystem.grid(width, height, nx, ny, origin=(0.0, -30.0, float(obj.StartHeight)))
         offset = len(left.particles)
         particles = left.particles + right.particles
-        constraints = list(left.constraints) + [type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints]
+        constraints = list(left.constraints) + [
+            type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints
+        ]
         system = ClothSystem(particles, constraints)
-        system.add_stitches(_parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles)) or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny)))
+        system.add_stitches(
+            _parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles))
+            or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny))
+        )
         pins = resolve_pin_indices(
             obj,
             len(particles),
@@ -240,19 +267,39 @@ class QualitySimulationProxy:
         )
         if pins:
             system.pin(pins)
-        base.backend = default_backend_registry().create("xpbd-cpu", system)
         tris = []
         for j in range(ny - 1):
             for i in range(nx - 1):
-                a = j * nx + i; b = a + 1; c = (j + 1) * nx + i + 1; d = (j + 1) * nx + i
+                a = j * nx + i
+                b = a + 1
+                c = (j + 1) * nx + i + 1
+                d = (j + 1) * nx + i
                 tris.extend(((a, b, c), (a, c, d)))
-        base.panel_indices = {"DrapePanelA": tuple(range(offset)), "DrapePanelB": tuple(range(offset, offset * 2))}
-        base.panel_triangles = {"DrapePanelA": tuple(tris), "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris)}
+        base.panel_indices = {
+            "DrapePanelA": tuple(range(offset)),
+            "DrapePanelB": tuple(range(offset, offset * 2)),
+        }
+        base.panel_triangles = {
+            "DrapePanelA": tuple(tris),
+            "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris),
+        }
+        collision_surface = _collision_for_scene(obj)
+        base.backend = TissuBackend(
+            system,
+            tuple(tris),
+            pins=pins,
+            stitches=tuple((stitch.a, stitch.b) for stitch in system.stitches),
+            collision_surface=collision_surface,
+        )
         base.source_signature = signature
         base.last_steps = 0
-        base.collision_surface = None
+        base.collision_surface = getattr(
+            base.backend, "solver_collision_surface", collision_surface
+        )
         positions = base.backend.positions()
-        for panel, key in zip(getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB")):
+        for panel, key in zip(
+            getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB"), strict=False
+        ):
             _write_grid_mesh(panel, positions, base.panel_indices[key], nx, ny)
 
     def _apply_presentation(self, obj):
@@ -266,44 +313,30 @@ class QualitySimulationProxy:
                 if hasattr(view, "SpecularColor"):
                     view.SpecularColor = (float(getattr(obj, "FabricSpecular", 0.25)),) * 3
                 if hasattr(view, "Shininess"):
-                    view.Shininess = float(max(0.0, min(100.0, (1.0 - float(getattr(obj, "FabricRoughness", 0.65))) * 100.0)))
+                    view.Shininess = float(
+                        max(
+                            0.0,
+                            min(
+                                100.0, (1.0 - float(getattr(obj, "FabricRoughness", 0.65))) * 100.0
+                            ),
+                        )
+                    )
             except (AttributeError, TypeError, ValueError):
                 pass
 
-    def _apply_material(self, obj):
-        base = self._base_or_restore()
-        material = _material(obj)
-        system = getattr(base.backend, "system", None)
-        if system is None:
-            return
-        mass_factor = 150.0 / material.density_g_m2
-        for particle in system.particles:
-            particle.inv_mass *= mass_factor
-        rest_factor = 1.0 + 0.01 * material.stretch + 0.005 * material.shear + 0.002 * material.bend
-        system.constraints = [type(c)(c.a, c.b, c.rest * rest_factor, c.compliance) for c in system.constraints]
-
-    def _apply_collision(self, obj):
-        base = self._base_or_restore()
-        if getattr(base.backend, "name", "") == "tissu":
-            # Tissu constructs its immutable mesh collider from the authoritative
-            # DrapeTarget during scene creation. Keep that exact object for every step.
-            return
-        avatar = getattr(obj, "AvatarProxy", None)
-        source = getattr(avatar, "SourceObject", None) if avatar is not None else None
-        if source is None:
-            return
-        from freecad_cloth.avatar.AvatarCollision import coarsen_collision_surface, surface_from_freecad
-        thickness = float(getattr(avatar, "CollisionThickness", 0.0)) + float(obj.FabricThickness) + float(obj.AvatarSkinOffset)
-        full_surface = surface_from_freecad(source, float(getattr(avatar, "CollisionDeflection", 1.0)), thickness)
-        base.collision_surface = coarsen_collision_surface(full_surface, 512)
-
     def reset(self, obj):
+        """Reset the runtime state to its initial values."""
         self._base_or_restore().reset(obj)
 
 
 def create_quality_simulation_scene(doc):
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
+    """Create the quality-controlled FreeCAD simulation scene using Tissu."""
     from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.simulation.SimulationObjects import (
+        create_simulation_scene,
+        set_avatar_collision_source,
+    )
+
     scene = create_simulation_scene(doc)
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):

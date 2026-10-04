@@ -4,11 +4,11 @@ The persisted FreeCAD Seam object is the document source of truth; ``PatternMode
 user-facing adapter that references that canonical seam and stores only
 presentation-level pairing metadata.
 """
-from dataclasses import dataclass, field
-from typing import Dict
 
+from dataclasses import dataclass, field
+
+from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
-from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 
 
 class SewingPair:
@@ -20,7 +20,9 @@ class SewingPair:
     the canonical seam from that graph.
     """
 
-    def __init__(self, seam_or_id, stitch_group: str, alignment: str = "endpoints", reversed_b=None):
+    def __init__(
+        self, seam_or_id, stitch_group: str, alignment: str = "endpoints", reversed_b=None
+    ):
         if isinstance(seam_or_id, Seam):
             self._seam = seam_or_id
             self._seam_id = seam_or_id.id
@@ -34,6 +36,7 @@ class SewingPair:
 
     @property
     def seam_id(self):
+        """Provide the public seam id operation."""
         return self._seam_id
 
     @property
@@ -51,6 +54,7 @@ class SewingPair:
         self._legacy_reversed = None
 
     def validate(self, graph: SeamGraph) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.seam_id.strip():
             raise ValueError("seam id must not be empty")
         if self.seam_id not in graph.seams:
@@ -71,10 +75,14 @@ class SewingPair:
 @dataclass
 class SewingAssembly:
     """Validated collection of sewing pairs and deterministic piece transforms."""
-    graph: SeamGraph
-    pairs: Dict[str, SewingPair] = field(default_factory=dict)
 
-    def add_pair(self, seam_id: str, stitch_group: str = "", alignment: str = "endpoints") -> SewingPair:
+    graph: SeamGraph
+    pairs: dict[str, SewingPair] = field(default_factory=dict)
+
+    def add_pair(
+        self, seam_id: str, stitch_group: str = "", alignment: str = "endpoints"
+    ) -> SewingPair:
+        """Add a sewing relationship to this collection."""
         if seam_id in self.pairs:
             raise ValueError(f"seam is already paired: {seam_id}")
         if seam_id not in self.graph.seams:
@@ -86,19 +94,23 @@ class SewingAssembly:
         return pair
 
     def remove_pair(self, seam_id: str) -> None:
+        """Remove a sewing relationship from this collection."""
         if seam_id not in self.pairs:
             raise ValueError(f"unknown sewing pair: {seam_id}")
         del self.pairs[seam_id]
 
     def set_piece_transform(self, piece_id: str, transform: Transform3D) -> None:
+        """Set the transform for a pattern piece."""
         self.graph.set_transform(piece_id, transform)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         self.graph.validate()
         for pair in self.pairs.values():
             pair.validate(self.graph)
 
     def to_metadata(self) -> dict:
+        """Return persistent metadata for this object."""
         self.validate()
         return {
             "pairs": tuple(
@@ -109,7 +121,9 @@ class SewingAssembly:
         }
 
 
-def pair_seam(graph: SeamGraph, seam_id: str, stitch_group: str = "", alignment: str = "endpoints") -> SewingPair:
+def pair_seam(
+    graph: SeamGraph, seam_id: str, stitch_group: str = "", alignment: str = "endpoints"
+) -> SewingPair:
     """Validate a seam and return its user-facing pairing metadata."""
     assembly = SewingAssembly(graph)
     return assembly.add_pair(seam_id, stitch_group, alignment)

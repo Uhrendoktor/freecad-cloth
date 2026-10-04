@@ -1,7 +1,7 @@
 import unittest
 
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 from freecad_cloth.avatar import _standing_visual_parameters
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
 
 class AvatarStandingPoseTests(unittest.TestCase):

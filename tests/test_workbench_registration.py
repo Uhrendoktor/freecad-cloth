@@ -1,9 +1,11 @@
 """Headless regression checks for package-owned Cloth workbench registration."""
+
 import importlib
 from pathlib import Path
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS, ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
+from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +24,9 @@ def test_workbench_resources_are_stable():
         resources = wb.GetResources()
         assert resources["MenuText"] == wb.MenuText
         assert resources["ToolTip"] == wb.ToolTip
-        assert Path(resources["Icon"]).resolve() == (ICON_DIR / Path(resources["Icon"]).name).resolve()
+        assert (
+            Path(resources["Icon"]).resolve() == (ICON_DIR / Path(resources["Icon"]).name).resolve()
+        )
         assert Path(resources["Icon"]).is_file()
         assert wb.GetClassName() == "Gui::PythonWorkbench"
 
@@ -53,7 +57,5 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
     fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
     avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
     assert set(wb.commands) == set(
-        command
-        for _name, group in SEWING_COMMAND_GROUPS
-        for command in group
+        command for _name, group in SEWING_COMMAND_GROUPS for command in group
     ) | set(fitting.COMMANDS) | set(avatar.COMMANDS)

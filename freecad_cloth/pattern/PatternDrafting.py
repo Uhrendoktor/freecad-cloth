@@ -7,10 +7,12 @@ FreeCAD Sketcher is authoritative for new pattern geometry.
 
 
 def default_points(width, height):
+    """Provide the public default points operation."""
     return ((0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height)))
 
 
 def normalize_points(points):
+    """Provide the public normalize points operation."""
     values = tuple((float(x), float(y)) for x, y in points)
     if len(values) < 3:
         raise ValueError("drafting boundary requires at least three points")
@@ -18,19 +20,24 @@ def normalize_points(points):
 
 
 def serialize_points(points):
-    return ";".join("%.9g,%.9g" % (x, y) for x, y in normalize_points(points))
+    """Provide the public serialize points operation."""
+    return ";".join(f"{x:.9g},{y:.9g}" for x, y in normalize_points(points))
 
 
 def parse_points(value):
+    """Provide the public parse points operation."""
     if not value:
         return ()
     try:
-        return normalize_points(tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";")))
-    except (TypeError, ValueError):
-        raise ValueError("invalid drafting boundary")
+        return normalize_points(
+            tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";"))
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid drafting boundary") from exc
 
 
 def move_point(points, index, x, y):
+    """Provide the public move point operation."""
     values = list(normalize_points(points))
     index = int(index)
     if not 0 <= index < len(values):
@@ -40,6 +47,7 @@ def move_point(points, index, x, y):
 
 
 def add_point(points, x, y, index=None):
+    """Add the requested point data."""
     values = list(normalize_points(points))
     if index is None:
         index = len(values)
@@ -49,6 +57,7 @@ def add_point(points, x, y, index=None):
 
 
 def remove_point(points, index):
+    """Remove the requested point data."""
     values = list(normalize_points(points))
     if len(values) <= 3:
         raise ValueError("a drafting boundary needs at least three points")
@@ -60,13 +69,22 @@ def remove_point(points, index):
 
 
 def bounds(points):
+    """Provide the public bounds operation."""
     values = normalize_points(points)
-    xs, ys = zip(*values)
+    xs, ys = zip(*values, strict=False)
     return min(xs), min(ys), max(xs), max(ys)
 
 
 def seam_allowance_preview(points, allowance):
-    from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, seam_allowance_outline
+    """Provide the public seam allowance preview operation."""
+    from freecad_cloth.pattern.PatternGeometry import (
+        LineSegment,
+        ParametricPattern,
+        seam_allowance_outline,
+    )
+
     values = normalize_points(points)
-    segments = [LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))]
+    segments = [
+        LineSegment(str(i), values[i], values[(i + 1) % len(values)]) for i in range(len(values))
+    ]
     return tuple(seam_allowance_outline(ParametricPattern(segments), max(0.0, float(allowance))))

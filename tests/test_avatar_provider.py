@@ -5,8 +5,8 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
-    ParametricAvatarProvider,
     HumanoidMeshAvatarProvider,
+    ParametricAvatarProvider,
     provider_from_target,
 )
 
@@ -25,16 +25,19 @@ class _Shape:
         return 42
 
     def tessellate(self, _deflection):
-        vertices = tuple(SimpleNamespace(x=x, y=y, z=z) for x, y, z in (
-            (0, 0, 0), (10, 0, 0), (0, 10, 0)))
+        vertices = tuple(
+            SimpleNamespace(x=x, y=y, z=z) for x, y, z in ((0, 0, 0), (10, 0, 0), (0, 10, 0))
+        )
         return vertices, ((0, 1, 2),)
 
 
 class AvatarProviderTests(unittest.TestCase):
     def test_parametric_provider_is_makehuman_mesh_provider(self):
         provider = ParametricAvatarProvider(AvatarParameters())
-        self.assertEqual(provider.info, AvatarProviderInfo(
-            "makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high"))
+        self.assertEqual(
+            provider.info,
+            AvatarProviderInfo("makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high"),
+        )
         self.assertIs(HumanoidMeshAvatarProvider, ParametricAvatarProvider)
         self.assertEqual(provider.surface(), provider.collision_surface())
         self.assertGreater(len(provider.landmarks()), 5)
@@ -58,11 +61,14 @@ class AvatarProviderTests(unittest.TestCase):
 
     def test_freecad_provider_rejects_invalid_tessellation(self):
         source = _Shape()
-        with self.assertRaises(ValueError): FreeCADGeometryAvatarProvider(source, 0)
-        with self.assertRaises(ValueError): FreeCADGeometryAvatarProvider(source, 1, -1)
+        with self.assertRaises(ValueError):
+            FreeCADGeometryAvatarProvider(source, 0)
+        with self.assertRaises(ValueError):
+            FreeCADGeometryAvatarProvider(source, 1, -1)
 
     def test_factory_rejects_unknown_provider(self):
-        with self.assertRaises(ValueError): provider_from_target(None, "Blender")
+        with self.assertRaises(ValueError):
+            provider_from_target(None, "Blender")
 
 
 if __name__ == "__main__":

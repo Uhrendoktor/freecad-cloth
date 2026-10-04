@@ -1,13 +1,40 @@
 """Sewing workbench registration facade."""
+
 from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
-
 COMMAND_GROUPS = (
-    ("Sewing Creation", ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_CreateNetwork", "ClothSewing_FreeSewing")),
-    ("Sewing Editing", ("ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_EditNetwork", "ClothSewing_ReverseSeam", "ClothSewing_ToggleAlignment")),
-    ("Validation & View", ("ClothSewing_Validate", "ClothSewing_RepairSeam", "ClothSewing_FocusSeam3D", "ClothSewing_EditSeamSideA", "ClothSewing_EditSeamSideB", "ClothSewing_Show2D")),
+    (
+        "Sewing Creation",
+        (
+            "ClothSewing_CreateSeam",
+            "ClothSewing_CreateMNSewing",
+            "ClothSewing_CreateNetwork",
+            "ClothSewing_FreeSewing",
+        ),
+    ),
+    (
+        "Sewing Editing",
+        (
+            "ClothSewing_CreateOperation",
+            "ClothSewing_EditOperation",
+            "ClothSewing_EditNetwork",
+            "ClothSewing_ReverseSeam",
+            "ClothSewing_ToggleAlignment",
+        ),
+    ),
+    (
+        "Validation & View",
+        (
+            "ClothSewing_Validate",
+            "ClothSewing_RepairSeam",
+            "ClothSewing_FocusSeam3D",
+            "ClothSewing_EditSeamSideA",
+            "ClothSewing_EditSeamSideB",
+            "ClothSewing_Show2D",
+        ),
+    ),
     ("Fitting & Avatar", ()),
 )
 TOOLBAR_COMMANDS = ("ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate")
@@ -25,10 +52,12 @@ def _validate_sewing_command_groups(groups, expected):
         extra = sorted(set(grouped) - set(expected))
         detail = []
         if missing:
-            detail.append("missing: %s" % ", ".join(missing))
+            detail.append("missing: {}".format(", ".join(missing)))
         if extra:
-            detail.append("unexpected: %s" % ", ".join(extra))
-        raise ValueError("Sewing workbench command groups are out of sync (%s)" % "; ".join(detail))
+            detail.append("unexpected: {}".format(", ".join(extra)))
+        raise ValueError(
+            "Sewing workbench command groups are out of sync ({})".format("; ".join(detail))
+        )
 
 
 class ClothSewingWorkbench(ClothWorkbenchBase):
@@ -37,24 +66,38 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
 
     def __init__(self):
         super().__init__()
-        self.Icon = str(Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSewing.svg")
+        self.Icon = str(
+            Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSewing.svg"
+        )
 
     def Activated(self):
         import FreeCAD as App
+
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+
         if App.ActiveDocument is not None:
             apply_seam_colors(App.ActiveDocument.Objects)
-
 
     def Initialize(self):
         if self.commands:
             return
+        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
+        import freecad_cloth.avatar.FittingCommands as FittingCommands
         import freecad_cloth.sewing.SewingCommands as SewingCommands
         import freecad_cloth.sewing.SewingNetworkCommands as SewingNetworkCommands
-        import freecad_cloth.avatar.FittingCommands as FittingCommands
-        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
+
         groups = list(COMMAND_GROUPS[:3])
-        groups.append(("Fitting & Avatar", tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS))))
-        expected = SewingCommands.COMMANDS + SewingNetworkCommands.COMMANDS + FittingCommands.COMMANDS + AvatarCommands.COMMANDS
+        groups.append(
+            (
+                "Fitting & Avatar",
+                tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS)),
+            )
+        )
+        expected = (
+            SewingCommands.COMMANDS
+            + SewingNetworkCommands.COMMANDS
+            + FittingCommands.COMMANDS
+            + AvatarCommands.COMMANDS
+        )
         _validate_sewing_command_groups(groups, expected)
         self.register(groups, toolbar_name=self.MenuText, toolbar_commands=TOOLBAR_COMMANDS)

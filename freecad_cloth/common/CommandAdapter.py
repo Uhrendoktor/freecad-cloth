@@ -1,6 +1,6 @@
 """Small headless-safe adapter for FreeCAD GUI command registration."""
-from pathlib import Path
 
+from pathlib import Path
 
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
@@ -19,9 +19,11 @@ class FunctionCommand:
         self.command_name = command_name or function.__name__
 
     def Activated(self):
+        """Provide the public Activated operation."""
         return self.function()
 
     def GetResources(self):
+        """Provide the public GetResources operation."""
         return {
             "MenuText": self.function.__name__.replace("_", " ").title(),
             "ToolTip": self.tooltip or self.function.__doc__ or "Cloth command",

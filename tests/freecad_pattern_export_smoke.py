@@ -1,23 +1,28 @@
 """Real-FreeCAD smoke coverage for the public production SVG/DXF export."""
+
 import json
-from pathlib import Path
 import os
-import tempfile
 import sys
+import tempfile
 import traceback
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import contextlib
+
 import FreeCAD as App
 import FreeCADGui as Gui
+
 import InitGui
-
-from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
 
-LOG_PATH = Path(os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log"))
+LOG_PATH = Path(
+    os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log")
+)
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
@@ -59,10 +64,8 @@ def open_public_export(piece):
 
 def close_public_task(panel=None):
     if panel is not None:
-        try:
+        with contextlib.suppress(Exception):
             panel.reject()
-        except Exception:
-            pass
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
@@ -73,10 +76,10 @@ def accept_public_task(panel, export_format):
         accepted = panel.accept()
     except Exception as exc:
         raise RuntimeError(
-            "public export task panel could not accept %s: %s" % (export_format, exc)
+            f"public export task panel could not accept {export_format}: {exc}"
         ) from exc
     if accepted is False:
-        raise RuntimeError("public export task panel rejected %s export" % export_format)
+        raise RuntimeError(f"public export task panel rejected {export_format} export")
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         process_events()
@@ -85,9 +88,7 @@ def accept_public_task(panel, export_format):
         if active is None or not bool(active):
             return
         process_events()
-    raise RuntimeError(
-        "public export task panel did not close after successful %s" % export_format
-    )
+    raise RuntimeError(f"public export task panel did not close after successful {export_format}")
 
 
 doc = None
@@ -98,11 +99,17 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
-    for command in ("ClothPattern_CreatePieceWithSketch", "ClothPattern_EditSketch", "ClothPattern_Export"):
+    for command in (
+        "ClothPattern_CreatePieceWithSketch",
+        "ClothPattern_EditSketch",
+        "ClothPattern_Export",
+    ):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
-        raise RuntimeError("legacy PatternDrafting command leaked into the public workbench surface")
+        raise RuntimeError(
+            "legacy PatternDrafting command leaked into the public workbench surface"
+        )
     record("commands=registered sketcher-only")
 
     doc = App.newDocument("PatternProductionExportSmoke")
@@ -151,12 +158,15 @@ try:
         doc.recompute()
 
         marks = [
-            obj for obj in doc.Objects
+            obj
+            for obj in doc.Objects
             if str(getattr(obj, "PatternMarkType", "")).strip()
             and str(getattr(obj, "PieceId", "")).strip() == str(piece.PieceId)
         ]
         if len(marks) != 3:
-            raise RuntimeError("export smoke did not persist notch, grainline, and internal mark objects")
+            raise RuntimeError(
+                "export smoke did not persist notch, grainline, and internal mark objects"
+            )
         piece_id = str(piece.PieceId)
         notch = next(obj for obj in marks if str(obj.PatternMarkType) == "Notch")
         grainline = next(obj for obj in marks if str(obj.PatternMarkType) == "Grainline")
@@ -165,14 +175,17 @@ try:
         grainline_id = str(getattr(grainline, "PatternMarkId", "")).strip()
         mark_id = str(getattr(construction_mark, "PatternMarkId", "")).strip()
         if not all((notch_id, grainline_id, mark_id)):
-            raise RuntimeError("native construction marks do not have persistent PatternMarkId values")
+            raise RuntimeError(
+                "native construction marks do not have persistent PatternMarkId values"
+            )
         edge_id = piece_id + ":edge:0"
         for obj in (notch, grainline, construction_mark):
             if str(getattr(obj, "SegmentId", "")) != edge_id:
-                raise RuntimeError("native construction mark did not persist authored Sketch semantic edge identity")
+                raise RuntimeError(
+                    "native construction mark did not persist authored Sketch semantic edge identity"
+                )
         record(
-            "marks=ready notch=%s grainline=%s internal=%s edge=%s"
-            % (notch_id, grainline_id, mark_id, edge_id)
+            f"marks=ready notch={notch_id} grainline={grainline_id} internal={mark_id} edge={edge_id}"
         )
 
         piece.SeamAllowance = 5.0
@@ -187,7 +200,8 @@ try:
 
         piece = next(
             (
-                obj for obj in doc.Objects
+                obj
+                for obj in doc.Objects
                 if getattr(obj, "PatternType", "") == "PatternPiece"
                 and str(getattr(obj, "PieceId", "")) == piece_id
             ),
@@ -204,26 +218,34 @@ try:
             raise RuntimeError("save/reload changed authored Sketch semantic edge identities")
 
         marks = [
-            obj for obj in doc.Objects
+            obj
+            for obj in doc.Objects
             if str(getattr(obj, "PatternMarkType", "")).strip()
             and str(getattr(obj, "PieceId", "")).strip() == piece_id
         ]
         notch = next(
-            obj for obj in marks
+            obj
+            for obj in marks
             if str(obj.PatternMarkType) == "Notch"
             and str(getattr(obj, "PatternMarkId", "")) == notch_id
         )
         grainline = next(
-            obj for obj in marks
+            obj
+            for obj in marks
             if str(obj.PatternMarkType) == "Grainline"
             and str(getattr(obj, "PatternMarkId", "")) == grainline_id
         )
         construction_mark = next(
-            obj for obj in marks
+            obj
+            for obj in marks
             if str(obj.PatternMarkType) == "InternalMark"
             and str(getattr(obj, "PatternMarkId", "")) == mark_id
         )
-        if str(notch.SegmentId) != edge_id or float(notch.Position) != 0.5 or float(notch.Depth) != 3.0:
+        if (
+            str(notch.SegmentId) != edge_id
+            or float(notch.Position) != 0.5
+            or float(notch.Depth) != 3.0
+        ):
             raise RuntimeError("save/reload changed persisted notch identity or geometry")
         if (
             str(grainline.SegmentId) != edge_id
@@ -239,10 +261,11 @@ try:
             or float(construction_mark.Length) != 40.0
             or str(construction_mark.Text) != "Internal mark"
         ):
-            raise RuntimeError("save/reload changed persisted construction-mark identity or geometry")
+            raise RuntimeError(
+                "save/reload changed persisted construction-mark identity or geometry"
+            )
         record(
-            "roundtrip=passed piece=%s notch=%s grainline=%s mark=%s"
-            % (piece_id, notch_id, grainline_id, mark_id)
+            f"roundtrip=passed piece={piece_id} notch={notch_id} grainline={grainline_id} mark={mark_id}"
         )
 
         source_before = (
@@ -275,24 +298,24 @@ try:
             path_b = output_dir / ("piece-second." + export_format.lower())
 
             panel = open_public_export(piece)
-            record("export=%s:first-panel-opened" % export_format)
+            record(f"export={export_format}:first-panel-opened")
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_a))
-            record("export=%s:first-accept" % export_format)
+            record(f"export={export_format}:first-accept")
             accept_public_task(panel, export_format)
-            record("export=%s:first-written" % export_format)
+            record(f"export={export_format}:first-written")
 
             first = path_a.read_bytes()
             if not first:
                 raise RuntimeError(export_format + " export is empty")
 
             panel = open_public_export(piece)
-            record("export=%s:second-panel-opened" % export_format)
+            record(f"export={export_format}:second-panel-opened")
             panel.format.setCurrentText(export_format)
             panel.path.setText(str(path_b))
-            record("export=%s:second-accept" % export_format)
+            record(f"export={export_format}:second-accept")
             accept_public_task(panel, export_format)
-            record("export=%s:second-written" % export_format)
+            record(f"export={export_format}:second-written")
 
             second = path_b.read_bytes()
             if first != second:
@@ -314,13 +337,15 @@ try:
 
             output = first.decode("utf-8")
             if export_format == "SVG":
-                if 'id="notch-%s"' % notch_id not in output:
+                if f'id="notch-{notch_id}"' not in output:
                     raise RuntimeError("SVG export lost persisted notch identity/geometry")
-                if 'id="mark-%s"' % grainline_id not in output:
+                if f'id="mark-{grainline_id}"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline identity/geometry")
-                if 'id="mark-%s"' % mark_id not in output or 'data-kind="InternalMark"' not in output:
-                    raise RuntimeError("SVG export lost persisted construction-mark identity/geometry")
-                if 'data-segment="%s" data-t="0.500000"' % edge_id not in output:
+                if f'id="mark-{mark_id}"' not in output or 'data-kind="InternalMark"' not in output:
+                    raise RuntimeError(
+                        "SVG export lost persisted construction-mark identity/geometry"
+                    )
+                if f'data-segment="{edge_id}" data-t="0.500000"' not in output:
                     raise RuntimeError("SVG export lost persisted semantic mark reference")
                 if 'cx="55.000000" cy="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted notch coordinates")
@@ -329,10 +354,12 @@ try:
                 if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline coordinates")
             else:
-                if '"notch_ids":["%s"]' % notch_id not in output:
+                if f'"notch_ids":["{notch_id}"]' not in output:
                     raise RuntimeError("DXF export lost persisted notch identity")
-                expected_mark_ids = json.dumps(sorted([grainline_id, mark_id]), separators=(",", ":"))
-                if '"mark_ids":%s' % expected_mark_ids not in output:
+                expected_mark_ids = json.dumps(
+                    sorted([grainline_id, mark_id]), separators=(",", ":")
+                )
+                if f'"mark_ids":{expected_mark_ids}' not in output:
                     raise RuntimeError("DXF export lost persisted mark identity")
                 if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
                     raise RuntimeError("DXF export lost persisted notch coordinates")
@@ -386,7 +413,11 @@ try:
             raise RuntimeError("stale semantic export wrote an artifact")
         record("stale-mark-guard=passed")
 
-        record("pattern-export=passed formats=SVG,DXF bytes=%s,%s" % (results["SVG"], results["DXF"]))
+        record(
+            "pattern-export=passed formats=SVG,DXF bytes={},{}".format(
+                results["SVG"], results["DXF"]
+            )
+        )
 
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
@@ -396,7 +427,11 @@ finally:
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("pattern-export-smoke=completed", flush=True)
     try:
-        if App.ActiveDocument is not None and doc is not None and App.ActiveDocument.Name == doc.Name:
+        if (
+            App.ActiveDocument is not None
+            and doc is not None
+            and App.ActiveDocument.Name == doc.Name
+        ):
             App.closeDocument(doc.Name)
     except Exception:
         pass

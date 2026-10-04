@@ -1,9 +1,14 @@
 """Simulation mesh density delegated to the Triangle constrained-Delaunay library."""
-from math import hypot, isfinite
+
+from math import hypot
 
 
 def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
-    from freecad_cloth.common.PatternSimulationAdapter import geometry_from_piece_ir, resolve_piece_ir
+    """Provide the public quality piece mesh operation."""
+    from freecad_cloth.common.PatternSimulationAdapter import (
+        geometry_from_piece_ir,
+        resolve_piece_ir,
+    )
     from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
     spacing = max(0.25, float(particle_distance))
@@ -21,6 +26,7 @@ def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
         positions = [(x, y, float(start_height)) for x, y in mesh.vertices]
     else:
         import FreeCAD as App
+
         positions = []
         for x, y in mesh.vertices:
             point = placement.multVec(App.Vector(x, y, float(start_height)))
@@ -46,9 +52,7 @@ def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
             None,
         )
         if base is None:
-            raise ValueError(
-                "quality mesh boundary provenance contains an unknown semantic edge"
-            )
+            raise ValueError("quality mesh boundary provenance contains an unknown semantic edge")
         pair = (boundary[index], boundary[(index + 1) % len(boundary)])
         edge_pairs.setdefault(base, []).append(pair)
 
@@ -58,10 +62,7 @@ def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
         edge_id = str(boundary_ir.id)
         pairs = edge_pairs.get(edge_id)
         if not pairs:
-            raise ValueError(
-                "quality mesh has no boundary provenance for semantic edge %s"
-                % edge_id
-            )
+            raise ValueError(f"quality mesh has no boundary provenance for semantic edge {edge_id}")
         vertex_indices = {vertex for pair in pairs for vertex in pair}
         authored = tuple(tuple(point[:2]) for point in boundary_ir.samples)
         ordered = tuple(
@@ -71,56 +72,53 @@ def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
             )
         )
         if len(ordered) < 2:
-            raise ValueError(
-                "quality mesh semantic edge %s has too few boundary vertices"
-                % edge_id
-            )
+            raise ValueError(f"quality mesh semantic edge {edge_id} has too few boundary vertices")
         endpoint_tolerance = 1e-7 * max(1.0, boundary_ir.length)
         first = mesh_vertices[ordered[0]]
         last = mesh_vertices[ordered[-1]]
-        if hypot(
-            float(first[0]) - float(authored[0][0]),
-            float(first[1]) - float(authored[0][1]),
-        ) > endpoint_tolerance:
-            raise ValueError(
-                "quality mesh semantic edge %s does not start at its authored vertex"
-                % edge_id
+        if (
+            hypot(
+                float(first[0]) - float(authored[0][0]),
+                float(first[1]) - float(authored[0][1]),
             )
-        if hypot(
-            float(last[0]) - float(authored[-1][0]),
-            float(last[1]) - float(authored[-1][1]),
-        ) > endpoint_tolerance:
+            > endpoint_tolerance
+        ):
             raise ValueError(
-                "quality mesh semantic edge %s does not end at its authored vertex"
-                % edge_id
+                f"quality mesh semantic edge {edge_id} does not start at its authored vertex"
+            )
+        if (
+            hypot(
+                float(last[0]) - float(authored[-1][0]),
+                float(last[1]) - float(authored[-1][1]),
+            )
+            > endpoint_tolerance
+        ):
+            raise ValueError(
+                f"quality mesh semantic edge {edge_id} does not end at its authored vertex"
             )
 
         actual_pairs = {frozenset(pair) for pair in pairs}
         ordered_pairs = {
-            frozenset((left, right))
-            for left, right in zip(ordered, ordered[1:])
+            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
         }
         if ordered_pairs != actual_pairs:
-            raise ValueError(
-                "quality mesh semantic edge %s boundary chain is disconnected"
-                % edge_id
-            )
+            raise ValueError(f"quality mesh semantic edge {edge_id} boundary chain is disconnected")
 
-        for left, right in zip(ordered, ordered[1:]):
+        for left, right in zip(ordered, ordered[1:], strict=False):
             span = hypot(
                 float(mesh_vertices[left][0]) - float(mesh_vertices[right][0]),
                 float(mesh_vertices[left][1]) - float(mesh_vertices[right][1]),
             )
             if span > float(spacing) + endpoint_tolerance:
                 raise ValueError(
-                    "quality mesh semantic edge %s exceeds requested boundary spacing"
-                    % edge_id
+                    f"quality mesh semantic edge {edge_id} exceeds requested boundary spacing"
                 )
         by_id[edge_id] = ordered
 
-    return positions, tuple(mesh.triangles), tuple(
-        tuple(by_id[str(boundary_ir.id)])
-        for boundary_ir in piece_ir.boundaries
+    return (
+        positions,
+        tuple(mesh.triangles),
+        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
     )
 
 
@@ -129,7 +127,7 @@ def _polyline_parameter(point, polyline):
         return 0.0
     total = 0.0
     spans = []
-    for start, end in zip(polyline, polyline[1:]):
+    for start, end in zip(polyline, polyline[1:], strict=False):
         dx = float(end[0]) - float(start[0])
         dy = float(end[1]) - float(start[1])
         length = (dx * dx + dy * dy) ** 0.5
@@ -144,8 +142,7 @@ def _polyline_parameter(point, polyline):
         dx = float(end[0]) - float(start[0])
         dy = float(end[1]) - float(start[1])
         t = (
-            (float(point[0]) - float(start[0])) * dx
-            + (float(point[1]) - float(start[1])) * dy
+            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
         ) / (length * length)
         t = max(0.0, min(1.0, t))
         px = float(start[0]) + t * dx
@@ -159,18 +156,22 @@ def _polyline_parameter(point, polyline):
 def install_quality_mesh_patch():
     """Patch the existing QualitySimulationProxy without duplicating solver code."""
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+
     if getattr(QualitySimulationProxy, "_cloth_quality_mesh_patched", False):
         return
     from freecad_cloth.simulation import SimulationObjects
+
     original = QualitySimulationProxy._build_pattern_scene
 
     def build_pattern_scene(self, obj, pieces, signature):
         previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: quality_piece_mesh(
-            piece,
-            start_height,
-            float(obj.ParticleDistance),
-            piece_ir=piece_ir,
+        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: (
+            quality_piece_mesh(
+                piece,
+                start_height,
+                float(obj.ParticleDistance),
+                piece_ir=piece_ir,
+            )
         )
         try:
             return original(self, obj, pieces, signature)

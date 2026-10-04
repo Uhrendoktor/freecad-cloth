@@ -4,8 +4,9 @@ import unittest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
-    MAKEHUMAN_BASE_URL,
     MAKEHUMAN_BASE_SHA256,
+    MAKEHUMAN_BASE_URL,
+    HumanoidMeshError,
     MeshData,
     _map_makehuman_axes,
     _reoriented_triangles,
@@ -26,24 +27,37 @@ class HumanoidMeshTests(unittest.TestCase):
         f 1 2 3 4
         f -4 -2 -1
         """)
-        self.assertEqual(data.vertices, ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)))
+        self.assertEqual(
+            data.vertices, ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0))
+        )
         self.assertEqual(data.triangles, ((0, 1, 2), (0, 2, 3), (0, 2, 3)))
 
     def test_mesh_data_rejects_invalid_indices(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(HumanoidMeshError):
             MeshData(((0.0, 0.0, 0.0),) * 3, ((0, 1, 3),)).validate()
 
     def test_real_source_is_pinned(self):
-        self.assertIn(MAKEHUMAN_BASE_SHA256, "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c")
+        self.assertIn(
+            MAKEHUMAN_BASE_SHA256,
+            "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+        )
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
     def test_real_source_height_axis_is_makehuman_y_up_and_fits_to_z(self):
         source = load_makehuman_mesh()
-        spans = tuple(max(vertex[axis] for vertex in source.vertices) - min(vertex[axis] for vertex in source.vertices) for axis in range(3))
+        spans = tuple(
+            max(vertex[axis] for vertex in source.vertices)
+            - min(vertex[axis] for vertex in source.vertices)
+            for axis in range(3)
+        )
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
-        fitted_spans = tuple(max(vertex[axis] for vertex in fitted.vertices) - min(vertex[axis] for vertex in fitted.vertices) for axis in range(3))
-        print("HM08_ORIENTATION source_spans=%s fitted_spans=%s" % (spans, fitted_spans), flush=True)
+        fitted_spans = tuple(
+            max(vertex[axis] for vertex in fitted.vertices)
+            - min(vertex[axis] for vertex in fitted.vertices)
+            for axis in range(3)
+        )
+        print(f"HM08_ORIENTATION source_spans={spans} fitted_spans={fitted_spans}", flush=True)
         self.assertGreater(spans[1], spans[0] * 1.5)
         self.assertGreater(spans[1], spans[2] * 2.0)
         self.assertAlmostEqual(fitted_spans[2], 1750.0, places=6)
@@ -77,7 +91,9 @@ class HumanoidMeshTests(unittest.TestCase):
         fitted = fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
         self.assertAlmostEqual(min(v[2] for v in fitted.vertices), 0.0)
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
-        self.assertAlmostEqual(max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 905.0)
+        self.assertAlmostEqual(
+            max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 905.0
+        )
         self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
 
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):

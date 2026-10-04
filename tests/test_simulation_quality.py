@@ -5,9 +5,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
-from freecad_cloth.simulation.SimulationQuality import FabricMaterial, QUALITY_PRESETS, preset, solver_parameters
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, _RUNTIME_BASES, quality_discretization
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.simulation.SimulationQuality import (
+    QUALITY_PRESETS,
+    FabricMaterial,
+    preset,
+    solver_parameters,
+)
+from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+    _RUNTIME_BASES,
+    QualitySimulationProxy,
+    quality_discretization,
+)
 
 
 class SimulationQualityTests(unittest.TestCase):
@@ -36,9 +45,8 @@ class SimulationQualityTests(unittest.TestCase):
             ("friction", -1),
         ]
         for field, value in invalid:
-            with self.subTest(field=field):
-                with self.assertRaises(ValueError):
-                    FabricMaterial(**{field: value}).validate()
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                FabricMaterial(**{field: value}).validate()
 
     def test_material_presentation_defaults_and_validation(self):
         material = FabricMaterial()
@@ -58,7 +66,9 @@ class SimulationQualityTests(unittest.TestCase):
         from freecad_cloth.simulation.SimulationQuality import normalize_color_rgb
 
         self.assertEqual(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)), (0.72, 0.34, 0.46))
-        self.assertEqual(normalize_color_rgb((184, 87, 117, 255)), (184 / 255.0, 87 / 255.0, 117 / 255.0))
+        self.assertEqual(
+            normalize_color_rgb((184, 87, 117, 255)), (184 / 255.0, 87 / 255.0, 117 / 255.0)
+        )
         with self.assertRaises(ValueError):
             normalize_color_rgb((300, 0, 0))
 
@@ -73,44 +83,60 @@ class SimulationQualityTests(unittest.TestCase):
 
     def test_pattern_mesh_density_changes_with_particle_distance(self):
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
-        piece_obj = type("Piece", (), {
-            "SewingOutline": repr(piece.outline),
-            "DraftingBoundary": repr(piece.outline),
-            "PieceId": piece.id,
-            "Placement": None,
-        })()
+        piece_obj = type(
+            "Piece",
+            (),
+            {
+                "SewingOutline": repr(piece.outline),
+                "DraftingBoundary": repr(piece.outline),
+                "PieceId": piece.id,
+                "Placement": None,
+            },
+        )()
         coarse = quality_piece_mesh(piece_obj, 100.0, 20.0)
         fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
         self.assertGreater(len(fine[0]), len(coarse[0]))
 
     def test_quality_seam_edges_have_interior_particles(self):
         piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
-        piece_obj = type("Piece", (), {
-            "SewingOutline": repr(piece.outline),
-            "DraftingBoundary": repr(piece.outline),
-            "PieceId": piece.id,
-            "Placement": None,
-        })()
+        piece_obj = type(
+            "Piece",
+            (),
+            {
+                "SewingOutline": repr(piece.outline),
+                "DraftingBoundary": repr(piece.outline),
+                "PieceId": piece.id,
+                "Placement": None,
+            },
+        )()
         positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
         self.assertEqual(len(boundary), 4)
         self.assertTrue(all(len(edge) >= 3 for edge in boundary))
         for edge in boundary:
             self.assertLessEqual(
                 max(
-                    ((positions[a][0] - positions[b][0]) ** 2 + (positions[a][1] - positions[b][1]) ** 2) ** 0.5
-                    for a, b in zip(edge, edge[1:])
+                    (
+                        (positions[a][0] - positions[b][0]) ** 2
+                        + (positions[a][1] - positions[b][1]) ** 2
+                    )
+                    ** 0.5
+                    for a, b in zip(edge, edge[1:], strict=False)
                 ),
                 20.000001,
             )
 
     def test_refinement_preserves_authored_boundary_and_materially_tessellates(self):
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
-        piece_obj = type("Piece", (), {
-            "SewingOutline": repr(piece.outline),
-            "DraftingBoundary": repr(piece.outline),
-            "PieceId": piece.id,
-            "Placement": None,
-        })()
+        piece_obj = type(
+            "Piece",
+            (),
+            {
+                "SewingOutline": repr(piece.outline),
+                "DraftingBoundary": repr(piece.outline),
+                "PieceId": piece.id,
+                "Placement": None,
+            },
+        )()
         positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
         # Constrained Delaunay preserves the authored outline as semantic
         # boundary chains; refinement adds interior vertices and triangles.
@@ -138,7 +164,6 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertIsNot(_RUNTIME_BASES[proxy], restored)
         self.assertEqual(proxy.last_steps, 0)
 
-
     def test_pinned_pinned_stitch_rejects_nonzero_initial_separation(self):
         from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
 
@@ -157,7 +182,6 @@ class SimulationQualityTests(unittest.TestCase):
         positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
         records = (("test-seam", "A", "B", ((0, 1),)),)
         validate_pinned_stitch_pairs(positions, (0, 1), records)
-
 
 
 if __name__ == "__main__":

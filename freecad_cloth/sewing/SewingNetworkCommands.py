@@ -3,6 +3,7 @@
 
 def _selected_seams():
     import FreeCADGui as Gui
+
     seams = [obj for obj in Gui.Selection.getSelection() if getattr(obj, "SeamId", "")]
     if not seams:
         raise ValueError("select one or more canonical seams before creating a sewing network")
@@ -11,6 +12,7 @@ def _selected_seams():
 
 def _selected_pattern_edges():
     from freecad_cloth.sewing.SewingCommands import _selected_pattern_edges as select_edges
+
     return select_edges(allow_many=False)
 
 
@@ -24,7 +26,9 @@ def get_active_network_task_panel():
 
 def create_network_from_selection():
     import FreeCAD as App
+
     from freecad_cloth.sewing.SewingNetwork import add_sewing_network
+
     doc = App.ActiveDocument
     if doc is None:
         raise ValueError("open a document before creating a sewing network")
@@ -49,6 +53,7 @@ def create_network_from_selection():
 def create_free_sewing_from_selection(open_editor=True):
     """Create a 1:1 free-sewing relationship from two selected pattern edges."""
     import FreeCAD as App
+
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
     from freecad_cloth.sewing.SewingNetworkGui import show_sewing_network_task
@@ -84,8 +89,17 @@ def create_free_sewing_from_selection(open_editor=True):
 def edit_selected_network():
     global _ACTIVE_NETWORK_TASK_PANEL
     import FreeCADGui as Gui
+
     from freecad_cloth.sewing.SewingNetworkGui import show_sewing_network_task
-    network = next((obj for obj in Gui.Selection.getSelection() if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
+
+    network = next(
+        (
+            obj
+            for obj in Gui.Selection.getSelection()
+            if getattr(obj, "SewingType", "") == "SewingNetwork"
+        ),
+        None,
+    )
     if network is None:
         raise ValueError("select a sewing network before editing it")
     _ACTIVE_NETWORK_TASK_PANEL = show_sewing_network_task(network)
@@ -110,7 +124,11 @@ def _has_selected_pattern_edges():
 def _has_selected_network():
     try:
         import FreeCADGui as Gui
-        return any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in Gui.Selection.getSelection())
+
+        return any(
+            getattr(obj, "SewingType", "") == "SewingNetwork"
+            for obj in Gui.Selection.getSelection()
+        )
     except ImportError:
         return False
 
@@ -119,39 +137,60 @@ try:
     import FreeCADGui as Gui
 
     class _CreateNetworkCommand:
-        def Activated(self): return create_network_from_selection()
+        def Activated(self):
+            return create_network_from_selection()
+
         def IsActive(self):
             try:
                 import FreeCAD as App
+
                 return App.ActiveDocument is not None and _has_selected_seams()
             except ImportError:
                 return False
+
         def GetResources(self):
-            return {"MenuText": "Create Sewing Network", "ToolTip": "Group selected canonical seam segments into an M:N sewing network"}
+            return {
+                "MenuText": "Create Sewing Network",
+                "ToolTip": "Group selected canonical seam segments into an M:N sewing network",
+            }
 
     class _FreeSewingCommand:
         def Activated(self):
             from freecad_cloth.sewing.SewingCommands import start_staged_free_sewing_creation
+
             return start_staged_free_sewing_creation()
+
         def IsActive(self):
             try:
                 import FreeCAD as App
+
                 return App.ActiveDocument is not None and _has_selected_pattern_edges()
             except ImportError:
                 return False
+
         def GetResources(self):
-            return {"MenuText": "Free Sewing", "ToolTip": "Create a partial-edge sewing relationship and edit its ranges"}
+            return {
+                "MenuText": "Free Sewing",
+                "ToolTip": "Create a partial-edge sewing relationship and edit its ranges",
+            }
 
     class _EditNetworkCommand:
-        def Activated(self): return edit_selected_network()
+        def Activated(self):
+            return edit_selected_network()
+
         def IsActive(self):
             try:
                 import FreeCAD as App
+
                 return App.ActiveDocument is not None and _has_selected_network()
             except ImportError:
                 return False
+
         def GetResources(self):
-            return {"MenuText": "Edit Sewing Network", "ToolTip": "Edit M:N/free-sewing edge ranges"}
+            return {
+                "MenuText": "Edit Sewing Network",
+                "ToolTip": "Edit M:N/free-sewing edge ranges",
+            }
 
     Gui.addCommand("ClothSewing_CreateNetwork", _CreateNetworkCommand())
     Gui.addCommand("ClothSewing_FreeSewing", _FreeSewingCommand())

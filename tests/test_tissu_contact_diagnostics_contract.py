@@ -3,8 +3,8 @@
 These assertions protect the diagnostic scope and the shared manifest contract without
 making the diagnostic artifact a release gate.
 """
-from pathlib import Path
 
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tests" / "freecad_tissu_contact_diagnostics.py").read_text(encoding="utf-8")
@@ -52,9 +52,9 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job():
 
 
 def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
-    assert 'CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1' in WORKFLOW
+    assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1" in WORKFLOW
     assert 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"' in SOURCE
-    assert 'CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED' in SOURCE
+    assert "CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED" in SOURCE
     assert "QtCore.QTimer.singleShot(0, _scheduled_main)" in SOURCE
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
@@ -65,16 +65,22 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "App.exit()" not in SOURCE
     assert "gui-shutdown-requested" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
-    assert "entrypoint __name__=" in SOURCE
-    assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py" in WORKFLOW
+    assert "diagnostic contact controls start" in SOURCE
+    assert (
+        "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py"
+        in WORKFLOW
+    )
     assert "ArrangementPoint.from_string" in SOURCE
-    assert '_inside_outside(((float(candidate.x), float(candidate.y), float(candidate.z)),), avatar)' in SOURCE
+    assert "state = _inside_outside(" in SOURCE
+    assert "float(candidate.x)" in SOURCE
+    assert "float(candidate.y)" in SOURCE
+    assert "float(candidate.z)" in SOURCE
     assert "interior_seed_source" in SOURCE
     assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
-    assert "mesh_is_inside = getattr(mesh, \"isInside\", None)" in SOURCE
-    assert 'did not create a true interior pre-step state' in SOURCE
-    assert 'tissu-env: collision_mode=' in SOURCE
+    assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in SOURCE
+    assert "did not create a true interior pre-step state" in SOURCE
+    assert "tissu-env: collision_mode=" in SOURCE
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
     assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
     assert "if-no-files-found: warn" in WORKFLOW
@@ -92,7 +98,6 @@ def test_workflow_validator_matches_shared_manifest():
 
 def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
     assert "contains(github.event.pull_request.head.ref, 'cube-ladder-2481')" in WORKFLOW
-
 
 
 def test_cube_ladder_caches_collision_proximity_mesh():
@@ -116,11 +121,12 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
     assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
     assert "file=sys.stderr" not in source
-    assert '_boot("entrypoint-name=%r" % __name__)' in source
-    assert '_freecad_entrypoint_name = Path(__file__).stem' in source
+    assert '_boot("script-start")' in source
+    assert "_freecad_entrypoint_name = Path(__file__).stem" in source
+    assert "_freecad_entrypoint_name = Path(__file__).stem" in source
     assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
-    assert 'def _schedule_freecad_main():' in source
-    assert 'QtCore.QTimer.singleShot(0, _run_and_shutdown)' in source
+    assert "def _schedule_freecad_main():" in source
+    assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in source
     assert '_boot("freecad-hosted-entrypoint")' in source
-    assert '__name__ == _freecad_entrypoint_name' in source
+    assert "__name__ == _freecad_entrypoint_name" in source
     assert '_boot("direct-entrypoint")' in source

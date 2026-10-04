@@ -1,12 +1,12 @@
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
+from freecad_cloth.pattern.PatternObjects import _edge_records
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,
 )
-from freecad_cloth.pattern.PatternObjects import _edge_records
 
 
 class TopologyRepairError(ValueError):
@@ -71,9 +71,7 @@ def validate_repair_target(seam, side, edge_id):
     for record in current_edge_candidates(seam, side):
         if str(record.get("id")) == edge_id:
             return record
-    raise InvalidRepairTarget(
-        "edge %s is not a current semantic edge on seam side %s" % (edge_id, side)
-    )
+    raise InvalidRepairTarget(f"edge {edge_id} is not a current semantic edge on seam side {side}")
 
 
 def build_repair_plan(repairs):
@@ -84,7 +82,7 @@ def build_repair_plan(repairs):
         side = str(side).upper()
         key = (id(seam), side)
         if key in seen:
-            raise TopologyRepairError("duplicate repair target for seam side %s" % side)
+            raise TopologyRepairError(f"duplicate repair target for seam side {side}")
         seen.add(key)
         record = validate_repair_target(seam, side, edge_id)
         plan.append((seam, side, record))

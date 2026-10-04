@@ -1,0 +1,38 @@
+minimum_pre_commit_version: "4.6.2"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: documentation-contract
+        name: Python documentation contract
+        entry: python tools/check_documentation_contract.py
+        language: system
+        types: [python]
+      - id: import-linter
+        name: Python architecture contracts
+        entry: lint-imports
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: dead-code
+        name: High-confidence dead code
+        entry: python tools/check_dead_code.py
+        language: system
+        types: [python]

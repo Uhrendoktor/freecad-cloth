@@ -4,6 +4,7 @@
 def _qt():
     import FreeCAD as App
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -27,6 +28,7 @@ def _scene(doc):
 
 def _simulation_data(scene):
     from freecad_cloth.common.ClothDiagnostics import analyze_mesh
+
     if not bool(getattr(scene, "FiniteState", True)):
         raise RuntimeError("diagnostics blocked: simulation state is non-finite")
     target = getattr(scene, "DrapeTarget", None)
@@ -34,11 +36,12 @@ def _simulation_data(scene):
         raise RuntimeError("diagnostics blocked: no persistent DrapeTarget is assigned")
     try:
         from freecad_cloth.simulation.DrapeTarget import target_status
+
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        raise RuntimeError("diagnostics blocked: cannot inspect DrapeTarget: %s" % exc)
+        raise RuntimeError(f"diagnostics blocked: cannot inspect DrapeTarget: {exc}") from exc
     if status["state"] != "ready":
-        raise RuntimeError("diagnostics blocked: %s" % status["message"])
+        raise RuntimeError("diagnostics blocked: {}".format(status["message"]))
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
     initial = getattr(backend, "_initial", None)
@@ -86,21 +89,30 @@ def create_diagnostic_map(scene, metric="stress"):
     """Create a derived Mesh::Feature colored by one diagnostic metric."""
     App, _Gui, _QtWidgets = _qt()
     from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
+
     panels = _simulation_data(scene)
     created = []
-    for panel, triangles, result in panels:
+    for panel, _triangles, result in panels:
         values = result.metric(metric)
         lo, hi = _metric_range(values)
         source_mesh = getattr(panel, "Mesh", None)
         if source_mesh is None or source_mesh.CountFacets == 0:
             continue
-        obj = scene.Document.addObject("Mesh::Feature", "ClothDiagnostic_%s_%s" % (metric, panel.Name))
-        obj.Label = "Diagnostic %s: %s" % (metric.title(), getattr(panel, "Label", panel.Name))
-        obj.addProperty("App::PropertyString", "DiagnosticType", "Diagnostics").DiagnosticType = metric
-        obj.addProperty("App::PropertyString", "Summary", "Diagnostics").Summary = repr(summarize(result))
+        obj = scene.Document.addObject("Mesh::Feature", f"ClothDiagnostic_{metric}_{panel.Name}")
+        obj.Label = "Diagnostic {}: {}".format(metric.title(), getattr(panel, "Label", panel.Name))
+        obj.addProperty(
+            "App::PropertyString", "DiagnosticType", "Diagnostics"
+        ).DiagnosticType = metric
+        obj.addProperty("App::PropertyString", "Summary", "Diagnostics").Summary = repr(
+            summarize(result)
+        )
         definition = metric_definition(metric)
-        obj.addProperty("App::PropertyString", "MetricFormula", "Diagnostics").MetricFormula = definition["formula"]
-        obj.addProperty("App::PropertyString", "MetricUnits", "Diagnostics").MetricUnits = definition["units"]
+        obj.addProperty(
+            "App::PropertyString", "MetricFormula", "Diagnostics"
+        ).MetricFormula = definition["formula"]
+        obj.addProperty(
+            "App::PropertyString", "MetricUnits", "Diagnostics"
+        ).MetricUnits = definition["units"]
         obj.Mesh = source_mesh.copy()
         colors = [_metric_color(value, lo, hi) for value in values]
         if len(colors) == obj.Mesh.CountFacets:
@@ -144,19 +156,23 @@ class DiagnosticsTaskPanel:
     def refresh(self):
         try:
             from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
+
             panels = _simulation_data(self.scene)
             summaries = [summarize(result) for _panel, _triangles, result in panels]
             metric = str(self.metric.currentText())
-            values = [value for _panel, _triangles, result in panels for value in result.metric(metric)]
+            values = [
+                value for _panel, _triangles, result in panels for value in result.metric(metric)
+            ]
             lo, hi = _metric_range(values)
             definition = metric_definition(metric)
             self.definition.setText(
-                "Formula: %s | Units: %s | Read-only derived analysis" %
-                (definition["formula"], definition["units"])
+                "Formula: {} | Units: {} | Read-only derived analysis".format(
+                    definition["formula"], definition["units"]
+                )
             )
             self.status.setText(
-                "%s map: %d faces | range %.5g … %.5g | panels %d" %
-                (metric.title(), len(values), lo, hi, len(summaries))
+                "%s map: %d faces | range %.5g … %.5g | panels %d"
+                % (metric.title(), len(values), lo, hi, len(summaries))
             )
             return summaries
         except RuntimeError as exc:
@@ -166,6 +182,7 @@ class DiagnosticsTaskPanel:
     def export_data(self):
         try:
             from freecad_cloth.common.ClothDiagnostics import export_json
+
             panels = _simulation_data(self.scene)
             if not panels:
                 raise RuntimeError("simulation has no diagnostic results")
@@ -176,17 +193,18 @@ class DiagnosticsTaskPanel:
             if not path:
                 return []
             export_json(_merge_results(panels), path)
-            self.status.setText("Exported deterministic analysis data: %s" % path)
+            self.status.setText(f"Exported deterministic analysis data: {path}")
             return path
         except (OSError, RuntimeError, ValueError, TypeError) as exc:
             self.status.setText(str(exc))
             return []
 
-
     def create_map(self):
         try:
             created = create_diagnostic_map(self.scene, str(self.metric.currentText()))
-            self.status.setText("Created %d %s diagnostic mesh map(s)." % (len(created), self.metric.currentText()))
+            self.status.setText(
+                "Created %d %s diagnostic mesh map(s)." % (len(created), self.metric.currentText())
+            )
             return created
         except RuntimeError as exc:
             self.status.setText(str(exc))
@@ -216,9 +234,9 @@ def show_diagnostics(scene=None):
     return panel
 
 
-
 def _merge_results(panels):
     from freecad_cloth.common.ClothDiagnostics import DiagnosticResult
+
     strain = tuple(value for _panel, _triangles, result in panels for value in result.strain)
     stress = tuple(value for _panel, _triangles, result in panels for value in result.stress)
     fit = tuple(value for _panel, _triangles, result in panels for value in result.fit)

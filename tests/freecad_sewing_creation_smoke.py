@@ -1,25 +1,28 @@
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
-from pathlib import Path
-import math
+
 import os
 import sys
 import traceback
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import contextlib
+
 import FreeCAD as App
 import FreeCADGui as Gui
-import InitGui
 import Part
 
+import InitGui
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
 
-
-LOG_PATH = Path(os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log"))
+LOG_PATH = Path(
+    os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log")
+)
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
@@ -31,18 +34,24 @@ def _curved_shape(line_length, curve_span, curve_height):
     p2 = App.Vector(float(line_length), 40, 0)
     p3 = App.Vector(float(line_length) - float(curve_span), 40, 0)
     curve = Part.BezierCurve()
-    curve.setPoles([
-        p2,
-        App.Vector(float(line_length), 40 + float(curve_height), 0),
-        App.Vector(float(line_length) - float(curve_span), 40 + float(curve_height), 0),
-        p3,
-    ])
-    return Part.Face(Part.Wire([
-        Part.makeLine(p0, p1),
-        Part.makeLine(p1, p2),
-        curve.toShape(),
-        Part.makeLine(p3, p0),
-    ]))
+    curve.setPoles(
+        [
+            p2,
+            App.Vector(float(line_length), 40 + float(curve_height), 0),
+            App.Vector(float(line_length) - float(curve_span), 40 + float(curve_height), 0),
+            p3,
+        ]
+    )
+    return Part.Face(
+        Part.Wire(
+            [
+                Part.makeLine(p0, p1),
+                Part.makeLine(p1, p2),
+                curve.toShape(),
+                Part.makeLine(p3, p0),
+            ]
+        )
+    )
 
 
 def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0):
@@ -50,13 +59,17 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
     obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(line_length)
-    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(curve_height)
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr([
-        (0.0, 0.0),
-        (float(line_length), 0.0),
-        (float(line_length), 40.0),
-        (float(line_length) - float(curve_span), 40.0),
-    ])
+    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(
+        curve_height
+    )
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
+        [
+            (0.0, 0.0),
+            (float(line_length), 0.0),
+            (float(line_length), 40.0),
+            (float(line_length) - float(curve_span), 40.0),
+        ]
+    )
     obj.Shape = _curved_shape(line_length, curve_span, curve_height)
     return obj
 
@@ -66,7 +79,7 @@ def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
     points = [edge.valueAt(first + (last - first) * float(parameter)) for parameter in parameters]
     return [
         ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
-        for left, right in zip(points, points[1:])
+        for left, right in zip(points, points[1:], strict=False)
     ]
 
 
@@ -90,18 +103,29 @@ def record(message):
 
 def seam_color_snapshot(seams):
     from math import isclose
+
     from freecad_cloth.sewing.SewingView import seam_color_map
+
     ids = tuple(str(getattr(seam, "SeamId", "")) for seam in seams)
     expected = seam_color_map(ids)
     actual = {
-        str(getattr(seam, "SeamId", "")): tuple(round(float(value), 6) for value in seam.ViewObject.LineColor[:3])
+        str(getattr(seam, "SeamId", "")): tuple(
+            round(float(value), 6) for value in seam.ViewObject.LineColor[:3]
+        )
         for seam in seams
     }
     for seam_id, expected_rgb in expected.items():
         actual_rgb = actual.get(seam_id)
-        assert actual_rgb is not None, "native seam color missing persistent SeamId %s" % seam_id
-        assert all(isclose(float(actual_rgb[index]), float(expected_rgb[index]), rel_tol=0.0, abs_tol=1e-6) for index in range(3)), "native seam color for %s differs: actual=%r expected=%r" % (seam_id, actual_rgb, expected_rgb)
-    assert len(set(actual.values())) == len(actual), "native seam colors are not unique per persistent SeamId"
+        assert actual_rgb is not None, f"native seam color missing persistent SeamId {seam_id}"
+        assert all(
+            isclose(float(actual_rgb[index]), float(expected_rgb[index]), rel_tol=0.0, abs_tol=1e-6)
+            for index in range(3)
+        ), (
+            f"native seam color for {seam_id} differs: actual={actual_rgb!r} expected={expected_rgb!r}"
+        )
+    assert len(set(actual.values())) == len(actual), (
+        "native seam colors are not unique per persistent SeamId"
+    )
     return actual
 
 
@@ -151,16 +175,16 @@ def open_public(command):
         if callable(getter)
     )
     for required in ("Preview", "Commit", "Cancel", "Selected semantic pattern edges"):
-        assert required in dialog_text, command + " task panel is missing required control text: " + required
+        assert required in dialog_text, (
+            command + " task panel is missing required control text: " + required
+        )
     return panel
 
 
 def close_public_task(panel=None):
     if panel is not None:
-        try:
+        with contextlib.suppress(Exception):
             panel.reject()
-        except Exception:
-            pass
     wait_for_task_close()
 
 
@@ -172,7 +196,11 @@ try:
     record("workbench=initialized")
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
-    for command in ("ClothSewing_CreateSeam", "ClothSewing_CreateMNSewing", "ClothSewing_FreeSewing"):
+    for command in (
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateMNSewing",
+        "ClothSewing_FreeSewing",
+    ):
         assert command in Gui.listCommands(), "missing public sewing command: " + command
     record("commands=registered")
 
@@ -195,16 +223,18 @@ try:
     before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 0), (piece_b, 0))
     panel = open_public("ClothSewing_CreateSeam")
-    assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), "1:1 preview did not create a seam"
+    assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
+        "1:1 preview did not create a seam"
+    )
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
     record("preview-1to1=passed")
     panel.commit_button.click()
     process_events()
     wait_for_task_close()
-    assert any(
-        getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before
-    ), "1:1 commit lost seam"
+    assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
+        "1:1 commit lost seam"
+    )
     record("commit-1to1=passed")
 
     cancel_before = {obj.Name for obj in doc.Objects}
@@ -252,39 +282,58 @@ try:
     select_edges((piece_a, 0), (piece_a, 1), (piece_b, 0), (piece_b, 1))
     mn_panel = open_public("ClothSewing_CreateMNSewing")
     assert any(
-        getattr(obj, "SewingType", "") == "SewingNetwork"
-        for obj in mn_panel.session.created
+        getattr(obj, "SewingType", "") == "SewingNetwork" for obj in mn_panel.session.created
     )
     assert "Preview valid" in mn_panel.feedback.text()
     record("preview-mn=passed")
     mn_panel.commit_button.click()
     wait_for_task_close()
-    networks = [
-        obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"
-    ]
+    networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
     assert networks and networks[-1].Status == "Valid", "M:N commit did not leave a valid network"
     record("commit-mn=passed")
 
-    curved_a = add_curved_piece(doc, "CurvedA", "curved-a", 100.0, curve_span=80.0, curve_height=90.0)
+    curved_a = add_curved_piece(
+        doc, "CurvedA", "curved-a", 100.0, curve_span=80.0, curve_height=90.0
+    )
     doc.recompute()
     curve_spacings = edge_sample_spacing(curved_a.Shape.Edges[2])
     assert max(curve_spacings) / min(curve_spacings) > 1.20
-    record("curved-sampling=passed max_spacing=%.6f min_spacing=%.6f" % (max(curve_spacings), min(curve_spacings)))
+    record(
+        f"curved-sampling=passed max_spacing={max(curve_spacings):.6f} min_spacing={min(curve_spacings):.6f}"
+    )
 
     probe = Part.BezierCurve()
-    probe.setPoles([App.Vector(0, 40, 0), App.Vector(0, 160, 0), App.Vector(-80, 160, 0), App.Vector(-80, 40, 0)])
+    probe.setPoles(
+        [
+            App.Vector(0, 40, 0),
+            App.Vector(0, 160, 0),
+            App.Vector(-80, 160, 0),
+            App.Vector(-80, 40, 0),
+        ]
+    )
     probe_points = probe.toShape().discretize(Number=64)
     b_curve_length = sum(
         ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
-        for left, right in zip(probe_points, probe_points[1:])
+        for left, right in zip(probe_points, probe_points[1:], strict=False)
     )
-    b_line_length = float(curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length)
-    curved_b = add_curved_piece(doc, "CurvedB", "curved-b", b_line_length, curve_span=80.0, curve_height=120.0)
+    b_line_length = float(
+        curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length
+    )
+    curved_b = add_curved_piece(
+        doc, "CurvedB", "curved-b", b_line_length, curve_span=80.0, curve_height=120.0
+    )
     doc.recompute()
 
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
-    curved_preview = next((obj for obj in curved_panel.session.created if getattr(obj, "SewingType", "") == "SewingNetwork"), None)
+    curved_preview = next(
+        (
+            obj
+            for obj in curved_panel.session.created
+            if getattr(obj, "SewingType", "") == "SewingNetwork"
+        ),
+        None,
+    )
     assert curved_preview is not None and curved_preview.Status == "Valid"
     assert len(curved_preview.Seams) == 3
     assert curved_preview.SideACount == 2 and curved_preview.SideBCount == 2
@@ -303,23 +352,43 @@ try:
     doc.recompute()
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
-    curved_preview = next(obj for obj in curved_panel.session.created if getattr(obj, "SewingType", "") == "SewingNetwork")
+    curved_preview = next(
+        obj
+        for obj in curved_panel.session.created
+        if getattr(obj, "SewingType", "") == "SewingNetwork"
+    )
     curved_panel.commit_button.click()
     wait_for_task_close()
-    curved_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_preview.RelationshipId))
+    curved_network = next(
+        obj
+        for obj in doc.Objects
+        if getattr(obj, "SewingType", "") == "SewingNetwork"
+        and str(getattr(obj, "RelationshipId", "")) == str(curved_preview.RelationshipId)
+    )
     from freecad_cloth.sewing.SewingObjects import _seam_length
+
     member_a_total = sum(float(_seam_length(curved_a, seam, "A")) for seam in curved_network.Seams)
     member_b_total = sum(float(_seam_length(curved_b, seam, "B")) for seam in curved_network.Seams)
     assert abs(member_a_total - float(curved_network.LengthA)) < 1e-6
     assert abs(member_b_total - float(curved_network.LengthB)) < 1e-6
     assert curved_network.Status == "Valid"
-    assert float(curved_network.LengthDifference) <= 0.05 * min(float(curved_network.LengthA), float(curved_network.LengthB))
+    assert float(curved_network.LengthDifference) <= 0.05 * min(
+        float(curved_network.LengthA), float(curved_network.LengthB)
+    )
     pair_gaps = [
         abs(float(_seam_length(curved_a, seam, "A")) - float(_seam_length(curved_b, seam, "B")))
         for seam in curved_network.Seams
     ]
-    assert max(pair_gaps) <= 0.05 * max(float(curved_network.LengthA), float(curved_network.LengthB)) / len(curved_network.Seams) + 0.01
-    record("curved-mn=passed members=2,2 segments=3 physical-length=proportional length_a=%.9f length_b=%.9f delta=%.9f max_pair_gap=%.9f" % (float(curved_network.LengthA), float(curved_network.LengthB), float(curved_network.LengthDifference), max(pair_gaps)))
+    assert (
+        max(pair_gaps)
+        <= 0.05
+        * max(float(curved_network.LengthA), float(curved_network.LengthB))
+        / len(curved_network.Seams)
+        + 0.01
+    )
+    record(
+        f"curved-mn=passed members=2,2 segments=3 physical-length=proportional length_a={float(curved_network.LengthA):.9f} length_b={float(curved_network.LengthB):.9f} delta={float(curved_network.LengthDifference):.9f} max_pair_gap={max(pair_gaps):.9f}"
+    )
 
     for seam in curved_network.Seams:
         Gui.Selection.clearSelection()
@@ -336,34 +405,50 @@ try:
     doc.recompute()
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-recompute=passed identity-stable=true")
-    for workbench_name, label in (("ClothPatternWorkbench", "pattern"), ("ClothSewingWorkbench", "sewing"), ("ClothSimulationWorkbench", "simulation")):
+    for workbench_name, label in (
+        ("ClothPatternWorkbench", "pattern"),
+        ("ClothSewingWorkbench", "sewing"),
+        ("ClothSimulationWorkbench", "simulation"),
+    ):
         Gui.activateWorkbench(workbench_name)
         process_events()
-        refreshed_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId))
+        refreshed_network = next(
+            obj
+            for obj in doc.Objects
+            if getattr(obj, "SewingType", "") == "SewingNetwork"
+            and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId)
+        )
         assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
-        record("seam-colors-workbench-%s=passed" % label)
+        record(f"seam-colors-workbench-{label}=passed")
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
     Gui.runCommand("ClothPattern_Show2D", 0)
     process_events()
-    pattern_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId))
+    pattern_network = next(
+        obj
+        for obj in doc.Objects
+        if getattr(obj, "SewingType", "") == "SewingNetwork"
+        and str(getattr(obj, "RelationshipId", "")) == str(curved_network.RelationshipId)
+    )
     assert seam_color_snapshot(pattern_network.Seams) == baseline_seam_colors
     record("seam-colors-pattern-2d=passed")
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
-    endpoint_snapshot = tuple(sorted(
-        (
-            str(seam.SeamId),
-            str(seam.EdgeAId),
-            str(seam.EdgeBId),
-            round(float(seam.StartA), 12),
-            round(float(seam.EndA), 12),
-            round(float(seam.StartB), 12),
-            round(float(seam.EndB), 12),
-            bool(seam.ReversedB),
+    endpoint_snapshot = tuple(
+        sorted(
+            (
+                str(seam.SeamId),
+                str(seam.EdgeAId),
+                str(seam.EdgeBId),
+                round(float(seam.StartA), 12),
+                round(float(seam.EndA), 12),
+                round(float(seam.StartB), 12),
+                round(float(seam.EndB), 12),
+                bool(seam.ReversedB),
+            )
+            for seam in curved_network.Seams
         )
-        for seam in curved_network.Seams
-    ))
+    )
 
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(curved_network)
@@ -372,11 +457,10 @@ try:
     process_events()
     network_dialog = Gui.Control.activeDialog()
     assert network_dialog is not None
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    with contextlib.suppress(ImportError):
+        pass
     from freecad_cloth.sewing.SewingNetworkCommands import get_active_network_task_panel
+
     network_panel = get_active_network_task_panel()
     assert network_panel is not None
     assert getattr(network_panel, "form", None) is not None and network_panel.form.isVisible()
@@ -419,12 +503,14 @@ try:
     doc = App.openDocument(str(curved_save))
     process_events()
     reloaded_piece_a = next(
-        obj for obj in doc.Objects
+        obj
+        for obj in doc.Objects
         if str(getattr(obj, "PatternType", "")) == "PatternPiece"
         and str(getattr(obj, "PieceId", "")) == "smoke-a"
     )
     reloaded_piece_b = next(
-        obj for obj in doc.Objects
+        obj
+        for obj in doc.Objects
         if str(getattr(obj, "PatternType", "")) == "PatternPiece"
         and str(getattr(obj, "PieceId", "")) == "smoke-b"
     )
@@ -433,26 +519,33 @@ try:
     piece_a = reloaded_piece_a
     piece_b = reloaded_piece_b
     record("post-reload-selection-objects=refreshed")
-    reloaded_network = next(obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork" and str(getattr(obj, "RelationshipId", "")) == relationship_id)
+    reloaded_network = next(
+        obj
+        for obj in doc.Objects
+        if getattr(obj, "SewingType", "") == "SewingNetwork"
+        and str(getattr(obj, "RelationshipId", "")) == relationship_id
+    )
     restored_colors = seam_color_snapshot(reloaded_network.Seams)
     assert restored_colors == baseline_seam_colors
     record("seam-colors-save-reload-restore=passed before-recompute=true")
     doc.recompute()
     assert seam_color_snapshot(reloaded_network.Seams) == baseline_seam_colors
     record("seam-colors-save-reload-recompute=passed")
-    reloaded_pairs = tuple(sorted(
-        (
-            str(seam.SeamId),
-            str(seam.EdgeAId),
-            str(seam.EdgeBId),
-            round(float(seam.StartA), 12),
-            round(float(seam.EndA), 12),
-            round(float(seam.StartB), 12),
-            round(float(seam.EndB), 12),
-            bool(seam.ReversedB),
+    reloaded_pairs = tuple(
+        sorted(
+            (
+                str(seam.SeamId),
+                str(seam.EdgeAId),
+                str(seam.EdgeBId),
+                round(float(seam.StartA), 12),
+                round(float(seam.EndA), 12),
+                round(float(seam.StartB), 12),
+                round(float(seam.EndB), 12),
+                bool(seam.ReversedB),
+            )
+            for seam in reloaded_network.Seams
         )
-        for seam in reloaded_network.Seams
-    ))
+    )
     assert reloaded_pairs == endpoint_snapshot
     assert reloaded_network.Status == "Valid"
     record("curved-mn-save-reload=passed same-endpoint-pairs=true reversed=true")
@@ -464,7 +557,9 @@ try:
 
     select_edges((piece_a, 3), (piece_b, 3))
     free_panel = open_public("ClothSewing_FreeSewing")
-    assert any(getattr(obj, "SewingType", "") == "SewingNetwork" for obj in free_panel.session.created)
+    assert any(
+        getattr(obj, "SewingType", "") == "SewingNetwork" for obj in free_panel.session.created
+    )
     assert "Preview valid" in free_panel.feedback.text()
     record("preview-free=passed")
     free_panel.commit_button.click()
@@ -485,7 +580,6 @@ try:
     assert {obj.Name for obj in doc.Objects} == free_cancel_before
     record("cancel-free=passed")
 
-
     _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
@@ -498,4 +592,3 @@ finally:
 if _success:
     sys.stdout.flush()
     getattr(os, "_" + "exit")(0)
-

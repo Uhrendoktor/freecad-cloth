@@ -10,8 +10,8 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 
 | Candidate | Capability | Proposed use | License / risk | Decision |
 |---|---|---|---|---|
-| Tissu | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Optional simulation backend | Apache-2.0; Python >=3.12; backend parity and packaging risk remain high | **Benchmark / P2** |
-| PositionBasedDynamics | PBD/XPBD constraints, arbitrary-mesh collision, SDF collision, Python bindings, substeps | Backend comparator / research | C++ dependency + ABI/build burden | **Benchmark / P2** |
+| Tissu | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Production runtime solver | Apache-2.0; native dependency kept in the simulation extra | **Adopted** |
+| PositionBasedDynamics | PBD/XPBD constraints, arbitrary-mesh collision, SDF collision, Python bindings, substeps | Research comparator only | C++ dependency + ABI/build burden | **Research only** |
 | ezdxf | DXF read/write, broad version support | Production DXF adapter | MIT; relatively low integration risk | **Candidate / P2** |
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
 | libigl | Geometry processing, remeshing, parametrization, distances; NumPy Python bindings | Derived-mesh/analysis utilities where OCCT is insufficient | Mixed optional modules/licensing; C++ dependency | **Evaluate selectively** |
@@ -23,18 +23,13 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | Seamly2D | Measurement-driven parametric patterns | Design/reference/interoperability research | GPL; do not embed core | **Reference only** |
 | FreeSewing | Parametric pattern design and plugins | Pattern-model/workflow reference; possible import bridge | JS ecosystem; do not embed core | **Reference only** |
 
-## Tissu implementation plan
+## Tissu status
 
-1. Create a `TissuBackend` adapter behind `ClothSimulationBackend`.
-2. Map `PatternIR` mesh + `SewingGraph` into Tissu cloth/stitch constraints.
-3. Map pins/material/quality/collision settings without changing public UI contracts.
-4. Adapt `DrapeTarget` to Tissu mesh/kinematic collision.
-5. Compare stretch, bend, stitches, collision and self-collision against the deterministic CPU backend.
-6. Compare repeatability for identical inputs.
-7. Compare simulation time and memory at Fast/Balanced/Final resolutions.
-8. Compare canonical garment visual output.
-9. Run the backend inside the same Python 3.12 FreeCAD runtime used by CI before calling it runtime-compatible.
-10. Keep Tissu optional until parity and packaging are demonstrated.
+The Tissu adapter is the production runtime boundary. PatternIR/SewingGraph/DrapeTarget remain authoritative; `ClothBackend` isolates FreeCAD document code from Tissu APIs.
+
+The deterministic `ClothSystem` is input construction and validation logic, not a second physics backend. There is no XPBD fallback or runtime solver registry.
+
+Tissu remains an optional **installation extra** so pattern/sewing-only installations can stay lightweight. When simulation is enabled, the workbench uses Tissu as the sole runtime physics implementation.
 
 ## Historical research tasks
 

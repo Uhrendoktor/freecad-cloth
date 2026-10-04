@@ -1,4 +1,5 @@
 """Headless regression coverage for the simulation workbench task-panel contract."""
+
 import sys
 from pathlib import Path
 

@@ -16,6 +16,28 @@ Use fully qualified package imports in implementation and tests, for example `fr
 
 Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation` own their domain implementations; `common` and `shared` contain only genuinely reusable contracts/utilities. Duplicate implementation files across packages are prohibited.
 
+## Agent-oriented verification
+
+In addition to the normal lint/test gates, the development environment enforces deterministic safeguards for multi-agent reliability:
+
+- Pyright runs in standard mode for the existing broad core profile and strict mode for selected deterministic core modules.
+- Vulture runs at 100% confidence on changed common/shared/tooling files.
+- Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
+- CrossHair checks a small, explicitly curated pure-function contract surface.
+- Pull-request CI rejects newly introduced Python clones while tolerating legacy duplication.
+
+These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
+
+## Python quality gates
+
+Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
+
+CI runs the full repository Ruff check and formatter check. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+
+## Documentation contract
+
+Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+
 ## Non-negotiable CI contract
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
@@ -42,7 +64,7 @@ Choose the smallest evidence set that proves the change:
 - FreeCAD document/API change → real FreeCAD smoke test;
 - task-panel/UI change → real FreeCAD/Xvfb scenario;
 - persistent data change → save/reload test;
-- simulation change → deterministic reference-solver regression;
+- simulation change → Tissu integration/solver regression and deterministic input-model tests;
 - screenshot-facing change → all canonical screenshot states remain valid;
 - backend/dependency change → import the dependency in the same Python 3.12 FreeCAD runtime used by CI.
 
@@ -76,7 +98,7 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 
 ## Prototype → MVP → production
 
-**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, CPU reference simulation, save/reload and invalidation.
+**Prototype:** prove native PatternPiece/Sewing/DrapeTarget boundaries, transactional sewing, deterministic arrangement, preview mesh, Tissu simulation, save/reload and invalidation.
 
 **MVP:** make a repeatable garment workflow with robust semantic references/topology repair, 1:N/M:N/free sewing, arrangement points, mannequin measurements/poses, generic CAD targets, quality/material presets, pinning and production-oriented 2D output.
 

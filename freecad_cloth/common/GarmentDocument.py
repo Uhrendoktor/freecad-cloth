@@ -42,6 +42,7 @@ def _children(container):
 
 
 def garment_root(doc):
+    """Provide the public garment root operation."""
     if doc is None:
         return None
     for obj in getattr(doc, "Objects", ()):
@@ -54,6 +55,7 @@ def garment_root(doc):
 
 
 def garment_group(doc, role):
+    """Provide the public garment group operation."""
     root = garment_root(doc)
     if root is None:
         return None
@@ -61,7 +63,10 @@ def garment_group(doc, role):
     for child in _children(root):
         if str(getattr(child, "GarmentRole", "")) == role:
             return child
-        if str(getattr(child, "Name", "")) == role and str(getattr(child, "TypeId", "")) == "App::DocumentObjectGroup":
+        if (
+            str(getattr(child, "Name", "")) == role
+            and str(getattr(child, "TypeId", "")) == "App::DocumentObjectGroup"
+        ):
             return child
     return None
 
@@ -77,6 +82,7 @@ def _ensure_group(doc, root, role):
 
 
 def ensure_fabric_material(doc, root=None):
+    """Ensure the requested fabric material state exists."""
     root = root or garment_root(doc)
     if root is None:
         return None
@@ -85,7 +91,8 @@ def ensure_fabric_material(doc, root=None):
         fabric_group = _ensure_group(doc, root, "Fabric")
     material = next(
         (
-            obj for obj in _children(fabric_group)
+            obj
+            for obj in _children(fabric_group)
             if str(getattr(obj, "GarmentRole", "")) == "FabricMaterial"
         ),
         None,
@@ -154,7 +161,7 @@ def link_garment_object(obj, role, doc=None):
     role = str(role)
     group_role = _ROLE_TO_GROUP.get(role, role if role in GARMENT_GROUPS else None)
     if group_role is None:
-        raise ValueError("unsupported Garment hierarchy role: %s" % role)
+        raise ValueError(f"unsupported Garment hierarchy role: {role}")
     group = garment_group(doc, group_role)
     if group is None:
         group = _ensure_group(doc, root, group_role)
@@ -176,7 +183,7 @@ def garment_structure(doc):
     for role in GARMENT_GROUPS:
         group = garment_group(doc, role)
         if group is None:
-            raise ValueError("missing Garment group: %s" % role)
+            raise ValueError(f"missing Garment group: {role}")
         structure["groups"][role] = [
             {
                 "name": obj.Name,
@@ -192,6 +199,7 @@ def garment_structure(doc):
 def create_garment_document(name="Garment", label="Garment"):
     """Create a production garment document with the complete native hierarchy."""
     import FreeCAD as App
+
     doc = App.newDocument(str(name))
     ensure_garment_hierarchy(doc, label)
     return doc

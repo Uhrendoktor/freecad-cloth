@@ -51,7 +51,7 @@ PatternPiece / PatternMark
       ↓
 PatternIR + SewingGraph
       ↓
-SimulationScene + DrapeTarget
+ClothSystem input + DrapeTarget
       ↓
 Derived mesh / solver state
 ```

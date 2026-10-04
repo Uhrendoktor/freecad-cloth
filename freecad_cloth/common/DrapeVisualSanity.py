@@ -1,31 +1,31 @@
 """Solver-neutral visual sanity metrics for generated garment drapes."""
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite, sqrt
 from statistics import median
-from typing import Sequence, Tuple
 
-Point3 = Tuple[float, float, float]
+Point3 = tuple[float, float, float]
 
 
 @dataclass(frozen=True)
 class DrapeVisualMetrics:
+    """Public data model or service class for DrapeVisualMetrics."""
+
     vertices: int
-    bounds: Tuple[float, float, float, float, float, float]
-    spans: Tuple[float, float, float]
+    bounds: tuple[float, float, float, float, float, float]
+    spans: tuple[float, float, float]
     centroid: Point3
     vertical_span_ratio: float
     lateral_span_ratio: float
     target_vertex_clearance: float | None
     finite: bool
     state: str
-    near_target_fraction: float = 0.0
-    near_target_band_mm: float = 64.0
-    median_target_vertex_distance_mm: float | None = None
 
 
-def _bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, float, float, float]:
+def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
     if not vertices:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     xs = [float(v[0]) for v in vertices]
@@ -36,69 +36,24 @@ def _bounds(vertices: Sequence[Point3]) -> Tuple[float, float, float, float, flo
 
 def _centroid(vertices: Sequence[Point3]) -> Point3:
     count = float(len(vertices))
-    return tuple(sum(float(v[i]) for v in vertices) / count for i in range(3))  # type: ignore[return-value]
-
-
-def vertex_distance_profile(
-    source: Sequence[Point3],
-    target: Sequence[Point3],
-    *,
-    near_band_mm: float = 64.0,
-) -> tuple[float | None, float | None, float, float]:
-    """Return min, median, and near-target fraction in one distance pass.
-
-    The nearest-distance distribution is computed once because CI also needs
-    to distinguish "one vertex touches the avatar" from broad cloth adherence.
-    The operation is still chunked and vectorized so it does not allocate the
-    full source-by-target distance matrix.
-    """
-    near_band = max(0.0, float(near_band_mm))
-    if not source or not target:
-        return None, None, 0.0, near_band
-    try:
-        import numpy as np
-        source_array = np.asarray(source, dtype=np.float64)
-        target_array = np.asarray(target, dtype=np.float64)
-        best_squared = float("inf")
-        nearest_distances = []
-        chunk_size = 256
-        for start in range(0, len(source_array), chunk_size):
-            chunk = source_array[start:start + chunk_size]
-            delta = chunk[:, None, :] - target_array[None, :, :]
-            distances_squared = np.einsum("ijk,ijk->ij", delta, delta, optimize=True)
-            nearest_squared = np.min(distances_squared, axis=1)
-            best_chunk = float(np.min(nearest_squared))
-            if best_chunk < best_squared:
-                best_squared = best_chunk
-            nearest_distances.extend(np.sqrt(nearest_squared).tolist())
-        if not nearest_distances:
-            return None, None, 0.0, near_band
-        median_distance = float(np.median(np.asarray(nearest_distances, dtype=np.float64)))
-        near_fraction = sum(distance <= near_band for distance in nearest_distances) / float(len(nearest_distances))
-        minimum = sqrt(best_squared) if isfinite(best_squared) else None
-        return minimum, median_distance, float(near_fraction), near_band
-    except ImportError:
-        distances = []
-        best = float("inf")
-        for a in source:
-            nearest = float("inf")
-            for b in target:
-                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-                if d2 < nearest:
-                    nearest = d2
-            if isfinite(nearest):
-                distance = sqrt(nearest)
-                distances.append(distance)
-                best = min(best, nearest)
-        if not distances:
-            return None, None, 0.0, near_band
-        return sqrt(best) if isfinite(best) else None, median(distances), sum(
-            distance <= near_band for distance in distances
-        ) / float(len(distances)), near_band
+    return (
+        sum(float(v[0]) for v in vertices) / count,
+        sum(float(v[1]) for v in vertices) / count,
+        sum(float(v[2]) for v in vertices) / count,
+    )
 
 
 def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
-    return vertex_distance_profile(source, target)[0]
+    """Provide the public minimum vertex distance operation."""
+    if not source or not target:
+        return None
+    best = float("inf")
+    for a in source:
+        for b in target:
+            d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
+            if d2 < best:
+                best = d2
+    return sqrt(best) if isfinite(best) else None
 
 
 def seam_correspondence_gap(
@@ -130,10 +85,11 @@ def seam_correspondence_gap(
         start_b, end_b = 1.0 - float(end_b), 1.0 - float(start_b)
 
     def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
-        return tuple(
-            float(left[i]) + (float(right[i]) - float(left[i])) * fraction
-            for i in range(3)
-        )  # type: ignore[return-value]
+        return (
+            float(left[0]) + (float(right[0]) - float(left[0])) * fraction,
+            float(left[1]) + (float(right[1]) - float(left[1])) * fraction,
+            float(left[2]) + (float(right[2]) - float(left[2])) * fraction,
+        )
 
     maximum = 0.0
     for sample in range(int(samples)):
@@ -151,7 +107,6 @@ def inspect_drape(
     *,
     target_height: float | None = None,
     target_width: float | None = None,
-    particle_distance_mm: float = 32.0,
 ) -> DrapeVisualMetrics:
     """Return deterministic structural evidence for a generated drape.
 
@@ -165,23 +120,34 @@ def inspect_drape(
     make a wide, flattened or side-on garment look healthy by mistake.
     """
     if not garment_vertices:
-        return DrapeVisualMetrics(0, (0.0,) * 6, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "empty")
+        return DrapeVisualMetrics(
+            0, (0.0,) * 6, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "empty"
+        )
     finite = all(isfinite(float(c)) for v in garment_vertices for c in v)
     if not finite:
-        return DrapeVisualMetrics(len(garment_vertices), _bounds(garment_vertices), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0, None, False, "nonfinite")
+        return DrapeVisualMetrics(
+            len(garment_vertices),
+            _bounds(garment_vertices),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0),
+            0.0,
+            0.0,
+            None,
+            False,
+            "nonfinite",
+        )
 
     b = _bounds(garment_vertices)
     spans = (b[1] - b[0], b[3] - b[2], b[5] - b[4])
     vertical = spans[2]
     lateral_width = max(spans[0], spans[1])
-    vertical_span_ratio = vertical / float(target_height) if target_height and target_height > 0 else 0.0
-    lateral_span_ratio = lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
-    near_band = max(64.0, 2.0 * float(particle_distance_mm))
-    clearance, median_distance, near_fraction, near_band = vertex_distance_profile(
-        garment_vertices,
-        target_vertices,
-        near_band_mm=near_band,
+    vertical_span_ratio = (
+        vertical / float(target_height) if target_height and target_height > 0 else 0.0
     )
+    lateral_span_ratio = (
+        lateral_width / float(target_width) if target_width and target_width > 0 else 0.0
+    )
+    clearance = minimum_vertex_distance(garment_vertices, target_vertices)
     centroid = _centroid(garment_vertices)
 
     state = "structurally-plausible"
@@ -191,21 +157,26 @@ def inspect_drape(
         state = "flat-or-collapsed"
     elif target_height and vertical_span_ratio < 0.15:
         state = "short-drape-candidate"
-    elif clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0):
+    elif (
+        clearance is not None and target_width and clearance > max(float(target_width) * 0.30, 1.0)
+    ):
         state = "detached-candidate"
 
     return DrapeVisualMetrics(
-        len(garment_vertices), b, spans, centroid,
-        vertical_span_ratio, lateral_span_ratio, clearance,
+        len(garment_vertices),
+        b,
+        spans,
+        centroid,
+        vertical_span_ratio,
+        lateral_span_ratio,
+        clearance,
         True,
         state,
-        float(near_fraction),
-        float(near_band),
-        median_distance,
     )
 
 
 def summarize(metrics: DrapeVisualMetrics) -> dict:
+    """Provide the public summarize operation."""
     return {
         "state": metrics.state,
         "vertices": metrics.vertices,
@@ -216,22 +187,17 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
         "lateral_span_ratio": metrics.lateral_span_ratio,
         "target_vertex_clearance": metrics.target_vertex_clearance,
         "finite": metrics.finite,
-        "near_target_fraction": metrics.near_target_fraction,
-        "near_target_band_mm": metrics.near_target_band_mm,
-        "median_target_vertex_distance_mm": metrics.median_target_vertex_distance_mm,
     }
 
 
-
 _FATAL_VISUAL_STATES = frozenset({"detached-candidate"})
-_FATAL_VISUAL_DIAGNOSTICS = frozenset({
-    "lateral-detached-candidate",
-    "collapsed-candidate",
-    "below-hem-candidate",
-    "fallen-below-avatar-candidate",
-    "torso-coverage-candidate",
-    "avatar-adherence-candidate",
-})
+_FATAL_VISUAL_DIAGNOSTICS = frozenset(
+    {
+        "lateral-detached-candidate",
+        "collapsed-candidate",
+        "below-hem-candidate",
+    }
+)
 
 
 def assert_drape_diagnostics(records: Sequence[dict]) -> None:
@@ -243,17 +209,14 @@ def assert_drape_diagnostics(records: Sequence[dict]) -> None:
         diagnostics = {str(item) for item in record.get("diagnostics", ())}
         if state in _FATAL_VISUAL_STATES or diagnostics & _FATAL_VISUAL_DIAGNOSTICS:
             failures.append(
-                "%s: classification=%s diagnostics=%s"
-                % (
+                "{}: classification={} diagnostics={}".format(
                     str(record.get("panel", "<unknown>")),
                     state or "none",
                     ",".join(sorted(diagnostics)),
                 )
             )
     if failures:
-        raise RuntimeError(
-            "drape visual acceptance failed closed: " + "; ".join(failures)
-        )
+        raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
 
 
 def mesh_shape_sanity(vertices, triangles):
@@ -313,13 +276,19 @@ def mesh_shape_sanity(vertices, triangles):
         median_edge = float(median(lengths))
         max_edge = float(max(lengths))
         spike_ratio = max_edge / median_edge if median_edge > 1e-12 else float("inf")
-        spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(len(lengths))
+        spike_fraction = sum(1 for value in lengths if value > 4.0 * median_edge) / float(
+            len(lengths)
+        )
 
     xs = [float(vertex[0]) for vertex in vertices]
     ys = [float(vertex[1]) for vertex in vertices]
     span_x = max(xs) - min(xs)
     span_y = max(ys) - min(ys)
-    small = min(value for value in (span_x, span_y) if value > 1e-12) if max(span_x, span_y) > 1e-12 else 0.0
+    small = (
+        min(value for value in (span_x, span_y) if value > 1e-12)
+        if max(span_x, span_y) > 1e-12
+        else 0.0
+    )
     aspect = max(span_x, span_y) / small if small > 0.0 else float("inf")
 
     return {

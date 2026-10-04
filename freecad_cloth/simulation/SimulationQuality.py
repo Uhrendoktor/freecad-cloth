@@ -4,11 +4,14 @@ This module is deliberately FreeCAD-independent.  FreeCAD document objects can
 store the values returned by ``preset`` and the simulation backend can consume
 ``solver_parameters`` without coupling the semantic material model to a GUI.
 """
+
 from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
 class SimulationQuality:
+    """Public data model or service class for SimulationQuality."""
+
     name: str
     particle_distance: float
     solver_iterations: int
@@ -22,7 +25,6 @@ QUALITY_PRESETS = {
 }
 
 
-
 def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
     """Normalize FreeCAD/Python color representations to three RGB floats."""
     try:
@@ -32,9 +34,8 @@ def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
     if len(values) < 3:
         raise ValueError("color_rgb must contain at least three channels")
     values = values[:3]
-    if any(item > 1.0 for item in values):
-        if all(0.0 <= item <= 255.0 for item in values):
-            values = tuple(item / 255.0 for item in values)
+    if any(item > 1.0 for item in values) and all(0.0 <= item <= 255.0 for item in values):
+        values = tuple(item / 255.0 for item in values)
     if any(not 0.0 <= item <= 1.0 for item in values):
         raise ValueError("color_rgb channels must be between 0 and 1 or 0 and 255")
     return values
@@ -43,6 +44,7 @@ def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
 @dataclass(frozen=True)
 class FabricMaterial:
     """Physical fabric controls plus persisted presentation properties."""
+
     density_g_m2: float = 150.0
     thickness_mm: float = 0.5
     stretch: float = 0.02
@@ -55,6 +57,7 @@ class FabricMaterial:
     transparency: float = 0.0
 
     def validate(self):
+        """Validate this value and raise ValueError when its state is invalid."""
         if self.density_g_m2 <= 0:
             raise ValueError("density must be positive")
         if self.thickness_mm <= 0:
@@ -77,10 +80,12 @@ class FabricMaterial:
     @property
     def mass_per_area_kg_mm2(self):
         # g/m^2 -> kg/mm^2
+        """Provide the public mass per area kg mm2 operation."""
         return self.density_g_m2 * 1e-9
 
 
 def preset(name: str) -> SimulationQuality:
+    """Provide the public preset operation."""
     try:
         return QUALITY_PRESETS[str(name)]
     except KeyError as exc:
@@ -90,12 +95,15 @@ def preset(name: str) -> SimulationQuality:
 def apply_quality(quality: SimulationQuality, *, iterations=None, substeps=None):
     """Return a validated quality profile with explicit overrides."""
     q = preset(quality.name) if isinstance(quality, SimulationQuality) else preset(quality)
-    return replace(q,
-                   solver_iterations=q.solver_iterations if iterations is None else int(iterations),
-                   substeps=q.substeps if substeps is None else int(substeps))
+    return replace(
+        q,
+        solver_iterations=q.solver_iterations if iterations is None else int(iterations),
+        substeps=q.substeps if substeps is None else int(substeps),
+    )
 
 
 def solver_parameters(quality: SimulationQuality, material: FabricMaterial):
+    """Provide the public solver parameters operation."""
     material.validate()
     quality = apply_quality(quality)
     return {

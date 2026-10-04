@@ -1,27 +1,30 @@
 """Shared, FreeCAD-independent pattern value model.
 
-These dataclasses are canonical in-memory/headless representations; the persisted
+These dataclasses are canonical in-memory/headless representations. Persisted
 FreeCAD document objects remain the persistence authority and round-trip these
 values rather than being replaced by a second database/model.
 """
-from dataclasses import dataclass, field
-from typing import List, Tuple, Union
 
-Point = Tuple[float, float]
+from dataclasses import dataclass, field
+from typing import Union
+
+Point = tuple[float, float]
 EdgeRef = Union[int, str]
 
 
 @dataclass
 class PatternPiece:
     """A planar sewing piece expressed in millimetres."""
+
     name: str
-    outline: List[Point] = field(default_factory=list)
+    outline: list[Point] = field(default_factory=list)
     seam_allowance: float = 0.0
     grainline_angle: float = 0.0
     id: str = ""
     metadata: dict = field(default_factory=dict)
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
             raise ValueError("pattern piece name must not be empty")
         if not self.outline or len(self.outline) < 3:
@@ -41,6 +44,7 @@ class Seam:
     and construction kind are part of this record so document and simulation
     adapters cannot silently maintain competing seam state.
     """
+
     piece_a: str
     edge_a: EdgeRef
     piece_b: str
@@ -56,13 +60,16 @@ class Seam:
     kind: str = "plain"
 
     def validate(self) -> None:
+        """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
             raise ValueError("seam id must not be empty")
         if self.piece_a == self.piece_b and self.edge_a == self.edge_b:
             raise ValueError("a seam cannot connect an edge to itself")
         for edge in (self.edge_a, self.edge_b):
             if not isinstance(edge, (int, str)) or isinstance(edge, bool):
-                raise ValueError("seam edge references must be integer indices or stable identifiers")
+                raise ValueError(
+                    "seam edge references must be integer indices or stable identifiers"
+                )
             if isinstance(edge, int) and edge < 0:
                 raise ValueError("edge indices must be non-negative")
             if isinstance(edge, str) and not edge.strip():

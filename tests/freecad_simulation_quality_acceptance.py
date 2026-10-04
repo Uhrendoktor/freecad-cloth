@@ -1,4 +1,6 @@
 """Canonical FreeCAD/Xvfb acceptance for simulation quality/material controls."""
+
+import contextlib
 import os
 import tempfile
 
@@ -26,10 +28,10 @@ def _activate(name, commands):
     Gui.activateWorkbench(name)
     _events()
     if Gui.activeWorkbench().name() != name:
-        raise RuntimeError("failed to activate %s" % name)
+        raise RuntimeError(f"failed to activate {name}")
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("commands are not registered: %s" % ",".join(missing))
+        raise RuntimeError("commands are not registered: {}".format(",".join(missing)))
 
 
 def _find_pieces(doc):
@@ -54,38 +56,63 @@ def run_acceptance():
         back.Placement.Base.x = 20
         doc.recompute()
 
-        _activate("ClothSimulationWorkbench", ["ClothSimulation_Create", "ClothSimulation_Edit", "ClothSimulation_Reset"])
+        _activate(
+            "ClothSimulationWorkbench",
+            ["ClothSimulation_Create", "ClothSimulation_Edit", "ClothSimulation_Reset"],
+        )
         Gui.Selection.clearSelection()
         Gui.runCommand("ClothSimulation_Create", 0)
         scene = doc.getObject("ClothSimulation")
         if scene is None:
-            raise RuntimeError("public Simulation Create command did not create a ClothSimulation object")
+            raise RuntimeError(
+                "public Simulation Create command did not create a ClothSimulation object"
+            )
         scene.ClothPieces = [front, back]
 
         target_body = doc.addObject("Part::Feature", "QualityAcceptanceTarget")
         target_body.Label = "Quality Acceptance Target"
         target_body.Shape = Part.makeCylinder(35, 100, App.Vector(-10, 0, -50))
         doc.recompute()
-        _activate("ClothSimulationWorkbench", ["ClothDrape_CreateTarget", "ClothDrape_RefreshTarget", "ClothSimulation_Edit", "ClothSimulation_Step"])
+        _activate(
+            "ClothSimulationWorkbench",
+            [
+                "ClothDrape_CreateTarget",
+                "ClothDrape_RefreshTarget",
+                "ClothSimulation_Edit",
+                "ClothSimulation_Step",
+            ],
+        )
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(target_body)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
         doc.recompute()
         target = doc.getObject("DrapeTarget")
         if target is None or scene.DrapeTarget != target:
-            raise RuntimeError("public DrapeTarget command did not attach the target to the simulation")
+            raise RuntimeError(
+                "public DrapeTarget command did not attach the target to the simulation"
+            )
         Gui.runCommand("ClothDrape_RefreshTarget", 0)
         doc.recompute()
 
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import apply_quality_preset, ensure_quality_properties
+        from freecad_cloth.simulation.DrapeTarget import target_status
         from freecad_cloth.simulation.SimulationQuality import preset
         from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-        from freecad_cloth.simulation.DrapeTarget import target_status
+        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+            apply_quality_preset,
+            ensure_quality_properties,
+        )
 
         ensure_quality_properties(scene)
         apply_quality_preset(scene, "Fast")
         doc.recompute()
-        fast = {"particle": float(scene.ParticleDistance), "iterations": int(scene.SolverIterations), "substeps": int(scene.SolverSubsteps), "density": float(scene.FabricDensity), "thickness": float(scene.FabricThickness), "particles": int(scene.ParticleCount)}
+        fast = {
+            "particle": float(scene.ParticleDistance),
+            "iterations": int(scene.SolverIterations),
+            "substeps": int(scene.SolverSubsteps),
+            "density": float(scene.FabricDensity),
+            "thickness": float(scene.FabricThickness),
+            "particles": int(scene.ParticleCount),
+        }
         final = preset("Final")
         if fast["particle"] <= final.particle_distance:
             raise RuntimeError("Fast preset did not use a coarser particle distance than Final")
@@ -98,7 +125,9 @@ def run_acceptance():
         Gui.Control.showDialog(panel)
         _events()
         if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
-            raise RuntimeError("simulation panel did not expose the Arrange / Fit / target-snap bridge")
+            raise RuntimeError(
+                "simulation panel did not expose the Arrange / Fit / target-snap bridge"
+            )
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
         panel.quality.setCurrentText("Final")
@@ -121,9 +150,17 @@ def run_acceptance():
         panel.accept()
         _close_task()
         doc.recompute()
-        authored = (str(scene.QualityPreset), float(scene.FabricDensity), float(scene.FabricThickness), float(scene.AvatarSkinOffset), float(scene.FabricFriction))
+        authored = (
+            str(scene.QualityPreset),
+            float(scene.FabricDensity),
+            float(scene.FabricThickness),
+            float(scene.AvatarSkinOffset),
+            float(scene.FabricFriction),
+        )
         if authored != ("Final", 225.0, 0.75, 2.5, 0.65):
-            raise RuntimeError("task-panel material/collision edits did not persist into document properties")
+            raise RuntimeError(
+                "task-panel material/collision edits did not persist into document properties"
+            )
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "simulation-quality-acceptance.FCStd")
@@ -136,17 +173,48 @@ def run_acceptance():
             target_body = reloaded.getObject("QualityAcceptanceTarget")
             if scene is None or target is None or target_body is None:
                 raise RuntimeError("quality simulation did not survive save/reload")
-            persisted = (str(scene.QualityPreset), float(scene.FabricDensity), float(scene.FabricThickness), float(scene.AvatarSkinOffset), float(scene.FabricFriction), float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.SolverSubsteps))
-            expected = ("Final", 225.0, 0.75, 2.5, 0.65, float(final.particle_distance), int(final.solver_iterations), int(final.substeps))
+            persisted = (
+                str(scene.QualityPreset),
+                float(scene.FabricDensity),
+                float(scene.FabricThickness),
+                float(scene.AvatarSkinOffset),
+                float(scene.FabricFriction),
+                float(scene.ParticleDistance),
+                int(scene.SolverIterations),
+                int(scene.SolverSubsteps),
+            )
+            expected = (
+                "Final",
+                225.0,
+                0.75,
+                2.5,
+                0.65,
+                float(final.particle_distance),
+                int(final.solver_iterations),
+                int(final.substeps),
+            )
             if persisted != expected:
-                raise RuntimeError("quality, material, and collision controls did not persist across save/reload")
-            _activate("ClothSimulationWorkbench", ["ClothSimulation_Edit", "ClothSimulation_Reset", "ClothSimulation_Step", "ClothDrape_RefreshTarget"])
+                raise RuntimeError(
+                    "quality, material, and collision controls did not persist across save/reload"
+                )
+            _activate(
+                "ClothSimulationWorkbench",
+                [
+                    "ClothSimulation_Edit",
+                    "ClothSimulation_Reset",
+                    "ClothSimulation_Step",
+                    "ClothDrape_RefreshTarget",
+                ],
+            )
             panel = SimulationQualityTaskPanel(scene)
             Gui.Control.showDialog(panel)
             _events()
             if panel.quality.currentText() != "Final":
                 raise RuntimeError("reloaded task panel lost the authored quality preset")
-            if abs(_panel_value(panel, "density") - 225.0) > 1e-6 or abs(_panel_value(panel, "thickness") - 0.75) > 1e-6:
+            if (
+                abs(_panel_value(panel, "density") - 225.0) > 1e-6
+                or abs(_panel_value(panel, "thickness") - 0.75) > 1e-6
+            ):
                 raise RuntimeError("reloaded task panel lost authored fabric controls")
             if abs(_panel_value(panel, "skin_offset") - 2.5) > 1e-6:
                 raise RuntimeError("reloaded task panel lost authored collision control")
@@ -156,14 +224,24 @@ def run_acceptance():
             reloaded.recompute()
             status = target_status(target)
             if status["state"] != "stale" or not status["stale"]:
-                raise RuntimeError("upstream CAD target edit did not produce deterministic stale state")
+                raise RuntimeError(
+                    "upstream CAD target edit did not produce deterministic stale state"
+                )
             panel = SimulationQualityTaskPanel(scene)
             Gui.Control.showDialog(panel)
             _events()
-            if panel.step_button.isEnabled() or panel.run_button.isEnabled() or not panel.reset_button.isEnabled():
-                raise RuntimeError("stale-target status did not block Step/Run while preserving Reset")
+            if (
+                panel.step_button.isEnabled()
+                or panel.run_button.isEnabled()
+                or not panel.reset_button.isEnabled()
+            ):
+                raise RuntimeError(
+                    "stale-target status did not block Step/Run while preserving Reset"
+                )
             if "Simulation blocked" not in panel.status.text():
-                raise RuntimeError("stale-target status did not expose a user-facing blocked reason")
+                raise RuntimeError(
+                    "stale-target status did not expose a user-facing blocked reason"
+                )
             _close_task()
 
             Gui.Selection.clearSelection()
@@ -177,17 +255,17 @@ def run_acceptance():
             Gui.runCommand("ClothSimulation_Step", 0)
             reloaded.recompute()
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
-                raise RuntimeError("public Simulation Step did not recover after stale-target refresh")
+                raise RuntimeError(
+                    "public Simulation Step did not recover after stale-target refresh"
+                )
             App.closeDocument(reloaded.Name)
             doc = None
         print("simulation quality persistence acceptance passed", flush=True)
     finally:
         _close_task()
         if doc is not None:
-            try:
+            with contextlib.suppress(Exception):
                 App.closeDocument(doc.Name)
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":

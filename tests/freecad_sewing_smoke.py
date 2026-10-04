@@ -1,4 +1,5 @@
 """Real FreeCAD smoke test for sewing task-panel lifecycle and semantic persistence."""
+
 import os
 import sys
 import tempfile
@@ -6,14 +7,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import contextlib
+
 import FreeCAD as App
 import FreeCADGui as Gui
 
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.pattern.PatternObjects import add_seam
-from freecad_cloth.sewing.SewingObjects import add_sewing_operation
 from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+from freecad_cloth.sewing.SewingObjects import add_sewing_operation
 
 
 def main():
@@ -127,14 +130,15 @@ def main():
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
             assert restored.PieceA is not None and restored.PieceB is not None
-            print("FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed", flush=True)
+            print(
+                "FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed",
+                flush=True,
+            )
         finally:
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(path)
-            except OSError:
-                pass
     finally:
         if App.ActiveDocument is not None:
             App.closeDocument(App.ActiveDocument.Name)

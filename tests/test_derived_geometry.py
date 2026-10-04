@@ -1,9 +1,20 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
-from freecad_cloth.pattern.PatternDerivedGeometry import Notch, add_notches, derive_cut_boundary, notch_point
+from freecad_cloth.pattern.PatternDerivedGeometry import (
+    Notch,
+    add_notches,
+    derive_cut_boundary,
+    notch_point,
+)
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    QuadraticBezier,
+    rectangle,
+)
 
 
 def test_zero_allowance_preserves_sewing_boundary():
@@ -25,12 +36,14 @@ def test_rectangle_allowance_is_outward_and_deterministic():
 
 
 def test_per_edge_override_and_curve_are_supported():
-    pattern = ParametricPattern([
-        LineSegment("bottom", (0, 0), (10, 0)),
-        LineSegment("right", (10, 0), (10, 5)),
-        QuadraticBezier("top", (10, 5), (5, 9), (0, 5)),
-        LineSegment("left", (0, 5), (0, 0)),
-    ])
+    pattern = ParametricPattern(
+        [
+            LineSegment("bottom", (0, 0), (10, 0)),
+            LineSegment("right", (10, 0), (10, 5)),
+            QuadraticBezier("top", (10, 5), (5, 9), (0, 5)),
+            LineSegment("left", (0, 5), (0, 0)),
+        ]
+    )
     derived = derive_cut_boundary(pattern, 2, {"right": 4}, curve_samples=8)
     assert derived.cut_boundary[1].points[0] == (14.0, 0.0)
     assert len(derived.cut_boundary[2].points) == 8

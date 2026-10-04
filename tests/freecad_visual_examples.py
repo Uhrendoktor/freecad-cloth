@@ -11,7 +11,6 @@ sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 
 import FreeCAD as App
 import FreeCADGui as Gui
-from pivy import coin
 
 try:
     from PySide import QtWidgets
@@ -21,7 +20,6 @@ except ImportError:
 
 # A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
 os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
-os.environ.setdefault("CLOTH_SIMULATION_BACKEND", "xpbd-cpu")
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -43,7 +41,7 @@ def events():
 def save_png(view, path, state):
     view.saveImage(str(path), 640, 480, "White")
     if not path.is_file():
-        raise RuntimeError("failed screenshot: %s" % state)
+        raise RuntimeError(f"failed screenshot: {state}")
     try:
         metrics = validate_png_capture(
             path,
@@ -51,7 +49,7 @@ def save_png(view, path, state):
             expected_height=480,
         )
     except (OSError, ValueError) as exc:
-        raise RuntimeError("failed screenshot: %s (%s)" % (state, exc)) from exc
+        raise RuntimeError(f"failed screenshot: {state} ({exc})") from exc
     log(
         "screenshot=passed state=%s width=%d height=%d nonwhite_pixels=%d distinct_rgb=%d"
         % (
@@ -70,14 +68,19 @@ def make_rectangle_sketch(doc, name, width, height):
 
     sketch = doc.addObject("Sketcher::SketchObject", name)
     points = ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height))
-    sketch.addGeometry([
-        Part.LineSegment(
-            App.Vector(points[index][0], points[index][1], 0),
-            App.Vector(points[(index + 1) % 4][0], points[(index + 1) % 4][1], 0),
-        )
-        for index in range(4)
-    ], False)
-    sketch.addConstraint([Sketcher.Constraint("Coincident", index, 2, (index + 1) % 4, 1) for index in range(4)])
+    sketch.addGeometry(
+        [
+            Part.LineSegment(
+                App.Vector(points[index][0], points[index][1], 0),
+                App.Vector(points[(index + 1) % 4][0], points[(index + 1) % 4][1], 0),
+            )
+            for index in range(4)
+        ],
+        False,
+    )
+    sketch.addConstraint(
+        [Sketcher.Constraint("Coincident", index, 2, (index + 1) % 4, 1) for index in range(4)]
+    )
     doc.recompute()
     return sketch, points
 
@@ -99,21 +102,33 @@ def mesh_snapshot(panel):
     return points, faces
 
 
-def render_motion(view, scene, panel, target_vertices, cube_top_z, out_dir, checkpoint_steps=(15, 30, 60, 120), frame_count=16, start_step=1, final_steps=120):
+def render_motion(
+    view,
+    scene,
+    panel,
+    target_vertices,
+    cube_top_z,
+    out_dir,
+    checkpoint_steps=(15, 30, 60, 120),
+    frame_count=16,
+    start_step=1,
+    final_steps=120,
+):
     import time
 
     motion_steps = tuple(
-        round(index * final_steps / float(frame_count - 1))
-        for index in range(frame_count)
+        round(index * final_steps / float(frame_count - 1)) for index in range(frame_count)
     )
     checkpoint_steps = tuple(int(step) for step in checkpoint_steps)
     checkpoint_names = {step: "checkpoint-%03d.png" % step for step in checkpoint_steps}
     motion_indices = {step: index for index, step in enumerate(motion_steps)}
-    targets = tuple(sorted({int(start_step)}.union(
-        step for step in motion_steps if step >= int(start_step)
-    ).union(
-        step for step in checkpoint_steps if step >= int(start_step)
-    )))
+    targets = tuple(
+        sorted(
+            {int(start_step)}.union(step for step in motion_steps if step >= int(start_step)).union(
+                step for step in checkpoint_steps if step >= int(start_step)
+            )
+        )
+    )
     if targets[0] != int(start_step) or targets[-1] != final_steps:
         raise RuntimeError("blanket render schedule must span %d..%d" % (start_step, final_steps))
 
@@ -126,8 +141,7 @@ def render_motion(view, scene, panel, target_vertices, cube_top_z, out_dir, chec
     previous_step = int(scene.Steps)
     if previous_step != int(start_step):
         raise RuntimeError(
-            "blanket render expected prewarmed step %d, got %d"
-            % (start_step, previous_step)
+            "blanket render expected prewarmed step %d, got %d" % (start_step, previous_step)
         )
     solver_steps = 0
     recomputes = 0
@@ -161,20 +175,23 @@ def render_motion(view, scene, panel, target_vertices, cube_top_z, out_dir, chec
         )
         frame_min_z = min(float(vertex[2]) for vertex in frame_vertices)
         frame_clearance = frame_min_z - float(cube_top_z)
-        if frame_drape.state == "structurally-plausible" and frame_clearance <= 35.0:
-            if best_drape is None:
-                best_drape = frame_drape
-                best_drape_clearance = frame_clearance
-                best_drape_step = target_step
-                log(
-                    "blanket-drape-gate=passed step=%d clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f"
-                    % (
-                        target_step,
-                        frame_clearance,
-                        frame_drape.vertical_span_ratio,
-                        frame_drape.lateral_span_ratio,
-                    )
+        if (
+            frame_drape.state == "structurally-plausible"
+            and frame_clearance <= 35.0
+            and best_drape is None
+        ):
+            best_drape = frame_drape
+            best_drape_clearance = frame_clearance
+            best_drape_step = target_step
+            log(
+                "blanket-drape-gate=passed step=%d clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f"
+                % (
+                    target_step,
+                    frame_clearance,
+                    frame_drape.vertical_span_ratio,
+                    frame_drape.lateral_span_ratio,
                 )
+            )
         events()
         if target_step in motion_indices:
             save_png(
@@ -244,12 +261,18 @@ def _load_cloth_modules():
 
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
     from freecad_cloth.common.MeshValidation import validate_mesh
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.pattern.PatternGeometry import rectangle
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene, set_avatar_collision_source
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy, ensure_quality_properties
-    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+    from freecad_cloth.simulation.SimulationObjects import (
+        create_simulation_scene,
+        set_avatar_collision_source,
+    )
+    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+        QualitySimulationProxy,
+        ensure_quality_properties,
+    )
 
 
 def main():
@@ -261,7 +284,11 @@ def main():
     _load_cloth_modules()
     init_gui = ROOT / "InitGui.py"
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+        exec(
+            compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
+            globals(),
+            globals(),
+        )
     events()
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         raise RuntimeError("ClothPatternWorkbench was not registered by visual acceptance startup")
@@ -284,6 +311,7 @@ def main():
         doc.recompute()
 
         import time
+
         setup_started = time.perf_counter()
         scene = create_simulation_scene(doc, build=False)
         ensure_quality_properties(scene)
@@ -304,12 +332,15 @@ def main():
         scene.FabricTransparency = 12
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        boundary_vertices = tuple(sorted(set(index for chain in boundary for index in chain), key=lambda index: index))
+        boundary_vertices = tuple(
+            sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
+        )
         if not boundary_vertices:
             raise RuntimeError("blanket quality mesh has no boundary vertices")
         top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
         top_edge = tuple(
-            index for index in boundary_vertices
+            index
+            for index in boundary_vertices
             if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
         )
         if len(top_edge) < 2:
@@ -320,9 +351,11 @@ def main():
         )
         pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
         if pin_span < 0.75 * blanket_width:
-            raise RuntimeError("blanket pins are not opposite top-edge corners: span=%.3f" % pin_span)
+            raise RuntimeError(
+                f"blanket pins are not opposite top-edge corners: span={pin_span:.3f}"
+            )
         scene.PinSelection = [str(int(index)) for index in top]
-        log("blanket-pins=passed opposite-corners span=%.3f indices=%s" % (pin_span, top))
+        log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 
         collision_started = time.perf_counter()
         set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
@@ -361,15 +394,24 @@ def main():
         events()
         save_png(view, OUT / "checkpoint-000.png", "blanket initial state")
 
-        initial_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
-        log("blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s" % (
-            float(scene.ParticleDistance), int(scene.SolverIterations), int(scene.ParticleCount),
-            getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
-        ))
-        log("blanket-backend-contract=passed requested=%s active=%s" % (
-            os.environ.get("CLOTH_SIMULATION_BACKEND", "auto"),
-            getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
-        ))
+        initial_points = tuple(
+            tuple(float(value) for value in point)
+            for point in scene.Proxy._base_or_restore().backend.positions()
+        )
+        log(
+            "blanket-solver-config particle_distance=%.1f iterations=%d particles=%d backend=%s"
+            % (
+                float(scene.ParticleDistance),
+                int(scene.SolverIterations),
+                int(scene.ParticleCount),
+                getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
+            )
+        )
+        log(
+            "blanket-backend-contract=passed active={}".format(
+                getattr(scene.Proxy._base_or_restore().backend, "name", "unknown"),
+            )
+        )
 
         avatar_points = tuple(
             (float(vertex.Point.x), float(vertex.Point.y), float(vertex.Point.z))
@@ -394,20 +436,16 @@ def main():
         prewarm_clearance = prewarm_min_z - cube_top_z
         events()
         save_png(view, OUT / "motion-000.png", "blanket motion step 0")
-        log("blanket-first-step-timing step=1 recompute_ms=%.1f finite=%s state_steps=%d" % (
-            first_step_ms, bool(scene.FiniteState), int(scene.Steps)
-        ))
+        log(
+            "blanket-first-step-timing step=1 recompute_ms=%.1f finite=%s state_steps=%d"
+            % (first_step_ms, bool(scene.FiniteState), int(scene.Steps))
+        )
         if prewarm_drape.state == "structurally-plausible" and prewarm_clearance <= 35.0:
             best_drape = prewarm_drape
             best_drape_clearance = prewarm_clearance
             best_drape_step = 1
             log(
-                "blanket-drape-gate=passed step=1 clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f"
-                % (
-                    prewarm_clearance,
-                    prewarm_drape.vertical_span_ratio,
-                    prewarm_drape.lateral_span_ratio,
-                )
+                f"blanket-drape-gate=passed step=1 clearance_mm={prewarm_clearance:.2f} vertical_ratio={prewarm_drape.vertical_span_ratio:.3f} lateral_ratio={prewarm_drape.lateral_span_ratio:.3f}"
             )
         else:
             best_drape = None
@@ -425,20 +463,25 @@ def main():
             start_step=1,
             final_steps=120,
         )
-        if best_drape is None:
-            best_drape = progress_drape
-            best_drape_clearance = progress_clearance
-            best_drape_step = progress_step
-        elif progress_drape is not None and progress_step is not None and progress_step < best_drape_step:
+        if (
+            best_drape is None
+            or progress_drape is not None
+            and progress_step is not None
+            and progress_step < best_drape_step
+        ):
             best_drape = progress_drape
             best_drape_clearance = progress_clearance
             best_drape_step = progress_step
 
-        final_points = tuple(tuple(float(value) for value in point) for point in scene.Proxy._base_or_restore().backend.positions())
+        final_points = tuple(
+            tuple(float(value) for value in point)
+            for point in scene.Proxy._base_or_restore().backend.positions()
+        )
         if not initial_points or not final_points:
             raise RuntimeError("blanket simulation produced no particles")
         max_displacement = max(
-            sum((final_points[index][axis] - initial_points[index][axis]) ** 2 for axis in range(3)) ** 0.5
+            sum((final_points[index][axis] - initial_points[index][axis]) ** 2 for axis in range(3))
+            ** 0.5
             for index in range(min(len(initial_points), len(final_points)))
         )
         if max_displacement <= 1.0:
@@ -450,35 +493,51 @@ def main():
         final_drape = inspect_drape(vertices, avatar_points, target_height=60.0, target_width=180.0)
         final_min_z = min(float(vertex[2]) for vertex in vertices)
         final_clearance = final_min_z - cube_top_z
-        log("drape-terminal state=%s clearance_mm=%.2f cube_top_z=%.2f cloth_min_z=%.2f" % (
-            final_drape.state, final_clearance, cube_top_z, final_min_z,
-        ))
+        log(
+            f"drape-terminal state={final_drape.state} clearance_mm={final_clearance:.2f} cube_top_z={cube_top_z:.2f} cloth_min_z={final_min_z:.2f}"
+        )
         if best_drape is None:
             raise RuntimeError("blanket did not satisfy drape gate at any simulated frame")
         if best_drape.state != "structurally-plausible":
-            raise RuntimeError("blanket drape gate produced unexpected state: %s" % best_drape.state)
+            raise RuntimeError(f"blanket drape gate produced unexpected state: {best_drape.state}")
         if best_drape_clearance > 35.0:
             raise RuntimeError(
                 "blanket drape gate exceeded clearance threshold: step=%d clearance=%.2f"
                 % (best_drape_step, best_drape_clearance)
             )
         if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
-            raise RuntimeError("blanket mesh failed structural validation: %r" % mesh_result)
-        if not shape["finite"] or shape["edge_spike_ratio"] > 4.0 or shape["spike_edge_fraction"] > 0.02:
-            raise RuntimeError("blanket mesh has spike outliers: %r" % shape)
+            raise RuntimeError(f"blanket mesh failed structural validation: {mesh_result!r}")
+        if (
+            not shape["finite"]
+            or shape["edge_spike_ratio"] > 4.0
+            or shape["spike_edge_fraction"] > 0.02
+        ):
+            raise RuntimeError(f"blanket mesh has spike outliers: {shape!r}")
         if shape["footprint_aspect_ratio"] > 4.0:
-            raise RuntimeError("blanket footprint became excessively elongated: %r" % shape)
+            raise RuntimeError(f"blanket footprint became excessively elongated: {shape!r}")
         if not bool(scene.FiniteState):
             raise RuntimeError("blanket final simulation state is non-finite")
-        log("mesh=passed vertices=%d faces=%d components=%d spikes=%.3f aspect=%.3f" % (
-            mesh_result.vertices, mesh_result.faces, mesh_result.components,
-            shape["edge_spike_ratio"], shape["footprint_aspect_ratio"],
-        ))
-        log("drape=passed state=%s best_step=%d clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f" % (
-            best_drape.state, best_drape_step, best_drape_clearance,
-            best_drape.vertical_span_ratio, best_drape.lateral_span_ratio,
-        ))
-        log("movement=passed max_displacement_mm=%.3f" % max_displacement)
+        log(
+            "mesh=passed vertices=%d faces=%d components=%d spikes=%.3f aspect=%.3f"
+            % (
+                mesh_result.vertices,
+                mesh_result.faces,
+                mesh_result.components,
+                shape["edge_spike_ratio"],
+                shape["footprint_aspect_ratio"],
+            )
+        )
+        log(
+            "drape=passed state=%s best_step=%d clearance_mm=%.2f vertical_ratio=%.3f lateral_ratio=%.3f"
+            % (
+                best_drape.state,
+                best_drape_step,
+                best_drape_clearance,
+                best_drape.vertical_span_ratio,
+                best_drape.lateral_span_ratio,
+            )
+        )
+        log(f"movement=passed max_displacement_mm={max_displacement:.3f}")
         applied_color = tuple(float(value) for value in panel.ViewObject.ShapeColor[:3])
         expected_color = (0.14, 0.32, 0.78)
         if any(abs(applied_color[index] - expected_color[index]) > 0.02 for index in range(3)):
@@ -501,9 +560,9 @@ def main():
 try:
     main()
 except BaseException as error:
-    print("BLANKET VISUAL FAILURE: %r" % (error,), flush=True)
+    print(f"BLANKET VISUAL FAILURE: {error!r}", flush=True)
     print(traceback.format_exc(), flush=True)
-    log("blanket-visual-fail exception=%r" % (error,))
+    log(f"blanket-visual-fail exception={error!r}")
     try:
         app = QtWidgets.QApplication.instance()
         if app is not None:

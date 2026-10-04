@@ -4,6 +4,7 @@ The workbench-facing objects store seams as references to stable pattern-piece
 IDs.  This module keeps cross-object validation and topology analysis out of
 FreeCAD so it can be reused by GUI and simulation code and tested headlessly.
 """
+
 from collections import defaultdict, deque
 
 
@@ -54,8 +55,8 @@ def validate_sewing_plan(pieces, seams):
 def _validate_edge(seam_id, piece_id, edge, piece):
     try:
         edge = int(edge)
-    except (TypeError, ValueError):
-        raise ValueError(f"seam {seam_id} has invalid edge on {piece_id}")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"seam {seam_id} has invalid edge on {piece_id}") from exc
     # A closed polygon with N vertices has N edges. For an explicit repeated
     # closing point, the final duplicate does not introduce another edge.
     count = len(getattr(piece, "outline", ()))

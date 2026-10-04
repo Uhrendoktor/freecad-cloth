@@ -4,7 +4,8 @@ The service deliberately exposes derived geometry through the existing
 FreeCAD-independent AvatarModel. FreeCAD document objects can adapt to this
 interface without coupling the solver to Part/OpenCascade construction details.
 """
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, generate_mesh
+
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, generate_mesh
 
 
 class AvatarService:
@@ -47,14 +48,19 @@ class AvatarService:
         raise KeyError(key)
 
     def measurement(self, name):
+        """Return the requested body measurement."""
         return self._parameters.measurement(str(name))
 
     def measurements(self):
         """Return a sorted immutable-ish snapshot of anthropometric values."""
-        return tuple(sorted((name, float(value)) for name, value in self._parameters.measurements.items()))
+        return tuple(
+            sorted((name, float(value)) for name, value in self._parameters.measurements.items())
+        )
 
     def pose(self):
+        """Provide the public pose operation."""
         return self._parameters.pose
 
     def skin_offset(self):
+        """Provide the public skin offset operation."""
         return float(self._parameters.skin_offset)

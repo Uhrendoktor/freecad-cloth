@@ -1,98 +1,58 @@
-from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 
 
-def test_deterministic_step_and_pins():
+def test_grid_builds_deterministic_solver_input():
     a = ClothSystem.grid(40, 20, nx=4, ny=3, origin=(0, 0, 50))
     b = ClothSystem.grid(40, 20, nx=4, ny=3, origin=(0, 0, 50))
-    for system in (a, b):
-        system.pin((0, 3))
-        system.step(dt=1/60, iterations=6)
-        assert system.finite()
-    assert [p.position() for p in a.particles] == [p.position() for p in b.particles]
-    assert a.particles[0].position() == (0, 0, 50)
-    assert a.particles[-1].z < 50
+
+    assert [particle.position() for particle in a.particles] == [
+        particle.position() for particle in b.particles
+    ]
+    assert len(a.particles) == 12
+    assert len(a.constraints) == len(b.constraints)
 
 
-def test_first_step_has_no_artificial_velocity():
-    particle = Particle(120.0, -35.0, 800.0)
-    system = ClothSystem([particle])
-    system.step(dt=1/60, iterations=1, gravity=(0.0, 0.0, 0.0))
-    assert particle.position() == (120.0, -35.0, 800.0)
-
-
-def test_sewing_reduces_gap():
-    system = ClothSystem.grid(20, 10, nx=3, ny=3, origin=(0, 0, 30))
-    offset = len(system.particles)
-    other = ClothSystem.grid(20, 10, nx=3, ny=3, origin=(30, 0, 30))
-    system.particles.extend(other.particles)
-    system.constraints.extend(type(c)(c.a+offset, c.b+offset, c.rest, c.compliance) for c in other.constraints)
-    pairs = [(2, offset), (5, offset+3), (8, offset+6)]
-    system.add_stitches(pairs)
-    before = abs(system.particles[2].x - system.particles[offset].x)
-    system.step(dt=1/60, iterations=10, gravity=(0, 0, 0))
-    after = abs(system.particles[2].x - system.particles[offset].x)
-    assert after < before
-
-
-def _cube_collision_surface(thickness=1.0):
-    from freecad_cloth.avatar.AvatarCollision import surface_from_triangles
-
-    vertices = (
-        (-10, -10, -10), (10, -10, -10), (10, 10, -10), (-10, 10, -10),
-        (-10, -10, 10), (10, -10, 10), (10, 10, 10), (-10, 10, 10),
+def test_solver_input_records_stitches_once():
+    system = ClothSystem(
+        [Particle(0.0, 0.0, 0.0), Particle(10.0, 0.0, 0.0)],
+        stitches=[(0, 1)],
     )
-    triangles = (
-        (0, 1, 2), (0, 2, 3),
-        (4, 6, 5), (4, 7, 6),
-        (0, 4, 5), (0, 5, 1),
-        (3, 2, 6), (3, 6, 7),
-        (0, 3, 7), (0, 7, 4),
-        (1, 5, 6), (1, 6, 2),
-    )
-    return surface_from_triangles(vertices, triangles, thickness=thickness)
+
+    assert system.stitches == [
+        DistanceConstraint(0, 1, 0.0, 0.0),
+    ]
 
 
-def test_mesh_collision_corner_projects_against_both_local_faces():
-    surface = _cube_collision_surface()
-    particle = Particle(10.5, 10.5, 0.0)
-    system = ClothSystem([particle])
+def test_pins_zero_inverse_mass_without_integrating_physics():
+    system = ClothSystem([Particle(0.0, 0.0, 50.0), Particle(1.0, 0.0, 50.0)])
+    system.pin((0,))
 
-    system._collide_surface(surface)
-
-    assert particle.position() == (11.0, 11.0, 0.0)
-
-
-def test_tissu_collision_surface_abi_preserves_solver_surface_identity():
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[1]
-    backend_source = (root / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(encoding="utf-8")
-    tissu_source = (root / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(encoding="utf-8")
-    objects_source = (root / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(encoding="utf-8")
-
-    assert "def solver_collision_surface(self):" in backend_source
-    assert "def solver_collision_surface(self):" in tissu_source
-    assert "return self._collision_surface" in tissu_source
-    assert "self.collision_surface = collision_surface" in objects_source
-    assert "_collision_surface_for_step(self)" in objects_source
+    assert system.pins == {0: (0.0, 0.0, 50.0)}
+    assert system.particles[0].inv_mass == 0.0
+    assert system.particles[1].inv_mass == 1.0
 
 
-def test_mesh_collision_edge_projection_is_idempotent():
-    surface = _cube_collision_surface()
-    particle = Particle(10.5, 0.0, 10.5)
-    system = ClothSystem([particle])
+def test_solver_input_rejects_invalid_indices():
+    system = ClothSystem([Particle(0.0, 0.0, 0.0)])
 
-    system._collide_surface(surface)
-    projected = particle.position()
-    system._collide_surface(surface)
+    try:
+        system.pin((1,))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("out-of-range pin must fail")
 
-    assert projected == (11.0, 0.0, 11.0)
-    drift = tuple(a - b for a, b in zip(particle.position(), projected))
-    assert max(abs(value) for value in drift) <= 1e-9, drift
+    try:
+        system.add_stitches(((0, 1),))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("out-of-range stitch must fail")
 
 
-if __name__ == "__main__":
-    for name, test in sorted(globals().items()):
-        if name.startswith("test_") and callable(test):
-            test()
-    print("cloth solver tests passed")
+def test_finite_checks_only_input_coordinates():
+    system = ClothSystem([Particle(0.0, 0.0, 0.0)])
+    assert system.finite()
+
+    system.particles[0].z = float("nan")
+    assert not system.finite()

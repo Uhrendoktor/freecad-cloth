@@ -8,6 +8,7 @@ silently edit a network whose canonical seam references are invalid.
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
+
     try:
         from PySide import QtCore, QtWidgets
     except ImportError:
@@ -29,7 +30,7 @@ def validate_network_for_edit(network):
     """Raise a clear error when a persisted network contains invalid seams."""
     errors = network_reference_errors(network)
     if errors:
-        details = ", ".join("%s: %s" % item for item in errors)
+        details = ", ".join("{}: {}".format(*item) for item in errors)
         raise ValueError("cannot edit sewing network with invalid seam references: " + details)
     return True
 
@@ -46,8 +47,9 @@ class SewingNetworkTaskPanel:
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
         self.info = QtWidgets.QLabel(
-            "Relationship %s — edit normalized edge ranges (0..1). Ranges are local to each referenced edge."
-            % str(getattr(network, "RelationshipId", ""))
+            "Relationship {} — edit normalized edge ranges (0..1). Ranges are local to each referenced edge.".format(
+                str(getattr(network, "RelationshipId", ""))
+            )
         )
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
@@ -55,7 +57,10 @@ class SewingNetworkTaskPanel:
         controls = QtWidgets.QFormLayout()
         self.alignment = QtWidgets.QComboBox()
         self.alignment.addItems(["endpoints", "uniform"])
-        alignments = {str(getattr(seam, "Alignment", "endpoints")) for seam in tuple(getattr(network, "Seams", ()) or ())}
+        alignments = {
+            str(getattr(seam, "Alignment", "endpoints"))
+            for seam in tuple(getattr(network, "Seams", ()) or ())
+        }
         current_alignment = sorted(alignments)[0] if alignments else "uniform"
         index = self.alignment.findText(current_alignment)
         self.alignment.setCurrentIndex(max(0, index))
@@ -63,7 +68,11 @@ class SewingNetworkTaskPanel:
 
         self.reversed_b = QtWidgets.QCheckBox("Reverse B correspondence")
         seam_values = tuple(getattr(network, "Seams", ()) or ())
-        self.reversed_b.setChecked(bool(seam_values and all(bool(getattr(seam, "ReversedB", False)) for seam in seam_values)))
+        self.reversed_b.setChecked(
+            bool(
+                seam_values and all(bool(getattr(seam, "ReversedB", False)) for seam in seam_values)
+            )
+        )
         controls.addRow("Orientation", self.reversed_b)
         layout.addLayout(controls)
 
@@ -72,8 +81,9 @@ class SewingNetworkTaskPanel:
         self.warning.setWordWrap(True)
         self.warning.setObjectName("ClothSewingNetworkReferenceWarning")
         self.warning.setText(
-            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
-            if errors else ""
+            "Invalid seam references: " + "; ".join("{} ({})".format(*item) for item in errors)
+            if errors
+            else ""
         )
         layout.addWidget(self.warning)
         self.correspondence = QtWidgets.QLabel()
@@ -81,17 +91,32 @@ class SewingNetworkTaskPanel:
         self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
         layout.addWidget(self.correspondence)
 
-        columns = ("A piece", "A edge", "A start", "A end", "B piece", "B edge", "B start", "B end", "Direction", "Status")
+        columns = (
+            "A piece",
+            "A edge",
+            "A start",
+            "A end",
+            "B piece",
+            "B edge",
+            "B start",
+            "B end",
+            "Direction",
+            "Status",
+        )
         self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setObjectName("ClothSewingNetworkRangeTable")
         self._seams = seam_values
         for row, seam in enumerate(seam_values):
             values = (
-                str(getattr(seam, "PieceA", "")), str(getattr(seam, "EdgeA", "")),
-                float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)),
-                str(getattr(seam, "PieceB", "")), str(getattr(seam, "EdgeB", "")),
-                float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)),
+                str(getattr(seam, "PieceA", "")),
+                str(getattr(seam, "EdgeA", "")),
+                float(getattr(seam, "StartA", 0.0)),
+                float(getattr(seam, "EndA", 1.0)),
+                str(getattr(seam, "PieceB", "")),
+                str(getattr(seam, "EdgeB", "")),
+                float(getattr(seam, "StartB", 0.0)),
+                float(getattr(seam, "EndB", 1.0)),
                 "reversed" if bool(getattr(seam, "ReversedB", False)) else "forward",
                 str(getattr(seam, "Status", getattr(network, "Status", ""))),
             )
@@ -115,7 +140,9 @@ class SewingNetworkTaskPanel:
                 )
                 for seam in seam_values
             ),
-            "alignment": tuple(str(getattr(seam, "Alignment", "endpoints")) for seam in seam_values),
+            "alignment": tuple(
+                str(getattr(seam, "Alignment", "endpoints")) for seam in seam_values
+            ),
             "reversed_b": tuple(bool(getattr(seam, "ReversedB", False)) for seam in seam_values),
         }
         self._transaction_active = False
@@ -157,6 +184,7 @@ class SewingNetworkTaskPanel:
             self._original["ranges"],
             self._original["alignment"],
             self._original["reversed_b"],
+            strict=False,
         ):
             seam.StartA, seam.EndA, seam.StartB, seam.EndB = ranges
             seam.Alignment = alignment
@@ -165,8 +193,8 @@ class SewingNetworkTaskPanel:
     def _range(self, row, column):
         try:
             value = float(self.table.item(row, column).text())
-        except (TypeError, ValueError):
-            raise ValueError("range values must be numeric")
+        except (TypeError, ValueError) as exc:
+            raise ValueError("range values must be numeric") from exc
         if not 0.0 <= value <= 1.0:
             raise ValueError("range values must be between 0 and 1")
         return value
@@ -209,8 +237,9 @@ class SewingNetworkTaskPanel:
     def _refresh_status(self):
         errors = network_reference_errors(self.network)
         self.warning.setText(
-            "Invalid seam references: " + "; ".join("%s (%s)" % item for item in errors)
-            if errors else ""
+            "Invalid seam references: " + "; ".join("{} ({})".format(*item) for item in errors)
+            if errors
+            else ""
         )
         self.status.setText(
             "%s | segments: %d | Δ %.3f mm%s"
@@ -218,12 +247,13 @@ class SewingNetworkTaskPanel:
                 str(getattr(self.network, "Status", "")),
                 int(getattr(self.network, "SegmentCount", 0)),
                 float(getattr(self.network, "LengthDifference", 0.0)),
-                " | invalid: " + ", ".join("%s (%s)" % item for item in errors) if errors else "",
+                " | invalid: " + ", ".join("{} ({})".format(*item) for item in errors)
+                if errors
+                else "",
             )
         )
         self.correspondence.setText(
-            "%s — severity %s — %s — recovery: %s"
-            % (
+            "{} — severity {} — {} — recovery: {}".format(
                 str(getattr(self.network, "CorrespondenceStatus", "")),
                 str(getattr(self.network, "CorrespondenceSeverity", "")),
                 str(getattr(self.network, "CorrespondenceMessage", "")),

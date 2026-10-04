@@ -1,4 +1,5 @@
 """MakeHuman-authored arm posing."""
+
 from __future__ import annotations
 
 from freecad_cloth.avatar.HumanoidMesh import (
@@ -18,11 +19,17 @@ def build_hierarchical_avatar_mesh(parameters) -> MeshData:
     finger deformation.
     """
     mesh = load_makehuman_mesh()
-    weights = load_makehuman_arm_weights(len(mesh.vertices)) if len(mesh.vertices) == MAKEHUMAN_BODY_VERTEX_COUNT else None
+    weights = (
+        load_makehuman_arm_weights(len(mesh.vertices))
+        if len(mesh.vertices) == MAKEHUMAN_BODY_VERTEX_COUNT
+        else None
+    )
     return fit_makehuman_mesh(mesh, parameters, arm_weights=weights)
 
 
 def generate_hierarchical_mesh(parameters):
+    """Provide the public generate hierarchical mesh operation."""
     mesh = build_hierarchical_avatar_mesh(parameters)
     from freecad_cloth.avatar.AvatarModel import _landmarks
+
     return mesh.vertices, mesh.triangles, _landmarks(parameters)

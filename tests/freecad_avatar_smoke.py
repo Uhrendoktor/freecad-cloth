@@ -1,16 +1,26 @@
 """Real FreeCAD runtime smoke coverage for the humanoid mesh avatar."""
+
 import sys
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
-from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_measurements, set_avatar_pose, set_avatar_skin_offset
+
+from freecad_cloth.avatar.AvatarCommands import (
+    create_avatar,
+    set_avatar_measurements,
+    set_avatar_pose,
+    set_avatar_skin_offset,
+)
 from freecad_cloth.simulation.DrapeTarget import target_status
 
 
 def mesh_signature(obj):
     points = list(obj.Mesh.Points)
-    sample = tuple((round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in points[:12])
+    sample = tuple(
+        (round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)) for p in points[:12]
+    )
     return int(obj.Mesh.CountPoints), int(obj.Mesh.CountFacets), sample
 
 
@@ -29,8 +39,14 @@ def main():
     expected_arrangement = list(avatar.ArrangementPoints)
     arrangement_names = [str(item).split("|", 1)[0] for item in expected_arrangement]
     assert arrangement_names == [
-        "neck", "chest", "waist", "hip",
-        "shoulder_left", "shoulder_right", "knee_left", "knee_right",
+        "neck",
+        "chest",
+        "waist",
+        "hip",
+        "shoulder_left",
+        "shoulder_right",
+        "knee_left",
+        "knee_right",
     ]
     assert avatar.DrapeTarget is not None
     assert avatar.DrapeTarget.TargetType == "Mannequin"

@@ -1,8 +1,12 @@
 """FreeCAD document objects for sewing operations."""
+
 import ast
 from math import atan2, degrees, hypot
 
-from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence, correspondence_recovery, correspondence_status_label
+from freecad_cloth.sewing.SewingCorrespondence import (
+    analyze_correspondence,
+    correspondence_status_label,
+)
 
 
 def _outline_points(piece):
@@ -42,15 +46,27 @@ def _native_edge(piece, edge):
         index = int(edge)
         if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
             sketch = getattr(piece, "Sketch", None)
+            geometry = tuple(getattr(sketch, "Geometry", ()) or ()) if sketch is not None else ()
+            if 0 <= index < len(geometry):
+                to_shape = getattr(geometry[index], "toShape", None)
+                if callable(to_shape):
+                    try:
+                        return to_shape()
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
+                        pass
             sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
             sketch_edges = tuple(getattr(sketch_shape, "Edges", ()) or ())
             if sketch_edges:
                 try:
-                    from freecad_cloth.pattern.PatternObjects import _native_edge_record_for_sketch_index
+                    from freecad_cloth.pattern.PatternObjects import (
+                        _native_edge_record_for_sketch_index,
+                    )
+
                     record = _native_edge_record_for_sketch_index(piece, index)
                     expected = record.get("points") if record is not None else None
                     if expected is not None and len(expected) == 2:
                         tolerance = 1e-7
+
                         def matches(candidate):
                             endpoints = _edge_endpoint_pair(candidate)
                             if endpoints is None:
@@ -68,7 +84,10 @@ def _native_edge(piece, edge):
                                 abs(endpoints[1][1] - float(expected[0][1])),
                             )
                             return min(direct, reverse) <= tolerance
-                        native_match = next((candidate for candidate in sketch_edges if matches(candidate)), None)
+
+                        native_match = next(
+                            (candidate for candidate in sketch_edges if matches(candidate)), None
+                        )
                         if native_match is not None:
                             return native_match
                 except (AttributeError, KeyError, TypeError, ValueError, IndexError, RuntimeError):
@@ -86,6 +105,7 @@ def _native_edge(piece, edge):
     except (TypeError, ValueError, IndexError):
         pass
     return None
+
 
 def _edge_polyline(piece, edge, sample_count=64):
     """Return a local 2D polyline suitable for arc-length operations."""
@@ -106,7 +126,7 @@ def _edge_polyline(piece, edge, sample_count=64):
 
 
 def _polyline_length(points):
-    return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:]))
+    return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
 
 
 def _sample_polyline(points, fraction):
@@ -117,7 +137,7 @@ def _sample_polyline(points, fraction):
         return points[0]
     fraction = min(1.0, max(0.0, float(fraction)))
     lengths = [0.0]
-    for a, b in zip(points, points[1:]):
+    for a, b in zip(points, points[1:], strict=False):
         lengths.append(lengths[-1] + hypot(b[0] - a[0], b[1] - a[1]))
     total = lengths[-1]
     if total <= 1e-12:
@@ -142,6 +162,7 @@ def _seam_edge_index(piece, seam, prefix):
     edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
     if edge_id:
         from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+
         signature = str(getattr(seam, "EdgeASignature" if prefix == "A" else "EdgeBSignature", ""))
         record = _resolve_document_edge(piece, edge_id, signature)
         return int(record["ordinal"])
@@ -160,6 +181,7 @@ def _seam_length(piece, seam, prefix):
 def _edge_points(piece, edge, start=0.0, end=1.0, z=0.2):
     """Return seam-range endpoints after the piece Placement is applied."""
     import FreeCAD as App
+
     points = _edge_polyline(piece, edge)
     p0 = _sample_polyline(points, start)
     p1 = _sample_polyline(points, end)
@@ -178,6 +200,7 @@ def _resolved_edge(piece, seam, prefix):
 def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True):
     """Return evenly arc-length-spaced points over a normalized edge range."""
     import FreeCAD as App
+
     if count < 2:
         raise ValueError("correspondence requires at least two samples")
     points = _edge_polyline(piece, edge)
@@ -187,13 +210,16 @@ def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
         value = App.Vector(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
-        values.append(placement.multVec(value) if placement is not None and transform_to_world else value)
+        values.append(
+            placement.multVec(value) if placement is not None and transform_to_world else value
+        )
     return values
 
 
 def _alignment_placement(piece_a, piece_b, seam):
     """Return a Placement that moves B's seam onto A's seam endpoints."""
     import FreeCAD as App
+
     a0, a1 = _edge_points(piece_a, _resolved_edge(piece_a, seam, "A"), seam.StartA, seam.EndA)
     b0, b1 = _edge_points(piece_b, _resolved_edge(piece_b, seam, "B"), seam.StartB, seam.EndB)
     if bool(getattr(seam, "ReversedB", False)):
@@ -204,6 +230,7 @@ def _alignment_placement(piece_a, piece_b, seam):
         return App.Placement()
     angle = degrees(atan2(avy, avx) - atan2(bvy, bvx))
     import math
+
     radians = math.radians(angle)
     rx = b0.x * math.cos(radians) - b0.y * math.sin(radians)
     ry = b0.x * math.sin(radians) + b0.y * math.cos(radians)
@@ -224,14 +251,18 @@ def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
     b_points = _edge_samples(piece_b, edge_b, seam.StartB, seam.EndB, count)
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
-    return list(zip(a_points, b_points))
+    return list(zip(a_points, b_points, strict=False))
 
 
 class SewingOperationProxy:
+    """Public data model or service class for SewingOperationProxy."""
+
     Type = "ClothSewingOperation"
 
     def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
         import Part
+
         seam = getattr(obj, "Seam", None)
         piece_a = getattr(obj, "PieceA", None)
         piece_b = getattr(obj, "PieceB", None)
@@ -255,9 +286,7 @@ class SewingOperationProxy:
         obj.LengthA, obj.LengthB = la, lb
         obj.LengthDifference = abs(la - lb)
 
-        relative_tolerance = max(
-            0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05)))
-        )
+        relative_tolerance = max(0.0, min(0.999999, float(getattr(obj, "RelativeTolerance", 0.05))))
         correspondence = analyze_correspondence(
             la,
             lb,
@@ -286,34 +315,66 @@ class SewingOperationProxy:
         if hasattr(obj, "Alignment"):
             obj.Alignment = str(getattr(seam, "Alignment", "endpoints"))
         if hasattr(obj, "StitchGroup"):
-            obj.StitchGroup = str(getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", ""))
-        pairs = _seam_correspondence(piece_a, piece_b, seam, obj.StitchCount, getattr(obj, "Alignment", "endpoints"))
+            obj.StitchGroup = str(
+                getattr(seam, "StitchGroup", "")
+                or getattr(seam, "SeamId", "")
+                or getattr(seam, "Name", "")
+            )
+        pairs = _seam_correspondence(
+            piece_a, piece_b, seam, obj.StitchCount, getattr(obj, "Alignment", "endpoints")
+        )
         obj.AssemblyPlacementB = _alignment_placement(piece_a, piece_b, seam)
         obj.StitchPoints = []
         for pa, pb in pairs:
-            obj.StitchPoints.append(f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}")
-        obj.Shape = Part.makeCompound([Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])])
+            obj.StitchPoints.append(
+                f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}"
+            )
+        obj.Shape = Part.makeCompound(
+            [Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])]
+        )
 
 
 def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
+    """Add the requested sewing operation data."""
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"
     obj.addProperty("App::PropertyLink", "Seam", "Sewing").Seam = seam
-    obj.addProperty("App::PropertyString", "SeamId", "Sewing").SeamId = str(getattr(seam, "SeamId", "") or "")
+    obj.addProperty("App::PropertyString", "SeamId", "Sewing").SeamId = str(
+        getattr(seam, "SeamId", "") or ""
+    )
     obj.addProperty("App::PropertyLink", "PieceA", "Sewing").PieceA = piece_a
     obj.addProperty("App::PropertyLink", "PieceB", "Sewing").PieceB = piece_b
-    obj.addProperty("App::PropertyString", "StitchGroup", "Sewing").StitchGroup = str(getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", ""))
-    obj.addProperty("App::PropertyEnumeration", "Alignment", "Sewing").Alignment = ["endpoints", "uniform"]
+    obj.addProperty("App::PropertyString", "StitchGroup", "Sewing").StitchGroup = str(
+        getattr(seam, "StitchGroup", "") or getattr(seam, "SeamId", "") or getattr(seam, "Name", "")
+    )
+    obj.addProperty("App::PropertyEnumeration", "Alignment", "Sewing").Alignment = [
+        "endpoints",
+        "uniform",
+    ]
     obj.Alignment = str(getattr(seam, "Alignment", "endpoints"))
-    obj.addProperty("App::PropertyBool", "ReversedB", "Sewing").ReversedB = bool(getattr(seam, "ReversedB", False))
-    obj.addProperty("App::PropertyPlacement", "AssemblyPlacementB", "Assembly").AssemblyPlacementB = piece_b.Placement
+    obj.addProperty("App::PropertyBool", "ReversedB", "Sewing").ReversedB = bool(
+        getattr(seam, "ReversedB", False)
+    )
+    obj.addProperty(
+        "App::PropertyPlacement", "AssemblyPlacementB", "Assembly"
+    ).AssemblyPlacementB = piece_b.Placement
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
-    obj.addProperty("App::PropertyFloat", "RelativeTolerance", "Validation").RelativeTolerance = 0.05
-    obj.addProperty("App::PropertyString", "CorrespondenceStatus", "Validation").CorrespondenceStatus = "valid"
-    obj.addProperty("App::PropertyString", "CorrespondenceMessage", "Validation").CorrespondenceMessage = "seam correspondence is valid"
-    obj.addProperty("App::PropertyString", "CorrespondenceRecovery", "Validation").CorrespondenceRecovery = "no repair required"
-    obj.addProperty("App::PropertyString", "CorrespondenceSeverity", "Validation").CorrespondenceSeverity = "info"
+    obj.addProperty(
+        "App::PropertyFloat", "RelativeTolerance", "Validation"
+    ).RelativeTolerance = 0.05
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceStatus", "Validation"
+    ).CorrespondenceStatus = "valid"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceMessage", "Validation"
+    ).CorrespondenceMessage = "seam correspondence is valid"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceRecovery", "Validation"
+    ).CorrespondenceRecovery = "no repair required"
+    obj.addProperty(
+        "App::PropertyString", "CorrespondenceSeverity", "Validation"
+    ).CorrespondenceSeverity = "info"
     obj.addProperty("App::PropertyInteger", "Stitches", "Stitching").Stitches = 8
     obj.addProperty("App::PropertyLength", "LengthA", "Validation").LengthA = 0
     obj.addProperty("App::PropertyLength", "LengthB", "Validation").LengthB = 0
@@ -333,7 +394,9 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.Proxy = SewingOperationProxy()
     obj.Proxy.execute(obj)
     from freecad_cloth.common.GarmentDocument import link_garment_object
+
     link_garment_object(obj, "SewingOperation", doc)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     apply_seam_colors(doc.Objects)
     return obj

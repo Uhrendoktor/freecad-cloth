@@ -7,7 +7,9 @@ endpoint connectivity for downstream sewing and simulation adapters.
 
 
 def _piece_object(document, piece_id):
-    return next((obj for obj in document.Objects if getattr(obj, "PieceId", "") == str(piece_id)), None)
+    return next(
+        (obj for obj in document.Objects if getattr(obj, "PieceId", "") == str(piece_id)), None
+    )
 
 
 def _ensure_piece_properties(obj):
@@ -33,20 +35,31 @@ def _add_geometry(sketch, points):
     import FreeCAD as App
     import Part
     import Sketcher
+
     geometry = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
-        geometry.append(Part.LineSegment(App.Vector(start[0], start[1], 0), App.Vector(end[0], end[1], 0)))
+        geometry.append(
+            Part.LineSegment(App.Vector(start[0], start[1], 0), App.Vector(end[0], end[1], 0))
+        )
     sketch.addGeometry(geometry, False)
 
     # Coincident endpoint constraints keep the boundary topologically closed
     # while leaving dimensional degrees of freedom available to the user.
     constraints = []
     for index in range(len(points)):
-        constraints.append(Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1))
+        constraints.append(
+            Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
+        )
     if len(points) == 4:
-        constraints.extend((Sketcher.Constraint("Horizontal", 0), Sketcher.Constraint("Vertical", 1),
-                            Sketcher.Constraint("Horizontal", 2), Sketcher.Constraint("Vertical", 3)))
+        constraints.extend(
+            (
+                Sketcher.Constraint("Horizontal", 0),
+                Sketcher.Constraint("Vertical", 1),
+                Sketcher.Constraint("Horizontal", 2),
+                Sketcher.Constraint("Vertical", 3),
+            )
+        )
     sketch.addConstraint(constraints)
 
 
@@ -62,16 +75,25 @@ def create_sketch_for_piece(piece, document=None):
         document = App.newDocument("ClothPattern")
     piece.validate()
 
-    existing = next((obj for obj in document.Objects
-                     if getattr(obj, "PatternPieceId", "") == str(piece.id)
-                     and getattr(obj, "TypeId", "") == "Sketcher::SketchObject"), None)
+    existing = next(
+        (
+            obj
+            for obj in document.Objects
+            if getattr(obj, "PatternPieceId", "") == str(piece.id)
+            and getattr(obj, "TypeId", "") == "Sketcher::SketchObject"
+        ),
+        None,
+    )
     if existing is not None:
         _attach(existing, piece, document)
         from freecad_cloth.common.GarmentDocument import link_garment_object
+
         link_garment_object(existing, "PatternSketch", document)
         return existing
 
-    sketch = document.addObject("Sketcher::SketchObject", "PatternSketch_" + piece.id.replace("-", "_"))
+    sketch = document.addObject(
+        "Sketcher::SketchObject", "PatternSketch_" + piece.id.replace("-", "_")
+    )
     sketch.Label = piece.name + " (Sketch)"
     sketch.addProperty("App::PropertyString", "PatternPieceId", "Cloth Pattern")
     sketch.PatternPieceId = piece.id
@@ -84,6 +106,7 @@ def create_sketch_for_piece(piece, document=None):
     _add_geometry(sketch, piece.outline)
     _attach(sketch, piece, document)
     from freecad_cloth.common.GarmentDocument import link_garment_object
+
     link_garment_object(sketch, "PatternSketch", document)
     document.recompute()
     return sketch
@@ -94,6 +117,7 @@ def _attach(sketch, piece, document):
     if obj is not None:
         _ensure_piece_properties(obj)
         from freecad_cloth.common.SketchAuthority import attach
+
         attach(obj, sketch)
         obj.Visibility = False
         sketch.Visibility = True

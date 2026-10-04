@@ -1,4 +1,5 @@
 """Headless regression coverage for Pattern Design task-panel contracts."""
+
 import importlib
 import sys
 from pathlib import Path

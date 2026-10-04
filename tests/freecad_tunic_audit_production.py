@@ -5,6 +5,7 @@ instead of maintaining a second, divergent fixture implementation.  The delegate
 profile exercises the native Sketcher garment, Tissu realtime preview, finite
 simulation, visual sanity checks, and the six-side screenshot audit.
 """
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -1,7 +1,7 @@
 """Small, FreeCAD-independent helpers for Sewing workbench views."""
+
 from colorsys import hsv_to_rgb
 from hashlib import sha512
-
 
 _SEAM_COLOR_SATURATION = 0.78
 _SEAM_COLOR_VALUE = 0.92
@@ -19,7 +19,6 @@ def _seam_color_for_id(seam_id):
     return tuple(round(channel, 6) for channel in rgb)
 
 
-
 def seam_color_map(seam_ids):
     """Return deterministic seam colors keyed only by canonical seam id.
 
@@ -32,10 +31,7 @@ def seam_color_map(seam_ids):
 
 def apply_seam_colors(objects):
     """Apply one deterministic line color to each canonical seam object."""
-    seam_objects = [
-        obj for obj in objects
-        if str(getattr(obj, "SeamId", "")).strip()
-    ]
+    seam_objects = [obj for obj in objects if str(getattr(obj, "SeamId", "")).strip()]
     colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)
     for obj in seam_objects:
         view = getattr(obj, "ViewObject", None)
@@ -52,27 +48,30 @@ def pattern_pieces_for_2d(objects):
     so PatternPiece objects are included alongside seam/network overlays.
     Preserve document order to keep selection deterministic.
     """
-    return [
-        obj for obj in objects
-        if getattr(obj, "PatternType", "") == "PatternPiece"
-    ]
+    return [obj for obj in objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+
 
 def seam_visual_markers(points_a, points_b):
     """Return deterministic direction/notch/correspondence marker geometry data."""
     if len(points_a) != len(points_b) or len(points_a) < 2:
         raise ValueError("seam marker inputs must have equal length >= 2")
+
     def direction(start, end):
         dx = float(end[0]) - float(start[0])
         dy = float(end[1]) - float(start[1])
         length = (dx * dx + dy * dy) ** 0.5
         return (1.0, 0.0) if length <= 1e-12 else (dx / length, dy / length)
+
     mid = len(points_a) // 2
     ap, an = points_a[max(0, mid - 1)], points_a[min(len(points_a) - 1, mid + 1)]
     bp, bn = points_b[max(0, mid - 1)], points_b[min(len(points_b) - 1, mid + 1)]
     ax, ay = direction(ap, an)
     bx, by = direction(bp, bn)
     return {
-        "correspondence": tuple((tuple(float(v) for v in a), tuple(float(v) for v in b)) for a, b in zip(points_a, points_b)),
+        "correspondence": tuple(
+            (tuple(float(v) for v in a), tuple(float(v) for v in b))
+            for a, b in zip(points_a, points_b, strict=False)
+        ),
         "direction_A": (tuple(float(v) for v in an), (ax, ay)),
         "direction_B": (tuple(float(v) for v in bn), (bx, by)),
         "notch_A": (tuple(float(v) for v in points_a[mid]), (-ay, ax)),
@@ -84,13 +83,27 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
     """Build native presentation geometry for one semantic seam."""
     import FreeCAD as App
     import Part
+
     from freecad_cloth.sewing.SewingObjects import _edge_samples, _resolved_edge
-    a = _edge_samples(piece_a, _resolved_edge(piece_a, seam, "A"),
-                      float(getattr(seam, "StartA", 0.0)), float(getattr(seam, "EndA", 1.0)),
-                      int(sample_count), z=0.4, transform_to_world=not world_space)
-    b = _edge_samples(piece_b, _resolved_edge(piece_b, seam, "B"),
-                      float(getattr(seam, "StartB", 0.0)), float(getattr(seam, "EndB", 1.0)),
-                      int(sample_count), z=0.4, transform_to_world=not world_space)
+
+    a = _edge_samples(
+        piece_a,
+        _resolved_edge(piece_a, seam, "A"),
+        float(getattr(seam, "StartA", 0.0)),
+        float(getattr(seam, "EndA", 1.0)),
+        int(sample_count),
+        z=0.4,
+        transform_to_world=not world_space,
+    )
+    b = _edge_samples(
+        piece_b,
+        _resolved_edge(piece_b, seam, "B"),
+        float(getattr(seam, "StartB", 0.0)),
+        float(getattr(seam, "EndB", 1.0)),
+        int(sample_count),
+        z=0.4,
+        transform_to_world=not world_space,
+    )
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
     if world_space:
@@ -121,7 +134,7 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         shapes.append(Part.makePolygon(a_distinct))
     if len(b_distinct) >= 2:
         shapes.append(Part.makePolygon(b_distinct))
-    for pa, pb in zip(a, b):
+    for pa, pb in zip(a, b, strict=False):
         dx = pb.x - pa.x
         dy = pb.y - pa.y
         dz = pb.z - pa.z

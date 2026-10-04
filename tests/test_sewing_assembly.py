@@ -1,11 +1,15 @@
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
-from freecad_cloth.sewing.SewingAssembly import SewingAssembly, align_piece_to_seam, make_translation
+from freecad_cloth.sewing.SewingAssembly import (
+    SewingAssembly,
+    align_piece_to_seam,
+    make_translation,
+)
 
 
 def graph():
@@ -33,12 +37,12 @@ def test_pair_rejects_duplicate_and_unknown_seam():
     a.add_pair("s1")
     try:
         a.add_pair("s1")
-        assert False
+        raise AssertionError()
     except ValueError as exc:
         assert "already paired" in str(exc)
     try:
         a.add_pair("missing")
-        assert False
+        raise AssertionError()
     except ValueError as exc:
         assert "unknown seam" in str(exc)
 
@@ -52,7 +56,7 @@ def test_alignment_transform_persists_on_second_piece():
 def test_transform_rejects_wrong_shape():
     try:
         Transform3D(tuple(range(15)))
-        assert False
+        raise AssertionError()
     except ValueError as exc:
         assert "16 values" in str(exc)
 

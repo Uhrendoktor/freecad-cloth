@@ -7,8 +7,10 @@ from freecad_cloth.common.DrapeVisualSanity import inspect_drape, seam_correspon
 class DrapeFailureClassifierTests(unittest.TestCase):
     def setUp(self):
         self.target = (
-            (-100.0, -50.0, 0.0), (100.0, -50.0, 0.0),
-            (-100.0, 50.0, 1750.0), (100.0, 50.0, 1750.0),
+            (-100.0, -50.0, 0.0),
+            (100.0, -50.0, 0.0),
+            (-100.0, 50.0, 1750.0),
+            (100.0, 50.0, 1750.0),
         )
 
     def test_empty(self):
@@ -23,8 +25,10 @@ class DrapeFailureClassifierTests(unittest.TestCase):
 
     def test_clean_canonical_style_geometry(self):
         garment = (
-            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
-            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+            (-140.0, -90.0, 250.0),
+            (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0),
+            (140.0, 90.0, 1500.0),
         )
         metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
         result = classify_drape(metrics, components=1, target_width=1000.0)
@@ -57,8 +61,10 @@ class DrapeFailureClassifierTests(unittest.TestCase):
 
     def test_structurally_plausible(self):
         garment = (
-            (-140.0, -90.0, 250.0), (140.0, -90.0, 250.0),
-            (-140.0, 90.0, 1500.0), (140.0, 90.0, 1500.0),
+            (-140.0, -90.0, 250.0),
+            (140.0, -90.0, 250.0),
+            (-140.0, 90.0, 1500.0),
+            (140.0, 90.0, 1500.0),
         )
         metrics = inspect_drape(garment, self.target, target_height=1750.0, target_width=1000.0)
         result = classify_drape(metrics, target_width=1000.0)

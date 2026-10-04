@@ -1,0 +1,13 @@
+{
+  "include": [
+    "freecad_cloth/common/DrapeFailureClassifier.py",
+    "freecad_cloth/pattern/PatternSchema.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py"
+  ],
+  "typeCheckingMode": "strict",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+  "pythonVersion": "3.12"
+}

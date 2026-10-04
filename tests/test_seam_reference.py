@@ -51,7 +51,10 @@ def test_missing_semantic_id_is_explicitly_invalid():
     reference = capture_edge_reference("front", "front:edge:2", ((0, 0), (10, 0)))
     with pytest.raises(MissingEdgeReference):
         resolve_edge_reference(reference, [_edge("front", "front:edge:7")])
-    assert resolve_edge_reference_status(reference, [_edge("front", "front:edge:7")]) == (False, "missing")
+    assert resolve_edge_reference_status(reference, [_edge("front", "front:edge:7")]) == (
+        False,
+        "missing",
+    )
 
 
 def test_changed_geometry_never_retargets_reference():

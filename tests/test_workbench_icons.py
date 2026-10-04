@@ -1,6 +1,7 @@
 """Headless contract checks for Cloth workbench icon assets."""
-from pathlib import Path
+
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -18,13 +19,20 @@ def test_workbench_icons_are_valid_scalable_assets():
 
 
 def test_all_workbench_tool_commands_have_svg_icons():
+    from freecad_cloth.avatar import AvatarCommands, FittingCommands
     from freecad_cloth.pattern import PatternCommands, PatternMarks
-    from freecad_cloth.simulation import SimulationCommands, DrapeCommands
     from freecad_cloth.sewing import SewingCommands
-    from freecad_cloth.avatar import FittingCommands, AvatarCommands
+    from freecad_cloth.simulation import DrapeCommands, SimulationCommands
 
-    modules = (PatternCommands, PatternMarks, SimulationCommands, DrapeCommands,
-               SewingCommands, FittingCommands, AvatarCommands)
+    modules = (
+        PatternCommands,
+        PatternMarks,
+        SimulationCommands,
+        DrapeCommands,
+        SewingCommands,
+        FittingCommands,
+        AvatarCommands,
+    )
     commands = [command for module in modules for command in module.COMMANDS]
     assert len(commands) == len(set(commands))
     for command in commands:
