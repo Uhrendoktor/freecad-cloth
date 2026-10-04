@@ -232,8 +232,20 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._model.addBendingConstraints(tri_model, 3, bending_stiffness)
 
         stitch_stiffness = _pbd_stitch_stiffness(self._stitch_compliance)
+        constraints = self._model.getConstraints()
         for a, b in self._stitches:
-            self._model.addDistanceConstraint_XPBD(a, b, stitch_stiffness)
+            before = len(constraints)
+            if not self._model.addDistanceConstraint_XPBD(a, b, stitch_stiffness):
+                raise RuntimeError(f"PositionBasedDynamics rejected stitch constraint {(a, b)!r}")
+            constraints = self._model.getConstraints()
+            if len(constraints) != before + 1:
+                raise RuntimeError("PositionBasedDynamics stitch constraint was not registered")
+            stitch_constraint = constraints[-1]
+            if not isinstance(stitch_constraint, self._pbd.DistanceConstraint_XPBD):
+                raise RuntimeError("PositionBasedDynamics returned an unexpected stitch constraint type")
+            # Tissu stitches have zero rest length; PBD otherwise initializes the
+            # distance constraint rest length from the endpoints' starting distance.
+            stitch_constraint.restLength = 0.0
 
         self._add_collision_body(self._sim, self._model)
 
