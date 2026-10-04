@@ -95,7 +95,11 @@ anchor = """    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-fram
     view.viewAxonometric()
     view.fitAll()
     events()
-    save("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    save(
+        "cloth-tunic-mannequin-motion-frames/motion-000.png",
+        "mannequin drape step 0",
+        "production tunic before gravity",
+    )
     for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
         simulation_panel.step(batch)
         doc.recompute()
