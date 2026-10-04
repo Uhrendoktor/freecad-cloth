@@ -39,6 +39,7 @@ def _install_pbd_backend_hook():
             raise RuntimeError("canonical GUI simulation did not select PositionBasedDynamics")
         print("cloth-ci-backend=position-based-dynamics", flush=True)
         return result
+
     execute._cloth_pbd_enforced = True
     QualitySimulationProxy.execute = execute
 
