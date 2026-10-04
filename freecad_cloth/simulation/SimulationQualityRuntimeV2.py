@@ -239,7 +239,9 @@ class QualitySimulationProxy:
             _parse_pair_list,
             _write_grid_mesh,
         )
-        from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
 
         base = self._base_or_restore()
         spacing = max(0.25, float(obj.ParticleDistance))
