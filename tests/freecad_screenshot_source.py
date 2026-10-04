@@ -266,6 +266,24 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
+def _inside_target_count(points, target):
+    """Count cloth vertices that the authoritative mannequin considers interior."""
+    shape = getattr(target, "Shape", None)
+    shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
+    mesh = getattr(target, "Mesh", None)
+    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
+    checker = shape_is_inside if callable(shape_is_inside) else mesh_is_inside
+    if not callable(checker):
+        raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    count = 0
+    for point in points:
+        try:
+            if bool(checker(App.Vector(*point), 1e-6, True)):
+                count += 1
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise RuntimeError("mannequin inside/outside collision test failed") from exc
+    return count
+
 def write_drape_metrics(
     panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None
 ):
@@ -321,6 +339,14 @@ def write_drape_metrics(
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
+        penetrating_vertices = _inside_target_count(vertices, avatar)
+        record["penetrating_vertices"] = int(penetrating_vertices)
+        if penetrating_vertices:
+            raise RuntimeError(
+                "draped panel {} has {} vertices inside the mannequin collision surface".format(
+                    record["panel"], penetrating_vertices
+                )
+            )
         record["connected_components"] = int(mesh_result.components)
         record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
@@ -739,7 +765,30 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-    for batch in (15, 15, 15, 15, 15, 15):
+    motion_dir = os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")
+    os.makedirs(motion_dir, exist_ok=True)
+    task_dock.hide()
+    events()
+    view.setCameraType("Orthographic")
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    save("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
+        simulation_panel.step(batch)
+        doc.recompute()
+        events()
+        view.viewAxonometric()
+        view.fitAll()
+        events()
+        save(
+            "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
+            "mannequin drape step %d" % int(scene.Steps),
+            "production tunic gravity progression",
+        )
+    task_dock.show()
+    task_dock.raise_()
+    events()
         simulation_panel.step(batch)
         doc.recompute()
         events()
