@@ -310,6 +310,8 @@ class QualitySimulationProxy:
         for panel in getattr(obj, "DrapePanels", ()):
             try:
                 view = panel.ViewObject
+                if hasattr(view, "DisplayMode"):
+                    view.DisplayMode = "Shaded"
                 view.ShapeColor = color
                 view.Transparency = transparency
                 if hasattr(view, "SpecularColor"):
