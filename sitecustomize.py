@@ -12,6 +12,7 @@ if QtGui is not None:
             return self.toImage().pixel(x, y)
         QPixmap.pixel = _pixel
 
+
 import os
 
 def _require_pbd():
