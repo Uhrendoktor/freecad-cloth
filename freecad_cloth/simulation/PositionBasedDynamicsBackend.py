@@ -151,16 +151,17 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         return sim, sim.getModel()
 
     def _add_collision_body(self, sim, model) -> None:
-        if self._collision_surface is None:
+        if self._source_collision_surface is None:
             return
 
+        collision_surface = self._source_collision_surface
         vertex_data = self._pbd.VertexData()
-        for vertex in self._collision_surface.vertices:
+        for vertex in collision_surface.vertices:
             vertex_data.addVertex(_to_pbd_position(vertex))
 
         mesh = self._pbd.IndexedFaceMesh()
-        faces = self._collision_surface.triangles
-        mesh.initMesh(len(self._collision_surface.vertices), len(faces) * 2, len(faces))
+        faces = collision_surface.triangles
+        mesh.initMesh(len(collision_surface.vertices), len(faces) * 2, len(faces))
         for triangle in faces:
             a, b, c = (int(i) for i in triangle)
             mesh.addFace([a, c, b])
