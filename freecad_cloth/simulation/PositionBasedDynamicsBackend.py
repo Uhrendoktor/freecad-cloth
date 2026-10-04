@@ -103,7 +103,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._pbd = pypbd
         self._initial = deepcopy(system)
         self._triangles = tuple(tuple(int(i) for i in triangle) for triangle in triangles)
-        self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins))
+        system_pins = tuple(i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0)
+        self._pin_indices = tuple(dict.fromkeys(int(i) for i in pins)) or system_pins
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._stitch_compliance = 0.0
         self._source_collision_surface = collision_surface
@@ -186,8 +187,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         particles = self._model.getParticles()
         if particles.getNumberOfParticles() != self._particle_count:
             raise RuntimeError("PositionBasedDynamics did not preserve cloth particle ordering")
-        for index, particle in enumerate(self._initial.particles):
-            particles.setMass(index, 0.0 if particle.inv_mass == 0.0 else 1.0)
+        pin_indices = set(self._pin_indices)
+        invalid_pins = [index for index in pin_indices if index < 0 or index >= self._particle_count]
+        if invalid_pins:
+            raise ValueError(f"pin index outside system: {invalid_pins!r}")
+        for index in range(self._particle_count):
+            particles.setMass(index, 0.0 if index in pin_indices else 1.0)
 
         cloth_stiffness = float(
             os.environ.get(
@@ -250,12 +255,20 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
 
         gx, gy, gz = (float(value) for value in gravity)
-        gravity_pbd = (gx / _MM, gy / _MM, gz / _MM)
-        particles = self._model.getParticles()
-        for index in range(self._particle_count):
-            if particles.getMass(index) == 0.0:
-                continue
-            particles.setAcceleration(index, np.asarray(gravity_pbd, dtype=np.float64))
+        gravity_pbd = np.asarray((gx / _MM, gy / _MM, gz / _MM), dtype=np.float64)
+        # PositionBasedDynamics resets particle accelerations from its global
+        # Simulation gravitation parameter at the start of every timestep. The
+        # Python binding does not expose the vector-parameter setter, so retain
+        # the library default and apply only the difference as a velocity kick.
+        default_gravity = np.asarray((0.0, -9.81, 0.0), dtype=np.float64)
+        gravity_delta_velocity = (gravity_pbd - default_gravity) * float(dt)
+        if np.any(gravity_delta_velocity):
+            particles = self._model.getParticles()
+            for index in range(self._particle_count):
+                if particles.getMass(index) == 0.0:
+                    continue
+                velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
+                particles.setVelocity(index, velocity + gravity_delta_velocity)
 
         self._pbd.TimeManager.getCurrent().setTimeStepSize(float(dt))
         timestep = self._sim.getTimeStep()
