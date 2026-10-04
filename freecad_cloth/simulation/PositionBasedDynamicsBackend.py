@@ -67,12 +67,12 @@ def _pbd_stitch_stiffness(compliance: float) -> float:
 
 def _to_pbd_position(position) -> tuple[float, float, float]:
     x, y, z = position
-    return (float(x) / _MM, float(y) / _MM, float(z) / _MM)
+    return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
 
 
 def _from_pbd_position(position) -> tuple[float, float, float]:
     x, y, z = position
-    return (float(x) * _MM, float(y) * _MM, float(z) * _MM)
+    return (float(x) * _MM, float(z) * _MM, float(y) * _MM)
 
 
 class PositionBasedDynamicsBackend(ClothSimulationBackend):
@@ -162,7 +162,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         faces = self._collision_surface.triangles
         mesh.initMesh(len(self._collision_surface.vertices), len(faces) * 2, len(faces))
         for triangle in faces:
-            mesh.addFace([int(i) for i in triangle])
+            a, b, c = (int(i) for i in triangle)
+            mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
         rigid_body = model.addRigidBody(
@@ -275,7 +276,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
 
         gx, gy, gz = (float(value) for value in gravity)
-        gravity_pbd = np.asarray((gx / _MM, gy / _MM, gz / _MM), dtype=np.float64)
+        gravity_pbd = np.asarray((gx / _MM, gz / _MM, gy / _MM), dtype=np.float64)
         # PositionBasedDynamics resets particle accelerations from its global
         # Simulation gravitation parameter at the start of every timestep. The
         # Python binding does not expose the vector-parameter setter, so retain
