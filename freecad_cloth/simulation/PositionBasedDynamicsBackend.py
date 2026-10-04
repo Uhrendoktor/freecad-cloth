@@ -179,7 +179,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if self._source_collision_surface is None:
             return
 
-        collision_surface = self._source_collision_surface
+        collision_surface = self._collision_surface
         vertex_data = self._pbd.VertexData()
         for vertex in collision_surface.vertices:
             vertex_data.addVertex(_to_pbd_position(vertex))
