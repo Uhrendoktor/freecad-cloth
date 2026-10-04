@@ -1,7 +1,5 @@
 import math
 import sys
-import types
-
 
 
 class _Particle:
@@ -79,7 +77,7 @@ def test_tissu_signed_dihedral_angle_matches_flat_solver_convention():
 def test_tissu_backend_registers_public_api_bending_constraints_with_matching_rest_angle(
     monkeypatch,
 ):
-    monkeypatch.setitem(sys.modules, "tissu", types.SimpleNamespace(Simulation=_FakeSimulation))
+    monkeypatch.setitem(sys.modules, "tissu", type("FakeTissu", (), {"Simulation": _FakeSimulation}))
 
     from freecad_cloth.simulation.TissuBackend import TissuBackend
 
