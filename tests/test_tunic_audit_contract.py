@@ -174,7 +174,6 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "artifacts/tissu-provenance.txt" in workflow
 
 
-
 def test_tissu_backend_defaults_to_stable_internal_substeps():
     source = (ROOT / "freecad_cloth" / "simulation" / "TissuBackend.py").read_text(
         encoding="utf-8"
