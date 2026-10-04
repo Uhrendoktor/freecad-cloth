@@ -1318,6 +1318,9 @@ jobs:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
           CLOTH_PBD_SUBSTEPS: 10
           CLOTH_PBD_COLLISION_MODE: mesh
+          CLOTH_PBD_COLLISION_TRIANGLES: 2048
+          CLOTH_PBD_COLLISION_VOXEL_MM: 8
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
           CLOTH_BLANKET_STEPS: 180
         run: |
           set -euo pipefail
