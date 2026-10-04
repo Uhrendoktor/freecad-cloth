@@ -116,6 +116,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_COLLISION_TRIANGLES: 2048" in workflow
     assert "tunic-simulation-start" in source
+    assert "realtime-preview=passed backend=position-based-dynamics" in source
 
 
 def test_pbd_ci_image_is_pinned_and_preinstalled():
