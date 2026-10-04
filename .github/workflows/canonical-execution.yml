@@ -447,7 +447,251 @@ jobs:
             exit 0
           fi
           git commit -m "ci: publish stable README turntables"
-          git push origin "HEAD:$branch"
+          git push origin "HEAD:$branch"      - name: Run avatar complexity ladder
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/pbd-contact-diagnostics/avatar-ladder
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=pbd -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_COLLISION_MODE=mesh -e CLOTH_PBD_COLLISION_TRIANGLES=2048 \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
+            -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
+            -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_pbd_avatar_ladder.py 2>&1 | tee /workspace/artifacts/pbd-contact-diagnostics/avatar-ladder-run.log
+            '
+      - name: Validate avatar ladder artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/pbd-contact-diagnostics/avatar-ladder-manifest.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("artifacts/pbd-contact-diagnostics")
+          data = json.loads((root / "avatar-ladder-manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["purpose"] == "diagnostic-only-avatar-complexity-ladder", data
+          assert data["release_gate_effect"] == "none", data
+          assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
+          assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
+          assert len(data["cases"]) == 5, data
+          expected = [
+              ("rung-6-avatar-pinned", 6, 1, "Automatic", "none"),
+              ("rung-7-avatar-unpinned", 7, 1, "None", "none"),
+              ("rung-8-avatar-two-piece-no-seam", 8, 2, "None", "none"),
+              ("rung-9-avatar-two-piece-small-seam", 9, 2, "None", "small"),
+              ("rung-10-avatar-two-piece-large-seam", 10, 2, "None", "large"),
+          ]
+          for record, spec in zip(data["cases"], expected):
+              case = record["case"]
+              assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
+              assert record["finite"], record
+              assert record["solver"]["backend"] == "pbd", record
+              assert record["solver"]["iterations"] == 1, record
+              assert record["solver"]["substeps"] == 1, record
+              assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
+              assert record["solver"]["gravity_z_mm_s2"] == 0.0, record
+              assert record["collision"]["source_triangles"] > 10000, record
+              assert record["collision"]["solver_triangles"] == 2048, record
+              assert record["collision"]["target_topology_summary"]["vertices"] > 10000, record
+              assert len(record["checkpoints"]) == 6, record
+              assert [x["step"] for x in record["checkpoints"]] == [0, 1, 5, 15, 45, 90], record
+              for image in record["images"]:
+                  assert (root / image).is_file(), image
+
+          assert data["cases"][0]["collision"]["source_triangles"] == data["cases"][1]["collision"]["source_triangles"], data
+          assert data["cases"][0]["collision"]["solver_triangles"] == data["cases"][4]["collision"]["solver_triangles"] == 2048, data
+          assert data["cases"][0]["control"]["placement_offsets_mm"]["right_x"] is None, data
+          assert data["cases"][1]["control"]["placement_offsets_mm"]["right_x"] is None, data
+          assert data["cases"][2]["control"]["placement_offsets_mm"]["right_x"] == 0.5, data
+          assert data["cases"][3]["control"]["placement_offsets_mm"]["right_x"] == 0.5, data
+          assert data["cases"][4]["control"]["placement_offsets_mm"]["right_x"] == 80.0, data
+          small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
+          large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
+          assert len(small) == 1 and len(large) == 1, data
+          assert small[0]["pair_count"] == 6 and large[0]["pair_count"] == 6, data
+          assert small[0]["min_span_mm"] < 1.0, small
+          assert small[0]["max_span_mm"] < 1.0, small
+          assert 79.0 <= large[0]["min_span_mm"] <= 81.0, large
+          assert 79.0 <= large[0]["max_span_mm"] <= 81.0, large
+          assert large[0]["seam_id"] == small[0]["seam_id"] == "avatar-seam", (small, large)
+          assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
+          assert data["structural_validation"]["first_failing_rung"] in {None, 6, 7, 8, 9, 10}, data
+          print("avatar-ladder-artifact=passed")
+          PY
+      - name: Capture PositionBasedDynamics provenance
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
+          test -s artifacts/pypbd-provenance.txt
+          grep -q '^Package: pyPBD
+      - name: Validate diagnostic artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/pbd-contact-diagnostics/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["release_gate_effect"] == "none", data
+          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          for case in data["cases"]:
+              assert case["solver"]["backend"] == "pbd", case
+              assert case["solver"]["iterations"] == 1, case
+              assert case["solver"]["substeps"] == 1, case
+              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
+              assert case["collision"]["source_triangles"] > 0, case
+              assert case["collision"]["solver_triangles"] > 0, case
+              assert len(case["checkpoints"]) == 2, case
+              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              assert case["finite"], case
+              assert case["checkpoints"][0]["finite"], case
+              assert case["checkpoints"][1]["finite"], case
+              for image in case["images"]:
+                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
+          print("diagnostic-contact-artifact=passed")
+          PY
+      - name: Upload contact diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pbd-contact-diagnostics
+          path: |
+            artifacts/pbd-contact-diagnostics/**
+            artifacts/pbd-provenance.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1 artifacts/pypbd-provenance.txt
+          grep -q '^Version: 2.2.2
+      - name: Validate diagnostic artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/pbd-contact-diagnostics/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["release_gate_effect"] == "none", data
+          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          for case in data["cases"]:
+              assert case["solver"]["backend"] == "pbd", case
+              assert case["solver"]["iterations"] == 1, case
+              assert case["solver"]["substeps"] == 1, case
+              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
+              assert case["collision"]["source_triangles"] > 0, case
+              assert case["collision"]["solver_triangles"] > 0, case
+              assert len(case["checkpoints"]) == 2, case
+              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              assert case["finite"], case
+              assert case["checkpoints"][0]["finite"], case
+              assert case["checkpoints"][1]["finite"], case
+              for image in case["images"]:
+                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
+          print("diagnostic-contact-artifact=passed")
+          PY
+      - name: Upload contact diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pbd-contact-diagnostics
+          path: |
+            artifacts/pbd-contact-diagnostics/**
+            artifacts/pbd-provenance.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1 artifacts/pypbd-provenance.txt
+          grep -q '^SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
+      - name: Validate diagnostic artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/pbd-contact-diagnostics/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["release_gate_effect"] == "none", data
+          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          for case in data["cases"]:
+              assert case["solver"]["backend"] == "pbd", case
+              assert case["solver"]["iterations"] == 1, case
+              assert case["solver"]["substeps"] == 1, case
+              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
+              assert case["collision"]["source_triangles"] > 0, case
+              assert case["collision"]["solver_triangles"] > 0, case
+              assert len(case["checkpoints"]) == 2, case
+              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              assert case["finite"], case
+              assert case["checkpoints"][0]["finite"], case
+              assert case["checkpoints"][1]["finite"], case
+              for image in case["images"]:
+                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
+          print("diagnostic-contact-artifact=passed")
+          PY
+      - name: Upload contact diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pbd-contact-diagnostics
+          path: |
+            artifacts/pbd-contact-diagnostics/**
+            artifacts/pbd-provenance.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1 artifacts/pypbd-provenance.txt
+      - name: Validate diagnostic artifact
+        run: |
+          set -euo pipefail
+          test -s artifacts/pbd-contact-diagnostics/manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["release_gate_effect"] == "none", data
+          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
+          for case in data["cases"]:
+              assert case["solver"]["backend"] == "pbd", case
+              assert case["solver"]["iterations"] == 1, case
+              assert case["solver"]["substeps"] == 1, case
+              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
+              assert case["collision"]["source_triangles"] > 0, case
+              assert case["collision"]["solver_triangles"] > 0, case
+              assert len(case["checkpoints"]) == 2, case
+              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
+              assert case["finite"], case
+              assert case["checkpoints"][0]["finite"], case
+              assert case["checkpoints"][1]["finite"], case
+              for image in case["images"]:
+                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
+          print("diagnostic-contact-artifact=passed")
+          PY
+      - name: Upload contact diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pbd-contact-diagnostics
+          path: |
+            artifacts/pbd-contact-diagnostics/**
+            artifacts/pbd-provenance.txt
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1
   gui-sewing-creation:
     name: Sewing staged creation smoke
     needs: [local_runner_readiness]
