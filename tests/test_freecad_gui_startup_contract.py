@@ -141,7 +141,7 @@ def test_canonical_readme_turntable_launches_from_neutral_cwd():
         token in turntable
         for token in (
             '-w /tmp "$FREECAD_IMAGE"',
-            '-w /tmp "$FREECAD_TISSU_IMAGE"',
+            '-w /tmp "$FREECAD_PBD_IMAGE"',
         )
     )
     assert "/opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py" in turntable

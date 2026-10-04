@@ -5,14 +5,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_readme_turntable_uses_tissu_backend():
+def test_readme_turntable_uses_pbd_backend():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
 
-    assert "backend=tissu" in source
-    assert "CLOTH_SIMULATION_BACKEND=tissu" in workflow
+    assert "backend=pbd" in source
+    assert "CLOTH_SIMULATION_BACKEND=pbd" in workflow
 
 
 def test_blanket_visual_fixture_has_no_runtime_backend_selector():

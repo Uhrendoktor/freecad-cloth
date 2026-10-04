@@ -67,7 +67,7 @@ def test_runtime_has_no_legacy_backend_or_damping_path():
     assert "_apply_material" not in source
     assert "damping =" not in source
     assert 'name="xpbd-cpu"' not in source
-    assert "TissuBackend" in source
+    assert "PositionBasedDynamicsBackend" in source
 
 
 def test_quality_proxy_keeps_solver_stitch_provenance():

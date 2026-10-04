@@ -29,7 +29,7 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
     assert 'shoulder_right = arrangement_world("shoulder_right")' in source
     assert 'hip_point = arrangement_world("hip")' in source
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
     assert "status = target_status(target)" in source
     assert 'scene.PinMode = "None"' in source
     assert "scene.PinSelection = []" in source
@@ -73,7 +73,7 @@ def test_canonical_tunic_source_rewrite_compiles():
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"' in source
+    assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
@@ -113,67 +113,20 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "ParticleDistance = 32.0" in source
     assert "SolverIterations = 1" in source
     assert "SolverSubsteps = 1" in source
-    assert "CLOTH_TISSU_COLLISION_MODE: mesh" in workflow
-    assert "CLOTH_TISSU_COLLISION_TRIANGLES: 2048" in workflow
+    assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
+    assert "CLOTH_PBD_COLLISION_TRIANGLES: 2048" in workflow
     assert "tunic-simulation-start" in source
 
 
-def test_tissu_ci_image_is_pinned_and_self_regressing():
+def test_pbd_ci_image_is_pinned_and_preinstalled():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-    script = (ROOT / "docker" / "freecad-ci" / "apply-tissu-contact-fix.py").read_text(
-        encoding="utf-8"
-    )
-    source_commit = "c28a3c7504ddc782bef844ab5bd4cd0bde14b628"
-
-    assert f"ARG TISSU_SOURCE_COMMIT={source_commit}" in dockerfile
-    assert 'SHELL ["/bin/bash", "-o", "pipefail", "-c"]' in dockerfile
-    assert "cmake=3.31.6" in dockerfile
-    assert "/opt/conda/envs/freecad/bin/cmake -S . -B build" in dockerfile
-    assert "/opt/conda/envs/freecad/bin/cmake --build build" in dockerfile
-    assert "--target _cloth_sdk_core unit_tests" in dockerfile
-    assert "--gtest_filter='MeshCollider.*'" in dockerfile
-    assert "ParticleInsideMeshMovesOutside" in script
-    assert "tetrahedronContains" in script
-    assert "ClosedMeshKeepsOutsideContactOutside" in script
-    assert "OpenMeshRetainsLegacyContactDirection" in script
-
-    tunic = workflow[
-        workflow.index("  gui-tunic-visual:") : workflow.index(
-            "\n  gui-", workflow.index("  gui-tunic-visual:") + 5
-        )
-    ]
-    image_job = workflow[
-        workflow.index("  tissu_validation_image:") : workflow.index(
-            "\n  diagnostic-tissu-contact:", workflow.index("  tissu_validation_image:") + 5
-        )
-    ]
-    assert "Derive immutable Tissu image tag" in image_job
-    assert "docker/setup-buildx-action@" in image_job
-    assert "docker/build-push-action@" in image_job
-    assert "push: true" in image_job
-    assert "cache-from: type=gha,scope=freecad-cloth-tissu-validation" in image_job
-    assert "cache-to: type=gha,mode=max,scope=freecad-cloth-tissu-validation" in image_job
-    assert "tissu-validation:" in image_job
-    assert "TISSU_FIX_SHA256=" in dockerfile
-    assert "tissu-cpp-regression-result=passed" in dockerfile
-    assert "FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}" in tunic
-    assert "docker run --rm --init" in tunic
-    assert '"$FREECAD_TISSU_IMAGE" bash -lc' in tunic
-    assert 'docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc' in workflow
-    assert "PYTHONUNBUFFERED=1" in workflow
-    assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py" in workflow
-    )
-    assert "artifacts/tunic-audit/freecad-tunic-audit.log" in workflow
-    assert "artifacts/tunic-audit/runtime-diagnostics.log" in workflow
-    assert "Report tunic audit diagnostics" in workflow
-    assert "$FREECAD_TUNISU_IMAGE" not in workflow
-    assert "artifacts/tissu-provenance.txt" in workflow
-
-
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    assert "pypbd==2.2.2" in dockerfile
+    assert "triangle==20250106" in dockerfile
+    assert "/opt/pypbd-provenance.txt" in dockerfile
+    assert "pbd_validation_image:" in workflow
+    assert "FREECAD_PBD_IMAGE" in workflow
+    assert "CLOTH_CI_ENABLE_PBD=1" in workflow
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
@@ -185,7 +138,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "SolverIterations = 1" in audit
     assert "SolverSubsteps = 1" in audit
     assert "tunic-simulation-start" in audit
-    assert "realtime-preview=passed backend=tissu" in audit
+    assert "realtime-preview=passed backend=pbd" in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():

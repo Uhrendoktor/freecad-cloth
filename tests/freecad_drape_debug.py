@@ -195,8 +195,8 @@ def _metrics(
         "maximum_pin_drift_mm": max(pin_drifts) if pin_drifts else 0.0,
         "minimum_vertex_to_target_mm": _minimum_vertex_distance(positions, target_vertices),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
-        "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
-        if getattr(backend, "name", "") == "tissu"
+        "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
+        if getattr(backend, "name", "") == "pbd"
         else "n/a",
     }
     metrics.update(_triangle_degeneracy(positions, triangles))
@@ -209,10 +209,10 @@ def run():
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
 
-    backend_requested = "tissu"
+    backend_requested = "pbd"
     log(
         "backend={} collision={}".format(
-            backend_requested, os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
+            backend_requested, os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
         )
     )
 
@@ -393,7 +393,7 @@ def run():
             json.dumps(
                 {
                     "backend": getattr(backend, "name", backend_requested),
-                    "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
+                    "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh"),
                     "checkpoints": metrics,
                 },
                 indent=2,

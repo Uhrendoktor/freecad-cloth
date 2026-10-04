@@ -1,6 +1,6 @@
 """Small adapter contract for the production PositionBasedDynamics cloth solver.
 
-FreeCAD document code depends on this boundary instead of importing Tissu APIs.
+FreeCAD document code depends on this boundary instead of importing PositionBasedDynamics APIs.
 PositionBasedDynamics is the only runtime solver; the headless ClothSystem is only input data.
 """
 

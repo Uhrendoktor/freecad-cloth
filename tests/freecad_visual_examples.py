@@ -18,8 +18,8 @@ except ImportError:
     from PySide2 import QtWidgets
 
 
-# A generic FreeCAD cube requires Tissu's mesh collision path; torso-envelope is for avatar-style targets.
-os.environ.setdefault("CLOTH_TISSU_COLLISION_MODE", "mesh")
+# A generic FreeCAD cube requires PositionBasedDynamics's mesh collision path; torso-envelope is for avatar-style targets.
+os.environ.setdefault("CLOTH_PBD_COLLISION_MODE", "mesh")
 
 OUT = Path(os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")) / "blanket-example"
 OUT.mkdir(parents=True, exist_ok=True)

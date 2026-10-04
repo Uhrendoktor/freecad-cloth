@@ -5,9 +5,9 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository itself is 
 ## Requirements
 
 - FreeCAD **1.1.0 or newer** for user installation; this minimum is declared in `package.xml`.
-- Python **3.12** for repository development/CI and the Tissu-capable canonical environment.
+- Python **3.12** for repository development/CI and the PositionBasedDynamics-capable canonical environment.
 - The Python package `triangle==20250106` for constrained pattern meshing.
-- Tissu is optional for ordinary installations; the deterministic CPU backend remains the fallback when Tissu is unavailable.
+- PositionBasedDynamics is optional for ordinary installations; the deterministic CPU backend remains the fallback when PositionBasedDynamics is unavailable.
 - A FreeCAD GUI session is required for the visual workbench tests.
 
 The repository publishes its exact CI image and dependency versions in `.github/workflows/canonical-execution.yml` and `docker/freecad-ci/Dockerfile`.
@@ -49,4 +49,4 @@ The canonical command set is defined in `.github/workflows/canonical-execution.y
 
 **A seam becomes invalid after editing a sketch:** recompute the document and use the explicit seam repair/remap workflow. Cloth never silently retargets a seam to another edge.
 
-**Visual CI differs from local FreeCAD:** use the same FreeCAD/Triangle/Tissu versions recorded by the canonical workflow before comparing screenshots.
+**Visual CI differs from local FreeCAD:** use the same FreeCAD/Triangle/PositionBasedDynamics versions recorded by the canonical workflow before comparing screenshots.

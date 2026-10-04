@@ -1,8 +1,5 @@
 """FreeCAD CI compatibility shims loaded before test scripts."""
 
-# Qt 6 removed QPixmap.pixel(); pixel data is exposed through QImage instead.
-# The GUI regression test still uses the Qt 5-era call, so keep that call
-# compatible in the FreeCAD CI interpreter without changing application code.
 try:
     from PySide6 import QtGui
 except ImportError:
@@ -11,56 +8,37 @@ except ImportError:
 if QtGui is not None:
     QPixmap = QtGui.QPixmap
     if not hasattr(QPixmap, "pixel"):
-
         def _pixel(self, x, y):
             return self.toImage().pixel(x, y)
-
         QPixmap.pixel = _pixel
 
-# Canonical GUI validation must use the production PositionBasedDynamics backend.
-# The GUI workflow runs with DISPLAY=:99; keep this enforcement scoped to that
-# environment so ordinary unit tests do not require the native solver.
 import os
-
 
 def _require_pbd():
     try:
         import pypbd  # noqa: F401
     except ImportError as exc:
-        raise RuntimeError(
-            "PositionBasedDynamics CI mode was explicitly enabled, but pyPBD is unavailable; "
-            "use the pinned PositionBasedDynamics-capable CI image instead of installing dependencies at import time"
-        ) from exc
-
+        raise RuntimeError("PositionBasedDynamics CI mode requires pyPBD") from exc
 
 def _install_pbd_backend_hook():
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
     from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
-
     original_execute = QualitySimulationProxy.execute
     if getattr(original_execute, "_cloth_pbd_enforced", False):
         return
-
     def execute(self, obj):
         result = original_execute(self, obj)
-        base = self._base_or_restore()
-        backend = getattr(base, "backend", None)
+        backend = getattr(self._base_or_restore(), "backend", None)
         if not isinstance(backend, PositionBasedDynamicsBackend):
-            raise RuntimeError(
-                "canonical GUI simulation did not select PositionBasedDynamics"
-            )
+            raise RuntimeError("canonical GUI simulation did not select PositionBasedDynamics")
         print("cloth-ci-backend=position-based-dynamics", flush=True)
         return result
-
     execute._cloth_pbd_enforced = True
     QualitySimulationProxy.execute = execute
 
-
-if (
-    os.environ.get("DISPLAY") == ":99"
+if (os.environ.get("DISPLAY") == ":99"
     and os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"
-    and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"
-):
+    and os.environ.get("CLOTH_CI_DISABLE_PBD", "0") != "1"):
     _require_pbd()
     os.environ["CLOTH_SIMULATION_BACKEND"] = "position-based-dynamics"
     os.environ.setdefault("CLOTH_PBD_SUBSTEPS", "1")

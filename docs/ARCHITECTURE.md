@@ -45,7 +45,7 @@ PatternIR + SewingGraph
         ↓
 ClothSystem input model + DrapeTarget
         ↓
-Tissu runtime solver
+PositionBasedDynamics runtime solver
         ↓
 Derived diagnostics
 ```
@@ -96,11 +96,11 @@ Task panels use **Context → Primary action → Secondary actions → Parameter
 
 ## Simulation implementation boundary
 
-Tissu is the only runtime cloth solver. It provides the production XPBD simulation, sewing constraints, collision handling and solver state. `freecad_cloth.simulation.ClothBackend` is a small adapter contract so the document layer does not depend on Tissu APIs directly.
+PositionBasedDynamics is the only runtime cloth solver. It provides the production XPBD simulation, sewing constraints, collision handling and solver state. `freecad_cloth.simulation.ClothBackend` is a small adapter contract so the document layer does not depend on PositionBasedDynamics APIs directly.
 
 `ClothSolver.py` is not a second solver: it contains only the lightweight `Particle`, `DistanceConstraint` and `ClothSystem` input model used to assemble deterministic solver inputs. It must not contain time integration, collision projection, constraint solving or a user-selectable backend path.
 
-A future native implementation may replace Tissu only by implementing the same backend contract. Rust is an optional acceleration technology, not a second application architecture.
+A future native implementation may replace PositionBasedDynamics only by implementing the same backend contract. Rust is an optional acceleration technology, not a second application architecture.
 
 ## Non-goals
 

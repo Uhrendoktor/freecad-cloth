@@ -508,7 +508,7 @@ def style_mesh(obj, label):
 def simulation():
     import os
 
-    os.environ["CLOTH_TISSU_COLLISION_MODE"] = "mesh"
+    os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
     from freecad_cloth.simulation.DrapeTarget import (

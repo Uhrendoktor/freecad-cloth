@@ -1,4 +1,4 @@
-"""Realtime viewport preview for the production Tissu simulation."""
+"""Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
 _PREVIEW = None
 

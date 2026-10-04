@@ -127,7 +127,7 @@ def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, 
     zs = [float(p[2]) for p in positions]
     result = {
         "backend": getattr(backend, "name", "unknown"),
-        "collision_mode": os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
+        "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh"),
         "requested_step": step,
         "finite": bool(backend.finite()),
         "bounds": [min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)],
@@ -147,8 +147,8 @@ def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, 
 def run():
     signal.signal(signal.SIGALRM, _timeout_handler)
     signal.alarm(TIMEOUT_SECONDS)
-    backend_requested = "tissu"
-    collision_mode = os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh")
+    backend_requested = "pbd"
+    collision_mode = os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
     log(f"backend={backend_requested} collision={collision_mode} timeout={TIMEOUT_SECONDS}s")
     doc = None
     backend = None

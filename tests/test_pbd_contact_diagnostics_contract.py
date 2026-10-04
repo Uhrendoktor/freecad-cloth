@@ -7,7 +7,7 @@ making the diagnostic artifact a release gate.
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "tests" / "freecad_tissu_contact_diagnostics.py").read_text(encoding="utf-8")
+SOURCE = (ROOT / "tests" / "freecad_pbd_contact_diagnostics.py").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
 
 
@@ -45,10 +45,10 @@ def test_diagnostic_manifest_contains_shared_schema_fields():
 
 def test_canonical_workflow_uses_single_opt_in_dispatch_job():
     assert "diagnostic_controls:" in WORKFLOW
-    assert "diagnostic-tissu-contact:" in WORKFLOW
+    assert "diagnostic-pbd-contact:" in WORKFLOW
     assert "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls" in WORKFLOW
     assert "needs: [local_runner_readiness]" in WORKFLOW
-    assert "needs: [diagnostic-tissu-contact]" not in WORKFLOW
+    assert "needs: [diagnostic-pbd-contact]" not in WORKFLOW
 
 
 def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
@@ -67,7 +67,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
     assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_tissu_contact_diagnostics.py"
+        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py"
         in WORKFLOW
     )
     assert "ArrangementPoint.from_string" in SOURCE
@@ -80,9 +80,9 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "width=72.0" in SOURCE
     assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in SOURCE
     assert "did not create a true interior pre-step state" in SOURCE
-    assert "tissu-env: collision_mode=" in SOURCE
+    assert "pbd-env: collision_mode=" in SOURCE
     assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
-    assert "artifacts/tissu-contact-diagnostics/app-run.log" in WORKFLOW
+    assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
     assert "if-no-files-found: warn" in WORKFLOW
     assert "retention-days: 14" in WORKFLOW
 
@@ -101,7 +101,7 @@ def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
 
 
 def test_cube_ladder_caches_collision_proximity_mesh():
-    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     assert "proximity_mesh = trimesh.Trimesh(" in source
     assert "proximity_mesh.nearest.on_surface" in source
     assert "_surface_signed_clearance(" in source
@@ -113,7 +113,7 @@ def test_cube_ladder_caches_collision_proximity_mesh():
 
 
 def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
-    source = (ROOT / "tests" / "freecad_tissu_cube_ladder.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     assert "runpy.run_path(" in source
     assert "before-shared-helper-runpath" in source
     assert "after-shared-helper-runpath" in source

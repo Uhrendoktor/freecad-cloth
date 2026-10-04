@@ -2,7 +2,7 @@
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 cube ladder manifest.
 
-This module is diagnostic-only. It reuses the existing Tissu/FreeCAD runtime and
+This module is diagnostic-only. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
 frozen solver settings; it does not participate in release acceptance.
 """
 
@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/tissu-contact-diagnostics"))
+OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 _BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
 _TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
@@ -49,8 +49,8 @@ except (AttributeError, OSError, RuntimeError, ValueError) as exc:
 
 _boot("before-shared-helper-runpath")
 _shared = runpy.run_path(
-    str(Path(__file__).with_name("freecad_tissu_contact_diagnostics.py")),
-    run_name="freecad_tissu_contact_diagnostics",
+    str(Path(__file__).with_name("freecad_pbd_contact_diagnostics.py")),
+    run_name="freecad_pbd_contact_diagnostics",
 )
 _boot("after-shared-helper-runpath")
 _build_piece = _shared["_build_piece"]
@@ -239,7 +239,7 @@ def _case_spec(case_id):
 def _run_ladder_case(case_id):
     _boot(f"case-start={case_id}")
     spec = _case_spec(case_id)
-    doc = App.newDocument("TissuCubeLadder" + case_id.replace("-", "").title())
+    doc = App.newDocument("PositionBasedDynamicsCubeLadder" + case_id.replace("-", "").title())
     started = time.perf_counter()
     try:
         scene, cube = _build_cube_scene(doc)
@@ -268,7 +268,7 @@ def _run_ladder_case(case_id):
 
         base = scene.Proxy._base_or_restore()
         if base.backend is None:
-            raise RuntimeError(f"{case_id} did not build a Tissu backend")
+            raise RuntimeError(f"{case_id} did not build a PositionBasedDynamics backend")
         collision_surface = getattr(
             base.backend,
             "solver_collision_surface",
@@ -376,7 +376,7 @@ def _run_ladder_case(case_id):
                 "seam_mode": spec["seam_mode"],
             },
             "solver": {
-                "backend": "tissu",
+                "backend": "pbd",
                 "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
                 "iterations": int(getattr(scene, "SolverIterations", 0)),
                 "substeps": int(getattr(scene, "SolverSubsteps", 0)),
@@ -437,7 +437,7 @@ def _run_ladder_case(case_id):
             },
             "images": [images[step] for step in CHECKPOINTS],
             "notes": (
-                "diagnostic-only cube ladder; fixed Tissu backend; "
+                "diagnostic-only cube ladder; fixed PositionBasedDynamics backend; "
                 "solver/collision budgets unchanged; release gate unaffected"
             ),
         }
@@ -465,7 +465,7 @@ def _structural_ladder_checks(records):
         ok = (
             bool(record["finite"])
             and record["case"]["rung"] == rung
-            and record["solver"]["backend"] == "tissu"
+            and record["solver"]["backend"] == "pbd"
             and record["solver"]["iterations"] == 1
             and record["solver"]["substeps"] == 1
             and abs(float(record["solver"]["timestep_s"]) - (1.0 / 120.0)) < 1e-12
@@ -517,7 +517,7 @@ def main():
         "release_gate_effect": "none",
         "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
         "solver_settings_frozen": {
-            "backend_requested": "tissu",
+            "backend_requested": "pbd",
             "particle_distance_mm": 24.0,
             "iterations": 1,
             "substeps": 1,
