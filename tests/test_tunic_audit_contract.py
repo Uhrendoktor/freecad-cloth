@@ -159,6 +159,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "tissu-validation:" in image_job
     assert "TISSU_FIX_SHA256=" in dockerfile
     assert "tissu-cpp-regression-result=passed" in dockerfile
+    assert "MeshCollider.*:BendingConstraint.*" in dockerfile
     assert 'BendingConstraint rest-angle normal convention' in script
     assert 'Eigen::Vector3d n2 = (xD - xA).cross(e);' in script
     assert "FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}" in tunic
