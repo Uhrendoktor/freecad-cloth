@@ -503,7 +503,7 @@ def main():
         "stage=fixture-start backend=tissu collision_mode={} tissu_substeps={} steps={}".format(
             os.environ.get("CLOTH_TISSU_COLLISION_MODE", "mesh"),
             os.environ.get("CLOTH_TISSU_SUBSTEPS", "1"),
-            os.environ.get("CLOTH_BLANKET_STEPS", "120"),
+            os.environ.get("CLOTH_BLANKET_STEPS", "480"),
         )
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
@@ -526,7 +526,7 @@ def main():
             % (1000.0 * (time.monotonic() - arranged_started))
         )
 
-        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
+        steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "480"))
         simulation_started = time.monotonic()
         log(
             "stage=simulation-start steps=%d particle_distance=%.1f solver_iterations=%d solver_substeps=%d tissu_substeps=%s"
