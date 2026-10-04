@@ -38,3 +38,15 @@ def test_readme_turntable_builds_real_motion():
     assert "BLANKET_PARTICLE_DISTANCE" in source
     assert "simulation-pass" in source
     assert "draped-render-pass" in source
+
+def test_simulation_visual_presentation_is_shaded_and_axonometric():
+    runtime = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(
+        encoding="utf-8"
+    )
+    turntable = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    visual = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
+
+    assert 'view.DisplayMode = "Shaded"' in runtime
+    assert 'view.viewAxonometric()' in turntable
+    assert 'panel.ViewObject.DisplayMode = "Shaded"' in visual
+    assert 'mode=Shaded' in visual
