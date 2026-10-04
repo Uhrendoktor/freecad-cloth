@@ -2,7 +2,7 @@
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 avatar ladder manifest.
 
-This module is diagnostic-only. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
+This module is a progressive simulation gate. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
 frozen solver settings; it does not participate in release acceptance.
 """
 
@@ -647,7 +647,7 @@ def _run_ladder_case(case_id):
             },
             "images": [images[step] for step in CHECKPOINTS],
             "notes": (
-                "diagnostic-only avatar ladder; exact production ClothAvatar/DrapeTarget; "
+                "progressive mannequin simulation ladder; exact production ClothAvatar/DrapeTarget; "
                 "fixed PositionBasedDynamics backend; solver/collision budgets unchanged; release gate unaffected"
             ),
         }
@@ -723,8 +723,8 @@ def main():
         records.append(_run_ladder_case(case_id))
     manifest = {
         "schema": 1,
-        "purpose": "diagnostic-only-avatar-complexity-ladder",
-        "release_gate_effect": "none",
+        "purpose": "simulation-avatar-ladder",
+        "release_gate_effect": "gate",
         "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
         "solver_settings_frozen": {
             "backend_requested": "pbd",
