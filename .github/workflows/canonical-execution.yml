@@ -301,10 +301,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build pinned Tissu validation image
-        run: |
-          set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: docker/freecad-ci/Dockerfile
+          load: true
+          pull: true
+          tags: ${{ env.FREECAD_TUNIC_IMAGE }}
+          cache-from: type=gha,scope=freecad-cloth
+          cache-to: type=gha,mode=max,scope=freecad-cloth,ignore-error=true
       - name: Run one-step contact controls
         run: |
           set -euo pipefail
@@ -816,10 +824,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build patched FreeCAD image
-        run: |
-          set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TUNIC_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build pinned Tissu validation image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: docker/freecad-ci/Dockerfile
+          load: true
+          pull: true
+          tags: ${{ env.FREECAD_TUNIC_IMAGE }}
+          cache-from: type=gha,scope=freecad-cloth
+          cache-to: type=gha,mode=max,scope=freecad-cloth,ignore-error=true
       - name: Capture Tissu provenance
         run: |
           set -euo pipefail
@@ -1118,10 +1134,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build patched FreeCAD image
-        run: |
-          set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TISSU_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build pinned Tissu validation image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: docker/freecad-ci/Dockerfile
+          load: true
+          pull: true
+          tags: ${{ env.FREECAD_TISSU_IMAGE }}
+          cache-from: type=gha,scope=freecad-cloth
+          cache-to: type=gha,mode=max,scope=freecad-cloth,ignore-error=true
       - name: Capture Tissu provenance
         run: |
           set -euo pipefail
@@ -1298,10 +1322,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build patched FreeCAD image
-        run: |
-          set -euo pipefail
-          docker build --pull --progress=plain -t "$FREECAD_TUNISU_IMAGE" -f docker/freecad-ci/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build pinned Tissu validation image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: docker/freecad-ci/Dockerfile
+          load: true
+          pull: true
+          tags: ${{ env.FREECAD_TUNISU_IMAGE }}
+          cache-from: type=gha,scope=freecad-cloth
+          cache-to: type=gha,mode=max,scope=freecad-cloth,ignore-error=true
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
