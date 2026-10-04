@@ -74,17 +74,13 @@ def _tissu_signed_dihedral_angle(p1, p2, p3, p4) -> float:
     if n1_sq < 1e-8 or n2_sq < 1e-8 or normal_product <= 0.0:
         return 0.0
 
-    cos_theta = (
-        n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2]
-    ) / normal_product
+    cos_theta = (n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2]) / normal_product
     cross_n = (
         n1[1] * n2[2] - n1[2] * n2[1],
         n1[2] * n2[0] - n1[0] * n2[2],
         n1[0] * n2[1] - n1[1] * n2[0],
     )
-    sin_theta = (
-        cross_n[0] * e_x + cross_n[1] * e_y + cross_n[2] * e_z
-    ) / (e_len * normal_product)
+    sin_theta = (cross_n[0] * e_x + cross_n[1] * e_y + cross_n[2] * e_z) / (e_len * normal_product)
     return atan2(sin_theta, cos_theta)
 
 
