@@ -156,9 +156,7 @@ def _checkpoint_record(
         "target_clearance_mm": signed_clearance,
         "target_unsigned_clearance_mm": unsigned_clearance,
         "penetration_mm": (
-            round(max(0.0, -float(signed_clearance)), 6)
-            if signed_clearance is not None
-            else None
+            round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None
         ),
         "contact_state": "diagnostic-only-cube",
         "seam_world_spans_mm": seam_geometry,
