@@ -43,7 +43,7 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "git clone --filter=blob:none --no-checkout" in publisher
     assert 'git -C "$worktree" checkout --detach origin/main' in publisher
     assert 'git -C "$worktree" push origin "HEAD:$evidence_branch"' in publisher
-    assert 'gh pr comment "$PR_NUMBER" --body-file "$body"' in publisher
+    assert 'gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"' in publisher
     assert "http.extraheader" not in publisher
 
 
