@@ -241,9 +241,9 @@ TEST(BendingConstraint, FlatQuadWithZeroRestAngleRemainsFlat) {
 }
 
 """
-    bending_anchor = "TEST(ConstraintGraph, PinAndDistanceSharingParticleAreAdjacent) {";
-    if (test_cpp.count(bending_anchor) != 1)
-        throw RuntimeError("BendingConstraint test insertion anchor missing");
+    bending_anchor = "TEST(ConstraintGraph, PinAndDistanceSharingParticleAreAdjacent) {"
+    if test_cpp.count(bending_anchor) != 1:
+        raise RuntimeError("BendingConstraint test insertion anchor missing")
     test_cpp = test_cpp.replace(bending_anchor, bending_test + bending_anchor, 1)
     helper = """static bool tetrahedronContains(const Eigen::Vector3d& point) {
     const std::vector<Eigen::Vector3d> vertices = {
