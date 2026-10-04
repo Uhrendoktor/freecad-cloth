@@ -510,9 +510,7 @@ def main():
         )
         log(f"collision=passed max_penetration_mm={max_penetration:.3f}")
         if max_penetration > 3.0:
-            raise RuntimeError(
-                f"blanket penetrated collision cube by {max_penetration:.2f} mm"
-            )
+            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
         log(
             f"drape-terminal state={final_drape.state} clearance_mm={final_clearance:.2f} cube_top_z={cube_top_z:.2f} cloth_min_z={final_min_z:.2f}"
         )
