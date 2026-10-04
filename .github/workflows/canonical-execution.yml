@@ -714,7 +714,7 @@ jobs:
           PY
       - name: Upload simulation ladder evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a0 # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: simulation-collision-ladder
           path: artifacts/simulation-ladder/**
@@ -1015,9 +1015,11 @@ jobs:
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
-          CLOTH_PBD_SUBSTEPS: 1
+          CLOTH_PBD_SUBSTEPS: 8
           CLOTH_PBD_COLLISION_MODE: mesh
           CLOTH_PBD_COLLISION_TRIANGLES: 2048
+          CLOTH_PBD_COLLISION_VOXEL_MM: 8
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/tunic-audit
