@@ -7,7 +7,7 @@ DrapeTarget collision surface into the native pyPBD runtime.
 import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
-from math import isfinite
+from math import ceil, isfinite
 
 import numpy as np
 
@@ -56,6 +56,7 @@ def _pbd_collision_tolerance_mm() -> float:
         raise ValueError("CLOTH_PBD_COLLISION_TOLERANCE_MM must be >= 0")
     return value
 
+
 def _pbd_collision_voxel_mm() -> float:
     value = float(
         os.environ.get(
@@ -78,8 +79,6 @@ def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
         cells = int(ceil((span_mm + 200.0) / voxel_mm))
         spans.append(max(16, min(256, cells)))
     return spans
-
-
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
