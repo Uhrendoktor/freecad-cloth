@@ -47,6 +47,6 @@ def test_simulation_visual_presentation_is_shaded_and_axonometric():
     visual = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
 
     assert 'view.DisplayMode = "Shaded"' in runtime
-    assert 'view.viewAxonometric()' in turntable
+    assert "view.viewAxonometric()" in turntable
     assert 'panel.ViewObject.DisplayMode = "Shaded"' in visual
-    assert 'mode=Shaded' in visual
+    assert "mode=Shaded" in visual
