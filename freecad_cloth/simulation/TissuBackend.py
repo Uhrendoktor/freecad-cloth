@@ -7,7 +7,7 @@ ClothSystem and persistent DrapeTarget into Tissu inputs.
 import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
-from math import isfinite
+from math import atan2, isfinite, sqrt
 
 from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
@@ -16,6 +16,8 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem
 _MM = 1000.0
 _TISSU_SUBSTEPS_DEFAULT = 10
 _TISSU_COLLISION_TRIANGLES_DEFAULT = 0
+_TISSU_COTTON_BENDING_COMPLIANCE = 0.01
+_TISSU_NATIVE_MESH_BENDING_COMPLIANCE = 1e6
 
 
 def _tissu_substeps() -> int:
@@ -35,6 +37,70 @@ def _tissu_collision_triangle_limit() -> int:
     if value < 0:
         raise ValueError("CLOTH_TISSU_COLLISION_TRIANGLES must be >= 0")
     return value
+
+
+def _tissu_signed_dihedral_angle(p1, p2, p3, p4) -> float:
+    """Return the signed dihedral angle used by Tissu's bending solver."""
+    e_x = float(p2[0]) - float(p1[0])
+    e_y = float(p2[1]) - float(p1[1])
+    e_z = float(p2[2]) - float(p1[2])
+    e_len = sqrt(e_x * e_x + e_y * e_y + e_z * e_z)
+    if e_len < 1e-6:
+        return 0.0
+
+    c1 = (
+        float(p3[0]) - float(p1[0]),
+        float(p3[1]) - float(p1[1]),
+        float(p3[2]) - float(p1[2]),
+    )
+    c2 = (
+        float(p4[0]) - float(p1[0]),
+        float(p4[1]) - float(p1[1]),
+        float(p4[2]) - float(p1[2]),
+    )
+    n1 = (
+        e_y * c1[2] - e_z * c1[1],
+        e_z * c1[0] - e_x * c1[2],
+        e_x * c1[1] - e_y * c1[0],
+    )
+    n2 = (
+        e_y * c2[2] - e_z * c2[1],
+        e_z * c2[0] - e_x * c2[2],
+        e_x * c2[1] - e_y * c2[0],
+    )
+    n1_sq = n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]
+    n2_sq = n2[0] * n2[0] + n2[1] * n2[1] + n2[2] * n2[2]
+    normal_product = sqrt(n1_sq * n2_sq)
+    if n1_sq < 1e-8 or n2_sq < 1e-8 or normal_product <= 0.0:
+        return 0.0
+
+    cos_theta = (
+        n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2]
+    ) / normal_product
+    cross_n = (
+        n1[1] * n2[2] - n1[2] * n2[1],
+        n1[2] * n2[0] - n1[0] * n2[2],
+        n1[0] * n2[1] - n1[1] * n2[0],
+    )
+    sin_theta = (
+        cross_n[0] * e_x + cross_n[1] * e_y + cross_n[2] * e_z
+    ) / (e_len * normal_product)
+    return atan2(sin_theta, cos_theta)
+
+
+def _tissu_bending_stencils(triangles):
+    """Return interior-edge bending stencils in Tissu's edge order."""
+    edge_to_opposites = {}
+    for a, b, c in triangles:
+        for left, right, opposite in ((a, b, c), (b, c, a), (c, a, b)):
+            edge = (min(int(left), int(right)), max(int(left), int(right)))
+            edge_to_opposites.setdefault(edge, []).append(int(opposite))
+
+    stencils = []
+    for (a, b), opposites in edge_to_opposites.items():
+        if len(opposites) == 2:
+            stencils.append((a, b, opposites[0], opposites[1]))
+    return tuple(stencils)
 
 
 def _to_tissu_position(position) -> tuple[float, float, float]:
@@ -177,12 +243,34 @@ class TissuBackend(ClothSimulationBackend):
             gravity=-9.81,
             thickness=0.002,
         )
+        # Tissu 1.1.0 constructs mesh bending constraints with a rest-angle
+        # convention that does not match BendingConstraint::solve().  Keep those
+        # constraints effectively inactive, then register equivalent public-API
+        # bending constraints using the solver's actual signed-angle convention.
         self._fabric = self._sim.create_from_arrays(
             "cloth",
             vertices,
             triangles,
-            material="cotton",
+            material={
+                "density": 0.2,
+                "structural_compliance": 1e-9,
+                "shear_compliance": 1e-8,
+                "bending_compliance": _TISSU_NATIVE_MESH_BENDING_COMPLIANCE,
+            },
         )
+        for a, b, c, d in _tissu_bending_stencils(self._triangles):
+            rest_angle = _tissu_signed_dihedral_angle(
+                positions[a], positions[b], positions[c], positions[d]
+            )
+            self._sim.solver.add_bending_constraint(
+                int(a),
+                int(b),
+                int(c),
+                int(d),
+                float(rest_angle),
+                _TISSU_COTTON_BENDING_COMPLIANCE,
+            )
+        self._fabric.material.bending = _TISSU_COTTON_BENDING_COMPLIANCE
         global_ids = np.asarray(
             self._fabric.instance.get_particle_indices(),
             dtype=np.int32,
