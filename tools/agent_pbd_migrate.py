@@ -47,6 +47,7 @@ if "D-0003 — PositionBasedDynamics is the sole production runtime solver" not 
         "architecture, deterministic rebuild semantics, and the canonical GUI acceptance path. "
         "Tissu remains historical evidence only and is no longer a runtime dependency.\n"
     )
+decisions = "\n".join(line.rstrip() for line in decisions.splitlines()) + "\n"
 save("docs/DECISIONS.md", decisions)
 
 save("pyproject.toml", load("pyproject.toml").replace("pytissu==1.1.0", "pyPBD==2.2.2"))
