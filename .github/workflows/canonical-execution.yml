@@ -1129,7 +1129,7 @@ jobs:
           if [ ${#images[@]} -eq 0 ]; then
             body="$RUNNER_TEMP/simulation-review.md"
             printf '%s\n\n%s\n' '<!-- simulation-evidence -->' "No PNG evidence was produced for PR #$PR_NUMBER. This simulation run is not human-reviewable." > "$body"
-            gh pr comment "$PR_NUMBER" --body-file "$body"
+            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"
             exit 1
           fi
           git -C "$worktree" add "pr-$PR_NUMBER/run-$RUN_ID"
@@ -1151,7 +1151,7 @@ jobs:
             echo
             echo "[Open complete evidence bundle](https://github.com/$REPOSITORY/tree/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID)"
           } > "$body"
-          gh pr comment "$PR_NUMBER" --body-file "$body"
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"
   gui-turntables:
     name: README simulation turntable
     needs: [local_runner_readiness, tissu_validation_image]
