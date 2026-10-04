@@ -295,7 +295,7 @@ jobs:
         id: image
         run: |
           set -euo pipefail
-          digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d" " -f1)"
+          digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d' ' -f1)"
           echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:${digest:0:32}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -434,27 +434,53 @@ jobs:
         run: |
           set -euo pipefail
           test -s artifacts/pbd-contact-diagnostics/cube-ladder-manifest.json
-          python3 tools/agent_pbd_migrate.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/images/generated/cloth-avatar-turntable.gif \
-            docs/images/generated/cloth-simulation-arranged-turntable.gif \
-            docs/images/generated/cloth-simulation-draped-turntable.gif \
-            docs/images/generated/cloth-blanket-motion.gif \
-            docs/images/generated/cloth-simulation-draped-front.png
-          if git diff --cached --quiet; then
-            echo "README turntables are already current."
-            exit 0
-          fi
-          git commit -m "ci: publish stable README turntables"
-          git push origin "HEAD:$branch"      - name: Run avatar complexity ladder
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path("artifacts/pbd-contact-diagnostics")
+          data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
+          assert data["schema"] == 1, data
+          assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
+          assert data["release_gate_effect"] == "none", data
+          assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
+          assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
+          assert len(data["cases"]) == 5, data
+          expected = [
+              ("rung-1-cube-pinned", 1, 1, "Automatic", "none"),
+              ("rung-2-cube-unpinned", 2, 1, "None", "none"),
+              ("rung-3-cube-two-piece-no-seam", 3, 2, "None", "none"),
+              ("rung-4-cube-two-piece-small-seam", 4, 2, "None", "small"),
+              ("rung-5-cube-two-piece-large-seam", 5, 2, "None", "large"),
+          ]
+          for record, spec in zip(data["cases"], expected):
+              case = record["case"]
+              assert (case["id"], case["rung"], case["piece_count"], case["pin_mode"], case["seam_mode"]) == spec, record
+              assert record["finite"], record
+              assert record["solver"]["backend"] == "pbd", record
+              assert record["solver"]["iterations"] == 1, record
+              assert record["solver"]["substeps"] == 1, record
+              assert abs(record["solver"]["timestep_s"] - 1/120) < 1e-12, record
+              assert record["solver"]["gravity_z_mm_s2"] == 0.0, record
+              assert len(record["checkpoints"]) == 6, record
+              assert [x["step"] for x in record["checkpoints"]] == [0, 1, 5, 15, 45, 90], record
+              for image in record["images"]:
+                  assert (root / "cube-ladder" / image.split("/", 1)[-1]).is_file(), image
+          small = data["cases"][3]["pre_step"]["seam_world_spans_mm"]
+          large = data["cases"][4]["pre_step"]["seam_world_spans_mm"]
+          assert len(small) == 1 and len(large) == 1, data
+          assert large[0]["max_span_mm"] > small[0]["max_span_mm"] + 20.0, (small, large)
+          assert data["structural_validation"]["first_failing_rung"] in {None, 1, 2, 3, 4, 5}
+          print("cube-ladder-artifact=passed")
+          PY
+      - name: Run avatar complexity ladder
         run: |
           set -euo pipefail
           rm -rf artifacts/pbd-contact-diagnostics/avatar-ladder
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=pbd -e CLOTH_CI_ENABLE_PBD=1 \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
             -e CLOTH_PBD_COLLISION_MODE=mesh -e CLOTH_PBD_COLLISION_TRIANGLES=2048 \
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 \
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
@@ -531,13 +557,12 @@ jobs:
           assert data["structural_validation"]["first_failing_rung"] in {None, 6, 7, 8, 9, 10}, data
           print("avatar-ladder-artifact=passed")
           PY
-      - name: Capture PositionBasedDynamics provenance
+      - name: Capture provenance
         run: |
           set -euo pipefail
-          mkdir -p artifacts
-          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
+          docker run --rm "$FREECAD_PBD_IMAGE" bash -lc "cat /opt/pypbd-provenance.txt" > artifacts/pypbd-provenance.txt
           test -s artifacts/pypbd-provenance.txt
-          grep -q '^Package: pyPBD
+
       - name: Validate diagnostic artifact
         run: |
           set -euo pipefail
@@ -572,123 +597,7 @@ jobs:
           name: pbd-contact-diagnostics
           path: |
             artifacts/pbd-contact-diagnostics/**
-            artifacts/pbd-provenance.txt
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 1 artifacts/pypbd-provenance.txt
-          grep -q '^Version: 2.2.2
-      - name: Validate diagnostic artifact
-        run: |
-          set -euo pipefail
-          test -s artifacts/pbd-contact-diagnostics/manifest.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
-          assert data["schema"] == 1, data
-          assert data["release_gate_effect"] == "none", data
-          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
-          for case in data["cases"]:
-              assert case["solver"]["backend"] == "pbd", case
-              assert case["solver"]["iterations"] == 1, case
-              assert case["solver"]["substeps"] == 1, case
-              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
-              assert case["collision"]["source_triangles"] > 0, case
-              assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
-              assert case["finite"], case
-              assert case["checkpoints"][0]["finite"], case
-              assert case["checkpoints"][1]["finite"], case
-              for image in case["images"]:
-                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
-          print("diagnostic-contact-artifact=passed")
-          PY
-      - name: Upload contact diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pbd-contact-diagnostics
-          path: |
-            artifacts/pbd-contact-diagnostics/**
-            artifacts/pbd-provenance.txt
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 1 artifacts/pypbd-provenance.txt
-          grep -q '^SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
-      - name: Validate diagnostic artifact
-        run: |
-          set -euo pipefail
-          test -s artifacts/pbd-contact-diagnostics/manifest.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
-          assert data["schema"] == 1, data
-          assert data["release_gate_effect"] == "none", data
-          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
-          for case in data["cases"]:
-              assert case["solver"]["backend"] == "pbd", case
-              assert case["solver"]["iterations"] == 1, case
-              assert case["solver"]["substeps"] == 1, case
-              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
-              assert case["collision"]["source_triangles"] > 0, case
-              assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
-              assert case["finite"], case
-              assert case["checkpoints"][0]["finite"], case
-              assert case["checkpoints"][1]["finite"], case
-              for image in case["images"]:
-                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
-          print("diagnostic-contact-artifact=passed")
-          PY
-      - name: Upload contact diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pbd-contact-diagnostics
-          path: |
-            artifacts/pbd-contact-diagnostics/**
-            artifacts/pbd-provenance.txt
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 1 artifacts/pypbd-provenance.txt
-      - name: Validate diagnostic artifact
-        run: |
-          set -euo pipefail
-          test -s artifacts/pbd-contact-diagnostics/manifest.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          data = json.loads(Path("artifacts/pbd-contact-diagnostics/manifest.json").read_text(encoding="utf-8"))
-          assert data["schema"] == 1, data
-          assert data["release_gate_effect"] == "none", data
-          assert {case["case"]["id"] for case in data["cases"]} == {"control-0-cube", "control-0a-avatar"}, data
-          for case in data["cases"]:
-              assert case["solver"]["backend"] == "pbd", case
-              assert case["solver"]["iterations"] == 1, case
-              assert case["solver"]["substeps"] == 1, case
-              assert case["solver"]["gravity_z_mm_s2"] == 0.0, case
-              assert case["collision"]["source_triangles"] > 0, case
-              assert case["collision"]["solver_triangles"] > 0, case
-              assert len(case["checkpoints"]) == 2, case
-              assert [checkpoint["step"] for checkpoint in case["checkpoints"]] == [0, 1], case
-              assert case["finite"], case
-              assert case["checkpoints"][0]["finite"], case
-              assert case["checkpoints"][1]["finite"], case
-              for image in case["images"]:
-                  assert Path("artifacts/pbd-contact-diagnostics", image).is_file(), image
-          print("diagnostic-contact-artifact=passed")
-          PY
-      - name: Upload contact diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pbd-contact-diagnostics
-          path: |
-            artifacts/pbd-contact-diagnostics/**
-            artifacts/pbd-provenance.txt
+            artifacts/pypbd-provenance.txt
           if-no-files-found: warn
           retention-days: 14
           compression-level: 1
@@ -789,7 +698,6 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
-
   gui-sketcher-acceptance:
     name: Native Sketcher seam presentation acceptance
     needs: [local_runner_readiness]
@@ -873,7 +781,6 @@ jobs:
             artifacts/sketcher-stage.log
           if-no-files-found: error
           compression-level: 1
-
   gui-pattern-export:
     name: Pattern production export smoke
     needs: [local_runner_readiness]
@@ -946,7 +853,6 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
-
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [local_runner_readiness, pbd_validation_image]
@@ -969,15 +875,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Capture PositionBasedDynamics provenance
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          docker pull "$FREECAD_PBD_IMAGE"
           docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
           test -s artifacts/pypbd-provenance.txt
-          grep -q '^Package: pyPBD$' artifacts/pypbd-provenance.txt
-          grep -q '^Version: 2.2.2$' artifacts/pypbd-provenance.txt
-          grep -q '^SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834$' artifacts/pypbd-provenance.txt
 
       - name: Stage workspace in Docker volume
         run: |
@@ -1171,7 +1075,6 @@ jobs:
           if-no-files-found: error
           compression-level: 1
 
-
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
     needs: [gui-tunic-visual]
@@ -1247,7 +1150,6 @@ jobs:
             echo "[Open complete evidence bundle](https://github.com/$REPOSITORY/tree/$evidence_branch/pr-$PR_NUMBER/run-$RUN_ID)"
           } > "$body"
           gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"
-
   gui-turntables:
     name: README simulation turntable
     needs: [local_runner_readiness, pbd_validation_image]
@@ -1277,9 +1179,6 @@ jobs:
           mkdir -p artifacts
           docker run --rm "$FREECAD_PBD_IMAGE" bash -lc 'cat /opt/pypbd-provenance.txt' > artifacts/pypbd-provenance.txt
           test -s artifacts/pypbd-provenance.txt
-          grep -q '^Package: pyPBD$' artifacts/pypbd-provenance.txt
-          grep -q '^Version: 2.2.2$' artifacts/pypbd-provenance.txt
-          grep -q '^SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834$' artifacts/pypbd-provenance.txt
 
       - name: Stage workspace in Docker volume
         run: |
@@ -1425,8 +1324,6 @@ jobs:
           if-no-files-found: ignore
           compression-level: 1
 
-
-
   gui-visual-examples:
     name: Basic blanket visual example
     needs: [local_runner_readiness, pbd_validation_image]
@@ -1540,7 +1437,6 @@ jobs:
             docs/images/generated/blanket-example/blanket-visual.log
           if-no-files-found: error
           compression-level: 1
-
   publish-readme-turntables:
     name: Publish README turntables and example motion
     needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
@@ -1604,7 +1500,6 @@ jobs:
           fi
           git commit -m "ci: publish stable README turntables"
           git push origin "HEAD:$branch"
-
   maintenance-cleanup:
     name: Repository retention cleanup
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
@@ -1735,149 +1630,3 @@ jobs:
           path: artifacts/workbench-benchmark
           if-no-files-found: warn
           compression-level: 1
-
-      - name: Stage workspace in Docker volume
-        run: |
-          set -euo pipefail
-          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
-          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_PBD_IMAGE" -lc 'true')"
-          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
-          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
-          docker cp "$PWD/." "$carrier:/workspace/"
-
-      - name: Render avatar and blanket turntable frames
-        env:
-          CLOTH_SIMULATION_BACKEND: position-based-dynamics
-          CLOTH_PBD_SUBSTEPS: 10
-          CLOTH_PBD_COLLISION_MODE: mesh
-        run: |
-          set -euo pipefail
-          rm -rf docs/images/generated
-          mkdir -p docs/images/generated
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
-            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
-            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_PBD=1 \
-            -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
-            -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
-            -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
-              set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
-              mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
-              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
-              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
-              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
-              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
-              xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_DISABLE_PBD=1 timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
-            '
-      - name: Restore workspace from Docker volume
-        if: ${{ always() }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
-            exit 0
-          fi
-          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
-          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
-          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
-
-      - name: Validate turntable frame counts on restored workspace
-        run: |
-          set -euo pipefail
-          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-
-      - name: Validate blanket motion and camera evidence
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib, re
-          log = Path("docs/images/generated/simulation-turntable-progress.log").read_text(encoding="utf-8")
-          for marker in (
-              "stage=scene-build-pass",
-              "stage=arranged-render-pass",
-              "stage=simulation-pass",
-              "stage=validation-pass",
-              "stage=draped-render-pass",
-              "stage=total-pass",
-          ):
-            if marker not in log: raise SystemExit("missing timing marker: "+marker)
-          if "stage=validation-pass state=structurally-plausible" not in log:
-            raise SystemExit("drape gate did not remain structurally-plausible")
-          m = re.findall(r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+).*min_z_mm=([+-]?[0-9.]+).*cube_top_z_mm=([+-]?[0-9.]+)", log)
-          if not m: raise SystemExit("missing blanket motion diagnostic")
-          displacement, minimum_z, cube_top = (float(x) for x in m[-1])
-          if displacement < 40.0: raise SystemExit("blanket displacement below 40 mm")
-          if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
-          if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
-          if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
-          for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
-            hashes=[]
-            frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
-            if len(frames) != 73: raise SystemExit("unexpected frame count for "+directory)
-            for frame_path in frames:
-              hashes.append(hashlib.sha256(frame_path.read_bytes()).hexdigest())
-            if len(set(hashes)) != 73: raise SystemExit("all 73 frames are not distinct for "+directory)
-            checkpoints=[]
-            for frame in (0,18,36,54):
-              p=Path("docs/images/generated")/directory/("frame-%03d.png"%frame)
-              if not p.is_file(): raise SystemExit("missing "+str(p))
-              checkpoints.append(hashlib.sha256(p.read_bytes()).hexdigest())
-            if len(set(checkpoints)) != 4: raise SystemExit("camera checkpoints not distinct for "+directory)
-          PY
-      - name: Build README turntable GIFs
-        run: |
-          set -euo pipefail
-          if command -v magick >/dev/null 2>&1; then IM=(magick)
-          elif command -v convert >/dev/null 2>&1; then IM=(convert)
-          else sudo apt-get update && sudo apt-get install -y imagemagick && IM=(convert)
-          fi
-          for spec in \
-            "cloth-avatar-turntable-frames cloth-avatar-turntable.gif" \
-            "cloth-simulation-arranged-turntable-frames cloth-simulation-arranged-turntable.gif" \
-            "cloth-simulation-draped-turntable-frames cloth-simulation-draped-turntable.gif"; do
-            read -r frame_dir gif <<< "$spec"
-            "${IM[@]}" -delay 8 "docs/images/generated/$frame_dir"/frame-*.png \
-              -loop 0 -colors 128 \
-              "docs/images/generated/$gif"
-            test -s "docs/images/generated/$gif"
-            frame_delays="$(identify -format '%T\n' "docs/images/generated/$gif" | sort -u)"
-            test "$frame_delays" = "8"
-          done
-          for gif in \
-            docs/images/generated/cloth-avatar-turntable.gif \
-            docs/images/generated/cloth-simulation-arranged-turntable.gif \
-            docs/images/generated/cloth-simulation-draped-turntable.gif; do
-            identify -format '%n\n' "$gif" | head -n 1 | grep -qx '73'
-          done
-      - name: Upload README turntable evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: readme-turntables
-          path: |
-            docs/images/generated/cloth-avatar-turntable.gif
-            docs/images/generated/cloth-simulation-arranged-turntable.gif
-            docs/images/generated/cloth-simulation-draped-turntable.gif
-            docs/images/generated/cloth-avatar-turntable-frames/frame-000.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
-            docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-054.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-000.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-018.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-036.png
-            docs/images/generated/cloth-simulation-draped-turntable-frames/frame-054.png
-            docs/images/generated/avatar-gui-progress.log
-            docs/images/generated/simulation-turntable-progress.log
-          if-no-files-found: ignore
-          compression-level: 1
-
-
