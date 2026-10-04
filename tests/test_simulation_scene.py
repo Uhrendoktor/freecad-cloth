@@ -9,7 +9,7 @@ def test_new_simulation_scene_uses_stable_default_timestep():
     ).read_text(encoding="utf-8")
 
     assert "DEFAULT_TIME_STEP = 1.0 / 240.0" in source
-    assert '".TimeStep = DEFAULT_TIME_STEP"' in source
+    assert '"TimeStep", "Solver").TimeStep = DEFAULT_TIME_STEP' in source
 
 
 def test_stale_drape_target_recompute_guard_is_safe():
