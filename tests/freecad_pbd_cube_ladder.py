@@ -2,7 +2,7 @@
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 cube ladder manifest.
 
-This module is diagnostic-only. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
+This module is a progressive simulation gate. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
 frozen solver settings; it does not participate in release acceptance.
 """
 
@@ -440,7 +440,7 @@ def _run_ladder_case(case_id):
             },
             "images": [images[step] for step in CHECKPOINTS],
             "notes": (
-                "diagnostic-only cube ladder; fixed PositionBasedDynamics backend; "
+                "progressive cube simulation ladder; fixed PositionBasedDynamics backend; "
                 "solver/collision budgets unchanged; release gate unaffected"
             ),
         }
@@ -516,8 +516,8 @@ def main():
         records.append(_run_ladder_case(case_id))
     manifest = {
         "schema": 1,
-        "purpose": "diagnostic-only-cube-complexity-ladder",
-        "release_gate_effect": "none",
+        "purpose": "simulation-collision-ladder",
+        "release_gate_effect": "gate",
         "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
         "solver_settings_frozen": {
             "backend_requested": "pbd",
