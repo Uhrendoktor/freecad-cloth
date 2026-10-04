@@ -145,16 +145,24 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
             "\n  gui-", workflow.index("  gui-tunic-visual:") + 5
         )
     ]
-    assert "FREECAD_TUNIC_IMAGE: freecad-cloth-ci:tissu-contact-fix" in tunic
-    assert "docker/setup-buildx-action@" in tunic
-    assert "docker/build-push-action@" in tunic
-    assert "cache-from: type=gha,scope=freecad-cloth" in tunic
-    assert "cache-to: type=gha,mode=max,scope=freecad-cloth" in tunic
-    assert "docker run --rm --init" in tunic
-    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
+    image_job = workflow[
+        workflow.index("  tissu_validation_image:") : workflow.index(
+            "\n  diagnostic-tissu-contact:", workflow.index("  tissu_validation_image:") + 5
+        )
+    ]
+    assert "Derive immutable Tissu image tag" in image_job
+    assert "docker/setup-buildx-action@" in image_job
+    assert "docker/build-push-action@" in image_job
+    assert "push: true" in image_job
+    assert "cache-from: type=gha,scope=freecad-cloth-tissu-validation" in image_job
+    assert "cache-to: type=gha,mode=max,scope=freecad-cloth-tissu-validation" in image_job
+    assert "tissu-validation:" in image_job
     assert "TISSU_FIX_SHA256=" in dockerfile
     assert "tissu-cpp-regression-result=passed" in dockerfile
-    assert 'docker run --rm "$FREECAD_TUNIC_IMAGE" bash -lc' in workflow
+    assert "FREECAD_TISSU_IMAGE: ${{ needs.tissu_validation_image.outputs.image }}" in tunic
+    assert "docker run --rm --init" in tunic
+    assert '"$FREECAD_TISSU_IMAGE" bash -lc' in tunic
+    assert 'docker run --rm "$FREECAD_TISSU_IMAGE" bash -lc' in workflow
     assert "PYTHONUNBUFFERED=1" in workflow
     assert (
         "setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py" in workflow
@@ -162,13 +170,7 @@ def test_tissu_ci_image_is_pinned_and_self_regressing():
     assert "artifacts/tunic-audit/freecad-tunic-audit.log" in workflow
     assert "artifacts/tunic-audit/runtime-diagnostics.log" in workflow
     assert "Report tunic audit diagnostics" in workflow
-    tunic = workflow[
-        workflow.index("  gui-tunic-visual:") : workflow.index(
-            "\n  gui-", workflow.index("  gui-tunic-visual:") + 5
-        )
-    ]
-    assert '"$FREECAD_TUNIC_IMAGE" bash -lc' in tunic
-    assert "$FREECAD_TUNISU_IMAGE" not in tunic
+    assert "$FREECAD_TUNISU_IMAGE" not in workflow
     assert "artifacts/tissu-provenance.txt" in workflow
 
 
