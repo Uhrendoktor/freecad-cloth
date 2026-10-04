@@ -1656,7 +1656,9 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          git fetch origin "$BRANCH"
+          git reset --hard "origin/$BRANCH"
+          python3 - <<'PY
           from pathlib import Path
           import re
           root = Path(".")
