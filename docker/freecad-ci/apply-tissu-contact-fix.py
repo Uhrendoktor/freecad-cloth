@@ -129,6 +129,20 @@ MeshOrientation inferMeshOrientation(
 
     replace_cpp = [
         (
+            """    const double substepDt = deltaTime / static_cast<double>(m_substeps);
+    m_spatialHash.build(m_particles);
+
+    for (int i = 0; i < m_substeps; i++)
+        step(world, substepDt);""",
+            """    const double substepDt = deltaTime / static_cast<double>(m_substeps);
+
+    for (int i = 0; i < m_substeps; i++) {
+        m_spatialHash.build(m_particles);
+        step(world, substepDt);
+    }""",
+            "Solver.cpp spatial hash rebuild per substep",
+        ),
+        (
             """    m_triangles.reserve(indices.size() / 3);
     for (size_t i = 0; i + 2 < indices.size(); i += 3)
         m_triangles.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
