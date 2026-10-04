@@ -199,7 +199,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh,
             testMesh=True,
             generateCollisionObject=True,
-            resolution=[resolution, resolution, resolution],
+            resolution=resolution,
         )
         rigid_body.setMass(0.0)
         rigid_body.setFrictionCoeff(0.5)
@@ -212,6 +212,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             else 0.0
         )
         collision_detection.setTolerance(max(configured_tolerance, surface_thickness) / _MM)
+        print(
+            "cloth-pbd-collision-settings "
+            f"resolution={resolution} "
+            f"tolerance_mm={max(configured_tolerance, surface_thickness):.3f}",
+            flush=True,
+        )
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()
@@ -293,12 +299,6 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         timestep.setValueUInt(
             self._pbd.TimeStepController.MAX_ITERATIONS,
             _PBD_ITERATIONS_DEFAULT,
-        )
-        print(
-            "cloth-pbd-collision-settings "
-            f"resolution={resolution} "
-            f"tolerance_mm={max(_pbd_collision_tolerance_mm(), float(getattr(self._collision_surface, 'thickness', 0.0)) if self._collision_surface is not None else 0.0):.3f}",
-            flush=True,
         )
 
     def step(
