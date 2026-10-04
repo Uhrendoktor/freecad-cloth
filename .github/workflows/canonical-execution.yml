@@ -1609,6 +1609,23 @@ jobs:
         with:
           name: tunic-visual-audit
           path: tunic
+      - name: Build mannequin drape GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" -delay 10 -loop 0 \
+            tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames/motion-*.png \
+            -colors 128 tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif
+          test -s tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif
+          identify -format '%n\n' tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif | head -n 1 | grep -qx '10'
+          frame_delays="$(identify -format '%T\n' tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
       - name: Update stable README asset branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1629,14 +1646,22 @@ jobs:
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
           cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif docs/images/generated/cloth-tunic-mannequin-motion.gif
+          cp ../tunic/docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-pattern-design.png
+          cp ../tunic/docs/images/generated/cloth-sewing.png docs/images/generated/cloth-sewing.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-draped-diagnostics.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
             docs/images/generated/cloth-simulation-draped-turntable.gif \
             docs/images/generated/cloth-blanket-motion.gif \
-            docs/images/generated/cloth-simulation-draped-front.png
+            docs/images/generated/cloth-tunic-mannequin-motion.gif \
+            docs/images/generated/cloth-pattern-design.png \
+            docs/images/generated/cloth-sewing.png \
+            docs/images/generated/cloth-simulation-draped-front.png \
+            docs/images/generated/cloth-simulation-draped-diagnostics.png
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0
