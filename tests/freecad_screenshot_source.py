@@ -129,6 +129,24 @@ def save(name, state, proof):
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
+def save_view(name, state, proof):
+    """Capture the active FreeCAD 3D view without task-dock chrome."""
+    document = Gui.activeDocument()
+    view = document.activeView() if document is not None else None
+    if view is None:
+        raise RuntimeError("FreeCAD active 3D view is unavailable for screenshot")
+    events()
+    view.redraw()
+    events()
+    path = os.path.join(OUT, name)
+    view.saveImage(path, 1280, 720, "White")
+    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
+        raise RuntimeError(f"failed or suspiciously small 3D-view screenshot: {path}")
+    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+    with open(MANIFEST, "a", encoding="utf-8") as handle:
+        handle.write(f"{name}\t{state}\t{proof}\n")
+
+
 def load_and_run(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
