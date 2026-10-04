@@ -285,23 +285,35 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
-def _inside_target_count(points, target):
+def _inside_target_count(points, target, collision_surface=None):
     """Count cloth vertices that the authoritative mannequin considers interior."""
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     mesh = getattr(target, "Mesh", None)
     mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
     checker = shape_is_inside if callable(shape_is_inside) else mesh_is_inside
-    if not callable(checker):
+    if callable(checker):
+        count = 0
+        for point in points:
+            try:
+                if bool(checker(App.Vector(*point), 1e-6, True)):
+                    count += 1
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise RuntimeError("mannequin inside/outside collision test failed") from exc
+        return count
+    if collision_surface is None:
         raise RuntimeError("mannequin target does not expose an inside/outside collision test")
-    count = 0
-    for point in points:
-        try:
-            if bool(checker(App.Vector(*point), 1e-6, True)):
-                count += 1
-        except (AttributeError, TypeError, ValueError) as exc:
-            raise RuntimeError("mannequin inside/outside collision test failed") from exc
-    return count
+    from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+
+    vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
+    triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+    if not vertices or not triangles:
+        raise RuntimeError("authoritative collision surface has no inside/outside topology")
+    return sum(
+        1
+        for point in points
+        if point_inside_closed_mesh(tuple(float(value) for value in point), vertices, triangles)
+    )
 
 
 def write_drape_metrics(
@@ -359,7 +371,7 @@ def write_drape_metrics(
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
-        penetrating_vertices = _inside_target_count(vertices, avatar)
+        penetrating_vertices = _inside_target_count(vertices, avatar, collision_surface)
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
             raise RuntimeError(
