@@ -10,6 +10,31 @@ from statistics import median
 Point3 = tuple[float, float, float]
 
 
+def maximum_box_penetration(
+    points: Sequence[Point3],
+    bounds: tuple[float, float, float, float, float, float],
+) -> float:
+    """Return the deepest point inside an axis-aligned target box."""
+    xmin, xmax, ymin, ymax, zmin, zmax = (float(value) for value in bounds)
+    return max(
+        (
+            min(
+                float(point[0]) - xmin,
+                xmax - float(point[0]),
+                float(point[1]) - ymin,
+                ymax - float(point[1]),
+                float(point[2]) - zmin,
+                zmax - float(point[2]),
+            )
+            for point in points
+            if xmin < float(point[0]) < xmax
+            and ymin < float(point[1]) < ymax
+            and zmin < float(point[2]) < zmax
+        ),
+        default=0.0,
+    )
+
+
 @dataclass(frozen=True)
 class DrapeVisualMetrics:
     """Public data model or service class for DrapeVisualMetrics."""
