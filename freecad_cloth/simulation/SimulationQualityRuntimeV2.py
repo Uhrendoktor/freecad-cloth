@@ -234,13 +234,13 @@ class QualitySimulationProxy:
 
     def _build_demo(self, obj, signature):
         from freecad_cloth.simulation.ClothSolver import ClothSystem
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
         from freecad_cloth.simulation.SimulationObjects import (
             _collision_for_scene,
             _parse_pair_list,
             _write_grid_mesh,
-        )
-        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
-            PositionBasedDynamicsBackend,
         )
 
         base = self._base_or_restore()
