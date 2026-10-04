@@ -138,7 +138,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "SolverIterations = 1" in audit
     assert "SolverSubsteps = 1" in audit
     assert "tunic-simulation-start" in audit
-    assert "realtime-preview=passed backend=pbd" in audit
+    assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
