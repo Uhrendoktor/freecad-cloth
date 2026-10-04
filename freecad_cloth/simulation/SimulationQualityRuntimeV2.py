@@ -239,7 +239,7 @@ class QualitySimulationProxy:
             _parse_pair_list,
             _write_grid_mesh,
         )
-        from freecad_cloth.simulation.TissuBackend import TissuBackend
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
         base = self._base_or_restore()
         spacing = max(0.25, float(obj.ParticleDistance))
@@ -284,7 +284,7 @@ class QualitySimulationProxy:
             "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris),
         }
         collision_surface = _collision_for_scene(obj)
-        base.backend = TissuBackend(
+        base.backend = PositionBasedDynamicsBackend(
             system,
             tuple(tris),
             pins=pins,
@@ -330,7 +330,7 @@ class QualitySimulationProxy:
 
 
 def create_quality_simulation_scene(doc):
-    """Create the quality-controlled FreeCAD simulation scene using Tissu."""
+    """Create the quality-controlled FreeCAD simulation scene using PositionBasedDynamics."""
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.SimulationObjects import (
         create_simulation_scene,

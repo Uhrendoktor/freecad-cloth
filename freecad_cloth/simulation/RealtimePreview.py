@@ -47,8 +47,8 @@ def _prepare(scene):
     )
     if base is None or getattr(base, "backend", None) is None:
         raise RuntimeError("Realtime Cloth Preview did not build a simulation backend")
-    if getattr(base.backend, "name", "") != "tissu":
-        raise RuntimeError("Realtime Cloth Preview requires the Tissu backend")
+    if getattr(base.backend, "name", "") != "position-based-dynamics":
+        raise RuntimeError("Realtime Cloth Preview requires the PositionBasedDynamics backend")
 
 
 class _Preview:

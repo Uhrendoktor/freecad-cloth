@@ -1,7 +1,7 @@
-"""Small adapter contract for the production Tissu cloth solver.
+"""Small adapter contract for the production PositionBasedDynamics cloth solver.
 
 FreeCAD document code depends on this boundary instead of importing Tissu APIs.
-Tissu is the only runtime solver; the headless ClothSystem is only input data.
+PositionBasedDynamics is the only runtime solver; the headless ClothSystem is only input data.
 """
 
 from __future__ import annotations
