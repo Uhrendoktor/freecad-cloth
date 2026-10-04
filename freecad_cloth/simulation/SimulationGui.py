@@ -59,7 +59,7 @@ class SimulationTaskPanel:
         solver = QtWidgets.QGroupBox("Solver")
         layout = QtWidgets.QFormLayout(solver)
         self.iterations = self._spin(1, 100, int(getattr(scene, "Iterations", 8)))
-        self.timestep = self._double_box(0.0001, 1.0, float(getattr(scene, "TimeStep", 1 / 240)), 5)
+        self.timestep = self._double_box(0.0001, 1.0, float(getattr(scene, "TimeStep", 1 / 60)), 5)
         self.gravity_x = self._double_box(-50000, 50000, float(getattr(scene, "GravityX", 0)), 1)
         self.gravity_y = self._double_box(-50000, 50000, float(getattr(scene, "GravityY", 0)), 1)
         self.gravity_z = self._double_box(
