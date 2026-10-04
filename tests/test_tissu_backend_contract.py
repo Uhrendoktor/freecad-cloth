@@ -2,7 +2,6 @@ import math
 import sys
 import types
 
-import numpy as np
 
 
 class _Particle:
