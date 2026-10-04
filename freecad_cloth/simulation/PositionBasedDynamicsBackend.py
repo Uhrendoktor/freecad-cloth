@@ -126,6 +126,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
+        self._simulation_initialized = False
         self._build()
 
     @property
@@ -140,10 +141,13 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
     def _new_simulation(self):
         sim = self._pbd.Simulation.getCurrent()
-        model = sim.getModel()
-        sim.reset()
-        model.cleanup()
+        if self._simulation_initialized:
+            model = sim.getModel()
+            sim.reset()
+            model.cleanup()
+            sim.getTimeStep().getCollisionDetection().cleanup()
         sim.initDefault()
+        self._simulation_initialized = True
         return sim, sim.getModel()
 
     def _add_collision_body(self, sim, model) -> None:
