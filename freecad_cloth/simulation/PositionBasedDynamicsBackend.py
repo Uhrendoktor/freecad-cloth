@@ -244,7 +244,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 raise RuntimeError("PositionBasedDynamics stitch constraint was not registered")
             stitch_constraint = constraints[-1]
             if not isinstance(stitch_constraint, self._pbd.DistanceConstraint_XPBD):
-                raise RuntimeError("PositionBasedDynamics returned an unexpected stitch constraint type")
+                raise RuntimeError(
+                    "PositionBasedDynamics returned an unexpected stitch constraint type"
+                )
             # Tissu stitches have zero rest length; PBD otherwise initializes the
             # distance constraint rest length from the endpoints' starting distance.
             stitch_constraint.restLength = 0.0
