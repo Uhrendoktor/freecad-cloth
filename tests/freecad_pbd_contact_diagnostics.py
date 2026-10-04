@@ -49,6 +49,8 @@ import contextlib
 
 import Part
 
+from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+
 _import_progress("Part complete")
 
 STEPS = (0, 1)
@@ -186,70 +188,6 @@ def _nearest_surface_observation(garment_points, surface):
     return (math.sqrt(best) if math.isfinite(best) else None), point
 
 
-def _ray_intersection_x(point, a, b, c):
-    px, py, pz = point
-    ay, az = float(a[1]) - py, float(a[2]) - pz
-    _by, _bz = float(b[1]) - py, float(b[2]) - pz
-    _cy, _cz = float(c[1]) - py, float(c[2]) - pz
-    det = (float(b[1]) - float(a[1])) * (float(c[2]) - float(a[2])) - (
-        float(b[2]) - float(a[2])
-    ) * (float(c[1]) - float(a[1]))
-    if abs(det) <= 1e-12:
-        return False
-    u = (ay * (float(c[2]) - float(a[2])) - az * (float(c[1]) - float(a[1]))) / det
-    v = ((float(b[1]) - float(a[1])) * az - (float(b[2]) - float(a[2])) * ay) / det
-    if u < -1e-9 or v < -1e-9 or u + v > 1.0 + 1e-9:
-        return False
-    x_hit = float(a[0]) + u * (float(b[0]) - float(a[0])) + v * (float(c[0]) - float(a[0]))
-    return x_hit > px + 1e-7
-
-
-def _point_inside_mesh(point, vertices, triangles):
-    ray = (1.0, 0.3713906763541037, 0.1932424973120743)
-    origin = (float(point[0]), float(point[1]), float(point[2]))
-    hits = 0
-    epsilon = 1e-9
-
-    def cross(left, right):
-        return (
-            left[1] * right[2] - left[2] * right[1],
-            left[2] * right[0] - left[0] * right[2],
-            left[0] * right[1] - left[1] * right[0],
-        )
-
-    def dot(left, right):
-        return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
-
-    for triangle in triangles:
-        if len(triangle) != 3:
-            continue
-        ia, ib, ic = (int(index) for index in triangle)
-        if any(index < 0 or index >= len(vertices) for index in (ia, ib, ic)):
-            continue
-        a = vertices[ia]
-        b = vertices[ib]
-        c = vertices[ic]
-        e1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
-        e2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
-        pvec = cross(ray, e2)
-        determinant = dot(e1, pvec)
-        if abs(determinant) <= epsilon:
-            continue
-        inv_det = 1.0 / determinant
-        tvec = (origin[0] - a[0], origin[1] - a[1], origin[2] - a[2])
-        u = dot(tvec, pvec) * inv_det
-        if u < -epsilon or u > 1.0 + epsilon:
-            continue
-        qvec = cross(tvec, e1)
-        v = dot(ray, qvec) * inv_det
-        if v < -epsilon or u + v > 1.0 + epsilon:
-            continue
-        distance = dot(e2, qvec) * inv_det
-        if distance > epsilon:
-            hits += 1
-    return bool(hits % 2)
-
-
 def _inside_outside(points, source):
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
@@ -307,7 +245,7 @@ def _inside_outside(points, source):
             bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
         ]
     except (ImportError, RuntimeError, TypeError, ValueError):
-        states = [_point_inside_mesh(point, vertices, triangles) for point in points[:64]]
+        states = [point_inside_closed_mesh(point, vertices, triangles) for point in points[:64]]
     if not states:
         return "unknown"
     if all(states):
