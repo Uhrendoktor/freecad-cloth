@@ -8,7 +8,6 @@ import json
 import re
 from pathlib import Path
 
-
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = [0, 1, 5, 15, 45, 90]
 
