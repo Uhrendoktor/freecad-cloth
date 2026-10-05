@@ -113,3 +113,43 @@ Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are current-state summa
 Simulation changes are governed by [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) and the current coordination ledger named in `AGENT_STATUS.md`. Actual rendered screenshots are the primary human-review evidence; logs, metrics and artifact archives are secondary.
 
 A simulation change is not considered visually reviewed until a human records what the rendered geometry does and the screenshots correspond to the exact commit under discussion. Fork PRs do not receive write credentials for evidence publication; contributors must attach the rendered evidence manually in the governing PR/issue.
+## CI runtime and performance
+
+The canonical workflow is intentionally parallel: runner readiness and the PositionBasedDynamics validation image fan out into the acceptance jobs. Keep this dependency shape intact when refactoring; reducing runner count by serializing acceptance jobs usually increases wall-clock time.
+
+Runtime rules:
+
+- Pull immutable, content-derived CI images only when they are not already present on a warm self-hosted runner. Hosted runners will naturally take the pull path.
+- The PBD image build publishes the image; downstream jobs are responsible for pulling it. The builder does not perform a second verification pull because that would duplicate the network transfer on an otherwise disposable runner.
+- PR runs may cancel superseded work, but push, schedule, and trusted manual runs must not be cancelled merely because a newer run started. Those runs produce merge/release evidence and must complete once accepted by the runner watchdog.
+- Use GitHub-hosted dependency caching where supported. The static Python gate caches its pip download cache using pyproject.toml as the dependency key.
+- Prefer independent jobs for expensive GUI/simulation checks. Combine work only when the combined execution demonstrably reduces runtime without sacrificing isolation or acceptance coverage.
+
+The critical path is normally dominated by the slowest visual/simulation job after the readiness/image prerequisites, followed by the publication job. Changes that reduce repeated image transfers, package installation, or unnecessary setup are preferred before more invasive parallelism changes.
+
+### Canonical CI structure
+
+The repository intentionally has one event-driven workflow, `.github/workflows/canonical-execution.yml`. It coordinates jobs and acceptance dependencies; it does not own Docker lifecycle code.
+
+CI implementation is split into three reusable composite actions:
+
+- `.github/actions/freecad-container/action.yml` owns the container boundary and common environment.
+- `.github/actions/freecad-test/action.yml` owns canonical checkout, bounded FreeCAD launch, optional preflight/validation, and evidence upload.
+- `.github/actions/publish-visual-evidence/action.yml` owns the main-branch and PR evidence publication paths.
+
+Long shell/Python logic belongs under `tools/ci/`. The important contracts are explicit and testable there: FreeCAD process startup/termination, acceptance validation, simulation manifest validation, visual freshness/provenance, runner fallback, and maintenance cleanup.
+
+Equivalent GUI cases use a matrix. Expensive visual and simulation cases remain separate jobs so they can run in parallel on hosted runners. Combining those cases into one job would reduce runner setup duplication but increase wall-clock time.
+
+### Runtime budget
+
+Every FreeCAD application invocation is hard-capped at 55 seconds. The surrounding container action is capped at 60 seconds, leaving a small termination/diagnostic margin. Timeouts are intentional: an acceptance or screenshot task that cannot complete inside this budget is treated as a performance regression rather than allowed to hang.
+
+The 55-second budget applies to FreeCAD acceptance, screenshot, turntable, and simulation invocations. Registry image builds, artifact transfers, and Git publication are infrastructure operations and are not artificially forced under 60 seconds because doing so would make cold-cache CI unreliable.
+
+The immutable PBD image contains the Python packages required by the FreeCAD acceptance suite, avoiding per-test package installation. Self-hosted runners reuse an already-present immutable image and only pull it on a cache miss.
+
+### Workflow quality gates
+
+Pre-commit and canonical CI enforce Ruff, Python architecture/dead-code contracts, actionlint, zizmor, yamllint, and the repository-specific CI structure contract. External Actions in the workflow and local composite Actions are pinned to full commit SHAs and maintained by Dependabot.
+
