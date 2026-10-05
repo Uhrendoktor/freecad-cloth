@@ -189,6 +189,8 @@ jobs:
                 tests/test_canonical_python_validation_contract.py \
                 tests/test_pbd_contact_diagnostics_contract.py \
                 tests/test_pbd_avatar_ladder_contract.py \
+                tests/test_avatar_skeleton_pose.py
+                tests/test_avatar_gui_contract.py
                 tests/test_property_contracts.py
             ')"
           cleanup() {
@@ -970,6 +972,82 @@ jobs:
         with:
           name: pattern-production-export
           path: artifacts/pattern-production-export.log
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-avatar-acceptance:
+    name: Mannequin skeleton GUI acceptance
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Stage workspace in Docker volume
+        run: |
+          set -euo pipefail
+          volume="gha-workspace-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          carrier="$(docker create --entrypoint /bin/bash -v "${volume}:/workspace" "$FREECAD_IMAGE" -lc 'true')"
+          echo "DOCKER_WORKSPACE_VOLUME=$volume" >> "$GITHUB_ENV"
+          echo "DOCKER_WORKSPACE_CARRIER=$carrier" >> "$GITHUB_ENV"
+          docker cp "$PWD/." "$carrier:/workspace/"
+
+      - name: Run mannequin skeleton acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e FREECAD_USER_HOME=/tmp/freecad-user             -e FREECAD_USER_DATA=/tmp/freecad-user-data             -e FREECAD_USER_TEMP=/tmp/freecad-user-temp             -e PYTHONPATH=/workspace             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
+              mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/artifacts
+              rm -rf /tmp/freecad-mod
+              mkdir -p /tmp/freecad-mod/freecad-cloth
+              cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_acceptance.py > /workspace/artifacts/avatar-acceptance.log 2>&1
+              grep -q "avatar provider acceptance passed" /workspace/artifacts/avatar-acceptance.log
+            '
+      - name: Restore workspace from Docker volume
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKER_WORKSPACE_CARRIER:-}" ]; then
+            exit 0
+          fi
+          docker cp "$DOCKER_WORKSPACE_CARRIER:/workspace/." "$PWD/"
+          docker rm -f "$DOCKER_WORKSPACE_CARRIER" >/dev/null 2>&1 || true
+          docker volume rm "$DOCKER_WORKSPACE_VOLUME" >/dev/null 2>&1 || true
+
+      - name: Inspect mannequin acceptance evidence
+        run: |
+          set -euo pipefail
+          test -s artifacts/avatar-acceptance.log
+          grep -q "avatar provider acceptance passed" artifacts/avatar-acceptance.log
+      - name: Upload mannequin acceptance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: avatar-skeleton-acceptance
+          path: artifacts/avatar-acceptance.log
           if-no-files-found: error
           compression-level: 1
 
