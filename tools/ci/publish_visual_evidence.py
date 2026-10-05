@@ -137,13 +137,13 @@ def main() -> int:
     )
     if dirty:
         run(
-        "git",
-        "-C",
-        str(worktree),
-        "commit",
-        "-m",
-        f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
-    )
+            "git",
+            "-C",
+            str(worktree),
+            "commit",
+            "-m",
+            f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
+        )
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
     run("git", "-C", str(worktree), "fetch", "origin", branch)
