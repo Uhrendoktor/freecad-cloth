@@ -159,7 +159,9 @@ class AvatarParameters:
                     "right_arm_angle": self.pose.right_arm_angle,
                     "left_elbow_angle": self.pose.left_elbow_angle,
                     "right_elbow_angle": self.pose.right_elbow_angle,
-                    "joints": json.loads(joint_rotations_to_json(self.pose.joint_rotations))["joints"],
+                    "joints": json.loads(joint_rotations_to_json(self.pose.joint_rotations))[
+                        "joints"
+                    ],
                 },
             },
             sort_keys=True,
