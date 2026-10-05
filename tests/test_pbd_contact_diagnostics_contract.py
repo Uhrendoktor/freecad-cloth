@@ -22,23 +22,10 @@ def test_diagnostic_controls_are_static_and_one_step():
 
 def test_diagnostic_manifest_contains_shared_schema_fields():
     for needle in (
-        '"schema": 1',
-        '"cases"',
-        '"case_id"',
-        '"predecessor_case_id"',
-        '"case":',
-        '"rung"',
-        '"solver"',
-        '"collision"',
-        '"source_triangles"',
-        '"solver_triangles"',
-        '"pre_step"',
-        '"piece_bounds"',
-        '"checkpoints"',
-        '"contact_state"',
-        '"first_contact_step"',
-        '"control"',
-        '"release_gate_effect"',
+        '"schema": 1', '"cases"', '"case_id"', '"predecessor_case_id"', '"case":',
+        '"rung"', '"solver"', '"collision"', '"source_triangles"', '"solver_triangles"',
+        '"pre_step"', '"piece_bounds"', '"checkpoints"', '"contact_state"',
+        '"first_contact_step"', '"control"', '"release_gate_effect"',
     ):
         assert needle in SOURCE
 
@@ -59,16 +46,15 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
-    assert "def _point_inside_mesh(point, vertices, triangles):" in SOURCE
+    assert "point_inside_closed_mesh" in SOURCE
+    assert "from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh" in SOURCE
     assert "def _shutdown_gui():" in SOURCE
     assert "app.quit()" in SOURCE
     assert "App.exit()" not in SOURCE
     assert "gui-shutdown-requested" in SOURCE
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
-    assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
-    )
+    assert "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
     assert "ArrangementPoint.from_string" in SOURCE
     assert "state = _inside_outside(" in SOURCE
     assert "float(candidate.x)" in SOURCE
@@ -121,7 +107,6 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
     assert "file=sys.stderr" not in source
     assert '_boot("script-start")' in source
-    assert "_freecad_entrypoint_name = Path(__file__).stem" in source
     assert "_freecad_entrypoint_name = Path(__file__).stem" in source
     assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
     assert "def _schedule_freecad_main():" in source
