@@ -7,6 +7,10 @@ inputs:
   command:
     description: Shell command to execute in the container.
     required: true
+  timeout-seconds:
+    description: Hard container command timeout in seconds; maximum 60 seconds.
+    required: false
+    default: "60"
   environment:
     description: Optional newline-delimited KEY=VALUE environment entries for the container.
     required: false
@@ -46,4 +50,14 @@ runs:
             printf '%s\n' "$EXTRA_ENV"
           fi
         } >"$env_file"
-        timeout --signal=TERM --kill-after=5s 60s           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             --env-file "$env_file"             -v "$GITHUB_WORKSPACE:/workspace:rw"             -w /workspace             "$IMAGE" bash -lc "${{ inputs.command }}"
+        timeout_seconds="${{ inputs.timeout-seconds }}"
+        if [ "$timeout_seconds" -gt 60 ]; then
+          echo "timeout-seconds must be <= 60" >&2
+          exit 2
+        fi
+        timeout --signal=TERM --kill-after=5s "${timeout_seconds}s" \
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+          --env-file "$env_file" \
+          -v "$GITHUB_WORKSPACE:/workspace:rw" \
+          -w /workspace \
+          "$IMAGE" bash -lc "${{ inputs.command }}"
