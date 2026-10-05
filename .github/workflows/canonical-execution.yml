@@ -1760,7 +1760,7 @@ jobs:
           mkdir -p artifacts/workbench-benchmark
           CID="$(docker create --init --security-opt seccomp=unconfined --shm-size=1g --entrypoint /bin/bash -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 -w /workspace "$IMAGE" -euo pipefail -c '
             set -e
-            python3 -c "import pbd, pytest; print(\"PositionBasedDynamics\", pbd.__file__); print(\"pytest\", pytest.__version__)"
+            python3 -c "import pypbd, pytest; print(\"PositionBasedDynamics\", pypbd.__file__); print(\"pytest\", pytest.__version__)"
             mkdir -p "$XDG_RUNTIME_DIR"
             Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
             openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
