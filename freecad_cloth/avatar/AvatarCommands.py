@@ -42,6 +42,7 @@ POSE_PROPERTY_MAP = {
     "right_elbow_angle": "RightElbowAngle",
 }
 PROVIDER_IDS = ("makehuman-hm08", "freecad-geometry")
+_MISSING = object()
 
 
 def _avatar(doc):
@@ -95,8 +96,12 @@ def _style_mannequin(obj):
         pass
 
 
-def _provider_geometry(obj, params):
-    provider_id = str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
+    provider_id = (
+        str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+        if provider_id is None
+        else str(provider_id)
+    )
     if provider_id == "makehuman-hm08":
         vertices, triangles, landmarks = generate_mesh(params)
         source = "MakeHuman HM08 base mesh @ {}".format(
@@ -106,7 +111,11 @@ def _provider_geometry(obj, params):
         )
         return vertices, triangles, landmarks, provider_id, source, "CC0"
     if provider_id == "freecad-geometry":
-        source_obj = getattr(obj, "ProviderSource", None)
+        source_obj = (
+            getattr(obj, "ProviderSource", None)
+            if provider_source is _MISSING
+            else provider_source
+        )
         if source_obj is None or source_obj is obj:
             raise ValueError("select a FreeCAD body as the avatar provider source")
         provider = FreeCADGeometryAvatarProvider(source_obj, deflection=1.0, thickness=0.0)
@@ -123,37 +132,48 @@ def _provider_geometry(obj, params):
     raise ValueError(f"unsupported avatar provider: {provider_id}")
 
 
-def _rebuild(obj):
-    params = _parameters(obj)
+def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
+    """Build derived geometry before mutating persistent avatar state."""
+    params = _parameters(obj) if params is None else params
+    params.validate()
+    if provider_id is None:
+        provider_id = str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+    if provider_source is _MISSING:
+        provider_source = getattr(obj, "ProviderSource", None)
+
+    # All potentially fallible geometry/provider work happens before any
+    # persistent avatar properties or derived mesh are changed.
     vertices, triangles, landmarks, provider_id, source, license_name = _provider_geometry(
-        obj, params
+        obj, params, provider_id, provider_source
     )
-    obj.Mesh = _mesh_data(vertices, triangles)
-    _set_prop(
-        obj,
-        "App::PropertyString",
-        "JointPoseJSON",
-        "Pose",
-        joint_rotations_to_json(params.pose.joint_rotations),
-    )
-    obj.JointPoseJSON = joint_rotations_to_json(params.pose.joint_rotations)
-    obj.ParametersJSON = params.to_json()
+    native_mesh = _mesh_data(vertices, triangles)
+    parameters_json = params.to_json()
+    joint_json = joint_rotations_to_json(params.pose.joint_rotations)
+    landmark_records = [
+        f"{landmark.name}|{landmark.position[0]},{landmark.position[1]},{landmark.position[2]}"
+        for landmark in landmarks
+    ]
+    arrangement_records = arrangement_points_from_landmarks(landmark_records)
+
+    obj.Mesh = native_mesh
+    _set_prop(obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_json)
+    obj.JointPoseJSON = joint_json
+    obj.ParametersJSON = parameters_json
     obj.AvatarStatus = "Valid"
+    obj.AvatarProviderId = provider_id
+    obj.ProviderSource = provider_source if provider_id == "freecad-geometry" else None
     obj.AvatarMeshProvider = provider_id
     obj.AvatarMeshSource = source
     obj.AvatarMeshLicense = license_name
     obj.GarmentState = "Bare mannequin / provider geometry only"
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
-    obj.Landmarks = [
-        f"{landmark.name}|{landmark.position[0]},{landmark.position[1]},{landmark.position[2]}"
-        for landmark in landmarks
-    ]
+    obj.Landmarks = landmark_records
     if not hasattr(obj, "AvatarRevision"):
         _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
     obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
-    obj.ArrangementPoints = arrangement_points_from_landmarks(obj.Landmarks)
+    obj.ArrangementPoints = arrangement_records
     _style_mannequin(obj)
     obj.Document.recompute()
     target = getattr(obj, "DrapeTarget", None) or obj.Document.getObject("DrapeTarget")
@@ -164,7 +184,6 @@ def _rebuild(obj):
         target.TargetStatus = status["state"]
         target.InvalidationReason = status["reason"]
     return obj
-
 
 def _ensure_collision(obj):
     """Maintain the legacy collision proxy as a derived display adapter only."""
@@ -276,6 +295,21 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
     return obj
 
 
+def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):
+    """Apply validated avatar state only after successful geometry construction."""
+    obj = _rebuild(
+        obj,
+        params=params,
+        provider_id=provider_id,
+        provider_source=provider_source,
+    )
+    _ensure_collision(obj)
+    target = obj.Document.getObject("DrapeTarget")
+    if target is None:
+        _ensure_drape_target(obj)
+    return obj
+
+
 def rebuild_avatar():
     import FreeCAD as App
 
@@ -285,12 +319,8 @@ def rebuild_avatar():
     obj = _avatar(doc)
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
-    _rebuild(obj)
-    _ensure_collision(obj)
-    target = doc.getObject("DrapeTarget")
-    if target is None:
-        target = _ensure_drape_target(obj)
-    return obj
+    return apply_avatar_parameters(obj, _parameters(obj))
+
 
 
 def edit_avatar():
@@ -312,13 +342,12 @@ def set_avatar_measurements(**changes):
     if doc is None:
         raise ValueError("open a document before changing avatar measurements")
     obj = _avatar(doc) or create_avatar()
-    allowed = set(DEFAULT_MEASUREMENTS)
-    for name, value in changes.items():
-        key = str(name)
-        if key not in allowed:
+    current = _parameters(obj)
+    for name in changes:
+        if str(name) not in DEFAULT_MEASUREMENTS:
             raise ValueError(f"unknown avatar measurement: {name}")
-        setattr(obj, PROPERTY_MAP[key], float(value))
-    return rebuild_avatar()
+    params = current.with_measurements(**changes)
+    return apply_avatar_parameters(obj, params)
 
 
 def set_avatar_pose(pose):
@@ -328,15 +357,20 @@ def set_avatar_pose(pose):
     if doc is None:
         raise ValueError("open a document before changing avatar pose")
     obj = _avatar(doc) or create_avatar()
-    Pose(
-        str(pose),
-        float(getattr(obj, "LeftArmAngle", 12)),
-        float(getattr(obj, "RightArmAngle", 12)),
-        float(getattr(obj, "LeftElbowAngle", 0)),
-        float(getattr(obj, "RightElbowAngle", 0)),
-    ).validate()
-    obj.PosePreset = str(pose)
-    return rebuild_avatar()
+    current = _parameters(obj)
+    candidate = AvatarParameters(
+        current.measurements,
+        current.skin_offset,
+        Pose(
+            str(pose),
+            current.pose.left_arm_angle,
+            current.pose.right_arm_angle,
+            current.pose.left_elbow_angle,
+            current.pose.right_elbow_angle,
+            current.pose.joint_rotations,
+        ),
+    )
+    return apply_avatar_parameters(obj, candidate)
 
 
 def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
@@ -347,16 +381,25 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
     if doc is None:
         raise ValueError("open a document before changing a mannequin joint")
     obj = _avatar(doc) or create_avatar()
-    values = {
-        rotation.bone: rotation
-        for rotation in joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))
-    }
+    current = _parameters(obj)
+    values = {rotation.bone: rotation for rotation in current.pose.joint_rotations}
     rotation = JointRotation(str(bone), float(x), float(y), float(z)).validate()
     values[rotation.bone] = rotation
     if mirror:
         values[rotation.mirrored().bone] = rotation.mirrored()
-    obj.JointPoseJSON = joint_rotations_to_json(tuple(values.values()))
-    return rebuild_avatar()
+    candidate = AvatarParameters(
+        current.measurements,
+        current.skin_offset,
+        Pose(
+            current.pose.preset,
+            current.pose.left_arm_angle,
+            current.pose.right_arm_angle,
+            current.pose.left_elbow_angle,
+            current.pose.right_elbow_angle,
+            tuple(values.values()),
+        ),
+    )
+    return apply_avatar_parameters(obj, candidate)
 
 
 def set_avatar_provider(provider_id, source=None):
@@ -376,11 +419,14 @@ def set_avatar_provider(provider_id, source=None):
             raise ValueError(
                 "a FreeCAD source object is required for the freecad-geometry provider"
             )
-        obj.ProviderSource = source
     else:
-        obj.ProviderSource = None
-    obj.AvatarProviderId = provider_id
-    return rebuild_avatar()
+        source = None
+    return apply_avatar_parameters(
+        obj,
+        _parameters(obj),
+        provider_id=provider_id,
+        provider_source=source,
+    )
 
 
 def set_avatar_skin_offset(offset):
@@ -390,8 +436,14 @@ def set_avatar_skin_offset(offset):
     if doc is None:
         raise ValueError("open a document before changing avatar offset")
     obj = _avatar(doc) or create_avatar()
-    obj.SkinOffset = float(offset)
-    return rebuild_avatar()
+    current = _parameters(obj)
+    candidate = AvatarParameters(
+        current.measurements,
+        float(offset),
+        current.pose,
+    )
+    return apply_avatar_parameters(obj, candidate)
+
 
 
 def avatar_measurement(name):
