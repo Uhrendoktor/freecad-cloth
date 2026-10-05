@@ -17,6 +17,22 @@ repos:
         args: ["--fix"]
       - id: ruff-format
 
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.29.0
+    hooks:
+      - id: zizmor
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: ["-c", ".yamllint.yaml"]
+
   - repo: local
     hooks:
       - id: documentation-contract
@@ -30,9 +46,13 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-
       - id: dead-code
         name: High-confidence dead code
         entry: python tools/check_dead_code.py
         language: system
         types: [python]
+      - id: ci-structure
+        name: Canonical CI structure
+        entry: python tools/ci/validate_ci_structure.py
+        language: system
+        files: ^(?:\.github/(actions|workflows)/|tools/ci/)
