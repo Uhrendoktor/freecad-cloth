@@ -382,43 +382,68 @@ def write_drape_metrics(
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
             if collision_surface is not None:
-                target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
-                if target_points:
-                    from math import sqrt
+                from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+                from math import sqrt
 
-                    inside_points = []
-                    shape = getattr(avatar, "Shape", None)
-                    checker = getattr(shape, "isInside", None) if shape is not None else None
-                    if not callable(checker):
-                        mesh = getattr(avatar, "Mesh", None)
-                        checker = getattr(mesh, "isInside", None) if mesh is not None else None
-                    if callable(checker):
-                        for point in vertices:
+                target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
+                target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+                backend = getattr(proxy, "backend", None) if proxy is not None else None
+                solver_surface = (
+                    getattr(backend, "solver_collision_surface", None)
+                    if backend is not None
+                    else None
+                )
+                solver_vertices = (
+                    tuple(getattr(solver_surface, "vertices", ()) or ())
+                    if solver_surface is not None
+                    else ()
+                )
+                solver_triangles = (
+                    tuple(getattr(solver_surface, "triangles", ()) or ())
+                    if solver_surface is not None
+                    else ()
+                )
+                inside_points = []
+                if target_points and target_triangles:
+                    for point in vertices:
+                        point_tuple = tuple(float(value) for value in point)
+                        try:
+                            authoritative_inside = point_inside_closed_mesh(
+                                point_tuple, target_points, target_triangles
+                            )
+                        except (TypeError, ValueError, IndexError):
+                            break
+                        if not authoritative_inside:
+                            continue
+                        nearest = min(
+                            sqrt(
+                                sum(
+                                    (point_tuple[i] - tuple(float(value) for value in target)[i])
+                                    ** 2
+                                    for i in range(3)
+                                )
+                            )
+                            for target in target_points
+                        )
+                        solver_inside = None
+                        if solver_vertices and solver_triangles:
                             try:
-                                if bool(checker(App.Vector(*point), 1e-6, True)):
-                                    nearest = min(
-                                        sqrt(
-                                            sum(
-                                                (float(point[i]) - float(target[i])) ** 2
-                                                for i in range(3)
-                                            )
-                                        )
-                                        for target in target_points
-                                    )
-                                    inside_points.append(
-                                        {
-                                            "point": tuple(
-                                                round(float(value), 3) for value in point
-                                            ),
-                                            "nearest_target_vertex_mm": round(float(nearest), 3),
-                                        }
-                                    )
-                            except (AttributeError, TypeError, ValueError):
-                                break
-                    log(
-                        "penetration-evidence panel=%s count=%d samples=%s"
-                        % (record["panel"], penetrating_vertices, inside_points[:12])
-                    )
+                                solver_inside = point_inside_closed_mesh(
+                                    point_tuple, solver_vertices, solver_triangles
+                                )
+                            except (TypeError, ValueError, IndexError):
+                                solver_inside = None
+                        inside_points.append(
+                            {
+                                "point": tuple(round(value, 3) for value in point_tuple),
+                                "nearest_target_vertex_mm": round(float(nearest), 3),
+                                "solver_surface_inside": solver_inside,
+                            }
+                        )
+                log(
+                    "penetration-evidence panel=%s count=%d samples=%s"
+                    % (record["panel"], penetrating_vertices, inside_points[:12])
+                )
             raise RuntimeError(
                 "draped panel {} has {} vertices inside the mannequin collision surface".format(
                     record["panel"], penetrating_vertices
