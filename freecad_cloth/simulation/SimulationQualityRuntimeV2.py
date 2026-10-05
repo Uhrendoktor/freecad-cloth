@@ -155,6 +155,36 @@ class QualitySimulationProxy:
             float(obj.AvatarSkinOffset),
         )
 
+    def _advance(self, obj, base, step_count):
+        """Advance the persistent backend without entering FreeCAD recompute."""
+        steps = max(0, int(step_count))
+        if steps <= 0:
+            return
+        dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
+        gravity = (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ))
+        for _ in range(steps):
+            for _ in range(int(obj.SolverSubsteps)):
+                base.backend.step(
+                    dt,
+                    int(obj.SolverIterations),
+                    gravity,
+                    base.collision_surface,
+                )
+            base.last_steps += 1
+
+    def _publish_state(self, obj, base):
+        """Write the already-solved particle state to the display objects."""
+        positions = base.backend.positions()
+        from freecad_cloth.simulation.SimulationObjects import _write_mesh
+
+        for panel in getattr(obj, "DrapePanels", ()):
+            _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
+        self._apply_presentation(obj)
+        obj.Steps = int(base.last_steps)
+        obj.SimulatedTime = base.backend.time
+        obj.ParticleCount = len(positions)
+        obj.FiniteState = base.backend.finite()
+
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
         ensure_quality_properties(obj)
@@ -192,25 +222,18 @@ class QualitySimulationProxy:
             self._sync_seam_stitch_provenance(base)
         steps = int(obj.Steps)
         if steps > base.last_steps:
-            dt = float(obj.TimeStep) / int(obj.SolverSubsteps)
-            for _ in range(steps - base.last_steps):
-                for _ in range(int(obj.SolverSubsteps)):
-                    base.backend.step(
-                        dt,
-                        int(obj.SolverIterations),
-                        (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                        base.collision_surface,
-                    )
-                base.last_steps += 1
-        positions = base.backend.positions()
-        from freecad_cloth.simulation.SimulationObjects import _write_mesh
+            self._advance(obj, base, steps - base.last_steps)
+        self._publish_state(obj, base)
 
-        for panel in getattr(obj, "DrapePanels", ()):
-            _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
-        self._apply_presentation(obj)
-        obj.SimulatedTime = base.backend.time
-        obj.ParticleCount = len(positions)
-        obj.FiniteState = base.backend.finite()
+    def advance_preview_frame(self, obj):
+        """Advance one interactive frame without triggering a document recompute."""
+        ensure_quality_properties(obj)
+        base = self._base_or_restore()
+        if base.backend is None:
+            self.execute(obj)
+            base = self._base_or_restore()
+        self._advance(obj, base, 1)
+        self._publish_state(obj, base)
 
     def _build_pattern_scene(self, obj, pieces, signature):
         """Use the authoritative base scene builder with quality tessellation."""
