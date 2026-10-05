@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from visual_evidence import documented_assets, verify, write_provenance
+from visual_evidence import documented_assets, verify, write_provenance  # isort: skip
 
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
