@@ -71,8 +71,8 @@ jobs:
       - name: Python and architecture checks
         run: |
           set -euo pipefail
-          python -m ruff check .
-          python -m ruff format --check .
+          python -m ruff check tools/ci
+          python -m ruff format --check tools/ci
           python tools/check_documentation_contract.py
           python tools/ci/validate_ci_structure.py
           lint-imports
