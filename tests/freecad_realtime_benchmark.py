@@ -39,15 +39,15 @@ def main():
 
         scene = create_quality_simulation_scene(doc)
         _prepare(scene)
-        backend = scene.Proxy._base_or_restore().backend
-        # _prepare builds the realtime-quality system; avoid an extra GUI panel entirely.
+        proxy = scene.Proxy
+        backend = proxy._base_or_restore().backend
+        # _prepare builds the realtime-quality system; frame advancement must not invoke recompute.
         view = Gui.activeDocument().activeView() if Gui.activeDocument() else None
         times = []
         started = time.perf_counter()
         for _ in range(FRAMES):
             t0 = time.perf_counter()
-            scene.Steps = int(scene.Steps) + 1
-            doc.recompute()
+            proxy.advance_preview_frame(scene)
             if view is not None:
                 view.redraw()
             times.append(time.perf_counter() - t0)
@@ -62,6 +62,7 @@ def main():
             "solver_iterations": int(getattr(scene, "SolverIterations", 0)),
             "solver_substeps": int(getattr(scene, "SolverSubsteps", 0)),
             "pbd_substeps": int(getattr(backend, "_substeps", 1)),
+            "simulation_path": "recompute-free",
             "elapsed_s": elapsed,
             "mean_frame_ms": 1000.0 * sum(times) / len(times),
             "p95_frame_ms": 1000.0 * p95,

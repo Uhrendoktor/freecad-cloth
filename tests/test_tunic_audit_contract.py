@@ -3,12 +3,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
-# Tunic CI keeps an 8 mm SDF for runtime while using a wider collision tolerance.
-# Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
+# The native-Sketcher fixture keeps explicit semantic edge IDs on each piece.
+# The front/back pieces share the same authored topology, so corresponding shoulder
+# and side edges must be paired by semantic position, not cross-paired.
 
 
-def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
+def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert (
         'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())'
@@ -19,8 +19,8 @@ def test_canonical_tunic_uses_independent_front_back_semantic_edge_ids():
         in source
     )
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
@@ -43,14 +43,14 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert "target_source.Mesh.BoundBox" not in source
 
 
-def test_canonical_tunic_uses_validated_authored_mapping():
+def test_canonical_tunic_uses_matching_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -115,9 +115,11 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "SolverIterations = 1" in source
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
+    assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
+    assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TRIANGLES: 8192" in workflow
     assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in workflow
-    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" in workflow
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
 

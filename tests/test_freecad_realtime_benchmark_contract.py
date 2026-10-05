@@ -21,4 +21,9 @@ assert "QApplication.instance()" in source
 assert "app.quit()" in source
 assert "App.exit()" not in source
 assert "except BaseException" not in source[finally_index:]
+assert "proxy.advance_preview_frame(scene)" in source
+assert '"simulation_path": "recompute-free"' in source
+runtime = (ROOT / "freecad_cloth" / "simulation" / "RealtimePreview.py").read_text(encoding="utf-8")
+assert "proxy.advance_preview_frame(self.scene)" in runtime
+assert "doc.recompute()" not in runtime[runtime.index("    def tick"):runtime.index("    @staticmethod")]
 print("realtime benchmark lifecycle contract: ok")

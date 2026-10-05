@@ -14,10 +14,8 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
-# Mesh collision resolution is discrete at PositionBasedDynamics particle updates; use enough internal
-# substeps here to resolve the 2 mm collision thickness under the audit gravity
-# without changing the production workflow default substep budget.
-os.environ["CLOTH_PBD_SUBSTEPS"] = "32"
+# Preserve the canonical workflow's PBD substep budget. The audit must not secretly
+# multiply the configured simulation cost behind the workflow's back.
 
 SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
         seam = Seam(
@@ -39,7 +37,7 @@ replacements = {
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
     "    required_indices = (1, 2, 6, 7)\n"
     '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-    '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+    '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
     "    for edge_a_id, edge_b_id, seam_id in seam_specs:\n"
     '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
     "        add_seam(doc, seam)\n"

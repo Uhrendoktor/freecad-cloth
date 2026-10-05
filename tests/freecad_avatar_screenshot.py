@@ -21,6 +21,7 @@ if ROOT not in sys.path:
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
+TURNTABLE_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
 
 
 def log(message):
@@ -194,7 +195,7 @@ def main():
             view,
             center,
             os.path.join(OUT, "cloth-avatar-turntable-frames"),
-            frame_count=72,
+            frame_count=TURNTable_FRAMES,
         )
         log("avatar-script-pass")
     finally:
