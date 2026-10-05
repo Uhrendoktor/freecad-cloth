@@ -38,6 +38,7 @@ def main() -> int:
     if (
         "uses: ./.github/actions/freecad-test" not in text
         and "uses: $/.github/actions/freecad-test" not in text
+        and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in text
     ):
         raise SystemExit("canonical workflow must use freecad-test")
     for path in REQUIRED:
@@ -48,7 +49,11 @@ def main() -> int:
         ci_text = ci_file.read_text(encoding="utf-8")
         for match in re.finditer(r"uses:\s+([^\s#]+)", ci_text):
             value = match.group(1)
-            if value.startswith("./") or value.startswith("$/"):
+            if (
+                value.startswith("./")
+                or value.startswith("$/")
+                or value.startswith("Uhrendoktor/freecad-cloth/")
+            ):
                 continue
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
@@ -65,6 +70,7 @@ def main() -> int:
         if (
             "uses: ./.github/actions/freecad-test" not in line
             and "uses: $/.github/actions/freecad-test" not in line
+            and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in line
         ):
             continue
         step = []
