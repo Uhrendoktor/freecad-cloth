@@ -48,7 +48,16 @@ def main() -> int:
                 continue
             if "@" not in value or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value):
                 raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
-    for path in (,        ROOT / ".github/actions/freecad-container/action.yml",,        ROOT / ".github/actions/freecad-test/action.yml",,    ):,        action = path.read_text(encoding="utf-8"),        if "60s" not in action or "timeout-seconds" not in action:,            raise SystemExit(f"60-second runtime contract missing from {path}"),    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8"),    if "default: \"55\"" not in freecad or "maximum 55 seconds" not in freecad:,        raise SystemExit("FreeCAD test action must default to a 55-second maximum")
+    for path in (
+        ROOT / ".github/actions/freecad-container/action.yml",
+        ROOT / ".github/actions/freecad-test/action.yml",
+    ):
+        action = path.read_text(encoding="utf-8")
+        if "60s" not in action or "timeout-seconds" not in action:
+            raise SystemExit(f"60-second runtime contract missing from {path}")
+    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
+    if 'default: "55"' not in freecad or "maximum 55 seconds" not in freecad:
+        raise SystemExit("FreeCAD test action must default to a 55-second maximum")
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 
