@@ -222,12 +222,12 @@ class SkeletonPoseController:
         while self.overlay.getNumChildren():
             self.overlay.removeChild(0)
 
-    def refresh_overlay(self):
+    def refresh_overlay(self, keep_gizmo=False):
         if self.overlay is None or self.view is None:
             return
         self._remove_overlay_children()
         self._add_skeleton_overlay(self._coin())
-        if self.selected_bone:
+        if self.selected_bone and not keep_gizmo:
             self._create_gizmo(self.selected_bone)
 
     def _create_gizmo(self, bone):
@@ -419,7 +419,7 @@ class AvatarPoseTaskPanel:
         selected_layout.addWidget(self.selected_label)
 
         instruction = QtWidgets.QLabel(
-            "Drag the three colored rings in the 3D view. Shift adds a free rotation axis; release to stage the pose."
+            "Drag a colored ring to rotate around one axis, or drag the trackball for free rotation. Release to stage the pose."
         )
         instruction.setWordWrap(True)
         selected_layout.addWidget(instruction)
@@ -470,6 +470,7 @@ class AvatarPoseTaskPanel:
             )
         selected_layout.addWidget(precision_widget)
         self.precision_widget = precision_widget
+        self.precision_widget.setVisible(False)
         self.precision.toggled.connect(self._toggle_precision)
         main.addWidget(selected)
         main.setSizes([340, 270])
@@ -496,6 +497,7 @@ class AvatarPoseTaskPanel:
         root.addLayout(footer)
 
         self._staged_joint_rotations = {}
+        self._staged_pose_preset = "standing"
         self._loading = True
         self._load()
         self._loading = False
@@ -573,6 +575,7 @@ class AvatarPoseTaskPanel:
             joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
         )
         current_preset = str(getattr(self.avatar, "PosePreset", "standing"))
+        self._staged_pose_preset = current_preset
         button = self.preset_buttons.get(current_preset, self.preset_buttons["standing"])
         button.setChecked(True)
         self._select_first_joint()
@@ -766,7 +769,7 @@ class AvatarPoseTaskPanel:
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
             self.avatar.Document.recompute()
-            self.controller.refresh_overlay()
+            self.controller.refresh_overlay(keep_gizmo=bool(self.controller.gizmo is not None and self.controller.gizmo.isActive))
         except (AttributeError, RuntimeError, TypeError, ValueError):
             self.status.setText("Preview unavailable; the staged values remain editable.")
 
