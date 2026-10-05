@@ -133,6 +133,7 @@ def transform_landmarks(landmarks, baseline_transforms, effective_transforms):
         result.append(type(landmark)(landmark.name, tuple(float(v) for v in posed_point)))
     return tuple(result)
 
+
 def build_hierarchical_avatar_mesh(parameters) -> MeshData:
     """Build the avatar using the pinned MakeHuman skeleton and weights.
 
