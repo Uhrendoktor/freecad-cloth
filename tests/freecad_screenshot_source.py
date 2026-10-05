@@ -129,6 +129,25 @@ def save(name, state, proof):
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
+def save_view(name, state, proof):
+    """Capture the active FreeCAD 3D view without task-dock chrome."""
+    document = Gui.activeDocument()
+    view = document.activeView() if document is not None else None
+    if view is None:
+        raise RuntimeError("FreeCAD active 3D view is unavailable for screenshot")
+    events()
+    view.redraw()
+    events()
+    path = os.path.join(OUT, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    view.saveImage(path, 1280, 720, "White")
+    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
+        raise RuntimeError(f"failed or suspiciously small 3D-view screenshot: {path}")
+    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+    with open(MANIFEST, "a", encoding="utf-8") as handle:
+        handle.write(f"{name}\t{state}\t{proof}\n")
+
+
 def load_and_run(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
@@ -266,8 +285,46 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
+def _inside_target_count(points, target, collision_surface=None):
+    """Count cloth vertices that the authoritative mannequin considers interior."""
+    shape = getattr(target, "Shape", None)
+    shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
+    mesh = getattr(target, "Mesh", None)
+    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
+    checker = shape_is_inside if callable(shape_is_inside) else mesh_is_inside
+    if callable(checker):
+        count = 0
+        for point in points:
+            try:
+                if bool(checker(App.Vector(*point), 1e-6, True)):
+                    count += 1
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise RuntimeError("mannequin inside/outside collision test failed") from exc
+        return count
+    if collision_surface is None:
+        raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+
+    vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
+    triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+    if not vertices or not triangles:
+        raise RuntimeError("authoritative collision surface has no inside/outside topology")
+    return sum(
+        1
+        for point in points
+        if point_inside_closed_mesh(tuple(float(value) for value in point), vertices, triangles)
+    )
+
+
 def write_drape_metrics(
-    panels, avatar, center_x=None, shoulder_z=None, hem_z=None, seam_records=(), proxy=None
+    panels,
+    avatar,
+    center_x=None,
+    shoulder_z=None,
+    hem_z=None,
+    seam_records=(),
+    proxy=None,
+    collision_surface=None,
 ):
     from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
     from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
@@ -321,6 +378,14 @@ def write_drape_metrics(
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
+        penetrating_vertices = _inside_target_count(vertices, avatar, collision_surface)
+        record["penetrating_vertices"] = int(penetrating_vertices)
+        if penetrating_vertices:
+            raise RuntimeError(
+                "draped panel {} has {} vertices inside the mannequin collision surface".format(
+                    record["panel"], penetrating_vertices
+                )
+            )
         record["connected_components"] = int(mesh_result.components)
         record["failure_classification"] = summarize_classification(classification)
         record["diagnostics"] = diagnostics
@@ -497,10 +562,14 @@ def pattern_and_sewing():
 def style_mesh(obj, label):
     obj.Label = label
     try:
-        obj.ViewObject.DisplayMode = "Flat Lines"
-        obj.ViewObject.ShapeColor = (0.86, 0.20, 0.10)
-        obj.ViewObject.LineColor = (0.20, 0.02, 0.01)
-        obj.ViewObject.LineWidth = 1.5
+        obj.ViewObject.DisplayMode = "Shaded"
+        obj.ViewObject.ShapeColor = (0.14, 0.32, 0.78)
+        obj.ViewObject.Transparency = 0
+        obj.ViewObject.LineWidth = 1.0
+        if hasattr(obj.ViewObject, "SpecularColor"):
+            obj.ViewObject.SpecularColor = (0.45, 0.45, 0.45)
+        if hasattr(obj.ViewObject, "Shininess"):
+            obj.ViewObject.Shininess = 45.0
     except (AttributeError, TypeError, ValueError):
         pass
 
@@ -739,10 +808,33 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-    for batch in (15, 15, 15, 15, 15, 15):
+    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    task_dock.hide()
+    events()
+    view.setCameraType("Orthographic")
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    save(
+        "cloth-tunic-mannequin-motion-frames/motion-000.png",
+        "mannequin drape step 0",
+        "production tunic before gravity",
+    )
+    for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
         simulation_panel.step(batch)
         doc.recompute()
         events()
+        view.viewAxonometric()
+        view.fitAll()
+        events()
+        save(
+            "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
+            "mannequin drape step %d" % int(scene.Steps),
+            "production tunic gravity progression",
+        )
+    task_dock.show()
+    task_dock.raise_()
+    events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):

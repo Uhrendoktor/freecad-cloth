@@ -23,7 +23,11 @@ if ROOT not in sys.path:
 
 import contextlib
 
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+from freecad_cloth.common.DrapeVisualSanity import (
+    inspect_drape,
+    maximum_box_penetration,
+    mesh_shape_sanity,
+)
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
@@ -551,6 +555,20 @@ def main():
         if panel.Mesh.CountFacets <= 50:
             raise RuntimeError("blanket drape mesh is too small")
         final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+        max_penetration = maximum_box_penetration(
+            final_positions,
+            (
+                float(cube.Shape.BoundBox.XMin),
+                float(cube.Shape.BoundBox.XMax),
+                float(cube.Shape.BoundBox.YMin),
+                float(cube.Shape.BoundBox.YMax),
+                float(cube.Shape.BoundBox.ZMin),
+                float(cube.Shape.BoundBox.ZMax),
+            ),
+        )
+        log(f"collision-penetration=passed max_penetration_mm={max_penetration:.3f}")
+        if max_penetration > 3.0:
+            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
         log(
             "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
             % (

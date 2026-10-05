@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_cube_ladder_contract_is_diagnostic_only_and_frozen():
+def test_cube_ladder_contract_is_gate_and_frozen():
     source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
@@ -19,8 +19,8 @@ def test_cube_ladder_contract_is_diagnostic_only_and_frozen():
         assert case_id in source
 
     assert "CHECKPOINTS = (0, 1, 5, 15, 45, 90)" in source
-    assert '"diagnostic-only-cube-complexity-ladder"' in source
-    assert '"release_gate_effect": "none"' in source
+    assert '"simulation-collision-ladder"' in source
+    assert '"release_gate_effect": "gate"' in source
     assert "seam_stitch_pairs" in source
     assert "seam_world_spans_mm" in source
     assert "first_failing_rung" in source

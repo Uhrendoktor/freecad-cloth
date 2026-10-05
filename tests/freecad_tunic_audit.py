@@ -88,10 +88,33 @@ preview_probe = """    from freecad_cloth.simulation import RealtimePreview
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
     log("realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps)
 """
-anchor = """    for batch in (15, 15, 15, 15, 15, 15):
+anchor = """    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    task_dock.hide()
+    events()
+    view.setCameraType("Orthographic")
+    view.viewAxonometric()
+    view.fitAll()
+    events()
+    save(
+        "cloth-tunic-mannequin-motion-frames/motion-000.png",
+        "mannequin drape step 0",
+        "production tunic before gravity",
+    )
+    for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
         simulation_panel.step(batch)
         doc.recompute()
         events()
+        view.viewAxonometric()
+        view.fitAll()
+        events()
+        save(
+            "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
+            "mannequin drape step %d" % int(scene.Steps),
+            "production tunic gravity progression",
+        )
+    task_dock.show()
+    task_dock.raise_()
+    events()
 """
 if anchor not in source:
     raise RuntimeError("simulation batch anchor missing")
@@ -104,10 +127,16 @@ timed_anchor = """    from time import perf_counter
         str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
-    for batch in (15,15,15,15,15,15):
+    task_dock.hide(); events()
+    view.setCameraType("Orthographic"); view.viewAxonometric(); view.fitAll(); events()
+    save_view("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    for frame_index, batch in enumerate((10,10,10,10,10,10,10,10,10), start=1):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
-        log("tunic-simulation-batch steps=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        view.viewAxonometric(); view.fitAll(); events()
+        save_view("cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index, "mannequin drape step %d" % int(scene.Steps), "production tunic gravity progression")
+        log("tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (frame_index, int(scene.Steps), batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+    task_dock.show(); task_dock.raise_(); events()
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 """
 source = source.replace(anchor, preview_probe + "\n" + timed_anchor, 1)
@@ -141,7 +170,7 @@ source = source.replace(
     "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    )\n    bounds = []",
     seam_check
     + "\n"
-    + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n    ); bounds = []",
+    + "    write_drape_metrics(\n        panels,\n        avatar,\n        x_mid,\n        shoulder_z=shoulder_z,\n        hem_z=hem_z,\n        seam_records=seam_records,\n        proxy=proxy,\n        collision_surface=target_surface,\n    ); bounds = []",
     1,
 )
 

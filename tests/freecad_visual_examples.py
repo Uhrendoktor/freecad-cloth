@@ -251,7 +251,7 @@ def render_motion(
 
 
 def _load_cloth_modules():
-    global inspect_drape, mesh_shape_sanity
+    global inspect_drape, maximum_box_penetration, mesh_shape_sanity
     global validate_mesh, rectangle, quality_piece_mesh
     global create_pattern_piece_from_selected_sketch
     global create_simulation_scene, set_avatar_collision_source
@@ -259,7 +259,11 @@ def _load_cloth_modules():
 
     site.addsitedir(str(ROOT))
 
-    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, mesh_shape_sanity
+    from freecad_cloth.common.DrapeVisualSanity import (
+        inspect_drape,
+        maximum_box_penetration,
+        mesh_shape_sanity,
+    )
     from freecad_cloth.common.MeshValidation import validate_mesh
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
@@ -493,6 +497,20 @@ def main():
         final_drape = inspect_drape(vertices, avatar_points, target_height=60.0, target_width=180.0)
         final_min_z = min(float(vertex[2]) for vertex in vertices)
         final_clearance = final_min_z - cube_top_z
+        max_penetration = maximum_box_penetration(
+            vertices,
+            (
+                float(cube.Shape.BoundBox.XMin),
+                float(cube.Shape.BoundBox.XMax),
+                float(cube.Shape.BoundBox.YMin),
+                float(cube.Shape.BoundBox.YMax),
+                float(cube.Shape.BoundBox.ZMin),
+                float(cube.Shape.BoundBox.ZMax),
+            ),
+        )
+        log(f"collision=passed max_penetration_mm={max_penetration:.3f}")
+        if max_penetration > 3.0:
+            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
         log(
             f"drape-terminal state={final_drape.state} clearance_mm={final_clearance:.2f} cube_top_z={cube_top_z:.2f} cloth_min_z={final_min_z:.2f}"
         )

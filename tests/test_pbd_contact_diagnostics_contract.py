@@ -59,7 +59,8 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
-    assert "def _point_inside_mesh(point, vertices, triangles):" in SOURCE
+    assert "point_inside_closed_mesh" in SOURCE
+    assert "from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh" in SOURCE
     assert "def _shutdown_gui():" in SOURCE
     assert "app.quit()" in SOURCE
     assert "App.exit()" not in SOURCE
@@ -67,7 +68,8 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
     assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
+        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py"
+        in WORKFLOW
     )
     assert "ArrangementPoint.from_string" in SOURCE
     assert "state = _inside_outside(" in SOURCE
@@ -122,10 +124,21 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "file=sys.stderr" not in source
     assert '_boot("script-start")' in source
     assert "_freecad_entrypoint_name = Path(__file__).stem" in source
-    assert "_freecad_entrypoint_name = Path(__file__).stem" in source
     assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
     assert "def _schedule_freecad_main():" in source
     assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in source
     assert '_boot("freecad-hosted-entrypoint")' in source
     assert "__name__ == _freecad_entrypoint_name" in source
     assert '_boot("direct-entrypoint")' in source
+
+
+def test_progressive_collision_ladder_is_a_normal_gate():
+    assert "simulation-ladder:" in WORKFLOW
+    block = WORKFLOW.split("  simulation-ladder:", 1)[1].split("  gui-sewing-creation:", 1)[0]
+    assert "if: ${{ github.event_name != 'schedule' }}" in block
+    assert "CLOTH_PBD_SUBSTEPS: 8" in block
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in block
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in block
+    assert "max_penetration_mm" in block
+    assert "simulation-collision-ladder=passed" in block
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in block

@@ -2,7 +2,7 @@
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 cube ladder manifest.
 
-This module is diagnostic-only. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
+This module is a progressive simulation gate. It reuses the existing PositionBasedDynamics/FreeCAD runtime and
 frozen solver settings; it does not participate in release acceptance.
 """
 
@@ -155,6 +155,9 @@ def _checkpoint_record(
         ),
         "target_clearance_mm": signed_clearance,
         "target_unsigned_clearance_mm": unsigned_clearance,
+        "penetration_mm": (
+            round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None
+        ),
         "contact_state": "diagnostic-only-cube",
         "seam_world_spans_mm": seam_geometry,
     }
@@ -363,6 +366,14 @@ def _run_ladder_case(case_id):
 
         final = checkpoints[-1]
         finite = all(item["finite"] for item in checkpoints)
+        max_penetration = max(
+            (
+                float(item["penetration_mm"])
+                for item in checkpoints
+                if item["penetration_mm"] is not None
+            ),
+            default=0.0,
+        )
         seam_world_spans = [entry for entry in seam_pre]
         record = {
             "case_id": case_id,
@@ -417,6 +428,7 @@ def _run_ladder_case(case_id):
             "connected_components": int(final["components"]),
             "max_seam_gap_mm": float(final["max_seam_gap_mm"]),
             "final_clearance_mm": final["target_clearance_mm"],
+            "max_penetration_mm": round(max_penetration, 6),
             "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
             "first_contact_step": next(
                 (
@@ -437,7 +449,7 @@ def _run_ladder_case(case_id):
             },
             "images": [images[step] for step in CHECKPOINTS],
             "notes": (
-                "diagnostic-only cube ladder; fixed PositionBasedDynamics backend; "
+                "progressive cube simulation ladder; fixed PositionBasedDynamics backend; "
                 "solver/collision budgets unchanged; release gate unaffected"
             ),
         }
@@ -513,8 +525,8 @@ def main():
         records.append(_run_ladder_case(case_id))
     manifest = {
         "schema": 1,
-        "purpose": "diagnostic-only-cube-complexity-ladder",
-        "release_gate_effect": "none",
+        "purpose": "simulation-collision-ladder",
+        "release_gate_effect": "gate",
         "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
         "solver_settings_frozen": {
             "backend_requested": "pbd",

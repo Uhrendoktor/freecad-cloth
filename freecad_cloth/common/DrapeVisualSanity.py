@@ -10,6 +10,31 @@ from statistics import median
 Point3 = tuple[float, float, float]
 
 
+def maximum_box_penetration(
+    points: Sequence[Point3],
+    bounds: tuple[float, float, float, float, float, float],
+) -> float:
+    """Return the deepest point inside an axis-aligned target box."""
+    xmin, xmax, ymin, ymax, zmin, zmax = (float(value) for value in bounds)
+    return max(
+        (
+            min(
+                float(point[0]) - xmin,
+                xmax - float(point[0]),
+                float(point[1]) - ymin,
+                ymax - float(point[1]),
+                float(point[2]) - zmin,
+                zmax - float(point[2]),
+            )
+            for point in points
+            if xmin < float(point[0]) < xmax
+            and ymin < float(point[1]) < ymax
+            and zmin < float(point[2]) < zmax
+        ),
+        default=0.0,
+    )
+
+
 @dataclass(frozen=True)
 class DrapeVisualMetrics:
     """Public data model or service class for DrapeVisualMetrics."""
@@ -54,6 +79,51 @@ def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) 
             if d2 < best:
                 best = d2
     return sqrt(best) if isfinite(best) else None
+
+
+def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
+    """Return whether a point is inside a closed triangle mesh by ray parity."""
+    ray = (1.0, 0.3713906763541037, 0.1932424973120743)
+    origin = (float(point[0]), float(point[1]), float(point[2]))
+    hits = 0
+    epsilon = 1e-9
+
+    def cross(left, right):
+        return (
+            left[1] * right[2] - left[2] * right[1],
+            left[2] * right[0] - left[0] * right[2],
+            left[0] * right[1] - left[1] * right[0],
+        )
+
+    def dot(left, right):
+        return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        ia, ib, ic = (int(index) for index in triangle)
+        if any(index < 0 or index >= len(vertices) for index in (ia, ib, ic)):
+            continue
+        a, b, c = vertices[ia], vertices[ib], vertices[ic]
+        edge_one = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        edge_two = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+        pvec = cross(ray, edge_two)
+        determinant = dot(edge_one, pvec)
+        if abs(determinant) <= epsilon:
+            continue
+        inv_det = 1.0 / determinant
+        tvec = (origin[0] - a[0], origin[1] - a[1], origin[2] - a[2])
+        u = dot(tvec, pvec) * inv_det
+        if u < -epsilon or u > 1.0 + epsilon:
+            continue
+        qvec = cross(tvec, edge_one)
+        v = dot(ray, qvec) * inv_det
+        if v < -epsilon or u + v > 1.0 + epsilon:
+            continue
+        distance = dot(edge_two, qvec) * inv_det
+        if distance > epsilon:
+            hits += 1
+    return bool(hits % 2)
 
 
 def seam_correspondence_gap(

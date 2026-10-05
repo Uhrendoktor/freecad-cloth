@@ -26,33 +26,86 @@ Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube
 
 Agent-specific instructions live in [AGENTS.md](AGENTS.md). It is intentionally separate from the human README and is a current, task-scoped contract. For live repository state, use `AGENT_STATUS.md` and `TOOL_STATE.md`; do not infer current state from old issue/PR history or release-closeout prose.
 
-## Screenshots and simulation media
+## Human visual validation
 
-The published FreeCAD/Xvfb media is evidence from specific validated runs. It is useful as a reproducible example of the workflow, but it is not a claim that the current `main` diagnostic state is green. Current simulation investigations are tracked in the canonical simulation recovery ledger and must be judged from exact-head evidence.
+The README follows the same review order as the canonical simulation checks. Review the rendered media before reading logs or numerical diagnostics.
 
-### Pattern design
+| Stage | Human visual check | Evidence |
+| --- | --- | --- |
+| Pattern | Native Sketcher geometry is clean, editable, and adopted as the cloth source. | Pattern screenshot |
+| Sewing | Seam identity, direction, markers, and correspondence are unambiguous. | Sewing screenshot |
+| Cube collision | Cloth falls onto the rigid target without visible clipping through it. | Blanket animation |
+| Mannequin contact | Cloth stays outside the body and follows the torso with believable folds. | Mannequin animation |
+| Final garment | Front/back panels remain coherent after sewing and draping. | Arranged + draped turntables |
+| Diagnostics | Final state is inspectable from every side and with stress visualization. | Six views + stress map |
 
-The Pattern workbench is documented in [Examples](docs/EXAMPLES.md) and covered by the native-Sketcher and production-export acceptance jobs.
+### 1. Pattern source
 
-### Sewing
+![Native Sketcher pattern](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png)
 
-The Sewing workbench is documented in [Examples](docs/EXAMPLES.md) and covered by staged creation, correspondence, validation, persistence, and world-space seam checks.
+### 2. Sewing
 
-### Basic example — blanket over cube
+![Sewing workbench](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
 
-![Blanket over cube motion](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
+### 3. Basic collision — blanket over cube
 
-### Advanced example — tunic (historical published evidence)
+![Blanket collision and drape](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
 
-![Advanced tunic validation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png)
+The key contact check is the absence of visible cloth penetration into the cube. The simulation ladder applies the same rule to progressively harder cases.
 
-### Simulation — arranged and draped 360° turntables
+### 4. Mannequin collision — sewn tunic animation
 
-![Arranged cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+![Sewn tunic draping over mannequin](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-tunic-mannequin-motion.gif)
 
-![Draped cloth turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+Inspect shoulder and side contact, body clearance, hem behavior, seam continuity, and the way folds develop from the initial state to the settled state.
 
-### Avatar — 360° turntable
+### 5. Final simulation — arranged and draped 360°
+
+![Arranged garment turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+
+![Draped garment turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+
+### 6. Six-side and diagnostic review
+
+<details>
+<summary>Final mannequin views</summary>
+
+| Front | Rear | Left | Right | Top | Bottom |
+| --- | --- | --- | --- | --- | --- |
+| ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-rear.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-left.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-right.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-top.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-bottom.png) |
+
+</details>
+
+![Stress diagnostic map](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-diagnostics.png)
+
+### Simulation ladder
+
+The collision ladder increases complexity in controlled steps and stops at the first failing rung. It is a normal simulation gate, not an after-the-fact debugging exercise.
+
+| Rung | Scenario | Visual purpose |
+| ---: | --- | --- |
+| 1 | One panel on cube, pinned | Establish basic motion and contact. |
+| 2 | One panel on cube, unpinned | Verify unconstrained cube contact. |
+| 3 | Two panels on cube, no seam | Isolate multi-piece collision. |
+| 4 | Two panels on cube, small seam | Introduce mild sewing interaction. |
+| 5 | Two panels on cube, large seam | Stress seam/contact coupling. |
+| 6 | One panel on mannequin, pinned | Establish body collision. |
+| 7 | One panel on mannequin, unpinned | Verify unconstrained body contact. |
+| 8 | Two panels on mannequin, no seam | Isolate multi-piece body collision. |
+| 9 | Two panels on mannequin, small seam | Introduce garment assembly. |
+| 10 | Two panels on mannequin, large seam | Stress final seam/contact coupling. |
+
+Each rung captures steps 0, 1, 5, 15, 45, and 90. Human review should stop at the first visually or numerically failing rung rather than averaging failures across later stages.
+
+Human visual review checks:
+
+- no visible penetration through the cube or mannequin;
+- no exploding, collapsed, detached, or self-inverted cloth;
+- authored pins and seams behave as expected;
+- motion progresses smoothly without sudden topology changes;
+- the settled silhouette and folds read as fabric rather than a rigid sheet.
+
+### Avatar — 360° reference turntable
 
 ![Cloth Avatar 360° turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif)
 

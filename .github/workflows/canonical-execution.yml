@@ -441,8 +441,8 @@ jobs:
           root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "cube-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
-          assert data["purpose"] == "diagnostic-only-cube-complexity-ladder", data
-          assert data["release_gate_effect"] == "none", data
+          assert data["purpose"] == "simulation-collision-ladder", data
+          assert data["release_gate_effect"] == "gate", data
           assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
           assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
           assert len(data["cases"]) == 5, data
@@ -508,8 +508,8 @@ jobs:
           root = Path("artifacts/pbd-contact-diagnostics")
           data = json.loads((root / "avatar-ladder-manifest.json").read_text(encoding="utf-8"))
           assert data["schema"] == 1, data
-          assert data["purpose"] == "diagnostic-only-avatar-complexity-ladder", data
-          assert data["release_gate_effect"] == "none", data
+          assert data["purpose"] == "simulation-avatar-ladder", data
+          assert data["release_gate_effect"] == "gate", data
           assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
           assert data["checkpoint_steps"] == [0, 1, 5, 15, 45, 90], data
           assert len(data["cases"]) == 5, data
@@ -599,6 +599,126 @@ jobs:
             artifacts/pbd-contact-diagnostics/**
             artifacts/pypbd-provenance.txt
           if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1
+  simulation-ladder:
+    name: Simulation collision ladder
+    needs: [local_runner_readiness, pbd_validation_image]
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+      CLOTH_PBD_SUBSTEPS: 8
+      CLOTH_PBD_COLLISION_MODE: mesh
+      CLOTH_PBD_COLLISION_TRIANGLES: 2048
+      CLOTH_PBD_COLLISION_VOXEL_MM: 8
+      CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
+      CLOTH_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull pinned PositionBasedDynamics validation image
+        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Run cube collision ladder
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/simulation-ladder
+          mkdir -p artifacts/simulation-ladder
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" -e CLOTH_PBD_COLLISION_VOXEL_MM="$CLOTH_PBD_COLLISION_VOXEL_MM" \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM="$CLOTH_PBD_COLLISION_TOLERANCE_MM" -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/simulation-ladder
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_pbd_cube_ladder.py 2>&1 | tee /workspace/artifacts/simulation-ladder/cube-ladder-run.log
+            '
+      - name: Run mannequin collision ladder
+        run: |
+          set -euo pipefail
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" -e CLOTH_PBD_COLLISION_VOXEL_MM="$CLOTH_PBD_COLLISION_VOXEL_MM" \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM="$CLOTH_PBD_COLLISION_TOLERANCE_MM" -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
+            -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/simulation-ladder
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=10s 600s /opt/freecad/AppRun /workspace/tests/freecad_pbd_avatar_ladder.py 2>&1 | tee /workspace/artifacts/simulation-ladder/avatar-ladder-run.log
+            '
+      - name: Validate simulation ladder
+        run: |
+          set -euo pipefail
+          test -s artifacts/simulation-ladder/cube-ladder-manifest.json
+          test -s artifacts/simulation-ladder/avatar-ladder-manifest.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path("artifacts/simulation-ladder")
+          specs = (
+              ("cube", root / "cube-ladder-manifest.json", 5, 3.0, "simulation-collision-ladder"),
+              ("avatar", root / "avatar-ladder-manifest.json", 5, 8.0, "simulation-avatar-ladder"),
+          )
+          for name, path, count, max_penetration, purpose in specs:
+              data = json.loads(path.read_text(encoding="utf-8"))
+              assert data["schema"] == 1, data
+              assert data["purpose"] == purpose, data
+              assert data["source_head_sha"] == os.environ["CLOTH_HEAD_SHA"], data
+              assert data["release_gate_effect"] == "gate", data
+              assert len(data["cases"]) == count, data
+              for case in data["cases"]:
+                  assert case["finite"], case
+                  assert case["solver"]["backend"] == "pbd", case
+                  assert len(case["checkpoints"]) == 6, case
+                  assert case["max_penetration_mm"] <= max_penetration + 1e-6, (name, case["case"]["id"], case["max_penetration_mm"], max_penetration)
+                  for image in case["images"]:
+                      assert (root / image).is_file(), image
+              assert data["structural_validation"]["first_failing_rung"] is None, data
+              print(f"{name}-collision-ladder=passed max_penetration_mm<={max_penetration}")
+          print("simulation-collision-ladder=passed")
+          PY
+      - name: Upload simulation ladder evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulation-collision-ladder
+          path: artifacts/simulation-ladder/**
+          if-no-files-found: error
           retention-days: 14
           compression-level: 1
   gui-sewing-creation:
@@ -895,9 +1015,11 @@ jobs:
       - name: Run native-Sketcher tunic audit
         env:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
-          CLOTH_PBD_SUBSTEPS: 1
+          CLOTH_PBD_SUBSTEPS: 8
           CLOTH_PBD_COLLISION_MODE: mesh
           CLOTH_PBD_COLLISION_TRIANGLES: 2048
+          CLOTH_PBD_COLLISION_VOXEL_MM: 8
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/tunic-audit
@@ -909,6 +1031,8 @@ jobs:
             -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" \
             -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
             -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" \
+            -e CLOTH_PBD_COLLISION_VOXEL_MM="$CLOTH_PBD_COLLISION_VOXEL_MM" \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM="$CLOTH_PBD_COLLISION_TOLERANCE_MM" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -u -o pipefail
@@ -1037,6 +1161,9 @@ jobs:
           test -s docs/images/generated/cloth-simulation-draped-top.png
           test -s docs/images/generated/cloth-simulation-draped-bottom.png
           test -s docs/images/generated/cloth-simulation-draped-diagnostics.png
+          test -s docs/images/generated/cloth-pattern-design.png
+          test -s docs/images/generated/cloth-sewing.png
+          test "$(find docs/images/generated/cloth-tunic-mannequin-motion-frames -maxdepth 1 -name 'motion-*.png' | wc -l)" -eq 10
           grep -q 'diagnostic-map=passed metric=stress' docs/images/generated/gui-progress.log
           grep -q 'diagnostic-stale-guard=passed' docs/images/generated/gui-progress.log
           test -s artifacts/garment-e2e.log
@@ -1063,7 +1190,10 @@ jobs:
         with:
           name: tunic-visual-audit
           path: |
+            docs/images/generated/cloth-pattern-design.png
+            docs/images/generated/cloth-sewing.png
             docs/images/generated/cloth-simulation-draped*.png
+            docs/images/generated/cloth-tunic-mannequin-motion-frames/*.png
             docs/images/generated/drape-visual-metrics.json
             docs/images/generated/gui-progress.log
             docs/images/generated/gui-screenshot-manifest.txt
@@ -1194,6 +1324,9 @@ jobs:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
           CLOTH_PBD_SUBSTEPS: 10
           CLOTH_PBD_COLLISION_MODE: mesh
+          CLOTH_PBD_COLLISION_TRIANGLES: 2048
+          CLOTH_PBD_COLLISION_VOXEL_MM: 8
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
           CLOTH_BLANKET_STEPS: 180
         run: |
           set -euo pipefail
@@ -1204,6 +1337,8 @@ jobs:
             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
             -e LIBGL_ALWAYS_SOFTWARE=1 -e CLOTH_SIMULATION_BACKEND="$CLOTH_SIMULATION_BACKEND" -e CLOTH_CI_ENABLE_PBD=1 \
             -e CLOTH_PBD_SUBSTEPS="$CLOTH_PBD_SUBSTEPS" -e CLOTH_PBD_COLLISION_MODE="$CLOTH_PBD_COLLISION_MODE" \
+            -e CLOTH_PBD_COLLISION_TRIANGLES="$CLOTH_PBD_COLLISION_TRIANGLES" -e CLOTH_PBD_COLLISION_VOXEL_MM="$CLOTH_PBD_COLLISION_VOXEL_MM" \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM="$CLOTH_PBD_COLLISION_TOLERANCE_MM" \
             -e CLOTH_BLANKET_STEPS="$CLOTH_BLANKET_STEPS" \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
@@ -1261,6 +1396,9 @@ jobs:
           if minimum_z > cube_top + 35.0: raise SystemExit("blanket did not approach cube")
           if "blanket-turntable-pass" not in log: raise SystemExit("blanket turntable incomplete")
           if "mesh-quality=passed" not in log: raise SystemExit("blanket mesh-quality evidence missing")
+          penetration = re.findall(r"collision-penetration=passed max_penetration_mm=([+-]?[0-9.]+)", log)
+          if not penetration: raise SystemExit("missing blanket collision penetration diagnostic")
+          if float(penetration[-1]) > 3.0: raise SystemExit("blanket collision penetration exceeds 3 mm")
           for directory in ("cloth-avatar-turntable-frames","cloth-simulation-arranged-turntable-frames","cloth-simulation-draped-turntable-frames"):
             hashes=[]
             frames=sorted((Path("docs/images/generated")/directory).glob("frame-*.png"))
@@ -1371,6 +1509,9 @@ jobs:
             -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1 \
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -e CLOTH_SIMULATION_BACKEND=position-based-dynamics -e CLOTH_CI_ENABLE_PBD=1 \
+            -e CLOTH_PBD_SUBSTEPS=8 -e CLOTH_PBD_COLLISION_MODE=mesh \
+            -e CLOTH_PBD_COLLISION_TRIANGLES=2048 -e CLOTH_PBD_COLLISION_VOXEL_MM=8 \
+            -e CLOTH_PBD_COLLISION_TOLERANCE_MM=2 \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
               python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
@@ -1468,6 +1609,23 @@ jobs:
         with:
           name: tunic-visual-audit
           path: tunic
+      - name: Build mannequin drape GIF
+        run: |
+          set -euo pipefail
+          if command -v magick >/dev/null 2>&1; then IM=(magick)
+          elif command -v convert >/dev/null 2>&1; then IM=(convert)
+          else
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            IM=(convert)
+          fi
+          "${IM[@]}" -delay 10 -loop 0 \
+            tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames/motion-*.png \
+            -colors 128 tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif
+          test -s tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif
+          identify -format '%n\n' tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif | head -n 1 | grep -qx '10'
+          frame_delays="$(identify -format '%T\n' tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif | sort -u)"
+          test "$frame_delays" = "10"
       - name: Update stable README asset branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1488,14 +1646,32 @@ jobs:
           cp ../turntables/cloth-simulation-arranged-turntable.gif docs/images/generated/
           cp ../turntables/cloth-simulation-draped-turntable.gif docs/images/generated/
           cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
+          cp ../tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif docs/images/generated/cloth-tunic-mannequin-motion.gif
+          cp ../tunic/docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-pattern-design.png
+          cp ../tunic/docs/images/generated/cloth-sewing.png docs/images/generated/cloth-sewing.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-rear.png docs/images/generated/cloth-simulation-draped-rear.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-left.png docs/images/generated/cloth-simulation-draped-left.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-right.png docs/images/generated/cloth-simulation-draped-right.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-top.png docs/images/generated/cloth-simulation-draped-top.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-bottom.png docs/images/generated/cloth-simulation-draped-bottom.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-diagnostics.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
             docs/images/generated/cloth-simulation-arranged-turntable.gif \
             docs/images/generated/cloth-simulation-draped-turntable.gif \
             docs/images/generated/cloth-blanket-motion.gif \
-            docs/images/generated/cloth-simulation-draped-front.png
+            docs/images/generated/cloth-tunic-mannequin-motion.gif \
+            docs/images/generated/cloth-pattern-design.png \
+            docs/images/generated/cloth-sewing.png \
+            docs/images/generated/cloth-simulation-draped-front.png \
+            docs/images/generated/cloth-simulation-draped-rear.png \
+            docs/images/generated/cloth-simulation-draped-left.png \
+            docs/images/generated/cloth-simulation-draped-right.png \
+            docs/images/generated/cloth-simulation-draped-top.png \
+            docs/images/generated/cloth-simulation-draped-bottom.png \
+            docs/images/generated/cloth-simulation-diagnostics.png
           if git diff --cached --quiet; then
             echo "README turntables are already current."
             exit 0

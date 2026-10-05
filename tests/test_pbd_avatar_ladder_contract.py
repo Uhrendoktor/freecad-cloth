@@ -18,8 +18,8 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
         assert case_id in SOURCE
 
     assert "CHECKPOINTS = (0, 1, 5, 15, 45, 90)" in SOURCE
-    assert '"diagnostic-only-avatar-complexity-ladder"' in SOURCE
-    assert '"release_gate_effect": "none"' in SOURCE
+    assert '"simulation-avatar-ladder"' in SOURCE
+    assert '"release_gate_effect": "gate"' in SOURCE
     assert '"target": "avatar"' in SOURCE
     assert '"AvatarType", ""' in SOURCE
     assert '"ClothAvatar"' in SOURCE
