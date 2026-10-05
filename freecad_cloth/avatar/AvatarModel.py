@@ -7,6 +7,13 @@ real MakeHuman HM08 human base mesh and a deterministic measurement/pose fit.
 import json
 from dataclasses import dataclass, field
 
+from freecad_cloth.avatar.SkeletonPose import (
+    JointRotation,
+    joint_rotations_from_json,
+    joint_rotations_to_json,
+    normalize_joint_rotations,
+)
+
 DEFAULT_MEASUREMENTS = {
     "height": 1750.0,
     "neck": 380.0,
