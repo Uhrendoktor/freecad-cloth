@@ -32,3 +32,10 @@ def test_quality_panel_accept_commits_new_panel_baseline():
     accept = GUI.split("def accept(self):", 1)[1].split("def reject(self):", 1)[0]
     assert "self._parameters_changed()" in accept
     assert "self._capture_snapshot()" in accept
+
+
+def test_quality_panel_hides_precision_controls_by_default():
+    assert 'self.advanced_toggle = QtWidgets.QToolButton()' in GUI
+    assert 'self.advanced_toggle.setChecked(False)' in GUI
+    assert 'self._set_expert_visibility(False)' in GUI
+    assert 'Normal fitting uses presets.' in GUI
