@@ -15,6 +15,10 @@ inputs:
     description: Checkout the canonical PR head or workflow SHA before running. Disable for subsequent tests in the same job.
     required: false
     default: "true"
+  pre-command:
+    description: Optional repository command to run after checkout and before FreeCAD.
+    required: false
+    default: ""
   stage-workbench:
     description: Stage workbench files for FreeCAD module discovery.
     required: false
@@ -56,6 +60,11 @@ runs:
       with:
         ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         persist-credentials: false
+
+    - name: Run preflight
+      if: inputs.pre-command != ''
+      shell: bash
+      run: timeout --signal=TERM --kill-after=5s 60s bash -lc '${{ inputs.pre-command }}'
 
     - name: Run bounded FreeCAD test
       uses: ./.github/actions/freecad-container
