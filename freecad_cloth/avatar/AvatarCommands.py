@@ -156,6 +156,17 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
     arrangement_records = arrangement_points_from_landmarks(landmark_records)
 
     obj.Mesh = native_mesh
+    for name, property_name in PROPERTY_MAP.items():
+        setattr(obj, property_name, params.measurements[name])
+    obj.PosePreset = params.pose.preset
+    obj.SkinOffset = params.skin_offset
+    for name, value in (
+        ("left_arm_angle", params.pose.left_arm_angle),
+        ("right_arm_angle", params.pose.right_arm_angle),
+        ("left_elbow_angle", params.pose.left_elbow_angle),
+        ("right_elbow_angle", params.pose.right_elbow_angle),
+    ):
+        setattr(obj, POSE_PROPERTY_MAP[name], value)
     _set_prop(obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_json)
     obj.JointPoseJSON = joint_json
     obj.ParametersJSON = parameters_json
@@ -184,6 +195,7 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
         target.TargetStatus = status["state"]
         target.InvalidationReason = status["reason"]
     return obj
+
 
 def _ensure_collision(obj):
     """Maintain the legacy collision proxy as a derived display adapter only."""
