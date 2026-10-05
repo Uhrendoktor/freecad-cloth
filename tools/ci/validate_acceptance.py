@@ -63,6 +63,7 @@ CASES = {
 
 
 def main() -> int:
+    """Validate the recorded acceptance evidence and release markers."""
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted(CASES))
     args = parser.parse_args()
