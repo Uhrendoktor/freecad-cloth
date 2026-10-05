@@ -1,136 +1,463 @@
 # FreeCAD Cloth
 
-Open-source FreeCAD workbenches for parametric sewing-pattern design and 3D cloth draping/simulation.
+<p align="center">
+  <a href="https://github.com/Uhrendoktor/freecad-cloth/actions/workflows/canonical-execution.yml">
+    <img src="https://github.com/Uhrendoktor/freecad-cloth/actions/workflows/canonical-execution.yml/badge.svg?branch=main" alt="Canonical execution">
+  </a>
+  <img src="https://img.shields.io/badge/FreeCAD-1.1%2B-4a4a4a?logo=freecad" alt="FreeCAD 1.1+">
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776ab?logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/License-LGPL--2.1%2B-2f2f2f" alt="LGPL 2.1 or later">
+</p>
 
-- **Cloth Pattern** — parametric 2D pattern pieces, seam allowances, notches, grainlines and sewing metadata.
-- **Cloth Sewing** — semantic seam operations, correspondence, fitting-scene preparation and validation.
-- **Cloth Simulation** — meshing, target selection, body collision and cloth simulation.
+<p align="center">
+  <strong>Native 2D pattern authoring → semantic sewing → direct 3D fitting → mannequin posing → cloth draping → visual diagnosis</strong>
+</p>
 
-## Python runtime
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Finished sewn tunic draped over the native FreeCAD mannequin" width="900">
+</p>
 
-The project targets **Python 3.12 or newer**. This is the supported development, packaging, test, and canonical FreeCAD CI baseline. PositionBasedDynamics is an optional installation extra for the simulation workbench, and it is the sole runtime physics solver. PositionBasedDynamics's current upstream repository requires Python >=3.12.
+FreeCAD Cloth is an open-source set of native FreeCAD workbenches for parametric sewing-pattern design, garment assembly, 3D fitting, mannequin posing, cloth simulation and visual inspection.
 
-For local FreeCAD development, use a FreeCAD build whose embedded Python runtime is 3.12 or newer. The canonical CI image uses FreeCAD 1.1.0 from conda-forge with Python 3.12; the upstream FreeCAD 1.1.3 AppImage still embeds Python 3.11, so it is not the supported PositionBasedDynamics-capable CI runtime.
+The project is designed around a single saved FreeCAD document as the persistence authority. Native Sketcher owns editable 2D geometry; Cloth owns garment semantics; DrapeTarget owns target selection and collision authority; the physics backend consumes derived simulation inputs.
 
-## Workflow
+---
 
-`Pattern → Sewing → Arrange/Fit → Simulate → Diagnose → Output`
+## What the project looks like
 
-FreeCAD/Sketcher owns editable geometry and document persistence; Cloth owns garment semantics; the solver owns physics. Simulation meshes and collision data are derived and rebuildable. A native human mannequin and generic FreeCAD Shape/PartDesign/Body/Mesh are interchangeable providers of the same target-neutral `DrapeTarget` contract.
+The README is organized as a visual walkthrough rather than a feature dump. The images below show the same garment workflow from source geometry through final drape.
 
-## Installation and examples
-
-Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic acceptance path. The [Release gates](docs/RELEASE_GATES.md) define what “complete” means for this repository and explicitly separate implemented behavior from the commercial-feature roadmap.
-
-## Agent orientation
-
-Agent-specific instructions live in [AGENTS.md](AGENTS.md). It is intentionally separate from the human README and is a current, task-scoped contract. For live repository state, use `AGENT_STATUS.md` and `TOOL_STATE.md`; do not infer current state from old issue/PR history or release-closeout prose.
-
-## Human visual validation
-
-The README follows the same review order as the canonical simulation checks. Review the rendered media before reading logs or numerical diagnostics.
-
-| Stage | Human visual check | Evidence |
+| Stage | Workbench / mode | What you see |
 | --- | --- | --- |
-| Pattern | Native Sketcher geometry is clean, editable, and adopted as the cloth source. | Pattern screenshot |
-| Sewing | Seam identity, direction, markers, and correspondence are unambiguous. | Sewing screenshot |
-| Cube collision | Cloth falls onto the rigid target without visible clipping through it. | Blanket animation |
-| Mannequin contact | Cloth stays outside the body and follows the torso with believable folds. | Mannequin animation |
-| Final garment | Front/back panels remain coherent after sewing and draping. | Arranged + draped turntables |
-| Diagnostics | Final state is inspectable from every side and with stress visualization. | Six views + stress map |
+| **01 · Pattern** | **Cloth Pattern** | Native Sketcher geometry, piece metadata, seam allowance, grainline and construction marks |
+| **02 · Sewing** | **Cloth Sewing** | Semantic seams, direction/correspondence, validation state and 2D/3D relationship |
+| **03 · Arrange** | **Interactive Arrange** | Pattern pieces positioned directly in the 3D fitting scene with arrangement-point snapping |
+| **04 · Pose** | **Pose Mode** | Selectable mannequin joints, direct rotation gizmo, symmetry, snapping and presets |
+| **05 · Simulate** | **Cloth Simulation** | Quality/material controls, target validity, step/run/reset and persisted simulation state |
+| **06 · Diagnose** | **Cloth Diagnostics** | Stress visualization, mesh/drape checks, six-side inspection and recoverable invalid states |
 
-### 1. Pattern source
+### The complete visual workflow
 
-![Native Sketcher pattern](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png)
+~~~mermaid
+flowchart LR
+    P["Cloth Pattern<br/>Native Sketcher"]
+    S["Cloth Sewing<br/>Semantic seams"]
+    A["Arrange / Fit<br/>Direct manipulation"]
+    T["DrapeTarget<br/>Mannequin or any FreeCAD target"]
+    M["Cloth Simulation<br/>Mesh + PBD"]
+    I["Inspect / Diagnose<br/>360° + diagnostics"]
+    R["Iterate<br/>Edit → Recompute → Rebuild"]
 
-### 2. Sewing
+    P --> S --> A --> T --> M --> I
+    I --> R
+    R --> P
+    R --> S
+    R --> A
+    R --> T
+~~~
 
-![Sewing workbench](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png)
+---
 
-### 3. Basic collision — blanket over cube
+## 01 · Pattern source: native 2D garment geometry
 
-![Blanket collision and drape](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
+The pattern editor is intentionally FreeCAD-native. A PatternPiece keeps a stable semantic identity and points back to authoritative Sketcher geometry rather than maintaining a second dimensional solver.
 
-The key contact check is the absence of visible cloth penetration into the cube. The simulation ladder applies the same rule to progressively harder cases.
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Cloth Pattern workbench showing editable native Sketcher garment geometry" width="900">
+</p>
 
-### 4. Mannequin collision — sewn tunic animation
+**Visual review points**
 
-![Sewn tunic draping over mannequin](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-tunic-mannequin-motion.gif)
+| Inspect | Expected visual information |
+| --- | --- |
+| Piece boundaries | Clean closed outlines with the intended garment silhouette |
+| Construction data | Seam allowance, grainline, notches and internal marks remain distinguishable from the authoritative boundary |
+| Editing authority | The visible geometry is native Sketcher geometry, not a duplicate polygon editor |
+| Document state | Pattern pieces remain recomputable and persist through save/reload |
 
-Inspect shoulder and side contact, body clearance, hem behavior, seam continuity, and the way folds develop from the initial state to the settled state.
+---
 
-### 5. Final simulation — arranged and draped 360°
+## 02 · Sewing: semantic garment assembly
 
-![Arranged garment turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif)
+Sewing operates on semantic pattern edges rather than generated mesh edge order. The visual goal is that seam identity, direction and validation state can be understood before the garment is simulated.
 
-![Draped garment turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif)
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Cloth Sewing workbench showing semantic seam setup and validation" width="900">
+</p>
 
-### 6. Six-side and diagnostic review
+**Visual review points**
 
-<details>
-<summary>Final mannequin views</summary>
+| Inspect | Expected visual information |
+| --- | --- |
+| Seam identity | The intended source edge on each pattern piece is unambiguous |
+| Direction | Reversal / correspondence choices are visible before commit |
+| Validation | Invalid or stale references are explicit instead of silently retargeted |
+| 2D ↔ 3D relationship | A seam can be focused in the assembled scene while the native Sketcher edge remains authoritative |
 
-| Front | Rear | Left | Right | Top | Bottom |
-| --- | --- | --- | --- | --- | --- |
-| ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-rear.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-left.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-right.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-top.png) | ![](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-bottom.png) |
+---
 
-</details>
+## 03 · Arrange / Fit: direct 3D manipulation
 
-![Stress diagnostic map](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-diagnostics.png)
+The fitting workflow is viewport-first. Pattern pieces can be dragged directly in the FreeCAD 3D scene, snapped to persistent arrangement points, reset to their saved home arrangement and fitted to the current target.
 
-### Simulation ladder
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900">
+</p>
 
-The collision ladder increases complexity in controlled steps and stops at the first failing rung. It is a normal simulation gate, not an after-the-fact debugging exercise.
+### Interaction model
 
-| Rung | Scenario | Visual purpose |
-| ---: | --- | --- |
-| 1 | One panel on cube, pinned | Establish basic motion and contact. |
-| 2 | One panel on cube, unpinned | Verify unconstrained cube contact. |
-| 3 | Two panels on cube, no seam | Isolate multi-piece collision. |
-| 4 | Two panels on cube, small seam | Introduce mild sewing interaction. |
-| 5 | Two panels on cube, large seam | Stress seam/contact coupling. |
-| 6 | One panel on mannequin, pinned | Establish body collision. |
-| 7 | One panel on mannequin, unpinned | Verify unconstrained body contact. |
-| 8 | Two panels on mannequin, no seam | Isolate multi-piece body collision. |
-| 9 | Two panels on mannequin, small seam | Introduce garment assembly. |
-| 10 | Two panels on mannequin, large seam | Stress final seam/contact coupling. |
+| Action | Visual behavior |
+| --- | --- |
+| **Select a piece** | The intended PatternPiece becomes the active fitting object |
+| **Drag in 3D** | Placement follows the viewport instead of requiring numeric coordinates |
+| **Approach an arrangement point** | A transient snap target appears at the destination |
+| **Release** | The placement is committed as one undoable FreeCAD transaction |
+| **Reset arrangement** | All pieces return to the persisted pre-arrangement positions |
+| **Fit view** | The target and garment are brought back into a useful framing |
+| **Snap off** | Free dragging remains available when point snapping is not desired |
 
-Each rung captures steps 0, 1, 5, 15, 45, and 90. Human review should stop at the first visually or numerically failing rung rather than averaging failures across later stages.
+The arrangement scene persists placement, arrangement points, symmetry state and the selected DrapeTarget. Arrangement is deliberately independent from solver state.
 
-Human visual review checks:
+---
 
-- no visible penetration through the cube or mannequin;
-- no exploding, collapsed, detached, or self-inverted cloth;
-- authored pins and seams behave as expected;
-- motion progresses smoothly without sudden topology changes;
-- the settled silhouette and folds read as fabric rather than a rigid sheet.
+## 04 · Pose Mode: direct mannequin posing
 
-### Avatar — 360° reference turntable
+The mannequin editor separates posing from anthropometric setup. The viewport is the primary manipulation surface; the task panel provides selection, symmetry, angle snapping, presets, precision editing and explicit commit/cancel actions.
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Front view of the Cloth human mannequin used as a drape target" width="420">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Rear view of the Cloth human mannequin used as a drape target" width="420">
+</p>
+
+### Pose interaction model
+
+| Control | What it communicates |
+| --- | --- |
+| **Joint selection** | Joints can be selected from the anatomical tree or directly in the 3D view |
+| **Rotation gizmo** | Colored rings expose axis-specific rotation; the trackball provides free rotation |
+| **Symmetry** | Left/right edits can be mirrored around the mannequin center line |
+| **Snap 5°** | Dragged rotations can be quantized to 5° increments |
+| **Presets** | Standing, Sewing and Sitting establish a clear starting pose |
+| **Precision** | Exact X/Y/Z Euler values remain available behind progressive disclosure |
+| **Apply & Rebuild** | Staged pose values become persistent mannequin state and rebuild derived geometry |
+| **Cancel** | Staged edits are discarded without replacing the saved pose |
+
+The pose is document-driven: joint rotations are persistent, while the deformed mesh is derived and rebuildable. Parent joints propagate to their descendants.
+
+### Avatar reference
 
 ![Cloth Avatar 360° turntable](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif)
 
-## Module architecture
+---
 
-The implementation is organized exclusively as a Python package tree under `freecad_cloth/`, with domain ownership split across `pattern`, `sewing`, `avatar`, `simulation`, `common`, and `shared`. Repository-root Python files are limited to the FreeCAD bootstrap files `Init.py`/`InitGui.py` and the interpreter-level `sitecustomize.py` CI hook. Domain modules are never restored as root-level compatibility shims.
+## 05 · Simulation: from arranged garment to physical drape
 
-Internal imports use the canonical namespace, for example `freecad_cloth.pattern.PatternCommands`, `freecad_cloth.sewing.SewingNetworkCommands`, and `freecad_cloth.simulation.DrapeTarget`.
+The simulation workbench keeps normal garment controls visible while expert settings remain progressively disclosed. The target is explicit, the simulation state is persistent, and Run / Step / Reset provide deterministic recovery paths.
 
-## Current implementation
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged-turntable.gif" alt="360 degree view of the arranged sewn garment" width="820">
+</p>
 
-The Pattern workbench creates native, recomputable PatternPieces with semantic IDs and pattern metadata. Sewing persists seam relationships and supports direction/correspondence operations. Simulation uses a persistent DrapeTarget and exposes target status in the public task panel. Fabric materials now persist presentation controls in addition to physical parameters. The deterministic ClothSystem is a lightweight reference for assembling particle and constraint inputs; PositionBasedDynamics is the runtime physics authority.
+### The target boundary
 
-The repository does not claim full commercial garment-suite parity. Advanced capabilities remain tracked in the roadmap and must pass their own executable/visual acceptance gates before being described as complete.
+DrapeTarget is the common collision boundary for:
+
+- the native human mannequin;
+- an ordinary FreeCAD Shape / PartDesign / Body / Mesh;
+- future replaceable target providers.
+
+Changing the target, pose or authoritative collision geometry invalidates target-dependent derived state instead of silently consuming stale data.
+
+### Simulation controls shown in the public workflow
+
+| Visible control / state | Why it matters |
+| --- | --- |
+| **Target identity / validity** | Confirms what the cloth is actually colliding with |
+| **Quality preset** | Keeps common simulation choices understandable without exposing every solver detail |
+| **Particle distance / density** | Makes resolution changes explicit |
+| **Fabric parameters** | Keeps physical material inputs separate from target selection |
+| **Pin mode / pin selection** | Makes constraints visible and persistent |
+| **Run / Step / Reset** | Supports both normal use and controlled inspection/recovery |
+| **Stale / invalid state** | Shows the reason derived state must be rebuilt |
+
+---
+
+## 06 · Final drape: inspect the garment, not just the solver log
+
+The main visual acceptance target is the finished garment after real simulation steps.
+
+![Sewn tunic draping over mannequin](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-tunic-mannequin-motion.gif)
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif" alt="360 degree drape of the sewn tunic over the mannequin" width="900">
+</p>
+
+For a still comparison, the generated visual fixture also captures the final draped state:
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Final draped garment over the mannequin" width="900">
+</p>
+
+### What to inspect in the final silhouette
+
+| Region | Visual questions |
+| --- | --- |
+| **Shoulders** | Does the cloth meet the shoulder target without obvious penetration or detachment? |
+| **Neckline** | Does the sewn opening remain coherent as the avatar pose and cloth settle? |
+| **Side seams** | Do the panels remain assembled and spatially continuous? |
+| **Torso** | Do folds follow the body instead of reading like a rigid sheet? |
+| **Hem** | Does the lower edge remain connected and plausible rather than exploding or collapsing? |
+| **Back** | Does the rear panel remain consistent with the front-panel assembly? |
+| **Global silhouette** | Does the garment read as one continuous garment from every side? |
+
+---
+
+## 07 · Six-side review: front, rear, left, right, top and bottom
+
+A single hero render can hide collisions, detached panels or unexpected deformations. The README therefore exposes the same six-side review used by the canonical visual fixture.
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png" alt="Draped garment front view" width="280">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-rear.png" alt="Draped garment rear view" width="280">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-left.png" alt="Draped garment left view" width="280">
+</p>
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-right.png" alt="Draped garment right view" width="280">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-top.png" alt="Draped garment top view" width="280">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-bottom.png" alt="Draped garment bottom view" width="280">
+</p>
+
+<details>
+<summary><strong>Human visual checklist</strong></summary>
+
+The visual review should confirm:
+
+- no visible cloth penetration through the cube or mannequin;
+- no exploding, collapsed, detached or self-inverted cloth;
+- authored pins and seams behave as expected;
+- motion progresses without sudden topology changes;
+- the settled silhouette and folds read as fabric rather than a rigid sheet;
+- front and rear pattern panels remain coherent;
+- the garment remains plausible when the camera leaves the hero angle.
+
+</details>
+
+---
+
+## 08 · Diagnostics: make failure visible
+
+Diagnostics are meant to explain a valid result and to refuse stale or invalid state rather than presenting misleading visualizations.
+
+![Stress diagnostic map](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-diagnostics.png)
+
+Typical visual evidence includes:
+
+| Evidence | Purpose |
+| --- | --- |
+| **Stress map** | Highlights where the current garment state is mechanically loaded |
+| **Six-side views** | Exposes problems hidden by a single camera angle |
+| **Animation** | Shows whether instability appears during motion or only after settling |
+| **Drape metrics** | Distinguishes a visually plausible result from a numerically invalid one |
+| **Stale-state guard** | Prevents a diagnostic map from being generated from an invalid simulation state |
+
+---
+
+## 09 · Simulation ladder: controlled visual complexity
+
+The collision ladder increases complexity one rung at a time. It stops at the first failing rung instead of allowing later stages to obscure the cause.
+
+| Rung | Scenario | What the viewer is checking |
+| ---: | --- | --- |
+| **1** | One panel on cube, pinned | Basic motion and rigid contact |
+| **2** | One panel on cube, unpinned | Unconstrained rigid contact |
+| **3** | Two panels on cube, no seam | Multi-piece collision |
+| **4** | Two panels on cube, small seam | Initial sewing + collision interaction |
+| **5** | Two panels on cube, large seam | Stress seam/contact coupling |
+| **6** | One panel on mannequin, pinned | Basic body collision |
+| **7** | One panel on mannequin, unpinned | Unconstrained body contact |
+| **8** | Two panels on mannequin, no seam | Multi-piece body collision |
+| **9** | Two panels on mannequin, small seam | Garment assembly on body |
+| **10** | Two panels on mannequin, large seam | Final seam/contact coupling |
+
+Each rung captures steps 0, 1, 5, 15, 45 and 90. Human review stops at the first visually or numerically failing rung.
+
+![Blanket collision and drape](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif)
+
+The blanket-over-cube case is intentionally simple: it verifies that the runtime can move cloth, collide with a rigid target and produce a stable visual sequence before the mannequin garment case is attempted.
+
+---
+
+## 10 · Visual capability map
+
+The following is the intended reading order of the current public workflow.
+
+| Capability | Visual proof in this README | Current boundary |
+| --- | --- | --- |
+| Native Sketcher pattern authoring | Pattern screenshot | FreeCAD Sketcher remains the editable geometry authority |
+| Semantic sewing | Sewing screenshot | Seam identity is explicit and validation is fail-closed |
+| Direct garment arrangement | Arranged garment + interaction description | Viewport manipulation uses persistent fitting-scene state |
+| Arrangement snapping | Snap interaction description | Persistent arrangement points drive the placement target |
+| Mannequin posing | Avatar gallery + Pose Mode interaction map | Current direct pose editor targets the MakeHuman HM08 provider |
+| Target-neutral fitting | Target boundary section | Mannequin and generic FreeCAD geometry share the DrapeTarget boundary |
+| Cloth simulation | Arranged and draped turntables | PositionBasedDynamics is the production physics runtime |
+| Six-side review | Six generated stills | Front/rear/left/right/top/bottom are reviewed as one audit |
+| Stress inspection | Diagnostic map | Diagnostics consume valid simulation state only |
+| Repeatable validation | Simulation ladder | Visual and numerical failure stop the ladder at first failure |
+
+---
+
+## 11 · Architecture at a glance
+
+The document model is intentionally split into authoritative inputs, semantic state and rebuildable derived state.
+
+~~~mermaid
+flowchart TB
+    subgraph Authoring["Authoritative authoring"]
+        SK["Native Sketcher geometry"]
+        PP["PatternPiece"]
+        SM["Pattern metadata<br/>allowance · grainline · notches · marks"]
+        SK --> PP
+        PP --> SM
+    end
+
+    subgraph Semantics["Garment semantics"]
+        SG["SewingGraph / semantic seams"]
+        FS["FittingScene<br/>placements · arrangement points · measurements"]
+        AV["Avatar / Pose"]
+        SG --> FS
+        AV --> FS
+    end
+
+    subgraph Target["Target authority"]
+        DT["DrapeTarget"]
+        CS["Collision surface"]
+        DT --> CS
+    end
+
+    subgraph Derived["Derived simulation state"]
+        MM["Simulation mesh"]
+        PH["PositionBasedDynamics state"]
+        DG["Visual diagnostics"]
+        MM --> PH --> DG
+    end
+
+    PP --> SG
+    FS --> DT
+    PP --> MM
+    SG --> PH
+    CS --> PH
+~~~
+
+### Authority rules
+
+| Concern | Authority | Derived / transient |
+| --- | --- | --- |
+| 2D dimensions and constraints | Native Sketcher | Pattern mesh / solver input |
+| Pattern semantics | PatternPiece + semantic metadata | Rendered / simulated geometry |
+| Seam identity | Semantic edge references | Generated stitch samples |
+| Fitting placement | Persisted PiecePlacements | Mouse drag preview |
+| Arrangement targets | Persisted arrangement points | Snap marker |
+| Avatar pose | Persisted pose values | Deformed avatar mesh |
+| Collision | DrapeTarget / collision surface | Solver broad/narrow-phase data |
+| Simulation | Saved simulation inputs + runtime state | Temporary viewport effects |
+| Diagnostics | Valid current simulation state | Stale diagnostic maps |
+
+The saved FreeCAD document is the persistence authority. GUI selection, gizmos, snap markers and other viewport previews are transient.
+
+---
+
+## 12 · UI design language
+
+The public UI is deliberately organized around the same interaction pattern across workbenches:
+
+**Context → Primary action → Secondary actions → Parameters → Recovery**
+
+### Direct manipulation
+
+Use the viewport when the operation is spatial:
+
+**Pattern arrangement**
+
+Select → Drag → Snap preview → Release → Persistent placement
+
+**Mannequin posing**
+
+Select joint → Rotate gizmo → Stage pose → Apply & Rebuild
+
+### Progressive disclosure
+
+The normal path keeps the task panel readable. Expert simulation/material/precision controls are available without making the common interaction depend on numeric inputs.
+
+### Recovery is visible
+
+Reset, Cancel, Refresh/Rebuild, Fit view and stale-state messages are part of the workflow rather than hidden implementation details.
+
+---
+
+## 13 · Current implementation boundary
+
+The project deliberately does not present every commercial garment-CAD feature as complete.
+
+| Area | Current public workflow | Not claimed as complete |
+| --- | --- | --- |
+| Pattern | Native Sketcher-backed pieces and metadata | Full grading / production marker workflows |
+| Sewing | Semantic seams, direction/correspondence and validation | Full industrial sewing-assistance suite |
+| Fitting | Direct arrangement, persistent points and reset/recovery | Full automatic fitting / tape / extraction toolset |
+| Avatar | Native mannequin, pose controls and target-neutral boundary | Full production human-avatar provider ecosystem |
+| Simulation | Quality/material controls, target validation, step/run/reset | Photorealistic rendering or cloud simulation |
+| Diagnostics | Drape/stress visual inspection | Full commercial fit/pressure/strain analysis suite |
+| Production | SVG/DXF-oriented pattern output path | End-to-end manufacturing planning and nesting |
+| Construction | Semantic foundations | Complete trims/closures/construction-detail library |
+
+The roadmap keeps these boundaries explicit so that README visuals do not imply capabilities that are only planned.
+
+---
+
+## 14 · Runtime and installation
+
+The supported development, packaging, test and canonical FreeCAD CI baseline is **Python 3.12+**.
+
+The PositionBasedDynamics runtime is the production physics solver. Its installation is an optional simulation extra, but the supported FreeCAD development/CI baseline uses a FreeCAD build with an embedded Python 3.12 runtime.
+
+Start with [Installation](docs/INSTALLATION.md), then run the [Blanket over Cube](docs/EXAMPLES.md) example before the full tunic path.
+
+---
+
+## 15 · Validation and reproducibility
+
+There is one canonical GitHub Actions workflow:
+
+.github/workflows/canonical-execution.yml
+
+It covers:
+
+- Python/static/property checks;
+- real FreeCAD/Xvfb GUI acceptance;
+- direct fitting and Pose Mode UI contracts;
+- native Sketcher → Sewing → Simulation coverage;
+- the blanket visual fixture;
+- the simulation ladder and real motion frames;
+- six-side turntable generation;
+- diagnostic evidence and stale-state guards.
+
+The README images are generated evidence from those validation paths. The generated screenshot/animation source is maintained separately from this human-facing README so that visual evidence can be regenerated without turning documentation into a second test harness.
+
+---
+
+## Documentation
+
+Start at [docs/README.md](docs/README.md). Useful next stops are:
+
+- [Installation](docs/INSTALLATION.md) — setup and supported runtime;
+- [Workbench Guide](docs/WORKBENCH_GUIDE.md) — end-to-end user workflow;
+- [Architecture](docs/ARCHITECTURE.md) — domain ownership and dependency direction;
+- [Research](docs/RESEARCH.md) — garment-UX and visual interaction research;
+- [Roadmap](docs/ROADMAP.md) — remaining P1 / production work;
+- [Release Gates](docs/RELEASE_GATES.md) — executable definition of “complete”.
+
+Agent-specific execution policy remains in [AGENTS.md](AGENTS.md), while AGENT_STATUS.md and TOOL_STATE.md hold live coordination state and are not intended as human project marketing material.
 
 ## License
 
 This project is licensed under the GNU Lesser General Public License v2.1 or later; see [LICENSE](LICENSE).
-
-## Development
-
-Simulation changes follow a screenshot-first human-review protocol documented in [docs/SIMULATION_REVIEW.md](docs/SIMULATION_REVIEW.md). The current coordination ledger is named in `AGENT_STATUS.md` and must be used as the live issue reference.
-
-There is one canonical GitHub Actions workflow: `.github/workflows/canonical-execution.yml`. It runs Python/core checks, real FreeCAD/Xvfb GUI coverage, the basic blanket visual fixture, semantic seam/mesh sanity checks, 360° turntables and actual step-by-step simulation motion GIFs.
-
-## Documentation
-
-Start at [docs/README.md](docs/README.md). It links installation, examples, the user guide, release gates, architecture, roadmap, research and development guidance. GitHub issue/PR templates and automated dependency updates are part of the repository hygiene baseline. `AGENT_STATUS.md` and `TOOL_STATE.md` remain the durable machine-readable coordination records.
