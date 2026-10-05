@@ -30,11 +30,17 @@ If a Sketch edit invalidates a semantic edge reference, the seam remains invalid
 
 Create/select a `DrapeTarget`: either the native human mannequin or an ordinary FreeCAD Shape/PartDesign/Body/Mesh. Arrange pieces using persistent placements/arrangement metadata. Reset and superimpose are deterministic fitting operations, not solver state.
 
-### 4. Simulate
+### 4. Pose the mannequin
+
+Open the Cloth Human Mannequin editor from the avatar/fitting command. The **Skeleton pose** group provides manual FK controls for the major pelvis, spine, neck, arm and leg joints. Select a joint, edit its X/Y/Z rotation, and use **Symmetry** to mirror bilateral edits. **Reset skeleton pose** clears manual joint overrides and returns to the selected pose preset baseline. The pose is stored on the mannequin object and the mesh is rebuilt from the authored MakeHuman skeleton and skinning weights.
+
+The interaction intentionally stays document-driven: joint rotations are persistent parameters, while the deformed mesh is derived and rebuildable. Parent joints propagate to their descendant bones, matching the hierarchical posing model expected for garment fitting.
+
+### 5. Simulate
 
 Generate a preview/final mesh, choose material and quality, confirm target validity, then Run. Step is for controlled/debug advancement; Reset recovers simulation state. Pinning is persistent and explicit: **Automatic** preserves the legacy behavior (use `PinSelection` when present, otherwise the existing automatic boundary pins), **Explicit** uses only `PinSelection`, and **None** runs with zero solver pins. Changing the pinning mode or selection participates in the deterministic rebuild signature. Pins/stitches and collision settings are persistent inputs. Fabric presentation properties include color, specular response, roughness and transparency and are persisted with the simulation/material state.
 
-### 5. Iterate
+### 6. Iterate
 
 After pattern, seam or target edits: recompute, inspect the stale/invalid reason, refresh/rebuild the affected derived state, then simulate again. A stale target must never be silently substituted or consumed.
 

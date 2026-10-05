@@ -482,6 +482,32 @@ def load_makehuman_arm_weights(
         raise HumanoidMeshError(f"unable to parse MakeHuman arm weights {source}: {exc}") from exc
 
 
+def load_makehuman_weights(
+    vertex_count: int, path: str | None = None
+) -> dict[str, tuple[tuple[int, float], ...]]:
+    """Load the complete MakeHuman skinning field for visible body vertices."""
+    source = ensure_makehuman_weights(path)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
+        raw = payload["weights"]
+        result = {}
+        for bone_name, entries in raw.items():
+            filtered = []
+            for index, weight in entries:
+                index = int(index)
+                if 0 <= index < vertex_count:
+                    value = max(0.0, float(weight))
+                    if value > 0.0:
+                        filtered.append((index, value))
+            if filtered:
+                result[str(bone_name)] = tuple(filtered)
+        if not result:
+            raise HumanoidMeshError("MakeHuman weights contain no visible vertices")
+        return result
+    except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
+        raise HumanoidMeshError(f"unable to parse MakeHuman skinning weights {source}: {exc}") from exc
+
+
 def _normalize_fit_axes(vertices, parameters):
     """Normalize horizontal source scale to authoritative body measurements.
 
@@ -594,43 +620,11 @@ def _authored_arm_rig_points(parameters):
 def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData:
     """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
-    source = _map_makehuman_axes(mesh.vertices)
     height_mm = float(parameters.measurement("height"))
-    z0, z1 = _axis_bounds(source, 2)
-    height_unit = max(1e-9, z1 - z0)
-    base_scale = height_mm / height_unit
-
-    torso_profile = (
-        [(0.0, 1.0), (1.0, 1.0)]
-        if _is_default_measurement_shape(parameters)
-        else _measurement_profile(parameters)
+    transform = _make_source_fitted_mapper(
+        mesh.vertices, parameters, float(parameters.skin_offset)
     )
-
-    if _is_default_measurement_shape(parameters):
-        shoulder_scale = 1.0
-    else:
-        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
-
-        shoulder_ratio = parameters.measurement("shoulder") / float(
-            DEFAULT_MEASUREMENTS["shoulder"]
-        )
-        shoulder_scale = max(0.80, min(1.25, shoulder_ratio))
-
-    skin_offset = float(parameters.skin_offset)
-    fitted = []
-    for x, y, z in source:
-        torso_scale = _profile_scale(z, torso_profile)
-        shoulder_blend = _smoothstep(0.67, 0.79, z)
-        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        x_mm = x * base_scale * torso_scale * lateral_scale
-        y_mm = y * base_scale * torso_scale
-        radius = math.hypot(x_mm, y_mm)
-        if radius > 1e-9 and skin_offset:
-            x_mm += x_mm / radius * skin_offset
-            y_mm += y_mm / radius * skin_offset
-        fitted.append((x_mm, y_mm, z * height_mm))
-
-    fitted = _normalize_fit_axes(tuple(fitted), parameters)
+    fitted = tuple(transform(point) for point in mesh.vertices)
 
     pose = parameters.pose
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
