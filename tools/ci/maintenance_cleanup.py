@@ -9,26 +9,41 @@ from datetime import datetime, timedelta, timezone
 
 
 def gh_json(*args: str) -> object:
+    """Run a GitHub CLI command and parse its JSON output."""
     result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=10)
     return json.loads(result.stdout)
 
 
 def gh_delete(*args: str) -> None:
+    """Delete a GitHub resource through the GitHub CLI."""
     subprocess.run(["gh", *args], check=True, timeout=10)
 
 
 def epoch(value: str) -> float:
+    """Convert an ISO-8601 timestamp to a Unix epoch."""
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
 def main() -> int:
+    """Remove stale agent branches and completed workflow runs."""
     repo = os.environ["REPO"]
     now = datetime.now(timezone.utc)
     branch_cutoff = (now - timedelta(days=14)).timestamp()
     run_cutoff = (now - timedelta(days=30)).timestamp()
     open_heads = {
         item["headRefName"]
-        for item in gh_json("pr", "list", "--repo", repo, "--state", "open", "--limit", "100", "--json", "headRefName")
+        for item in gh_json(
+            "pr",
+            "list",
+            "--repo",
+            repo,
+            "--state",
+            "open",
+            "--limit",
+            "100",
+            "--json",
+            "headRefName",
+        )
     }
     for item in gh_json("api", f"repos/{repo}/branches?per_page=100"):
         name = item["name"]
