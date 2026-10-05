@@ -140,6 +140,20 @@ numeric values only as a secondary precision path.
   model, reinforcing that snapping is most useful when it is spatially discoverable
   rather than encoded as typed coordinates. See:
   https://support.marvelousdesigner.com/hc/en-us/articles/47358262924185-Arrange-Pattern-with-Arrangement-Points-Flip-Wrap-Direction
+- Style3D strengthens the pattern with multi-point snapping, curve-point/handle
+  dragging, drag-to-edit sewing endpoints, and automatic arrangement based on
+  sewing relationships. This suggests a staged evolution for Cloth: one-point
+  snapping first, then attachment/seam guides and multi-point constraints. See:
+  https://help.style3d.com/studio/en/1f8f/39dc
+  https://help.style3d.com/studio/en/c4905/c2c8/5869/0792/ebff/13f8/12d5
+  https://help.style3d.com/studio/en/c4905/d2d78/7ae53/a918/fdca/27f6
+- Lectra Modaris 3D emphasizes synchronized edits between 2D production patterns
+  and 3D prototypes, so direct 3D manipulation should remain a frontend to the
+  same persistent pattern data rather than a separate 3D-only representation. See:
+  https://www.lectra.com/en/fashion/products/modaris
+- Seamly2D reinforces measurement-driven parametric drafting: dimensions belong to
+  the pattern model, while the editing surface stays graphical. See:
+  https://wiki.seamly.io/wiki/Main_Page/en
 - FreeCAD's Python API exposes 3D-view mouse callbacks and screen/world conversion,
   making a focused interaction controller feasible without introducing a second
   geometry engine. See:
