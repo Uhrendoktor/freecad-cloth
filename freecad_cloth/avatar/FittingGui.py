@@ -152,10 +152,8 @@ class DirectArrangeController:
     def _clear_snap_indicator(self):
         if self._snap_indicator is None or self.view is None:
             return
-        try:
+        with __import__('contextlib').suppress(AttributeError, RuntimeError):
             self.view.getSceneGraph().removeChild(self._snap_indicator)
-        except (AttributeError, RuntimeError):
-            pass
         self._snap_indicator = None
 
     def _show_snap_indicator(self, point):
