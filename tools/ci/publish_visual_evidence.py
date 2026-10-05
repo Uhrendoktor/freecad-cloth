@@ -8,8 +8,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from visual_evidence import documented_assets, verify, write_provenance  # isort: skip
-
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 ARTIFACT_ROOTS = (
@@ -69,6 +67,8 @@ def main() -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--run-number", required=True)
     args = parser.parse_args()
+
+    from .visual_evidence import documented_assets, verify, write_provenance
 
     source_root = Path.cwd()
     expected = documented_assets(source_root)

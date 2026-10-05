@@ -5,6 +5,8 @@ existing AvatarCommands rebuild path. AvatarParameters remains authoritative
 for validation and AvatarService remains the solver-neutral downstream API.
 """
 
+import contextlib
+
 
 def _modules():
     import FreeCAD as App
@@ -255,10 +257,8 @@ class AvatarTaskPanel:
     def _open_pose_mode(self):
         if self.avatar is None:
             return
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
-        except (AttributeError, RuntimeError):
-            pass
         from freecad_cloth.avatar.AvatarCommands import pose_avatar
 
         pose_avatar(self.avatar)
