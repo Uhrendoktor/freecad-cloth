@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 from pathlib import Path
+import re
 
 
 ROOT = Path("artifacts/simulation-ladder")
@@ -195,7 +195,7 @@ def validate_diagnostic() -> None:
             raise SystemExit(f"diagnostic {name}: wrong gate effect")
         if len(data.get("cases", ())) != 5:
             raise SystemExit(f"diagnostic {name}: wrong case count")
-        for record, expected_rung in zip(data["cases"], rung):
+        for record, expected_rung in zip(data["cases"], rung, strict=True):
             if record.get("case", {}).get("rung") != expected_rung:
                 raise SystemExit(f"diagnostic {name}: unexpected rung")
             if record.get("solver", {}).get("backend") != "pbd":
