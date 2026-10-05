@@ -164,3 +164,64 @@ Cloth UI mapping:
 
 This is intentionally a UI layer over the merged `SkeletonPose`/FK data model;
 it does not replace the rig or introduce a second pose representation.
+
+## Direct-manipulation UI audit (2026-10-05)
+
+The current vendor workflows converge on the same interaction hierarchy: select in
+the canvas, drag to transform, preview a snap before committing, and expose exact
+numeric values only as a secondary precision path.
+
+- Blender's viewport gizmos provide direct move/rotate/scale handles. Snapping can
+  be toggled persistently or held temporarily, and modifier keys provide coarse or
+  fine control. See:
+  https://docs.blender.org/manual/en/latest/editors/3dview/display/gizmo.html
+  https://docs.blender.org/manual/en/latest/editors/3dview/controls/snapping.html
+- CLO 3D's 2026 Select/Move/Transform workflow uses click-drag for pattern movement,
+  Shift/Ctrl-guided constrained movement, drag handles for scale/rotation, and a
+  numeric transform dialog as a fallback. See:
+  https://support.clo3d.com/hc/en-us/articles/360000012128-Select-Move-Transform-Pattern
+  https://support.clo3d.com/hc/en-us/articles/115012381568-Transform-Pattern
+- CLO's Arrangement Points show on the avatar; hovering with a selected pattern
+  produces a placement preview and clicking confirms the placement. Precise
+  placement remains available from the gizmo or property editor. See:
+  https://support.clo3d.com/hc/en-us/articles/115001999287-Arrange-Pattern-with-Arrangement-Points-Flip-Wrap-Direction
+- CLO sewing uses cursor-following blue guide points and snapping while the user
+  click-drags a seam. Numeric seam length entry is available only as an alternate
+  path. See:
+  https://support.clo3d.com/hc/en-us/articles/360001754628--3D-Tool-Free-Sewing
+  https://support.clo3d.com/hc/en-us/articles/360001771047--3D-Tool-Segment-Sewing
+- Marvelous Designer follows the same Arrangement Point hover-preview/click-place
+  model, reinforcing that snapping is most useful when it is spatially discoverable
+  rather than encoded as typed coordinates. See:
+  https://support.marvelousdesigner.com/hc/en-us/articles/47358262924185-Arrange-Pattern-with-Arrangement-Points-Flip-Wrap-Direction
+- Style3D strengthens the pattern with multi-point snapping, curve-point/handle
+  dragging, drag-to-edit sewing endpoints, and automatic arrangement based on
+  sewing relationships. This suggests a staged evolution for Cloth: one-point
+  snapping first, then attachment/seam guides and multi-point constraints. See:
+  https://help.style3d.com/studio/en/1f8f/39dc
+  https://help.style3d.com/studio/en/c4905/c2c8/5869/0792/ebff/13f8/12d5
+  https://help.style3d.com/studio/en/c4905/d2d78/7ae53/a918/fdca/27f6
+- Lectra Modaris 3D emphasizes synchronized edits between 2D production patterns
+  and 3D prototypes, so direct 3D manipulation should remain a frontend to the
+  same persistent pattern data rather than a separate 3D-only representation. See:
+  https://www.lectra.com/en/fashion/products/modaris
+- Seamly2D reinforces measurement-driven parametric drafting: dimensions belong to
+  the pattern model, while the editing surface stays graphical. See:
+  https://wiki.seamly.io/wiki/Main_Page/en
+- FreeCAD's Python API exposes 3D-view mouse callbacks and screen/world conversion,
+  making a focused interaction controller feasible without introducing a second
+  geometry engine. See:
+  https://reqrefusion.github.io/FreeCAD-Documentation-html/wiki/en/Code_snippets.html
+
+Implementation mapping for Cloth:
+1. Make Arrange/Fit a direct-manipulation stage in the 3D view.
+2. Use existing persistent ArrangementPoint visual objects as snap targets.
+3. Show snap feedback near the pointer and commit the final placement through the
+   existing FittingCommands persistence boundary.
+4. Keep the property editor as the precision escape hatch rather than the primary
+   placement workflow.
+5. Keep solver/material precision controls collapsed behind an explicit expert
+   section while retaining the existing quality presets.
+
+This intentionally does not duplicate mannequin joint editing or add an alternate
+rig, and it does not change solver contracts.

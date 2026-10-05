@@ -469,6 +469,24 @@ def create_simulation_from_fitting():
     return simulation
 
 
+def open_interactive_arrange(scene=None):
+    """Open the direct-manipulation fitting panel for the active fitting scene."""
+    import FreeCAD as App
+    import FreeCADGui as Gui
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise RuntimeError("open a document before opening Interactive Arrange")
+    scene = scene or _scene(doc) or create_fitting_scene()
+    from freecad_cloth.avatar.FittingGui import show_fitting_task
+
+    panel = show_fitting_task(scene)
+    if Gui.activeDocument():
+        Gui.activeDocument().activeView().fitAll()
+    return panel
+
+
+
 class _FittingProxy:
     Type = "ClothFittingScene"
 
@@ -494,6 +512,7 @@ class _FittingProxy:
 
 COMMANDS = [
     "ClothFitting_CreateScene",
+    "ClothFitting_InteractiveArrange",
     "ClothFitting_SetMeasurements",
     "ClothFitting_AssignAvatar",
     "ClothFitting_AddPieces",
@@ -509,6 +528,7 @@ COMMANDS = [
 ]
 _COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
+    "ClothFitting_InteractiveArrange": open_interactive_arrange,
     "ClothFitting_SetMeasurements": lambda: set_body_measurements(
         {"height": 1700, "chest": 900, "waist": 760, "hip": 960, "shoulder": 420}
     ),

@@ -18,6 +18,8 @@ quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py"
 sewing_gui = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text()
 avatar_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text()
 avatar_pose_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarPoseGui.py").read_text()
+fitting_gui = (ROOT / "freecad_cloth" / "avatar" / "FittingGui.py").read_text()
+fitting_commands = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text()
 commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text()
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
@@ -56,6 +58,11 @@ assert "class AvatarPoseTaskPanel" in avatar_pose_gui
 assert "class SkeletonPoseController" in avatar_pose_gui
 assert "SoTrackballDragger" in avatar_pose_gui
 assert "ClothFitting_PoseAvatar" in avatar_commands
+assert "class DirectArrangeController" in fitting_gui
+assert "class FittingTaskPanel" in fitting_gui
+assert "Snap to arrangement points" in fitting_gui
+assert "ClothInteractiveArrangeTaskPanel" in fitting_gui
+assert "ClothFitting_InteractiveArrange" in fitting_commands
 assert '"Body measurements"' in avatar_gui
 assert '"Proportions"' in avatar_gui
 assert '"Pose"' in avatar_gui
