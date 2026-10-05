@@ -5,17 +5,17 @@ import json
 import pytest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
+from freecad_cloth.avatar.HierarchicalPose import transform_landmarks
 from freecad_cloth.avatar.SkeletonPose import (
     CONTROLLABLE_BONES,
+    AffineTransform,
+    IDENTITY,
     JointRotation,
     apply_weighted_fk,
     joint_rotation_map,
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
-from freecad_cloth.avatar.HierarchicalPose import transform_landmarks
-from freecad_cloth.avatar.SkeletonPose import AffineTransform, IDENTITY
-
 
 def test_joint_rotation_bounds_and_mirror():
     rotation = JointRotation("upperarm01.L", 12.0, 20.0, 30.0).validate()
