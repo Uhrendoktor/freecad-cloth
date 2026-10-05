@@ -1729,7 +1729,9 @@ jobs:
             done
   benchmark:
     name: Measured FreeCAD workbench benchmark
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, pbd_validation_image]
+    env:
+      FREECAD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 12
