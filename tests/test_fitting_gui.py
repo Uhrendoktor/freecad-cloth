@@ -17,12 +17,12 @@ def test_nearest_arrangement_point_returns_closest_candidate_within_threshold():
 
 def test_nearest_arrangement_point_prefers_closest_even_when_input_is_unsorted():
     points = (
-        SimpleNamespace(X=9.0, Y=9.0),
-        SimpleNamespace(X=2.0, Y=2.0),
+        SimpleNamespace(X=1.0, Y=1.0),
         SimpleNamespace(X=4.0, Y=4.0),
+        SimpleNamespace(X=9.0, Y=9.0),
     )
 
-    assert nearest_arrangement_point((3.0, 3.0), points, 5.0) is points[2]
+    assert nearest_arrangement_point((3.0, 3.0), points, 5.0) is points[1]
 
 
 def test_arrangement_rotation_maps_wrap_direction_to_viewport_rotation():
