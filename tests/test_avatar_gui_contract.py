@@ -40,7 +40,10 @@ def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
     assert "Use selected FreeCAD object" in source
     assert "provider_id=provider_id" in source
     assert "provider_source=" in source
-    assert "def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):" in commands
+    assert (
+        "def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):"
+        in commands
+    )
     assert "def set_avatar_provider(provider_id, source=None):" in commands
     assert "provider_id not in PROVIDER_IDS" in commands
 
