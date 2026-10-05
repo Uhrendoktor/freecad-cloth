@@ -1,0 +1,53 @@
+name: Publish visual evidence
+description: Assemble, validate, provenance-stamp, and publish the canonical README/wiki visual asset set.
+inputs:
+  source-sha:
+    description: Exact main-branch commit represented by the evidence.
+    required: true
+  repository:
+    description: owner/name repository identifier.
+    required: true
+  run-id:
+    description: Canonical workflow run ID.
+    required: true
+  run-number:
+    description: Canonical workflow run number.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Download turntable evidence
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: readme-turntables
+        path: turntables
+    - name: Download blanket visual evidence
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: blanket-visual-example
+        path: blanket
+    - name: Download tunic visual evidence
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: tunic-visual-audit
+        path: tunic
+    - name: Download Pose Mode evidence
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: avatar-pose-ui
+        path: avatar-pose-ui
+    - name: Download Interactive Arrange evidence
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: interactive-arrange
+        path: interactive-arrange
+    - name: Publish exact visual inventory
+      shell: bash
+      env:
+        SOURCE_SHA: ${{ inputs.source-sha }}
+        REPOSITORY: ${{ inputs.repository }}
+        RUN_ID: ${{ inputs.run-id }}
+        RUN_NUMBER: ${{ inputs.run-number }}
+      run: |
+        set -euo pipefail
+        python3 tools/ci/publish_visual_evidence.py           --repository "$REPOSITORY"           --source-sha "$SOURCE_SHA"           --run-id "$RUN_ID"           --run-number "$RUN_NUMBER"
