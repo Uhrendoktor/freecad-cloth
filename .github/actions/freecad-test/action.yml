@@ -1,5 +1,5 @@
 name: FreeCAD test
-description: Run one FreeCAD acceptance or screenshot command with a hard 60-second application budget.
+description: Run one FreeCAD acceptance or screenshot command with a hard 55-second application budget.
 inputs:
   image:
     description: Immutable FreeCAD container image.
@@ -8,9 +8,13 @@ inputs:
     description: Repository-relative Python script passed to FreeCAD.
     required: true
   timeout-seconds:
-    description: Hard runtime budget for the FreeCAD application.
+    description: Hard runtime budget for the FreeCAD application; maximum 55 seconds.
     required: false
-    default: "60"
+    default: "55"
+  checkout-ref:
+    description: Optional Git ref to checkout before running. Omit for subsequent tests in the same job.
+    required: false
+    default: ""
   stage-workbench:
     description: Stage workbench files for FreeCAD module discovery.
     required: false
@@ -24,16 +28,35 @@ inputs:
     required: false
     default: "artifacts/freecad-run.log"
   test-args:
-    description: Optional whitespace-delimited arguments passed after the test script.
+    description: Optional arguments passed after the test script.
     required: false
     default: ""
   environment:
     description: Optional newline-delimited KEY=VALUE environment entries.
     required: false
     default: ""
+  validate-command:
+    description: Optional repository command run after the FreeCAD test.
+    required: false
+    default: ""
+  artifact-name:
+    description: Optional artifact name to upload after validation.
+    required: false
+    default: ""
+  artifact-path:
+    description: Optional artifact path to upload.
+    required: false
+    default: "artifacts"
 runs:
   using: composite
   steps:
+    - name: Checkout requested revision
+      if: inputs.checkout-ref != ''
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.checkout-ref }}
+        persist-credentials: false
+
     - name: Run bounded FreeCAD test
       uses: ./.github/actions/freecad-container
       with:
@@ -42,10 +65,23 @@ runs:
           ${{ inputs.environment }}
           CLOTH_CI_STAGE_WORKBENCH=${{ inputs.stage-workbench }}
           CLOTH_CI_CLEAN_USER=${{ inputs.clean-user }}
-          CLOTH_CI_LOG_FILE=${{ inputs.log-file }}
         command: >-
           python3 /workspace/tools/ci/run_freecad.py
           --timeout-seconds ${{ inputs.timeout-seconds }}
           --log-file /workspace/${{ inputs.log-file }}
           --test-script /workspace/${{ inputs.test-script }}
           --test-args "${{ inputs.test-args }}"
+
+    - name: Validate test evidence
+      if: inputs.validate-command != ''
+      shell: bash
+      run: ${{ inputs.validate-command }}
+
+    - name: Upload test evidence
+      if: always() && inputs.artifact-name != ''
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a0 # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.artifact-path }}
+        if-no-files-found: warn
+        compression-level: 1
