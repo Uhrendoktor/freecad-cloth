@@ -64,7 +64,9 @@ runs:
     - name: Run preflight
       if: inputs.pre-command != ''
       shell: bash
-      run: timeout --signal=TERM --kill-after=5s 60s bash -lc '${{ inputs.pre-command }}'
+      env:
+        PRE_COMMAND: ${{ inputs.pre-command }}
+      run: timeout --signal=TERM --kill-after=5s 60s bash -lc "$PRE_COMMAND"
 
     - name: Run bounded FreeCAD test
       uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@dfab37356572bd1e98f21dae5204de61b6431229
@@ -84,7 +86,9 @@ runs:
     - name: Validate test evidence
       if: inputs.validate-command != ''
       shell: bash
-      run: ${{ inputs.validate-command }}
+      env:
+        VALIDATE_COMMAND: ${{ inputs.validate-command }}
+      run: $VALIDATE_COMMAND
 
     - name: Upload test evidence
       if: always() && inputs.artifact-name != ''
