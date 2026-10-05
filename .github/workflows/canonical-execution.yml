@@ -28,7 +28,6 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  # Only PR runs are supersedable. Main evidence remains durable once started.
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -38,6 +37,13 @@ env:
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
   XDG_RUNTIME_DIR: /tmp/runtime-cloth
+  CLOTH_SIMULATION_BACKEND: position-based-dynamics
+  CLOTH_CI_ENABLE_PBD: 1
+  CLOTH_PBD_SUBSTEPS: 8
+  CLOTH_PBD_COLLISION_MODE: mesh
+  CLOTH_PBD_COLLISION_TRIANGLES: 2048
+  CLOTH_PBD_COLLISION_VOXEL_MM: 8
+  CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
   CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
 
 permissions:
@@ -47,12 +53,10 @@ permissions:
 
 jobs:
   agent-quality:
-    name: Static, architecture, workflow, security gates
+    name: Static, architecture, workflow, and security gates
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,42 +68,28 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Install development toolchain
-        run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check -e ".[dev]"
-      - name: Run Python contracts
+      - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check -e ".[dev]"
+      - name: Python and architecture checks
         run: |
           set -euo pipefail
-          timeout --signal=TERM --kill-after=5s 60s python -m ruff check .
-          timeout --signal=TERM --kill-after=5s 60s python -m ruff format --check .
-          timeout --signal=TERM --kill-after=5s 60s python tools/check_documentation_contract.py
-          timeout --signal=TERM --kill-after=5s 60s python tools/ci/validate_ci_structure.py
-          timeout --signal=TERM --kill-after=5s 60s lint-imports
-          timeout --signal=TERM --kill-after=5s 60s pyright -p pyrightconfig.agent-strict.json
-          git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
-          if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
-          timeout --signal=TERM --kill-after=5s 60s python -m pytest -q tests/test_property_contracts.py
-          timeout --signal=TERM --kill-after=5s 60s crosshair check --analysis_kind asserts tools/crosshair_contracts.py
-      - name: Lint GitHub Actions
-        run: timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files actionlint
-      - name: Audit workflow security
-        run: timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files zizmor
-      - name: Lint YAML
-        run: timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files yamllint
-
-  duplication:
-    name: New Python duplication gate
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: kucherenko/jscpd@b6f832c62cf02b574ea9cf24e013cfeb17366a35 # v5.4.0
+          python -m ruff check .
+          python -m ruff format --check .
+          python tools/check_documentation_contract.py
+          python tools/ci/validate_ci_structure.py
+          lint-imports
+          pyright -p pyrightconfig.agent-strict.json
+          python tools/check_dead_code.py $(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py') || true
+          python -m pytest -q tests/test_property_contracts.py
+          crosshair check --analysis_kind asserts tools/crosshair_contracts.py
+      - name: Workflow linters
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files actionlint
+          timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files zizmor
+          timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files yamllint
+      - name: PR duplication gate
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: kucherenko/jscpd@b6f832c62cf02b574ea9cf24e013cfeb17366a35 # v5.4.0
         with:
           path: "freecad_cloth tools/ci"
           format: "python"
@@ -115,12 +105,7 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
-      - name: Verify selected runner
-        run: |
-          set -euo pipefail
-          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
-          echo "runner=$RUNNER_NAME"
-          timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
 
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
@@ -133,27 +118,13 @@ jobs:
     steps:
       - name: Prefer local, otherwise dispatch hosted
         env:
-          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 45))
-          while [ "$SECONDS" -lt "$deadline" ]; do
-            jobs="$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")"
-            state="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Selected runner readiness")][0].status // "missing"')"
-            conclusion="$(printf '%s' "$jobs" | jq -r '[.jobs[] | select(.name == "Selected runner readiness")][0].conclusion // ""')"
-            case "$state/$conclusion" in
-              in_progress/*|completed/success) exit 0 ;;
-              completed/*) break ;;
-            esac
-            sleep 5
-          done
-          gh workflow run canonical-execution.yml --repo "$REPO" --ref "$GITHUB_REF_NAME" -f runner_mode=hosted -f fallback_source_run="$GITHUB_RUN_ID"
-          sleep 2
-          gh api --method POST "repos/$REPO/actions/runs/$GITHUB_RUN_ID/cancel" >/dev/null || true
+        run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
 
   pbd_validation_image:
     name: Build/publish pinned PBD image
+    needs: [local_runner_readiness]
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -166,41 +137,16 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Derive immutable image tag
-        id: image
+      - id: image
+        name: Derive immutable PBD image tag
         run: |
           set -euo pipefail
           digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d' ' -f1)"
           short_digest="$(printf '%s' "$digest" | cut -c1-32)"
           echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:$short_digest" >> "$GITHUB_OUTPUT"
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: ./.github/actions/pbd-image
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check image cache
-        id: image_cache
-        env:
-          IMAGE: ${{ steps.image.outputs.image }}
-        run: |
-          set -euo pipefail
-          if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "hit=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "hit=false" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-        if: ${{ steps.image_cache.outputs.hit != 'true' }}
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        if: ${{ steps.image_cache.outputs.hit != 'true' }}
-        with:
-          context: .
-          file: docker/freecad-ci/Dockerfile
-          push: true
-          pull: true
-          tags: ${{ steps.image.outputs.image }}
-          cache-from: type=gha,scope=freecad-cloth-pbd-validation
-          cache-to: type=gha,mode=max,scope=freecad-cloth-pbd-validation,ignore-error=true
+          image: ${{ steps.image.outputs.image }}
 
   diagnostic-pbd-contact:
     name: Diagnostic PBD contact controls
@@ -219,10 +165,7 @@ jobs:
           log-file: artifacts/pbd-contact-diagnostics/app-run.log
           environment: |
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
             CLOTH_PBD_SUBSTEPS=1
-            CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TRIANGLES=2048
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
       - uses: ./.github/actions/freecad-test
@@ -233,11 +176,8 @@ jobs:
           timeout-seconds: "55"
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0
-            CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+            CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
       - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -245,18 +185,11 @@ jobs:
           test-script: tests/freecad_pbd_avatar_ladder.py
           timeout-seconds: "55"
           log-file: artifacts/pbd-contact-diagnostics/avatar-ladder-run.log
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_manifests.py diagnostic
+          validate-command: python3 tools/ci/validate_manifests.py diagnostic
           artifact-name: pbd-contact-diagnostics
-          artifact-path: |
-            artifacts/pbd-contact-diagnostics/**
-            artifacts/pypbd-provenance.txt
+          artifact-path: artifacts/pbd-contact-diagnostics/**
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TRIANGLES=2048
-            CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0
-            CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
   simulation-ladder:
@@ -275,16 +208,8 @@ jobs:
           timeout-seconds: "55"
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-            CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
       - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -292,20 +217,12 @@ jobs:
           test-script: tests/freecad_pbd_avatar_ladder.py
           timeout-seconds: "55"
           log-file: artifacts/simulation-ladder/avatar-ladder-run.log
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_manifests.py simulation
+          validate-command: python3 tools/ci/validate_manifests.py simulation
           artifact-name: simulation-collision-ladder
           artifact-path: artifacts/simulation-ladder/**
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-            CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
 
   python:
     name: Python validation (${{ matrix.group }})
@@ -327,8 +244,7 @@ jobs:
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
-          environment: |
-            CLOTH_CI_PIP_INSTALL=triangle==20250106,hypothesis==6.168.3
+          environment: CLOTH_CI_PIP_INSTALL=triangle==20250106,hypothesis==6.168.3
 
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
@@ -353,7 +269,7 @@ jobs:
           timeout-seconds: "55"
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_acceptance.py ${{ matrix.case }}
+          validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}
           artifact-name: ${{ matrix.artifact }}
           artifact-path: artifacts
           stage-workbench: ${{ matrix.stage }}
@@ -373,17 +289,12 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_tunic_audit_production.py
           timeout-seconds: "55"
-          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           stage-workbench: "true"
           clean-user: "true"
+          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
             CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TRIANGLES=8192
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
       - uses: ./.github/actions/freecad-test
         with:
@@ -392,7 +303,7 @@ jobs:
           test-script: tests/freecad_realtime_benchmark.py
           timeout-seconds: "55"
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_manifests.py tunic
+          validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
           artifact-name: tunic-visual-audit
           artifact-path: |
             docs/images/generated/**
@@ -400,12 +311,7 @@ jobs:
             artifacts/tunic-audit/**
             artifacts/freecad-realtime/**
             artifacts/pypbd-provenance.txt
-          environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-      - name: Capture PBD provenance
-        run: timeout --signal=TERM --kill-after=5s 20s python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt
+          environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
   gui-turntables:
     name: README turntable evidence
@@ -422,10 +328,7 @@ jobs:
           timeout-seconds: "55"
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
-          environment: |
-            CLOTH_CI_DISABLE_PBD=1
-            CLOTH_TURNTABLE_FRAMES=72
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          environment: CLOTH_CI_DISABLE_PBD=1
       - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -433,18 +336,12 @@ jobs:
           test-script: tests/freecad_simulation_turntable.py
           timeout-seconds: "55"
           log-file: docs/images/generated/simulation-turntable-progress.log
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_manifests.py turntables && timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/build_visual_gifs.py turntables
+          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && python3 tools/ci/build_visual_gifs.py turntables'
           artifact-name: readme-turntables
-          artifact-path: |
-            docs/images/generated/**
+          artifact-path: docs/images/generated/**
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
             CLOTH_PBD_SUBSTEPS=10
-            CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TRIANGLES=8192
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
             CLOTH_BLANKET_STEPS=180
             CLOTH_TURNTABLE_FRAMES=72
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
@@ -465,18 +362,10 @@ jobs:
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
-          validate-command: timeout --signal=TERM --kill-after=5s 30s python3 tools/ci/validate_manifests.py blanket && timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/build_visual_gifs.py blanket
+          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py blanket && python3 tools/ci/build_visual_gifs.py blanket'
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
-          environment: |
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
+          environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
@@ -488,22 +377,14 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/publish-visual-evidence
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: tunic-visual-audit
-          path: tunic
-      - name: Publish review bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_ID: ${{ github.run_id }}
-          EVIDENCE_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/publish_pr_simulation_evidence.py --repository "$REPOSITORY" --pr-number "$PR_NUMBER" --run-id "$RUN_ID" --evidence-head "$EVIDENCE_HEAD"
+          mode: pr
+          source-sha: ${{ github.event.pull_request.head.sha }}
+          evidence-head: ${{ github.event.pull_request.head.sha }}
+          pr-number: ${{ github.event.pull_request.number }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
@@ -533,27 +414,8 @@ jobs:
     steps:
       - name: Retention cleanup
         env:
-          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: timeout --signal=TERM --kill-after=5s 60s bash -lc '
-          set -euo pipefail
-          branch_cutoff=$(date -u -d "-14 days" +%s)
-          run_cutoff=$(date -u -d "-30 days" +%s)
-          open_heads=$(gh pr list --repo "$REPO" --state open --limit 100 --json headRefName --jq ".[].headRefName")
-          gh api --paginate "repos/$REPO/branches?per_page=100" --jq ".[].name" |
-          while IFS= read -r name; do
-            case "$name" in agent/*) ;; *) continue ;; esac
-            if printf "%s\n" "$open_heads" | grep -Fxq "$name"; then continue; fi
-            sha=$(gh api "repos/$REPO/branches/$name" --jq ".commit.sha")
-            authored=$(gh api "repos/$REPO/commits/$sha" --jq ".commit.author.date // .commit.committer.date")
-            if [ "$(date -u -d "$authored" +%s)" -lt "$branch_cutoff" ]; then gh api --method DELETE "repos/$REPO/git/refs/heads/$name"; fi
-          done
-          gh api --paginate "repos/$REPO/actions/runs?per_page=100&status=completed" |
-          jq -r ".workflow_runs[] | [.id, .created_at] | @tsv" |
-          while IFS=$'\t' read -r id created; do
-            if [ "$(date -u -d "$created" +%s)" -lt "$run_cutoff" ]; then gh api --method DELETE "repos/$REPO/actions/runs/$id"; fi
-          done
-        '
+        run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/maintenance_cleanup.py
 
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
@@ -577,8 +439,6 @@ jobs:
           artifact-name: workbench-benchmark-${{ matrix.workbench }}
           artifact-path: artifacts
           environment: |
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
             CLOTH_BENCHMARK_WORKBENCH=${{ matrix.workbench }}
             CLOTH_BENCHMARK_OUTPUT=artifacts/benchmark.json
             CLOTH_BENCHMARK_REPEATS=7
