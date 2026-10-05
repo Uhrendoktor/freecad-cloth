@@ -195,7 +195,7 @@ def main():
             view,
             center,
             os.path.join(OUT, "cloth-avatar-turntable-frames"),
-            frame_count=TURNTable_FRAMES,
+            frame_count=TURNTABLE_FRAMES,
         )
         log("avatar-script-pass")
     finally:
