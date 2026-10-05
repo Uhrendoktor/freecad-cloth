@@ -160,6 +160,7 @@ jobs:
                 tests/test_avatar_fitting.py \
                 tests/test_avatar_shoulder_pose.py \
                 tests/test_avatar_hierarchical_pose.py \
+                tests/test_fitting_gui.py \
                 tests/test_avatar_gui_contract.py \
                 tests/test_avatar_pose_gui_contract.py \
                 tests/test_humanoid_mesh.py \
@@ -180,6 +181,7 @@ jobs:
                 tests/test_gui_structure.py \
                 tests/test_simulation_scene.py \
                 tests/test_simulation_quality_runtime.py \
+                tests/test_simulation_quality_gui_contract.py \
                 tests/test_project_structure.py \
                 tests/test_agent_context_contract.py \
                 tests/test_cloth_diagnostics.py \
@@ -870,6 +872,61 @@ jobs:
           path: |
             artifacts/avatar-pose-ui.log
             artifacts/avatar-pose-mode.png
+          if-no-files-found: error
+          compression-level: 1
+
+  gui-fitting-interaction:
+    name: Direct manipulation fitting acceptance
+    needs: [local_runner_readiness]
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
+    steps:
+      - name: Log selected execution mode
+        run: |
+          echo "ci-runner-mode=$CLOTH_CI_RUNNER_MODE"
+          echo "runner=$RUNNER_NAME"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull FreeCAD image
+        run: docker pull "$FREECAD_IMAGE"
+      - name: Run direct manipulation acceptance
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+            -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth \
+            -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb \
+            -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
+              set -euo pipefail
+              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
+              mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
+              Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
+              openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
+              trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
+              for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
+              xdpyinfo -display :99 >/dev/null 2>&1
+              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_interactive_arrange_acceptance.py 2>&1 | tee /workspace/artifacts/interactive-arrange.log
+            '
+      - name: Inspect direct manipulation evidence
+        run: |
+          set -euo pipefail
+          grep -q 'interactive-arrange=passed snapped=true persisted=true' artifacts/interactive-arrange.log
+          grep -q 'interactive-arrange-cleanup=passed callbacks-removed=true' artifacts/interactive-arrange.log
+      - name: Upload direct manipulation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: interactive-arrange
+          path: artifacts/interactive-arrange.log
           if-no-files-found: error
           compression-level: 1
 
