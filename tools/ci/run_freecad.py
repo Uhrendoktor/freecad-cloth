@@ -110,15 +110,6 @@ def main() -> int:
             if value:
                 shutil.rmtree(value, ignore_errors=True)
 
-    pip_install = os.environ.get("CLOTH_CI_PIP_INSTALL", "").strip()
-    if pip_install:
-        packages = [item.strip() for item in pip_install.split(",") if item.strip()]
-        subprocess.run(
-            ["python3", "-m", "pip", "install", "--no-cache-dir", *packages],
-            check=True,
-            timeout=60,
-        )
-
     if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == "true":
         _stage_workbench(source)
 
