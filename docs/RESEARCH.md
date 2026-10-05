@@ -109,3 +109,58 @@ Primary references used for workflow decisions:
 - Optitex and comparable production tools: fit/tension analysis and manufacturing-oriented pattern workflows.
 
 Specific URLs are intentionally kept here rather than repeated across multiple dated research notes. Verify current vendor documentation before treating a feature as a compatibility promise.
+
+
+## Avatar Pose Mode UI research
+
+The merged FK skeleton should be edited as a pose tool rather than as a list of
+Euler-value fields.
+
+- Blender Pose Mode establishes the viewport-first model: click a bone/joint,
+  use the gizmo rings for axis-specific rotation, use the trackball for free
+  rotation, and use X-Axis Mirror for bilateral posing. Snapping/precision can
+  be temporary interaction aids rather than permanent numeric inputs.
+  References:
+  https://docs.blender.org/manual/en/latest/editors/3dview/display/gizmo.html
+  https://docs.blender.org/manual/en/latest/editors/3dview/controls/snapping.html
+  https://docs.blender.org/manual/en/latest/editors/3dview/controls/transform/transform_control/precision.html
+- CLO 3D's Adjust Avatar Joints uses FK joint adjustment with a Gizmo and a
+  dedicated symmetric control. Its workflow also separates direct joint
+  manipulation from broader IK workflows.
+  Reference:
+  https://support.clo3d.com/hc/en-us/articles/360000013808-Adjust-Avatar-Joints
+- Marvelous Designer uses a Unified Gizmo for rotate/move operations and exposes
+  X-ray avatar joints, supporting a model where the skeleton is directly
+  selectable in the 3D view rather than only through a property panel.
+  References:
+  https://support.marvelousdesigner.com/hc/en-us/articles/47358262924185-Adjust-Avatar-Pose
+  https://support.marvelousdesigner.com/hc/en-us/articles/47358262924185
+- Style3D adds bilateral skeleton linkage and joint-angle limits. Angle limits are
+  a useful future layer for Cloth, but this PR deliberately does not invent
+  anatomical limits that are absent from the current skeleton data contract.
+  Reference:
+  https://help.style3d.com/studio/en/1f8f/39dc
+- FreeCAD exposes the Coin3D scene graph and Pivy event callbacks needed to place
+  a transient posing overlay without adding another geometry engine.
+  The Coin SoTrackballDragger provides three principal-axis bands plus free-form
+  trackball rotation and start/motion/finish callbacks.
+  References:
+  https://reqrefusion.github.io/FreeCAD-Documentation-html/wiki/en/Code_snippets.html
+  https://www.coin3d.org/coin/classSoTrackballDragger.html
+
+Cloth UI mapping:
+1. The normal avatar editor is for measurements/provider configuration; Pose Mode
+   is a dedicated mode for posing.
+2. The user selects a named joint from a small anatomical tree or directly on the
+   mannequin.
+3. The selected joint gets a 3D rotation gizmo; direct dragging is the primary input.
+4. Symmetry and 5-degree angle snapping are visible mode toggles.
+5. X/Y/Z sliders provide a lower-friction secondary input; exact Euler values are
+   behind a collapsed Precision drawer.
+6. Presets provide Standing, Sewing and Sitting starting points.
+7. Apply/Rebuild and Cancel preserve the existing staged/persistent document
+   semantics.
+8. IK and anatomical joint-limit authoring remain explicit follow-up work.
+
+This is intentionally a UI layer over the merged `SkeletonPose`/FK data model;
+it does not replace the rig or introduce a second pose representation.

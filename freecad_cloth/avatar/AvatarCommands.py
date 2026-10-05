@@ -305,6 +305,19 @@ def edit_avatar():
     return show_avatar_task(obj)
 
 
+def pose_avatar():
+    """Open the focused 3D Pose Mode editor for the active mannequin."""
+    import FreeCAD as App
+
+    doc = App.ActiveDocument
+    if doc is None:
+        doc = App.newDocument("ClothSewing")
+    obj = _avatar(doc) or create_avatar()
+    from freecad_cloth.avatar.AvatarPoseGui import show_avatar_pose_task
+
+    return show_avatar_pose_task(obj)
+
+
 def set_avatar_measurements(**changes):
     import FreeCAD as App
 
@@ -416,6 +429,7 @@ def avatar_arrangement_points():
 COMMANDS = [
     "ClothFitting_CreateAvatar",
     "ClothFitting_EditAvatar",
+    "ClothFitting_PoseAvatar",
     "ClothFitting_RebuildAvatar",
     "ClothFitting_SetAvatarMeasurements",
     "ClothFitting_SetAvatarPose",
@@ -426,6 +440,7 @@ COMMANDS = [
 _HANDLERS = {
     "ClothFitting_CreateAvatar": create_avatar,
     "ClothFitting_EditAvatar": edit_avatar,
+    "ClothFitting_PoseAvatar": pose_avatar,
     "ClothFitting_RebuildAvatar": rebuild_avatar,
     "ClothFitting_SetAvatarMeasurements": lambda: set_avatar_measurements(
         height=1750, chest=980, waist=820, hip=1020

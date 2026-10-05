@@ -83,9 +83,17 @@ class AvatarTaskPanel:
         self.form.setObjectName("ClothAvatarTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
 
+        title_row = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel("Parametric Human Mannequin")
         title.setStyleSheet("font-weight: bold; font-size: 14px;")
-        root.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
+        self.pose_mode_button.setToolTip(
+            "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
+        )
+        title_row.addWidget(self.pose_mode_button)
+        root.addLayout(title_row)
 
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -130,6 +138,8 @@ class AvatarTaskPanel:
             pose_layout.addRow(label, box)
             self._pose_boxes[key] = box
         content_layout.addWidget(pose)
+        self._legacy_pose_group = pose
+        pose.setVisible(False)
 
         skeleton = QtWidgets.QGroupBox("Skeleton pose")
         skeleton_layout = QtWidgets.QFormLayout(skeleton)
@@ -172,6 +182,8 @@ class AvatarTaskPanel:
         )
         skeleton_layout.addRow(self.reset_skeleton_button)
         content_layout.addWidget(skeleton)
+        self._legacy_skeleton_group = skeleton
+        skeleton.setVisible(False)
 
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
@@ -238,6 +250,18 @@ class AvatarTaskPanel:
         self.apply_button.clicked.connect(self._apply)
         self.rebuild_button.clicked.connect(self._apply)
         self.fit_button.clicked.connect(self._fit_view)
+        self.pose_mode_button.clicked.connect(self._open_pose_mode)
+
+    def _open_pose_mode(self):
+        if self.avatar is None:
+            return
+        try:
+            self.Gui.Control.closeDialog()
+        except (AttributeError, RuntimeError):
+            pass
+        from freecad_cloth.avatar.AvatarCommands import pose_avatar
+
+        pose_avatar(self.avatar)
 
     def _find_avatar(self):
         doc = self.App.ActiveDocument
