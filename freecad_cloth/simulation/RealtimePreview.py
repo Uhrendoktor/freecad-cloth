@@ -104,8 +104,10 @@ class _Preview:
             if doc is None:
                 self.stop(False)
                 return
-            self.scene.Steps = int(self.scene.Steps) + 1
-            doc.recompute()
+            proxy = getattr(self.scene, "Proxy", None)
+            if proxy is None or not hasattr(proxy, "advance_preview_frame"):
+                raise RuntimeError("Realtime Cloth Preview requires the recompute-free simulation path")
+            proxy.advance_preview_frame(self.scene)
             import FreeCADGui as Gui
 
             if Gui.activeDocument():
