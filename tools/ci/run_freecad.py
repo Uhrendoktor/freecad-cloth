@@ -11,16 +11,6 @@ import sys
 from pathlib import Path
 
 
-def _run(command: list[str], *, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
 def _stage_workbench(source: Path) -> None:
     target = Path("/tmp/freecad-mod/freecad-cloth")
     if target.exists():
@@ -119,6 +109,15 @@ def main() -> int:
             value = os.environ.get(env_name)
             if value:
                 shutil.rmtree(value, ignore_errors=True)
+
+    pip_install = os.environ.get("CLOTH_CI_PIP_INSTALL", "").strip()
+    if pip_install:
+        packages = [item.strip() for item in pip_install.split(",") if item.strip()]
+        subprocess.run(
+            ["python3", "-m", "pip", "install", "--no-cache-dir", *packages],
+            check=True,
+            timeout=60,
+        )
 
     if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == "true":
         _stage_workbench(source)
