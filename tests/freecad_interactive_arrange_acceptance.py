@@ -96,9 +96,17 @@ def run():
     if abs(float(base.z) - 3.0) > 1e-6:
         raise RuntimeError("piece did not adopt arrangement-point offset")
 
-    persisted = tuple(str(value) for value in scene.PiecePlacements)
-    if not any("120.0,80.0,3.0" in value for value in persisted):
-        raise RuntimeError("snapped placement was not persisted in PiecePlacements")
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
+    persisted = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
+    matching = [value for value in persisted if value.piece_id == "acceptance-piece"]
+    if len(matching) != 1:
+        raise RuntimeError("snapped placement was not persisted for the acceptance piece")
+    if matching[0].position != (120.0, 80.0, 3.0):
+        raise RuntimeError(
+            "persisted placement does not match the snapped arrangement-point position: "
+            + str(matching[0].position)
+        )
 
     panel.reject()
     if controller._mouse_callback is not None or controller._location_callback is not None:
