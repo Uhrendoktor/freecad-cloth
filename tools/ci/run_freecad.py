@@ -92,6 +92,7 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 
 
 def main() -> int:
+    """Run a FreeCAD test process with the repository runtime contract."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout-seconds", type=float, default=55.0)
     parser.add_argument("--log-file", type=Path, required=True)
