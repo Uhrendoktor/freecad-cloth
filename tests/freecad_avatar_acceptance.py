@@ -1,6 +1,7 @@
 """Canonical FreeCAD/Xvfb acceptance for avatar provider lifecycle."""
 
 import contextlib
+import json
 import os
 import tempfile
 
