@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from visual_evidence import documented_assets, public_assets, write_provenance, verify
+from visual_evidence import documented_assets, verify, write_provenance
 
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
