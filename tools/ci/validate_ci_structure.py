@@ -23,6 +23,7 @@ REQUIRED = (
 
 
 def main() -> int:
+    """Validate the repository CI structure and hard runtime contracts."""
     files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
     if files != [WORKFLOW]:
         raise SystemExit(f"expected exactly one canonical workflow, found: {files}")
@@ -46,18 +47,24 @@ def main() -> int:
             value = match.group(1)
             if value.startswith("./"):
                 continue
-            if "@" not in value or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value):
-                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+            if "@" not in value or not re.fullmatch(
+                r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
+            ):
+                raise SystemExit(
+                    f"CI action is not pinned to a full SHA: {ci_file}: {value}"
+                )
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > 60:
-                raise SystemExit(f"CI timeout exceeds 60 seconds: {ci_file}: {match.group(0).strip()}")
+                raise SystemExit(
+                    f"CI timeout exceeds 60 seconds: {ci_file}: {match.group(0).strip()}"
+                )
 
     for index, line in enumerate(text.splitlines()):
         if "uses: ./.github/actions/freecad-test" not in line:
             continue
         step = []
-        for candidate in text.splitlines()[index + 1:]:
+        for candidate in text.splitlines()[index + 1 :]:
             if candidate.startswith("      - "):
                 break
             step.append(candidate)
