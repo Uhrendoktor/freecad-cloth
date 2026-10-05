@@ -35,7 +35,10 @@ def main() -> int:
         raise SystemExit("pull_request_target is forbidden")
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
         raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
-    if "freecad-test/action.yml" not in text:
+    if (
+        "uses: ./.github/actions/freecad-test" not in text
+        and "uses: $/.github/actions/freecad-test" not in text
+    ):
         raise SystemExit("canonical workflow must use freecad-test")
     for path in REQUIRED:
         if not path.is_file():
