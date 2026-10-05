@@ -22,13 +22,15 @@ runs:
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_ACTOR: ${{ github.actor }}
       run: |
         set -euo pipefail
         if docker image inspect "$IMAGE" >/dev/null 2>&1; then
           echo "docker-image-cache=hit image=$IMAGE"
           exit 0
         fi
-        printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
+        printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1
         for attempt in 1 2 3; do
           if timeout --signal=TERM --kill-after=5s 60s docker pull "$IMAGE"; then
             exit 0
@@ -44,6 +46,8 @@ runs:
       env:
         IMAGE: ${{ inputs.image }}
         EXTRA_ENV: ${{ inputs.environment }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        INPUT_COMMAND: ${{ inputs.command }}
       run: |
         set -euo pipefail
         env_file="$RUNNER_TEMP/freecad-container-${GITHUB_JOB}.env"
@@ -59,7 +63,7 @@ runs:
             printf '%s\n' "$EXTRA_ENV"
           fi
         } >"$env_file"
-        timeout_seconds="${{ inputs.timeout-seconds }}"
+        timeout_seconds="$TIMEOUT_SECONDS"
         if [ "$timeout_seconds" -gt 60 ]; then
           echo "timeout-seconds must be <= 60" >&2
           exit 2
@@ -69,4 +73,4 @@ runs:
           --env-file "$env_file" \
           -v "$GITHUB_WORKSPACE:/workspace:rw" \
           -w /workspace \
-          "$IMAGE" bash -lc "${{ inputs.command }}"
+          "$IMAGE" bash -lc "$INPUT_COMMAND"
