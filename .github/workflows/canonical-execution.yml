@@ -1635,6 +1635,12 @@ jobs:
             docs/images/generated/cloth-avatar-turntable-frames/frame-018.png
             docs/images/generated/cloth-avatar-turntable-frames/frame-036.png
             docs/images/generated/cloth-avatar-turntable-frames/frame-054.png
+            docs/images/generated/cloth-avatar-front.png
+            docs/images/generated/cloth-avatar-rear.png
+            docs/images/generated/cloth-avatar-left.png
+            docs/images/generated/cloth-avatar-right.png
+            docs/images/generated/cloth-avatar-top.png
+            docs/images/generated/cloth-avatar-bottom.png
             docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-000.png
             docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-018.png
             docs/images/generated/cloth-simulation-arranged-turntable-frames/frame-036.png
@@ -1765,7 +1771,7 @@ jobs:
           compression-level: 1
   publish-readme-turntables:
     name: Publish README turntables and example motion
-    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples]
+    needs: [local_runner_readiness, gui-tunic-visual, gui-turntables, gui-visual-examples, gui-avatar-pose, gui-fitting-interaction]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     permissions:
       contents: write
@@ -1792,6 +1798,16 @@ jobs:
         with:
           name: tunic-visual-audit
           path: tunic
+      - name: Download Pose Mode visual evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: avatar-pose-ui
+          path: avatar-pose-ui
+      - name: Download Interactive Arrange visual evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: interactive-arrange
+          path: interactive-arrange
       - name: Build mannequin drape GIF
         run: |
           set -euo pipefail
@@ -1831,7 +1847,9 @@ jobs:
           cp ../blanket/blanket-motion.gif docs/images/generated/cloth-blanket-motion.gif
           cp ../tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif docs/images/generated/cloth-tunic-mannequin-motion.gif
           cp ../tunic/docs/images/generated/cloth-pattern-design.png docs/images/generated/cloth-pattern-design.png
+          cp ../tunic/docs/images/generated/cloth-simulation-arranged.png docs/images/generated/cloth-simulation-arranged.png
           cp ../tunic/docs/images/generated/cloth-sewing.png docs/images/generated/cloth-sewing.png
+          cp ../tunic/docs/images/generated/cloth-simulation-draped.png docs/images/generated/cloth-simulation-draped.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-front.png docs/images/generated/cloth-simulation-draped-front.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-rear.png docs/images/generated/cloth-simulation-draped-rear.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-left.png docs/images/generated/cloth-simulation-draped-left.png
@@ -1839,6 +1857,14 @@ jobs:
           cp ../tunic/docs/images/generated/cloth-simulation-draped-top.png docs/images/generated/cloth-simulation-draped-top.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-bottom.png docs/images/generated/cloth-simulation-draped-bottom.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-diagnostics.png
+          cp ../turntables/cloth-avatar-front.png docs/images/generated/cloth-avatar-front.png
+          cp ../turntables/cloth-avatar-rear.png docs/images/generated/cloth-avatar-rear.png
+          cp ../turntables/cloth-avatar-left.png docs/images/generated/cloth-avatar-left.png
+          cp ../turntables/cloth-avatar-right.png docs/images/generated/cloth-avatar-right.png
+          cp ../turntables/cloth-avatar-top.png docs/images/generated/cloth-avatar-top.png
+          cp ../turntables/cloth-avatar-bottom.png docs/images/generated/cloth-avatar-bottom.png
+          cp ../avatar-pose-ui/avatar-pose-mode.png docs/images/generated/avatar-pose-mode.png
+          cp ../interactive-arrange/interactive-arrange.png docs/images/generated/interactive-arrange.png
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/images/generated/cloth-avatar-turntable.gif \
@@ -1848,6 +1874,16 @@ jobs:
             docs/images/generated/cloth-tunic-mannequin-motion.gif \
             docs/images/generated/cloth-pattern-design.png \
             docs/images/generated/cloth-sewing.png \
+            docs/images/generated/cloth-simulation-arranged.png \
+            docs/images/generated/cloth-simulation-draped.png \
+            docs/images/generated/cloth-avatar-front.png \
+            docs/images/generated/cloth-avatar-rear.png \
+            docs/images/generated/cloth-avatar-left.png \
+            docs/images/generated/cloth-avatar-right.png \
+            docs/images/generated/cloth-avatar-top.png \
+            docs/images/generated/cloth-avatar-bottom.png \
+            docs/images/generated/avatar-pose-mode.png \
+            docs/images/generated/interactive-arrange.png \
             docs/images/generated/cloth-simulation-draped-front.png \
             docs/images/generated/cloth-simulation-draped-rear.png \
             docs/images/generated/cloth-simulation-draped-left.png \
