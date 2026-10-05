@@ -22,10 +22,12 @@ ARTIFACT_ROOTS = (
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
+    """Run a subprocess command and fail on a non-zero exit status."""
     subprocess.run(args, cwd=cwd, check=True)
 
 
 def find_asset(asset: str) -> Path:
+    """Locate one uniquely named generated visual asset."""
     matches = sorted(
         path
         for root in ARTIFACT_ROOTS
@@ -41,10 +43,13 @@ def find_asset(asset: str) -> Path:
 
 
 def build_tunic_gif() -> None:
+    """Build the tunic motion GIF when it is not already present."""
     output = Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif")
     if output.is_file() and output.stat().st_size:
         return
-    frames = sorted(Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))
+    frames = sorted(
+        Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames").glob("motion-*.png")
+    )
     if not frames:
         raise SystemExit("cannot build tunic motion GIF: frames are missing")
     source = Path("tools/ci/build_visual_gifs.py")
@@ -57,6 +62,7 @@ def build_tunic_gif() -> None:
 
 
 def main() -> int:
+    """Publish and validate the repository visual evidence inventory."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--source-sha", required=True)
@@ -73,12 +79,15 @@ def main() -> int:
     run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none")
 
     branch = "docs/screenshots"
-    remote_exists = subprocess.run(
-        ("git", "-C", str(worktree), "ls-remote", "--exit-code", "--heads", "origin", branch),
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    ).returncode == 0
+    remote_exists = (
+        subprocess.run(
+            ("git", "-C", str(worktree), "ls-remote", "--exit-code", "--heads", "origin", branch),
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
     if remote_exists:
         run("git", "-C", str(worktree), "fetch", "origin", branch)
         run("git", "-C", str(worktree), "checkout", "-B", branch, f"origin/{branch}")
@@ -110,17 +119,31 @@ def main() -> int:
         raise SystemExit("; ".join(errors))
 
     run("git", "-C", str(worktree), "config", "user.name", "github-actions[bot]")
-    run("git", "-C", str(worktree), "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+    run(
+        "git",
+        "-C",
+        str(worktree),
+        "config",
+        "user.email",
+        "41898282+github-actions[bot]@users.noreply.github.com",
+    )
     run("git", "-C", str(worktree), "add", "docs/images/generated")
-    dirty = subprocess.run(
-        ("git", "-C", str(worktree), "diff", "--cached", "--quiet"),
-        check=False,
-    ).returncode != 0
+    dirty = (
+        subprocess.run(
+            ("git", "-C", str(worktree), "diff", "--cached", "--quiet"),
+            check=False,
+        ).returncode
+        != 0
+    )
     if dirty:
         run(
-            "git", "-C", str(worktree), "commit",
-            "-m", f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
-        )
+        "git",
+        "-C",
+        str(worktree),
+        "commit",
+        "-m",
+        f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
+    )
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
     run("git", "-C", str(worktree), "fetch", "origin", branch)
@@ -134,7 +157,9 @@ def main() -> int:
     ).strip()
     if remote_commit != local_commit:
         raise SystemExit(f"remote screenshot branch mismatch: {remote_commit} != {local_commit}")
-    print(f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}")
+    print(
+        f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}"
+    )
     return 0
 
 
