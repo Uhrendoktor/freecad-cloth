@@ -25,6 +25,7 @@ def main():
                 SurfaceAnchor((110.0, 10.0, 20.0), (0.0, 0.0, 1.0)),
                 SurfaceAnchor((110.0, 70.0, 20.0), (0.0, 0.0, 1.0)),
                 SurfaceAnchor((10.0, 70.0, 20.0), (0.0, 0.0, 1.0)),
+                SurfaceAnchor((10.0, 10.0, 20.0), (0.0, 0.0, 1.0)),
             ),
             label="3D Pen Smoke Draft",
         )
