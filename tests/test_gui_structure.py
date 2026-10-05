@@ -17,6 +17,7 @@ sim_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationGui.py").read_text
 quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text()
 sewing_gui = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text()
 avatar_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text()
+fitting_gui = (ROOT / "freecad_cloth" / "avatar" / "FittingGui.py").read_text()
 commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text()
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
@@ -57,6 +58,11 @@ assert '"Pose"' in avatar_gui
 assert '"Display"' in avatar_gui
 assert "Apply & Rebuild" in avatar_gui
 assert "Gui.Control.showDialog(panel)" in avatar_gui
+assert "class DirectArrangeController" in fitting_gui
+assert "class FittingTaskPanel" in fitting_gui
+assert "Snap to arrangement points" in fitting_gui
+assert "ClothInteractiveArrangeTaskPanel" in fitting_gui
+assert "ClothFitting_InteractiveArrange" in avatar_commands
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
