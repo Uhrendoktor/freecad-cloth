@@ -22,9 +22,9 @@ def main() -> int:
     ref = os.environ["GITHUB_REF_NAME"]
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        jobs = json.loads(
-            gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")
-        ).get("jobs", [])
+        jobs = json.loads(gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")).get(
+            "jobs", []
+        )
         sentinel = next(
             (job for job in jobs if job.get("name") == "Selected runner readiness"), None
         )
