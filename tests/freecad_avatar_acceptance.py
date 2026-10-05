@@ -79,6 +79,11 @@ def run_acceptance():
         identity = avatar.Name
 
         baseline_vertices, baseline_triangles = _mesh_topology(avatar.Mesh)
+        baseline_landmarks = {
+            str(item).split("|", 1)[0]: str(item).split("|", 1)[1]
+            for item in getattr(avatar, "Landmarks", [])
+            if "|" in str(item)
+        }
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         upperarm_index = panel.skeleton_joint.findText("Left shoulder")
@@ -103,6 +108,13 @@ def run_acceptance():
         joint_payload = json.loads(str(avatar.JointPoseJSON))
         if joint_payload["joints"]["upperarm01.L"]["y"] != 25.0:
             raise RuntimeError("manual skeleton rotation was not persisted")
+        posed_landmarks = {
+            str(item).split("|", 1)[0]: str(item).split("|", 1)[1]
+            for item in getattr(avatar, "Landmarks", [])
+            if "|" in str(item)
+        }
+        if posed_landmarks.get("wrist_left") == baseline_landmarks.get("wrist_left"):
+            raise RuntimeError("manual skeleton rotation did not update the persisted wrist landmark")
         if target_status(target)["state"] != "stale":
             raise RuntimeError(
                 "manual skeleton edit did not deterministically invalidate DrapeTarget"
