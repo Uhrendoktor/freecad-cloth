@@ -17,6 +17,7 @@ sim_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationGui.py").read_text
 quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text()
 sewing_gui = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text()
 avatar_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text()
+avatar_pose_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarPoseGui.py").read_text()
 commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text()
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
@@ -51,6 +52,10 @@ assert "show_simulation_quality_task" in quality_gui
 assert "class SewingTaskPanel" in sewing_gui
 assert "Gui.Control.showDialog(panel)" in sewing_gui
 assert "class AvatarTaskPanel" in avatar_gui
+assert "class AvatarPoseTaskPanel" in avatar_pose_gui
+assert "class SkeletonPoseController" in avatar_pose_gui
+assert "SoTrackballDragger" in avatar_pose_gui
+assert "ClothFitting_PoseAvatar" in avatar_commands
 assert '"Body measurements"' in avatar_gui
 assert '"Proportions"' in avatar_gui
 assert '"Pose"' in avatar_gui
