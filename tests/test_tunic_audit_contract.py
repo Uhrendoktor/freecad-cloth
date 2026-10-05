@@ -4,6 +4,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 # The canonical native-Sketcher outline uses edges 3/5 as the shoulder seams.
+# Tunic CI keeps an 8 mm SDF for runtime while using a wider collision tolerance.
 # Keep front/back semantic edge IDs independent; never fall back to one piece's IDs.
 
 
