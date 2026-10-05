@@ -6,6 +6,7 @@ RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
         pytest \
+        hypothesis==6.168.3 \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
     && cat > /opt/pypbd-provenance.txt <<'EOF'
 Package: pyPBD
