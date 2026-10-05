@@ -47,16 +47,13 @@ def build_tunic_gif() -> None:
     frames = sorted(Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))
     if not frames:
         raise SystemExit("cannot build tunic motion GIF: frames are missing")
-    magick = shutil.which("magick") or shutil.which("convert")
-    if not magick:
-        run("sudo", "apt-get", "update")
-        run("sudo", "apt-get", "install", "-y", "imagemagick")
-        magick = shutil.which("magick") or shutil.which("convert")
-    if not magick:
-        raise SystemExit("ImageMagick is unavailable")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    args = [magick, "-delay", "10", "-loop", "0", *map(str, frames), "-colors", "128", str(output)]
-    subprocess.run(args, check=True, timeout=60)
+    source = Path("tools/ci/build_visual_gifs.py")
+    subprocess.run(
+        ["python3", str(source), "tunic"],
+        check=True,
+        timeout=55,
+        cwd=Path("."),
+    )
 
 
 def main() -> int:
