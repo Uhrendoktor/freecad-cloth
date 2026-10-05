@@ -1,8 +1,12 @@
 name: Publish visual evidence
-description: Assemble, validate, provenance-stamp, and publish the canonical README/wiki visual asset set.
+description: Publish either the canonical main-branch visual set or PR simulation evidence.
 inputs:
+  mode:
+    description: main or pr
+    required: false
+    default: main
   source-sha:
-    description: Exact main-branch commit represented by the evidence.
+    description: Exact source commit represented by the evidence.
     required: true
   repository:
     description: owner/name repository identifier.
@@ -12,42 +16,82 @@ inputs:
     required: true
   run-number:
     description: Canonical workflow run number.
-    required: true
+    required: false
+    default: ""
+  pr-number:
+    description: Pull request number for PR evidence.
+    required: false
+    default: ""
+  evidence-head:
+    description: Exact PR HEAD SHA for PR evidence.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
-    - name: Download turntable evidence
+    - name: Checkout source
+      if: inputs.mode == 'main'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.source-sha }}
+        persist-credentials: false
+    - name: Checkout source for PR publisher
+      if: inputs.mode == 'pr'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.evidence-head }}
+        persist-credentials: false
+    - name: Download main visual artifacts
+      if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: readme-turntables
         path: turntables
-    - name: Download blanket visual evidence
+    - name: Download blanket visual artifacts
+      if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: blanket-visual-example
         path: blanket
-    - name: Download tunic visual evidence
+    - name: Download tunic visual artifacts
+      if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: tunic-visual-audit
         path: tunic
-    - name: Download Pose Mode evidence
+    - name: Download Pose Mode artifacts
+      if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: avatar-pose-ui
         path: avatar-pose-ui
-    - name: Download Interactive Arrange evidence
+    - name: Download arrange artifacts
+      if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: interactive-arrange
         path: interactive-arrange
-    - name: Publish exact visual inventory
+    - name: Publish main visual evidence
+      if: inputs.mode == 'main'
       shell: bash
       env:
-        SOURCE_SHA: ${{ inputs.source-sha }}
         REPOSITORY: ${{ inputs.repository }}
+        SOURCE_SHA: ${{ inputs.source-sha }}
         RUN_ID: ${{ inputs.run-id }}
         RUN_NUMBER: ${{ inputs.run-number }}
-      run: |
-        set -euo pipefail
-        python3 tools/ci/publish_visual_evidence.py           --repository "$REPOSITORY"           --source-sha "$SOURCE_SHA"           --run-id "$RUN_ID"           --run-number "$RUN_NUMBER"
+      run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/publish_visual_evidence.py --repository "$REPOSITORY" --source-sha "$SOURCE_SHA" --run-id "$RUN_ID" --run-number "$RUN_NUMBER"
+    - name: Download PR simulation artifact
+      if: inputs.mode == 'pr'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: tunic-visual-audit
+        path: tunic
+    - name: Publish PR simulation evidence
+      if: inputs.mode == 'pr'
+      shell: bash
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        RUN_ID: ${{ inputs.run-id }}
+        EVIDENCE_HEAD: ${{ inputs.evidence-head }}
+      run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/publish_pr_simulation_evidence.py --repository "$REPOSITORY" --pr-number "$PR_NUMBER" --run-id "$RUN_ID" --evidence-head "$EVIDENCE_HEAD"
