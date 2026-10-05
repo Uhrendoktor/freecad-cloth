@@ -69,7 +69,7 @@ runs:
       run: timeout --signal=TERM --kill-after=5s 60s bash -lc "$PRE_COMMAND"
 
     - name: Run bounded FreeCAD test
-      uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@dfab37356572bd1e98f21dae5204de61b6431229
+      uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@fc7184f196e2f19c3ecf20aba6b56e74fa78b2ad
       with:
         image: ${{ inputs.image }}
         environment: |
