@@ -407,7 +407,9 @@ def write_drape_metrics(
                                     )
                                     inside_points.append(
                                         {
-                                            "point": tuple(round(float(value), 3) for value in point),
+                                            "point": tuple(
+    round(float(value), 3) for value in point
+),
                                             "nearest_target_vertex_mm": round(float(nearest), 3),
                                         }
                                     )
