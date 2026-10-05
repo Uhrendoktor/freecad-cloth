@@ -104,7 +104,9 @@ def run_acceptance():
         if joint_payload["joints"]["upperarm01.L"]["y"] != 25.0:
             raise RuntimeError("manual skeleton rotation was not persisted")
         if target_status(target)["state"] != "stale":
-            raise RuntimeError("manual skeleton edit did not deterministically invalidate DrapeTarget")
+            raise RuntimeError(
+                "manual skeleton edit did not deterministically invalidate DrapeTarget"
+            )
 
         refresh_drape_target(target)
         panel = AvatarTaskPanel(avatar)
