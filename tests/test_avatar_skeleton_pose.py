@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
 from freecad_cloth.avatar.SkeletonPose import (
     CONTROLLABLE_BONES,
     JointRotation,
@@ -13,14 +13,16 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
+from freecad_cloth.avatar.HierarchicalPose import transform_landmarks
+from freecad_cloth.avatar.SkeletonPose import AffineTransform, IDENTITY
 
 
 def test_joint_rotation_bounds_and_mirror():
     rotation = JointRotation("upperarm01.L", 12.0, 20.0, 30.0).validate()
     mirrored = rotation.mirrored()
     assert mirrored.bone == "upperarm01.R"
-    assert mirrored.x == -12.0
-    assert mirrored.y == 20.0
+    assert mirrored.x == 12.0
+    assert mirrored.y == -20.0
     assert mirrored.z == -30.0
 
 
@@ -48,6 +50,17 @@ def test_pose_and_avatar_parameters_persist_manual_joints():
     restored = AvatarParameters.from_json(params.to_json())
     assert restored == params
     assert restored.pose.joint_rotations[0].bone == "lowerarm01.L"
+
+
+def test_manual_pose_moves_fitting_landmark_from_baseline():
+    landmarks = (Landmark("shoulder_left", (1.0, 0.0, 0.0)), Landmark("waist", (0.0, 1.0, 0.0)))
+    rotation = AffineTransform(
+        (0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+        (1.0, 0.0, 0.0),
+    )
+    posed = transform_landmarks(landmarks, {"clavicle.L": IDENTITY, "spine04": IDENTITY}, {"clavicle.L": rotation, "spine04": IDENTITY})
+    assert posed[0].position == pytest.approx((1.0, 1.0, 0.0))
+    assert posed[1] == landmarks[1]
 
 
 def test_joint_map_rejects_unknown_bones():
