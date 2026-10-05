@@ -440,10 +440,7 @@ class AvatarTaskPanel:
     def _load_skeleton_pose(self):
         from freecad_cloth.avatar.SkeletonPose import joint_rotation_map, joint_rotations_from_json
 
-        try:
-            rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
-        except (TypeError, ValueError):
-            rotations = ()
+        rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
         self._staged_joint_rotations = joint_rotation_map(rotations)
         self._load_selected_joint()
 
