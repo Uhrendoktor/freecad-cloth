@@ -77,7 +77,8 @@ jobs:
           python tools/ci/validate_ci_structure.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
-          python tools/check_dead_code.py $(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py') || true
+          git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
+          if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
           python -m pytest -q tests/test_property_contracts.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
       - name: Workflow linters
