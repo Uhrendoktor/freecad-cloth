@@ -447,10 +447,14 @@ class AvatarTaskPanel:
     def _load_selected_joint(self, _index=0):
         bone = str(self.skeleton_joint.currentData())
         rotation = self._staged_joint_rotations.get(bone)
-        values = (0.0, 0.0, 0.0) if rotation is None else (
-            float(rotation.x),
-            float(rotation.y),
-            float(rotation.z),
+        values = (
+            (0.0, 0.0, 0.0)
+            if rotation is None
+            else (
+                float(rotation.x),
+                float(rotation.y),
+                float(rotation.z),
+            )
         )
         for box, value in zip(
             (self.skeleton_x, self.skeleton_y, self.skeleton_z), values, strict=False
