@@ -381,6 +381,42 @@ def write_drape_metrics(
         penetrating_vertices = _inside_target_count(vertices, avatar, collision_surface)
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
+            if collision_surface is not None:
+                target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
+                if target_points:
+                    from math import sqrt
+
+                    inside_points = []
+                    shape = getattr(avatar, "Shape", None)
+                    checker = getattr(shape, "isInside", None) if shape is not None else None
+                    if not callable(checker):
+                        mesh = getattr(avatar, "Mesh", None)
+                        checker = getattr(mesh, "isInside", None) if mesh is not None else None
+                    if callable(checker):
+                        for point in vertices:
+                            try:
+                                if bool(checker(App.Vector(*point), 1e-6, True)):
+                                    nearest = min(
+                                        sqrt(
+                                            sum(
+                                                (float(point[i]) - float(target[i])) ** 2
+                                                for i in range(3)
+                                            )
+                                        )
+                                        for target in target_points
+                                    )
+                                    inside_points.append(
+                                        {
+                                            "point": tuple(round(float(value), 3) for value in point),
+                                            "nearest_target_vertex_mm": round(float(nearest), 3),
+                                        }
+                                    )
+                            except (AttributeError, TypeError, ValueError):
+                                break
+                    log(
+                        "penetration-evidence panel=%s count=%d samples=%s"
+                        % (record["panel"], penetrating_vertices, inside_points[:12])
+                    )
             raise RuntimeError(
                 "draped panel {} has {} vertices inside the mannequin collision surface".format(
                     record["panel"], penetrating_vertices
