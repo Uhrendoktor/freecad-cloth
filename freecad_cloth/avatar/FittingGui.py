@@ -80,6 +80,7 @@ class DirectArrangeController:
         self._mouse_callback = None
         self._location_callback = None
         self._transaction_open = False
+        self._snap_indicator = None
 
     def _status(self, message):
         self.status_callback(str(message))
@@ -148,6 +149,40 @@ class DirectArrangeController:
         )
         return getattr(point, "source", None)
 
+    def _clear_snap_indicator(self):
+        if self._snap_indicator is None or self.view is None:
+            return
+        try:
+            self.view.getSceneGraph().removeChild(self._snap_indicator)
+        except (AttributeError, RuntimeError):
+            pass
+        self._snap_indicator = None
+
+    def _show_snap_indicator(self, point):
+        if self.view is None or point is None:
+            self._clear_snap_indicator()
+            return
+        try:
+            from pivy import coin
+
+            self._clear_snap_indicator()
+            separator = coin.SoSeparator()
+            transform = coin.SoTransform()
+            transform.translation.setValue(
+                coin.SbVec3f(float(point.X), float(point.Y), float(point.Offset))
+            )
+            color = coin.SoBaseColor()
+            color.rgb = (0.15, 0.75, 1.0)
+            sphere = coin.SoSphere()
+            sphere.radius = 8.0
+            separator.addChild(transform)
+            separator.addChild(color)
+            separator.addChild(sphere)
+            self.view.getSceneGraph().addChild(separator)
+            self._snap_indicator = separator
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            self._snap_indicator = None
+
     def _set_piece_placement(self, piece, base, rotation_z):
         piece.Placement = self.App.Placement(
             self.App.Vector(float(base[0]), float(base[1]), float(base[2])),
@@ -198,6 +233,7 @@ class DirectArrangeController:
                 pass
         self.drag_piece = None
         self.snap_point = None
+        self._clear_snap_indicator()
         self._abort_transaction()
         if self.view is not None:
             if self._mouse_callback is not None:
@@ -232,6 +268,7 @@ class DirectArrangeController:
             )
             self.drag_start_rotation = float(placement.Rotation.Angle)
             self.snap_point = None
+            self._clear_snap_indicator()
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
@@ -277,6 +314,7 @@ class DirectArrangeController:
             self._commit_transaction()
             self.drag_piece = None
             self.snap_point = None
+            self._clear_snap_indicator()
 
     def _location_event(self, info):
         if self.drag_piece is None or self.drag_start_screen is None:
@@ -299,6 +337,7 @@ class DirectArrangeController:
             snap = self._nearest_snap_point(position) if self.snap_enabled else None
             self.snap_point = snap
             if snap is not None:
+                self._show_snap_indicator(snap)
                 base = (float(snap.X), float(snap.Y), float(snap.Offset))
                 rotation = arrangement_rotation(snap)
                 self._status(
@@ -308,6 +347,7 @@ class DirectArrangeController:
                     )
                 )
             else:
+                self._clear_snap_indicator()
                 rotation = self.drag_start_rotation
             self._set_piece_placement(self.drag_piece, base, rotation)
         except (AttributeError, TypeError, ValueError, RuntimeError):
