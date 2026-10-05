@@ -38,8 +38,18 @@ def nearest_arrangement_point(position, points, max_distance):
     return best
 
 
+class SimpleScreenPoint:
+    """GUI-neutral screen-space adapter for a persistent arrangement point."""
+
+    def __init__(self, x, y, source):
+        self.X = float(x)
+        self.Y = float(y)
+        self.source = source
+
+
 def arrangement_rotation(point):
     """Return the Z rotation implied by an arrangement point wrap direction."""
+
     base = float(getattr(point, "RotationZ", 0.0))
     return {
         "front": base,
@@ -131,10 +141,12 @@ class DirectArrangeController:
             candidates.append((sx, sy, point))
         if not candidates:
             return None
-        px, py = screen_position
-        best = min(candidates, key=lambda item: (item[0] - px) ** 2 + (item[1] - py) ** 2)
-        distance = ((best[0] - px) ** 2 + (best[1] - py) ** 2) ** 0.5
-        return best[2] if distance <= self.SNAP_PIXEL_RADIUS else None
+        point = nearest_arrangement_point(
+            screen_position,
+            tuple(SimpleScreenPoint(sx, sy, point) for sx, sy, point in candidates),
+            self.SNAP_PIXEL_RADIUS,
+        )
+        return getattr(point, "source", None)
 
     def _set_piece_placement(self, piece, base, rotation_z):
         piece.Placement = self.App.Placement(
