@@ -35,9 +35,7 @@ def _manual_pose_rotations(parameters):
         if bone in result:
             continue
         angle_value = (
-            parameters.pose.left_arm_angle
-            if side < 0
-            else parameters.pose.right_arm_angle
+            parameters.pose.left_arm_angle if side < 0 else parameters.pose.right_arm_angle
         )
         desired = (
             default_angle
