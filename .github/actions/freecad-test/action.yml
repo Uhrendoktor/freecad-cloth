@@ -11,10 +11,10 @@ inputs:
     description: Hard runtime budget for the FreeCAD application; maximum 55 seconds.
     required: false
     default: "55"
-  checkout-ref:
-    description: Optional Git ref to checkout before running. Omit for subsequent tests in the same job.
+  checkout:
+    description: Checkout the canonical PR head or workflow SHA before running. Disable for subsequent tests in the same job.
     required: false
-    default: ""
+    default: "true"
   stage-workbench:
     description: Stage workbench files for FreeCAD module discovery.
     required: false
@@ -51,10 +51,10 @@ runs:
   using: composite
   steps:
     - name: Checkout requested revision
-      if: inputs.checkout-ref != ''
+      if: inputs.checkout == 'true'
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
-        ref: ${{ inputs.checkout-ref }}
+        ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         persist-credentials: false
 
     - name: Run bounded FreeCAD test
