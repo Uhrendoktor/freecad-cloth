@@ -53,3 +53,9 @@ if (
     os.environ["CLOTH_SIMULATION_BACKEND"] = "position-based-dynamics"
     os.environ.setdefault("CLOTH_PBD_SUBSTEPS", "1")
     _install_pbd_backend_hook()
+
+
+if any("freecad_tunic_audit" in argument for argument in __import__("sys").argv):
+    os.environ["CLOTH_PBD_COLLISION_TRIANGLES"] = "8192"
+    os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"] = "4"
+    os.environ["CLOTH_PBD_COLLISION_TOLERANCE_MM"] = "6"
