@@ -23,6 +23,7 @@ from dataclasses import dataclass
 Point3 = tuple[float, float, float]
 Vector3 = Point3
 Point2 = tuple[float, float]
+DEFAULT_CLOSE_DISTANCE_MM = 6.0
 
 
 def _as_point3(value) -> Point3:
@@ -236,7 +237,7 @@ def flatten_surface_patch(
 ) -> FlattenedSurfacePatch:
     """Project a sampled closed surface boundary onto a deterministic best local plane.
 
-    The plane is oriented from the closed polygon's Newell normal. This is not a
+    The plane is oriented from a deterministic local boundary normal. This is not a
     general mesh parameterization; the explicit deviation test prevents silently
     turning a strongly curved region into a misleading flat pattern.
     """
@@ -384,14 +385,37 @@ def _append_anchor(
     return True
 
 
+def close_surface_stroke(
+    anchors: Sequence[SurfaceAnchor],
+    tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
+) -> tuple[SurfaceAnchor, ...]:
+    """Validate and normalize a closed surface boundary."""
+    values = tuple(anchors)
+    if len(values) < 4:
+        raise ValueError("close the surface boundary with at least three distinct points")
+    limit = max(0.0, float(tolerance_mm))
+    distance = _length(_sub(values[-1].point, values[0].point))
+    if distance > limit + 1e-9:
+        raise ValueError(
+            "surface boundary is open; return to the first surface point "
+            f"within {limit:.1f} mm before finishing"
+        )
+    boundary = values[:-1]
+    unique = {
+        tuple(round(float(value), 6) for value in anchor.point)
+        for anchor in boundary
+    }
+    if len(unique) < 3:
+        raise ValueError("surface boundary needs at least three distinct points")
+    return boundary
+
+
 def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], label="3D Surface Draft"):
     """Persist a finished surface draft as a rebuildable authoring object."""
     import FreeCAD as App
     import Part
 
-    values = tuple(anchors)
-    if len(values) < 3:
-        raise ValueError("surface draft needs at least three samples")
+    values = close_surface_stroke(anchors)
     obj = doc.addObject("Part::FeaturePython", doc.getUniqueObjectName("SurfacePatternDraft"))
     obj.Label = label
     obj.addProperty("App::PropertyString", "AuthoringType", "3D Pattern").AuthoringType = (
@@ -412,6 +436,9 @@ def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], lab
     )
     obj.addProperty("App::PropertyLength", "PlanarTolerance", "State").PlanarTolerance = 8.0
     obj.addProperty("App::PropertyLength", "MaxDeviation", "State").MaxDeviation = 0.0
+    obj.addProperty("App::PropertyLength", "ClosureTolerance", "State").ClosureTolerance = (
+        DEFAULT_CLOSE_DISTANCE_MM
+    )
     points = [App.Vector(*anchor.point) for anchor in values]
     points.append(points[0])
     obj.Shape = Part.makePolygon(points)
@@ -445,6 +472,10 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("surface draft contains invalid anchor data") from exc
+    closure_tolerance = float(
+        getattr(surface_draft, "ClosureTolerance", DEFAULT_CLOSE_DISTANCE_MM)
+    )
+    anchors = close_surface_stroke(anchors, closure_tolerance)
     patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
     surface_draft.PlanarTolerance = float(tolerance_mm)
     surface_draft.MaxDeviation = float(patch.max_deviation_mm)
@@ -488,6 +519,7 @@ class SurfacePenController:
 
     SAMPLE_PIXEL_THRESHOLD = 4.0
     SAMPLE_DISTANCE_MM = 3.0
+    CLOSE_DISTANCE_MM = DEFAULT_CLOSE_DISTANCE_MM
 
     def __init__(self, target, target_source, status_callback=None):
         self.App, self.Gui = self._modules()
@@ -650,16 +682,17 @@ class SurfacePenController:
             self._last_screen = None
         if len(self.anchors) < 3:
             raise ValueError("draw at least three surface points before finishing")
+        closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
         document = self.App.ActiveDocument
         if document is None:
             raise RuntimeError("an active document is required")
-        simplified = simplify_polyline([anchor.point for anchor in self.anchors], 1.0)
+        simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
         if len(simplified) < 3:
             raise ValueError("surface stroke simplified to fewer than three points")
-        by_point = {tuple(round(value, 6) for value in anchor.point): anchor for anchor in self.anchors}
+        by_point = {tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed}
         anchors = tuple(
             by_point.get(tuple(round(value, 6) for value in point))
-            or SurfaceAnchor(point, self.anchors[min(index, len(self.anchors) - 1)].normal)
+            or SurfaceAnchor(point, closed[min(index, len(closed) - 1)].normal)
             for index, point in enumerate(simplified)
         )
         # Validate the same bounded planar contract before any persistent object
@@ -789,6 +822,7 @@ __all__ = [
     "SurfacePenTaskPanel",
     "extract_surface_draft_to_pattern",
     "flatten_surface_patch",
+    "close_surface_stroke",
     "polygon_area_2d",
     "polygon_self_intersects",
     "simplify_polyline",
