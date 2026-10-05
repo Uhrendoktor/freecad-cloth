@@ -1857,12 +1857,12 @@ jobs:
           cp ../tunic/docs/images/generated/cloth-simulation-draped-top.png docs/images/generated/cloth-simulation-draped-top.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-bottom.png docs/images/generated/cloth-simulation-draped-bottom.png
           cp ../tunic/docs/images/generated/cloth-simulation-draped-diagnostics.png docs/images/generated/cloth-simulation-diagnostics.png
-          cp ../tunic/docs/images/generated/cloth-avatar-front.png docs/images/generated/cloth-avatar-front.png
-          cp ../tunic/docs/images/generated/cloth-avatar-rear.png docs/images/generated/cloth-avatar-rear.png
-          cp ../tunic/docs/images/generated/cloth-avatar-left.png docs/images/generated/cloth-avatar-left.png
-          cp ../tunic/docs/images/generated/cloth-avatar-right.png docs/images/generated/cloth-avatar-right.png
-          cp ../tunic/docs/images/generated/cloth-avatar-top.png docs/images/generated/cloth-avatar-top.png
-          cp ../tunic/docs/images/generated/cloth-avatar-bottom.png docs/images/generated/cloth-avatar-bottom.png
+          cp ../turntables/cloth-avatar-front.png docs/images/generated/cloth-avatar-front.png
+          cp ../turntables/cloth-avatar-rear.png docs/images/generated/cloth-avatar-rear.png
+          cp ../turntables/cloth-avatar-left.png docs/images/generated/cloth-avatar-left.png
+          cp ../turntables/cloth-avatar-right.png docs/images/generated/cloth-avatar-right.png
+          cp ../turntables/cloth-avatar-top.png docs/images/generated/cloth-avatar-top.png
+          cp ../turntables/cloth-avatar-bottom.png docs/images/generated/cloth-avatar-bottom.png
           cp ../avatar-pose-ui/avatar-pose-mode.png docs/images/generated/avatar-pose-mode.png
           cp ../interactive-arrange/interactive-arrange.png docs/images/generated/interactive-arrange.png
           git config user.name "github-actions[bot]"
