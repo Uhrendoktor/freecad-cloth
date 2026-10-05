@@ -10,13 +10,8 @@ from pathlib import Path
 
 def image_tool() -> str:
     tool = shutil.which("magick") or shutil.which("convert")
-    if tool:
-        return tool
-    subprocess.run(["sudo", "apt-get", "update"], check=True, timeout=60)
-    subprocess.run(["sudo", "apt-get", "install", "-y", "imagemagick"], check=True, timeout=60)
-    tool = shutil.which("magick") or shutil.which("convert")
     if not tool:
-        raise SystemExit("ImageMagick is unavailable")
+        raise SystemExit("ImageMagick is required on the CI runner")
     return tool
 
 
