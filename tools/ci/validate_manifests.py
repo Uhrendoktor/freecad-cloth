@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 
 ROOT = Path("artifacts/simulation-ladder")
