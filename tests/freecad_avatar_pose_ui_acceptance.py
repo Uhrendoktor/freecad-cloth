@@ -6,6 +6,19 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 
+
+def _capture_screen(path):
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is None or app.primaryScreen() is None:
+        raise RuntimeError("Qt primary screen is unavailable for Pose Mode screenshot")
+    if not app.primaryScreen().grabWindow(0).save(path):
+        raise RuntimeError("failed to save Pose Mode UI screenshot")
+
+
 def _bounds(mesh):
     box = mesh.BoundBox
     return (
@@ -28,6 +41,11 @@ def run():
     doc.recompute()
 
     panel = AvatarPoseTaskPanel(avatar)
+    Gui.Control.showDialog(panel)
+    view = Gui.activeDocument().activeView()
+    view.viewIsometric()
+    view.fitAll()
+    Gui.updateGui()
     if panel.controller.view is None:
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
