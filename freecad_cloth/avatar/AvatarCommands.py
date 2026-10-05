@@ -67,9 +67,7 @@ def _parameters(obj):
                 "right_elbow_angle",
             )
         ),
-        tuple(
-            joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))
-        ),
+        tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
     return AvatarParameters(values, float(obj.SkinOffset), pose)
 
@@ -132,7 +130,11 @@ def _rebuild(obj):
     )
     obj.Mesh = _mesh_data(vertices, triangles)
     _set_prop(
-        obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_rotations_to_json(params.pose.joint_rotations)
+        obj,
+        "App::PropertyString",
+        "JointPoseJSON",
+        "Pose",
+        joint_rotations_to_json(params.pose.joint_rotations),
     )
     obj.JointPoseJSON = joint_rotations_to_json(params.pose.joint_rotations)
     obj.ParametersJSON = params.to_json()
@@ -219,7 +221,9 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
-        _set_prop(obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}"))
+        _set_prop(
+            obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
+        )
         _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
         _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
         _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
