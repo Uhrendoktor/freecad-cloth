@@ -80,3 +80,21 @@ def test_quality_proxy_keeps_solver_stitch_provenance():
     proxy._sync_seam_stitch_provenance(Base())
 
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
+
+
+def test_realtime_preview_uses_persistent_backend_path():
+    runtime = (ROOT / "freecad_cloth" / "simulation" / "RealtimePreview.py").read_text(
+        encoding="utf-8"
+    )
+    quality = (
+        ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py"
+    ).read_text(encoding="utf-8")
+    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "proxy.advance_preview_frame(self.scene)" in runtime
+    assert "scene.Steps = int(scene.Steps) + 1" not in runtime
+    assert "doc.recompute()" not in runtime[runtime.index("    def tick"):runtime.index("    @staticmethod")]
+    assert "def advance_preview_frame(self, obj):" in quality
+    assert "proxy.advance_preview_frame(scene)" in benchmark
