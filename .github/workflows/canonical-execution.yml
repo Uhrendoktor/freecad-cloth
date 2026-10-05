@@ -116,14 +116,14 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: Prefer local, otherwise dispatch hosted
-        env:
-          REPO: ${{ github.repository }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Prefer local, otherwise dispatch hosted
+        env:
+          REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
 
   pbd_validation_image:
@@ -465,14 +465,14 @@ jobs:
       actions: write
       contents: write
     steps:
-      - name: Retention cleanup
-        env:
-          REPO: ${{ github.repository }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Retention cleanup
+        env:
+          REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/maintenance_cleanup.py
 
   benchmark:
