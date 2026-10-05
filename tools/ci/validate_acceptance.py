@@ -59,6 +59,10 @@ CASES = {
         "artifacts/avatar-acceptance.log",
         ("avatar provider acceptance passed",),
     ),
+    "surface-pen": (
+        "artifacts/surface-pen.log",
+        ("surface-pen-native-smoke=passed",),
+    ),
 }
 
 
