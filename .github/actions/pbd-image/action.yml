@@ -11,6 +11,12 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Checkout requested revision
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        persist-credentials: false
+
     - name: Login to GHCR
       shell: bash
       run: printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
