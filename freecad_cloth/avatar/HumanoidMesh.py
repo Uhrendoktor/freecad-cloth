@@ -505,7 +505,9 @@ def load_makehuman_weights(
             raise HumanoidMeshError("MakeHuman weights contain no visible vertices")
         return result
     except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
-        raise HumanoidMeshError(f"unable to parse MakeHuman skinning weights {source}: {exc}") from exc
+        raise HumanoidMeshError(
+            f"unable to parse MakeHuman skinning weights {source}: {exc}"
+        ) from exc
 
 
 def _normalize_fit_axes(vertices, parameters):
