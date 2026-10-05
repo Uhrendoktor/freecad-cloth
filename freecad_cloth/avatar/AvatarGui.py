@@ -131,6 +131,48 @@ class AvatarTaskPanel:
             self._pose_boxes[key] = box
         content_layout.addWidget(pose)
 
+        skeleton = QtWidgets.QGroupBox("Skeleton pose")
+        skeleton_layout = QtWidgets.QFormLayout(skeleton)
+        hint = QtWidgets.QLabel(
+            "Manual FK. Edit a joint in mannequin space; child bones follow the authored skeleton."
+        )
+        hint.setWordWrap(True)
+        skeleton_layout.addRow(hint)
+        self.skeleton_joint = QtWidgets.QComboBox()
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
+        for bone, label in CONTROLLABLE_JOINTS:
+            self.skeleton_joint.addItem(label, bone)
+        self.skeleton_joint.setToolTip(
+            "Select a MakeHuman-authored joint and edit its Euler rotation."
+        )
+        skeleton_layout.addRow("Joint", self.skeleton_joint)
+        self.skeleton_x = QtWidgets.QDoubleSpinBox()
+        self.skeleton_y = QtWidgets.QDoubleSpinBox()
+        self.skeleton_z = QtWidgets.QDoubleSpinBox()
+        for label, box in (
+            ("X rotation", self.skeleton_x),
+            ("Y rotation", self.skeleton_y),
+            ("Z rotation", self.skeleton_z),
+        ):
+            box.setRange(-180.0, 180.0)
+            box.setDecimals(1)
+            box.setSuffix(" deg")
+            box.setToolTip("Staged joint rotation in degrees.")
+            skeleton_layout.addRow(label, box)
+        self.skeleton_symmetry = QtWidgets.QCheckBox("Symmetry")
+        self.skeleton_symmetry.setChecked(True)
+        self.skeleton_symmetry.setToolTip(
+            "Mirror bilateral joint edits across the mannequin center plane."
+        )
+        skeleton_layout.addRow(self.skeleton_symmetry)
+        self.reset_skeleton_button = QtWidgets.QPushButton("Reset skeleton pose")
+        self.reset_skeleton_button.setToolTip(
+            "Clear manual joint rotations and return to the preset baseline."
+        )
+        skeleton_layout.addRow(self.reset_skeleton_button)
+        content_layout.addWidget(skeleton)
+
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
         self.skin_offset = QtWidgets.QDoubleSpinBox()
@@ -177,12 +219,18 @@ class AvatarTaskPanel:
         root.addWidget(self.status)
 
         self._dirty = False
+        self._staged_joint_rotations = {}
         self._load()
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
         for box in self._pose_boxes.values():
             box.valueChanged.connect(self._staged_changed)
         self.pose.currentTextChanged.connect(self._preset_changed)
+        self.skeleton_joint.currentIndexChanged.connect(self._load_selected_joint)
+        for box in (self.skeleton_x, self.skeleton_y, self.skeleton_z):
+            box.valueChanged.connect(self._joint_changed)
+        self.skeleton_symmetry.toggled.connect(self._symmetry_changed)
+        self.reset_skeleton_button.clicked.connect(self._reset_skeleton_pose)
         self.provider.currentIndexChanged.connect(self._provider_changed)
         self.provider_source.clicked.connect(self._use_selected_provider_source)
         self.skin_offset.valueChanged.connect(self._staged_changed)
@@ -248,6 +296,7 @@ class AvatarTaskPanel:
         self.skin_offset.blockSignals(True)
         self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
         self.skin_offset.blockSignals(False)
+        self._load_skeleton_pose()
         self.show_measurements.setChecked(bool(getattr(self.avatar, "Landmarks", [])))
         self._update_arrangement_points()
         self._update_landmarks()
@@ -331,7 +380,18 @@ class AvatarTaskPanel:
                 )
             ),
         )
-        return AvatarParameters(values, self.skin_offset.value(), pose)
+        return AvatarParameters(
+            values,
+            self.skin_offset.value(),
+            Pose(
+                pose.preset,
+                pose.left_arm_angle,
+                pose.right_arm_angle,
+                pose.left_elbow_angle,
+                pose.right_elbow_angle,
+                tuple(self._staged_joint_rotations.values()),
+            ),
+        )
 
     def _apply(self):
         if self.avatar is None:
@@ -352,6 +412,9 @@ class AvatarTaskPanel:
             setattr(self.avatar, property_name, params.measurements[key])
         self.avatar.PosePreset = params.pose.preset
         self.avatar.SkinOffset = params.skin_offset
+        from freecad_cloth.avatar.SkeletonPose import joint_rotations_to_json
+
+        self.avatar.JointPoseJSON = joint_rotations_to_json(params.pose.joint_rotations)
         self.avatar.AvatarProviderId = provider_id
         self.avatar.ProviderSource = provider_source if provider_id == "freecad-geometry" else None
         for key, value in zip(
@@ -373,6 +436,68 @@ class AvatarTaskPanel:
         self._refresh_status("Mannequin rebuilt from applied persistent parameters.")
         self._fit_view()
         return True
+
+    def _load_skeleton_pose(self):
+        from freecad_cloth.avatar.SkeletonPose import joint_rotation_map, joint_rotations_from_json
+
+        try:
+            rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
+        except (TypeError, ValueError):
+            rotations = ()
+        self._staged_joint_rotations = joint_rotation_map(rotations)
+        self._load_selected_joint()
+
+    def _load_selected_joint(self, _index=0):
+        bone = str(self.skeleton_joint.currentData())
+        rotation = self._staged_joint_rotations.get(bone)
+        values = (0.0, 0.0, 0.0) if rotation is None else (
+            float(rotation.x),
+            float(rotation.y),
+            float(rotation.z),
+        )
+        for box, value in zip(
+            (self.skeleton_x, self.skeleton_y, self.skeleton_z), values, strict=False
+        ):
+            box.blockSignals(True)
+            box.setValue(value)
+            box.blockSignals(False)
+
+    def _joint_changed(self):
+        from freecad_cloth.avatar.SkeletonPose import JointRotation
+
+        bone = str(self.skeleton_joint.currentData())
+        rotation = JointRotation(
+            bone, self.skeleton_x.value(), self.skeleton_y.value(), self.skeleton_z.value()
+        ).validate()
+        values = dict(self._staged_joint_rotations)
+        values[bone] = rotation
+        if self.skeleton_symmetry.isChecked():
+            mirrored = rotation.mirrored()
+            if mirrored.bone != rotation.bone:
+                values[mirrored.bone] = mirrored
+        self._staged_joint_rotations = values
+        self._staged_changed()
+
+    def _symmetry_changed(self, checked):
+        if not checked:
+            return
+        bone = str(self.skeleton_joint.currentData())
+        rotation = self._staged_joint_rotations.get(bone)
+        if rotation is None:
+            return
+        mirrored = rotation.mirrored()
+        if mirrored.bone == rotation.bone:
+            return
+        self._staged_joint_rotations = {
+            **self._staged_joint_rotations,
+            mirrored.bone: mirrored,
+        }
+        self._staged_changed()
+
+    def _reset_skeleton_pose(self):
+        self._staged_joint_rotations = {}
+        self._load_selected_joint()
+        self._staged_changed()
 
     def _rebuild_geometry(self):
         from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
