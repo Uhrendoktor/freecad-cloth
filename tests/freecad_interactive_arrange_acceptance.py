@@ -66,6 +66,9 @@ def run():
     view.fitAll()
 
     panel = FittingTaskPanel(scene)
+    Gui.Control.showDialog(panel)
+    view.fitAll()
+    Gui.updateGui()
     controller = panel.controller
 
     start = _screen(view, App.Vector(0.0, 0.0, 0.0))
