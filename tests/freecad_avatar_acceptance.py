@@ -87,10 +87,7 @@ def run_acceptance():
         panel.skeleton_y.setValue(25.0)
         if not panel.skeleton_symmetry.isChecked():
             raise RuntimeError("manual skeleton editor did not enable symmetry by default")
-        staged_pose = json.loads(
-            panel._staged_parameters().pose.joint_rotations
-            and panel._staged_parameters().to_json()
-        )
+        staged_pose = json.loads(panel._staged_parameters().to_json())
         joints = staged_pose["pose"]["joints"]
         if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != 25.0:
             raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
