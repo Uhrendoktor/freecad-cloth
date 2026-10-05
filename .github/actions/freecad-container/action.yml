@@ -46,4 +46,4 @@ runs:
             printf '%s\n' "$EXTRA_ENV"
           fi
         } >"$env_file"
-        timeout --signal=TERM --kill-after=5s 70s           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             --env-file "$env_file"             -v "$GITHUB_WORKSPACE:/workspace:rw"             -w /workspace             "$IMAGE" bash -lc "${{ inputs.command }}"
+        timeout --signal=TERM --kill-after=5s 60s           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             --env-file "$env_file"             -v "$GITHUB_WORKSPACE:/workspace:rw"             -w /workspace             "$IMAGE" bash -lc "${{ inputs.command }}"
