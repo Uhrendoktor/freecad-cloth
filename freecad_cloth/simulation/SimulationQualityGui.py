@@ -185,7 +185,7 @@ class SimulationQualityTaskPanel:
         sform.addRow("Simulation steps", self.steps)
         root.addWidget(solver)
 
-        self._expert_widgets = (quality, fabric, collision, solver)
+        self._expert_widgets = (fabric, collision, solver)
         buttons = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
         self.run_button = QtWidgets.QPushButton("Run 30")
