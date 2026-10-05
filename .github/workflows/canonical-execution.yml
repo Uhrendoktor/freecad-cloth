@@ -381,7 +381,6 @@ jobs:
             -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -391,11 +390,11 @@ jobs:
               rm -f /workspace/artifacts/pbd-contact-diagnostics/app-run.log
               setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py > /workspace/artifacts/pbd-contact-diagnostics/app-run.log 2>&1 &
               APP_PID=$!
-              APP_DEADLINE=$((SECONDS + 300))
-              echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=300"
+              APP_DEADLINE=$((SECONDS + 90))
+              echo "diagnostic-contact-supervisor=started pid=$APP_PID deadline_seconds=90"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
-                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a /workspace/artifacts/pbd-contact-diagnostics/app-run.log
+                  echo "diagnostic-contact-supervisor=timeout pid=$APP_PID elapsed_seconds=90" | tee -a /workspace/artifacts/pbd-contact-diagnostics/app-run.log
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -423,7 +422,6 @@ jobs:
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -489,7 +487,6 @@ jobs:
             -e CLOTH_HEAD_SHA="$CLOTH_HEAD_SHA" \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/pbd-contact-diagnostics
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -651,7 +648,6 @@ jobs:
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/simulation-ladder
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -673,7 +669,6 @@ jobs:
             -e CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=0 -e CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder \
             -v "$PWD:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts/simulation-ladder
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -768,7 +763,6 @@ jobs:
             -e CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -848,7 +842,6 @@ jobs:
           mkdir -p artifacts
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb             -e LIBGL_ALWAYS_SOFTWARE=1             -v "$PWD:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -993,7 +986,6 @@ jobs:
           mkdir -p artifacts
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             -e TINI_SUBREAPER=1 -e DISPLAY=:99 -e XDG_RUNTIME_DIR=/tmp/runtime-cloth             -e PYTHONPATH=/workspace -e QT_X11_NO_MITSHM=1 -e QT_QPA_PLATFORM=xcb -e LIBGL_ALWAYS_SOFTWARE=1             -e CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/artifacts
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -1074,7 +1066,7 @@ jobs:
           CLOTH_PBD_COLLISION_MODE: mesh
           CLOTH_PBD_COLLISION_TRIANGLES: 8192
           CLOTH_PBD_COLLISION_VOXEL_MM: 8
-          CLOTH_PBD_COLLISION_TOLERANCE_MM: 12
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/tunic-audit
@@ -1091,7 +1083,6 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /workspace "$FREECAD_PBD_IMAGE" bash -lc '
               set -u -o pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated /workspace/artifacts/tunic-audit
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
@@ -1113,12 +1104,12 @@ jobs:
               setsid /opt/freecad/AppRun /workspace/tests/freecad_tunic_audit_production.py > "$app_log" 2>&1 &
               APP_PID=$!
               TIMED_OUT=0
-              APP_DEADLINE=$((SECONDS + 300))
-              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=300"
+              APP_DEADLINE=$((SECONDS + 90))
+              echo "tunic-audit-supervisor=started pid=$APP_PID deadline_seconds=90"
               while kill -0 "$APP_PID" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$APP_DEADLINE" ]; then
                   TIMED_OUT=1
-                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=300" | tee -a "$app_log"
+                  echo "tunic-audit-supervisor=timeout pid=$APP_PID elapsed_seconds=90" | tee -a "$app_log"
                   kill -TERM -- "-$APP_PID" 2>/dev/null || kill -TERM "$APP_PID" 2>/dev/null || true
                   sleep 5
                   kill -KILL -- "-$APP_PID" 2>/dev/null || kill -KILL "$APP_PID" 2>/dev/null || true
@@ -1339,9 +1330,10 @@ jobs:
     name: README simulation turntable
     needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 25
+    timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+      CLOTH_TURNTABLE_FRAMES: ${{ github.event_name == 'pull_request' && 36 || 72 }}
     steps:
       - name: Log selected execution mode
         run: |
@@ -1381,7 +1373,7 @@ jobs:
           CLOTH_PBD_COLLISION_MODE: mesh
           CLOTH_PBD_COLLISION_TRIANGLES: 8192
           CLOTH_PBD_COLLISION_VOXEL_MM: 8
-          CLOTH_PBD_COLLISION_TOLERANCE_MM: 12
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
           CLOTH_BLANKET_STEPS: 180
         run: |
           set -euo pipefail
@@ -1398,15 +1390,14 @@ jobs:
             -e CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               mkdir -p "$XDG_RUNTIME_DIR" /workspace/docs/images/generated
               Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & XVFB_PID=$!
               openbox >/tmp/openbox.log 2>&1 & OPENBOX_PID=$!
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              CLOTH_CI_DISABLE_PBD=1 timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
+              CLOTH_CI_DISABLE_PBD=1 timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py
             '
       - name: Restore workspace from Docker volume
         if: ${{ always() }}
@@ -1422,9 +1413,10 @@ jobs:
       - name: Validate turntable frame counts on restored workspace
         run: |
           set -euo pipefail
-          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
-          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq 73
+          expected_frames=$((CLOTH_TURNTABLE_FRAMES + 1))
+          test "$(find docs/images/generated/cloth-avatar-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq "$expected_frames"
+          test "$(find docs/images/generated/cloth-simulation-arranged-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq "$expected_frames"
+          test "$(find docs/images/generated/cloth-simulation-draped-turntable-frames -maxdepth 1 -name 'frame-*.png' | wc -l)" -eq "$expected_frames"
 
       - name: Validate blanket motion and camera evidence
         run: |
@@ -1569,7 +1561,6 @@ jobs:
             -e CLOTH_PBD_COLLISION_TOLERANCE_MM=2 \
             -v "${DOCKER_WORKSPACE_VOLUME}:/workspace" -w /tmp "$FREECAD_PBD_IMAGE" bash -lc '
               set -euo pipefail
-              python3 -m pip install --no-cache-dir triangle==20250106 >/tmp/triangle-install.log 2>&1
               rm -rf "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP"
               mkdir -p "$FREECAD_USER_HOME" "$FREECAD_USER_DATA" "$FREECAD_USER_TEMP" "$XDG_RUNTIME_DIR" /workspace/docs/images/generated/blanket-example
               rm -rf /tmp/freecad-mod
