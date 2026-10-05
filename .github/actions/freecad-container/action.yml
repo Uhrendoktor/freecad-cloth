@@ -1,0 +1,49 @@
+name: FreeCAD container
+description: Run a command in the canonical FreeCAD CI container with standardized Docker/X11 setup.
+inputs:
+  image:
+    description: Immutable FreeCAD container image.
+    required: true
+  command:
+    description: Shell command to execute in the container.
+    required: true
+  environment:
+    description: Optional newline-delimited KEY=VALUE environment entries for the container.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Ensure CI container image is available
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: |
+        set -euo pipefail
+        if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "docker-image-cache=hit image=$IMAGE"
+          exit 0
+        fi
+        printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
+        timeout --signal=TERM --kill-after=5s 60s docker pull "$IMAGE"
+    - name: Run command in FreeCAD container
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        EXTRA_ENV: ${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        env_file="$RUNNER_TEMP/freecad-container-${GITHUB_JOB}.env"
+        {
+          printf '%s\n' "PYTHONPATH=/workspace"
+          printf '%s\n' "QT_X11_NO_MITSHM=1"
+          printf '%s\n' "QT_QPA_PLATFORM=xcb"
+          printf '%s\n' "LIBGL_ALWAYS_SOFTWARE=1"
+          printf '%s\n' "XDG_RUNTIME_DIR=/tmp/runtime-cloth"
+          printf '%s\n' "DISPLAY=:99"
+          printf '%s\n' "TINI_SUBREAPER=1"
+          if [ -n "$EXTRA_ENV" ]; then
+            printf '%s\n' "$EXTRA_ENV"
+          fi
+        } >"$env_file"
+        timeout --signal=TERM --kill-after=5s 70s           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g             --env-file "$env_file"             -v "$GITHUB_WORKSPACE:/workspace:rw"             -w /workspace             "$IMAGE" bash -lc "${{ inputs.command }}"
