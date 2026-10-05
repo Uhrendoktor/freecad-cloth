@@ -19,6 +19,8 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from freecad_cloth.shared.SourceSignature import source_signature
+
 
 Point3 = tuple[float, float, float]
 Vector3 = Point3
@@ -293,10 +295,8 @@ def _target_source(target):
 
 
 def _target_signature(target) -> str:
+    source = _target_source(target)
     try:
-        from freecad_cloth.simulation.DrapeTarget import source_signature
-
-        source = _target_source(target)
         return repr(
             source_signature(
                 source,
@@ -304,7 +304,7 @@ def _target_signature(target) -> str:
                 float(getattr(target, "CollisionThickness", 0.0)),
             )
         )
-    except (ImportError, AttributeError, TypeError, ValueError, RuntimeError):
+    except (AttributeError, TypeError, ValueError, RuntimeError):
         return str(getattr(target, "Name", ""))
 
 
