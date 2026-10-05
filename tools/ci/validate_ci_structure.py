@@ -59,7 +59,10 @@ def main() -> int:
                 )
 
     for index, line in enumerate(text.splitlines()):
-        if "uses: ./.github/actions/freecad-test" not in line:
+        if (
+            "uses: ./.github/actions/freecad-test" not in line
+            and "uses: $/.github/actions/freecad-test" not in line
+        ):
             continue
         step = []
         for candidate in text.splitlines()[index + 1 :]:
