@@ -193,7 +193,7 @@ def test_workbench_base_exposes_legacy_registration_aliases():
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
-    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg"):
+    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg", "ClothPattern_SurfacePen.svg"):
         path = ROOT / "resources" / "icons" / name
         assert path.is_file(), path
         content = path.read_text(encoding="utf-8").lstrip()
@@ -218,6 +218,7 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
         "ClothPattern_CreateFromSketch",
         "ClothPattern_CreatePiece",
         "ClothPattern_CreateCustomPiece",
+        "ClothPattern_SurfacePen",
     }
     assert "ClothPattern_CreateDrafting" not in command_list
     assert native_commands <= set(command_list)
@@ -225,6 +226,13 @@ def test_pattern_authoring_command_surface_is_sketcher_backed():
     assert '"ClothPattern_CreatePiece": create_pattern_piece_with_sketch' in commands
     assert '"ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch' in commands
     assert '"ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch' in commands
+    assert '"ClothPattern_SurfacePen": start_surface_pattern_pen' in commands
+    surface_pen = (ROOT / "freecad_cloth" / "pattern" / "SurfacePen.py").read_text()
+    assert "class SurfacePenController" in surface_pen
+    assert "class SurfacePenTaskPanel" in surface_pen
+    assert "pick_surface_point" in surface_pen
+    assert "flatten_surface_patch" in surface_pen
+    assert "Sketcher" in surface_pen
     assert "Edit native Sketch" in pattern_gui
     assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
 
