@@ -255,10 +255,8 @@ class AvatarTaskPanel:
     def _open_pose_mode(self):
         if self.avatar is None:
             return
-        try:
+        with __import__('contextlib').suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
-        except (AttributeError, RuntimeError):
-            pass
         from freecad_cloth.avatar.AvatarCommands import pose_avatar
 
         pose_avatar(self.avatar)
