@@ -43,7 +43,7 @@ class SimulationQualityTaskPanel:
             ensure_quality_properties,
         )
 
-        self.App, self.Gui, self.QtWidgets, self.QtGui = App, Gui, QtWidgets, QtGui
+        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None
@@ -95,6 +95,17 @@ class SimulationQualityTaskPanel:
         flayout.addLayout(fit_buttons)
         root.addWidget(fitting)
 
+        self.advanced_toggle = QtWidgets.QToolButton()
+        self.advanced_toggle.setText("Expert physics settings")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setChecked(False)
+        self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+        self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
+        self.advanced_toggle.setToolTip(
+            "Normal fitting uses presets. Expand this section only when precise solver or collision values are needed."
+        )
+        root.addWidget(self.advanced_toggle)
+
         quality = QtWidgets.QGroupBox("Simulation quality")
         qform = QtWidgets.QFormLayout(quality)
         self.quality = QtWidgets.QComboBox()
@@ -113,6 +124,12 @@ class SimulationQualityTaskPanel:
         qform.addRow("Solver iterations", self.iterations)
         qform.addRow("Solver substeps", self.substeps)
         root.addWidget(quality)
+        for widget in (self.particle_distance, self.iterations, self.substeps):
+            label = qform.labelForField(widget)
+            if label is not None:
+                label.setVisible(False)
+            widget.setVisible(False)
+
         fabric = QtWidgets.QGroupBox("Fabric")
         fform = QtWidgets.QFormLayout(fabric)
         self.density = self._double(1.0, 2000.0, 150.0, 1)
@@ -139,6 +156,22 @@ class SimulationQualityTaskPanel:
         ):
             fform.addRow(label, widget)
         root.addWidget(fabric)
+        for widget in (
+            self.density,
+            self.thickness,
+            self.stretch,
+            self.shear,
+            self.bend,
+            self.friction,
+            self.specular,
+            self.roughness,
+            self.transparency,
+        ):
+            label = fform.labelForField(widget)
+            if label is not None:
+                label.setVisible(False)
+            widget.setVisible(False)
+
         collision = QtWidgets.QGroupBox("Collision")
         cform = QtWidgets.QFormLayout(collision)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2)
@@ -151,6 +184,8 @@ class SimulationQualityTaskPanel:
         self.steps = self._spin(0, 1000000, 0)
         sform.addRow("Simulation steps", self.steps)
         root.addWidget(solver)
+
+        self._expert_widgets = (quality, fabric, collision, solver)
         buttons = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
         self.run_button = QtWidgets.QPushButton("Run 30")
@@ -190,6 +225,8 @@ class SimulationQualityTaskPanel:
         self.step_button.clicked.connect(lambda: self.step(1))
         self.run_button.clicked.connect(lambda: self.step(30))
         self.reset_button.clicked.connect(self.reset)
+        self.advanced_toggle.toggled.connect(self._set_expert_visibility)
+        self._set_expert_visibility(False)
         self._load()
 
     @staticmethod
@@ -208,6 +245,18 @@ class SimulationQualityTaskPanel:
         widget.setRange(low, high)
         widget.setValue(value)
         return widget
+
+    def _set_expert_visibility(self, enabled):
+        """Show or hide precision solver/collision controls behind the expert toggle."""
+        self.advanced_toggle.setArrowType(
+            QtCore.Qt.DownArrow if enabled else QtCore.Qt.RightArrow
+        )
+        for widget in getattr(self, "_expert_widgets", ()):
+            widget.setVisible(bool(enabled))
+        if enabled:
+            self.status.setText(
+                "Expert controls enabled. Presets remain the recommended starting point."
+            )
 
     def _refresh_fitting_stage(self):
         from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
