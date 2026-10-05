@@ -22,6 +22,7 @@ commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text
 sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
 sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
 avatar_commands = (ROOT / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text()
+fitting_commands = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text()
 
 assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
 assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
@@ -62,7 +63,7 @@ assert "class DirectArrangeController" in fitting_gui
 assert "class FittingTaskPanel" in fitting_gui
 assert "Snap to arrangement points" in fitting_gui
 assert "ClothInteractiveArrangeTaskPanel" in fitting_gui
-assert "ClothFitting_InteractiveArrange" in avatar_commands
+assert "ClothFitting_InteractiveArrange" in fitting_commands
 assert "ClothPattern_CreatePieceTask" in commands
 assert "ClothPattern_EditPiece" in commands
 assert "ClothPattern_Show2D" in commands
