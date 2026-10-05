@@ -158,58 +158,33 @@ class SkeletonPoseController:
         bone_color.rgb = (0.65, 0.65, 0.65)
 
         self._build_positions()
-        from freecad_cloth.avatar.HumanoidMesh import _joint_point, _load_source_vertices, load_makehuman_skeleton
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
 
-        source_vertices = _load_source_vertices()
-        skeleton = load_makehuman_skeleton()
         point_list = [
             self._positions[bone]
             for bone, _label in CONTROLLABLE_JOINTS
             if bone in self._positions
         ]
+        if point_list:
+            points_sep = coin.SoSeparator()
+            points = coin.SoCoordinate3()
+            points.point.setValues(0, len(point_list), [tuple(position) for position in point_list])
+            point_set = coin.SoPointSet()
+            point_set.numPoints = len(point_list)
+            points_sep.addChild(point_draw)
+            points_sep.addChild(joint_color)
+            points_sep.addChild(points)
+            points_sep.addChild(point_set)
+            self.overlay.addChild(points_sep)
 
-        points_sep = coin.SoSeparator()
-        points = coin.SoCoordinate3()
-        points.point.setValues(
-            0,
-            len(point_list),
-            [tuple(position) for position in point_list],
-        )
-        point_set = coin.SoPointSet()
-        point_set.numPoints = len(point_list)
-        points_sep.addChild(point_draw)
-        points_sep.addChild(joint_color)
-        points_sep.addChild(points)
-        points_sep.addChild(point_set)
-        self.overlay.addChild(points_sep)
-
-        bones_sep = coin.SoSeparator()
-        coordinates = []
-        counts = []
-        for bone, _label in CONTROLLABLE_JOINTS:
-            bone_data = skeleton["bones"].get(bone)
-            if bone_data is None or bone not in self._positions:
-                continue
-            head = self._positions[bone]
-            tail_joint = skeleton["joints"].get(bone_data["tail"], ())
-            if not tail_joint:
-                continue
-            # The tail can be read from the already posed bone frame. Using the
-            # rest-space tail through the joint transform keeps the guide aligned.
-            rest_tail = _joint_point(source_vertices, tail_joint)
-            from freecad_cloth.avatar.SkeletonPose import build_bone_transforms
-            transforms = build_bone_transforms(
-                source_vertices,
-                skeleton,
-                lambda p: p,
-                self.panel._staged_parameters().pose.joint_rotations,
-            )
-            tail = transforms[bone].apply(rest_tail)
-            coordinates.extend([head, tuple(float(v) for v in tail)])
-            counts.append(2)
-
-        if coordinates:
+        skeleton = self._joint_connections()
+        if skeleton:
+            coordinates = []
+            counts = []
+            for head, tail in skeleton:
+                coordinates.extend((head, tail))
+                counts.append(2)
+            bones_sep = coin.SoSeparator()
             coord = coin.SoCoordinate3()
             coord.point.setValues(0, len(coordinates), coordinates)
             line_set = coin.SoLineSet()
@@ -219,6 +194,27 @@ class SkeletonPoseController:
             bones_sep.addChild(coord)
             bones_sep.addChild(line_set)
             self.overlay.addChild(bones_sep)
+
+    def _joint_connections(self):
+        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_skeleton
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
+        skeleton = load_makehuman_skeleton()
+        connections = []
+        for bone, _label in CONTROLLABLE_JOINTS:
+            data = skeleton["bones"].get(bone)
+            if data is None:
+                continue
+            for candidate in CONTROLLABLE_JOINTS:
+                if candidate[0] not in self._positions:
+                    continue
+                child_data = skeleton["bones"].get(candidate[0])
+                if child_data and child_data.get("parent") == bone:
+                    connections.append(
+                        (self._positions[bone], self._positions[candidate[0]])
+                    )
+                    break
+        return tuple(connections)
 
     def _remove_overlay_children(self):
         if self.overlay is None:
@@ -244,7 +240,11 @@ class SkeletonPoseController:
         self.gizmo_separator = coin.SoSeparator()
         self.gizmo_transform = coin.SoTransform()
         self.gizmo = coin.SoTrackballDragger()
-        self.gizmo.scaleFactor = (self.GIZMO_SIZE, self.GIZMO_SIZE, self.GIZMO_SIZE)
+        self.gizmo.scaleFactor.setValue(
+            self.GIZMO_SIZE,
+            self.GIZMO_SIZE,
+            self.GIZMO_SIZE,
+        )
         self.gizmo.setAnimationEnabled(False)
         self.gizmo_separator.addChild(self.gizmo_transform)
         self.gizmo_separator.addChild(self.gizmo)
@@ -300,9 +300,8 @@ class SkeletonPoseController:
                 float(self.base_rotation.z),
             )
             combined = delta.multiply(base)
-            x = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)[0]
-            y = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)[1]
-            z = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)[2]
+            angles = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)
+            x, y, z = (float(value) for value in angles)
             self.panel._stage_joint_rotation(
                 self.selected_bone,
                 x,
@@ -691,7 +690,7 @@ class AvatarPoseTaskPanel:
             for key, property_name in self._measurement_map().items()
         }
         current_pose = Pose(
-            str(getattr(self.avatar, "PosePreset", "standing")),
+            str(getattr(self, "_staged_pose_preset", getattr(self.avatar, "PosePreset", "standing"))),
             float(getattr(self.avatar, "LeftArmAngle", 12.0)),
             float(getattr(self.avatar, "RightArmAngle", 12.0)),
             float(getattr(self.avatar, "LeftElbowAngle", 0.0)),
@@ -750,9 +749,11 @@ class AvatarPoseTaskPanel:
         try:
             params = self._staged_parameters()
             if hasattr(self, "_staged_pose_preset"):
-                from freecad_cloth.avatar.AvatarModel import Pose
+                from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
-                params = params.with_pose(
+                params = AvatarParameters(
+                    params.measurements,
+                    params.skin_offset,
                     Pose(
                         self._staged_pose_preset,
                         params.pose.left_arm_angle,
@@ -760,7 +761,7 @@ class AvatarPoseTaskPanel:
                         params.pose.left_elbow_angle,
                         params.pose.right_elbow_angle,
                         params.pose.joint_rotations,
-                    )
+                    ),
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
