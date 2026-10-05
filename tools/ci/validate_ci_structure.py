@@ -50,9 +50,7 @@ def main() -> int:
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
             ):
-                raise SystemExit(
-                    f"CI action is not pinned to a full SHA: {ci_file}: {value}"
-                )
+                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > 60:
