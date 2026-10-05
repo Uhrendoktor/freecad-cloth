@@ -2,6 +2,7 @@
 
 from freecad_cloth.pattern.SurfacePen import (
     SurfaceAnchor,
+    close_surface_stroke,
     flatten_surface_patch,
     polygon_area_2d,
     polygon_self_intersects,
@@ -25,6 +26,36 @@ def test_flatten_surface_patch_rejects_curvature_beyond_limit():
         assert "too curved" in str(exc)
     else:
         raise AssertionError("curved patch exceeded the configured planar deviation limit")
+
+
+def test_close_surface_stroke_accepts_nearby_closing_sample():
+    anchors = (
+        SurfaceAnchor((0, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((0, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((0.5, 0.2, 0), (0, 0, 1)),
+    )
+    closed = close_surface_stroke(anchors, tolerance_mm=1.0)
+    assert len(closed) == 4
+    assert closed[0] == anchors[0]
+    assert closed[-1] == anchors[3]
+
+
+def test_close_surface_stroke_rejects_open_boundary():
+    anchors = (
+        SurfaceAnchor((0, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((0, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((10, 10, 0), (0, 0, 1)),
+    )
+    try:
+        close_surface_stroke(anchors, tolerance_mm=1.0)
+    except ValueError as exc:
+        assert "surface boundary is open" in str(exc)
+    else:
+        raise AssertionError("open surface boundary was accepted")
 
 
 def test_flatten_surface_patch_rejects_self_intersection():
