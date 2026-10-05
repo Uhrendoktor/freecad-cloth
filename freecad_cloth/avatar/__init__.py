@@ -10,6 +10,7 @@ __all__ = [
     "AvatarProvider",
     "AvatarService",
     "FittingCommands",
+    "SkeletonPose",
 ]
 
 from dataclasses import replace as _replace

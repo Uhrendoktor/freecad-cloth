@@ -8,6 +8,11 @@ from freecad_cloth.avatar.AvatarModel import (
     generate_mesh,
 )
 from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
+from freecad_cloth.avatar.SkeletonPose import (
+    JointRotation,
+    joint_rotations_from_json,
+    joint_rotations_to_json,
+)
 
 PROPERTY_MAP = {
     "height": "Height",
@@ -61,6 +66,9 @@ def _parameters(obj):
                 "left_elbow_angle",
                 "right_elbow_angle",
             )
+        ),
+        tuple(
+            joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))
         ),
     )
     return AvatarParameters(values, float(obj.SkinOffset), pose)
@@ -123,6 +131,10 @@ def _rebuild(obj):
         obj, params
     )
     obj.Mesh = _mesh_data(vertices, triangles)
+    _set_prop(
+        obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_rotations_to_json(params.pose.joint_rotations)
+    )
+    obj.JointPoseJSON = joint_rotations_to_json(params.pose.joint_rotations)
     obj.ParametersJSON = params.to_json()
     obj.AvatarStatus = "Valid"
     obj.AvatarMeshProvider = provider_id
@@ -207,6 +219,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
+        _set_prop(obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}"))
         _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
         _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
         _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
@@ -322,6 +335,26 @@ def set_avatar_pose(pose):
     return rebuild_avatar()
 
 
+def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
+    """Persist one manual FK joint rotation and rebuild the mannequin."""
+    import FreeCAD as App
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise ValueError("open a document before changing a mannequin joint")
+    obj = _avatar(doc) or create_avatar()
+    values = {
+        rotation.bone: rotation
+        for rotation in joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))
+    }
+    rotation = JointRotation(str(bone), float(x), float(y), float(z)).validate()
+    values[rotation.bone] = rotation
+    if mirror:
+        values[rotation.mirrored().bone] = rotation.mirrored()
+    obj.JointPoseJSON = joint_rotations_to_json(tuple(values.values()))
+    return rebuild_avatar()
+
+
 def set_avatar_provider(provider_id, source=None):
     """Swap providers without replacing the avatar object or garment links."""
     import FreeCAD as App
@@ -383,6 +416,7 @@ COMMANDS = [
     "ClothFitting_SetAvatarMeasurements",
     "ClothFitting_SetAvatarPose",
     "ClothFitting_SetAvatarProvider",
+    "ClothFitting_SetAvatarJoint",
     "ClothFitting_SetAvatarSkinOffset",
 ]
 _HANDLERS = {
@@ -394,6 +428,7 @@ _HANDLERS = {
     ),
     "ClothFitting_SetAvatarPose": lambda: set_avatar_pose("sewing"),
     "ClothFitting_SetAvatarProvider": lambda: set_avatar_provider("makehuman-hm08"),
+    "ClothFitting_SetAvatarJoint": lambda: set_avatar_joint("upperarm01.L", y=-45.0, mirror=True),
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:

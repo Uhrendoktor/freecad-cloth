@@ -60,7 +60,11 @@ class Pose:
     right_arm_angle: float = 12.0
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
+    joint_rotations: tuple[JointRotation, ...] = ()
     VALID_PRESETS = ("standing", "sewing", "sitting")
+
+    def __post_init__(self):
+        object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
 
     def validate(self):
         """Validate this value and raise ValueError when its state is invalid."""
@@ -70,6 +74,7 @@ class Pose:
             value = float(getattr(self, name))
             if not -90.0 <= value <= 90.0:
                 raise ValueError(f"{name} must be between -90 and 90 degrees")
+        normalize_joint_rotations(self.joint_rotations)
 
 
 @dataclass(frozen=True)
@@ -147,6 +152,7 @@ class AvatarParameters:
                     "right_arm_angle": self.pose.right_arm_angle,
                     "left_elbow_angle": self.pose.left_elbow_angle,
                     "right_elbow_angle": self.pose.right_elbow_angle,
+                    "joints": json.loads(joint_rotations_to_json(self.pose.joint_rotations))["joints"],
                 },
             },
             sort_keys=True,
@@ -166,6 +172,13 @@ class AvatarParameters:
             float(p.get("right_arm_angle", 12)),
             float(p.get("left_elbow_angle", 0)),
             float(p.get("right_elbow_angle", 0)),
+            joint_rotations_from_json(
+                json.dumps(
+                    {"schema_version": 1, "units": "deg", "joints": p.get("joints", {})},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            ),
         )
         return cls(
             data.get("measurements", {}),

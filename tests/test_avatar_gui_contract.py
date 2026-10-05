@@ -24,7 +24,10 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
     assert "self._dirty = False" in source
     assert "self._dirty = True" in source
     assert "def _staged_parameters(self):" in source
-    assert "AvatarParameters(values, self.skin_offset.value(), pose)" in source
+    assert '"Skeleton pose"' in source
+    assert "AvatarParameters(" in source
+    assert "self._staged_joint_rotations" in source
+    assert "self.avatar.JointPoseJSON" in source
     assert "for key, property_name in self.PROPERTY_MAP.items()" in source
     assert "setattr(self.avatar, property_name, params.measurements[key])" in source
     assert "self.avatar.PosePreset = params.pose.preset" in source
@@ -55,6 +58,18 @@ def test_avatar_panel_uses_explicit_property_mapping():
     assert '"upper_arm": "Upper_Arm"' in commands
     assert '"front_waist": "Front_Waist"' in commands
     assert '"back_waist": "Back_Waist"' in commands
+
+
+def test_avatar_panel_exposes_manual_fk_joint_controls():
+    assert "self.skeleton_joint = QtWidgets.QComboBox()" in source
+    assert "self.skeleton_x = QtWidgets.QDoubleSpinBox()" in source
+    assert "self.skeleton_y = QtWidgets.QDoubleSpinBox()" in source
+    assert "self.skeleton_z = QtWidgets.QDoubleSpinBox()" in source
+    assert "self.skeleton_symmetry = QtWidgets.QCheckBox(" in source
+    assert "self.reset_skeleton_button = QtWidgets.QPushButton(" in source
+    assert "joint_rotations_from_json" in source
+    assert "JointRotation(" in source
+    assert "rotation.mirrored()" in source
 
 
 def test_avatar_panel_exposes_persistent_fitting_points():

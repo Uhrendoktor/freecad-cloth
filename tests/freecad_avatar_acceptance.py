@@ -77,7 +77,50 @@ def run_acceptance():
             raise RuntimeError("generated mannequin mesh is implausibly small")
         identity = avatar.Name
 
+        baseline_vertices, baseline_triangles = _mesh_topology(avatar.Mesh)
         panel = AvatarTaskPanel(avatar)
+        _show_panel(panel)
+        upperarm_index = panel.skeleton_joint.findText("Left shoulder")
+        if upperarm_index < 0:
+            raise RuntimeError("manual skeleton editor did not expose the left shoulder joint")
+        panel.skeleton_joint.setCurrentIndex(upperarm_index)
+        panel.skeleton_y.setValue(25.0)
+        if not panel.skeleton_symmetry.isChecked():
+            raise RuntimeError("manual skeleton editor did not enable symmetry by default")
+        staged_pose = json.loads(panel._staged_parameters().to_json())
+        joints = staged_pose["pose"]["joints"]
+        if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != 25.0:
+            raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
+        if not panel._apply():
+            raise RuntimeError("manual skeleton joint edit was not applied")
+        _close_task()
+        avatar = doc.getObject(identity)
+        target = doc.getObject("DrapeTarget")
+        posed_vertices, posed_triangles = _mesh_topology(avatar.Mesh)
+        if posed_vertices == baseline_vertices or posed_triangles != baseline_triangles:
+            raise RuntimeError("manual skeleton rotation did not deform the mannequin mesh")
+        joint_payload = json.loads(str(avatar.JointPoseJSON))
+        if joint_payload["joints"]["upperarm01.L"]["y"] != 25.0:
+            raise RuntimeError("manual skeleton rotation was not persisted")
+        if target_status(target)["state"] != "stale":
+            raise RuntimeError("manual skeleton edit did not deterministically invalidate DrapeTarget")
+
+        refresh_drape_target(target)
+        panel = AvatarTaskPanel(avatar)
+        _show_panel(panel)
+        panel._reset_skeleton_pose()
+        if not panel._apply():
+            raise RuntimeError("manual skeleton reset was not applied")
+        _close_task()
+        avatar = doc.getObject(identity)
+        if str(avatar.JointPoseJSON) != '{"joints":{},"schema_version":1,"units":"deg"}':
+            raise RuntimeError("manual skeleton reset did not clear persistent joint rotations")
+        reset_vertices, reset_triangles = _mesh_topology(avatar.Mesh)
+        if reset_vertices != baseline_vertices or reset_triangles != baseline_triangles:
+            raise RuntimeError("manual skeleton reset did not restore the baseline mannequin")
+        target = doc.getObject("DrapeTarget")
+        refresh_drape_target(target)
+
         _show_panel(panel)
         if panel.provider.currentText() != "MakeHuman HM08 humanoid mesh":
             raise RuntimeError("avatar task panel did not load the persistent default provider")
