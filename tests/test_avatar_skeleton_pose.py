@@ -89,5 +89,5 @@ def test_weighted_fk_rotates_a_selected_joint_and_inherits_to_child():
 
 def test_controllable_joint_order_is_stable():
     assert CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head")
-    assert len(CONTROLLABLE_BONES) == 19
+    assert len(CONTROLLABLE_BONES) == 18
     assert joint_rotation_map((JointRotation("head", z=15.0),))["head"].z == 15.0
