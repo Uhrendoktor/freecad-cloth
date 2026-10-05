@@ -1,0 +1,51 @@
+name: FreeCAD test
+description: Run one FreeCAD acceptance or screenshot command with a hard 60-second application budget.
+inputs:
+  image:
+    description: Immutable FreeCAD container image.
+    required: true
+  test-script:
+    description: Repository-relative Python script passed to FreeCAD.
+    required: true
+  timeout-seconds:
+    description: Hard runtime budget for the FreeCAD application.
+    required: false
+    default: "60"
+  stage-workbench:
+    description: Stage workbench files for FreeCAD module discovery.
+    required: false
+    default: "false"
+  clean-user:
+    description: Reset FreeCAD user state before launch.
+    required: false
+    default: "false"
+  log-file:
+    description: Repository-relative log file for captured FreeCAD output.
+    required: false
+    default: "artifacts/freecad-run.log"
+  test-args:
+    description: Optional whitespace-delimited arguments passed after the test script.
+    required: false
+    default: ""
+  environment:
+    description: Optional newline-delimited KEY=VALUE environment entries.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Run bounded FreeCAD test
+      uses: ./.github/actions/freecad-container
+      with:
+        image: ${{ inputs.image }}
+        environment: |
+          ${{ inputs.environment }}
+          CLOTH_CI_STAGE_WORKBENCH=${{ inputs.stage-workbench }}
+          CLOTH_CI_CLEAN_USER=${{ inputs.clean-user }}
+          CLOTH_CI_LOG_FILE=${{ inputs.log-file }}
+        command: >-
+          python3 /workspace/tools/ci/run_freecad.py
+          --timeout-seconds ${{ inputs.timeout-seconds }}
+          --log-file /workspace/${{ inputs.log-file }}
+          --test-script /workspace/${{ inputs.test-script }}
+          --test-args "${{ inputs.test-args }}"
