@@ -18,10 +18,18 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Restore workflow image artifact
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      continue-on-error: true
+      with:
+        name: pbd-validation-image
+        path: ${{ runner.temp }}/pbd-validation-image
+
     - name: Ensure CI container image is available
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
+        IMAGE_ARTIFACT_DIR: ${{ runner.temp }}/pbd-validation-image
         GH_TOKEN: ${{ github.token }}
         GITHUB_ACTOR: ${{ github.actor }}
       run: |
@@ -29,6 +37,15 @@ runs:
         if docker image inspect "$IMAGE" >/dev/null 2>&1; then
           echo "docker-image-cache=hit image=$IMAGE"
           exit 0
+        fi
+        image_tar="$(find "$IMAGE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.tar' -print -quit 2>/dev/null || true)"
+        if [ -n "$image_tar" ]; then
+          echo "docker-image-artifact=load file=$image_tar"
+          docker load --input "$image_tar" >/dev/null
+          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "docker-image-artifact=loaded image=$IMAGE"
+            exit 0
+          fi
         fi
         printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1
         for attempt in 1 2 3; do
