@@ -47,7 +47,7 @@ BLANKET_START_Z = 105.0  # PBD README fixture baseline leaves >40 mm validated d
 # canonical turntable job and the validated 200 mm blanket visual example.
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
-TURNTable_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
+TURNTABLE_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
 
 
 def log(message):
@@ -528,11 +528,11 @@ def main():
             view,
             arranged_objects,
             os.path.join(OUT, "cloth-simulation-arranged-turntable-frames"),
-            frame_count=TURNTable_FRAMES,
+            frame_count=TURNTABLE_FRAMES,
         )
         log(
             "stage=arranged-render-pass frames=%d elapsed_ms=%.1f"
-            % (TURNTable_FRAMES + 1, 1000.0 * (time.monotonic() - arranged_started))
+            % (TURNTABLE_FRAMES + 1, 1000.0 * (time.monotonic() - arranged_started))
         )
 
         steps = int(os.environ.get("CLOTH_BLANKET_STEPS", "120"))
@@ -624,11 +624,11 @@ def main():
             view,
             [cube, panel],
             os.path.join(OUT, "cloth-simulation-draped-turntable-frames"),
-            frame_count=TURNTable_FRAMES,
+            frame_count=TURNTABLE_FRAMES,
         )
         log(
             "stage=draped-render-pass frames=%d elapsed_ms=%.1f"
-            % (TURNTable_FRAMES + 1, 1000.0 * (time.monotonic() - draped_started))
+            % (TURNTABLE_FRAMES + 1, 1000.0 * (time.monotonic() - draped_started))
         )
         log("blanket-turntable-pass")
         log("stage=total-pass elapsed_ms=%.1f" % (1000.0 * (time.monotonic() - total_started)))
