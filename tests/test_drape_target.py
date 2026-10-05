@@ -23,6 +23,15 @@ class _Placement:
         self.Rotation = _Rotation(angle)
 
 
+class _BoundBox:
+    XMin = 0.0
+    XMax = 1.0
+    YMin = 0.0
+    YMax = 1.0
+    ZMin = 0.0
+    ZMax = 1.0
+
+
 class _Shape:
     def __init__(self, value):
         self.value = value
@@ -37,6 +46,7 @@ class _Shape:
 class _BrepShape:
     def __init__(self, payload):
         self.payload = payload
+        self.BoundBox = _BoundBox()
 
     def isNull(self):
         return False
