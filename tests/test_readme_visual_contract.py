@@ -71,6 +71,10 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
         "cloth-simulation-draped-turntable.gif",
         "cloth-simulation-diagnostics.png",
         "cloth-avatar-turntable.gif",
+        "cloth-simulation-arranged.png",
+        "cloth-simulation-draped.png",
+        "avatar-pose-mode.png",
+        "interactive-arrange.png",
     ):
         assert asset in readme
     assert "Simulation ladder" in readme
