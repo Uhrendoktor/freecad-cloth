@@ -29,9 +29,9 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  # One agent owns a PR; superseded runs are stale evidence and may be cancelled.
+  # PR runs are supersedable; merge/main evidence must remain durable once started.
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
@@ -63,6 +63,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install development toolchain
         run: python -m pip install --disable-pip-version-check -e ".[dev]"
       - name: Run agent-oriented static gates
@@ -335,11 +337,6 @@ jobs:
           tags: ${{ steps.image.outputs.image }}
           cache-from: type=gha,scope=freecad-cloth-pbd-validation
           cache-to: type=gha,mode=max,scope=freecad-cloth-pbd-validation,ignore-error=true
-      - name: Pull pinned PositionBasedDynamics validation image
-        env:
-          IMAGE: ${{ steps.image.outputs.image }}
-        run: |
-          set -euo pipefail
           docker pull "$IMAGE"
 
   diagnostic-pbd-contact:
@@ -369,8 +366,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned PositionBasedDynamics validation image
-        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Ensure pinned PositionBasedDynamics validation image is available
+        run: |
+          set -euo pipefail
+          if docker image inspect "$FREECAD_PBD_IMAGE" >/dev/null 2>&1; then
+            echo "Using cached PositionBasedDynamics image: $FREECAD_PBD_IMAGE"
+          else
+            docker pull "$FREECAD_PBD_IMAGE"
+          fi
       - name: Run one-step contact controls
         run: |
           set -euo pipefail
@@ -635,8 +638,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned PositionBasedDynamics validation image
-        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Ensure pinned PositionBasedDynamics validation image is available
+        run: |
+          set -euo pipefail
+          if docker image inspect "$FREECAD_PBD_IMAGE" >/dev/null 2>&1; then
+            echo "Using cached PositionBasedDynamics image: $FREECAD_PBD_IMAGE"
+          else
+            docker pull "$FREECAD_PBD_IMAGE"
+          fi
       - name: Run cube collision ladder
         run: |
           set -euo pipefail
@@ -1178,8 +1187,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned PositionBasedDynamics validation image
-        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Ensure pinned PositionBasedDynamics validation image is available
+        run: |
+          set -euo pipefail
+          if docker image inspect "$FREECAD_PBD_IMAGE" >/dev/null 2>&1; then
+            echo "Using cached PositionBasedDynamics image: $FREECAD_PBD_IMAGE"
+          else
+            docker pull "$FREECAD_PBD_IMAGE"
+          fi
       - name: Capture PositionBasedDynamics provenance
         run: |
           set -euo pipefail
@@ -1485,8 +1500,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned PositionBasedDynamics validation image
-        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Ensure pinned PositionBasedDynamics validation image is available
+        run: |
+          set -euo pipefail
+          if docker image inspect "$FREECAD_PBD_IMAGE" >/dev/null 2>&1; then
+            echo "Using cached PositionBasedDynamics image: $FREECAD_PBD_IMAGE"
+          else
+            docker pull "$FREECAD_PBD_IMAGE"
+          fi
       - name: Capture PositionBasedDynamics provenance
         run: |
           set -euo pipefail
@@ -1675,8 +1696,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull pinned PositionBasedDynamics validation image
-        run: docker pull "$FREECAD_PBD_IMAGE"
+      - name: Ensure pinned PositionBasedDynamics validation image is available
+        run: |
+          set -euo pipefail
+          if docker image inspect "$FREECAD_PBD_IMAGE" >/dev/null 2>&1; then
+            echo "Using cached PositionBasedDynamics image: $FREECAD_PBD_IMAGE"
+          else
+            docker pull "$FREECAD_PBD_IMAGE"
+          fi
       - name: Stage workspace in Docker volume
         run: |
           set -euo pipefail
@@ -1963,13 +1990,17 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Pull published FreeCAD image
+      - name: Ensure published FreeCAD image is available
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
         run: |
           set -euo pipefail
-          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
-          timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "Using cached FreeCAD image: $IMAGE"
+          else
+            printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin >/dev/null 2>&1
+            timeout --signal=TERM --kill-after=30s 10m docker pull "$IMAGE"
+          fi
       - name: Run isolated FreeCAD workbench measurements
         env:
           IMAGE: ${{ env.FREECAD_IMAGE }}
