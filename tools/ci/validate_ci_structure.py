@@ -48,6 +48,22 @@ def main() -> int:
                 continue
             if "@" not in value or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value):
                 raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+
+        for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
+            if int(match.group(1)) > 60:
+                raise SystemExit(f"CI timeout exceeds 60 seconds: {ci_file}: {match.group(0).strip()}")
+
+    for index, line in enumerate(text.splitlines()):
+        if "uses: ./.github/actions/freecad-test" not in line:
+            continue
+        step = []
+        for candidate in text.splitlines()[index + 1:]:
+            if candidate.startswith("      - "):
+                break
+            step.append(candidate)
+        match = re.search(r'timeout-seconds:\s*"?(\d+)"?', "\n".join(step))
+        if not match or int(match.group(1)) > 55:
+            raise SystemExit("every FreeCAD test action must declare a timeout <=55 seconds")
     for path in (
         ROOT / ".github/actions/freecad-container/action.yml",
         ROOT / ".github/actions/freecad-test/action.yml",
