@@ -620,6 +620,7 @@ def _authored_arm_rig_points(parameters):
 def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData:
     """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
+    height_mm = float(parameters.measurement("height"))
     transform = _make_source_fitted_mapper(
         mesh.vertices, parameters, float(parameters.skin_offset)
     )
