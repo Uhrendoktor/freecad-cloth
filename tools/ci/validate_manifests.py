@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# ruff: isort: skip_file
+
 import argparse
 import hashlib
 import json
