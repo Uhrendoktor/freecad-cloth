@@ -94,14 +94,14 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--timeout-seconds", type=float, default=60.0)
+    parser.add_argument("--timeout-seconds", type=float, default=55.0)
     parser.add_argument("--log-file", type=Path, required=True)
     parser.add_argument("--test-script", type=Path, required=True)
     parser.add_argument("--test-args", default="")
     args = parser.parse_args()
 
-    if args.timeout_seconds > 60:
-        raise SystemExit("timeout-seconds must not exceed 60")
+    if args.timeout_seconds > 55:
+        raise SystemExit("timeout-seconds must not exceed 55")
 
     source = Path("/workspace")
     if os.environ.get("CLOTH_CI_CLEAN_USER", "").lower() == "true":
@@ -161,7 +161,7 @@ def main() -> int:
         if timed_out:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")
             _write_diagnostics(diagnostic, return_code, True)
-            print(f"freecad-run-timeout=60s log={args.log_file} diagnostics={diagnostic}")
+            print(f"freecad-run-timeout=55s log={args.log_file} diagnostics={diagnostic}")
             return 124
         return int(return_code or 0)
     finally:
