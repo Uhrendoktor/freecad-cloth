@@ -134,7 +134,7 @@ def _geometry_signature(target):
                 )
         except (AttributeError, TypeError, ValueError):
             pass
-        return ("Shape", "Empty")
+        return ("ShapeContent", _shape_content_signature(shape))
     return ("Unknown",)
 
 
