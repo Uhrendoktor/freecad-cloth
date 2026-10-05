@@ -10,10 +10,12 @@ from pathlib import Path
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
+    """Run a subprocess command and fail on a non-zero exit status."""
     subprocess.run(args, cwd=cwd, check=True)
 
 
 def main() -> int:
+    """Publish the selected PR simulation evidence bundle."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--pr-number", required=True)
@@ -25,25 +27,71 @@ def main() -> int:
     evidence_branch = f"simulation-evidence/pr-{args.pr_number}"
     worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "simulation-evidence"
     shutil.rmtree(worktree, ignore_errors=True)
-    run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none", "--no-checkout")
+    run(
+        "gh",
+        "repo",
+        "clone",
+        args.repository,
+        str(worktree),
+        "--",
+        "--filter=blob:none",
+        "--no-checkout",
+    )
     run("git", "-C", str(worktree), "fetch", "origin", "main")
     run("git", "-C", str(worktree), "checkout", "--detach", "origin/main")
 
     remote = subprocess.run(
-        ("git", "-C", str(worktree), "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{evidence_branch}"),
+        (
+            "git",
+            "-C",
+            str(worktree),
+            "show-ref",
+            "--verify",
+            "--quiet",
+            f"refs/remotes/origin/{evidence_branch}",
+        ),
         check=False,
     )
     if remote.returncode == 0:
-        run("git", "-C", str(worktree), "fetch", "origin", f"refs/heads/{evidence_branch}:refs/remotes/origin/{evidence_branch}")
-        run("git", "-C", str(worktree), "checkout", "--detach", f"refs/remotes/origin/{evidence_branch}")
+        run(
+            "git",
+            "-C",
+            str(worktree),
+            "fetch",
+            "origin",
+            f"refs/heads/{evidence_branch}:refs/remotes/origin/{evidence_branch}",
+        )
+        run(
+            "git",
+            "-C",
+            str(worktree),
+            "checkout",
+            "--detach",
+            f"refs/remotes/origin/{evidence_branch}",
+        )
     else:
         run("git", "-C", str(worktree), "switch", "--orphan", evidence_branch)
         subprocess.run(("git", "-C", str(worktree), "rm", "-rf", "."), check=False)
 
     images = sorted(
-        path for path in review_root.rglob("*.png") if any(
+        path
+        for path in review_root.rglob("*.png")
+        if any(
             token in path.name.lower()
-            for token in ("tunic", "draped", "step-015", "step-045", "step-090", "front", "rear", "right", "left", "top", "bottom", "diagnostic")
+            for token in (
+                "tunic",
+                "draped",
+                "step-015",
+                "step-045",
+                "step-090",
+                "front",
+                "rear",
+                "right",
+                "left",
+                "top",
+                "bottom",
+                "diagnostic",
+            )
         )
     )[:18]
     if not images:
@@ -63,9 +111,16 @@ def main() -> int:
     )
     run("git", "-C", str(worktree), "add", str(dest.relative_to(worktree)))
     run(
-        "git", "-C", str(worktree), "-c", "user.name=github-actions[bot]",
-        "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
-        "commit", "-m", f"simulation evidence PR #{args.pr_number} run {args.run_id}",
+        "git",
+        "-C",
+        str(worktree),
+        "-c",
+        "user.name=github-actions[bot]",
+        "-c",
+        "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+        "commit",
+        "-m",
+        f"simulation evidence PR #{args.pr_number} run {args.run_id}",
     )
     run("git", "-C", str(worktree), "push", "origin", f"HEAD:{evidence_branch}")
 
@@ -79,10 +134,17 @@ def main() -> int:
     for image in images[:8]:
         url = f"https://raw.githubusercontent.com/{args.repository}/{evidence_branch}/pr-{args.pr_number}/run-{args.run_id}/{image.name}"
         lines.extend(("", f"**{image.name}**", f"![{image.name}]({url})"))
-    lines.extend(("", f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})"))
+    lines.extend(
+        (
+            "",
+            f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})",
+        )
+    )
     body.write_text("\n".join(lines) + "\n", encoding="utf-8")
     run("gh", "pr", "comment", args.pr_number, "--repo", args.repository, "--body-file", str(body))
-    print(f"simulation-evidence-publish=passed pr={args.pr_number} run={args.run_id} images={len(images)}")
+    print(
+        f"simulation-evidence-publish=passed pr={args.pr_number} run={args.run_id} images={len(images)}"
+    )
     return 0
 
 

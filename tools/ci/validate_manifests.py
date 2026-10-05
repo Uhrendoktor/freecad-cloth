@@ -8,18 +8,19 @@ import json
 import re
 from pathlib import Path
 
-
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = [0, 1, 5, 15, 45, 90]
 
 
 def read(path: Path) -> dict:
+    """Read a required JSON manifest from disk."""
     if not path.is_file() or not path.stat().st_size:
         raise SystemExit(f"missing manifest: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def validate_simulation() -> None:
+    """Validate the canonical simulation collision manifests."""
     specs = (
         ("cube", ROOT / "cube-ladder-manifest.json", 5, 3.0, "simulation-collision-ladder"),
         ("avatar", ROOT / "avatar-ladder-manifest.json", 5, 8.0, "simulation-avatar-ladder"),
@@ -50,6 +51,7 @@ def validate_simulation() -> None:
 
 
 def validate_turntables() -> None:
+    """Validate the canonical avatar and simulation turntable evidence."""
     root = Path("docs/images/generated")
     directories = (
         "cloth-avatar-turntable-frames",
@@ -102,13 +104,18 @@ def validate_turntables() -> None:
 
 
 def validate_tunic() -> None:
+    """Validate the canonical tunic visual and simulation evidence."""
     generated = Path("docs/images/generated")
     progress = generated / "gui-progress.log"
     metrics = Path("artifacts/freecad-realtime/metrics.json")
     if not progress.is_file() or not metrics.is_file():
         raise SystemExit("tunic: required evidence is missing")
     data = json.loads(metrics.read_text(encoding="utf-8"))
-    if not data["finite"] or data["mean_frame_ms"] > data["frame_budget_ms"] or data["p95_frame_ms"] > 50.0:
+    if (
+        not data["finite"]
+        or data["mean_frame_ms"] > data["frame_budget_ms"]
+        or data["p95_frame_ms"] > 50.0
+    ):
         raise SystemExit(f"tunic: realtime performance gate failed: {data}")
     text = progress.read_text(encoding="utf-8")
     markers = (
@@ -162,6 +169,7 @@ def validate_tunic() -> None:
 
 
 def validate_blanket() -> None:
+    """Validate the canonical blanket visual evidence."""
     root = Path("docs/images/generated/blanket-example")
     log = root / "blanket-visual.log"
     if not log.is_file():
@@ -183,6 +191,7 @@ def validate_blanket() -> None:
 
 
 def validate_diagnostic() -> None:
+    """Validate the canonical diagnostic PBD evidence."""
     root = Path("artifacts/pbd-contact-diagnostics")
     for name, purpose, rung in (
         ("cube-ladder-manifest.json", "simulation-collision-ladder", range(1, 6)),
@@ -195,7 +204,7 @@ def validate_diagnostic() -> None:
             raise SystemExit(f"diagnostic {name}: wrong gate effect")
         if len(data.get("cases", ())) != 5:
             raise SystemExit(f"diagnostic {name}: wrong case count")
-        for record, expected_rung in zip(data["cases"], rung):
+        for record, expected_rung in zip(data["cases"], rung, strict=True):
             if record.get("case", {}).get("rung") != expected_rung:
                 raise SystemExit(f"diagnostic {name}: unexpected rung")
             if record.get("solver", {}).get("backend") != "pbd":
@@ -215,6 +224,7 @@ def validate_diagnostic() -> None:
 
 
 def main() -> int:
+    """Validate the requested canonical manifests and visual evidence."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "kind",

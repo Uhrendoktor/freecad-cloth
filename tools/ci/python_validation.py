@@ -70,6 +70,7 @@ GROUPS = {
 
 
 def main() -> int:
+    """Run the canonical Python validation suite."""
     parser = argparse.ArgumentParser()
     parser.add_argument("group", choices=sorted(GROUPS))
     args = parser.parse_args()

@@ -11,9 +11,18 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Checkout requested revision
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        persist-credentials: false
+
     - name: Login to GHCR
       shell: bash
-      run: printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_ACTOR: ${{ github.actor }}
+      run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1
     - name: Check image cache
       id: cache
       shell: bash
@@ -38,3 +47,19 @@ runs:
         tags: ${{ inputs.image }}
         cache-from: type=gha,scope=freecad-cloth-pbd-validation
         cache-to: type=gha,mode=max,scope=freecad-cloth-pbd-validation,ignore-error=true
+
+    - name: Materialize image for workflow artifact
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: |
+        set -euo pipefail
+        docker pull "$IMAGE" >/dev/null
+        docker save "$IMAGE" --output "$RUNNER_TEMP/pbd-validation-image.tar"
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: pbd-validation-image
+        path: ${{ runner.temp }}/pbd-validation-image.tar
+        if-no-files-found: error
+        retention-days: 1
+        compression-level: 0

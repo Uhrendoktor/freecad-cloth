@@ -59,10 +59,15 @@ CASES = {
         "artifacts/avatar-acceptance.log",
         ("avatar provider acceptance passed",),
     ),
+    "surface-pen": (
+        "artifacts/surface-pen.log",
+        ("surface-pen-native-smoke=passed",),
+    ),
 }
 
 
 def main() -> int:
+    """Validate the recorded acceptance evidence and release markers."""
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted(CASES))
     args = parser.parse_args()

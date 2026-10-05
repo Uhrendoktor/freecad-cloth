@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import shutil
 import signal
@@ -71,10 +72,8 @@ def _stop_process_tree(process: subprocess.Popen[str]) -> None:
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         process.wait(timeout=5)
 
 
@@ -93,6 +92,7 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 
 
 def main() -> int:
+    """Run a FreeCAD test process with the repository runtime contract."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout-seconds", type=float, default=55.0)
     parser.add_argument("--log-file", type=Path, required=True)

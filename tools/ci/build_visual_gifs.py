@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 def image_tool() -> str:
+    """Return the available ImageMagick executable."""
     tool = shutil.which("magick") or shutil.which("convert")
     if not tool:
         raise SystemExit("ImageMagick is required on the CI runner")
@@ -17,6 +18,7 @@ def image_tool() -> str:
 
 
 def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int = 50) -> None:
+    """Build a GIF from a sequence of PNG frames."""
     if not frames:
         raise SystemExit(f"no frames found for {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +32,7 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
 
 
 def main() -> int:
+    """Build the requested repository visual GIF set."""
     parser = argparse.ArgumentParser()
     parser.add_argument("kind", choices=("turntables", "blanket", "tunic"))
     args = parser.parse_args()
@@ -39,7 +42,10 @@ def main() -> int:
     if args.kind == "turntables":
         specs = (
             ("cloth-avatar-turntable-frames", "cloth-avatar-turntable.gif"),
-            ("cloth-simulation-arranged-turntable-frames", "cloth-simulation-arranged-turntable.gif"),
+            (
+                "cloth-simulation-arranged-turntable-frames",
+                "cloth-simulation-arranged-turntable.gif",
+            ),
             ("cloth-simulation-draped-turntable-frames", "cloth-simulation-draped-turntable.gif"),
         )
         jobs = []

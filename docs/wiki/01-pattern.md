@@ -22,6 +22,17 @@ A PatternPiece carries a stable semantic identity and points to the authoritativ
 
 <strong>Create piece → edit native Sketch → add garment metadata → recompute → validate → sew</strong>
 
+## 3D Pattern Pen
+
+The **3D Pattern Pen** is the first 3D-to-2D authoring bridge. Select or create the mannequin/drape target, start the command from **Cloth Pattern → 3D Pattern Pen**, and drag over the visible mannequin surface. Release the mouse to lift the pen; continue with another drag to extend the same boundary. **Finish Stroke → Pattern** creates a normal native Sketcher-backed PatternPiece.
+
+The first implementation deliberately uses a bounded planar projection. Before anything is converted, Cloth measures the maximum distance of the sampled surface boundary from a deterministic local plane. A patch that exceeds the configured **Planar deviation limit** is rejected instead of silently producing a misleading flat pattern. The persisted 3D draft records the target source signature so a changed mannequin/target invalidates the draft rather than silently moving it.
+
+This is intentionally not a second pattern editor: after extraction, the native Sketcher object is the editable geometry authority. General curved-surface unwrapping, geodesic flattening, darts/relief generation, and bidirectional 2D↔3D editing remain future work.
+
+For reference, FreeCAD's Surface workbench provides Curve on mesh, while the 3D viewer exposes surface picking and mouse callbacks; the Cloth implementation uses the same host interaction model but keeps the resulting PatternPiece Sketcher-authoritative.
+
+
 The public workbench commands are Sketcher-backed. The historical polygon drafting model remains compatibility-only and is not the normal authoring path.
 
 ## Production export

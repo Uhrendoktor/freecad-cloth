@@ -16,6 +16,7 @@ ASSET_RE = re.compile(re.escape(PREFIX) + r"""([^\s'"<>\)]+)""")
 
 
 def documented_assets(source_root: Path) -> set[str]:
+    """Return the generated visual assets referenced by the public documentation."""
     documents = [source_root / "README.md", *sorted((source_root / "docs" / "wiki").glob("*.md"))]
     assets: set[str] = set()
     for document in documents:
@@ -32,6 +33,7 @@ def documented_assets(source_root: Path) -> set[str]:
 
 
 def public_assets(published_root: Path) -> set[str]:
+    """Return the generated visual assets present in the published directory."""
     if not published_root.is_dir():
         raise ValueError(f"published image directory missing: {published_root}")
     return {
@@ -42,6 +44,7 @@ def public_assets(published_root: Path) -> set[str]:
 
 
 def sha256(path: Path) -> str:
+    """Return the SHA-256 digest of a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -57,10 +60,13 @@ def write_provenance(
     run_id: str,
     run_number: str,
 ) -> None:
+    """Write the visual evidence provenance manifest."""
     assets = sorted(documented_assets(source_root))
     actual = public_assets(published_root)
     if assets != sorted(actual):
-        raise ValueError(f"public image set mismatch; missing={sorted(set(assets)-actual)} extra={sorted(actual-set(assets))}")
+        raise ValueError(
+            f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
+        )
     lines = [
         "# README/wiki visual evidence provenance",
         "",
@@ -83,6 +89,7 @@ def verify(
     provenance: Path,
     source_sha: str,
 ) -> list[str]:
+    """Validate the published visual evidence against the documented source set."""
     expected = documented_assets(source_root)
     actual = public_assets(published_root)
     errors: list[str] = []
@@ -114,6 +121,7 @@ def verify(
 
 
 def main() -> int:
+    """Validate the repository visual evidence contract."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--published-root", type=Path, required=True)
@@ -125,7 +133,9 @@ def main() -> int:
         for error in errors:
             print(f"visual-evidence-error={error}")
         return 1
-    print(f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}")
+    print(
+        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}"
+    )
     return 0
 
 

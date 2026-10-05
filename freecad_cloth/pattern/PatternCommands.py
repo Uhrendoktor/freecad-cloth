@@ -246,6 +246,13 @@ def create_pattern_sketch():
     return _create_native_sketch_for_piece(obj)
 
 
+def start_surface_pattern_pen():
+    """Start the CLO-like 3D Pattern Pen on the active mannequin surface."""
+    from freecad_cloth.pattern.SurfacePen import start_surface_pen
+
+    return start_surface_pen()
+
+
 def create_pattern_piece_task():
     """Open a task panel for creating a new pattern piece."""
     from freecad_cloth.pattern.PatternGui import show_pattern_piece_task
@@ -475,6 +482,7 @@ class _PatternExportCommand:
 COMMANDS = [
     "ClothPattern_CreateGarment",
     "ClothPattern_CreatePieceTask",
+    "ClothPattern_SurfacePen",
     "ClothPattern_EditPiece",
     "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch",
@@ -502,6 +510,7 @@ try:
         for name, handler in {
             "ClothPattern_CreateGarment": create_garment,
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
+            "ClothPattern_SurfacePen": start_surface_pattern_pen,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
