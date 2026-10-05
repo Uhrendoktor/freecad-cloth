@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 def main() -> int:
+    """Capture and validate the PBD provenance record."""
     parser = argparse.ArgumentParser()
     parser.add_argument("image")
     parser.add_argument("output", type=Path)
