@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BODY_VERTEX_COUNT,
     MeshData,
