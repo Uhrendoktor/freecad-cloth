@@ -11,6 +11,18 @@ import FreeCADGui as Gui
 import Part
 
 
+def _capture_screen(path):
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is None or app.primaryScreen() is None:
+        raise RuntimeError("Qt primary screen is unavailable for Interactive Arrange screenshot")
+    if not app.primaryScreen().grabWindow(0).save(path):
+        raise RuntimeError("failed to save Interactive Arrange UI screenshot")
+
+
 def _screen(view, vector):
     point = view.getPointOnScreen(vector)
     size = view.getSize()
@@ -76,8 +88,9 @@ def run():
         }
     )
 
-    if controller.snap_point is None:
-        raise RuntimeError("drag did not expose an arrangement-point snap preview")
+    if controller.snap_point is None or controller._snap_indicator is None:
+        raise RuntimeError("drag did not expose an arrangement-point snap preview and marker")
+    _capture_screen("artifacts/interactive-arrange.png")
 
     controller._mouse_event(
         {
@@ -95,6 +108,8 @@ def run():
         raise RuntimeError("piece did not snap to arrangement-point Y")
     if abs(float(base.z) - 3.0) > 1e-6:
         raise RuntimeError("piece did not adopt arrangement-point offset")
+    if controller._snap_indicator is not None:
+        raise RuntimeError("snap marker remained after placement commit")
 
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
 
