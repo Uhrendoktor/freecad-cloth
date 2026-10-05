@@ -101,7 +101,11 @@ Sewing operates on semantic pattern edges rather than generated mesh edge order.
 The fitting workflow is viewport-first. Pattern pieces can be dragged directly in the FreeCAD 3D scene, snapped to persistent arrangement points, reset to their saved home arrangement and fitted to the current target.
 
 <p align="center">
-  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Current Interactive Arrange task panel with a snap target preview" width="900">
+</p>
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Current sewn garment arranged around the mannequin before simulation" width="900">
 </p>
 
 ### Interaction model
@@ -125,8 +129,12 @@ The arrangement scene persists placement, arrangement points, symmetry state and
 The mannequin editor separates posing from anthropometric setup. The viewport is the primary manipulation surface; the task panel provides selection, symmetry, angle snapping, presets, precision editing and explicit commit/cancel actions.
 
 <p align="center">
-  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Front view of the Cloth human mannequin used as a drape target" width="420">
-  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Rear view of the Cloth human mannequin used as a drape target" width="420">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Current Cloth Pose Mode task panel with mannequin joints and rotation gizmo" width="900">
+</p>
+
+<p align="center">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Current front view of the Cloth human mannequin used as a drape target" width="420">
+  <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Current rear view of the Cloth human mannequin used as a drape target" width="420">
 </p>
 
 ### Pose interaction model
