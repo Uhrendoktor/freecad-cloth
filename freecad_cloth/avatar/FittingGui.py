@@ -6,6 +6,8 @@ placement values are deliberately absent from the normal workflow and remain
 available through FreeCAD's property editor for precision work.
 """
 
+import contextlib
+
 
 def _modules():
     import FreeCAD as App
@@ -152,7 +154,7 @@ class DirectArrangeController:
     def _clear_snap_indicator(self):
         if self._snap_indicator is None or self.view is None:
             return
-        with __import__('contextlib').suppress(AttributeError, RuntimeError):
+        with contextlib.suppress(AttributeError, RuntimeError):
             self.view.getSceneGraph().removeChild(self._snap_indicator)
         self._snap_indicator = None
 
