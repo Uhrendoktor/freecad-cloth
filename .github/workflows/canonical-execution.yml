@@ -1017,9 +1017,9 @@ jobs:
           CLOTH_SIMULATION_BACKEND: position-based-dynamics
           CLOTH_PBD_SUBSTEPS: 8
           CLOTH_PBD_COLLISION_MODE: mesh
-          CLOTH_PBD_COLLISION_TRIANGLES: 0
-          CLOTH_PBD_COLLISION_VOXEL_MM: 8
-          CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
+          CLOTH_PBD_COLLISION_TRIANGLES: 8192
+          CLOTH_PBD_COLLISION_VOXEL_MM: 4
+          CLOTH_PBD_COLLISION_TOLERANCE_MM: 6
         run: |
           set -euo pipefail
           rm -rf docs/images/generated artifacts/tunic-audit
