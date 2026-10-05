@@ -186,6 +186,8 @@ Changing the target, pose or authoritative collision geometry invalidates target
 
 The main visual acceptance target is the finished garment after real simulation steps.
 
+![Sewn tunic draping over mannequin](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-tunic-mannequin-motion.gif)
+
 <p align="center">
   <img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif" alt="360 degree drape of the sewn tunic over the mannequin" width="900">
 </p>
