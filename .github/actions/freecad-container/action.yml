@@ -29,7 +29,16 @@ runs:
           exit 0
         fi
         printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
-        timeout --signal=TERM --kill-after=5s 60s docker pull "$IMAGE"
+        for attempt in 1 2 3; do
+          if timeout --signal=TERM --kill-after=5s 60s docker pull "$IMAGE"; then
+            exit 0
+          fi
+          if [ "$attempt" -lt 3 ]; then
+            sleep 1
+          fi
+        done
+        echo "docker-pull=failed attempts=3 image=$IMAGE" >&2
+        exit 1
     - name: Run command in FreeCAD container
       shell: bash
       env:
