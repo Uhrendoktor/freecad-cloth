@@ -61,6 +61,9 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(
         encoding="utf-8"
     )
+    avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
+        encoding="utf-8"
+    )
 
     for asset in (
         "cloth-pattern-design.png",
@@ -82,3 +85,9 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
     assert "simulation-ladder:" in workflow
     assert "cloth-tunic-mannequin-motion.gif" in workflow
+    assert "name: avatar-pose-ui" in workflow
+    assert "name: interactive-arrange" in workflow
+    assert "cp ../turntables/cloth-avatar-front.png" in workflow
+    assert "cp ../tunic/docs/images/generated/cloth-simulation-arranged.png" in workflow
+    assert "cp ../tunic/docs/images/generated/cloth-simulation-draped.png" in workflow
+    assert "frame_count=TURNTABLE_FRAMES" in avatar_screenshot
