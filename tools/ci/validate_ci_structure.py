@@ -10,10 +10,15 @@ WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
     ROOT / ".github/actions/freecad-container/action.yml",
+    ROOT / ".github/actions/pbd-image/action.yml",
     ROOT / ".github/actions/publish-visual-evidence/action.yml",
     ROOT / "tools/ci/run_freecad.py",
+    ROOT / "tools/ci/python_validation.py",
+    ROOT / "tools/ci/validate_acceptance.py",
     ROOT / "tools/ci/validate_manifests.py",
     ROOT / "tools/ci/visual_evidence.py",
+    ROOT / "tools/ci/publish_visual_evidence.py",
+    ROOT / "tools/ci/capture_pypbd_provenance.py",
 )
 
 
@@ -34,19 +39,16 @@ def main() -> int:
     for path in REQUIRED:
         if not path.is_file():
             raise SystemExit(f"missing required CI component: {path}")
-    for match in re.finditer(r"uses:\s+([^\s#]+)", text):
-        value = match.group(1)
-        if value.startswith("./"):
-            continue
-        if "@" not in value or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value):
-            raise SystemExit(f"workflow action is not pinned to a full SHA: {value}")
-    for path in (
-        ROOT / ".github/actions/freecad-container/action.yml",
-        ROOT / ".github/actions/freecad-test/action.yml",
-    ):
-        action = path.read_text(encoding="utf-8")
-        if "timeout-seconds" not in action or "60s" not in action:
-            raise SystemExit(f"60-second runtime contract missing from {path}")
+    ci_files = [WORKFLOW, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
+    for ci_file in ci_files:
+        ci_text = ci_file.read_text(encoding="utf-8")
+        for match in re.finditer(r"uses:\s+([^\s#]+)", ci_text):
+            value = match.group(1)
+            if value.startswith("./"):
+                continue
+            if "@" not in value or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value):
+                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+    for path in (,        ROOT / ".github/actions/freecad-container/action.yml",,        ROOT / ".github/actions/freecad-test/action.yml",,    ):,        action = path.read_text(encoding="utf-8"),        if "60s" not in action or "timeout-seconds" not in action:,            raise SystemExit(f"60-second runtime contract missing from {path}"),    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8"),    if "default: \"55\"" not in freecad or "maximum 55 seconds" not in freecad:,        raise SystemExit("FreeCAD test action must default to a 55-second maximum")
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 
