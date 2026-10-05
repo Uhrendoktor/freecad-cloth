@@ -769,7 +769,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_sewing_creation_smoke.py
               test -s /workspace/artifacts/sewing-creation-smoke.log
             '
       - name: Restore workspace from Docker volume
@@ -920,7 +920,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py > /workspace/artifacts/sketcher-acceptance.log 2>&1
               grep -q "native Sketcher acceptance passed" /workspace/artifacts/sketcher-acceptance.log
             '
       - name: Restore workspace from Docker volume
@@ -992,7 +992,7 @@ jobs:
               trap "kill $OPENBOX_PID $XVFB_PID 2>/dev/null || true" EXIT
               for i in $(seq 1 20); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.25; done
               xdpyinfo -display :99 >/dev/null 2>&1
-              timeout --signal=TERM --kill-after=10s 300s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
+              timeout --signal=TERM --kill-after=10s 60s /opt/freecad/AppRun /workspace/tests/freecad_pattern_export_smoke.py
               test -s /workspace/artifacts/pattern-production-export.log
             '
       - name: Restore workspace from Docker volume
