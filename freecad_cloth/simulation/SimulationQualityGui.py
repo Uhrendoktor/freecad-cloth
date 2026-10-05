@@ -6,10 +6,10 @@ def _qt():
     import FreeCADGui as Gui
 
     try:
-        from PySide import QtGui, QtWidgets
+        from PySide import QtCore, QtGui, QtWidgets
     except ImportError:
-        from PySide2 import QtGui, QtWidgets
-    return App, Gui, QtWidgets, QtGui
+        from PySide2 import QtCore, QtGui, QtWidgets
+    return App, Gui, QtCore, QtWidgets, QtGui
 
 
 class SimulationQualityTaskPanel:
@@ -36,7 +36,7 @@ class SimulationQualityTaskPanel:
     )
 
     def __init__(self, scene=None):
-        App, Gui, QtWidgets, QtGui = _qt()
+        App, Gui, QtCore, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES
         from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
             apply_quality_preset,
