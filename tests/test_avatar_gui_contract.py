@@ -16,6 +16,10 @@ def test_avatar_panel_has_grouped_controls_and_lifecycle():
     assert '"Display"' in source
     assert '"Arrangement points"' in source
     assert "Apply & Rebuild" in source
+    assert 'self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")' in source
+    assert "self.pose_mode_button.clicked.connect(self._open_pose_mode)" in source
+    assert "pose.setVisible(False)" in source
+    assert "skeleton.setVisible(False)" in source
     assert "getStandardButtons" in source
     assert "QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel" in source
 
