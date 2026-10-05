@@ -19,7 +19,10 @@ runs:
 
     - name: Login to GHCR
       shell: bash
-      run: printf '%s' "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin >/dev/null 2>&1
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_ACTOR: ${{ github.actor }}
+      run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1
     - name: Check image cache
       id: cache
       shell: bash
