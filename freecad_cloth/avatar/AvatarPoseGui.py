@@ -19,13 +19,13 @@ def _modules():
 
 def joint_world_positions(parameters):
     """Return posed world positions for the controllable authored joints."""
+    from freecad_cloth.avatar.HierarchicalPose import _manual_pose_rotations
     from freecad_cloth.avatar.HumanoidMesh import (
         _joint_point,
         _load_source_vertices,
         _make_source_fitted_mapper,
         load_makehuman_skeleton,
     )
-    from freecad_cloth.avatar.HierarchicalPose import _manual_pose_rotations
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS, build_bone_transforms
 
     source_vertices = _load_source_vertices()
@@ -551,12 +551,12 @@ class AvatarPoseTaskPanel:
                 groups["Torso"].append((bone, label))
 
         for group_name, items in groups.items():
-            top = QtWidgets.QTreeWidgetItem([group_name])
-            top.setFlags(top.flags() & ~QtCore.Qt.ItemIsSelectable)
+            top = self.QtWidgets.QTreeWidgetItem([group_name])
+            top.setFlags(top.flags() & ~self.QtCore.Qt.ItemIsSelectable)
             self.joints.addTopLevelItem(top)
             for bone, label in items:
-                child = QtWidgets.QTreeWidgetItem([label])
-                child.setData(0, QtCore.Qt.UserRole, bone)
+                child = self.QtWidgets.QTreeWidgetItem([label])
+                child.setData(0, self.QtCore.Qt.UserRole, bone)
                 top.addChild(child)
             top.setExpanded(True)
 
@@ -566,7 +566,6 @@ class AvatarPoseTaskPanel:
             self.apply_button.setEnabled(False)
             return
         from freecad_cloth.avatar.SkeletonPose import (
-            CONTROLLABLE_JOINTS,
             joint_rotation_map,
             joint_rotations_from_json,
         )
@@ -669,9 +668,11 @@ class AvatarPoseTaskPanel:
             )
         values[rotation.bone] = rotation
         if self.symmetry.isChecked():
-            mirrored = rotation.mirrored()
-            if mirrored.bone != rotation.bone:
-                values[mirrored.bone] = mirrored
+            mirrored_bone = rotation.mirrored().bone
+            if mirrored_bone != rotation.bone:
+                values[mirrored_bone] = JointRotation(
+                    mirrored_bone, rotation.x, rotation.y, rotation.z
+                )
         self._staged_joint_rotations = values
         self._select_joint_without_preview(str(bone))
         if preview:
