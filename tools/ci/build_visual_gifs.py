@@ -1,10 +1,11 @@
-"""Build documentation GIFs with a bounded ImageMagick invocation."""
+"""Build documentation GIFs with bounded, parallel ImageMagick invocations."""
 
 from __future__ import annotations
 
 import argparse
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 
@@ -15,14 +16,14 @@ def image_tool() -> str:
     return tool
 
 
-def build(tool: str, frames: list[Path], output: Path, delay: str) -> None:
+def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int = 50) -> None:
     if not frames:
         raise SystemExit(f"no frames found for {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [tool, "-delay", delay, "-loop", "0", *map(str, frames), "-colors", "128", str(output)],
         check=True,
-        timeout=60,
+        timeout=timeout,
     )
     if not output.is_file() or not output.stat().st_size:
         raise SystemExit(f"GIF was not produced: {output}")
@@ -33,30 +34,38 @@ def main() -> int:
     parser.add_argument("kind", choices=("turntables", "blanket", "tunic"))
     args = parser.parse_args()
     tool = image_tool()
+    root = Path("docs/images/generated")
 
     if args.kind == "turntables":
-        root = Path("docs/images/generated")
-        for directory, output in (
+        specs = (
             ("cloth-avatar-turntable-frames", "cloth-avatar-turntable.gif"),
             ("cloth-simulation-arranged-turntable-frames", "cloth-simulation-arranged-turntable.gif"),
             ("cloth-simulation-draped-turntable-frames", "cloth-simulation-draped-turntable.gif"),
-        ):
-            frames = sorted((root / directory).glob("frame-*.png"))
-            if len(frames) != 73:
-                raise SystemExit(f"{directory}: expected 73 frames, got {len(frames)}")
-            build(tool, frames, root / output, "8")
+        )
+        jobs = []
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for directory, output in specs:
+                frames = sorted((root / directory).glob("frame-*.png"))
+                if len(frames) != 73:
+                    raise SystemExit(f"{directory}: expected 73 frames, got {len(frames)}")
+                jobs.append(pool.submit(build, tool, frames, root / output, "8"))
+            for job in as_completed(jobs):
+                job.result()
         return 0
 
     if args.kind == "blanket":
-        root = Path("docs/images/generated/blanket-example")
-        build(tool, sorted(root.glob("motion-*.png")), root / "blanket-motion.gif", "10")
+        build(
+            tool,
+            sorted((root / "blanket-example").glob("motion-*.png")),
+            root / "blanket-example/blanket-motion.gif",
+            "10",
+        )
         return 0
 
-    root = Path("docs/images/generated/cloth-tunic-mannequin-motion-frames")
     build(
         tool,
-        sorted(root.glob("motion-*.png")),
-        Path("docs/images/generated/cloth-tunic-mannequin-motion.gif"),
+        sorted((root / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png")),
+        root / "cloth-tunic-mannequin-motion.gif",
         "10",
     )
     return 0
