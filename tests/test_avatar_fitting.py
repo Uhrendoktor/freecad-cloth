@@ -3,8 +3,8 @@ import json
 import os
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
+from unittest import mock
 
 from freecad_cloth.avatar.AvatarArrangement import (
     ARRANGEMENT_POINT_NAMES,
