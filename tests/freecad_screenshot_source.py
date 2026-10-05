@@ -382,8 +382,9 @@ def write_drape_metrics(
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
             if collision_surface is not None:
-                from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
                 from math import sqrt
+
+                from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
 
                 target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
                 target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
