@@ -32,7 +32,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  FREECAD_IMAGE: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
   LIBGL_ALWAYS_SOFTWARE: 1
@@ -123,7 +122,6 @@ jobs:
 
   pbd_validation_image:
     name: Build/publish pinned PBD image
-    needs: [local_runner_readiness]
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -227,28 +225,29 @@ jobs:
   python:
     name: Python validation (${{ matrix.group }})
     if: ${{ github.event_name != 'schedule' }}
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     strategy:
       fail-fast: false
       matrix:
         group: [core, pattern, sewing, gui, pytest]
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - uses: ./.github/actions/freecad-test
         with:
-          image: ${{ env.FREECAD_IMAGE }}
+          image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tools/ci/python_validation.py
           timeout-seconds: "55"
           test-args: ${{ matrix.group }}
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
-          environment: CLOTH_CI_PIP_INSTALL=triangle==20250106,hypothesis==6.168.3
 
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
-    needs: [local_runner_readiness]
+    needs: [local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     strategy:
@@ -257,14 +256,16 @@ jobs:
         include:
           - {case: sewing, script: tests/freecad_sewing_creation_smoke.py, log: artifacts/sewing-creation-smoke.log, artifact: sewing-creation-smoke, stage: "false", clean: "false", env: "CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log", pre: "python3 tests/freecad_tunic_audit.py --syntax-check"}
           - {case: avatar-pose, script: tests/freecad_avatar_pose_ui_acceptance.py, log: artifacts/avatar-pose-ui.log, artifact: avatar-pose-ui, stage: "false", clean: "false", env: ""}
-          - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "false", clean: "false", env: "CLOTH_CI_PIP_INSTALL=triangle==20250106"}
+          - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "false", clean: "false", env: ""}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log"}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "false", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log"}
-          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "true", clean: "true", env: "CLOTH_CI_PIP_INSTALL=triangle==20250106"}
+          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "true", clean: "true", env: ""}
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - uses: ./.github/actions/freecad-test
         with:
-          image: ${{ env.FREECAD_IMAGE }}
+          image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
           timeout-seconds: "55"
           pre-command: ${{ matrix.pre }}
