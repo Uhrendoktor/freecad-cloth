@@ -17,6 +17,7 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_to_json,
 )
 
+
 def test_joint_rotation_bounds_and_mirror():
     rotation = JointRotation("upperarm01.L", 12.0, 20.0, 30.0).validate()
     mirrored = rotation.mirrored()
@@ -53,12 +54,19 @@ def test_pose_and_avatar_parameters_persist_manual_joints():
 
 
 def test_manual_pose_moves_fitting_landmark_from_baseline():
-    landmarks = (Landmark("shoulder_left", (1.0, 0.0, 0.0)), Landmark("waist", (0.0, 1.0, 0.0)))
+    landmarks = (
+        Landmark("shoulder_left", (1.0, 0.0, 0.0)),
+        Landmark("waist", (0.0, 1.0, 0.0)),
+    )
     rotation = AffineTransform(
         (0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0),
         (1.0, 0.0, 0.0),
     )
-    posed = transform_landmarks(landmarks, {"clavicle.L": IDENTITY, "spine04": IDENTITY}, {"clavicle.L": rotation, "spine04": IDENTITY})
+    posed = transform_landmarks(
+        landmarks,
+        {"clavicle.L": IDENTITY, "spine04": IDENTITY},
+        {"clavicle.L": rotation, "spine04": IDENTITY},
+    )
     assert posed[0].position == pytest.approx((1.0, 1.0, 0.0))
     assert posed[1] == landmarks[1]
 
