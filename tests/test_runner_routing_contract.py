@@ -37,6 +37,7 @@ def test_pull_requests_are_hosted_only():
     dynamic = "(github.event_name == 'pull_request' || inputs.runner_mode == 'hosted')"
     for job in (
         "python",
+        "gui-avatar-acceptance",
         "gui-sewing-creation",
         "gui-sketcher-acceptance",
         "gui-pattern-export",
@@ -54,6 +55,7 @@ def test_trusted_runs_remain_local_first():
     for job in (
         "local_runner_readiness",
         "python",
+        "gui-avatar-acceptance",
         "gui-tunic-visual",
         "gui-turntables",
         "gui-visual-examples",

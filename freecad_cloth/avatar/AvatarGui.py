@@ -432,28 +432,22 @@ class AvatarTaskPanel:
                 "A FreeCAD body or mesh must be selected before switching to the FreeCAD geometry provider."
             )
             return False
-        for key, property_name in self.PROPERTY_MAP.items():
-            setattr(self.avatar, property_name, params.measurements[key])
-        self.avatar.PosePreset = params.pose.preset
-        self.avatar.SkinOffset = params.skin_offset
-        from freecad_cloth.avatar.SkeletonPose import joint_rotations_to_json
+        try:
+            from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters
 
-        self.avatar.JointPoseJSON = joint_rotations_to_json(params.pose.joint_rotations)
-        self.avatar.AvatarProviderId = provider_id
-        self.avatar.ProviderSource = provider_source if provider_id == "freecad-geometry" else None
-        for key, value in zip(
-            ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"),
-            (
-                params.pose.left_arm_angle,
-                params.pose.right_arm_angle,
-                params.pose.left_elbow_angle,
-                params.pose.right_elbow_angle,
-            ),
-            strict=False,
-        ):
-            setattr(self.avatar, self._pose_property(key), value)
+            apply_avatar_parameters(
+                self.avatar,
+                params,
+                provider_id=provider_id,
+                provider_source=provider_source if provider_id == "freecad-geometry" else None,
+            )
+        except (RuntimeError, TypeError, ValueError, OSError) as exc:
+            self._dirty = True
+            self._refresh_status(
+                f"Mannequin rebuild failed; staged edits remain uncommitted: {exc}"
+            )
+            return False
         self._dirty = False
-        self._rebuild_geometry()
         self._update_arrangement_points()
         self._update_landmarks()
         self._refresh_provider_source()

@@ -32,10 +32,9 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
     assert "AvatarParameters(" in source
     assert "self._staged_joint_rotations" in source
     assert "self.avatar.JointPoseJSON" in source
-    assert "for key, property_name in self.PROPERTY_MAP.items()" in source
-    assert "setattr(self.avatar, property_name, params.measurements[key])" in source
-    assert "self.avatar.PosePreset = params.pose.preset" in source
-    assert "self.avatar.SkinOffset = params.skin_offset" in source
+    assert "def _apply(self):" in source
+    assert "from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters" in source
+    assert "apply_avatar_parameters(" in source
     assert "from freecad_cloth.avatar.AvatarCommands import rebuild_avatar" in source
 
 
@@ -43,10 +42,11 @@ def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
     assert '"makehuman-hm08", "MakeHuman HM08 humanoid mesh"' in source
     assert '"freecad-geometry", "FreeCAD body / imported geometry"' in source
     assert "Use selected FreeCAD object" in source
-    assert "self.avatar.AvatarProviderId = provider_id" in source
+    assert "provider_id=provider_id" in source
+    assert "provider_source=" in source
     assert (
-        'self.avatar.ProviderSource = provider_source if provider_id == "freecad-geometry" else None'
-        in source
+        "def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):"
+        in commands
     )
     assert "def set_avatar_provider(provider_id, source=None):" in commands
     assert "provider_id not in PROVIDER_IDS" in commands

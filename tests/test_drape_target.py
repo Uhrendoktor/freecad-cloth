@@ -23,6 +23,15 @@ class _Placement:
         self.Rotation = _Rotation(angle)
 
 
+class _BoundBox:
+    XMin = 0.0
+    XMax = 1.0
+    YMin = 0.0
+    YMax = 1.0
+    ZMin = 0.0
+    ZMax = 1.0
+
+
 class _Shape:
     def __init__(self, value):
         self.value = value
@@ -32,6 +41,21 @@ class _Shape:
 
     def hashCode(self):
         return self.value
+
+
+class _BrepShape:
+    def __init__(self, payload):
+        self.payload = payload
+        self.BoundBox = _BoundBox()
+
+    def isNull(self):
+        return False
+
+    def hashCode(self):
+        return 7
+
+    def exportBrepToString(self):
+        return self.payload
 
 
 class _Mesh:
@@ -89,6 +113,14 @@ class DrapeTargetTests(unittest.TestCase):
         self.assertNotEqual(moved, baseline)
         self.assertNotEqual(source_signature(target, 0.5, 2), moved)
         self.assertNotEqual(source_signature(target, 0.5, 4), source_signature(target, 0.5, 2))
+
+    def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchanged(self):
+        target = _Target()
+        target.Shape = _BrepShape("brep-a")
+        baseline = source_signature(target, 1, 2)
+        target.Shape = _BrepShape("brep-b")
+        changed = source_signature(target, 1, 2)
+        self.assertNotEqual(changed, baseline)
 
     def test_mesh_signature_hashes_complete_topology_not_aggregate_counts(self):
         target = _MeshTarget()

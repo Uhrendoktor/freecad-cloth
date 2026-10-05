@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from freecad_cloth.avatar.AvatarArrangement import (
     ARRANGEMENT_POINT_NAMES,
@@ -257,6 +258,42 @@ class AvatarFittingTests(unittest.TestCase):
             ["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"]
         )
         self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+
+    def test_avatar_apply_does_not_mutate_document_when_geometry_build_fails(self):
+        try:
+            import FreeCAD as App
+        except ModuleNotFoundError:
+            self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
+        from freecad_cloth.avatar import AvatarCommands
+
+        doc = App.newDocument("AvatarTransactionalApply")
+        try:
+            avatar = AvatarCommands.create_avatar()
+            current = AvatarCommands._parameters(avatar)
+            original_mesh = tuple(
+                (round(float(p.x), 6), round(float(p.y), 6), round(float(p.z), 6))
+                for p in list(avatar.Mesh.Points)[:12]
+            )
+            original_chest = float(avatar.Chest)
+            original_pose = str(avatar.JointPoseJSON)
+            candidate = current.with_measurements(chest=original_chest + 80.0)
+            with mock.patch.object(
+                AvatarCommands,
+                "_provider_geometry",
+                side_effect=RuntimeError("synthetic geometry failure"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
+                    AvatarCommands.apply_avatar_parameters(avatar, candidate)
+            self.assertEqual(float(avatar.Chest), original_chest)
+            self.assertEqual(str(avatar.JointPoseJSON), original_pose)
+            rebuilt_mesh = tuple(
+                (round(float(p.x), 6), round(float(p.y), 6), round(float(p.z), 6))
+                for p in list(avatar.Mesh.Points)[:12]
+            )
+            self.assertEqual(rebuilt_mesh, original_mesh)
+        finally:
+            if doc.Name in App.listDocuments():
+                App.closeDocument(doc.Name)
 
     def test_freecad_mannequin_rebuild_invalidates_target_until_refreshed(self):
         try:

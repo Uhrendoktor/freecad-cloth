@@ -77,8 +77,9 @@ class JointRotation:
         if mirror is None:
             return self
         # X is left/right, Y is depth and Z is up in the Cloth mannequin space.
-        # Reflecting across X=0 reverses X/Z axial rotation signs and preserves Y.
-        return JointRotation(mirror, -float(self.x), float(self.y), -float(self.z))
+        # Reflecting a proper rotation across X=0 preserves the X rotation axis
+        # and reverses the Y/Z rotation axes.
+        return JointRotation(mirror, float(self.x), -float(self.y), -float(self.z))
 
 
 def normalize_joint_rotations(rotations) -> tuple[JointRotation, ...]:
@@ -180,6 +181,22 @@ class AffineTransform:
             m[3] * x + m[4] * y + m[5] * z + t[1],
             m[6] * x + m[7] * y + m[8] * z + t[2],
         )
+
+    def inverse(self) -> "AffineTransform":
+        """Return the inverse of this rigid affine transform."""
+        m = self.matrix
+        inverse_matrix = (
+            m[0], m[3], m[6],
+            m[1], m[4], m[7],
+            m[2], m[5], m[8],
+        )
+        tx, ty, tz = self.translation
+        inverse_translation = (
+            -(inverse_matrix[0] * tx + inverse_matrix[1] * ty + inverse_matrix[2] * tz),
+            -(inverse_matrix[3] * tx + inverse_matrix[4] * ty + inverse_matrix[5] * tz),
+            -(inverse_matrix[6] * tx + inverse_matrix[7] * ty + inverse_matrix[8] * tz),
+        )
+        return AffineTransform(inverse_matrix, inverse_translation)
 
 
 IDENTITY = AffineTransform(

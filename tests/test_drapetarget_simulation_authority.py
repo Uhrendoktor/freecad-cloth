@@ -20,6 +20,8 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
                 Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
             ),
         )
+        from freecad_cloth.simulation.DrapeTarget import source_signature
+
         target = SimpleNamespace(
             TargetType="FreeCAD Geometry",
             SourceObject=source,
@@ -28,9 +30,7 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
             Enabled=True,
             CollisionVertexCount=3,
             CollisionTriangleCount=1,
-            SourceSignature=repr(
-                ("Body", "Body", ("Shape", 123), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)
-            ),
+            SourceSignature=repr(source_signature(source, 1.0, 0.0)),
         )
         return source, target
 

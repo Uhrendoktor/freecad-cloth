@@ -87,6 +87,28 @@ def _mesh_signature(target):
         return None
 
 
+def _shape_content_signature(shape):
+    """Return a persistent geometry-content digest for a FreeCAD TopoShape."""
+    exporter = getattr(shape, "exportBrepToString", None)
+    if callable(exporter):
+        try:
+            payload = exporter()
+            if isinstance(payload, str):
+                payload = payload.encode("utf-8")
+            else:
+                payload = bytes(payload)
+            return ("BRepHash", hashlib.sha256(payload).hexdigest())
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            pass
+    hash_code = getattr(shape, "hashCode", None)
+    if callable(hash_code):
+        try:
+            return ("ShapeHash", int(hash_code()))
+        except (TypeError, ValueError, RuntimeError):
+            pass
+    return ("Unknown",)
+
+
 def _geometry_signature(target):
     mesh_signature = _mesh_signature(target)
     if mesh_signature is not None:
@@ -108,15 +130,11 @@ def _geometry_signature(target):
                     round(float(box.YMax), 6),
                     round(float(box.ZMin), 6),
                     round(float(box.ZMax), 6),
+                    _shape_content_signature(shape),
                 )
         except (AttributeError, TypeError, ValueError):
             pass
-        hash_code = getattr(shape, "hashCode", None)
-        if callable(hash_code):
-            try:
-                return ("ShapeHash", int(hash_code()))
-            except (TypeError, ValueError):
-                pass
+        return ("ShapeContent", _shape_content_signature(shape))
     return ("Unknown",)
 
 
