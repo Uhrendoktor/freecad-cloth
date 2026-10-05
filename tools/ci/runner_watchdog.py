@@ -51,7 +51,8 @@ def main() -> int:
             "-f",
             f"fallback_source_run={run_id}",
         ],
-        check=True, timeout=10,
+        check=True,
+        timeout=10,
     )
     time.sleep(2)
     subprocess.run(
