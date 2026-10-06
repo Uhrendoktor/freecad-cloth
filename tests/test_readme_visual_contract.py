@@ -1,4 +1,4 @@
-"""Contracts for the published README visual validation path."""
+"""Contracts for the published README/wiki visual validation path."""
 
 from pathlib import Path
 
@@ -64,6 +64,9 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
         encoding="utf-8"
     )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
 
     for asset in (
         "cloth-pattern-design.png",
@@ -72,8 +75,6 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
         "cloth-tunic-mannequin-motion.gif",
         "cloth-simulation-arranged-turntable.gif",
         "cloth-simulation-draped-turntable.gif",
-        "cloth-simulation-diagnostics.png",
-        "cloth-avatar-turntable.gif",
         "cloth-simulation-arranged.png",
         "cloth-simulation-draped.png",
         "avatar-pose-mode.png",
@@ -84,10 +85,55 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "penetration" in readme.lower()
     assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
     assert "simulation-ladder:" in workflow
-    assert "cloth-tunic-mannequin-motion.gif" in workflow
-    assert "name: avatar-pose-ui" in workflow
-    assert "name: interactive-arrange" in workflow
-    assert "cp ../turntables/cloth-avatar-front.png" in workflow
-    assert "cp ../tunic/docs/images/generated/cloth-simulation-arranged.png" in workflow
-    assert "cp ../tunic/docs/images/generated/cloth-simulation-draped.png" in workflow
+    assert "artifact: avatar-pose-ui" in workflow
+    assert "artifact: interactive-arrange" in workflow
     assert "frame_count=TURNTABLE_FRAMES" in avatar_screenshot
+    assert "expected = documented_assets(source_root)" in publisher
+    assert "for asset in sorted(expected):" in publisher
+    assert "find_asset(asset)" in publisher
+
+
+def test_pose_visual_audit_exposes_all_avatar_renders():
+    pose = (ROOT / "docs" / "wiki" / "04-pose.md").read_text(encoding="utf-8")
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
+
+    for asset in (
+        "cloth-avatar-front.png",
+        "cloth-avatar-rear.png",
+        "cloth-avatar-left.png",
+        "cloth-avatar-right.png",
+        "cloth-avatar-top.png",
+        "cloth-avatar-bottom.png",
+        "cloth-avatar-turntable.gif",
+    ):
+        assert asset in pose
+    assert "find_asset(asset)" in publisher
+
+
+def test_visual_publisher_removes_stale_public_images_before_publish():
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'path.suffix.lower() in IMAGE_SUFFIXES' in publisher
+    assert "path.unlink()" in publisher
+    assert "for asset in sorted(expected):" in publisher
+    assert "write_provenance(" in publisher
+    assert "errors = verify(source_root, published, provenance, args.source_sha)" in publisher
+
+
+def test_visual_publisher_preserves_script_local_import_invocation():
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    action = (ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "from visual_evidence import documented_assets, verify, write_provenance" in publisher
+    assert "python3 tools/ci/publish_visual_evidence.py" in action
+
+
+print("GUI visual contract checks passed")
