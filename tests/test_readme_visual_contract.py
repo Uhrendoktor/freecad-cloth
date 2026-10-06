@@ -27,7 +27,7 @@ def test_turntable_still_uses_persistent_drape_target():
         encoding="utf-8"
     )
 
-    assert "set_avatar_collision_source" in source
+    assert "set_drape_target_source" in source
     assert "create_drape_target" in objects
     assert "assign_drape_target" in objects
 
@@ -41,7 +41,7 @@ def test_readme_turntable_builds_real_motion():
 
 
 def test_simulation_visual_presentation_is_shaded_and_axonometric():
-    runtime = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(
+    runtime = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py").read_text(
         encoding="utf-8"
     )
     turntable = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
@@ -81,8 +81,8 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "penetration" in readme.lower()
     assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
     assert "simulation-ladder:" in workflow
-    assert "artifact: avatar-pose-ui" in workflow
-    assert "artifact: interactive-arrange" in workflow
+    assert "artifact-name: avatar-pose-ui" in workflow
+    assert "artifact-name: interactive-arrange" in workflow
     assert "frame_count=TURNTABLE_FRAMES" in avatar_screenshot
     assert "expected = documented_assets(source_root)" in publisher
     assert "for asset in sorted(expected):" in publisher
