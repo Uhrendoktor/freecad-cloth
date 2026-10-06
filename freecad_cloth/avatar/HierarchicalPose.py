@@ -8,6 +8,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BODY_VERTEX_COUNT,
     MeshData,
     _authored_arm_rig_points,
+    _load_source_vertices,
     _make_source_fitted_mapper,
     _reoriented_triangles,
     fit_makehuman_mesh,
