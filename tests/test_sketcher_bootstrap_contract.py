@@ -32,4 +32,4 @@ def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flag
     assert "-M /tmp/freecad-mod" not in job
     assert "-P /tmp/freecad-mod/freecad-cloth" not in job
     assert "timeout-seconds:" in job
-    assert "native Sketcher acceptance passed" in job
+    assert "validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}" in job
