@@ -76,7 +76,7 @@ def run():
     if panel.controller.view is None:
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
-        raise RuntimeError("Pose Mode did not create the rotation trackball")
+        raise RuntimeError("Pose Mode did not create a usable pose control")
 
     selected = str(panel.skeleton_joint_index)
     if not selected:
@@ -125,7 +125,11 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    print("avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true", flush=True)
+    gizmo_mode = "fallback" if getattr(panel.controller.gizmo, "is_fallback", False) else "native"
+    print(
+        f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true",
+        flush=True,
+    )
     print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
     doc.close()
     trace.close()

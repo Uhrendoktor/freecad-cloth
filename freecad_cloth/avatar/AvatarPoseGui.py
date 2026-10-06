@@ -52,6 +52,13 @@ def joint_world_positions(parameters):
     return result
 
 
+class _FallbackGizmo:
+    """Logical pose control used when FreeCAD's Coin/SWIG bridge is unavailable."""
+
+    is_fallback = True
+    isActive = False
+
+
 class SkeletonPoseController:
     """Viewport overlay and Coin3D trackball controller for mannequin joints."""
 
@@ -99,8 +106,24 @@ class SkeletonPoseController:
             return
 
         self.view = self.Gui.activeDocument().activeView()
-        self.scene_graph = self.view.getSceneGraph()
-        coin = self._coin()
+        try:
+            self.scene_graph = self.view.getSceneGraph()
+            coin = self._coin()
+        except Exception as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self.scene_graph = None
+            self.overlay = None
+            self._build_positions()
+            self.gizmo = _FallbackGizmo()
+            bone = str(self.panel.skeleton_joint.currentData())
+            if bone:
+                self.select_joint(bone)
+            self.panel.status.setText(
+                "Pose Mode: Coin/SWIG viewport controls are unavailable in this FreeCAD build; "
+                "use the joint selector and Apply & Rebuild."
+            )
+            return
 
         self.overlay = coin.SoSeparator()
         self.overlay.setName("ClothAvatarPoseOverlay")
@@ -240,6 +263,11 @@ class SkeletonPoseController:
             self._create_gizmo(self.selected_bone)
 
     def _create_gizmo(self, bone):
+        if self.scene_graph is None:
+            self.gizmo_separator = None
+            self.gizmo_transform = None
+            self.gizmo = _FallbackGizmo()
+            return
         coin = self._coin()
         try:
             if self.gizmo_separator is not None:
