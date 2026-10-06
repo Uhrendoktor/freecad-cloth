@@ -116,7 +116,8 @@ class SkeletonPoseController:
             self.overlay = None
             self._build_positions()
             self.gizmo = _FallbackGizmo()
-            bone = str(self.panel.skeleton_joint.currentData())
+            self.panel._select_first_joint()
+            bone = str(getattr(self.panel, "skeleton_joint_index", ""))
             if bone:
                 self.select_joint(bone)
             self.panel.status.setText(
