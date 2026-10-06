@@ -287,7 +287,7 @@ jobs:
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: ""}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log"}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log"}
-          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "true", clean: "false", env: ""}
+          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "false", clean: "true", env: ""}
           - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "false", env: ""}
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
