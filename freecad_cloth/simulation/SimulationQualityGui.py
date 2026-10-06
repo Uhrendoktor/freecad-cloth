@@ -231,7 +231,7 @@ class SimulationQualityTaskPanel:
 
     @staticmethod
     def _double(low, high, value, decimals):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         widget = QtWidgets.QDoubleSpinBox()
         widget.setRange(low, high)
         widget.setDecimals(decimals)
@@ -240,7 +240,7 @@ class SimulationQualityTaskPanel:
 
     @staticmethod
     def _spin(low, high, value):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         widget = QtWidgets.QSpinBox()
         widget.setRange(low, high)
         widget.setValue(value)
@@ -591,12 +591,12 @@ class SimulationQualityTaskPanel:
         return True
 
     def getStandardButtons(self):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
 def show_simulation_quality_task(scene=None):
-    _App, Gui, _QtWidgets, _QtGui = _qt()
+    _App, Gui, _QtCore, _QtWidgets, _QtGui = _qt()
     panel = SimulationQualityTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel
