@@ -69,6 +69,14 @@ try:
     main()
     os._exit(0)
 except BaseException as exc:
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/surface-pen.log").write_text(
+        "surface-pen-native-smoke=failed\n"
+        + repr(exc)
+        + "\n"
+        + traceback.format_exc(),
+        encoding="utf-8",
+    )
     print("surface-pen-native-smoke=failed", repr(exc), flush=True)
     print(traceback.format_exc(), flush=True)
     os._exit(1)

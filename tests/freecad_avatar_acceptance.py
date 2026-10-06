@@ -1,6 +1,7 @@
 """Canonical FreeCAD/Xvfb acceptance for avatar provider lifecycle."""
 
 import contextlib
+import faulthandler
 import json
 import os
 import sys
@@ -54,20 +55,34 @@ def _mesh_topology(mesh):
 
 
 def run_acceptance():
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    trace_path = Path("artifacts/avatar-acceptance-progress.log")
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    with trace_path.open("w", encoding="utf-8", buffering=1) as trace:
+        faulthandler.enable(file=trace, all_threads=True)
+        faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
+
+        def progress(message):
+            trace.write(str(message) + "\n")
+            trace.flush()
+
+        progress("start")
+        from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
-    doc = App.newDocument("AvatarProviderAcceptance")
-    path = None
-    try:
-        source = doc.addObject("Part::Feature", "ProviderAcceptanceBody")
+        doc = App.newDocument("AvatarProviderAcceptance")
+        path = None
+        try:
+            progress("document-created")
+            source = doc.addObject("Part::Feature", "ProviderAcceptanceBody")
         source.Label = "Provider Acceptance Body"
         source.Shape = Part.makeCylinder(35, 180, App.Vector(0, 0, 0))
         doc.recompute()
 
+        progress("before-create-avatar")
         avatar = create_avatar()
+        progress("after-create-avatar")
         target = doc.getObject("DrapeTarget")
         if target is None:
             raise RuntimeError("avatar creation did not create a persistent DrapeTarget")
@@ -90,8 +105,10 @@ def run_acceptance():
             for item in getattr(avatar, "Landmarks", [])
             if "|" in str(item)
         }
+        progress("before-manual-pose-panel")
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
+        progress("manual-pose-panel-shown")
         upperarm_index = panel.skeleton_joint.findText("Left shoulder")
         if upperarm_index < 0:
             raise RuntimeError("manual skeleton editor did not expose the left shoulder joint")
@@ -104,7 +121,11 @@ def run_acceptance():
         if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != -25.0:
             raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
         if not panel._apply():
-            raise RuntimeError("manual skeleton joint edit was not applied")
+            raise RuntimeError(
+                "manual skeleton joint edit was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        progress("manual-pose-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
@@ -131,7 +152,11 @@ def run_acceptance():
         _show_panel(panel)
         panel._reset_skeleton_pose()
         if not panel._apply():
-            raise RuntimeError("manual skeleton reset was not applied")
+            raise RuntimeError(
+                "manual skeleton reset was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        progress("manual-pose-reset")
         _close_task()
         avatar = doc.getObject(identity)
         if str(avatar.JointPoseJSON) != '{"joints":{},"schema_version":1,"units":"deg"}':
@@ -153,7 +178,11 @@ def run_acceptance():
         if panel.provider_source_label.text() != "Source: Provider Acceptance Body":
             raise RuntimeError("task panel did not show the staged FreeCAD provider source")
         if not panel._apply():
-            raise RuntimeError("avatar provider swap was not applied")
+            raise RuntimeError(
+                "avatar provider swap was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        progress("provider-swap-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
@@ -174,7 +203,11 @@ def run_acceptance():
         _show_panel(panel)
         panel.pose.setCurrentText("sewing")
         if not panel._apply():
-            raise RuntimeError("avatar pose edit was not applied")
+            raise RuntimeError(
+                "avatar pose edit was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        progress("pose-edit-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")

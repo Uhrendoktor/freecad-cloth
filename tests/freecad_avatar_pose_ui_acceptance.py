@@ -1,7 +1,9 @@
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
+import faulthandler
 import os
 import sys
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,20 +40,39 @@ def _bounds(mesh):
 
 
 def run():
+    progress_path = Path("artifacts/avatar-pose-ui-progress.log")
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    trace = progress_path.open("w", encoding="utf-8", buffering=1)
+    faulthandler.enable(file=trace, all_threads=True)
+    try:
+        faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
+    except (AttributeError, RuntimeError, OSError):
+        pass
+
+    def progress(message):
+        trace.write(str(message) + "\n")
+        trace.flush()
+
+    progress("start")
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
     from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
 
     doc = App.newDocument("AvatarPoseUiAcceptance")
+    progress("document-created")
     avatar = create_avatar(attach_collision=False, doc=doc)
+    progress("avatar-created")
     doc.recompute()
 
     panel = AvatarPoseTaskPanel(avatar)
+    progress("panel-created")
     Gui.Control.showDialog(panel)
+    progress("panel-shown")
     view = Gui.activeDocument().activeView()
     view.viewIsometric()
     view.fitAll()
     Gui.updateGui()
+    progress("controller-activated")
     if panel.controller.view is None:
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
@@ -107,11 +128,20 @@ def run():
     print("avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true", flush=True)
     print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
     doc.close()
+    trace.close()
 
 
 try:
     run()
 except BaseException as exc:
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/avatar-pose-ui.log").write_text(
+        "avatar-pose-ui=failed\n"
+        + repr(exc)
+        + "\n"
+        + traceback.format_exc(),
+        encoding="utf-8",
+    )
     print("avatar-pose-ui=failed", exc, flush=True)
     App.Console.PrintError("Avatar Pose UI acceptance failed: %s\n" % exc)
     os._exit(1)
