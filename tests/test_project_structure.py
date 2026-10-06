@@ -123,8 +123,9 @@ def test_canonical_workflow_keeps_simple_local_first_fallback():
     assert "runner_watchdog:" in workflow
     watchdog = (root / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
     assert "runner-watchdog=fallback" in watchdog
-    assert "-f runner_mode=hosted" in workflow
-    assert "-f fallback_source_run=" in workflow
+    assert "runner_mode:" in workflow
+    assert "fallback_source_run:" in workflow
+    assert "default: local" in workflow
     assert "pull_request_broker:" not in workflow
     assert "runner_router:" not in workflow
     assert "runner_heartbeat:" not in workflow
@@ -164,10 +165,10 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated():
     assert "contents: write" in publish
     assert "pull-requests: write" in publish
     assert "runs-on: ubuntu-latest" in publish
-    assert "actions/download-artifact@" in publish
-    assert "actions/checkout@" in publish
-    assert "ref: ${{ github.event.pull_request.base.sha }}" in publish
-    assert "without executing PR code" in publish
+    assert "publish-visual-evidence@" in publish
+    assert "mode: pr" in publish
+    assert "evidence-head: ${{ github.event.pull_request.head.sha }}" in publish
+    assert "source-sha: ${{ github.event.pull_request.head.sha }}" in publish
 
 
 def test_workflow_actions_use_immutable_release_pins():
@@ -178,7 +179,7 @@ def test_workflow_actions_use_immutable_release_pins():
         encoding="utf-8"
     )
     references = re.findall(
-        r"uses: [^@\\n]+@([0-9a-f]{40})(?:\\s+#\\s+v[0-9.]+)?",
+        r"uses: [^@\n]+@([0-9a-f]{40})(?:\s+#\s+v[0-9.]+)?",
         workflow,
     )
     assert references
