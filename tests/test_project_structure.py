@@ -193,6 +193,14 @@ def test_avatar_commands_do_not_depend_on_simulation_package():
     assert "freecad_cloth.simulation.SimulationObjects" not in source
 
 
+def test_freecad_runner_bootstraps_workbench_without_mod_discovery_flags():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
+    assert '"import InitGui\\n"' in source
+    assert '"/opt/freecad/AppRun", str(runner)' in source
+    assert '-P", "/tmp/freecad-mod' not in source
+
+
 def test_freecad_runner_preserves_script_owned_logs():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
