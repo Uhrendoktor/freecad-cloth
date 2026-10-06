@@ -10,10 +10,10 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     start = workflow.index("  python:")
     end = workflow.find("\n  ", start + 3)
     block = workflow[start:] if end == -1 else workflow[start:end]
-    assert "test-script: tools/ci/python_validation.py" in block
-    assert "test-args: ${{ matrix.group }}" in block
-    for group in ("core", "pattern", "sewing", "gui", "pytest"):
-        assert group in block
+    assert "group: [core, pattern, sewing, gui, pytest]" in block
+    assert "python_validation.py" in block
+    assert "matrix.group != 'gui'" in block
+    assert "test-args: gui" in block
 
 def test_pytest_contract_module_has_a_real_test_entrypoint():
     source = Path(__file__).read_text(encoding="utf-8")
@@ -29,10 +29,10 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     match = __import__("re").search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    assert "publish_visual_evidence" in publisher
-    assert "EVIDENCE_HEAD" in publisher
-    assert "actions/download-artifact@" in publisher
-    assert "http.extraheader" not in publisher
+    assert "publish-visual-evidence@" in publisher
+    assert "evidence-head:" in publisher
+    assert "source-sha:" in publisher
+    assert "mode: pr" in publisher
 
 
 # Exact-head validation recut marker; behavior unchanged.
