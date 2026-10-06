@@ -710,11 +710,9 @@ class AvatarPoseTaskPanel:
             )
         values[rotation.bone] = rotation
         if self.symmetry.isChecked():
-            mirrored_bone = rotation.mirrored().bone
-            if mirrored_bone != rotation.bone:
-                values[mirrored_bone] = JointRotation(
-                    mirrored_bone, rotation.x, rotation.y, rotation.z
-                )
+            mirrored = rotation.mirrored()
+            if mirrored.bone != rotation.bone:
+                values[mirrored.bone] = mirrored
         self._staged_joint_rotations = values
         self._select_joint_without_preview(str(bone))
         if preview:
