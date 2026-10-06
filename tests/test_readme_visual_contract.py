@@ -112,6 +112,18 @@ def test_pose_visual_audit_exposes_all_avatar_renders():
     assert "find_asset(asset)" in publisher
 
 
+def test_visual_publisher_removes_stale_public_images_before_publish():
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'path.suffix.lower() in IMAGE_SUFFIXES' in publisher
+    assert "path.unlink()" in publisher
+    assert "for asset in sorted(expected):" in publisher
+    assert "write_provenance(" in publisher
+    assert "errors = verify(source_root, published, provenance, args.source_sha)" in publisher
+
+
 def test_visual_publisher_runs_as_a_module_for_relative_imports():
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
         encoding="utf-8"
