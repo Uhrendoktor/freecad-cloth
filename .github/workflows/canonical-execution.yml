@@ -359,7 +359,7 @@ jobs:
           test-script: tests/freecad_simulation_turntable.py
           timeout-seconds: "120"
           log-file: docs/images/generated/simulation-turntable-progress.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && python3 tools/ci/build_visual_gifs.py turntables'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
           artifact-path: docs/images/generated/**
           environment: |
@@ -385,7 +385,7 @@ jobs:
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py blanket && python3 tools/ci/build_visual_gifs.py blanket'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py blanket && if [ "$GITHUB_REF" = "refs/heads/main" ]; then python3 tools/ci/build_visual_gifs.py blanket; fi'
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
