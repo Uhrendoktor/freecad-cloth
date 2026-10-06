@@ -18,26 +18,17 @@ The seam is not defined by generated mesh-edge numbering. It refers back to pers
 | Validation | Length mismatch or invalid references are surfaced instead of hidden |
 | 2D ↔ 3D focus | A seam can be inspected in the assembled scene without changing source authority |
 
-Semantic seam selection is a user action; committed seam state belongs to the FreeCAD document.
-
 ## Interaction model
 
-<strong>Select → review → commit</strong>
+**Select → review → commit**
 
-The sewing UI should never turn an uncertain match into a silent topology guess.
-
-For staged operations, the task panel provides a recoverable interaction model. Invalid selections are rejected before they become persistent sewing state.
+The sewing UI should never turn an uncertain match into a silent topology guess. Invalid selections are rejected before they become persistent sewing state.
 
 ## Correspondence
 
-The sewing model is designed to handle:
+The sewing model is designed to handle 1:1, 1:N, M:1 and M:N/free relationships.
 
-- 1:1 relationships;
-- 1:N relationships;
-- M:1 relationships;
-- M:N/free relationships.
-
-Curved edges are handled through correspondence data rather than assuming equal vertex counts. Mismatch and reversal should be visible before the user commits the relationship.
+Curved edges are handled through correspondence data rather than assuming equal vertex counts. Mismatch and reversal should be visible before commit.
 
 ## Human failure review
 
@@ -53,14 +44,14 @@ Treat these as visual failures:
 
 Relevant fixtures include:
 
-- <code>tests/freecad_sewing_smoke.py</code>
-- <code>tests/freecad_sewing_creation_smoke.py</code>
-- <code>tests/freecad_garment_e2e_smoke.py</code>
+- `tests/freecad_sewing_smoke.py`
+- `tests/freecad_sewing_creation_smoke.py`
+- `tests/freecad_garment_e2e_smoke.py`
 
 The canonical workflow also exercises the sewn garment through the visual tunic path.
 
 ## Source map
 
-Implementation is concentrated under <code>freecad_cloth/sewing/</code>, especially SeamGraph.py, SeamReference.py, SewingObjects.py, SewingSemantics.py, SewingCorrespondence.py, SewingCreationGui.py and SewingGui.py.
+Implementation is concentrated under `freecad_cloth/sewing/`. The package boundary is the durable source map; individual compatibility modules should not be treated as public API.
 
-See [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for semantic ownership and dependency direction.
+See [Architecture](../ARCHITECTURE.md) for semantic ownership and dependency direction.

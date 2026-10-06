@@ -1,5 +1,5 @@
 name: FreeCAD test
-description: Run one FreeCAD acceptance or screenshot command with a hard 55-second application budget.
+description: Run one FreeCAD acceptance or screenshot command using the repository CI timeout setting.
 inputs:
   image:
     description: Immutable FreeCAD container image.
@@ -7,10 +7,6 @@ inputs:
   test-script:
     description: Repository-relative Python script passed to FreeCAD.
     required: true
-  timeout-seconds:
-    description: Hard runtime budget for the FreeCAD application; maximum 55 seconds.
-    required: false
-    default: "55"
   checkout:
     description: Checkout the canonical PR head or workflow SHA before running. Disable for subsequent tests in the same job.
     required: false
@@ -78,7 +74,6 @@ runs:
           CLOTH_CI_CLEAN_USER=${{ inputs.clean-user }}
         command: >-
           python3 /workspace/tools/ci/run_freecad.py
-          --timeout-seconds ${{ inputs.timeout-seconds }}
           --log-file /workspace/${{ inputs.log-file }}
           --test-script /workspace/${{ inputs.test-script }}
           --test-args "${{ inputs.test-args }}"

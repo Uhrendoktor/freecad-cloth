@@ -1,30 +1,88 @@
 # User guide
 
-## Start with the basic example
+This is the shortest path from an installed workbench to a complete garment workflow.
 
-After installation, open the **Cloth Pattern**, **Cloth Sewing**, and **Cloth Simulation** workbenches from the FreeCAD workbench selector.
+## Start with a known-good first result
 
-For a first validation, follow the **Blanket over Cube** example in [Examples](EXAMPLES.md). Pin two blanket corners, run the simulation, and verify that the cloth moves toward and around the cube.
+Before testing a full garment, run the [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) example.
 
-## Typical garment workflow
+It deliberately uses one pattern, one generic FreeCAD collision target and explicit pins. When the blanket reaches the cube without exploding, detaching or penetrating badly, the installation and basic simulation path are working.
 
-1. Create or open a native Sketcher pattern in **Cloth Pattern** and turn it into a PatternPiece. Keep Sketcher as the geometry authority.
-2. Use **Cloth Sewing** to select matching semantic edges and create seams. Editing an upstream Sketcher edge can invalidate a downstream seam rather than silently retargeting it.
-3. In **Cloth Simulation**, select or rebuild a DrapeTarget. A target can be a mannequin collision surface or supported generic FreeCAD geometry.
-4. Set simulation quality and fabric presentation. Physical material parameters affect the solver; color, roughness, specular response and transparency affect viewport rendering.
-5. Choose pins and run the simulation. Stale or non-finite states are fail-closed.
-6. Inspect the result and diagnostics before export or saving a final document.
+Use the [Tunic](EXAMPLES.md#2-tunic) only after the basic example succeeds.
 
-## Seams and visual inspection
+## The normal garment loop
 
-Seams use deterministic colors in the 2D sewing view and retain their placed/world-space 3D presentation. Use the seam-focus command to fit a selected seam in 3D, and the Sketcher-side seam command to edit the authoritative source edge.
+**Pattern → Sewing → Fitting → Pose → Simulation → Diagnosis → Edit → Rebuild**
 
-## Fabric presentation
+### 1. Pattern — create the authoritative 2D source
 
-Presentation properties are persisted on the native Fabric Material object and are separate from the physical solver parameters.
+Open **Cloth Pattern**.
 
-## Persistence and recovery
+Create or open a native Sketcher sketch and turn it into a PatternPiece. Use Sketcher for dimensions, constraints and curves. Cloth adds garment meaning such as semantic piece identity, seam references, seam allowance, grainline, notches and internal marks.
 
-After pattern, seam-source or drape-target changes, rebuild or repair dependent derived state before simulation/export. Cloth intentionally reports stale dependencies instead of silently using outdated derived geometry.
+A pattern can also start with **Cloth Pattern → 3D Pattern Pen** for the bounded planar-extraction workflow. The resulting PatternPiece is still a normal Sketcher-backed object.
 
-For debugging, compare local results with the FreeCAD/Triangle/Tissu versions recorded by the canonical workflow and attach the relevant CI artifact/log rather than editing generated evidence manually.
+**Done when:** the pieces are visible in the document, editable in Sketcher and valid after recompute.
+
+### 2. Sewing — describe how pieces belong together
+
+Open **Cloth Sewing**.
+
+Select compatible semantic edges or ranges, review direction/reversal and correspondence, then commit the seam. The seam relationship is persistent; generated mesh topology is not.
+
+**Done when:** the intended edges highlight consistently and the sewing view reports no unresolved reference or correspondence error.
+
+### 3. Fitting — put pieces around the target
+
+Create or select a **DrapeTarget**.
+
+Targets can come from the native mannequin or supported FreeCAD geometry. Arrange pieces in the 3D view using the available placement/arrangement interactions. Persistent fitting state belongs to the document.
+
+**Done when:** the pieces are arranged where you expect them before simulation begins.
+
+### 4. Pose — change the mannequin when needed
+
+Use mannequin Pose Mode for joint rotations and symmetry. Treat the pose as document state; the displayed deformed body is derived from it.
+
+**Done when:** the mannequin has the intended persistent pose and its downstream target state is current.
+
+### 5. Simulate — create derived cloth state
+
+Open **Cloth Simulation** and confirm the target is valid/current, quality and material settings are appropriate, pins/stitches are intentional, and there is no stale derived state.
+
+Use **Run** for the normal workflow, **Step** for controlled investigation and **Reset** for recovery.
+
+**Done when:** the simulation reaches a stable cloth state and the garment remains coherent from more than one view.
+
+### 6. Diagnose — inspect before exporting
+
+Inspect the final garment from multiple sides and use the diagnostic view when available.
+
+Look for penetration, detached seams, implausible rigid-sheet behavior, collapsed geometry and unexpected topology changes.
+
+**Done when:** the result is visually plausible and the relevant diagnostics are current.
+
+## What persists and what does not
+
+The saved FreeCAD document is authoritative.
+
+**Persistent:** Sketcher geometry, PatternPiece semantics, semantic seam records, fitting state, pose, target identity, material/quality inputs and other documented object properties.
+
+**Derived:** simulation meshes, particles, constraints, collision acceleration data and solver runtime state.
+
+**Transient:** selection highlights, drag previews and other viewport-only interaction state.
+
+Changing an upstream authoritative input should invalidate affected derived state rather than silently reusing it.
+
+## Recovery first
+
+| Symptom | First action |
+| --- | --- |
+| Workbench or command is missing | Use [Troubleshooting](TROUBLESHOOTING.md) and verify the installation path |
+| Seam becomes invalid after a sketch edit | Recompute, inspect the reported reference and repair/recreate the seam explicitly |
+| Arrangement looks wrong | Reset/rearrange before running the solver |
+| Simulation is stale | Refresh/rebuild the target or derived scene, then Run again |
+| Simulation collapses or penetrates | Stop at the first failing visual state and inspect [simulation review](SIMULATION_REVIEW.md) |
+| Local CI differs from canonical evidence | Compare the exact FreeCAD/solver environment recorded by the canonical workflow |
+
+For detailed command behavior, use the [Workbench guide](WORKBENCH_GUIDE.md). For feature-by-feature visual evidence, use the [visual wiki](wiki/README.md).

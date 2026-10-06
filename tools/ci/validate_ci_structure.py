@@ -19,6 +19,7 @@ REQUIRED = (
     ROOT / "tools/ci/visual_evidence.py",
     ROOT / "tools/ci/publish_visual_evidence.py",
     ROOT / "tools/ci/capture_pypbd_provenance.py",
+    ROOT / "tools/ci/timeout_contract.py",
 )
 
 
@@ -66,31 +67,11 @@ def main() -> int:
                     f"CI timeout exceeds 60 seconds: {ci_file}: {match.group(0).strip()}"
                 )
 
-    for index, line in enumerate(text.splitlines()):
-        if (
-            "uses: ./.github/actions/freecad-test" not in line
-            and "uses: $/.github/actions/freecad-test" not in line
-            and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in line
-        ):
-            continue
-        step = []
-        for candidate in text.splitlines()[index + 1 :]:
-            if candidate.startswith("      - "):
-                break
-            step.append(candidate)
-        match = re.search(r'timeout-seconds:\s*"?(\d+)"?', "\n".join(step))
-        if not match or int(match.group(1)) > 55:
-            raise SystemExit("every FreeCAD test action must declare a timeout <=55 seconds")
-    for path in (
-        ROOT / ".github/actions/freecad-container/action.yml",
-        ROOT / ".github/actions/freecad-test/action.yml",
-    ):
-        action = path.read_text(encoding="utf-8")
-        if "60s" not in action or "timeout-seconds" not in action:
-            raise SystemExit(f"60-second runtime contract missing from {path}")
-    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if 'default: "55"' not in freecad or "maximum 55 seconds" not in freecad:
-        raise SystemExit("FreeCAD test action must default to a 55-second maximum")
+    if "timeout-seconds:" in text:
+        raise SystemExit("FreeCAD application timeout must come from pyproject.toml, not workflow inputs")
+    action_text = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
+    if "timeout-seconds:" in action_text:
+        raise SystemExit("freecad-test must not define a second application timeout")
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

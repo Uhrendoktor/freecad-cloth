@@ -38,6 +38,9 @@ dev = [
   "crosshair-tool==0.0.111",
 ]
 
+[tool.freecad_cloth.ci]
+freecad_application_timeout_seconds = 55
+
 [tool.setuptools.packages.find]
 include = ["freecad_cloth*"]
 

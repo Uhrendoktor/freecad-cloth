@@ -1,16 +1,16 @@
 # Installation
 
-FreeCAD Cloth is a native FreeCAD workbench extension. The repository itself is the source tree; the supported runtime boundary is FreeCAD's user `Mod` directory.
+FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the source tree; the supported user runtime is a FreeCAD `Mod` installation.
 
 ## Requirements
 
 - FreeCAD **1.1.0 or newer** for user installation; this minimum is declared in `package.xml`.
 - Python **3.12** for repository development/CI and the PositionBasedDynamics-capable canonical environment.
-- The Python package `triangle==20250106` for constrained pattern meshing.
-- PositionBasedDynamics is optional for ordinary installations; the deterministic CPU backend remains the fallback when PositionBasedDynamics is unavailable.
-- A FreeCAD GUI session is required for the visual workbench tests.
+- `triangle==20250106` for constrained pattern meshing.
+- PositionBasedDynamics for the production simulation path when simulation support is installed.
+- A FreeCAD GUI session for the visual workbench tests.
 
-The repository publishes its exact CI image and dependency versions in `.github/workflows/canonical-execution.yml` and `docker/freecad-ci/Dockerfile`.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow.
 
 ## User installation
 
@@ -19,34 +19,35 @@ The repository publishes its exact CI image and dependency versions in `.github/
 3. Restart FreeCAD.
 4. Select **Cloth Pattern**, **Cloth Sewing**, or **Cloth Simulation** from the workbench selector.
 
-The repository supports both FreeCAD loader layouts: the classic root `Init.py`/`InitGui.py` layout for direct `Mod/freecad-cloth/` installation and the modern namespaced `freecad/freecad_cloth/` layout used by FreeCAD's package-aware loader. Both load the same `freecad_cloth/` implementation package.
+The classic root `Init.py`/`InitGui.py` loader and the modern namespaced loader both resolve to the same `freecad_cloth/` implementation package.
 
-`package.xml` is the FreeCAD Addon Manager manifest. `pyproject.toml` describes the Python distribution/development environment; it is not the Addon Manager's installer manifest and its version/runtime fields should not be mechanically copied into `package.xml`.
+`package.xml` is the FreeCAD Addon Manager manifest. `pyproject.toml` describes the Python distribution and development environment; it is not the Addon Manager installer manifest.
 
 For an existing installation, remove the previous `freecad-cloth` directory before replacing it so stale Python modules cannot remain on the module search path.
 
 ## First run
 
-Start with the **Blanket over Cube** example in [EXAMPLES.md](EXAMPLES.md). It is deliberately smaller than the tunic and is the recommended smoke test for a new installation.
+Use this order:
 
-Then read the concise [User guide](USER_GUIDE.md) and run the tunic workflow documented in [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md).
+1. [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube)
+2. [User guide](USER_GUIDE.md)
+3. [Tunic](EXAMPLES.md#2-tunic) for the full garment path
+
+Starting with the blanket avoids mixing installation problems with sewing, mannequin and production-garment problems.
 
 ## Developer setup
 
-The canonical test environment installs the Triangle dependency with:
+Install the development toolchain with:
 
-    python3 -m pip install triangle==20250106
+```bash
+python -m pip install -e ".[dev]"
+pre-commit install
+```
 
-The repository's non-GUI tests are regular Python scripts. The FreeCAD/Xvfb acceptance tests are intentionally run inside the published CI environment because they exercise the actual FreeCAD GUI, solver backends and rendering path.
+The canonical GUI tests run inside the published FreeCAD CI environment because they exercise the actual GUI, solver backend and rendering path.
 
-The canonical command set is defined in `.github/workflows/canonical-execution.yml`; do not create a second workflow for a one-off GUI test.
+The project keeps one canonical GitHub Actions workflow. See [DEVELOPMENT.md](DEVELOPMENT.md) for the validation matrix and [CI configuration](CI_CONFIGURATION.md) for the single authoritative runtime-budget setting.
 
 ## Troubleshooting
 
-**The workbenches do not appear:** verify that the repository directory is directly below FreeCAD's `Mod` directory and restart FreeCAD.
-
-**Simulation is blocked:** select a current `DrapeTarget` and rebuild it after changing the target geometry. Cloth intentionally refuses stale collision state.
-
-**A seam becomes invalid after editing a sketch:** recompute the document and use the explicit seam repair/remap workflow. Cloth never silently retargets a seam to another edge.
-
-**Visual CI differs from local FreeCAD:** use the same FreeCAD/Triangle/PositionBasedDynamics versions recorded by the canonical workflow before comparing screenshots.
+Use [TROUBLESHOOTING.md](TROUBLESHOOTING.md) rather than repeating recovery instructions across installation and feature pages.

@@ -12,6 +12,25 @@ import sys
 from pathlib import Path
 
 
+PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+
+
+def configured_timeout_seconds() -> float:
+    """Return the authoritative FreeCAD application timeout from pyproject.toml."""
+    import tomllib
+
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    value = data.get("tool", {}).get("freecad_cloth", {}).get("ci", {}).get(
+        "freecad_application_timeout_seconds"
+    )
+    if not isinstance(value, int) or value <= 0:
+        raise RuntimeError(
+            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds "
+            "must be a positive integer"
+        )
+    return float(value)
+
+
 def _stage_workbench(source: Path) -> None:
     target = Path("/tmp/freecad-mod/freecad-cloth")
     if target.exists():
@@ -94,16 +113,13 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 def main() -> int:
     """Run a FreeCAD test process with the repository runtime contract."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--timeout-seconds", type=float, default=55.0)
     parser.add_argument("--log-file", type=Path, required=True)
     parser.add_argument("--test-script", type=Path, required=True)
     parser.add_argument("--test-args", default="")
     args = parser.parse_args()
 
-    if args.timeout_seconds > 55:
-        raise SystemExit("timeout-seconds must not exceed 55")
-
     source = Path("/workspace")
+    timeout_seconds = configured_timeout_seconds()
     if os.environ.get("CLOTH_CI_CLEAN_USER", "").lower() == "true":
         for env_name in ("FREECAD_USER_HOME", "FREECAD_USER_DATA", "FREECAD_USER_TEMP"):
             value = os.environ.get(env_name)
@@ -140,7 +156,7 @@ def main() -> int:
             start_new_session=True,
         )
         try:
-            output, _ = process.communicate(timeout=args.timeout_seconds)
+            output, _ = process.communicate(timeout=timeout_seconds)
             return_code = process.returncode
         except subprocess.TimeoutExpired as exc:
             timed_out = True
@@ -152,7 +168,7 @@ def main() -> int:
         if timed_out:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")
             _write_diagnostics(diagnostic, return_code, True)
-            print(f"freecad-run-timeout=55s log={args.log_file} diagnostics={diagnostic}")
+            print(f"freecad-run-timeout={timeout_seconds:g}s log={args.log_file} diagnostics={diagnostic}")
             return 124
         return int(return_code or 0)
     finally:

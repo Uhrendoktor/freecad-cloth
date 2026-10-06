@@ -1,35 +1,57 @@
 # FreeCAD Cloth documentation
 
-The project documentation now has a human-auditable visual wiki. Start at [docs/wiki/README.md](wiki/README.md).
+Use this page as the documentation map. Choose the task you are trying to accomplish rather than starting with repository internals.
 
-## Documentation layers
+## I want to use FreeCAD Cloth
 
-| Layer | Use it for |
+| Goal | Start here | What you get |
+| --- | --- | --- |
+| Install it | [Installation](INSTALLATION.md) | Requirements, installation and first-run checks |
+| Get a first successful simulation | [Examples](EXAMPLES.md) | Small Blanket over Cube tutorial before the full garment |
+| Learn the normal garment workflow | [User guide](USER_GUIDE.md) | Pattern → Sewing → Fitting → Pose → Simulation → Diagnosis |
+| Learn feature behavior | [Visual wiki](wiki/README.md) | Feature pages with screenshots, persistent state, failure cases and evidence |
+| Solve a problem | [Troubleshooting](TROUBLESHOOTING.md) | Symptom → likely cause → recovery path |
+| Look up workbench behavior | [Workbench guide](WORKBENCH_GUIDE.md) | Commands, workflow details and document structure |
+
+## I want to understand or change the project
+
+| Goal | Start here | What you get |
+| --- | --- | --- |
+| Understand the architecture | [Architecture](ARCHITECTURE.md) | Authorities, boundaries, lifecycle and dependency direction |
+| Find code ownership | [Project structure](PROJECT_STRUCTURE.md) | Package boundaries and canonical module locations |
+| Change the project safely | [Development](DEVELOPMENT.md) | Tests, CI, GUI validation and contribution rules |
+| Understand durable design choices | [Decisions](DECISIONS.md) | Architectural decisions and rationale |
+| Check release/evidence rules | [Release gates](RELEASE_GATES.md) | Acceptance and visual-evidence requirements |
+| Inspect planned capabilities | [Roadmap](ROADMAP.md) | Durable future work, not current status |
+| Read design research | [Research](RESEARCH.md) | Design rationale and external references |
+
+## Reading order for a new user
+
+1. [Installation](INSTALLATION.md)
+2. [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube)
+3. [User guide](USER_GUIDE.md)
+4. The relevant [visual wiki](wiki/README.md) page
+5. [Troubleshooting](TROUBLESHOOTING.md) when something behaves unexpectedly
+
+Start with the blanket when diagnosing an installation, target or simulation problem. It removes most garment-specific variables before you move to the tunic.
+
+## Documentation authority
+
+Each kind of information has one intended home:
+
+| Information | Canonical home |
 | --- | --- |
-| [../README.md](../README.md) | Human project orientation and visual feature map |
-| [wiki/](wiki/README.md) | Feature-by-feature user-facing audit with visuals and evidence links |
-| [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md) | Detailed operating instructions |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Domain ownership and dependency direction |
-| [FEATURE_MATRIX.md](FEATURE_MATRIX.md) | Capability boundaries and roadmap taxonomy |
-| [SIMULATION_REVIEW.md](SIMULATION_REVIEW.md) | Human visual review of simulation evidence |
-| [RELEASE_GATES.md](RELEASE_GATES.md) | Release definition and executable evidence requirements |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Testing, CI and contribution rules |
+| Project orientation | root [README](../README.md) |
+| User-facing feature behavior | [wiki/](wiki/README.md) |
+| Step-by-step workflows | [USER_GUIDE.md](USER_GUIDE.md) and [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md) |
+| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Code/package ownership | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) |
+| Durable decisions | [DECISIONS.md](DECISIONS.md) |
+| Testing/CI/contributor workflow | [DEVELOPMENT.md](DEVELOPMENT.md) |
+| Current coordination state | `AGENT_STATUS.md` / `TOOL_STATE.md` |
+| Task-local evidence | GitHub issue/PR and its exact CI artifacts |
+| Research | [RESEARCH.md](RESEARCH.md) |
 
-## Human audit rule
+Current coordination files are snapshots, not architectural authorities. Verify implementation claims against the current branch and HEAD before treating a status statement as current fact.
 
-A user-visible capability is documented only when the page tells a human what to look for and points to executable evidence and source files.
-
-Generated visuals come from the canonical GitHub Actions workflow and are published on the <code>docs/screenshots</code> branch. They are evidence artifacts, not an alternate source of truth.
-
-## Source of truth
-
-- <code>README.md</code> — project-level visual orientation.
-- <code>docs/wiki/</code> — durable human-facing feature documentation.
-- <code>AGENTS.md</code> — portable agent contract.
-- <code>AGENT_STATUS.md</code> — live machine-readable supervisor/release record.
-- <code>TOOL_STATE.md</code> — compact execution-policy/state record.
-- <code>docs/PROJECT_STRUCTURE.md</code> — implementation placement.
-- <code>docs/ARCHITECTURE.md</code> — domain ownership.
-- <code>docs/ROADMAP.md</code> — durable roadmap.
-- <code>docs/RESEARCH.md</code> — design research.
-- <code>docs/DEVELOPMENT.md</code> — testing, CI, screenshots and contribution rules.
+Generated images are evidence artifacts. The current source, executable tests and canonical workflow remain authoritative.

@@ -9,7 +9,7 @@ applyTo: ".github/workflows/**/*.yml,.github/workflows/**/*.yaml"
 
 - Keep `.github/workflows/canonical-execution.yml` as the only event-driven workflow.
 - Workflow YAML is orchestration only: FreeCAD Docker lifecycle belongs in `.github/actions/freecad-container`; FreeCAD launches and Xvfb belong in `tools/ci/run_freecad.py`.
-- Every FreeCAD acceptance, screenshot, and simulation invocation goes through `.github/actions/freecad-test` and has a maximum application budget of 55 seconds.
+- Every FreeCAD acceptance, screenshot, and simulation invocation goes through `.github/actions/freecad-test`. The application budget is defined once in `[tool.freecad_cloth.ci]` in `pyproject.toml`; do not hardcode or duplicate it in workflows or actions.
 - Do not put `docker run`, `docker create`, or `docker cp` in the canonical workflow.
 - Prefer matrices for equivalent acceptance cases and independent jobs for expensive visual/simulation cases so hosted jobs retain wall-clock parallelism.
 - Main-branch, schedule, and trusted manual runs must not be superseded after starting; only pull-request runs may use cancellation.

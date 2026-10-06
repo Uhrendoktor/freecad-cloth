@@ -4,7 +4,7 @@
 
 ## What the feature is
 
-Cloth Pattern is the 2D garment-authoring stage. The important architectural choice is that the editable geometry remains native FreeCAD Sketcher geometry. Cloth adds garment meaning around it instead of introducing a second polygon editor.
+Cloth Pattern is the 2D garment-authoring stage. Editable geometry remains native FreeCAD Sketcher geometry; Cloth adds garment meaning around it instead of introducing a second polygon editor.
 
 A PatternPiece carries a stable semantic identity and points to the authoritative sketch geometry. Pattern metadata can describe seam allowance, grainline, notches and internal marks.
 
@@ -20,61 +20,42 @@ A PatternPiece carries a stable semantic identity and points to the authoritativ
 
 ## Pattern workflow
 
-<strong>Create piece → edit native Sketch → add garment metadata → recompute → validate → sew</strong>
+**Create piece → edit native Sketch → add garment metadata → recompute → validate → sew**
 
 ## 3D Pattern Pen
 
-The **3D Pattern Pen** is the first 3D-to-2D authoring bridge. Select or create the mannequin/drape target, start the command from **Cloth Pattern → 3D Pattern Pen**, and drag over the visible mannequin surface. Release the mouse to lift the pen; continue with another drag to extend the same boundary. **Finish Stroke → Pattern** creates a normal native Sketcher-backed PatternPiece.
+The **3D Pattern Pen** is the first 3D-to-2D authoring bridge. Select or create the mannequin/drape target, start **Cloth Pattern → 3D Pattern Pen**, and drag over the visible target surface. **Finish Stroke → Pattern** creates a normal native Sketcher-backed PatternPiece.
 
-The first implementation deliberately uses a bounded planar projection. Before anything is converted, Cloth measures the maximum distance of the sampled surface boundary from a deterministic local plane. A patch that exceeds the configured **Planar deviation limit** is rejected instead of silently producing a misleading flat pattern. The persisted 3D draft records the target source signature so a changed mannequin/target invalidates the draft rather than silently moving it.
+The first implementation uses a bounded planar projection. A patch that exceeds the configured **Planar deviation limit** is rejected instead of silently producing a misleading flat pattern. The persisted 3D draft records the target source signature so a changed target invalidates the draft rather than silently moving it.
 
-This is intentionally not a second pattern editor: after extraction, the native Sketcher object is the editable geometry authority. General curved-surface unwrapping, geodesic flattening, darts/relief generation, and bidirectional 2D↔3D editing remain future work.
-
-For reference, FreeCAD's Surface workbench provides Curve on mesh, while the 3D viewer exposes surface picking and mouse callbacks; the Cloth implementation uses the same host interaction model but keeps the resulting PatternPiece Sketcher-authoritative.
-
-
-The public workbench commands are Sketcher-backed. The historical polygon drafting model remains compatibility-only and is not the normal authoring path.
+This is intentionally not a second pattern editor: after extraction, native Sketcher remains the editable geometry authority. General curved-surface unwrapping, geodesic flattening, darts/relief generation and bidirectional 2D↔3D editing remain future work.
 
 ## Production export
 
-The Pattern workbench also exposes deterministic SVG/DXF-oriented export from authoritative geometry. Export should not mutate the source document.
-
-The export path is downstream from PatternPiece/Sketcher state. It is an adapter, not a second source of geometry.
+The Pattern workbench exposes deterministic SVG/DXF-oriented export from authoritative geometry. Export should not mutate the source document.
 
 ## Persistence
 
-The saved FCStd document is authoritative. The following should survive save/reload:
+The saved FCStd document is authoritative. PatternPiece identity, source sketch link, semantic edge identity, pattern metadata and validation state should survive save/reload.
 
-- PatternPiece identity;
-- source sketch link;
-- semantic edge identity;
-- pattern metadata;
-- validation state.
-
-Generated offset geometry or simulation meshes are not the semantic source.
+Generated offset geometry and simulation meshes are not the semantic source.
 
 ## Human failure review
 
-A pattern feature is visually suspect when:
-
-- the intended piece outline is no longer visible or closed;
-- construction marks are mistaken for the authoritative boundary;
-- an edited source sketch changes nothing downstream;
-- the user is forced into a separate hidden pattern editor that bypasses Sketcher;
-- a stale semantic edge is silently reassigned.
+Treat a pattern as visually suspect when the intended piece outline is not visible or closed, construction marks are mistaken for the boundary, source edits have no downstream effect, or a stale semantic edge is silently reassigned.
 
 ## Automated evidence
 
 Primary fixtures include:
 
-- <code>tests/freecad_pattern_workbench_smoke.py</code>
-- <code>tests/freecad_pattern_export_smoke.py</code>
-- <code>tests/freecad_screenshot_source.py</code>
+- `tests/freecad_pattern_workbench_smoke.py`
+- `tests/freecad_pattern_export_smoke.py`
+- `tests/freecad_screenshot_source.py`
 
 Pattern-domain tests also cover persistence, references and topology behavior.
 
 ## Source map
 
-Implementation is concentrated under <code>freecad_cloth/pattern/</code>, especially PatternObjects.py, PatternSketch.py, PatternModel.py, PatternExport.py, PatternSync.py and PatternTopologyRepair.py.
+Implementation is concentrated under `freecad_cloth/pattern/`. The package boundary is the durable source map; individual compatibility modules should not be treated as public API.
 
-Further technical detail: [docs/WORKBENCH_GUIDE.md](../WORKBENCH_GUIDE.md) and [docs/ARCHITECTURE.md](../ARCHITECTURE.md).
+Further detail: [Workbench guide](../WORKBENCH_GUIDE.md) and [Architecture](../ARCHITECTURE.md).
