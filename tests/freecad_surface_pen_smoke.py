@@ -26,6 +26,11 @@ def main():
     try:
         target = doc.addObject("Part::Feature", "SurfacePenTarget")
         target.Shape = Part.makeBox(140.0, 100.0, 20.0)
+        # Stabilize the authored target before persisting its provenance signature.
+        # The extraction contract intentionally rejects drafts whose target changes
+        # after authoring; recomputing first keeps this smoke fixture representative
+        # of a completed target rather than an in-flight FreeCAD shape.
+        doc.recompute()
 
         draft = create_surface_pen_object(
             doc,
