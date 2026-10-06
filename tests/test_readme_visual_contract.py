@@ -124,7 +124,7 @@ def test_visual_publisher_removes_stale_public_images_before_publish():
     assert "errors = verify(source_root, published, provenance, args.source_sha)" in publisher
 
 
-def test_visual_publisher_runs_as_a_module_for_relative_imports():
+def test_visual_publisher_preserves_script_local_import_invocation():
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
         encoding="utf-8"
     )
@@ -132,8 +132,8 @@ def test_visual_publisher_runs_as_a_module_for_relative_imports():
         encoding="utf-8"
     )
 
-    assert "from .visual_evidence import documented_assets, verify, write_provenance" in publisher
-    assert "python3 -m tools.ci.publish_visual_evidence" in action
+    assert "from visual_evidence import documented_assets, verify, write_provenance" in publisher
+    assert "python3 tools/ci/publish_visual_evidence.py" in action
 
 
 print("GUI visual contract checks passed")
