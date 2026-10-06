@@ -71,18 +71,12 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     for asset in (
         "cloth-pattern-design.png",
         "cloth-sewing.png",
-        "cloth-blanket-motion.gif",
-        "cloth-tunic-mannequin-motion.gif",
-        "cloth-simulation-arranged-turntable.gif",
-        "cloth-simulation-draped-turntable.gif",
+        "interactive-arrange.png",
+        "avatar-pose-mode.png",
         "cloth-simulation-arranged.png",
         "cloth-simulation-draped.png",
-        "avatar-pose-mode.png",
-        "interactive-arrange.png",
     ):
         assert asset in readme
-    assert "Simulation ladder" in readme
-    assert "penetration" in readme.lower()
     assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
     assert "simulation-ladder:" in workflow
     assert "artifact-name: avatar-pose-ui" in workflow

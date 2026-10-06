@@ -196,8 +196,10 @@ def test_avatar_commands_do_not_depend_on_simulation_package():
 def test_freecad_runner_bootstraps_workbench_without_mod_discovery_flags():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
-    assert '"import InitGui\\n"' in source
+    assert '"root = Path(\'/workspace\')"' in source
+    assert '"exec(compile(init_gui.read_text(encoding=\'utf-8\'), str(init_gui), \'exec\'), globals(), globals())\\n"' in source
     assert '"/opt/freecad/AppRun", str(runner)' in source
+    assert "import InitGui" not in source
     assert '-P", "/tmp/freecad-mod' not in source
 
 

@@ -117,7 +117,11 @@ def main() -> int:
     runner = Path("/tmp/freecad-ci-runner.py")
     runner.write_text(
         "import runpy, sys\n"
-        "import InitGui\n"
+        "from pathlib import Path\n"
+        "root = Path('/workspace')\n"
+        "sys.path.insert(0, str(root))\n"
+        "init_gui = root / 'InitGui.py'\n"
+        "exec(compile(init_gui.read_text(encoding='utf-8'), str(init_gui), 'exec'), globals(), globals())\n"
         "sys.argv = %r\n"
         "runpy.run_path(%r, run_name=\"__main__\")\n"
         % ([str(args.test_script), *test_args], str(args.test_script)),

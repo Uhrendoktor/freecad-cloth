@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,8 +9,9 @@ def test_canonical_python_job_executes_pytest_contract_modules():
         encoding="utf-8"
     )
     start = workflow.index("  python:")
-    end = workflow.find("\n  ", start + 3)
-    block = workflow[start:] if end == -1 else workflow[start:end]
+    match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
+    end = start + 3 + match.start() if match else len(workflow)
+    block = workflow[start:end]
     assert "group: [core, pattern, sewing, gui, pytest]" in block
     assert "python_validation.py" in block
     assert "matrix.group != 'gui'" in block
