@@ -79,8 +79,8 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
         assert asset in readme
     assert "cloth-tunic-mannequin-motion-frames" in screenshot_source
     assert "simulation-ladder:" in workflow
-    assert "artifact-name: avatar-pose-ui" in workflow
-    assert "artifact-name: interactive-arrange" in workflow
+    assert "artifact: avatar-pose-ui" in workflow
+    assert "artifact: interactive-arrange" in workflow
     assert "frame_count=TURNTABLE_FRAMES" in avatar_screenshot
     assert "expected = documented_assets(source_root)" in publisher
     assert "for asset in sorted(expected):" in publisher
