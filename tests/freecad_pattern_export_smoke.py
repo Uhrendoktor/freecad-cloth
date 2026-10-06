@@ -94,11 +94,16 @@ doc = None
 try:
     record("smoke=started")
     record("commands=loaded-from-package")
+    Gui.activateWorkbench("ClothPatternWorkbench")
+    process_events()
 
     for command in (
         "ClothPattern_CreatePieceWithSketch",
         "ClothPattern_EditSketch",
         "ClothPattern_Export",
+        "ClothPattern_AddNotch",
+        "ClothPattern_AddGrainline",
+        "ClothPattern_AddInternalMark",
     ):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)
