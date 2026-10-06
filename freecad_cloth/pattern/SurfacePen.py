@@ -416,6 +416,7 @@ def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], lab
     import Part
 
     values = close_surface_stroke(anchors)
+    stored_values = (*values, values[0])
     obj = doc.addObject("Part::FeaturePython", doc.getUniqueObjectName("SurfacePatternDraft"))
     obj.Label = label
     obj.addProperty("App::PropertyString", "AuthoringType", "3D Pattern").AuthoringType = (
@@ -426,7 +427,7 @@ def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], lab
         _target_signature(target)
     )
     obj.addProperty("App::PropertyString", "AnchorsJSON", "3D Pattern").AnchorsJSON = json.dumps(
-        [anchor.to_json() for anchor in values],
+        [anchor.to_json() for anchor in stored_values],
         sort_keys=True,
         separators=(",", ":"),
     )
