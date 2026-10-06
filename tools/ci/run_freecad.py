@@ -111,25 +111,20 @@ def main() -> int:
             if value:
                 shutil.rmtree(value, ignore_errors=True)
 
-    if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == "true":
-        _stage_workbench(source)
-
     import shlex
 
     test_args = shlex.split(args.test_args) if args.test_args else []
     runner = Path("/tmp/freecad-ci-runner.py")
     runner.write_text(
         "import runpy, sys\n"
+        "import InitGui\n"
         "sys.argv = %r\n"
         "runpy.run_path(%r, run_name=\"__main__\")\n"
         % ([str(args.test_script), *test_args], str(args.test_script)),
         encoding="utf-8",
     )
 
-    command = ["/opt/freecad/AppRun"]
-    if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == "true":
-        command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])
-    command.append(str(runner))
+    command = ["/opt/freecad/AppRun", str(runner)]
 
     args.log_file.parent.mkdir(parents=True, exist_ok=True)
     display = os.environ.get("DISPLAY", ":99")
