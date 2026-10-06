@@ -1,6 +1,6 @@
 """Publish the exact README/wiki visual asset inventory to docs/screenshots."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import os
