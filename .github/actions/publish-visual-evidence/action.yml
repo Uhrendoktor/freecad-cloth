@@ -79,6 +79,7 @@ runs:
         SOURCE_SHA: ${{ inputs.source-sha }}
         RUN_ID: ${{ inputs.run-id }}
         RUN_NUMBER: ${{ inputs.run-number }}
+      # Run as a module so the publisher can resolve its package-relative import.
       run: timeout --signal=TERM --kill-after=5s 60s python3 -m tools.ci.publish_visual_evidence --repository "$REPOSITORY" --source-sha "$SOURCE_SHA" --run-id "$RUN_ID" --run-number "$RUN_NUMBER"
     - name: Download PR simulation artifact
       if: inputs.mode == 'pr'
