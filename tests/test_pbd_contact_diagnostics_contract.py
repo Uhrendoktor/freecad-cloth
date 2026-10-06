@@ -81,7 +81,8 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in SOURCE
     assert "did not create a true interior pre-step state" in SOURCE
     assert "pbd-env: collision_mode=" in SOURCE
-    assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
+    assert "diagnostic-pbd-contact:" in WORKFLOW
+    assert "timeout-seconds: \"120\"" in WORKFLOW
     assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
     assert "if-no-files-found: warn" in WORKFLOW
     assert "retention-days: 14" in WORKFLOW
@@ -141,4 +142,5 @@ def test_progressive_collision_ladder_is_a_normal_gate():
     assert "test-script: tests/freecad_pbd_cube_ladder.py" in block
     assert "validate_manifests.py simulation" in block
     assert "artifact-name: simulation-collision-ladder" in block
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in WORKFLOW
+    assert "artifact-name: pbd-contact-diagnostics" in block
+    assert "artifact-path: artifacts/pbd-contact-diagnostics/**" in block
