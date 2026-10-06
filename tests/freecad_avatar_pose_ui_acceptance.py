@@ -126,6 +126,12 @@ def run():
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
     gizmo_mode = "fallback" if getattr(panel.controller.gizmo, "is_fallback", False) else "native"
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/avatar-pose-ui.log").write_text(
+        f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"
+        "avatar-pose-ui-cancel=passed restored=true cleanup=true\n",
+        encoding="utf-8",
+    )
     print(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true",
         flush=True,
