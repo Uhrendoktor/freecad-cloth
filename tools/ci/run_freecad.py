@@ -130,23 +130,32 @@ def main() -> int:
     try:
         xvfb, openbox = _start_display(display)
         env = {**os.environ, "DISPLAY": display}
-        with args.log_file.open("w", encoding="utf-8") as log_handle:
-            process = subprocess.Popen(
-                command,
-                cwd=source,
-                env=env,
-                stdout=log_handle,
-                stderr=subprocess.STDOUT,
-                text=True,
-                start_new_session=True,
+        process = subprocess.Popen(
+            command,
+            cwd=source,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        output = ""
+        try:
+            output, _ = process.communicate(timeout=args.timeout_seconds)
+            return_code = process.returncode
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            output = (exc.output or "") if isinstance(exc.output, str) else ""
+            _stop_process_tree(process)
+            return_code = 124
+
+        existing_log = ""
+        if args.log_file.is_file():
+            existing_log = args.log_file.read_text(
+                encoding="utf-8", errors="replace"
             )
-            try:
-                return_code = process.wait(timeout=args.timeout_seconds)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                _stop_process_tree(process)
-                return_code = 124
-        output = args.log_file.read_text(encoding="utf-8", errors="replace")
+        if not existing_log.strip():
+            args.log_file.write_text(output, encoding="utf-8")
         sys.stdout.write(output)
         if timed_out:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")

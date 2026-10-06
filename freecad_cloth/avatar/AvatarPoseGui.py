@@ -107,10 +107,19 @@ class SkeletonPoseController:
         self.scene_graph.addChild(self.overlay)
 
         self._add_skeleton_overlay(coin)
-        self.mouse_callback = self.view.addEventCallbackPivy(
-            coin.SoMouseButtonEvent.getClassTypeId(),
-            self._mouse_event,
-        )
+        try:
+            self.mouse_callback = self.view.addEventCallbackPivy(
+                coin.SoMouseButtonEvent.getClassTypeId(),
+                self._mouse_event,
+            )
+        except RuntimeError as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self.mouse_callback = None
+            self.panel.status.setText(
+                "Pose Mode: viewport joint picking is unavailable in this FreeCAD/SWIG build; "
+                "use the joint selector and rotation gizmo."
+            )
         self._build_positions()
         bone = str(self.panel.skeleton_joint.currentData())
         if bone:
