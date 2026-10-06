@@ -57,16 +57,20 @@ def _mesh_topology(mesh):
 def run_acceptance():
     trace_path = Path("artifacts/avatar-acceptance-progress.log")
     trace_path.parent.mkdir(parents=True, exist_ok=True)
-    with trace_path.open("w", encoding="utf-8", buffering=1) as trace:
-        faulthandler.enable(file=trace, all_threads=True)
-        faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
+    trace = trace_path.open("w", encoding="utf-8", buffering=1)
+    faulthandler.enable(file=trace, all_threads=True)
+    faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
 
-        def progress(message):
-            trace.write(str(message) + "\n")
-            trace.flush()
+    def progress(message):
+        trace.write(str(message) + "\n")
+        trace.flush()
 
-        progress("start")
-        from freecad_cloth.avatar.AvatarCommands import create_avatar
+    progress("start")
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
+    from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
+    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
+
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
@@ -254,7 +258,7 @@ def run_acceptance():
                 os.unlink(path)
 
 
-if __name__ == "__main__":
+    if __name__ == "__main__":
     try:
         run_acceptance()
         print("avatar provider acceptance passed", flush=True)
