@@ -71,6 +71,10 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     for asset in (
         "cloth-pattern-design.png",
         "cloth-sewing.png",
+        "cloth-blanket-motion.gif",
+        "cloth-tunic-mannequin-motion.gif",
+        "cloth-simulation-arranged-turntable.gif",
+        "cloth-simulation-draped-turntable.gif",
         "cloth-simulation-arranged.png",
         "cloth-simulation-draped.png",
         "avatar-pose-mode.png",
@@ -102,6 +106,7 @@ def test_pose_visual_audit_exposes_all_avatar_renders():
         "cloth-avatar-right.png",
         "cloth-avatar-top.png",
         "cloth-avatar-bottom.png",
+        "cloth-avatar-turntable.gif",
     ):
         assert asset in pose
     assert "find_asset(asset)" in publisher

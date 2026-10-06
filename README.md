@@ -99,10 +99,6 @@ The older specialist documents remain useful for deep reference:
 - [docs/RESEARCH.md](docs/RESEARCH.md)
 - [docs/ROADMAP.md](docs/ROADMAP.md)
 
-## Agent coordination
-
-The live coordination ledger is `AGENT_STATUS.md`.
-
 ## Scope
 
 FreeCAD Cloth is deliberately not presented as complete commercial garment-CAD parity. The wiki distinguishes implemented workflows from named roadmap areas such as advanced grading/nesting, production construction libraries, richer avatar providers and measurement-grade fit analysis.
