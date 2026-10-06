@@ -1,5 +1,6 @@
 """Static contract for FreeCAD GUI startup ordering in acceptance workflows."""
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,12 +91,11 @@ def test_freecad_package_metadata_declares_all_bundled_gui_workbenches():
     assert "exec(compile(init_gui" not in metadata
 
 
-def test_sketcher_acceptance_uses_explicit_initgui_startup():
+def test_sketcher_acceptance_uses_freecad_startup_registration():
     source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
-    assert 'sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]' in source
     assert 'if "ClothPatternWorkbench" not in Gui.listWorkbenches():' in source
-    assert "registered by explicit InitGui startup" in source
-    assert 'init_gui.read_text(encoding="utf-8")' in source
+    assert "ClothPatternWorkbench was not loaded by FreeCAD startup" in source
+    assert "init_gui.read_text(encoding=" not in source
     run = source.split("def run_acceptance():", 1)[1]
     bootstrap_index = run.index("_bootstrap_workbenches()")
     stage_index = run.index('_stage("gui-ready")')
@@ -103,49 +103,80 @@ def test_sketcher_acceptance_uses_explicit_initgui_startup():
     assert "app.quit()" in source
 
 
-def test_canonical_gui_jobs_use_deterministic_startup_boundaries():
+def test_canonical_gui_jobs_use_shared_freecad_test_boundaries():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    sketcher = workflow.split("gui-sketcher-acceptance:", 1)[1].split("gui-pattern-export:", 1)[0]
-    visual = workflow.split("gui-visual-examples:", 1)[1].split("publish-readme-turntables:", 1)[0]
-    assert "/opt/freecad/AppRun /workspace/tests/freecad_sketcher_acceptance.py" in sketcher
-    assert "cp -a /workspace/Init.py /workspace/InitGui.py" not in sketcher
-    assert (
-        "cp -a /workspace/Init.py /workspace/InitGui.py /workspace/package.xml /workspace/resources /workspace/freecad_cloth /tmp/freecad-mod/freecad-cloth/"
-        in visual
-    )
-    assert (
-        "/opt/freecad/AppRun -M /tmp/freecad-mod -P /tmp/freecad-mod/freecad-cloth /workspace/tests/freecad_visual_examples.py"
-        in visual
-    )
-    assert "freecad_ci_bootstrap.FCMacro" not in sketcher
-    assert "freecad_ci_bootstrap.FCMacro" not in visual
+    gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+    tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
+    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in gui
+    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in tunic
+    assert "case: sketcher, script: tests/freecad_sketcher_acceptance.py" in gui
+    assert "case: pattern-export, script: tests/freecad_pattern_export_smoke.py" in gui
+    assert "test-script: ${{ matrix.script }}" in gui
+    assert "test-script: tests/freecad_tunic_audit_production.py" in tunic
+    assert "freecad_ci_bootstrap.FCMacro" not in workflow
+    assert "/opt/freecad/AppRun" not in workflow
+    assert "docker run" not in workflow
 
 
-def test_canonical_concurrency_groups_pull_requests():
+def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     assert "canonical-pr-{0}" in workflow
-    assert "cancel-in-progress: true" in workflow
+    assert "cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}" in workflow
     assert "cancel-stale-pr-runs:" not in workflow
+    assert "artifact-budget:" in workflow
+    budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
+    for producer in (
+        "diagnostic-pbd-contact",
+        "simulation-ladder",
+        "python",
+        "gui-simple",
+        "gui-tunic-visual",
+        "gui-turntables",
+        "gui-visual-examples",
+        "benchmark",
+    ):
+        assert producer in budget
+    assert "tools/ci/check_artifact_budget.py" in budget
+    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "python -m ruff format tools/ci" in quality
+    for job in (
+        "local_runner_readiness:",
+        "runner_watchdog:",
+        "pbd_validation_image:",
+        "diagnostic-pbd-contact:",
+        "simulation-ladder:",
+        "python:",
+        "gui-simple:",
+        "gui-tunic-visual:",
+        "gui-turntables:",
+        "gui-visual-examples:",
+        "publish-pr-simulation-evidence:",
+        "publish-readme-turntables:",
+        "maintenance-cleanup:",
+        "artifact-budget:",
+        "benchmark:",
+    ):
+        start = workflow.index(f"\n  {job}")
+        match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 1 :])
+        end = start + 1 + match.start() if match else len(workflow)
+        block = workflow[start:end]
+        assert "needs:" in block
+        assert "agent-quality" in block
 
 
-def test_canonical_readme_turntable_launches_from_neutral_cwd():
+def test_canonical_readme_turntable_uses_shared_freecad_test_action():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    assert any(
-        token in turntable
-        for token in (
-            '-w /tmp "$FREECAD_IMAGE"',
-            '-w /tmp "$FREECAD_PBD_IMAGE"',
-        )
-    )
-    assert "/opt/freecad/AppRun /workspace/tests/freecad_avatar_screenshot.py" in turntable
-    assert "/opt/freecad/AppRun /workspace/tests/freecad_simulation_turntable.py" in turntable
+    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in turntable
+    assert "test-script: tests/freecad_avatar_screenshot.py" in turntable
+    assert "test-script: tests/freecad_simulation_turntable.py" in turntable
+    assert "/opt/freecad/AppRun" not in turntable
 
 
 def test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection():
@@ -161,9 +192,9 @@ if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_workbench_assertion()
     test_visual_example_prepares_gui_and_explicit_workbench_registration()
     test_sketcher_acceptance_uses_explicit_initgui_startup()
-    test_canonical_gui_jobs_use_deterministic_startup_boundaries()
-    test_canonical_concurrency_groups_pull_requests()
-    test_canonical_readme_turntable_launches_from_neutral_cwd()
+    test_canonical_gui_jobs_use_shared_freecad_test_boundaries()
+    test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget()
+    test_canonical_readme_turntable_uses_shared_freecad_test_action()
     test_readme_turntable_scripts_import_freecad_gui_before_repository_path_injection()
 
 

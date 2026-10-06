@@ -7,21 +7,13 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    assert "python3 -m pytest --version" in workflow
-    pytest_marker = "python3 -m pytest -q"
-    pytest_start = workflow.index(pytest_marker)
-    pytest_end = workflow.index("\n            '", pytest_start)
-    pytest_list = workflow[pytest_start:pytest_end]
-    for module in (
-        "tests/test_tunic_audit_contract.py",
-        "tests/test_readme_visual_contract.py",
-        "tests/test_cloth_diagnostics.py",
-        "tests/test_canonical_python_validation_contract.py",
-    ):
-        assert module in pytest_list
-    assert "python3 -m pytest -q" in pytest_list
-    assert 'python3 "$test"' in workflow
-
+    start = workflow.index("  python:")
+    end = workflow.find("\n  ", start + 3)
+    block = workflow[start:] if end == -1 else workflow[start:end]
+    assert "group: [core, pattern, sewing, gui, pytest]" in block
+    assert "python_validation.py" in block
+    assert "matrix.group != 'gui'" in block
+    assert "test-args: gui" in block
 
 def test_pytest_contract_module_has_a_real_test_entrypoint():
     source = Path(__file__).read_text(encoding="utf-8")
@@ -34,17 +26,13 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
         encoding="utf-8"
     )
     start = workflow.index("  publish-pr-simulation-evidence:")
-    end = workflow.index("  gui-turntables:", start)
+    match = __import__("re").search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
+    end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    assert "EVIDENCE_HEAD: ${{ github.event.pull_request.head.sha }}" in publisher
-    assert "github.event.pull_request.head.repo.full_name == github.repository" in publisher
-    assert "actions/download-artifact@" in publisher
-    assert "Publish rendered evidence without executing PR code" in publisher
-    assert "git clone --filter=blob:none --no-checkout" in publisher
-    assert 'git -C "$worktree" checkout --detach origin/main' in publisher
-    assert 'git -C "$worktree" push origin "HEAD:$evidence_branch"' in publisher
-    assert 'gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body"' in publisher
-    assert "http.extraheader" not in publisher
+    assert "publish-visual-evidence@" in publisher
+    assert "evidence-head:" in publisher
+    assert "source-sha:" in publisher
+    assert "mode: pr" in publisher
 
 
 # Exact-head validation recut marker; behavior unchanged.

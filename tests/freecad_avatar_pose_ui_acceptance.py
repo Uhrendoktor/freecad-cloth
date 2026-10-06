@@ -1,6 +1,12 @@
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
+import os
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -72,7 +78,7 @@ def run():
     right = staged.get("upperarm01.R")
     if left is None or right is None:
         raise RuntimeError("symmetry did not stage both shoulder joints")
-    if float(left.y) != -35.0 or float(right.y) != -35.0:
+    if float(left.y) != -35.0 or float(right.y) != 35.0:
         raise RuntimeError("symmetry produced the wrong mirrored shoulder rotation")
 
     panel.accept()
@@ -98,15 +104,15 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    print("avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true")
-    print("avatar-pose-ui-cancel=passed restored=true cleanup=true")
+    print("avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true", flush=True)
+    print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
     doc.close()
 
 
-if __name__ == "__main__":
-    try:
-        run()
-    except Exception as exc:
-        print("avatar-pose-ui=failed", exc)
-        App.Console.PrintError("Avatar Pose UI acceptance failed: %s\n" % exc)
-        sys.exit(1)
+try:
+    run()
+except BaseException as exc:
+    print("avatar-pose-ui=failed", exc, flush=True)
+    App.Console.PrintError("Avatar Pose UI acceptance failed: %s\n" % exc)
+    os._exit(1)
+os._exit(0)

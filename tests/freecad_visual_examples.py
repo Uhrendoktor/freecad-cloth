@@ -254,12 +254,12 @@ def _load_cloth_modules():
     global inspect_drape, maximum_box_penetration, mesh_shape_sanity
     global validate_mesh, rectangle, quality_piece_mesh
     global create_pattern_piece_from_selected_sketch
-    global create_simulation_scene, set_avatar_collision_source
+    global create_simulation_scene, set_drape_target_source
     global QualitySimulationProxy, ensure_quality_properties, validate_png_capture
 
     site.addsitedir(str(ROOT))
 
-    from freecad_cloth.common.DrapeVisualSanity import (
+    from freecad_cloth.simulation.DrapeVisualSanity import (
         inspect_drape,
         maximum_box_penetration,
         mesh_shape_sanity,
@@ -269,11 +269,9 @@ def _load_cloth_modules():
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.pattern.PatternGeometry import rectangle
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_simulation_scene,
-        set_avatar_collision_source,
-    )
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
         ensure_quality_properties,
     )
@@ -362,7 +360,7 @@ def main():
         log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 
         collision_started = time.perf_counter()
-        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
         log(
             "blanket-setup-timing build_and_collision_ms=%.1f total_setup_ms=%.1f particles=%d"
             % (

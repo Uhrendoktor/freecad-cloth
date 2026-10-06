@@ -8,7 +8,7 @@ from freecad_cloth.pattern.PatternGeometry import ParametricPattern, QuadraticBe
 from freecad_cloth.pattern.PatternIR import PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
-from freecad_cloth.sewing.SeamReference import (
+from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,

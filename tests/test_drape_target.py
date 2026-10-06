@@ -1,7 +1,6 @@
 """Regression tests for the target-neutral draping contract."""
 
 import unittest
-from pathlib import Path
 
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 

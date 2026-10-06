@@ -16,7 +16,6 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import InitGui
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
 
@@ -94,10 +93,7 @@ def accept_public_task(panel, export_format):
 doc = None
 try:
     record("smoke=started")
-    InitGui.ClothPatternWorkbench()
-    record("workbench=initialized")
-    Gui.activateWorkbench("ClothPatternWorkbench")
-    process_events()
+    record("commands=loaded-from-package")
 
     for command in (
         "ClothPattern_CreatePieceWithSketch",

@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
+from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
@@ -39,7 +40,9 @@ class AvatarProviderTests(unittest.TestCase):
             AvatarProviderInfo("makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high"),
         )
         self.assertIs(HumanoidMeshAvatarProvider, ParametricAvatarProvider)
-        self.assertEqual(provider.surface(), provider.collision_surface())
+        collision = provider.collision_surface()
+        self.assertIsInstance(collision, CollisionSurface)
+        self.assertEqual((collision.vertices, collision.triangles), provider.surface())
         self.assertGreater(len(provider.landmarks()), 5)
 
     def test_parametric_provider_keeps_authoritative_parameters(self):
@@ -57,7 +60,9 @@ class AvatarProviderTests(unittest.TestCase):
         self.assertEqual(provider.info.provider_id, "freecad-geometry")
         self.assertIs(provider.source, source)
         self.assertIsNone(provider.parameters())
-        self.assertEqual(provider.surface(), provider.collision_surface())
+        collision = provider.collision_surface()
+        self.assertIsInstance(collision, CollisionSurface)
+        self.assertEqual((collision.vertices, collision.triangles), provider.surface())
 
     def test_freecad_provider_rejects_invalid_tessellation(self):
         source = _Shape()

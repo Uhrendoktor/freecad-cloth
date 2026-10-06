@@ -1,3 +1,4 @@
+# Pivy is supplied by the FreeCAD base image; do not install an obsolete PyPI wheel.
 FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

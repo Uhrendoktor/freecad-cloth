@@ -29,7 +29,7 @@ def _scene():
 
 
 def _prepare(scene):
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
+    from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
     ensure_quality_properties(scene)
     scene.QualityPreset = "Fast"

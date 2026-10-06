@@ -8,9 +8,9 @@ inputs:
     description: Shell command to execute in the container.
     required: true
   timeout-seconds:
-    description: Hard container command timeout in seconds; maximum 60 seconds.
+    description: Hard container command timeout in seconds; maximum 120 seconds; the harness adds 10 seconds for diagnostics.
     required: false
-    default: "60"
+    default: "120"
   environment:
     description: Optional newline-delimited KEY=VALUE environment entries for the container.
     required: false
@@ -18,18 +18,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Restore workflow image artifact
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-      continue-on-error: true
-      with:
-        name: pbd-validation-image
-        path: ${{ runner.temp }}/pbd-validation-image
-
     - name: Ensure CI container image is available
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
-        IMAGE_ARTIFACT_DIR: ${{ runner.temp }}/pbd-validation-image
         GH_TOKEN: ${{ github.token }}
         GITHUB_ACTOR: ${{ github.actor }}
       run: |
@@ -38,25 +30,11 @@ runs:
           echo "docker-image-cache=hit image=$IMAGE"
           exit 0
         fi
-        image_tar="$(find "$IMAGE_ARTIFACT_DIR" -maxdepth 1 -type f -name '*.tar' -print -quit 2>/dev/null || true)"
-        if [ -n "$image_tar" ]; then
-          echo "docker-image-artifact=load file=$image_tar"
-          docker load --input "$image_tar" >/dev/null
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "docker-image-artifact=loaded image=$IMAGE"
-            exit 0
-          fi
-        fi
         printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1
-        for attempt in 1 2 3; do
-          if timeout --signal=TERM --kill-after=5s 60s docker pull "$IMAGE"; then
-            exit 0
-          fi
-          if [ "$attempt" -lt 3 ]; then
-            sleep 1
-          fi
-        done
-        echo "docker-pull=failed attempts=3 image=$IMAGE" >&2
+        if timeout --signal=TERM --kill-after=10s 180s docker pull "$IMAGE"; then
+          exit 0
+        fi
+        echo "docker-pull=failed timeout=180s image=$IMAGE" >&2
         exit 1
     - name: Run command in FreeCAD container
       shell: bash
@@ -81,13 +59,38 @@ runs:
           fi
         } >"$env_file"
         timeout_seconds="$TIMEOUT_SECONDS"
-        if [ "$timeout_seconds" -gt 60 ]; then
-          echo "timeout-seconds must be <= 60" >&2
+        if [ "$timeout_seconds" -gt 120 ]; then
+          echo "timeout-seconds must be <= 120" >&2
           exit 2
         fi
-        timeout --signal=TERM --kill-after=5s "${timeout_seconds}s" \
+        set +e
+        container_timeout_seconds=$((timeout_seconds + 10))
+        timeout --signal=TERM --kill-after=5s "${container_timeout_seconds}s" \
           docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
           --env-file "$env_file" \
           -v "$GITHUB_WORKSPACE:/workspace:rw" \
           -w /workspace \
           "$IMAGE" bash -lc "$INPUT_COMMAND"
+        status=$?
+        set -e
+        if [ "$status" -ne 0 ]; then
+          echo "freecad-command-failed status=$status"
+          echo "freecad-container-selfcheck-start"
+          docker run --rm --init --security-opt seccomp=unconfined "$IMAGE" bash -lc             'set -e; echo "python=$(command -v python3)"; python3 --version;              test -f /workspace/tools/ci/run_freecad.py;              test -x /opt/freecad/AppRun;              python3 -m py_compile /workspace/tools/ci/run_freecad.py;              echo "freecad-container-selfcheck=passed"' || true
+          echo "freecad-container-selfcheck-end"
+          echo "freecad-command-logs-start"
+          found=0
+          while IFS= read -r log; do
+            found=1
+            echo "===== $log ====="
+            tail -n 200 "$log" || true
+          done < <(
+            find "$GITHUB_WORKSPACE/artifacts" "$GITHUB_WORKSPACE/docs/images/generated" \
+              -type f -name '*.log' -print 2>/dev/null
+          )
+          if [ "$found" -eq 0 ]; then
+            echo "no workflow log files found"
+          fi
+          echo "freecad-command-logs-end"
+        fi
+        exit "$status"

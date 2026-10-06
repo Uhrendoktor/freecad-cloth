@@ -35,10 +35,10 @@ from freecad_cloth.avatar.AvatarCommands import (
 from freecad_cloth.pattern.PatternOCCT import native_offset_wire
 from freecad_cloth.sewing.SewingGui import correspondence_report
 from freecad_cloth.simulation.DrapeCommands import create_drape_target_from_selection
+from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 from freecad_cloth.simulation.SimulationObjects import (
     create_simulation_scene,
     reset_scene,
-    set_avatar_collision_source,
     step_scene,
 )
 
@@ -167,7 +167,7 @@ def main():
     body.Label = "Fixture Humanoid Body"
     body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
     doc.recompute()
-    avatar = set_avatar_collision_source(scene, body, thickness=2.0, deflection=2.0)
+    avatar = set_drape_target_source(scene, body, thickness=2.0, deflection=2.0)
     assert avatar.CollisionType == "MeshSurface"
     assert avatar.SourceObject == body
     assert avatar.CollisionVertexCount >= 8 and avatar.CollisionTriangleCount >= 12

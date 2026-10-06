@@ -25,3 +25,24 @@ forbidden_modules =
     freecad_cloth.sewing
     freecad_cloth.avatar
     freecad_cloth.simulation
+
+[importlinter:contract:common-no-domain]
+name = Common infrastructure must not depend on domain packages
+type = forbidden
+source_modules = freecad_cloth.common
+forbidden_modules =
+    freecad_cloth.pattern
+    freecad_cloth.sewing
+    freecad_cloth.avatar
+    freecad_cloth.simulation
+
+[importlinter:contract:simulation-no-avatar-core]
+name = Simulation core must not depend on Avatar domain
+type = forbidden
+source_modules = freecad_cloth.simulation
+forbidden_modules = freecad_cloth.avatar
+ignore_imports =
+    freecad_cloth.simulation.SimulationCommands -> freecad_cloth.avatar.AvatarCommands
+    freecad_cloth.simulation.DrapeCommands -> freecad_cloth.avatar.AvatarCommands
+    freecad_cloth.simulation.SimulationQualityGui -> freecad_cloth.avatar.FittingCommands
+    freecad_cloth.simulation.FittingHandoff -> freecad_cloth.avatar.FittingCommands

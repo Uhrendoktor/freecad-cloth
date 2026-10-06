@@ -1,99 +1,59 @@
 # Architecture decisions
 
-This is the durable decision log. It records choices that should remain true after the current task is forgotten. It is not a status log, experiment log, or roadmap.
+This file contains durable software-architecture decisions only. Current status, experiments and agent process rules belong elsewhere.
 
 ## D-0001 — Python remains the application language
 
-Date: 2026-10-03
 Status: accepted
 
-Decision: Keep the external FreeCAD workbench, document adapters, GUI, persistence model and domain orchestration in Python.
-
-Why: FreeCAD's external-workbench guidance requires external workbenches to be Python-based, while internal workbenches can mix Python and C++. The application already has a clean boundary between FreeCAD integration, garment semantics and the native simulation backend.
-
-Consequences: Native acceleration belongs behind explicit backend/adapter boundaries. Performance changes start with profiling and Python-side algorithm/data-structure improvements.
+The external FreeCAD workbench, document adapters, GUI, persistence model and domain orchestration remain Python. Performance work starts with profiling and algorithm/data-structure improvements.
 
 Reference: https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Workbench_creation.md
 
-## D-0002 — Tissu is the sole production runtime solver
+## D-0002 — PositionBasedDynamics is the sole production cloth runtime
 
-Date: 2026-10-03
 Status: accepted
 
-Decision: Tissu is the only runtime cloth solver. The workbench does not expose a solver registry or a user-selectable fallback physics engine.
+PositionBasedDynamics (pyPBD) is the only production runtime solver. There is no runtime solver registry or user-selectable fallback engine.
 
-Why: Tissu is already a native XPBD cloth SDK with cloth constraints, stitches and mesh collision. Blender's cloth architecture likewise exposes one cloth simulation authority plus cache/bake state rather than a runtime choice among interchangeable solvers.
+ClothSimulationBackend isolates solver APIs and ClothSolver remains only the deterministic input model.
 
-Consequences: ClothBackend.py contains only the small adapter contract. ClothSolver.py contains only the headless solver-input model used to assemble Tissu input. It must not grow into a second physics engine.
+## D-0003 — Rust is an optional acceleration boundary
 
-References: Blender Cloth Modifier https://docs.blender.org/manual/en/5.2/modeling/modifiers/physics/cloth.html ; Blender Cloth Dynamics https://docs.blender.org/manual/en/5.2/modeling/geometry_nodes/simulation/cloth_dynamics.html ; Tissu https://github.com/evanrock520-ciencias/Tissu
-
-## D-0003 — Rust is a future acceleration boundary
-
-Date: 2026-10-03
 Status: accepted
 
-Decision: Do not add Rust to the workbench until profiling identifies a bounded hotspot that remains material after algorithm and data-structure optimization. A future Rust module may expose a narrow PyO3 extension built with maturin and implement the existing ClothSimulationBackend contract.
+Do not add Rust until profiling identifies a bounded hotspot that remains material after Python-side optimization. A future Rust module may implement the existing backend contract, but not another document, pattern, persistence or GUI architecture.
 
-Consequences: Rust must not become a second pattern model, document system, GUI architecture or persistence layer. The Tissu path remains the production solver until a replacement is benchmarked against the same contract.
+## D-0004 — FreeCAD and Cloth have distinct single authorities
 
-## D-0004 — Ruff + pre-commit is the Python hygiene baseline
-
-Date: 2026-10-03
 Status: accepted
 
-Decision: Use pinned Ruff for linting/formatting and pre-commit for local enforcement. CI runs Ruff and the formatter as hard gates.
+FreeCAD owns document persistence and native geometry. Cloth domain objects own garment semantics. IRs, meshes, collision surfaces and solver state are derived.
 
-Consequences: One tool owns formatting/import sorting and the selected lint rules. Do not add Black/isort/Flake8 in parallel without a documented architectural reason.
+## D-0005 — Collision surfaces are neutral contracts
 
-Reference: https://docs.astral.sh/ruff/integrations/
-
-## D-0005 — Documentation is an enforced API contract
-
-Date: 2026-10-03
 Status: accepted
 
-Decision: Python modules and public domain APIs must document their contract close to the implementation. An AST contract checker enforces this independently of style linting.
+shared.CollisionSurface is the only solver-facing collision-surface value type. FreeCAD tessellation is an explicit host adapter. Avatar and Simulation exchange only the neutral contract.
 
-Documentation should explain behavior, important invariants, side effects, exceptions and lifecycle restrictions. Comments are reserved for non-obvious reasons and compatibility constraints.
+## D-0006 — Validation belongs with the invariant owner
 
-Reference: https://peps.python.org/pep-0257/
-
-## D-0006 — Persistent agent knowledge has explicit homes
-
-Date: 2026-10-03
 Status: accepted
 
-Decision: Keep each kind of agent knowledge in one canonical location:
-- AGENTS.md: short repository instructions and context firewall.
-- docs/ARCHITECTURE.md: invariants, authority, lifecycle and dependency direction.
-- docs/DECISIONS.md: durable architectural choices and rationale.
-- AGENT_STATUS.md / TOOL_STATE.md: current state.
-- .agent/PLANS.md: bounded task execution plans.
-- GitHub issue/PR: task-local evidence, experiments and review discussion.
+Keep checks that protect a domain invariant, trust boundary or recovery condition. Fold or remove checks that merely repeat an invariant already enforced by the authoritative preparation step.
 
-Operational rule: prefer one authoritative location per fact and link to it instead of copying the same claim into multiple status/proposal files.
+## D-0007 — Runtime composition is explicit
 
-## D-0007 — Agent-oriented verification gates
-
-Date: 2026-10-04
 Status: accepted
 
-Decision: Use strict Pyright on deterministic core modules, Hypothesis property/stateful tests, CrossHair contracts for a small pure-function surface, high-confidence Vulture checks, and PR-only new-duplication detection.
+Production code must not monkey-patch classes or replace module functions to select quality, collision or CI behavior. Composition passes explicit builders/configuration or uses a dedicated application-layer entry point.
 
-Why: Multi-agent failures are often semantically plausible but structurally or behaviorally wrong. Deterministic gates reduce the repository knowledge an agent must retain and turn architecture, typing and code-entropy constraints into executable checks.
+## D-0008 — One canonical owner per tooling concern
 
-Consequences: Strict typing is expanded incrementally rather than imposed on dynamic FreeCAD GUI surfaces all at once. Vulture blocks only 100%-confidence dead code. jscpd compares pull requests with the base branch so historical duplication does not become an artificial migration blocker. CrossHair remains limited to deterministic, side-effect-free contracts.
-
-
-## D-0003 — PositionBasedDynamics is the sole production runtime solver
-
-Date: 2026-10-04
 Status: accepted
-Supersedes: D-0002
 
-The production cloth runtime is now the native PositionBasedDynamics Python binding (pyPBD==2.2.2). The existing ClothBackend adapter contract and headless ClothSystem input model remain solver-neutral. PositionBasedDynamics owns integration, XPBD cloth/stretch/shear constraints, XPBD bending, sewing distance constraints, pin masses, and DrapeTarget mesh collision. The canonical FreeCAD CI image preinstalls the pinned wheel; runtime code never installs or patches the solver.
+Ruff owns lint/formatting, Import Linter owns dependency contracts, Vulture is limited to high-confidence dead-code analysis, and CI verifies backend identity without mutating runtime classes.
 
-The migration keeps the persistent DrapeTarget / CollisionSurface boundary, the one-backend architecture, deterministic rebuild semantics, and the canonical GUI acceptance path. Tissu remains historical evidence only and is no longer a runtime dependency.
+## Historical note
 
-- The Tissu→PositionBasedDynamics migration preserves the canonical GUI acceptance lanes; tunic screenshots, turntables, and visual examples execute against the pinned PBD validation image, with PNG evidence remaining the human-review boundary.
+Tissu was considered during an earlier solver migration. That decision was superseded by D-0002 and is not a runtime dependency.

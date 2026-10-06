@@ -1,9 +1,9 @@
 import math
 
-from freecad_cloth.common.PatternSimulationAdapter import (
+from freecad_cloth.simulation.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
-from freecad_cloth.sewing.SeamReference import (
+from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,

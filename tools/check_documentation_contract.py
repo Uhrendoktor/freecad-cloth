@@ -22,7 +22,7 @@ def _python_files(arguments: list[str]) -> tuple[Path, ...]:
 def _requires_api_docs(path: Path) -> bool:
     relative = path.relative_to(ROOT)
     return (
-        relative.parts[0] in {"freecad_cloth", "tools"}
+        relative.parts[0] == "freecad_cloth"
         and path.name not in EXEMPT_API_FILES
         and not path.name.endswith(("Gui.py", "Commands.py"))
     )

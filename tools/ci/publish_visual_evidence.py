@@ -1,6 +1,6 @@
 """Publish the exact README/wiki visual asset inventory to docs/screenshots."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import os
@@ -68,7 +68,7 @@ def main() -> int:
     parser.add_argument("--run-number", required=True)
     args = parser.parse_args()
 
-    from .visual_evidence import documented_assets, verify, write_provenance
+    from visual_evidence import documented_assets, verify, write_provenance
 
     source_root = Path.cwd()
     expected = documented_assets(source_root)

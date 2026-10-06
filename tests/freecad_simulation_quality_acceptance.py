@@ -97,7 +97,7 @@ def run_acceptance():
         from freecad_cloth.simulation.DrapeTarget import target_status
         from freecad_cloth.simulation.SimulationQuality import preset
         from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+        from freecad_cloth.simulation.SimulationQualityRuntime import (
             apply_quality_preset,
             ensure_quality_properties,
         )

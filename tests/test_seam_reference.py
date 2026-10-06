@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from freecad_cloth.sewing.SeamReference import (
+from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeReference,
     MissingEdgeReference,

@@ -1,8 +1,7 @@
 """Canonical FreeCAD boundary integration for simulation quality and fabric controls.
 
-The ``V2`` filename is retained for compatibility with existing internal callers;
-it is the current runtime authority, not an experimental second implementation.
-Do not create a ``V3``/parallel runtime module.
+This module owns the quality-aware runtime wrapper around the canonical simulation
+proxy. It is the only quality runtime implementation.
 """
 
 import weakref
@@ -16,7 +15,6 @@ _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
 def ensure_quality_properties(scene):
-    """Create and validate persistent quality and presentation properties on a scene."""
     """Create and validate persistent simulation-quality properties on a scene."""
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
@@ -68,7 +66,6 @@ def _validate_properties(scene):
 
 def apply_quality_preset(scene, name=None):
     """Apply a named quality preset and return its normalized profile."""
-    """Apply a named quality preset and return its normalized profile."""
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
     scene.QualityPreset = quality.name
@@ -82,7 +79,6 @@ def apply_quality_preset(scene, name=None):
 
 
 def quality_discretization(point_count, perimeter, particle_distance):
-    """Return the sample count required by the requested particle spacing."""
     """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
         raise ValueError("point_count must be at least three")
@@ -200,21 +196,6 @@ class QualitySimulationProxy:
             or signature != base.source_signature
             or int(obj.Steps) < base.last_steps
         ):
-            target = getattr(obj, "DrapeTarget", None)
-            source = getattr(target, "SourceObject", None) if target is not None else None
-            if target is not None:
-                from freecad_cloth.simulation.DrapeTarget import target_status
-
-                status = target_status(target)
-                if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
-                    base.source_signature = None
-                    base.collision_surface = None
-                    base.last_steps = 0
-                    return None
-                if str(getattr(source, "AvatarType", "")) == "ClothAvatar":
-                    from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-
-                    refresh_drape_target(target)
             if pieces:
                 self._build_pattern_scene(obj, pieces, signature)
             else:
@@ -241,19 +222,17 @@ class QualitySimulationProxy:
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
         base = self._base_or_restore()
-        previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: (
-            quality_piece_mesh(
+        return base._build_pattern_scene(
+            obj,
+            pieces,
+            signature,
+            piece_mesh=lambda piece, start_height, piece_ir=None: quality_piece_mesh(
                 piece,
                 start_height,
                 float(obj.ParticleDistance),
                 piece_ir=piece_ir,
-            )
+            ),
         )
-        try:
-            return base._build_pattern_scene(obj, pieces, signature)
-        finally:
-            SimulationObjects._piece_mesh = previous
 
     def _build_demo(self, obj, signature):
         from freecad_cloth.simulation.ClothSolver import ClothSystem
@@ -354,27 +333,3 @@ class QualitySimulationProxy:
     def reset(self, obj):
         """Reset the runtime state to its initial values."""
         self._base_or_restore().reset(obj)
-
-
-def create_quality_simulation_scene(doc):
-    """Create the quality-controlled FreeCAD simulation scene using PositionBasedDynamics."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_simulation_scene,
-        set_avatar_collision_source,
-    )
-
-    scene = create_simulation_scene(doc)
-    legacy = doc.getObject("HumanoidAvatar")
-    if legacy is not None and hasattr(legacy, "ViewObject"):
-        legacy.ViewObject.Visibility = False
-    avatar = create_avatar(attach_collision=False, doc=doc)
-    avatar.Label = "Cloth Human Avatar (MakeHuman)"
-    avatar.ViewObject.Visibility = True
-    set_avatar_collision_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
-    scene.AvatarProxy.SourceObject = avatar
-    scene.DrapeTarget = doc.getObject("DrapeTarget")
-    ensure_quality_properties(scene)
-    scene.Proxy = QualitySimulationProxy()
-    scene.Document.recompute()
-    return scene

@@ -1,7 +1,7 @@
 import unittest
 
-from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import inspect_drape, seam_correspondence_gap
+from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
+from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, seam_correspondence_gap
 
 
 class DrapeFailureClassifierTests(unittest.TestCase):
