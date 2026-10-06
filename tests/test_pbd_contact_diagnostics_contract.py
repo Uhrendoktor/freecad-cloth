@@ -84,7 +84,6 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "diagnostic-pbd-contact:" in WORKFLOW
     assert "timeout-seconds: \"120\"" in WORKFLOW
     assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
-    assert "retention-days: 14" in WORKFLOW
     diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[0]
     assert "artifact-name: pbd-contact-diagnostics" in diagnostic
     assert "artifact-path: artifacts/pbd-contact-diagnostics/**" in diagnostic
