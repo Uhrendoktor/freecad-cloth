@@ -27,7 +27,7 @@ def _scene(doc):
 
 
 def _simulation_data(scene):
-    from freecad_cloth.common.ClothDiagnostics import analyze_mesh
+    from freecad_cloth.simulation.ClothDiagnostics import analyze_mesh
 
     if not bool(getattr(scene, "FiniteState", True)):
         raise RuntimeError("diagnostics blocked: simulation state is non-finite")
@@ -88,7 +88,7 @@ def _metric_color(value, lo, hi):
 def create_diagnostic_map(scene, metric="stress"):
     """Create a derived Mesh::Feature colored by one diagnostic metric."""
     App, _Gui, _QtWidgets = _qt()
-    from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
+    from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
     panels = _simulation_data(scene)
     created = []
@@ -155,7 +155,7 @@ class DiagnosticsTaskPanel:
 
     def refresh(self):
         try:
-            from freecad_cloth.common.ClothDiagnostics import metric_definition, summarize
+            from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
             panels = _simulation_data(self.scene)
             summaries = [summarize(result) for _panel, _triangles, result in panels]
@@ -181,7 +181,7 @@ class DiagnosticsTaskPanel:
 
     def export_data(self):
         try:
-            from freecad_cloth.common.ClothDiagnostics import export_json
+            from freecad_cloth.simulation.ClothDiagnostics import export_json
 
             panels = _simulation_data(self.scene)
             if not panels:
@@ -235,7 +235,7 @@ def show_diagnostics(scene=None):
 
 
 def _merge_results(panels):
-    from freecad_cloth.common.ClothDiagnostics import DiagnosticResult
+    from freecad_cloth.simulation.ClothDiagnostics import DiagnosticResult
 
     strain = tuple(value for _panel, _triangles, result in panels for value in result.strain)
     stress = tuple(value for _panel, _triangles, result in panels for value in result.stress)

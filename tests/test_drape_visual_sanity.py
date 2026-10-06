@@ -1,7 +1,7 @@
 import unittest
 
-from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-from freecad_cloth.common.DrapeVisualSanity import (
+from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
+from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     mesh_shape_sanity,
     point_inside_closed_mesh,

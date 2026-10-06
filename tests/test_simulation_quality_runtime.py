@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+from freecad_cloth.simulation.SimulationQualityRuntime import (
     QUALITY_NAMES,
     apply_quality_preset,
     quality_discretization,
@@ -57,7 +57,7 @@ def test_material_defaults_are_document_metadata():
 
 
 def test_runtime_has_no_legacy_backend_or_damping_path():
-    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py").read_text(
+    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py").read_text(
         encoding="utf-8"
     )
 
@@ -71,7 +71,7 @@ def test_runtime_has_no_legacy_backend_or_damping_path():
 
 
 def test_quality_proxy_keeps_solver_stitch_provenance():
-    from freecad_cloth.simulation import SimulationQualityRuntimeV2 as runtime
+    from freecad_cloth.simulation import SimulationQualityRuntime as runtime
 
     class Base:
         seam_stitch_pairs = {"seam-2": ((2, 3), (4, 5))}
@@ -87,7 +87,7 @@ def test_realtime_preview_uses_persistent_backend_path():
         encoding="utf-8"
     )
     quality = (
-        ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py"
+        ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py"
     ).read_text(encoding="utf-8")
     benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
         encoding="utf-8"

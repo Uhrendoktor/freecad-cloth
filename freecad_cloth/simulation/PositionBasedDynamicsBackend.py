@@ -11,7 +11,7 @@ from math import ceil, isfinite
 
 import numpy as np
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.shared.collision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 

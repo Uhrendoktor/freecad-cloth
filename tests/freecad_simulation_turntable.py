@@ -23,7 +23,7 @@ if ROOT not in sys.path:
 
 import contextlib
 
-from freecad_cloth.common.DrapeVisualSanity import (
+from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     maximum_box_penetration,
     mesh_shape_sanity,
@@ -420,11 +420,9 @@ def build_simulation_state(doc):
         f"stage=scene-build-start particle_distance={BLANKET_PARTICLE_DISTANCE:.1f} solver_iterations=4 solver_substeps=1"
     )
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_simulation_scene,
-        set_avatar_collision_source,
-    )
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
         ensure_quality_properties,
     )
@@ -447,7 +445,7 @@ def build_simulation_state(doc):
     doc.recompute()
 
     scene = create_simulation_scene(doc)
-    set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+    set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
     scene.ClothPieces = [blanket]

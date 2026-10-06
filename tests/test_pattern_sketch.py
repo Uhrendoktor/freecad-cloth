@@ -209,7 +209,7 @@ def test_garment_pattern_sketch_scope_contract():
 
 
 def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
-    from freecad_cloth.common.SketchAuthority import _piece_model
+    from freecad_cloth.pattern.SketchAuthority import _piece_model
 
     legacy = type(
         "LegacyPatternPiece",

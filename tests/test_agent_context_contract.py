@@ -74,7 +74,6 @@ def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
 
 def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
     for path in (
-        ROOT / "README.md",
         ROOT / "docs" / "DEVELOPMENT.md",
         ROOT / ".github" / "ISSUE_TEMPLATE" / "simulation-review.md",
     ):

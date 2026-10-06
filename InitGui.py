@@ -11,9 +11,6 @@ try:
     import FreeCADGui as Gui
 except ImportError:
     Gui = None
-
-# Install the target execute/recompute guard before GUI workbench activation.
-import freecad_cloth.simulation.DrapeTarget  # noqa: F401
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
@@ -22,6 +19,9 @@ _ICON_DIR = Path(__file__).resolve().parent / "resources" / "icons"
 
 if Gui is not None:
     Gui.addIconPath(str(_ICON_DIR))
-    Gui.addWorkbench(ClothPatternWorkbench())
-    Gui.addWorkbench(ClothSimulationWorkbench())
-    Gui.addWorkbench(ClothSewingWorkbench())
+    if "ClothPatternWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothPatternWorkbench())
+    if "ClothSimulationWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothSimulationWorkbench())
+    if "ClothSewingWorkbench" not in Gui.listWorkbenches():
+        Gui.addWorkbench(ClothSewingWorkbench())

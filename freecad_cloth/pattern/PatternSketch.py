@@ -116,7 +116,7 @@ def _attach(sketch, piece, document):
     obj = _piece_object(document, piece.id)
     if obj is not None:
         _ensure_piece_properties(obj)
-        from freecad_cloth.common.SketchAuthority import attach
+        from freecad_cloth.pattern.SketchAuthority import attach
 
         attach(obj, sketch)
         obj.Visibility = False

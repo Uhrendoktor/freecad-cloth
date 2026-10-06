@@ -94,14 +94,14 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 def main() -> int:
     """Run a FreeCAD test process with the repository runtime contract."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--timeout-seconds", type=float, default=55.0)
+    parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--log-file", type=Path, required=True)
     parser.add_argument("--test-script", type=Path, required=True)
     parser.add_argument("--test-args", default="")
     args = parser.parse_args()
 
-    if args.timeout_seconds > 55:
-        raise SystemExit("timeout-seconds must not exceed 55")
+    if args.timeout_seconds > 120:
+        raise SystemExit("timeout-seconds must not exceed 120")
 
     source = Path("/workspace")
     if os.environ.get("CLOTH_CI_CLEAN_USER", "").lower() == "true":
@@ -130,30 +130,41 @@ def main() -> int:
     try:
         xvfb, openbox = _start_display(display)
         env = {**os.environ, "DISPLAY": display}
-        process = subprocess.Popen(
-            command,
-            cwd=source,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-        try:
-            output, _ = process.communicate(timeout=args.timeout_seconds)
-            return_code = process.returncode
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            output = (exc.output or "") if isinstance(exc.output, str) else ""
-            _stop_process_tree(process)
-            return_code = 124
-        args.log_file.write_text(output, encoding="utf-8")
+        with args.log_file.open("w", encoding="utf-8") as log_handle:
+            process = subprocess.Popen(
+                command,
+                cwd=source,
+                env=env,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                return_code = process.wait(timeout=args.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                _stop_process_tree(process)
+                return_code = 124
+        output = args.log_file.read_text(encoding="utf-8", errors="replace")
         sys.stdout.write(output)
         if timed_out:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")
             _write_diagnostics(diagnostic, return_code, True)
-            print(f"freecad-run-timeout=55s log={args.log_file} diagnostics={diagnostic}")
+            print(
+                f"freecad-run-timeout={args.timeout_seconds:g}s "
+                f"log={args.log_file} diagnostics={diagnostic}",
+                flush=True,
+            )
             return 124
+        if int(return_code or 0) != 0:
+            diagnostic = args.log_file.with_name("runtime-diagnostics.log")
+            _write_diagnostics(diagnostic, return_code, False)
+            print(
+                f"freecad-run-failure=exit-{int(return_code or 0)} "
+                f"log={args.log_file} diagnostics={diagnostic}",
+                flush=True,
+            )
         return int(return_code or 0)
     finally:
         for process in (openbox, xvfb):

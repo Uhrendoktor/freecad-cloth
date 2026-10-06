@@ -60,7 +60,6 @@ def test_init_gui_is_bootstrap_only():
         "import PatternCommands",
         "import SewingNetworkCommands",
         "import SewingNetworkGui",
-        "import SimulationStaleGuard",
         "import DrapeTarget",
     ):
         assert legacy not in source
@@ -71,7 +70,6 @@ def test_all_implementation_python_files_are_inside_package_tree():
         "PatternCommands.py",
         "SewingNetworkCommands.py",
         "SewingNetworkGui.py",
-        "SimulationStaleGuard.py",
         "FittingCommands.py",
     }
     root_python = {path.name for path in ROOT.glob("*.py")}

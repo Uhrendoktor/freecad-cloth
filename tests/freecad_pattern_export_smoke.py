@@ -16,7 +16,6 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import InitGui
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
 
@@ -94,8 +93,7 @@ def accept_public_task(panel, export_format):
 doc = None
 try:
     record("smoke=started")
-    InitGui.ClothPatternWorkbench()
-    record("workbench=initialized")
+    record("commands=loaded-from-package")
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
 
@@ -103,6 +101,9 @@ try:
         "ClothPattern_CreatePieceWithSketch",
         "ClothPattern_EditSketch",
         "ClothPattern_Export",
+        "ClothPattern_AddNotch",
+        "ClothPattern_AddGrainline",
+        "ClothPattern_AddInternalMark",
     ):
         if command not in Gui.listCommands():
             raise RuntimeError("missing public Pattern command: " + command)

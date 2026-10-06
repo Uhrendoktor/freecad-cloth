@@ -1,6 +1,6 @@
 # FreeCAD Cloth documentation
 
-The project documentation now has a human-auditable visual wiki. Start at [docs/wiki/README.md](wiki/README.md).
+The project documentation now has a human-auditable visual wiki. Start with `USER_GUIDE.md`; do not load the whole directory by default. Start at [docs/wiki/README.md](wiki/README.md).
 
 ## Documentation layers
 
@@ -17,7 +17,7 @@ The project documentation now has a human-auditable visual wiki. Start at [docs/
 
 ## Human audit rule
 
-A user-visible capability is documented only when the page tells a human what to look for and points to executable evidence and source files.
+A user-visible capability is documented only when the page tells a human what to look for and points to executable evidence and source files. Issue/PR history is task-local evidence; verify the current branch before treating historical text as state.
 
 Generated visuals come from the canonical GitHub Actions workflow and are published on the <code>docs/screenshots</code> branch. They are evidence artifacts, not an alternate source of truth.
 

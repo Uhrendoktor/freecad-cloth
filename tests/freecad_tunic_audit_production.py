@@ -6,9 +6,16 @@ profile exercises the native Sketcher garment, PositionBasedDynamics realtime pr
 simulation, visual sanity checks, and the six-side screenshot audit.
 """
 
+import os
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 validated = ROOT / "tests" / "freecad_tunic_audit.py"
 source = validated.read_text(encoding="utf-8")
-exec(compile(source, str(validated), "exec"), globals(), globals())
+try:
+    exec(compile(source, str(validated), "exec"), globals(), globals())
+except BaseException as exc:
+    print("production-tunic-audit-wrapper-failed", repr(exc), flush=True)
+    print(traceback.format_exc(), flush=True)
+    os._exit(1)

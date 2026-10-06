@@ -47,7 +47,7 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job():
     assert "diagnostic_controls:" in WORKFLOW
     assert "diagnostic-pbd-contact:" in WORKFLOW
     assert "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls" in WORKFLOW
-    assert "needs: [local_runner_readiness]" in WORKFLOW
+    assert "needs: [agent-quality, local_runner_readiness, pbd_validation_image]" in WORKFLOW
     assert "needs: [diagnostic-pbd-contact]" not in WORKFLOW
 
 
@@ -60,7 +60,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
     assert "point_inside_closed_mesh" in SOURCE
-    assert "from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh" in SOURCE
+    assert "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in SOURCE
     assert "def _shutdown_gui():" in SOURCE
     assert "app.quit()" in SOURCE
     assert "App.exit()" not in SOURCE
@@ -68,7 +68,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
     assert (
-        "setsid /opt/freecad/AppRun /workspace/tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
+        "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
     )
     assert "ArrangementPoint.from_string" in SOURCE
     assert "state = _inside_outside(" in SOURCE
@@ -81,19 +81,21 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in SOURCE
     assert "did not create a true interior pre-step state" in SOURCE
     assert "pbd-env: collision_mode=" in SOURCE
-    assert "diagnostic-contact-supervisor=timeout" in WORKFLOW
+    assert "diagnostic-pbd-contact:" in WORKFLOW
+    assert "timeout-seconds: \"120\"" in WORKFLOW
     assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
-    assert "if-no-files-found: warn" in WORKFLOW
-    assert "retention-days: 14" in WORKFLOW
+    diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[0]
+    assert "artifact-name: pbd-contact-diagnostics" in diagnostic
+    assert "artifact-path: artifacts/pbd-contact-diagnostics/**" in diagnostic
 
 
 def test_workflow_validator_matches_shared_manifest():
-    assert 'assert data["schema"] == 1, data' in WORKFLOW
-    assert 'assert data["release_gate_effect"] == "none", data' in WORKFLOW
-    assert 'case["case"]["id"]' in WORKFLOW
-    assert 'case["solver"]["backend"]' in WORKFLOW
-    assert 'case["collision"]["solver_triangles"]' in WORKFLOW
-    assert 'case["checkpoints"]' in WORKFLOW
+    assert "tools/ci/validate_manifests.py" in WORKFLOW
+    assert "simulation-ladder" in WORKFLOW
+    assert "artifact" in WORKFLOW.lower()
+    assert "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
+    assert "simulation-ladder" in WORKFLOW
+    assert "validate_manifests.py" in WORKFLOW
 
 
 def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
@@ -133,11 +135,13 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
 
 def test_progressive_collision_ladder_is_a_normal_gate():
     assert "simulation-ladder:" in WORKFLOW
-    block = WORKFLOW.split("  simulation-ladder:", 1)[1].split("  gui-sewing-creation:", 1)[0]
-    assert "if: ${{ github.event_name != 'schedule' }}" in block
-    assert "CLOTH_PBD_SUBSTEPS: 8" in block
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in block
-    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in block
-    assert "max_penetration_mm" in block
-    assert "simulation-collision-ladder=passed" in block
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in block
+    block = WORKFLOW.split("  simulation-ladder:", 1)[1]
+    assert "if: ${{ github.event_name != 'schedule' }}" in WORKFLOW
+    assert "CLOTH_PBD_SUBSTEPS: 8" in WORKFLOW
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in WORKFLOW
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in WORKFLOW
+    assert "test-script: tests/freecad_pbd_cube_ladder.py" in block
+    assert "validate_manifests.py simulation" in block
+    assert "artifact-name: simulation-collision-ladder" in block
+    assert "artifact-name: simulation-collision-ladder" in block
+    assert "artifact-path: artifacts/simulation-ladder/**" in block

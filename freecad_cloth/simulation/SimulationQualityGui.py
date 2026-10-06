@@ -38,18 +38,12 @@ class SimulationQualityTaskPanel:
     def __init__(self, scene=None):
         App, Gui, QtCore, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+        from freecad_cloth.simulation.SimulationQualityRuntime import (
             apply_quality_preset,
             ensure_quality_properties,
         )
 
-        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = (
-            App,
-            Gui,
-            QtCore,
-            QtWidgets,
-            QtGui,
-        )
+        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None
@@ -255,7 +249,7 @@ class SimulationQualityTaskPanel:
     def _set_expert_visibility(self, enabled):
         """Show or hide precision solver/collision controls behind the expert toggle."""
         self.advanced_toggle.setArrowType(
-            self.QtCore.Qt.DownArrow if enabled else self.QtCore.Qt.RightArrow
+            QtCore.Qt.DownArrow if enabled else QtCore.Qt.RightArrow
         )
         for widget in getattr(self, "_expert_widgets", ()):
             widget.setVisible(bool(enabled))
@@ -352,7 +346,7 @@ class SimulationQualityTaskPanel:
 
     def _ensure_scene(self):
         if self.scene is None:
-            from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+            from freecad_cloth.simulation.SimulationQualityRuntime import (
                 create_quality_simulation_scene,
             )
 
@@ -449,7 +443,7 @@ class SimulationQualityTaskPanel:
         if self.scene is None:
             self._refresh("Create or select a Cloth Simulation object.")
             return
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
+        from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
         ensure_quality_properties(self.scene)
         self._load_widgets_only()

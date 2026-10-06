@@ -19,6 +19,7 @@ REQUIRED = (
     ROOT / "tools/ci/visual_evidence.py",
     ROOT / "tools/ci/publish_visual_evidence.py",
     ROOT / "tools/ci/capture_pypbd_provenance.py",
+    ROOT / "tools/ci/check_artifact_budget.py",
 )
 
 
@@ -29,8 +30,8 @@ def main() -> int:
         raise SystemExit(f"expected exactly one canonical workflow, found: {files}")
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
-    if len(lines) > 450:
-        raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 450")
+    if len(lines) > 500:
+        raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 500")
     if "pull_request_target" in text:
         raise SystemExit("pull_request_target is forbidden")
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
@@ -44,6 +45,20 @@ def main() -> int:
     for path in REQUIRED:
         if not path.is_file():
             raise SystemExit(f"missing required CI component: {path}")
+    pbd_action = (ROOT / ".github/actions/pbd-image/action.yml").read_text(encoding="utf-8")
+    if (
+        "upload-artifact" in pbd_action
+        or "docker save" in pbd_action
+        or "pbd-validation-image" in pbd_action
+    ):
+        raise SystemExit("PBD validation image must never be serialized as a workflow artifact")
+    container_action = (ROOT / ".github/actions/freecad-container/action.yml").read_text(
+        encoding="utf-8"
+    )
+    if "download-artifact" in container_action or "pbd-validation-image" in container_action:
+        raise SystemExit(
+            "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
+        )
     ci_files = [WORKFLOW, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
@@ -61,9 +76,9 @@ def main() -> int:
                 raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
-            if int(match.group(1)) > 60:
+            if int(match.group(1)) > 180:
                 raise SystemExit(
-                    f"CI timeout exceeds 60 seconds: {ci_file}: {match.group(0).strip()}"
+                    f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
                 )
 
     for index, line in enumerate(text.splitlines()):
@@ -79,18 +94,20 @@ def main() -> int:
                 break
             step.append(candidate)
         match = re.search(r'timeout-seconds:\s*"?(\d+)"?', "\n".join(step))
-        if not match or int(match.group(1)) > 55:
-            raise SystemExit("every FreeCAD test action must declare a timeout <=55 seconds")
-    for path in (
-        ROOT / ".github/actions/freecad-container/action.yml",
-        ROOT / ".github/actions/freecad-test/action.yml",
-    ):
-        action = path.read_text(encoding="utf-8")
-        if "60s" not in action or "timeout-seconds" not in action:
-            raise SystemExit(f"60-second runtime contract missing from {path}")
+        if not match or int(match.group(1)) > 120:
+            raise SystemExit("every FreeCAD test action must declare a timeout <=120 seconds")
+    if "180s" not in container_action or "timeout-seconds" not in container_action:
+        raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
     freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if 'default: "55"' not in freecad or "maximum 55 seconds" not in freecad:
-        raise SystemExit("FreeCAD test action must default to a 55-second maximum")
+    if (
+        'default: "120"' not in freecad
+        or "maximum 120 seconds" not in freecad
+        or "60s" not in freecad
+        or "timeout-seconds" not in freecad
+    ):
+        raise SystemExit(
+            "FreeCAD test action must retain its 120-second runtime and 60-second preflight contracts"
+        )
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

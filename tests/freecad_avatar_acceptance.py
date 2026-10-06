@@ -3,7 +3,13 @@
 import contextlib
 import json
 import os
+import sys
 import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -95,7 +101,7 @@ def run_acceptance():
             raise RuntimeError("manual skeleton editor did not enable symmetry by default")
         staged_pose = json.loads(panel._staged_parameters().to_json())
         joints = staged_pose["pose"]["joints"]
-        if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != 25.0:
+        if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != -25.0:
             raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
         if not panel._apply():
             raise RuntimeError("manual skeleton joint edit was not applied")
@@ -215,6 +221,10 @@ def run_acceptance():
                 os.unlink(path)
 
 
-if __name__ == "__main__":
+try:
     run_acceptance()
-    print("avatar provider acceptance passed")
+    print("avatar provider acceptance passed", flush=True)
+    os._exit(0)
+except BaseException as exc:
+    print("avatar provider acceptance failed", repr(exc), flush=True)
+    os._exit(1)

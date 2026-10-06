@@ -49,7 +49,7 @@ import contextlib
 
 import Part
 
-from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
 _import_progress("Part complete")
 
@@ -330,7 +330,7 @@ def _screenshot(view, path):
     view.setCameraType("Orthographic")
     view.fitAll()
     _events()
-    view.saveImage(str(path), 1280, 720, "White")
+    view.saveImage(str(path), 640, 360, "White")
     if not path.is_file() or path.stat().st_size <= 0:
         raise RuntimeError(f"screenshot missing: {path}")
 
@@ -478,11 +478,9 @@ def _case_record(
 
 def _build_scene(doc):
     from freecad_cloth.avatar.AvatarCommands import create_avatar
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_simulation_scene,
-        set_avatar_collision_source,
-    )
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
         ensure_quality_properties,
     )
@@ -494,7 +492,7 @@ def _build_scene(doc):
     avatar = create_avatar(attach_collision=False, doc=doc)
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
-    set_avatar_collision_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
+    set_drape_target_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
     scene.AvatarProxy.SourceObject = avatar
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
@@ -626,9 +624,9 @@ def _run_control_cube():
         cube.Label = "Diagnostic Collision Cube"
         cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
         doc.recompute()
-        from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+        from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
-        set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+        set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
         if scene.AvatarProxy.SourceObject is not None and hasattr(
             scene.AvatarProxy.SourceObject, "ViewObject"
         ):

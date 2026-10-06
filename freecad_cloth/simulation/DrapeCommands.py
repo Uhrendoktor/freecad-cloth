@@ -43,6 +43,35 @@ def _attach_to_simulation(doc, source, target):
         scene.DrapeTarget = target
     doc.recompute()
 
+def set_drape_target_source(scene, source, thickness=2.0, deflection=1.0):
+    """Assign a persistent collision source through the target-neutral API."""
+    if scene is None or not _is_simulation_scene(scene):
+        raise ValueError("expected a ClothSimulation scene")
+    if source is None:
+        raise ValueError("a drape target source is required")
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+
+    doc = scene.Document
+    target = getattr(scene, "DrapeTarget", None) or _target(doc)
+    target_type = (
+        "Mannequin"
+        if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+        else "FreeCAD Geometry"
+    )
+    if target is None:
+        target = create_drape_target(
+            doc, source, target_type, float(deflection), float(thickness)
+        )
+    else:
+        target.CollisionDeflection = float(deflection)
+        target.CollisionThickness = float(thickness)
+        assign_drape_target(target, source, target_type)
+    _attach_to_simulation(doc, source, target)
+    if hasattr(scene, "DrapeTarget"):
+        scene.DrapeTarget = target
+    doc.recompute()
+    return source
+
 
 def create_drape_target_from_selection(deflection=1.0, thickness=2.0):
     import FreeCAD as App
@@ -128,7 +157,7 @@ def show_diagnostics():
     global _ACTIVE_DIAGNOSTICS_TASK_PANEL
     import FreeCAD as App
 
-    from freecad_cloth.common.ClothDiagnosticsGui import show_diagnostics as show_panel
+    from freecad_cloth.simulation.ClothDiagnosticsGui import show_diagnostics as show_panel
 
     doc = App.ActiveDocument
     if doc is None:

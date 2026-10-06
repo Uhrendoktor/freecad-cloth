@@ -10,21 +10,22 @@ FreeCAD remains a host-provided runtime for installations, but the supported dev
 
 The package tree under `freecad_cloth/` is the authoritative implementation tree.
 
-Only FreeCAD bootstrap/tooling files are kept at repository root: `Init.py`, `InitGui.py`, and the interpreter-level `sitecustomize.py` hook used by the CI environment. Do not add root-level Pattern, Sewing, Avatar, Drape, Simulation, solver, model, GUI, command, or adapter modules.
+Only FreeCAD bootstrap/tooling files are kept at repository root: `Init.py`, `InitGui.py`, and the interpreter-level `sitecustomize.py` hook used by the CI environment. The hook contains only CI/Qt compatibility behavior and must not mutate production runtime classes. Do not add root-level Pattern, Sewing, Avatar, Drape, Simulation, solver, model, GUI, command, or adapter modules.
 
 Use fully qualified package imports in implementation and tests, for example `freecad_cloth.pattern.PatternCommands`, `freecad_cloth.sewing.SewingNetworkCommands`, and `freecad_cloth.simulation.DrapeTarget`. Historical top-level imports are migrated at their call sites; compatibility shims are not recreated as a substitute.
 
-Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation` own their domain implementations; `common` and `shared` contain only genuinely reusable contracts/utilities. Duplicate implementation files across packages are prohibited.
+Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation` own their domain implementations; `common` is infrastructure only; `shared` contains host/domain-neutral immutable contracts. Domain adapters belong with their owning domain. Duplicate implementation files and compatibility-only architectural namespaces are prohibited.
 
 ## Agent-oriented verification
 
 In addition to the normal lint/test gates, the development environment enforces deterministic safeguards for multi-agent reliability:
 
 - Pyright runs in standard mode for the existing broad core profile and strict mode for selected deterministic core modules.
-- Vulture runs at 100% confidence on changed common/shared/tooling files.
+- Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
 - CrossHair checks a small, explicitly curated pure-function contract surface.
 - Pull-request CI rejects newly introduced Python clones while tolerating legacy duplication.
+- Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
 
 These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
 
@@ -119,9 +120,10 @@ The canonical workflow is intentionally parallel: runner readiness and the Posit
 
 Runtime rules:
 
+- Run `ruff format tools/ci` before the lint/static checks on every workflow invocation, so formatter-only failures are corrected within the same run.
 - Pull immutable, content-derived CI images only when they are not already present on a warm self-hosted runner. Hosted runners will naturally take the pull path.
 - The PBD image build publishes the image; downstream jobs are responsible for pulling it. The builder does not perform a second verification pull because that would duplicate the network transfer on an otherwise disposable runner.
-- PR runs may cancel superseded work, but push, schedule, and trusted manual runs must not be cancelled merely because a newer run started. Those runs produce merge/release evidence and must complete once accepted by the runner watchdog.
+- Superseded workflow runs are cancelled whenever their triggering ref is not `refs/heads/main`; main runs, including the push produced by a merged PR, are never cancelled by concurrency.
 - Use GitHub-hosted dependency caching where supported. The static Python gate caches its pip download cache using pyproject.toml as the dependency key.
 - Prefer independent jobs for expensive GUI/simulation checks. Combine work only when the combined execution demonstrably reduces runtime without sacrificing isolation or acceptance coverage.
 
@@ -143,9 +145,9 @@ Equivalent GUI cases use a matrix. Expensive visual and simulation cases remain 
 
 ### Runtime budget
 
-Every FreeCAD application invocation is hard-capped at 55 seconds. The surrounding container action is capped at 60 seconds, leaving a small termination/diagnostic margin. Timeouts are intentional: an acceptance or screenshot task that cannot complete inside this budget is treated as a performance regression rather than allowed to hang.
+Every FreeCAD application invocation is hard-capped at 120 seconds. The surrounding container action is capped at 130 seconds, leaving a small termination/diagnostic margin. Timeouts are intentional: an acceptance or screenshot task that cannot complete inside this budget is treated as a performance regression rather than allowed to hang.
 
-The 55-second budget applies to FreeCAD acceptance, screenshot, turntable, and simulation invocations. Registry image builds, artifact transfers, and Git publication are infrastructure operations and are not artificially forced under 60 seconds because doing so would make cold-cache CI unreliable.
+The 120-second budget applies to FreeCAD acceptance, screenshot, turntable, and simulation invocations. Registry image pulls are infrastructure operations and use one bounded 180-second transfer instead of restarting partial downloads at 60-second intervals; this keeps cold-cache CI reliable without extending the FreeCAD execution budget.
 
 The immutable PBD image contains the Python packages required by the FreeCAD acceptance suite, avoiding per-test package installation. Self-hosted runners reuse an already-present immutable image and only pull it on a cache miss.
 
