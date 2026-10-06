@@ -249,7 +249,7 @@ class SimulationQualityTaskPanel:
     def _set_expert_visibility(self, enabled):
         """Show or hide precision solver/collision controls behind the expert toggle."""
         self.advanced_toggle.setArrowType(
-            QtCore.Qt.DownArrow if enabled else QtCore.Qt.RightArrow
+            self.QtCore.Qt.DownArrow if enabled else self.QtCore.Qt.RightArrow
         )
         for widget in getattr(self, "_expert_widgets", ()):
             widget.setVisible(bool(enabled))
