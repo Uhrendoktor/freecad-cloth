@@ -68,7 +68,7 @@ def main() -> int:
     parser.add_argument("--run-number", required=True)
     args = parser.parse_args()
 
-    from .visual_evidence import documented_assets, verify, write_provenance
+    from visual_evidence import documented_assets, verify, write_provenance
 
     source_root = Path.cwd()
     expected = documented_assets(source_root)
