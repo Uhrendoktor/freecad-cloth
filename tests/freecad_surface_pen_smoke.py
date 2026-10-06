@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
+import FreeCADGui as Gui
 import Part
 
 from freecad_cloth.pattern.SurfacePen import (
