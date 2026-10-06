@@ -131,6 +131,9 @@ def main() -> int:
     command = ["/opt/freecad/AppRun", str(runner)]
 
     args.log_file.parent.mkdir(parents=True, exist_ok=True)
+    args.log_file.unlink(missing_ok=True)
+    stdout_log = Path(f"/tmp/freecad-ci-stdout-{os.getpid()}.log")
+    stdout_log.unlink(missing_ok=True)
     display = os.environ.get("DISPLAY", ":99")
     xvfb = openbox = None
     timed_out = False
@@ -140,12 +143,12 @@ def main() -> int:
         env = {**os.environ, "DISPLAY": display}
         process = None
         try:
-            with args.log_file.open("w", encoding="utf-8") as log_handle:
+            with stdout_log.open("w", encoding="utf-8") as stdout_handle:
                 process = subprocess.Popen(
                     command,
                     cwd=source,
                     env=env,
-                    stdout=log_handle,
+                    stdout=stdout_handle,
                     stderr=subprocess.STDOUT,
                     text=True,
                     start_new_session=True,
@@ -156,7 +159,21 @@ def main() -> int:
                     timed_out = True
                     _stop_process_tree(process)
                     return_code = 124
-            output = args.log_file.read_text(encoding="utf-8", errors="replace")
+            script_output = (
+                args.log_file.read_text(encoding="utf-8", errors="replace")
+                if args.log_file.is_file()
+                else ""
+            )
+            stdout_output = (
+                stdout_log.read_text(encoding="utf-8", errors="replace")
+                if stdout_log.is_file()
+                else ""
+            )
+            output = script_output
+            if stdout_output.strip():
+                output = (output.rstrip() + "\n" if output.strip() else "") + stdout_output
+            args.log_file.write_text(output, encoding="utf-8")
+            stdout_log.unlink(missing_ok=True)
             sys.stdout.write(output)
         except BaseException:
             output = traceback.format_exc()
