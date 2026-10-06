@@ -176,6 +176,7 @@ def run_acceptance():
         target = doc.getObject("DrapeTarget")
         refresh_drape_target(target)
 
+        panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         if panel.provider.currentText() != "MakeHuman HM08 humanoid mesh":
             raise RuntimeError("avatar task panel did not load the persistent default provider")
