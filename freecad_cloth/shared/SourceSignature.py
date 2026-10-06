@@ -63,17 +63,18 @@ def _mesh_signature(target):
         return None
 
 
-def _shape_content_signature(shape):
-    """Return a persistent geometry-content digest for a FreeCAD TopoShape."""
-    exporter = getattr(shape, "exportBrepToString", None)
-    if callable(exporter):
+def _shape_content_signature(shape, deflection=1.0):
+    """Return a persistent deterministic digest for a FreeCAD TopoShape."""
+    tessellate = getattr(shape, "tessellate", None)
+    if callable(tessellate):
         try:
-            payload = exporter()
-            if isinstance(payload, str):
-                payload = payload.encode("utf-8")
-            else:
-                payload = bytes(payload)
-            return ("BRepHash", hashlib.sha256(payload).hexdigest())
+            vertices, triangles = tessellate(float(deflection))
+            return (
+                "TessellatedShape",
+                len(vertices),
+                len(triangles),
+                _digest_surface(vertices, triangles),
+            )
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
     hash_code = getattr(shape, "hashCode", None)
@@ -85,7 +86,7 @@ def _shape_content_signature(shape):
     return ("Unknown",)
 
 
-def _geometry_signature(target):
+def _geometry_signature(target, deflection=1.0):
     mesh_signature = _mesh_signature(target)
     if mesh_signature is not None:
         return mesh_signature
@@ -106,11 +107,11 @@ def _geometry_signature(target):
                     round(float(box.YMax), 6),
                     round(float(box.ZMin), 6),
                     round(float(box.ZMax), 6),
-                    _shape_content_signature(shape),
+                    _shape_content_signature(shape, deflection),
                 )
         except (AttributeError, TypeError, ValueError):
             pass
-        return ("ShapeContent", _shape_content_signature(shape))
+        return ("ShapeContent", _shape_content_signature(shape, deflection))
     return ("Unknown",)
 
 
@@ -122,7 +123,7 @@ def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
     axis = getattr(rotation, "Axis", None) if rotation is not None else None
     return (
         str(getattr(target, "Name", "")),
-        _geometry_signature(target),
+        _geometry_signature(target, float(deflection)),
         round(float(getattr(base, "x", 0.0)), 6),
         round(float(getattr(base, "y", 0.0)), 6),
         round(float(getattr(base, "z", 0.0)), 6),
