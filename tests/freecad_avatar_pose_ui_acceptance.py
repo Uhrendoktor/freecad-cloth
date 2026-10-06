@@ -131,7 +131,7 @@ def run():
         flush=True,
     )
     print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
-    doc.close()
+    App.closeDocument(doc.Name)
     trace.close()
 
 
