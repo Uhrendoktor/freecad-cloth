@@ -227,6 +227,13 @@ jobs:
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+            CLOTH_SIMULATION_BACKEND=position-based-dynamics
+            CLOTH_CI_ENABLE_PBD=1
+            CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_COLLISION_MODE=mesh
+            CLOTH_PBD_COLLISION_TRIANGLES=2048
+            CLOTH_PBD_COLLISION_VOXEL_MM=8
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
 
   python:
     name: Python validation (${{ matrix.group }})
