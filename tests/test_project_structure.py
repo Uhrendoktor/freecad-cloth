@@ -206,7 +206,9 @@ def test_freecad_runner_bootstraps_workbench_without_mod_discovery_flags():
 def test_freecad_runner_preserves_script_owned_logs():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
-    assert "stdout=log_handle" in source
+    assert "stdout=stdout_handle" in source
+    assert "script_output = (" in source
+    assert "stdout_output = (" in source
     assert "runpy.run_path" in source
 
 
