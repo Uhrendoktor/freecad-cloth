@@ -4,6 +4,10 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Mannequin front view" width="280"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Mannequin rear view" width="280"></p>
 
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png" alt="Mannequin left view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png" alt="Mannequin right view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png" alt="Mannequin top view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png" alt="Mannequin bottom view" width="200"></p>
+
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif" alt="Mannequin 360 degree turntable" width="820"></p>
+
 ## What the feature is
 
 Pose Mode is a dedicated human-facing editor for the mannequin skeleton and pose.

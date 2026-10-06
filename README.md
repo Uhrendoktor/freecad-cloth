@@ -47,6 +47,8 @@ A green unit test is not a substitute for visual evidence, and a nice screenshot
 
 Public README and wiki images are generated artifacts. The canonical GitHub Actions workflow <a href=".github/workflows/canonical-execution.yml">canonical-execution.yml</a> generates and publishes the evidence set to the <code>docs/screenshots</code> branch.
 
+Every merge to `main` runs the visual evidence publisher from that merge commit, and the publisher fails closed when the documented image inventory or provenance is stale.
+
 The generated visual path is:
 
 <pre>current main code
