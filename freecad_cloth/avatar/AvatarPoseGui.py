@@ -142,7 +142,7 @@ class SkeletonPoseController:
             self.mouse_callback = None
             self.panel.status.setText(
                 "Pose Mode: viewport joint picking is unavailable in this FreeCAD/SWIG build; "
-                "use the joint selector and rotation gizmo."
+                "use the joint selector and Apply & Rebuild."
             )
         self._build_positions()
         bone = str(self.panel.skeleton_joint.currentData())
@@ -155,6 +155,15 @@ class SkeletonPoseController:
     def deactivate(self):
         """Remove transient viewport nodes and callbacks."""
         if self.view is None:
+            return
+        if self.scene_graph is None:
+            self.mouse_callback = None
+            self.gizmo = None
+            self.gizmo_transform = None
+            self.gizmo_separator = None
+            self.overlay = None
+            self.scene_graph = None
+            self.view = None
             return
         coin = self._coin()
         try:
