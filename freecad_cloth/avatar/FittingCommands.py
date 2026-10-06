@@ -160,7 +160,7 @@ def assign_avatar_source(source=None):
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
@@ -171,7 +171,20 @@ def assign_avatar_source(source=None):
         )
     if source is None:
         raise ValueError("select a FreeCAD body or mesh to use as the avatar source")
-    avatar = set_drape_target_source(scene, source)
+
+    target = doc.getObject("DrapeTarget")
+    target_type = (
+        "Mannequin"
+        if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+        else "FreeCAD Geometry"
+    )
+    if target is None:
+        target = create_drape_target(doc, source, target_type, 1.0, 2.0)
+    else:
+        target.CollisionDeflection = 1.0
+        target.CollisionThickness = 2.0
+        assign_drape_target(target, source, target_type)
+
     scene.AvatarProxy = source
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
