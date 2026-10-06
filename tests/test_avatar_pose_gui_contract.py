@@ -30,7 +30,7 @@ def test_pose_mode_is_viewport_first():
     assert "getPointOnScreen" in SOURCE
     assert "JOINT_PICK_RADIUS" in SOURCE
     assert "self.panel._stage_joint_rotation(" in SOURCE
-    assert "release to stage the pose" in SOURCE
+    assert "Release to stage the pose" in SOURCE
 
 
 def test_pose_mode_has_discoverable_joint_groups_and_presets():
