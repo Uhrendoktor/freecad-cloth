@@ -226,6 +226,7 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning():
     panel.network = Network()
     panel.warning = Label()
     panel.status = Label()
+    panel.correspondence = Label()
     panel.update()
     assert "s2 (Missing reference)" in panel.warning.text
 
@@ -456,7 +457,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance():
         Tolerance = 0.5
         RelativeTolerance = 0.05
         Stitches = 8
-        Seam = Seam()
 
     class Doc:
         def __init__(self):
@@ -503,6 +503,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance():
     app_doc = Doc()
     App.ActiveDocument = app_doc
     obj = Obj()
+    obj.Seam = Seam()
     panel = SewingTaskPanel.__new__(SewingTaskPanel)
     panel.App = App
     panel.obj = obj

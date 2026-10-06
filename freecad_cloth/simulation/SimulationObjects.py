@@ -85,7 +85,7 @@ def resolve_pin_indices(obj, particle_count, automatic_default=()):
 def _simulation_source_signature(obj, pieces):
     """Return deterministic inputs that require rebuilding the cloth scene."""
     if pieces:
-        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
 
         resolved = resolve_simulation_pattern(
             getattr(obj, "Document", None),
@@ -113,14 +113,7 @@ def _simulation_source_signature(obj, pieces):
         except (ImportError, AttributeError, TypeError, ValueError):
             target_signature = ("invalid-target",)
     else:
-        avatar = getattr(obj, "AvatarProxy", None)
-        source = getattr(avatar, "SourceObject", None) if avatar is not None else None
-        target_signature = (
-            "legacy-avatar",
-            str(getattr(source, "Name", "")),
-            float(getattr(avatar, "CollisionDeflection", 0.0)) if avatar is not None else 0.0,
-            float(getattr(avatar, "CollisionThickness", 0.0)) if avatar is not None else 0.0,
-        )
+        target_signature = ("unassigned",)
     pin_mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
     pin_signature = (
         pin_mode,
@@ -137,7 +130,7 @@ def _simulation_source_signature(obj, pieces):
 def _piece_mesh(piece, start_height, piece_ir=None):
     import FreeCAD as App
 
-    from freecad_cloth.common.PatternSimulationAdapter import (
+    from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
@@ -354,6 +347,36 @@ def _collision_for_scene(obj):
     return None
 
 
+def _ensure_state_properties(obj):
+    """Ensure the persistent simulation lifecycle fields exist on old/new documents."""
+    if not hasattr(obj, "SimulationState"):
+        add_property = getattr(obj, "addProperty", None)
+        if callable(add_property):
+            add_property(
+                "App::PropertyString", "SimulationState", "State", "Simulation lifecycle state"
+            )
+        if not hasattr(obj, "SimulationState"):
+            setattr(obj, "SimulationState", "READY_FOR_SIMULATION")
+    if not hasattr(obj, "InvalidationReason"):
+        add_property = getattr(obj, "addProperty", None)
+        if callable(add_property):
+            add_property(
+                "App::PropertyString",
+                "InvalidationReason",
+                "State",
+                "Why simulation derived state is stale or invalid",
+            )
+        if not hasattr(obj, "InvalidationReason"):
+            setattr(obj, "InvalidationReason", "")
+
+
+def _set_simulation_state(obj, state, reason=""):
+    """Persist the authoritative simulation lifecycle state and reason."""
+    _ensure_state_properties(obj)
+    obj.SimulationState = str(state)
+    obj.InvalidationReason = str(reason)
+
+
 class SimulationProxy:
     """Public data model or service class for SimulationProxy."""
 
@@ -388,48 +411,66 @@ class SimulationProxy:
 
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
+        _ensure_state_properties(obj)
+        target = getattr(obj, "DrapeTarget", None)
+        if target is not None:
+            from freecad_cloth.simulation.DrapeTarget import target_status
+
+            status = target_status(target)
+            if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+                _set_simulation_state(obj, "STALE", status["reason"] or status["message"])
+                return None
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
             if getattr(p, "PatternType", "") == "PatternPiece"
         ]
         signature = _simulation_source_signature(obj, pieces)
-        if (
-            getattr(self, "backend", None) is None
-            or signature != getattr(self, "source_signature", None)
-            or int(obj.Steps) < int(getattr(self, "last_steps", 0))
-        ):
-            self._build(obj, signature)
-        steps = int(obj.Steps)
-        if steps > self.last_steps:
-            for _ in range(steps - self.last_steps):
-                self.backend.step(
-                    float(obj.TimeStep),
-                    int(obj.Iterations),
-                    (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
-                    self.collision_surface,
-                )
-            self.last_steps = steps
-        positions = self.backend.positions()
-        for panel in getattr(obj, "DrapePanels", ()):
-            _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
-        obj.SimulatedTime = self.backend.time
-        obj.ParticleCount = len(positions)
-        obj.FiniteState = self.backend.finite()
+        try:
+            if (
+                getattr(self, "backend", None) is None
+                or signature != getattr(self, "source_signature", None)
+                or int(obj.Steps) < int(getattr(self, "last_steps", 0))
+            ):
+                self._build(obj, signature)
+            steps = int(obj.Steps)
+            if steps > self.last_steps:
+                for _ in range(steps - self.last_steps):
+                    self.backend.step(
+                        float(obj.TimeStep),
+                        int(obj.Iterations),
+                        (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
+                        self.collision_surface,
+                    )
+                self.last_steps = steps
+            positions = self.backend.positions()
+            for panel in getattr(obj, "DrapePanels", ()):
+                _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
+            obj.SimulatedTime = self.backend.time
+            obj.ParticleCount = len(positions)
+            obj.FiniteState = self.backend.finite()
+        except ValueError as exc:
+            message = str(exc)
+            if message.startswith("cannot simulate invalid seam "):
+                _set_simulation_state(obj, "BLOCKED", message)
+                return None
+            raise
+        _set_simulation_state(obj, "READY_FOR_SIMULATION", "")
+        return None
 
-    def _build(self, obj, signature=None):
+    def _build(self, obj, signature=None, piece_mesh=None):
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
             if getattr(p, "PatternType", "") == "PatternPiece"
         ]
         if pieces:
-            self._build_pattern_scene(obj, pieces, signature)
+            self._build_pattern_scene(obj, pieces, signature, piece_mesh=piece_mesh)
         else:
             self._build_demo(obj)
 
-    def _build_pattern_scene(self, obj, pieces, signature):
-        from freecad_cloth.common.PatternSimulationAdapter import resolve_simulation_pattern
+    def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
@@ -437,13 +478,14 @@ class SimulationProxy:
 
         start_height = float(getattr(obj, "StartHeight", 120.0))
         resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
+        mesh_builder = piece_mesh or _piece_mesh
         positions = []
         triangles_global = []
         panel_data = {}
         panels = list(getattr(obj, "DrapePanels", ()))
         for index, piece in enumerate(pieces):
             piece_ir = resolved.piece(str(piece.PieceId))
-            vertices, triangles, boundary = _piece_mesh(
+            vertices, triangles, boundary = mesh_builder(
                 piece,
                 start_height,
                 piece_ir=piece_ir,
@@ -609,57 +651,42 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_humanoid_avatar(doc, scale=1.0):
-    """Create the production MakeHuman mesh avatar used by simulation."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
-
-    avatar = create_avatar(attach_collision=False, doc=doc, object_name="HumanoidAvatar")
-    avatar.Label = "Humanoid Avatar (MakeHuman)"
-    return avatar
-
-
 def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
-    """Create a compatibility collision proxy; DrapeTarget is authoritative."""
-    avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
-    avatar.Label = "Avatar Collision Proxy (Compatibility)"
-    avatar.addProperty(
-        "App::PropertyString", "CollisionType", "Simulation"
-    ).CollisionType = "SphereProxy"
-    avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
-    avatar.addProperty(
-        "App::PropertyFloat", "CollisionThickness", "Simulation"
-    ).CollisionThickness = float(thickness)
-    avatar.addProperty(
-        "App::PropertyFloat", "CollisionDeflection", "Simulation"
-    ).CollisionDeflection = float(deflection)
-    avatar.addProperty(
-        "App::PropertyInteger", "CollisionVertexCount", "Simulation"
-    ).CollisionVertexCount = 0
-    avatar.addProperty(
-        "App::PropertyInteger", "CollisionTriangleCount", "Simulation"
-    ).CollisionTriangleCount = 0
-    if source_obj is None:
-        source_obj = create_humanoid_avatar(doc)
-    from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
-
-    surface = surface_from_freecad(source_obj, deflection, thickness)
+    """Create a target-neutral compatibility collision proxy."""
+    avatar = doc.getObject("AvatarCollision")
+    if avatar is None:
+        avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
+        avatar.Label = "Avatar Collision Proxy (Compatibility)"
+        avatar.addProperty("App::PropertyString", "CollisionType", "Simulation")
+        avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
+        avatar.addProperty("App::PropertyFloat", "CollisionThickness", "Simulation")
+        avatar.addProperty("App::PropertyFloat", "CollisionDeflection", "Simulation")
+        avatar.addProperty("App::PropertyInteger", "CollisionVertexCount", "Simulation")
+        avatar.addProperty("App::PropertyInteger", "CollisionTriangleCount", "Simulation")
     avatar.SourceObject = source_obj
-    avatar.CollisionType = "MeshSurface"
-    avatar.CollisionVertexCount = len(surface.vertices)
-    avatar.CollisionTriangleCount = len(surface.triangles)
+    avatar.CollisionType = "MeshSurface" if source_obj is not None else "Unassigned"
+    avatar.CollisionThickness = float(thickness)
+    avatar.CollisionDeflection = float(deflection)
+    if source_obj is not None:
+        from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+        surface = collision_surface(source_obj, deflection, thickness)
+        avatar.CollisionVertexCount = len(surface.vertices)
+        avatar.CollisionTriangleCount = len(surface.triangles)
+    else:
+        avatar.CollisionVertexCount = 0
+        avatar.CollisionTriangleCount = 0
     return avatar
 
 
 def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Set an avatar collision proxy while keeping the document DrapeTarget authoritative."""
+    """Set an avatar collision proxy without coupling Simulation to Avatar."""
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
     doc = scene.Document
-    properties = set(getattr(scene, "PropertiesList", ()) or ())
-    target = getattr(scene, "DrapeTarget", None) if "DrapeTarget" in properties else None
+    target = getattr(scene, "DrapeTarget", None)
     if target is None:
         target = doc.getObject("DrapeTarget")
-
     target_type = (
         "Mannequin"
         if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar"
@@ -671,35 +698,16 @@ def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0
         target.CollisionThickness = float(thickness)
         target.CollisionDeflection = float(deflection)
         assign_drape_target(target, source_obj, target_type)
-
-    if "DrapeTarget" in properties:
+    proxy = create_avatar_collision(doc, source_obj, thickness, deflection)
+    scene.AvatarProxy = proxy
+    if "DrapeTarget" in set(getattr(scene, "PropertiesList", ()) or ()):
         scene.DrapeTarget = target
-
-    avatar = getattr(scene, "AvatarProxy", None)
-    if avatar is None:
-        avatar = doc.getObject("AvatarCollision")
-    if avatar is None:
-        avatar = create_avatar_collision(doc, source_obj, thickness, deflection)
-    else:
-        from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
-
-        surface = surface_from_freecad(source_obj, deflection, thickness)
-        avatar.SourceObject = source_obj
-        avatar.CollisionType = "MeshSurface"
-        avatar.CollisionThickness = float(thickness)
-        avatar.CollisionDeflection = float(deflection)
-        avatar.CollisionVertexCount = len(surface.vertices)
-        avatar.CollisionTriangleCount = len(surface.triangles)
-
-    scene.AvatarProxy = avatar
     doc.recompute()
-    return avatar
+    return proxy
 
 
 def create_simulation_scene(doc, build=True):
     """Create and return the requested simulation scene object."""
-    from freecad_cloth.simulation.DrapeTarget import create_drape_target
-
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
@@ -713,7 +721,7 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Compatibility")
+    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Draping", "Avatar source used by fitting workflows")
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"
@@ -736,13 +744,6 @@ def create_simulation_scene(doc, build=True):
     link_garment_object(panel_a, "SimulationOutput", doc)
     link_garment_object(panel_b, "SimulationOutput", doc)
     scene.DrapePanels = [panel_a, panel_b]
-    avatar = create_avatar_collision(doc)
-    link_garment_object(avatar, "AvatarCollision", doc)
-    scene.AvatarProxy = avatar
-    target = create_drape_target(
-        doc, avatar.SourceObject, "Mannequin", avatar.CollisionDeflection, avatar.CollisionThickness
-    )
-    scene.DrapeTarget = target
     if build:
         proxy._build(scene, ())
     return scene

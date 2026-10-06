@@ -114,17 +114,15 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
     document = App.newDocument("AvatarCollisionScope")
     try:
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
-        from freecad_cloth.simulation.SimulationObjects import (
-            create_simulation_scene,
-            set_avatar_collision_source,
-        )
+        from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
 
         body = document.addObject("Part::Feature", "FixtureBody")
         body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
         document.recompute()
 
         fitting = create_fitting_scene()
-        proxy = set_avatar_collision_source(fitting, body, thickness=2.0, deflection=1.0)
+        proxy = set_drape_target_source(fitting, body, thickness=2.0, deflection=1.0)
         assert proxy is fitting.AvatarProxy
         assert fitting.getTypeIdOfProperty("AvatarProxy") == "App::PropertyLinkGlobal"
         document.recompute()
@@ -138,7 +136,7 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         assert target.SourceObject == body
 
         simulation = create_simulation_scene(document)
-        proxy2 = set_avatar_collision_source(simulation, body, thickness=3.0, deflection=0.5)
+        proxy2 = set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5)
         assert proxy2 is simulation.AvatarProxy
         assert proxy2 is proxy
         assert simulation.DrapeTarget == target

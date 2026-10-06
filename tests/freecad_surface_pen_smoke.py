@@ -1,5 +1,14 @@
 """Focused native FreeCAD smoke test for the 3D Pattern Pen extraction boundary."""
 
+import os
+import sys
+import traceback
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import FreeCAD as App
 import Part
 
@@ -50,5 +59,10 @@ def main():
         App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
+try:
     main()
+    os._exit(0)
+except BaseException as exc:
+    print("surface-pen-native-smoke=failed", repr(exc), flush=True)
+    print(traceback.format_exc(), flush=True)
+    os._exit(1)

@@ -303,7 +303,7 @@ def _inside_target_count(points, target, collision_surface=None):
         return count
     if collision_surface is None:
         raise RuntimeError("mannequin target does not expose an inside/outside collision test")
-    from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+    from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
     vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
     triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
@@ -326,8 +326,8 @@ def write_drape_metrics(
     proxy=None,
     collision_surface=None,
 ):
-    from freecad_cloth.common.DrapeFailureClassifier import classify_drape, summarize_classification
-    from freecad_cloth.common.DrapeVisualSanity import inspect_drape, summarize
+    from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
+    from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, summarize
     from freecad_cloth.common.MeshValidation import validate_mesh
 
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None))
@@ -384,7 +384,7 @@ def write_drape_metrics(
             if collision_surface is not None:
                 from math import sqrt
 
-                from freecad_cloth.common.DrapeVisualSanity import point_inside_closed_mesh
+                from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
                 target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
                 target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
@@ -650,7 +650,7 @@ def simulation():
         target_status,
     )
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
+    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     scene = create_quality_simulation_scene(doc)
@@ -903,7 +903,7 @@ def simulation():
         raise RuntimeError("simulation did not reach a finite 90-step state")
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-    from freecad_cloth.common.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
+    from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
 
     diagnostics_panel = DiagnosticsTaskPanel(scene)
     diagnostic_dock = show_task(
@@ -984,7 +984,7 @@ def simulation():
                 "Simulation Workbench draped front",
                 "legacy front screenshot alias; native Sketcher tunic source",
             )
-    from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+    from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
     with open(METRICS, encoding="utf-8") as handle:
         assert_drape_diagnostics(json.load(handle).get("panels", ()))
@@ -1001,9 +1001,6 @@ def main():
         raise RuntimeError("FreeCAD GUI did not launch")
     Gui.getMainWindow().show()
     events()
-    init_gui = os.path.join(ROOT, "InitGui.py")
-    with open(init_gui, encoding="utf-8") as handle:
-        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
     events()
     run_canonical_acceptance()
     pattern_and_sewing()

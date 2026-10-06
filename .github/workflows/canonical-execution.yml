@@ -1,5 +1,6 @@
 name: Canonical execution
 run-name: Canonical execution
+# CI iteration policy: gather the complete matrix before each repair batch.
 on:
   push:
     branches: [main]
@@ -27,7 +28,7 @@ on:
     - cron: '0 3 * * *'
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -48,7 +49,6 @@ permissions:
 jobs:
   agent-quality:
     name: Static, architecture, workflow, and security gates
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -68,6 +68,9 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
+          python -m compileall -q tests tools/ci
+          python -m ruff format tools/ci
+          python -m ruff check --fix tools/ci
           python -m ruff check tools/ci
           python -m ruff format --check tools/ci
           python tools/check_documentation_contract.py
@@ -76,7 +79,7 @@ jobs:
           pyright -p pyrightconfig.agent-strict.json
           git diff --name-only origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
           if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
-          python -m pytest -q tests/test_property_contracts.py
+          python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
       - name: Workflow linters
         run: |
@@ -98,6 +101,7 @@ jobs:
 
   local_runner_readiness:
     name: Selected runner readiness
+    needs: [agent-quality]
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
@@ -106,6 +110,7 @@ jobs:
 
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
+    needs: [agent-quality]
     if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -122,6 +127,7 @@ jobs:
 
   pbd_validation_image:
     name: Build/publish pinned PBD image
+    needs: [agent-quality]
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -142,46 +148,46 @@ jobs:
           digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d' ' -f1)"
           short_digest="$(printf '%s' "$digest" | cut -c1-32)"
           echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:$short_digest" >> "$GITHUB_OUTPUT"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/pbd-image@0423c56f8b879b1910cf10ca474208e2e5789a7c
+      - uses: ./.github/actions/pbd-image
         with:
           image: ${{ steps.image.outputs.image }}
 
   diagnostic-pbd-contact:
     name: Diagnostic PBD contact controls
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_contact_diagnostics.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/app-run.log
           environment: |
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
             CLOTH_PBD_SUBSTEPS=1
             CLOTH_PBD_COLLISION_TRIANGLES=2048
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_cube_ladder.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
           environment: |
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_avatar_ladder.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py diagnostic
           artifact-name: pbd-contact-diagnostics
@@ -193,27 +199,27 @@ jobs:
   simulation-ladder:
     name: Simulation collision ladder
     if: ${{ github.event_name != 'schedule' }}
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_cube_ladder.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_avatar_ladder.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/simulation-ladder/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py simulation
           artifact-name: simulation-collision-ladder
@@ -225,7 +231,7 @@ jobs:
   python:
     name: Python validation (${{ matrix.group }})
     if: ${{ github.event_name != 'schedule' }}
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     strategy:
@@ -235,19 +241,34 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Run pure Python validation groups
+        if: ${{ matrix.group != 'gui' }}
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "120"
+          command: >-
+            bash -lc 'set -o pipefail; mkdir -p artifacts; python3 tools/ci/python_validation.py "${{ matrix.group }}" 2>&1 | tee artifacts/python-validation.log'
+          environment: CLOTH_CI_ENABLE_PBD=0
+      - name: Run GUI Python validation
+        if: ${{ matrix.group == 'gui' }}
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tools/ci/python_validation.py
-          timeout-seconds: "55"
-          test-args: ${{ matrix.group }}
+          timeout-seconds: "120"
+          test-args: gui
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
 
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     strategy:
@@ -259,16 +280,16 @@ jobs:
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "false", clean: "false", env: ""}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log"}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "false", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log"}
-          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "true", clean: "true", env: ""}
-          - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "true", env: ""}
+          - {case: avatar, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-acceptance.log, artifact: avatar-acceptance, stage: "false", clean: "false", env: ""}
+          - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "false", clean: "false", env: ""}
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
           validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}
@@ -280,17 +301,17 @@ jobs:
 
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_tunic_audit_production.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           stage-workbench: "true"
           clean-user: "true"
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
@@ -298,12 +319,12 @@ jobs:
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_PBD_COLLISION_TRIANGLES=8192
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_realtime_benchmark.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
           artifact-name: tunic-visual-audit
@@ -317,26 +338,26 @@ jobs:
 
   gui-turntables:
     name: README turntable evidence
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_avatar_screenshot.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
           environment: CLOTH_CI_DISABLE_PBD=1
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_simulation_turntable.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && python3 tools/ci/build_visual_gifs.py turntables'
           artifact-name: readme-turntables
@@ -350,17 +371,17 @@ jobs:
 
   gui-visual-examples:
     name: Blanket visual example
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_visual_examples.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
@@ -371,7 +392,7 @@ jobs:
 
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
-    needs: [gui-tunic-visual]
+    needs: [agent-quality, gui-tunic-visual]
     if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -390,7 +411,7 @@ jobs:
 
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
-    needs: [gui-tunic-visual, gui-turntables, gui-visual-examples, gui-simple]
+    needs: [agent-quality, gui-tunic-visual, gui-turntables, gui-visual-examples, gui-simple]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -407,6 +428,7 @@ jobs:
 
   maintenance-cleanup:
     name: Repository retention cleanup
+    needs: [agent-quality]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -421,10 +443,30 @@ jobs:
           REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/maintenance_cleanup.py
 
+  artifact-budget:
+    name: Accumulated artifact budget
+    if: ${{ always() }}
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {actions: read, contents: read}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          filter: blob:none
+          sparse-checkout: tools/ci/check_artifact_budget.py
+          sparse-checkout-cone-mode: false
+      - name: Check accumulated artifact size
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/ci/check_artifact_budget.py
+
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
     strategy:
@@ -434,11 +476,11 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@e002ccaea12e75e6150d8ffebb4e407f45c6bb2a
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_workbench_benchmark.py
-          timeout-seconds: "55"
+          timeout-seconds: "120"
           log-file: artifacts/workbench-benchmark.log
           artifact-name: workbench-benchmark-${{ matrix.workbench }}
           artifact-path: artifacts

@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
+from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 
 def _scene():

@@ -4,16 +4,6 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class CollisionSurface:
-    """Immutable description of a collision surface used by simulation adapters."""
-
-    provider_id: str
-    object_name: str
-    revision: int = 0
-    offset_mm: float = 3.0
-
-
-@dataclass(frozen=True)
 class DrapeTargetRef:
     """Persistable target identity; geometry itself remains owned by FreeCAD."""
 

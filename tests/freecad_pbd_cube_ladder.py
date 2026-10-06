@@ -48,10 +48,15 @@ except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
 _boot("before-shared-helper-runpath")
-_shared = runpy.run_path(
-    str(Path(__file__).with_name("freecad_pbd_contact_diagnostics.py")),
-    run_name="freecad_pbd_contact_diagnostics",
-)
+_diagnostic_execute = os.environ.pop("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE", None)
+try:
+    _shared = runpy.run_path(
+        str(Path(__file__).with_name("freecad_pbd_contact_diagnostics.py")),
+        run_name="freecad_pbd_contact_diagnostics",
+    )
+finally:
+    if _diagnostic_execute is not None:
+        os.environ["CLOTH_CONTACT_DIAGNOSTICS_EXECUTE"] = _diagnostic_execute
 _boot("after-shared-helper-runpath")
 _build_piece = _shared["_build_piece"]
 _build_scene = _shared["_build_scene"]
@@ -171,9 +176,9 @@ def _build_cube_scene(doc):
     cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
     doc.recompute()
 
-    from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
-    set_avatar_collision_source(scene, cube, thickness=2.0, deflection=1.0)
+    set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
     if avatar is not None and hasattr(avatar, "ViewObject"):
         avatar.ViewObject.Visibility = False
     cube.ViewObject.Visibility = True

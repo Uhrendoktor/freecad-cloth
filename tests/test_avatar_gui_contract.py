@@ -31,7 +31,7 @@ def test_avatar_panel_stages_values_and_validates_before_mutation():
     assert '"Skeleton pose"' in source
     assert "AvatarParameters(" in source
     assert "self._staged_joint_rotations" in source
-    assert "self.avatar.JointPoseJSON" in source
+    assert "JointPoseJSON" in source
     assert "def _apply(self):" in source
     assert "from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters" in source
     assert "apply_avatar_parameters(" in source

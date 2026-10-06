@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from freecad_cloth.common.ClothDiagnostics import (
+from freecad_cloth.simulation.ClothDiagnostics import (
     analyze_mesh,
     export_json,
     export_payload,

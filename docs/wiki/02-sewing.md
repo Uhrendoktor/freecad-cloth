@@ -61,6 +61,6 @@ The canonical workflow also exercises the sewn garment through the visual tunic 
 
 ## Source map
 
-Implementation is concentrated under <code>freecad_cloth/sewing/</code>, especially SeamGraph.py, SeamReference.py, SewingObjects.py, SewingSemantics.py, SewingCorrespondence.py, SewingCreationGui.py and SewingGui.py.
+Implementation is concentrated under <code>freecad_cloth/sewing/</code>, especially SeamGraph.py, SewingObjects.py, SewingCorrespondence.py, SewingCreationGui.py and SewingGui.py.
 
 See [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for semantic ownership and dependency direction.

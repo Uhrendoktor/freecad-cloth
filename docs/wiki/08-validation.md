@@ -4,6 +4,8 @@
 
 The project treats validation as both an engineering problem and a human-vision problem.
 
+Every merge to `main` is also a visual-evidence release gate: the publisher rebuilds the documented image set from the merge source and verifies provenance before the run succeeds.
+
 ## One canonical execution path
 
 There is one canonical workflow:

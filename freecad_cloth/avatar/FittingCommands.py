@@ -160,10 +160,7 @@ def assign_avatar_source(source=None):
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_avatar_collision,
-        set_avatar_collision_source,
-    )
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
@@ -174,13 +171,8 @@ def assign_avatar_source(source=None):
         )
     if source is None:
         raise ValueError("select a FreeCAD body or mesh to use as the avatar source")
-    avatar = (
-        create_avatar_collision(doc)
-        if doc.getObject("AvatarCollision") is None
-        else doc.getObject("AvatarCollision")
-    )
-    avatar = set_avatar_collision_source(scene, source)
-    scene.AvatarProxy = avatar
+    avatar = set_drape_target_source(scene, source)
+    scene.AvatarProxy = source
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -459,12 +451,20 @@ def create_simulation_from_fitting():
         raise ValueError("create a fitting scene first")
     if not scene.PatternPieces:
         raise ValueError("add at least one pattern piece to the fitting scene")
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationObjects import (
+        create_simulation_scene,
+        set_avatar_collision_source,
+    )
 
     simulation = create_simulation_scene(doc)
     simulation.ClothPieces = list(scene.PatternPieces)
     if scene.AvatarProxy is not None:
-        simulation.AvatarProxy = scene.AvatarProxy
+        set_avatar_collision_source(
+            simulation,
+            scene.AvatarProxy,
+            thickness=2.0,
+            deflection=1.0,
+        )
     doc.recompute()
     return simulation
 

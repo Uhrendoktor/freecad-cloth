@@ -12,7 +12,7 @@ from freecad_cloth.simulation.SimulationQuality import (
     preset,
     solver_parameters,
 )
-from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+from freecad_cloth.simulation.SimulationQualityRuntime import (
     _RUNTIME_BASES,
     QualitySimulationProxy,
     quality_discretization,
