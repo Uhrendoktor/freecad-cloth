@@ -55,7 +55,7 @@ def main():
         assert str(draft.Status) == "Extracted"
         assert len(tuple(piece.Sketch.Geometry)) == 4
 
-        print("surface-pen-native-smoke=passed")
+        print("surface-pen-native-smoke=passed", flush=True)
     finally:
         App.closeDocument(doc.Name)
 

@@ -136,8 +136,8 @@ def run():
     if controller._mouse_callback is not None or controller._location_callback is not None:
         raise RuntimeError("Interactive Arrange callbacks were not removed")
 
-    print("interactive-arrange=passed snapped=true persisted=true")
-    print("interactive-arrange-cleanup=passed callbacks-removed=true")
+    print("interactive-arrange=passed snapped=true persisted=true", flush=True)
+    print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
     App.closeDocument(doc.Name)
 
 

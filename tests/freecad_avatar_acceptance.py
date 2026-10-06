@@ -221,10 +221,11 @@ def run_acceptance():
                 os.unlink(path)
 
 
-try:
-    run_acceptance()
-    print("avatar provider acceptance passed", flush=True)
-    os._exit(0)
-except BaseException as exc:
-    print("avatar provider acceptance failed", repr(exc), flush=True)
-    os._exit(1)
+if __name__ == "__main__":
+    try:
+        run_acceptance()
+        print("avatar provider acceptance passed", flush=True)
+        os._exit(0)
+    except BaseException as exc:
+        print("avatar provider acceptance failed", repr(exc), flush=True)
+        os._exit(1)

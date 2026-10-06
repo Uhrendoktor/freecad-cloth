@@ -206,10 +206,12 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
 def test_freecad_runner_preserves_script_owned_logs():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
-    assert "stdout=stdout_handle" in source
-    assert "script_output = (" in source
-    assert "stdout_output = (" in source
-    assert "runpy.run_path" in source
+    assert 'args.log_file.open("w", encoding="utf-8")' in source
+    assert "stdout=log_handle" in source
+    assert "process.wait(timeout=args.timeout_seconds)" in source
+    assert 'args.log_file.read_text(encoding="utf-8")' in source
+    assert "sys.stdout.write(output)" in source
+    assert "runpy.run_path" not in source
 
 
 def test_modern_loader_does_not_mutate_sys_path():
