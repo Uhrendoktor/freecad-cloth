@@ -55,6 +55,11 @@ def main():
         assert str(draft.Status) == "Extracted"
         assert len(tuple(piece.Sketch.Geometry)) == 4
 
+        Path("artifacts").mkdir(parents=True, exist_ok=True)
+        Path("artifacts/surface-pen.log").write_text(
+            "surface-pen-native-smoke=passed\n",
+            encoding="utf-8",
+        )
         print("surface-pen-native-smoke=passed", flush=True)
     finally:
         App.closeDocument(doc.Name)

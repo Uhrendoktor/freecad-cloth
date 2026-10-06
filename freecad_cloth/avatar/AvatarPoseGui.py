@@ -112,7 +112,7 @@ class SkeletonPoseController:
                 coin.SoMouseButtonEvent.getClassTypeId(),
                 self._mouse_event,
             )
-        except RuntimeError as exc:
+        except Exception as exc:
             if "No SWIG wrapped library loaded" not in str(exc):
                 raise
             self.mouse_callback = None
