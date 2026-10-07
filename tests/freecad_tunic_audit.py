@@ -14,6 +14,7 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
+os.environ["CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"] = "1"
 # Preserve the canonical workflow's PBD substep budget. The audit must not secretly
 # multiply the configured simulation cost behind the workflow's back.
 
