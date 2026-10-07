@@ -293,28 +293,17 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         triangles = tuple(getattr(surface, "triangles", ()) or ())
         if not vertices or not triangles:
             raise RuntimeError("solver collision surface has no inside/outside topology")
-        try:
-            import numpy as np
-            import trimesh
+        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
-            proximity = trimesh.Trimesh(
-                vertices=np.asarray(vertices, dtype=float),
-                faces=np.asarray(triangles, dtype=int),
-                process=False,
+        return sum(
+            1
+            for point in points
+            if point_inside_closed_mesh(
+                tuple(float(value) for value in point),
+                vertices,
+                triangles,
             )
-            return int(np.count_nonzero(proximity.contains(np.asarray(points, dtype=float))))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
-
-            return sum(
-                1
-                for point in points
-                if point_inside_closed_mesh(
-                    tuple(float(value) for value in point),
-                    vertices,
-                    triangles,
-                )
-            )
+        )
 
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
