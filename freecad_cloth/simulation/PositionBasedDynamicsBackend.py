@@ -12,7 +12,6 @@ from math import isfinite
 
 import numpy as np
 
-from freecad_cloth.common.FreeCADCollision import decimate_collision_surface
 from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
@@ -21,7 +20,6 @@ _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
-_PBD_COLLISION_TRIANGLES_DEFAULT = 8192
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
@@ -31,18 +29,6 @@ def _pbd_substeps() -> int:
     value = int(os.environ.get("CLOTH_PBD_SUBSTEPS", str(_PBD_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_PBD_SUBSTEPS must be >= 1")
-    return value
-
-
-def _pbd_collision_triangle_target() -> int:
-    value = int(
-        os.environ.get(
-            "CLOTH_PBD_COLLISION_TRIANGLES",
-            str(_PBD_COLLISION_TRIANGLES_DEFAULT),
-        )
-    )
-    if value < 0:
-        raise ValueError("CLOTH_PBD_COLLISION_TRIANGLES must be >= 0")
     return value
 
 
@@ -151,18 +137,11 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._stitch_compliance = 0.0
         self._source_collision_surface = collision_surface
-        target = _pbd_collision_triangle_target()
-        self._collision_surface = (
-            decimate_collision_surface(collision_surface, target)
-            if collision_surface is not None
-            else None
-        )
+        self._collision_surface = collision_surface
         if collision_surface is not None:
             print(
                 "cloth-pbd-collision-mesh "
-                f"source_triangles={len(collision_surface.triangles)} "
-                f"solver_triangles={len(self._collision_surface.triangles)} "
-                f"target={target or 'full'}",
+                f"source_triangles={len(collision_surface.triangles)} solver_triangles={len(collision_surface.triangles)}",
                 flush=True,
             )
         self._collision_mode = collision_mode
