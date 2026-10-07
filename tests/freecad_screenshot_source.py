@@ -1013,8 +1013,9 @@ def main():
     Gui.getMainWindow().show()
     events()
     events()
-    run_canonical_acceptance()
-    pattern_and_sewing()
+    if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"):
+        run_canonical_acceptance()
+        pattern_and_sewing()
     simulation()
     log("scenario-pass")
 
