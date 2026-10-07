@@ -286,13 +286,41 @@ def _seam_coherence(panels, seam_records, proxy=None):
 
 
 def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
-    """Count cloth vertices inside the exact collision surface enforced by the solver."""
-    surface = solver_collision_surface or collision_surface
+    """Count cloth vertices inside the authoritative FreeCAD mannequin target."""
+    shape = getattr(target, "Shape", None)
+    shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
+    if callable(shape_is_inside):
+        count = 0
+        for point in points:
+            try:
+                if bool(shape_is_inside(App.Vector(*point), 1e-6, True)):
+                    count += 1
+            except (AttributeError, TypeError, ValueError):
+                count = None
+                break
+        if count is not None:
+            return count
+
+    mesh = getattr(target, "Mesh", None)
+    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
+    if callable(mesh_is_inside):
+        count = 0
+        for point in points:
+            try:
+                if bool(mesh_is_inside(App.Vector(*point), 1e-6, True)):
+                    count += 1
+            except (AttributeError, TypeError, ValueError):
+                count = None
+                break
+        if count is not None:
+            return count
+
+    surface = collision_surface
     if surface is not None:
         vertices = tuple(getattr(surface, "vertices", ()) or ())
         triangles = tuple(getattr(surface, "triangles", ()) or ())
         if not vertices or not triangles:
-            raise RuntimeError("solver collision surface has no inside/outside topology")
+            raise RuntimeError("authoritative collision surface has no inside/outside topology")
         from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
         return sum(
@@ -304,21 +332,6 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
                 triangles,
             )
         )
-
-    shape = getattr(target, "Shape", None)
-    shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
-    mesh = getattr(target, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    checker = shape_is_inside if callable(shape_is_inside) else mesh_is_inside
-    if callable(checker):
-        count = 0
-        for point in points:
-            try:
-                if bool(checker(App.Vector(*point), 1e-6, True)):
-                    count += 1
-            except (AttributeError, TypeError, ValueError) as exc:
-                raise RuntimeError("mannequin inside/outside collision test failed") from exc
-        return count
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 def write_drape_metrics(
