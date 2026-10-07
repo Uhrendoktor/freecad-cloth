@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
-FRAME_BUDGET_MS = 1000.0 / 30.0
+FRAME_BUDGET_MS = 1000.0 / 60.0
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "30"))
 
 
@@ -76,7 +76,7 @@ def main():
         if (
             not result["finite"]
             or result["mean_frame_ms"] > FRAME_BUDGET_MS
-            or result["p95_frame_ms"] > 50.0
+            or result["p95_frame_ms"] > 20.0
         ):
             raise SystemExit(2)
     finally:
