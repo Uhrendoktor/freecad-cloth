@@ -42,6 +42,17 @@ class CollisionSurface:
         ).validate()
 
 
+def _is_closed_triangle_surface(triangles):
+    """Return whether every undirected triangle edge has exactly two incident faces."""
+    edge_counts = {}
+    for triangle in triangles:
+        a, b, c = (int(index) for index in triangle)
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            edge_counts[edge] = edge_counts.get(edge, 0) + 1
+    return bool(edge_counts) and all(count == 2 for count in edge_counts.values())
+
+
 def coarsen_collision_surface(
     surface: CollisionSurface, max_triangles: int = 1024
 ) -> CollisionSurface:
