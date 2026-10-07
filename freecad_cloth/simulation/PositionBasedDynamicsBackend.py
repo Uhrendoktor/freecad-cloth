@@ -11,14 +11,13 @@ from math import isfinite
 
 import numpy as np
 
-from freecad_cloth.shared.collision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
-_PBD_COLLISION_TRIANGLES_DEFAULT = 0
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
 _PBD_COLLISION_RESOLUTION_DEFAULT = 30
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
@@ -30,18 +29,6 @@ def _pbd_substeps() -> int:
     value = int(os.environ.get("CLOTH_PBD_SUBSTEPS", str(_PBD_SUBSTEPS_DEFAULT)))
     if value < 1:
         raise ValueError("CLOTH_PBD_SUBSTEPS must be >= 1")
-    return value
-
-
-def _pbd_collision_triangle_limit() -> int:
-    value = int(
-        os.environ.get(
-            "CLOTH_PBD_COLLISION_TRIANGLES",
-            str(_PBD_COLLISION_TRIANGLES_DEFAULT),
-        )
-    )
-    if value < 0:
-        raise ValueError("CLOTH_PBD_COLLISION_TRIANGLES must be >= 0")
     return value
 
 
@@ -123,19 +110,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._stitches = tuple((int(a), int(b)) for a, b in stitches)
         self._stitch_compliance = 0.0
         self._source_collision_surface = collision_surface
-        collision_limit = _pbd_collision_triangle_limit()
-        if collision_surface is not None and collision_limit:
-            collision_surface = coarsen_collision_surface(collision_surface, collision_limit)
-            print(
-                "cloth-pbd-collision "
-                f"source_triangles={len(self._source_collision_surface.triangles)} "
-                f"solver_triangles={len(collision_surface.triangles)} "
-                f"limit={collision_limit}",
-                flush=True,
-            )
-
         self._collision_surface = collision_surface
         self._collision_mode = collision_mode
+        self._collision_sdf = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -168,27 +145,6 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
 
         collision_surface = self._collision_surface
-        collision_limit = _pbd_collision_triangle_limit()
-        if collision_surface is not None and collision_limit:
-            if len(collision_surface.triangles) > collision_limit:
-                collision_surface = coarsen_collision_surface(
-                    collision_surface, collision_limit
-                )
-                self._collision_surface = collision_surface
-            if len(collision_surface.triangles) > collision_limit:
-                if collision_surface is self._source_collision_surface:
-                    print(
-                        "cloth-pbd-collision "
-                        f"budget={collision_limit} "
-                        f"preserved_closed_surface_triangles={len(collision_surface.triangles)}",
-                        flush=True,
-                    )
-                else:
-                    raise RuntimeError(
-                        "collision surface exceeds configured PositionBasedDynamics "
-                        f"triangle budget: {len(collision_surface.triangles)} > {collision_limit}"
-                    )
-
         vertex_data = self._pbd.VertexData()
         for vertex in collision_surface.vertices:
             vertex_data.addVertex(_to_pbd_position(vertex))
@@ -202,13 +158,32 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         mesh.buildNeighbors()
 
         resolution = _pbd_collision_resolution()
+        if self._collision_sdf is None:
+            print(
+                "cloth-pbd-collision-sdf build "
+                f"triangles={len(faces)} resolution={resolution}",
+                flush=True,
+            )
+            self._collision_sdf = self._pbd.CubicSDFCollisionDetection.generateSDF(
+                vertex_data,
+                mesh,
+                resolution,
+            )
+            if self._collision_sdf is None:
+                raise RuntimeError("PositionBasedDynamics failed to generate collision SDF")
+        else:
+            print(
+                "cloth-pbd-collision-sdf reuse "
+                f"triangles={len(faces)} resolution={resolution}",
+                flush=True,
+            )
+
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
             mesh,
             testMesh=True,
-            generateCollisionObject=True,
-            resolution=resolution,
+            sdf=self._collision_sdf,
         )
         rigid_body.setMass(0.0)
         rigid_body.setFrictionCoeff(0.5)
@@ -227,6 +202,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             f"tolerance_mm={max(configured_tolerance, surface_thickness):.3f}",
             flush=True,
         )
+
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()
