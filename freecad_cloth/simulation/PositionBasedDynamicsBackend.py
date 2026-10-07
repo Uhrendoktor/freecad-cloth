@@ -327,6 +327,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._pbd.TimeStepController.MAX_ITERATIONS,
             _PBD_ITERATIONS_DEFAULT,
         )
+        timestep.setValueUInt(
+            self._pbd.TimeStepController.MAX_ITERATIONS_V,
+            _PBD_ITERATIONS_DEFAULT,
+        )
 
     def step(
         self,
@@ -363,6 +367,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         timestep = self._sim.getTimeStep()
         timestep.setValueUInt(
             self._pbd.TimeStepController.MAX_ITERATIONS,
+            int(iterations),
+        )
+        timestep.setValueUInt(
+            self._pbd.TimeStepController.MAX_ITERATIONS_V,
             int(iterations),
         )
         timestep.step(self._model)
