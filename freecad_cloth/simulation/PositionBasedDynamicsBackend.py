@@ -7,7 +7,7 @@ DrapeTarget collision surface into the native pyPBD runtime.
 import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
-from math import ceil, isfinite
+from math import isfinite
 
 import numpy as np
 
@@ -20,7 +20,7 @@ _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _PBD_COLLISION_TRIANGLES_DEFAULT = 0
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
-_PBD_COLLISION_VOXEL_DEFAULT_MM = 12.0
+_PBD_COLLISION_RESOLUTION_DEFAULT = 30
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
@@ -57,48 +57,16 @@ def _pbd_collision_tolerance_mm() -> float:
     return value
 
 
-def _pbd_collision_voxel_mm() -> float:
-    value = float(
+def _pbd_collision_resolution() -> list[int]:
+    value = int(
         os.environ.get(
-            "CLOTH_PBD_COLLISION_VOXEL_MM",
-            str(_PBD_COLLISION_VOXEL_DEFAULT_MM),
+            "CLOTH_PBD_COLLISION_RESOLUTION",
+            str(_PBD_COLLISION_RESOLUTION_DEFAULT),
         )
     )
-    if value < 2.0:
-        raise ValueError("CLOTH_PBD_COLLISION_VOXEL_MM must be >= 2")
-    return value
-
-
-def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
-    voxel_mm = _pbd_collision_voxel_mm()
-    edge_lengths = []
-    seen_edges = set()
-    for triangle in surface.triangles:
-        for left, right in (
-            (int(triangle[0]), int(triangle[1])),
-            (int(triangle[1]), int(triangle[2])),
-            (int(triangle[2]), int(triangle[0])),
-        ):
-            edge = (min(left, right), max(left, right))
-            if edge in seen_edges:
-                continue
-            seen_edges.add(edge)
-            a, b = surface.vertices[left], surface.vertices[right]
-            edge_lengths.append(
-                ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
-            )
-    if edge_lengths:
-        edge_lengths.sort()
-        median_edge = edge_lengths[len(edge_lengths) // 2]
-        voxel_mm = min(voxel_mm, max(1e-6, median_edge * 0.5))
-    spans = []
-    for axis in range(3):
-        values = [float(vertex[axis]) for vertex in surface.vertices]
-        span_mm = max(values) - min(values)
-        # pyPBD's generated cubic SDF extends each axis by 100 mm on both sides.
-        cells = int(ceil((span_mm + 200.0) / voxel_mm))
-        spans.append(max(16, min(256, cells)))
-    return spans
+    if value < 16:
+        raise ValueError("CLOTH_PBD_COLLISION_RESOLUTION must be >= 16")
+    return [value, value, value]
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
@@ -233,7 +201,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
-        resolution = _pbd_collision_resolution(collision_surface)
+        resolution = _pbd_collision_resolution()
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
