@@ -141,7 +141,8 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     assert "def _pbd_collision_resolution(surface: CollisionSurface)" in backend
     assert "generateSDF(" in backend
     assert "resolution," in backend
-    assert "max(configured_tolerance, surface_thickness)" in backend
+    assert "representation_margin = 0.5 * _pbd_collision_voxel_mm()" in backend
+    assert "max(configured, thickness, representation_margin)" in backend
 
 
 def test_pbd_collision_sdf_is_cached_outside_backend_instance():
