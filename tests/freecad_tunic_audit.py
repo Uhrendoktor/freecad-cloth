@@ -52,6 +52,8 @@ replacements = {
     "            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance": "            y = min(target_ys) - clearance",
     "            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance": "            y = max(target_ys) + clearance",
     "upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))": "upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))",
+    "    from freecad_cloth.simulation.DrapeTarget import (\\n        collision_surface,\\n        refresh_drape_target,\\n        target_status,\\n    )": "    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source\\n    from freecad_cloth.simulation.DrapeTarget import (\\n        collision_surface,\\n        refresh_drape_target,\\n        target_status,\\n    )",
+    "    if target is None:\\n        raise RuntimeError(\"visual fixture did not create DrapeTarget\")\\n    target_source = getattr(target, \"SourceObject\", None)": "    if target is None:\\n        raise RuntimeError(\"visual fixture did not create DrapeTarget\")\\n    set_drape_target_source(scene, avatar, 6.0, 1.0)\\n    doc.recompute()\\n    target = scene.DrapeTarget\\n    target_source = getattr(target, \"SourceObject\", None)",
 }
 for old, new in replacements.items():
     if old not in source:
