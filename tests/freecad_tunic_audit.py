@@ -33,7 +33,7 @@ SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))"""
 replacements = {
-    "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(8.0, 0.025 * body_depth);",
+    "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(55.0, 0.18 * body_depth);",
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
@@ -52,8 +52,6 @@ replacements = {
     "            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance": "            y = min(target_ys) - clearance",
     "            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance": "            y = max(target_ys) + clearance",
     "upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))": "upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))",
-    "    from freecad_cloth.simulation.DrapeTarget import (\\n        collision_surface,\\n        refresh_drape_target,\\n        target_status,\\n    )": "    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source\\n    from freecad_cloth.simulation.DrapeTarget import (\\n        collision_surface,\\n        refresh_drape_target,\\n        target_status,\\n    )",
-    "    if target is None:\\n        raise RuntimeError(\"visual fixture did not create DrapeTarget\")\\n    target_source = getattr(target, \"SourceObject\", None)": "    if target is None:\\n        raise RuntimeError(\"visual fixture did not create DrapeTarget\")\\n    set_drape_target_source(scene, avatar, 6.0, 1.0)\\n    doc.recompute()\\n    target = scene.DrapeTarget\\n    target_source = getattr(target, \"SourceObject\", None)",
 }
 for old, new in replacements.items():
     if old not in source:
