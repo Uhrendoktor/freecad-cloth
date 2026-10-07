@@ -47,7 +47,8 @@ def decimate_collision_surface(
         for index in triangle
     ]
     simplified = Mesh.Mesh(facets)
-    simplified.decimate(target)
+    reduction = 1.0 - (float(target) / float(len(surface.triangles)))
+    simplified.decimate(0.25, max(0.0, min(0.99, reduction)))
     vertices, triangles = simplified.Topology
     result = CollisionSurface(
         tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in vertices),
