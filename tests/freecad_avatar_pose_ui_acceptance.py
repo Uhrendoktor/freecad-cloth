@@ -68,6 +68,7 @@ def run():
     progress("panel-created")
     Gui.Control.showDialog(panel)
     progress("panel-shown")
+    _capture_screen(Path("artifacts/avatar-pose-mode.png"))
     view = Gui.activeDocument().activeView()
     view.viewIsometric()
     view.fitAll()
