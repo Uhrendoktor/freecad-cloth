@@ -112,7 +112,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
         encoding="utf-8"
     )
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 4" in source
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
