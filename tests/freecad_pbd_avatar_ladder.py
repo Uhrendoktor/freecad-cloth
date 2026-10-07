@@ -769,7 +769,6 @@ def _run_and_shutdown():
         _progress(f"avatar-ladder: main-failed={exc!r}")
     finally:
         _boot(f"shutdown-status={status}")
-        _shutdown_gui()
         faulthandler.cancel_dump_traceback_later()
     os._exit(status)
 
