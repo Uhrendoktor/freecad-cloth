@@ -286,7 +286,36 @@ def _seam_coherence(panels, seam_records, proxy=None):
 
 
 def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
-    """Count cloth vertices that the authoritative mannequin considers interior."""
+    """Count cloth vertices inside the exact collision surface enforced by the solver."""
+    surface = solver_collision_surface or collision_surface
+    if surface is not None:
+        vertices = tuple(getattr(surface, "vertices", ()) or ())
+        triangles = tuple(getattr(surface, "triangles", ()) or ())
+        if not vertices or not triangles:
+            raise RuntimeError("solver collision surface has no inside/outside topology")
+        try:
+            import numpy as np
+            import trimesh
+
+            proximity = trimesh.Trimesh(
+                vertices=np.asarray(vertices, dtype=float),
+                faces=np.asarray(triangles, dtype=int),
+                process=False,
+            )
+            return int(np.count_nonzero(proximity.contains(np.asarray(points, dtype=float))))
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
+            return sum(
+                1
+                for point in points
+                if point_inside_closed_mesh(
+                    tuple(float(value) for value in point),
+                    vertices,
+                    triangles,
+                )
+            )
+
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     mesh = getattr(target, "Mesh", None)
@@ -301,32 +330,7 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
             except (AttributeError, TypeError, ValueError) as exc:
                 raise RuntimeError("mannequin inside/outside collision test failed") from exc
         return count
-    surface = solver_collision_surface or collision_surface
-    if surface is None:
-        raise RuntimeError("mannequin target does not expose an inside/outside collision test")
-    vertices = tuple(getattr(surface, "vertices", ()) or ())
-    triangles = tuple(getattr(surface, "triangles", ()) or ())
-    if not vertices or not triangles:
-        raise RuntimeError("authoritative collision surface has no inside/outside topology")
-    try:
-        import numpy as np
-        import trimesh
-
-        proximity = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(triangles, dtype=int),
-            process=False,
-        )
-        return int(np.count_nonzero(proximity.contains(np.asarray(points, dtype=float))))
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
-
-        return sum(
-            1
-            for point in points
-            if point_inside_closed_mesh(tuple(float(value) for value in point), vertices, triangles)
-        )
-
+    raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 def write_drape_metrics(
     panels,
