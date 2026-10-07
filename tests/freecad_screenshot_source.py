@@ -285,7 +285,7 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
-def _inside_target_count(points, target, collision_surface=None):
+def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
     """Count cloth vertices that the authoritative mannequin considers interior."""
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
@@ -301,10 +301,11 @@ def _inside_target_count(points, target, collision_surface=None):
             except (AttributeError, TypeError, ValueError) as exc:
                 raise RuntimeError("mannequin inside/outside collision test failed") from exc
         return count
-    if collision_surface is None:
+    surface = solver_collision_surface or collision_surface
+    if surface is None:
         raise RuntimeError("mannequin target does not expose an inside/outside collision test")
-    vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
-    triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+    vertices = tuple(getattr(surface, "vertices", ()) or ())
+    triangles = tuple(getattr(surface, "triangles", ()) or ())
     if not vertices or not triangles:
         raise RuntimeError("authoritative collision surface has no inside/outside topology")
     try:
@@ -389,7 +390,21 @@ def write_drape_metrics(
             diagnostics.append("below-hem-candidate")
         if float(metrics.centroid[2]) > float(shoulder_z) + upper_margin:
             diagnostics.append("centroid-above-shoulder-candidate")
-        penetrating_vertices = _inside_target_count(vertices, avatar, collision_surface)
+        backend_for_collision = getattr(proxy, "backend", None) if proxy is not None else None
+        solver_collision_surface = (
+            getattr(backend_for_collision, "solver_collision_surface", None)
+            if backend_for_collision is not None
+            else None
+        )
+        penetrating_vertices = _inside_target_count(
+            vertices,
+            avatar,
+            collision_surface,
+            solver_collision_surface,
+        )
+        record["penetration_surface"] = (
+            "solver" if solver_collision_surface is not None else "authoritative-target"
+        )
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
             if collision_surface is not None:
