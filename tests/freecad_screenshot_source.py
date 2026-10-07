@@ -303,17 +303,28 @@ def _inside_target_count(points, target, collision_surface=None):
         return count
     if collision_surface is None:
         raise RuntimeError("mannequin target does not expose an inside/outside collision test")
-    from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
-
     vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
     triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
     if not vertices or not triangles:
         raise RuntimeError("authoritative collision surface has no inside/outside topology")
-    return sum(
-        1
-        for point in points
-        if point_inside_closed_mesh(tuple(float(value) for value in point), vertices, triangles)
-    )
+    try:
+        import numpy as np
+        import trimesh
+
+        proximity = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=float),
+            faces=np.asarray(triangles, dtype=int),
+            process=False,
+        )
+        return int(np.count_nonzero(proximity.contains(np.asarray(points, dtype=float))))
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
+        return sum(
+            1
+            for point in points
+            if point_inside_closed_mesh(tuple(float(value) for value in point), vertices, triangles)
+        )
 
 
 def write_drape_metrics(
