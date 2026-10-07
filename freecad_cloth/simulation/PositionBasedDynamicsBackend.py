@@ -403,15 +403,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
     def positions(self) -> tuple[tuple[float, float, float], ...]:
         """Return current cloth particle positions in FreeCAD millimetres."""
         particles = self._model.getParticles()
-        return tuple(
-            _from_pbd_position(particles.getPosition(index))
-            for index in range(self._particle_count)
-        )
+        vertices = np.asarray(particles.getVertices())
+        if vertices.size == 0:
+            return ()
+        converted = vertices[:, (0, 2, 1)] * _MM
+        return tuple(tuple(row) for row in converted.tolist())
 
     def finite(self) -> bool:
         """Return whether all solver coordinates remain finite and bounded."""
-        return all(
-            isfinite(value) and abs(value) < 1e12
-            for position in self.positions()
-            for value in position
-        )
+        vertices = np.asarray(self._model.getParticles().getVertices())
+        if vertices.size == 0:
+            return True
+        return bool(np.isfinite(vertices).all() and np.all(np.abs(vertices) < 1e9))
