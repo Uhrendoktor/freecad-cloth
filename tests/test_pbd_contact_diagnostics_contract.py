@@ -82,6 +82,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "did not create a true interior pre-step state" in SOURCE
     assert "pbd-env: collision_mode=" in SOURCE
     assert "diagnostic-pbd-contact:" in WORKFLOW
+    assert "timeout-seconds: \"120\"" in WORKFLOW
     assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
     diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[0]
     assert "artifact-name: pbd-contact-diagnostics" in diagnostic
@@ -137,7 +138,6 @@ def test_progressive_collision_ladder_is_a_normal_gate():
     block = WORKFLOW.split("  simulation-ladder:", 1)[1]
     assert "if: ${{ github.event_name != 'schedule' }}" in WORKFLOW
     assert "CLOTH_PBD_SUBSTEPS: 8" in WORKFLOW
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in WORKFLOW
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in WORKFLOW
     assert "test-script: tests/freecad_pbd_cube_ladder.py" in block
     assert "validate_manifests.py simulation" in block

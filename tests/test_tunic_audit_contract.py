@@ -117,8 +117,6 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
-    assert "CLOTH_PBD_COLLISION_TRIANGLES: 2048" in workflow
-    assert "CLOTH_PBD_COLLISION_RESOLUTION: 30" in workflow
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
@@ -139,10 +137,24 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
-    assert "CLOTH_PBD_COLLISION_RESOLUTION" in backend
-    assert "def _pbd_collision_resolution()" in backend
-    assert "resolution=resolution" in backend
-    assert "max(configured_tolerance, surface_thickness)" in backend
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM" in backend
+    assert "def _pbd_collision_resolution(surface: CollisionSurface)" in backend
+    assert "generateSDF(" in backend
+    assert "resolution," in backend
+    assert "representation_margin = 0.5 * _pbd_collision_voxel_mm()" in backend
+    assert "max(configured, thickness, representation_margin)" in backend
+
+
+def test_pbd_collision_sdf_is_cached_outside_backend_instance():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_PBD_COLLISION_SDF_CACHE_KEY" in backend
+    assert "_PBD_COLLISION_SDF_CACHE" in backend
+    assert "cache-hit" in backend
+    assert "generateSDF(" in backend
+    assert "self._collision_sdf" in backend
+
 
 
 def test_pbd_ci_image_is_pinned_and_preinstalled():

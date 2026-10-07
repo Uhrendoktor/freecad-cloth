@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import (
     CollisionSurface,
-    coarsen_collision_surface,
     surface_from_triangles,
 )
 
