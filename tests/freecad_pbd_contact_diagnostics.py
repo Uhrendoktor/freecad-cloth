@@ -537,9 +537,8 @@ def _run_case(case_id, rung, scene, piece, camera):
         raise RuntimeError(f"{case_id} did not build a simulation backend")
     _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
     _progress(
-        "pbd-env: collision_mode={} collision_triangles={} backend_module={}".format(
+        "pbd-env: collision_mode={} backend_module={}".format(
             os.environ.get("CLOTH_PBD_COLLISION_MODE", "<unset>"),
-            os.environ.get("CLOTH_PBD_COLLISION_TRIANGLES", "<unset>"),
             getattr(
                 __import__(
                     "freecad_cloth.simulation.PositionBasedDynamicsBackend", fromlist=["__file__"]
