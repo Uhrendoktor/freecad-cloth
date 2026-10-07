@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 
 import FreeCAD as App
 import FreeCADGui as Gui
-import Part
 
 
 def _events():
@@ -83,6 +82,8 @@ def run_acceptance():
     doc = App.newDocument("AvatarProviderAcceptance")
     path = None
     try:
+        import Part
+        _progress("part-imported")
         source = doc.addObject("Part::Feature", "ProviderAcceptanceBody")
         _progress("document-created")
         source.Label = "Provider Acceptance Body"
