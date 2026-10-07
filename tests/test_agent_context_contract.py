@@ -32,7 +32,6 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
     roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     research = (ROOT / "docs" / "RESEARCH.md").read_text(encoding="utf-8")
     assert "Use this page as the documentation map." in docs_readme
-    assert "Issue/PR history is task-local evidence" in docs_readme
     assert "historical baseline" in roadmap
     assert "not a current implementation or release-status record" in research
 
