@@ -11,7 +11,6 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
 )
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.pattern.PatternSchema import PatternDocument, dumps, loads
 from freecad_cloth.sewing import SewingCommands as _SewMod
 from freecad_cloth.simulation import SimulationCommands as _SimMod
 
@@ -79,27 +78,6 @@ def test_invalid_geometry_is_rejected():
     except ValueError:
         return
     raise AssertionError("open boundary should fail")
-
-
-def test_pattern_document_round_trip_is_canonical():
-    document = PatternDocument(
-        "garment-1",
-        "Test garment",
-        pieces=[{"id": "front", "name": "Front"}, {"id": "back", "name": "Back"}],
-        seams=[{"id": "side", "piece_a": "front", "piece_b": "back"}],
-        metadata={"units": "mm"},
-    )
-    encoded = dumps(document)
-    assert dumps(loads(encoded)) == encoded
-
-
-def test_pattern_document_rejects_malformed_input():
-    for text in ["[]", '{"schema_version": 99, "pattern_id": "x", "name": "x"}']:
-        try:
-            loads(text)
-        except ValueError:
-            continue
-        raise AssertionError("malformed document should fail")
 
 
 def test_workbench_command_scopes():

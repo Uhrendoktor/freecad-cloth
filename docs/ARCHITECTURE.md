@@ -1,107 +1,86 @@
 # Architecture
 
-## Invariants
+## Authorities
 
-1. **FreeCAD owns geometry and document persistence.** Use Sketcher, Part/OCCT, document Links/Groups/Placement and normal recompute where they fit.
-2. **Cloth owns garment meaning.** Pattern pieces, semantic edge IDs, marks, seams, sewing operations, fitting metadata and validation state live in persistent Cloth objects.
-3. **The solver owns physics.** Particles, triangles, numerical constraints and solver state are derived from the Cloth model and may be rebuilt.
-4. **There is one semantic authority.** Never infer persistent seam identity from generated mesh edge numbering and never create a second pattern/scene/persistence model.
+1. FreeCAD owns document persistence and host geometry.
+2. Cloth domain objects own garment meaning.
+3. Simulation meshes, particles, constraints, collision acceleration data and solver state are disposable derived state.
+4. Each concept has one authority: no parallel JSON project database, collision-reference model, seam model, runtime solver or lifecycle state machine.
 
-## Module tree
+## Package boundaries
 
-Implementation code lives exclusively below `freecad_cloth/`:
-
-```text
 freecad_cloth/
-├── common/        # genuinely shared utilities and document adapters
-├── shared/        # host/solver-neutral contracts
-├── pattern/       # pattern domain, Sketcher authority, pattern GUI/commands
-├── sewing/        # sewing domain, graph/network, GUI/commands
-├── avatar/        # mannequin/avatar domain, fitting and collision
-├── simulation/    # draping, targets, solver, diagnostics, GUI/commands
-└── gui.py         # shared workbench registration base
-```
+- shared/ — host/domain-neutral immutable value contracts
+- common/ — reusable infrastructure; must not import domain packages
+- pattern/ — pattern domain, Sketcher adapter and UI/commands
+- sewing/ — canonical sewing graph and UI/commands
+- avatar/ — mannequin/provider/fitting domain and UI/commands
+- simulation/ — target, preparation, runtime solver and diagnostics
+- gui.py — shared FreeCAD workbench registration base
 
-Domain implementation lives under `freecad_cloth/`. FreeCAD itself has two supported loader layouts: the classic root `Init.py`/`InitGui.py` pair and the modern namespaced `freecad/freecad_cloth/__init__.py` + `init_gui.py` adapters. They are alternate entry points into the same package, not competing implementations.
-
-Internal imports use the package namespace (`freecad_cloth.<domain>.<module>`). `freecad_cloth.sewing.SeamGraph` is the canonical seam graph; semantic edge-reference authority lives in `freecad_cloth.pattern.SeamReference`. `freecad_cloth.sewing.SeamReference` is compatibility-only. Historical top-level imports are migrated at their callers instead of being restored.
-
-## Packaging metadata authority
-
-`package.xml` is FreeCAD Addon Manager metadata: it describes the installed addon/workbench content and its manifest-facing class anchor. `pyproject.toml` is Python build/package metadata for the `freecad-cloth` distribution. Do not assume their version values or content entries must match.
-
-The current FreeCAD bootstrap registers Pattern, Sewing, and Simulation workbench classes from the same implementation tree. The manifest's `<classname>` is packaging metadata for the addon content item; inspect `InitGui.py` or `freecad/freecad_cloth/init_gui.py` to enumerate the actual registered GUI workbenches.
+The two FreeCAD loader layouts are thin adapters into the same implementation tree.
 
 ## Dependency direction
 
-```text
-FreeCAD UI / commands
-        ↓
-Document adapters
-        ↓
-PatternPiece + PatternMark
-        ↓
-PatternIR + SewingGraph
-        ↓
-ClothSystem input model + DrapeTarget
-        ↓
-PositionBasedDynamics runtime solver
-        ↓
-Derived diagnostics
-```
+FreeCAD loader -> workbench commands/task panels -> domain objects/value models -> derived preparation/adapters -> ClothSimulationBackend -> PositionBasedDynamics.
 
-## Pattern model
+Application-level command modules may orchestrate multiple domains. Core domain/runtime modules must not import another domain merely to construct convenience objects.
 
-`PatternModel` contains the canonical in-memory/headless value types used by adapters and tests. The persisted FreeCAD document objects are the persistence authority; they must round-trip the same semantic state without creating a competing mutable model.
+## Pattern
 
-A PatternPiece persists a stable piece ID, authoritative 2D geometry reference, semantic edge identities, seam allowance, grainline/notches/internal marks, measurements/validation metadata and simulation-resolution hints. Native Sketcher is the interactive geometry editor; Cloth must not duplicate Sketcher's dimensional/constraint solver.
+PatternModel is the canonical in-memory pattern value model. PatternSketch and SketchAuthority adapt persistent PatternPiece state to native Sketcher geometry.
 
-Semantic edge identity must survive recompute/save/reload and fail closed when topology is deleted, split or merged. Never silently retarget a seam to a different edge. Repair/remap is explicit.
+Semantic edge identity is owned by pattern.SeamReference. Edge references contain a semantic ID plus an exact geometry/provenance signature. Missing or changed references fail closed; repair is explicit.
 
-Derived seam-allowance/offset geometry is for inspection/export and must not become the semantic authority.
+PatternIR is a derived processing representation, not a persistence model.
 
-## Sewing model
+## Sewing
 
-The persisted FreeCAD Seam object is the document-level source of truth. `PatternModel.Seam` is its canonical immutable in-memory/value representation used by headless code and adapters; `SewingPair`/`SeamConstraint` are compatibility or presentation adapters.
+The persisted FreeCAD Seam object is the document authority. PatternModel.Seam is the canonical immutable value representation. sewing.SeamGraph is the single processing graph.
 
-A seam/operation contains the participating piece/edge ranges, orientation/reversal, correspondence policy, stitch group/construction kind and validation state. The model must represent 1:1, 1:N, M:1 and M:N/free relationships without depending on particle or triangle counts.
+M:N sewing expansion, correspondence and stitch records are derived from canonical seams. No compatibility SeamConstraint, second SewingPair model or alternate seam-reference namespace is maintained.
 
-Selection is a GUI concern; committed sewing state is stored on the document authority and projected into the canonical in-memory `SeamGraph` for processing. Curved correspondence must be length-aware and report mismatch/reversal before commit.
+Persistence and domain modules do not depend on another domain's view module.
 
-## Fitting and DrapeTarget
+## Avatar and collision
 
-A fitting scene stores garment placements, arrangement points/anchors, wrap/superimpose/reset metadata, body measurements where available and a persistent `DrapeTarget` reference.
+Avatar providers produce a neutral shared.CollisionSurface plus parameters and landmarks. They do not depend on the simulation runtime.
 
-`DrapeTarget` is target-neutral and is implemented in `freecad_cloth.simulation.DrapeTarget`. Providers include the native human mannequin and ordinary FreeCAD Shape/PartDesign/Body/Mesh geometry. Both produce a solver-neutral `CollisionSurface`. Target edits invalidate derived collision state; stale targets must never be consumed by simulation.
+DrapeTarget owns persistent target identity and validity. FreeCAD tessellation is isolated in common.FreeCADCollision. The result is the single neutral CollisionSurface contract.
+
+There is no persistent AvatarCollision proxy object in the simulation model.
 
 ## Simulation lifecycle
 
-Persistent inputs include quality/resolution, material, collision settings, pins/stitches and solver controls. Particles/triangles/constraints/numerical state are derived. Input changes invalidate derived state.
+Persistent inputs include pattern references, target reference, quality/material settings, collision settings, pins, stitches and solver controls.
 
-Run/Step must check target and derived-state validity before advancing. Reset is recovery. Stale state includes an actionable reason and a rebuild/refresh path. Document recompute must remain safe when a target becomes stale.
+The simulation proxy owns one lifecycle state:
 
-## Diagnostics
+READY_FOR_SIMULATION
+ -> STALE when target/source inputs are no longer current
+ -> BLOCKED when authoritative semantic inputs cannot be simulated
 
-Use structured diagnostics with severity, semantic/object ID, location/range where possible, message and remediation. At minimum cover invalid pattern topology, invalid seam ranges, correspondence mismatch, missing marks, arrangement penetration, stale target/derived state and solver instability. Future fit/stress/strain/pressure maps should consume simulation results rather than become a second simulation model.
+DrapeTarget.target_status owns target validity. The simulation proxy owns derived-scene validity. There is no second recompute guard.
 
-## Persistence and interoperability
+SimulationQualityRuntime is the canonical quality-aware runtime and uses explicit mesh-builder composition. It never monkey-patches another module at runtime.
 
-Native FCStd is the project authority. JSON-like structures may support headless tests but must not become a second project database.
+## Solver boundary
 
-Production adapters may target DXF/AAMA/ASTM-oriented pattern exchange, SVG/TechDraw/PDF sheets and standard 3D avatar formats. External formats are adapters, not authorities.
+ClothBackend is a small solver-neutral adapter contract. PositionBasedDynamics is the only production backend.
 
-## UI consequence
+ClothSolver contains only Particle, DistanceConstraint and ClothSystem input data. It is not a second physics engine.
 
-Task panels use **Context → Primary action → Secondary actions → Parameters → Recovery**. Persistent data remains inspectable in the document tree/Property Editor. Transient selection/previews never replace the document model.
+CI verifies backend identity explicitly; sitecustomize does not alter production simulation classes.
 
-## Simulation implementation boundary
+## Diagnostics and persistence
 
-PositionBasedDynamics is the only runtime cloth solver. It provides the production XPBD simulation, sewing constraints, collision handling and solver state. `freecad_cloth.simulation.ClothBackend` is a small adapter contract so the document layer does not depend on PositionBasedDynamics APIs directly.
-
-`ClothSolver.py` is not a second solver: it contains only the lightweight `Particle`, `DistanceConstraint` and `ClothSystem` input model used to assemble deterministic solver inputs. It must not contain time integration, collision projection, constraint solving or a user-selectable backend path.
-
-A future native implementation may replace PositionBasedDynamics only by implementing the same backend contract. Rust is an optional acceleration technology, not a second application architecture.
+Diagnostics are derived evidence and live in simulation/. FCStd is the project authority. External JSON, SVG and DXF formats are adapters, not alternate project databases.
 
 ## Non-goals
 
-Do not replace Sketcher, introduce a second scene graph, require an external runtime for core operation, couple Sewing/Pattern to a specific solver, or promote proprietary formats/cloud services to core dependencies.
+Do not replace Sketcher, add a second scene graph, add a second cloth solver, add a second persistent garment database, or restore compatibility modules only to preserve historical internal imports.
+
+
+## Persisted authority and packaging metadata
+
+The persisted FreeCAD Seam object is the document-level source of truth; PatternModel.Seam is the canonical immutable in-memory/value representation, and other headless/value forms are derived representations for computation and validation. The repository keeps `package.xml` and `pyproject.toml` as separate packaging metadata surfaces. Do not assume their version values or content entries must match.

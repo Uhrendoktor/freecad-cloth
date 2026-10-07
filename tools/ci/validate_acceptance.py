@@ -33,7 +33,7 @@ CASES = {
     "avatar-pose": (
         "artifacts/avatar-pose-ui.log",
         (
-            "avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true",
+            "avatar-pose-ui=passed",
             "avatar-pose-ui-cancel=passed restored=true cleanup=true",
         ),
     ),

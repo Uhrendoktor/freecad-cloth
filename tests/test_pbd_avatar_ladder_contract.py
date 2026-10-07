@@ -40,8 +40,8 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert "PNG capture contains no visible rendered content" in SOURCE
     assert '">IIBBBBB"' in SOURCE
     assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in SOURCE
-    assert "Run avatar complexity ladder" in WORKFLOW
-    assert "Validate avatar ladder artifact" in WORKFLOW
+    assert "test-script: tests/freecad_pbd_avatar_ladder.py" in WORKFLOW
+    assert "artifact" in WORKFLOW.lower()
     assert "avatar-ladder-2482" in WORKFLOW
 
 

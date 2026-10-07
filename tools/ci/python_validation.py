@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
+import sys
+import traceback
 from pathlib import Path
 
 GROUPS = {
@@ -73,23 +76,26 @@ def main() -> int:
     """Run the canonical Python validation suite."""
     parser = argparse.ArgumentParser()
     parser.add_argument("group", choices=sorted(GROUPS))
-    args = parser.parse_args()
+    cli_args = list(sys.argv[1:])
+    if cli_args and Path(cli_args[0]).name == Path(__file__).name:
+        cli_args = cli_args[1:]
+    args = parser.parse_args(cli_args)
 
-    if args.group == "pytest":
-        command = ["python3", "-m", "pytest", "-q", *GROUPS[args.group]]
-        subprocess.run(command, check=True, timeout=60)
-        print(f"python-validation={args.group} passed")
-        return 0
-
-    subprocess.run(["python3", "-m", "compileall", "-q", "."], check=True, timeout=20)
-    for test in GROUPS[args.group]:
-        if not Path(test).is_file():
-            raise SystemExit(f"missing test: {test}")
-        print(f"running-script-test={test}", flush=True)
-        subprocess.run(["python3", test], check=True, timeout=60)
-    print(f"python-validation={args.group} passed")
+    tests = GROUPS[args.group]
+    missing = [test for test in tests if not Path(test).is_file()]
+    if missing:
+        raise SystemExit("missing tests: " + ", ".join(missing))
+    command = ["python3", "-m", "pytest", "-q", *tests]
+    print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
+    subprocess.run(command, check=True, timeout=110)
+    print(f"python-validation={args.group} passed", flush=True)
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+try:
+    status = main()
+except BaseException:
+    print(traceback.format_exc(), flush=True)
+    status = 1
+sys.stdout.flush()
+os._exit(status)

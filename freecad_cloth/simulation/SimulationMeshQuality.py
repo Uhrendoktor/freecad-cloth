@@ -5,7 +5,7 @@ from math import hypot
 
 def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
     """Provide the public quality piece mesh operation."""
-    from freecad_cloth.common.PatternSimulationAdapter import (
+    from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
@@ -151,32 +151,3 @@ def _polyline_parameter(point, polyline):
         candidate = (distance, offset + t * length)
         best = candidate if best is None or candidate < best else best
     return best[1] / total if best else 0.0
-
-
-def install_quality_mesh_patch():
-    """Patch the existing QualitySimulationProxy without duplicating solver code."""
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import QualitySimulationProxy
-
-    if getattr(QualitySimulationProxy, "_cloth_quality_mesh_patched", False):
-        return
-    from freecad_cloth.simulation import SimulationObjects
-
-    original = QualitySimulationProxy._build_pattern_scene
-
-    def build_pattern_scene(self, obj, pieces, signature):
-        previous = SimulationObjects._piece_mesh
-        SimulationObjects._piece_mesh = lambda piece, start_height, piece_ir=None: (
-            quality_piece_mesh(
-                piece,
-                start_height,
-                float(obj.ParticleDistance),
-                piece_ir=piece_ir,
-            )
-        )
-        try:
-            return original(self, obj, pieces, signature)
-        finally:
-            SimulationObjects._piece_mesh = previous
-
-    QualitySimulationProxy._build_pattern_scene = build_pattern_scene
-    QualitySimulationProxy._cloth_quality_mesh_patched = True

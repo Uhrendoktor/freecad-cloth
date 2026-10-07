@@ -1,73 +1,37 @@
 # Project structure
 
-The repository is both a normal Python project and a directly installable FreeCAD workbench. The package tree is the canonical home of implementation code.
+Implementation code lives under freecad_cloth/.
 
-```text
-.
-├── Init.py                         # FreeCAD Mod package marker; root by requirement
-├── InitGui.py                      # FreeCAD GUI bootstrap; root by requirement
-├── sitecustomize.py                # interpreter/CI hook; root by Python convention
-├── pyproject.toml                  # standard Python packaging metadata
-├── freecad_cloth/
-│   ├── __init__.py
-│   ├── gui.py                      # shared workbench registration base
-│   ├── common/                     # shared utilities and document adapters
-│   ├── shared/                     # solver/workbench-neutral contracts
-│   ├── avatar/                     # avatar model, fitting, collision, GUI
-│   ├── pattern/                    # pattern geometry, objects, IR, sketch, GUI
-│   ├── sewing/                     # canonical sewing graph, references, network, GUI
-│   └── simulation/                 # solver, draping, targets, diagnostics, GUI
-├── freecad/
-│   └── freecad_cloth/
-│       ├── __init__.py             # modern FreeCAD namespace entry point
-│       └── init_gui.py              # modern namespaced GUI bootstrap
-├── tests/
-├── docs/
-└── .github/workflows/
-    └── canonical-execution.yml     # the only CI workflow
-```
+freecad_cloth/
+- shared/ — neutral immutable contracts
+- common/ — domain-neutral infrastructure
+- pattern/ — pattern + Sketcher
+- sewing/ — sewing graph + sewing UI
+- avatar/ — avatar + fitting
+- simulation/ — drape + solver + diagnostics
+- gui.py — common FreeCAD workbench registration
 
-## Module-tree rule
+Ownership rules:
 
-All implementation modules belong under `freecad_cloth/<domain>/`. There are no top-level `Pattern*.py`, `Sewing*.py`, `Avatar*.py`, `Drape*.py`, `Simulation*.py`, or other domain implementation modules.
+shared must not import Pattern, Sewing, Avatar or Simulation.
 
-Use fully qualified imports such as:
+common must not import or implement a domain.
 
-```python
-from freecad_cloth.pattern.PatternCommands import create_pattern_piece
-from freecad_cloth.sewing.SewingNetworkCommands import create_sewing_network
-from freecad_cloth.simulation.DrapeTarget import create_drape_target
-```
+Pattern, Sewing, Avatar and Simulation own their production domain behavior. Cross-domain orchestration belongs in command/use-case modules.
 
-The root is reserved for FreeCAD bootstrap files, the Python `sitecustomize.py` interpreter hook, and project metadata/documentation. `sitecustomize.py` is infrastructure rather than a domain implementation module.
+Canonical implementations:
+- sewing/SeamGraph.py is the only seam graph.
+- pattern/SeamReference.py is the only semantic edge-reference implementation.
+- shared/collision.py is the only collision-surface value contract.
+- simulation/SimulationQualityRuntime.py is the only quality-aware runtime integration.
 
-## FreeCAD loader layouts
+The classic root Init.py/InitGui.py loader and the modern freecad/freecad_cloth loader register the same workbenches and contain no domain implementation.
 
-This repository deliberately supports both FreeCAD loader layouts:
+The repository root is reserved for FreeCAD bootstrap files, sitecustomize.py, metadata, documentation and tooling.
 
-- **Classic Mod layout:** repository root `Init.py`/`InitGui.py`, used when installed directly as `Mod/freecad-cloth/`.
-- **Modern namespaced layout:** `freecad/freecad_cloth/__init__.py` and `freecad/freecad_cloth/init_gui.py`, used by FreeCAD's namespaced addon/package loading path.
+Historical internal paths are migrated at callers. A compatibility surface requires an explicit external compatibility promise and a documented removal policy.
 
-These are two loader adapters for the same implementation package, not two workbench implementations. Keep their registered workbenches and resource paths aligned. The `freecad/` tree must contain only loader adapters; domain implementation remains in `freecad_cloth/`.
 
-## Workbench ownership
+## Loader layouts
 
-`pattern`, `sewing`, and `simulation` own their workbench registration, commands, domain objects, and GUI integration. `avatar` owns the human/avatar domain. `common` and `shared` contain only responsibility-neutral contracts/utilities and must not become alternate workbench implementations.
-
-The target-neutral drape contract is owned by `freecad_cloth.simulation.DrapeTarget`; `freecad_cloth.shared` contains only host/solver-neutral target references and collision contracts.
-
-## FreeCAD rule
-
-`Init.py` and `InitGui.py` remain at the repository root because FreeCAD discovers a workbench installed directly into a `Mod` directory through those filenames. They are thin bootstrap adapters; domain behavior lives in `freecad_cloth/`.
-
-The Python `sitecustomize.py` hook remains at root because Python loads that conventional module from the interpreter search path. It contains only CI/Qt compatibility behavior and is not part of the Cloth domain module tree.
-
-The package must not import FreeCAD at module import time unless the module is explicitly a GUI/host integration boundary.
-
-## Migration rule
-
-The module-tree migration is complete. Do not reintroduce duplicate domain implementations. In particular, `freecad_cloth.sewing.SeamGraph` is the canonical seam-graph module; do not recreate a `pattern/SeamGraph.py` implementation. `freecad_cloth.sewing.SeamReference` is a compatibility-only import surface; new Pattern-domain code imports `freecad_cloth.pattern.SeamReference` directly.
-
-Do not reintroduce root-level implementation shims to satisfy tests or legacy imports. Tests and internal callers must migrate to the canonical package namespace instead.
-
-When a historical import is discovered, update the caller and add/adjust a regression test at the canonical package path. Do not create a second implementation or compatibility module at repository root.
+The repository supports both the classic root FreeCAD loader and the modern package loader layouts; both resolve the same workbench implementations.

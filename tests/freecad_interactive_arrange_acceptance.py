@@ -4,7 +4,13 @@ The test drives the same viewport callback surface used by the task panel and
 verifies that a drag near an arrangement point becomes a persistent placement.
 """
 
+import os
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -130,15 +136,21 @@ def run():
     if controller._mouse_callback is not None or controller._location_callback is not None:
         raise RuntimeError("Interactive Arrange callbacks were not removed")
 
-    print("interactive-arrange=passed snapped=true persisted=true")
-    print("interactive-arrange-cleanup=passed callbacks-removed=true")
-    doc.close()
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/interactive-arrange.log").write_text(
+        "interactive-arrange=passed snapped=true persisted=true\n"
+        "interactive-arrange-cleanup=passed callbacks-removed=true\n",
+        encoding="utf-8",
+    )
+    print("interactive-arrange=passed snapped=true persisted=true", flush=True)
+    print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
+    App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
-    try:
-        run()
-    except Exception as exc:
-        print("interactive-arrange=failed", exc)
-        App.Console.PrintError("Interactive Arrange acceptance failed: %s\n" % exc)
-        sys.exit(1)
+try:
+    run()
+except BaseException as exc:
+    print("interactive-arrange=failed", exc, flush=True)
+    App.Console.PrintError("Interactive Arrange acceptance failed: %s\n" % exc)
+    os._exit(1)
+os._exit(0)

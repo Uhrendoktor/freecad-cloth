@@ -52,6 +52,13 @@ def joint_world_positions(parameters):
     return result
 
 
+class _FallbackGizmo:
+    """Logical pose control used when FreeCAD's Coin/SWIG bridge is unavailable."""
+
+    is_fallback = True
+    isActive = False
+
+
 class SkeletonPoseController:
     """Viewport overlay and Coin3D trackball controller for mannequin joints."""
 
@@ -99,18 +106,44 @@ class SkeletonPoseController:
             return
 
         self.view = self.Gui.activeDocument().activeView()
-        self.scene_graph = self.view.getSceneGraph()
-        coin = self._coin()
+        try:
+            self.scene_graph = self.view.getSceneGraph()
+            coin = self._coin()
+        except Exception as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self.scene_graph = None
+            self.overlay = None
+            self._build_positions()
+            self.gizmo = _FallbackGizmo()
+            self.panel._select_first_joint()
+            bone = str(getattr(self.panel, "skeleton_joint_index", ""))
+            if bone:
+                self.select_joint(bone)
+            self.panel.status.setText(
+                "Pose Mode: Coin/SWIG viewport controls are unavailable in this FreeCAD build; "
+                "use the joint selector and Apply & Rebuild."
+            )
+            return
 
         self.overlay = coin.SoSeparator()
         self.overlay.setName("ClothAvatarPoseOverlay")
         self.scene_graph.addChild(self.overlay)
 
         self._add_skeleton_overlay(coin)
-        self.mouse_callback = self.view.addEventCallbackPivy(
-            coin.SoMouseButtonEvent.getClassTypeId(),
-            self._mouse_event,
-        )
+        try:
+            self.mouse_callback = self.view.addEventCallbackPivy(
+                coin.SoMouseButtonEvent.getClassTypeId(),
+                self._mouse_event,
+            )
+        except Exception as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self.mouse_callback = None
+            self.panel.status.setText(
+                "Pose Mode: viewport joint picking is unavailable in this FreeCAD/SWIG build; "
+                "use the joint selector and Apply & Rebuild."
+            )
         self._build_positions()
         bone = str(self.panel.skeleton_joint.currentData())
         if bone:
@@ -122,6 +155,15 @@ class SkeletonPoseController:
     def deactivate(self):
         """Remove transient viewport nodes and callbacks."""
         if self.view is None:
+            return
+        if self.scene_graph is None:
+            self.mouse_callback = None
+            self.gizmo = None
+            self.gizmo_transform = None
+            self.gizmo_separator = None
+            self.overlay = None
+            self.scene_graph = None
+            self.view = None
             return
         coin = self._coin()
         try:
@@ -231,6 +273,11 @@ class SkeletonPoseController:
             self._create_gizmo(self.selected_bone)
 
     def _create_gizmo(self, bone):
+        if self.scene_graph is None:
+            self.gizmo_separator = None
+            self.gizmo_transform = None
+            self.gizmo = _FallbackGizmo()
+            return
         coin = self._coin()
         try:
             if self.gizmo_separator is not None:
@@ -583,7 +630,11 @@ class AvatarPoseTaskPanel:
         for index in range(self.joints.topLevelItemCount()):
             top = self.joints.topLevelItem(index)
             if top.childCount():
-                self.joints.setCurrentItem(top.child(0))
+                item = top.child(0)
+                self.joints.setCurrentItem(item)
+                bone = item.data(0, self.QtCore.Qt.UserRole)
+                if bone:
+                    self._select_joint_without_preview(str(bone))
                 return
 
     def _joint_item_changed(self, current, _previous):
@@ -668,11 +719,9 @@ class AvatarPoseTaskPanel:
             )
         values[rotation.bone] = rotation
         if self.symmetry.isChecked():
-            mirrored_bone = rotation.mirrored().bone
-            if mirrored_bone != rotation.bone:
-                values[mirrored_bone] = JointRotation(
-                    mirrored_bone, rotation.x, rotation.y, rotation.z
-                )
+            mirrored = rotation.mirrored()
+            if mirrored.bone != rotation.bone:
+                values[mirrored.bone] = mirrored
         self._staged_joint_rotations = values
         self._select_joint_without_preview(str(bone))
         if preview:

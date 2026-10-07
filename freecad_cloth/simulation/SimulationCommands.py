@@ -3,42 +3,45 @@
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
-def _drape_target_guard(target):
-    """Return a target status that must block solver advancement."""
-    try:
-        from freecad_cloth.simulation.DrapeTarget import target_status
-
-        status = target_status(target)
-    except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        return {
-            "blocked": True,
-            "state": "invalid",
-            "message": f"Cannot inspect drape target: {exc}",
-            "stale": True,
-            "reason": "target inspection failed",
-        }
-    blocked_states = {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}
-    return {"blocked": status["state"] in blocked_states, **status}
-
-
 def create_simulation():
     import FreeCAD as App
 
-    from freecad_cloth.simulation.SimulationMeshQuality import install_quality_mesh_patch
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import create_quality_simulation_scene
-
-    install_quality_mesh_patch()
     doc = App.ActiveDocument or App.newDocument("ClothSimulation")
     return create_quality_simulation_scene(doc)
+
+
+def create_quality_simulation_scene(doc):
+    """Create a quality-controlled simulation scene and its explicit mannequin target."""
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityRuntime import (
+        QualitySimulationProxy,
+        ensure_quality_properties,
+    )
+
+    scene = create_simulation_scene(doc)
+    avatar = doc.getObject("ClothAvatar") or create_avatar(doc=doc, attach_collision=False)
+    avatar.Label = "Cloth Human Avatar (MakeHuman)"
+    if hasattr(avatar, "ViewObject"):
+        avatar.ViewObject.Visibility = True
+    set_drape_target_source(
+        scene,
+        avatar,
+        float(getattr(avatar, "SkinOffset", 3.0)),
+        1.0,
+    )
+    ensure_quality_properties(scene)
+    scene.Proxy = QualitySimulationProxy()
+    doc.recompute()
+    return scene
 
 
 def create_drape_scene():
     import FreeCAD as App
 
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
-    return create_simulation_scene(doc)
+    return create_quality_simulation_scene(doc)
 
 
 def _is_simulation_scene(obj):
@@ -65,8 +68,10 @@ def _find_drape_target(doc):
 
 
 def _require_drape_target_ready(doc):
+    from freecad_cloth.simulation.DrapeTarget import target_status
+
     target = _find_drape_target(doc)
-    status = _drape_target_guard(target)
+    status = target_status(target)
     if status["state"] != "ready":
         raise RuntimeError(status["message"])
     return target
@@ -86,7 +91,7 @@ def edit_simulation():
     import FreeCAD as App
 
     from freecad_cloth.simulation.SimulationQualityGui import show_simulation_quality_task
-    from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
+    from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
     doc = App.ActiveDocument
     scene = _find_simulation(doc) if doc else None
@@ -154,7 +159,9 @@ def simulation_status():
         }
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
-    target_info = _drape_target_guard(target)
+    from freecad_cloth.simulation.DrapeTarget import target_status
+    target_info = target_status(target)
+    target_info = {"blocked": target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}, **target_info}
     return {
         "state": "ready" if finite and not target_info["blocked"] else "invalid/stale",
         "message": "Cloth Simulation ready"
@@ -213,11 +220,6 @@ COMMANDS = [
 ]
 
 try:
-    from freecad_cloth.simulation.SimulationStaleGuard import (
-        install as _install_drape_target_recompute_guard,
-    )
-
-    _install_drape_target_recompute_guard()
     import FreeCADGui as Gui
 
     if hasattr(Gui, "addCommand"):

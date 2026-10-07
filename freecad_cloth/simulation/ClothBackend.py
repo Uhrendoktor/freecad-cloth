@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from typing import Protocol, runtime_checkable
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface
+from freecad_cloth.shared.collision import CollisionSurface
 
 PINNED_STITCH_EPSILON_MM = 1.0e-9
 type Position = tuple[float, float, float]

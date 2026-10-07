@@ -263,6 +263,7 @@ def test_edit_selected_seam_side_selects_pattern_piece_before_set_edit():
     handoff = (
         "    Gui.Selection.clearSelection()\n"
         "    Gui.Selection.addSelection(piece)\n"
+        '    Gui.activateWorkbench("SketcherWorkbench")\n'
         "    Gui.activeDocument().setEdit(sketch.Name)"
     )
     edge_selection = '    Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))'

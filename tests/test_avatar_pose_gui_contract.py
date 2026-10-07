@@ -30,7 +30,7 @@ def test_pose_mode_is_viewport_first():
     assert "getPointOnScreen" in SOURCE
     assert "JOINT_PICK_RADIUS" in SOURCE
     assert "self.panel._stage_joint_rotation(" in SOURCE
-    assert "release to stage the pose" in SOURCE
+    assert "Release to stage the pose" in SOURCE
 
 
 def test_pose_mode_has_discoverable_joint_groups_and_presets():
@@ -42,9 +42,8 @@ def test_pose_mode_has_discoverable_joint_groups_and_presets():
 
 
 def test_pose_mode_keeps_precision_as_secondary_path():
-    assert 'self._sliders["x"]' in SOURCE
-    assert 'self._sliders["y"]' in SOURCE
-    assert 'self._sliders["z"]' in SOURCE
+    assert "self._sliders[axis]" in SOURCE
+    assert 'for axis, text in (("x", "X"), ("y", "Y"), ("z", "Z"))' in SOURCE
     assert 'box.setSuffix("°")' in SOURCE
     assert 'self.precision.setChecked(False)' in SOURCE
 

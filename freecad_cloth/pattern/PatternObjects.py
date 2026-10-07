@@ -3,6 +3,7 @@
 import ast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.shared.seam_colors import apply_seam_colors
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
@@ -69,7 +70,7 @@ def _native_edge_records(piece):
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
         return None
     try:
-        from freecad_cloth.common.SketchAuthority import _resolve_sketch_ir
+        from freecad_cloth.pattern.SketchAuthority import _resolve_sketch_ir
 
         piece_ir = _resolve_sketch_ir(piece)
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
@@ -304,8 +305,6 @@ class SeamProxy:
 
         document = getattr(obj, "Document", None)
         if document is not None:
-            from freecad_cloth.sewing.SewingView import apply_seam_colors
-
             apply_seam_colors(getattr(document, "Objects", ()))
         piece_a = getattr(obj, "PatternA", None)
         piece_b = getattr(obj, "PatternB", None)
@@ -349,15 +348,15 @@ class SeamProxy:
             pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
 
-        obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
+        obj.Shape = build_seam_visual_shape(
+            piece_a, piece_b, obj, sample_count=5, world_space=True
+        )
 
     def onDocumentRestored(self, obj):
         """Reapply canonical seam colors after FreeCAD restores a document proxy."""
         document = getattr(obj, "Document", None) if obj is not None else None
         if document is None:
             return
-        from freecad_cloth.sewing.SewingView import apply_seam_colors
-
         apply_seam_colors(getattr(document, "Objects", ()))
 
 
@@ -413,8 +412,6 @@ def add_seam(doc, seam: Seam):
         obj.EdgeBId, obj.EdgeBSignature = _seam_edge_id(piece_b, seam.edge_b, "B")
     obj.Proxy = SeamProxy()
     obj.Proxy.execute(obj)
-    from freecad_cloth.sewing.SewingView import apply_seam_colors
-
     apply_seam_colors(doc.Objects)
     from freecad_cloth.common.GarmentDocument import link_garment_object
 

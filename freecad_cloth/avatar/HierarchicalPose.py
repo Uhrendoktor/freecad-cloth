@@ -8,6 +8,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BODY_VERTEX_COUNT,
     MeshData,
     _authored_arm_rig_points,
+    _load_source_vertices,
     _make_source_fitted_mapper,
     _reoriented_triangles,
     fit_makehuman_mesh,
@@ -76,11 +77,11 @@ def _manual_pose_rotations(parameters):
 
 def _manual_pose_state(parameters, mesh):
     """Return posed mesh plus baseline/effective transforms for fitting landmarks."""
-    source_vertices = tuple(mesh.vertices)
+    source_vertices = _load_source_vertices()
     transform = _make_source_fitted_mapper(
         source_vertices, parameters, float(parameters.skin_offset)
     )
-    rest_vertices = tuple(transform(point) for point in source_vertices)
+    rest_vertices = tuple(transform(point) for point in mesh.vertices)
     skeleton = load_makehuman_skeleton()
     weights = load_makehuman_weights(len(rest_vertices))
     baseline_transforms = build_bone_transforms(

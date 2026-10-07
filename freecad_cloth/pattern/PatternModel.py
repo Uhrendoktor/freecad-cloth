@@ -12,16 +12,25 @@ Point = tuple[float, float]
 EdgeRef = Union[int, str]
 
 
+def _empty_points() -> list[Point]:
+    """Create an explicitly typed empty point list."""
+    return []
+
+
+def _empty_metadata() -> dict[str, object]:
+    """Create an explicitly typed empty metadata mapping."""
+    return {}
+
 @dataclass
 class PatternPiece:
     """A planar sewing piece expressed in millimetres."""
 
     name: str
-    outline: list[Point] = field(default_factory=list)
+    outline: list[Point] = field(default_factory=_empty_points)
     seam_allowance: float = 0.0
     grainline_angle: float = 0.0
     id: str = ""
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=_empty_metadata)
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
@@ -66,7 +75,7 @@ class Seam:
         if self.piece_a == self.piece_b and self.edge_a == self.edge_b:
             raise ValueError("a seam cannot connect an edge to itself")
         for edge in (self.edge_a, self.edge_b):
-            if not isinstance(edge, (int, str)) or isinstance(edge, bool):
+            if isinstance(edge, bool):
                 raise ValueError(
                     "seam edge references must be integer indices or stable identifiers"
                 )

@@ -9,7 +9,8 @@ HM08 polygon mesh; a CAD provider adapts an existing FreeCAD object.
 from dataclasses import dataclass
 
 from freecad_cloth.avatar.AvatarService import AvatarService
-from freecad_cloth.simulation.DrapeTarget import collision_surface
+from freecad_cloth.common.FreeCADCollision import surface_from_freecad
+from freecad_cloth.shared.collision import surface_from_triangles
 
 
 @dataclass(frozen=True)
@@ -60,8 +61,9 @@ class ParametricAvatarProvider(AvatarProvider):
         return self._service.surface()
 
     def collision_surface(self):
-        """Return a collision-ready surface representation."""
-        return self._service.collision_mesh()
+        """Return the neutral collision-surface contract."""
+        vertices, triangles = self._service.collision_mesh()
+        return surface_from_triangles(vertices, triangles, region="avatar")
 
     def landmarks(self):
         """Return the semantic avatar landmarks."""
@@ -99,12 +101,12 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
     def surface(self):
         """Return the current surface mesh."""
-        surface = collision_surface(self.source, self.deflection, self.thickness)
+        surface = surface_from_freecad(self.source, self.deflection, self.thickness)
         return surface.vertices, surface.triangles
 
     def collision_surface(self):
-        """Return a collision-ready surface representation."""
-        return self.surface()
+        """Return the neutral collision-surface contract."""
+        return surface_from_freecad(self.source, self.deflection, self.thickness)
 
     def landmarks(self):
         """Return the semantic avatar landmarks."""

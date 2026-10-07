@@ -1,13 +1,19 @@
 """Canonical FreeCAD/Xvfb acceptance for avatar provider lifecycle."""
 
 import contextlib
+import faulthandler
 import json
 import os
+import sys
 import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
-import Part
 
 
 def _events():
@@ -37,6 +43,14 @@ def _show_panel(panel):
         raise RuntimeError("avatar task panel did not become visible")
 
 
+def _progress(message):
+    trace = globals().get("_TRACE_HANDLE")
+    if trace is None:
+        return
+    trace.write(str(message) + "\n")
+    trace.flush()
+
+
 def _mesh_topology(mesh):
     topology = getattr(mesh, "Topology", None)
     if topology is None:
@@ -47,21 +61,38 @@ def _mesh_topology(mesh):
     )
 
 
+_TRACE_PATH = Path("artifacts/avatar-acceptance-progress.log")
+_TRACE_PATH.parent.mkdir(parents=True, exist_ok=True)
+_TRACE_HANDLE = _TRACE_PATH.open("w", encoding="utf-8", buffering=1)
+try:
+    faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
+    faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
+except (AttributeError, OSError, RuntimeError):
+    pass
+
+
 def run_acceptance():
+    _progress("start")
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status
 
+    _progress("before-document")
     doc = App.newDocument("AvatarProviderAcceptance")
     path = None
     try:
+        import Part
+        _progress("part-imported")
         source = doc.addObject("Part::Feature", "ProviderAcceptanceBody")
+        _progress("document-created")
         source.Label = "Provider Acceptance Body"
         source.Shape = Part.makeCylinder(35, 180, App.Vector(0, 0, 0))
         doc.recompute()
 
+        _progress("before-create-avatar")
         avatar = create_avatar()
+        _progress("after-create-avatar")
         target = doc.getObject("DrapeTarget")
         if target is None:
             raise RuntimeError("avatar creation did not create a persistent DrapeTarget")
@@ -84,8 +115,10 @@ def run_acceptance():
             for item in getattr(avatar, "Landmarks", [])
             if "|" in str(item)
         }
+        _progress("before-manual-pose-panel")
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
+        _progress("manual-pose-panel-shown")
         upperarm_index = panel.skeleton_joint.findText("Left shoulder")
         if upperarm_index < 0:
             raise RuntimeError("manual skeleton editor did not expose the left shoulder joint")
@@ -95,10 +128,14 @@ def run_acceptance():
             raise RuntimeError("manual skeleton editor did not enable symmetry by default")
         staged_pose = json.loads(panel._staged_parameters().to_json())
         joints = staged_pose["pose"]["joints"]
-        if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != 25.0:
+        if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != -25.0:
             raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
         if not panel._apply():
-            raise RuntimeError("manual skeleton joint edit was not applied")
+            raise RuntimeError(
+                "manual skeleton joint edit was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        _progress("manual-pose-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
@@ -125,7 +162,11 @@ def run_acceptance():
         _show_panel(panel)
         panel._reset_skeleton_pose()
         if not panel._apply():
-            raise RuntimeError("manual skeleton reset was not applied")
+            raise RuntimeError(
+                "manual skeleton reset was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        _progress("manual-pose-reset")
         _close_task()
         avatar = doc.getObject(identity)
         if str(avatar.JointPoseJSON) != '{"joints":{},"schema_version":1,"units":"deg"}':
@@ -136,6 +177,7 @@ def run_acceptance():
         target = doc.getObject("DrapeTarget")
         refresh_drape_target(target)
 
+        panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         if panel.provider.currentText() != "MakeHuman HM08 humanoid mesh":
             raise RuntimeError("avatar task panel did not load the persistent default provider")
@@ -147,7 +189,11 @@ def run_acceptance():
         if panel.provider_source_label.text() != "Source: Provider Acceptance Body":
             raise RuntimeError("task panel did not show the staged FreeCAD provider source")
         if not panel._apply():
-            raise RuntimeError("avatar provider swap was not applied")
+            raise RuntimeError(
+                "avatar provider swap was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        _progress("provider-swap-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
@@ -168,7 +214,11 @@ def run_acceptance():
         _show_panel(panel)
         panel.pose.setCurrentText("sewing")
         if not panel._apply():
-            raise RuntimeError("avatar pose edit was not applied")
+            raise RuntimeError(
+                "avatar pose edit was not applied; "
+                f"status={panel.status.text()!r}"
+            )
+        _progress("pose-edit-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
@@ -216,5 +266,10 @@ def run_acceptance():
 
 
 if __name__ == "__main__":
-    run_acceptance()
-    print("avatar provider acceptance passed")
+    try:
+        run_acceptance()
+        print("avatar provider acceptance passed", flush=True)
+        os._exit(0)
+    except BaseException as exc:
+        print("avatar provider acceptance failed", repr(exc), flush=True)
+        os._exit(1)

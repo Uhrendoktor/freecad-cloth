@@ -7,11 +7,11 @@ DrapeTarget collision surface into the native pyPBD runtime.
 import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
-from math import ceil, isfinite
+from math import isfinite
 
 import numpy as np
 
-from freecad_cloth.avatar.AvatarCollision import CollisionSurface, coarsen_collision_surface
+from freecad_cloth.shared.collision import CollisionSurface, coarsen_collision_surface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
@@ -20,7 +20,7 @@ _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _PBD_COLLISION_TRIANGLES_DEFAULT = 0
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
-_PBD_COLLISION_VOXEL_DEFAULT_MM = 12.0
+_PBD_COLLISION_RESOLUTION_DEFAULT = 30
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
@@ -57,28 +57,16 @@ def _pbd_collision_tolerance_mm() -> float:
     return value
 
 
-def _pbd_collision_voxel_mm() -> float:
-    value = float(
+def _pbd_collision_resolution() -> list[int]:
+    value = int(
         os.environ.get(
-            "CLOTH_PBD_COLLISION_VOXEL_MM",
-            str(_PBD_COLLISION_VOXEL_DEFAULT_MM),
+            "CLOTH_PBD_COLLISION_RESOLUTION",
+            str(_PBD_COLLISION_RESOLUTION_DEFAULT),
         )
     )
-    if value < 2.0:
-        raise ValueError("CLOTH_PBD_COLLISION_VOXEL_MM must be >= 2")
-    return value
-
-
-def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
-    voxel_mm = _pbd_collision_voxel_mm()
-    spans = []
-    for axis in range(3):
-        values = [float(vertex[axis]) for vertex in surface.vertices]
-        span_mm = max(values) - min(values)
-        # pyPBD's generated cubic SDF extends each axis by 100 mm on both sides.
-        cells = int(ceil((span_mm + 200.0) / voxel_mm))
-        spans.append(max(16, min(256, cells)))
-    return spans
+    if value < 16:
+        raise ValueError("CLOTH_PBD_COLLISION_RESOLUTION must be >= 16")
+    return [value, value, value]
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
@@ -180,6 +168,27 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
 
         collision_surface = self._collision_surface
+        collision_limit = _pbd_collision_triangle_limit()
+        if collision_surface is not None and collision_limit:
+            if len(collision_surface.triangles) > collision_limit:
+                collision_surface = coarsen_collision_surface(
+                    collision_surface, collision_limit
+                )
+                self._collision_surface = collision_surface
+            if len(collision_surface.triangles) > collision_limit:
+                if collision_surface is self._source_collision_surface:
+                    print(
+                        "cloth-pbd-collision "
+                        f"budget={collision_limit} "
+                        f"preserved_closed_surface_triangles={len(collision_surface.triangles)}",
+                        flush=True,
+                    )
+                else:
+                    raise RuntimeError(
+                        "collision surface exceeds configured PositionBasedDynamics "
+                        f"triangle budget: {len(collision_surface.triangles)} > {collision_limit}"
+                    )
+
         vertex_data = self._pbd.VertexData()
         for vertex in collision_surface.vertices:
             vertex_data.addVertex(_to_pbd_position(vertex))
@@ -192,7 +201,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
-        resolution = _pbd_collision_resolution(collision_surface)
+        resolution = _pbd_collision_resolution()
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,

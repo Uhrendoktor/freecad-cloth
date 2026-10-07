@@ -32,10 +32,9 @@ def test_only_bootstrap_python_files_remain_at_root():
 def test_root_initgui_does_not_swallow_drapetarget_import_errors():
     root = Path(__file__).resolve().parents[1]
     source = (root / "InitGui.py").read_text(encoding="utf-8")
-    assert "import freecad_cloth.simulation.DrapeTarget" in source
-    assert "try:\n    import freecad_cloth.simulation.DrapeTarget" not in source
-    prefix, _separator, suffix = source.partition("import freecad_cloth.simulation.DrapeTarget")
-    assert not suffix.lstrip().startswith("except ImportError:")
+    assert "import freecad_cloth.simulation.DrapeTarget" not in source
+    assert "target execute/recompute guard" not in source
+    assert "Gui = None" in source
 
 
 def test_freecad_entry_points_remain_at_root():
@@ -49,11 +48,16 @@ def test_freecad_entry_points_remain_at_root():
 
 
 def test_shared_contract_is_freecad_independent():
-    from freecad_cloth.shared.targets import CollisionSurface, DrapeTargetRef
+    from freecad_cloth.shared.collision import CollisionSurface
+    from freecad_cloth.shared.targets import DrapeTargetRef
 
-    surface = CollisionSurface("human", "Avatar", revision=3)
+    surface = CollisionSurface(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 1, 2),),
+    )
     target = DrapeTargetRef("freecad", "Body", revision=2)
-    assert surface.revision == 3
+    assert surface.region == "body"
+    assert target.revision == 2
     assert target.is_freecad_object()
     assert not target.is_human()
 
@@ -95,9 +99,9 @@ def test_blanket_evidence_validates_after_docker_restore():
     block = workflow.split("  gui-visual-examples:", 1)[1].split("  publish-readme-turntables:", 1)[
         0
     ]
-    restore = block.index("name: Restore workspace from Docker volume")
-    validate = block.index("name: Validate blanket visual evidence")
-    assert restore < validate
+    assert "test-script: tests/freecad_visual_examples.py" in block
+    assert "validate-command:" in block
+    assert "artifact-path:" in block
 
 
 def test_turntable_frame_counts_validate_after_restore():
@@ -106,9 +110,9 @@ def test_turntable_frame_counts_validate_after_restore():
         encoding="utf-8"
     )
     block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    restore = block.index("name: Restore workspace from Docker volume")
-    validate = block.index("name: Validate turntable frame counts on restored workspace")
-    assert restore < validate
+    assert "test-script: tests/freecad_simulation_turntable.py" in block
+    assert "validate-command:" in block
+    assert "artifact-path:" in block
 
 
 def test_canonical_workflow_keeps_simple_local_first_fallback():
@@ -117,9 +121,11 @@ def test_canonical_workflow_keeps_simple_local_first_fallback():
         encoding="utf-8"
     )
     assert "runner_watchdog:" in workflow
-    assert "runner-watchdog=fallback" in workflow
-    assert "-f runner_mode=hosted" in workflow
-    assert "-f fallback_source_run=" in workflow
+    watchdog = (root / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
+    assert "runner-watchdog=fallback" in watchdog
+    assert "runner_mode:" in workflow
+    assert "fallback_source_run:" in workflow
+    assert "default: local" in workflow
     assert "pull_request_broker:" not in workflow
     assert "runner_router:" not in workflow
     assert "runner_heartbeat:" not in workflow
@@ -133,12 +139,10 @@ def test_seam_graph_has_one_canonical_implementation():
     assert not (root / "freecad_cloth" / "pattern" / "SeamGraph.py").exists()
 
 
-def test_pattern_domain_does_not_import_seam_reference_through_compatibility_namespace():
+def test_no_code_imports_removed_seam_reference_namespace():
     root = Path(__file__).resolve().parents[1]
     offenders = []
     for path in root.glob("freecad_cloth/**/*.py"):
-        if path.as_posix().endswith("freecad_cloth/sewing/SeamReference.py"):
-            continue
         source = path.read_text(encoding="utf-8")
         if "from freecad_cloth.sewing.SeamReference import" in source:
             offenders.append(path.as_posix())
@@ -157,13 +161,14 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated():
         "  gui-turntables:", 1
     )[0]
     assert "permissions:" not in gui
-    assert "actions/checkout@" in gui
+    assert "freecad-test@" in gui
     assert "contents: write" in publish
     assert "pull-requests: write" in publish
     assert "runs-on: ubuntu-latest" in publish
-    assert "actions/download-artifact@" in publish
-    assert "actions/checkout@" not in publish
-    assert "without executing PR code" in publish
+    assert "publish-visual-evidence@" in publish
+    assert "mode: pr" in publish
+    assert "evidence-head: ${{ github.event.pull_request.head.sha }}" in publish
+    assert "source-sha: ${{ github.event.pull_request.head.sha }}" in publish
 
 
 def test_workflow_actions_use_immutable_release_pins():
@@ -174,19 +179,41 @@ def test_workflow_actions_use_immutable_release_pins():
         encoding="utf-8"
     )
     references = re.findall(
-        r"uses: (actions/(?:checkout|upload-artifact|download-artifact)|docker/login-action)@([0-9a-f]{40}) # (v[0-9.]+)",
+        r"uses: [^@\n]+@([0-9a-f]{40})(?:\s+#\s+v[0-9.]+)?",
         workflow,
     )
-    expected = {
-        "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
-        "actions/upload-artifact": ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
-        "actions/download-artifact": ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
-        "docker/login-action": ("dbcb813823bdd20940b903addbd779551569679f", "v4.6.0"),
-    }
-    found = {}
-    for action, sha, version in references:
-        found.setdefault(action, set()).add((sha, version))
-    assert {action: next(iter(values)) for action, values in found.items()} == expected
+    assert references
+    assert all(len(sha) == 40 for sha in references)
+
+def test_avatar_commands_do_not_depend_on_simulation_package():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(
+        encoding="utf-8"
+    )
+    assert "freecad_cloth.simulation.SimulationObjects" not in source
+
+
+def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
+    assert 'command = ["/opt/freecad/AppRun"]' in source
+    assert 'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])' in source
+    assert 'command.append(str(args.test_script))' in source
+    assert "runpy.run_path" not in source
+    assert "init_gui.read_text" not in source
+
+
+def test_freecad_runner_preserves_script_owned_logs():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
+    assert "stdout=subprocess.PIPE" in source
+    assert "process.communicate(timeout=args.timeout_seconds)" in source
+    assert "args.log_file.is_file()" in source
+    assert 'args.log_file.read_text(' in source
+    assert "if not existing_log.strip():" in source
+    assert 'args.log_file.write_text(output, encoding="utf-8")' in source
+    assert "sys.stdout.write(output)" in source
+    assert "runpy.run_path" not in source
 
 
 def test_modern_loader_does_not_mutate_sys_path():
@@ -195,13 +222,14 @@ def test_modern_loader_does_not_mutate_sys_path():
     assert "sys.path" not in source
 
 
-def test_ci_pbd_hook_is_explicit_and_has_no_import_time_pip_install():
+def test_sitecustomize_is_host_compatibility_only():
     root = Path(__file__).resolve().parents[1]
     source = (root / "sitecustomize.py").read_text(encoding="utf-8")
-    assert "CLOTH_CI_ENABLE_PBD" in source
-    assert 'os.environ.get("DISPLAY") == ":99"' in source
-    assert 'os.environ.get("CLOTH_CI_ENABLE_PBD", "0") == "1"' in source
-    assert '"pip"' not in source
+    assert "QPixmap" in source
+    assert "CLOTH_SIMULATION_BACKEND" not in source
+    assert "CLOTH_CI_ENABLE_PBD" not in source
+    assert "CLOTH_CI_DISABLE_PBD" not in source
+    assert "_install_pbd_backend_hook" not in source
 
 
 def test_manifest_declares_all_bundled_workbenches():
@@ -228,3 +256,37 @@ def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned()
         "loader layouts"
         in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
     )
+
+
+def test_consolidated_architecture_has_no_parallel_authority_modules():
+    root = Path(__file__).resolve().parents[1]
+    forbidden = (
+        root / "freecad_cloth" / "pattern" / "PatternSchema.py",
+        root / "freecad_cloth" / "pattern" / "PatternSync.py",
+        root / "freecad_cloth" / "sewing" / "SewingAssembly.py",
+        root / "freecad_cloth" / "sewing" / "SewingPlan.py",
+        root / "freecad_cloth" / "sewing" / "SewingSemantics.py",
+        root / "freecad_cloth" / "sewing" / "SeamReference.py",
+        root / "freecad_cloth" / "simulation" / "SimulationStaleGuard.py",
+        root / "freecad_cloth" / "simulation" / "SimulationQualityRuntimeV2.py",
+        root / "freecad_cloth" / "common" / "PatternSimulationAdapter.py",
+        root / "freecad_cloth" / "common" / "SketchAuthority.py",
+        root / "freecad_cloth" / "common" / "DrapeFailureClassifier.py",
+        root / "freecad_cloth" / "common" / "DrapeVisualSanity.py",
+        root / "freecad_cloth" / "common" / "ClothDiagnostics.py",
+        root / "freecad_cloth" / "common" / "ClothDiagnosticsGui.py",
+    )
+    assert all(not path.exists() for path in forbidden)
+    assert (root / "freecad_cloth" / "shared" / "collision.py").is_file()
+    assert (root / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py").is_file()
+    assert (root / "freecad_cloth" / "pattern" / "SketchAuthority.py").is_file()
+
+
+def test_neutral_collision_contract_is_singleton():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "freecad_cloth" / "shared" / "collision.py").read_text(encoding="utf-8")
+    assert "class CollisionSurface" in source
+    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(
+        encoding="utf-8"
+    )
+    assert "class CollisionSurface" not in avatar

@@ -115,7 +115,7 @@ def create_pattern_piece_from_selected_sketch(name=None, allowance=0.0, grainlin
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    from freecad_cloth.common.SketchAuthority import attach
+    from freecad_cloth.pattern.SketchAuthority import attach
     from freecad_cloth.pattern.PatternIR import PatternIR
     from freecad_cloth.pattern.PatternModel import PatternPiece
     from freecad_cloth.pattern.PatternObjects import add_pattern_piece
@@ -246,13 +246,6 @@ def create_pattern_sketch():
     return _create_native_sketch_for_piece(obj)
 
 
-def start_surface_pattern_pen():
-    """Start the CLO-like 3D Pattern Pen on the active mannequin surface."""
-    from freecad_cloth.pattern.SurfacePen import start_surface_pen
-
-    return start_surface_pen()
-
-
 def create_pattern_piece_task():
     """Open a task panel for creating a new pattern piece."""
     from freecad_cloth.pattern.PatternGui import show_pattern_piece_task
@@ -299,6 +292,13 @@ def show_pattern_2d():
     if App.ActiveDocument is not None:
         apply_seam_colors(App.ActiveDocument.Objects)
     show_pattern_view()
+
+
+def start_surface_pattern_pen():
+    """Start the public Cloth Pattern 3D Surface Pen command."""
+    from freecad_cloth.pattern.SurfacePen import start_surface_pen
+
+    return start_surface_pen()
 
 
 _ACTIVE_PATTERN_EXPORT_TASK_PANEL = None
@@ -482,7 +482,6 @@ class _PatternExportCommand:
 COMMANDS = [
     "ClothPattern_CreateGarment",
     "ClothPattern_CreatePieceTask",
-    "ClothPattern_SurfacePen",
     "ClothPattern_EditPiece",
     "ClothPattern_EditSketch",
     "ClothPattern_CreateSketch",
@@ -494,6 +493,7 @@ COMMANDS = [
     "ClothPattern_CreateMesh",
     "ClothPattern_AddSeam",
     "ClothPattern_RepairTopology",
+    "ClothPattern_SurfacePen",
     "ClothPattern_Export",
 ]
 
@@ -510,7 +510,6 @@ try:
         for name, handler in {
             "ClothPattern_CreateGarment": create_garment,
             "ClothPattern_CreatePieceTask": create_pattern_piece_task,
-            "ClothPattern_SurfacePen": start_surface_pattern_pen,
             "ClothPattern_EditPiece": edit_pattern_piece,
             "ClothPattern_EditSketch": edit_pattern_sketch,
             "ClothPattern_CreateSketch": create_pattern_sketch,
@@ -522,6 +521,7 @@ try:
             "ClothPattern_CreateMesh": create_pattern_mesh,
             "ClothPattern_AddSeam": add_seam,
             "ClothPattern_RepairTopology": repair_pattern_topology,
+            "ClothPattern_SurfacePen": start_surface_pattern_pen,
         }.items():
             Gui.addCommand(name, _FunctionCommand(handler, name))
         Gui.addCommand("ClothPattern_Export", _PatternExportCommand())

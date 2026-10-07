@@ -258,7 +258,6 @@ def _landmarks(params):
 def generate_mesh(params):
     """Return ``(vertices, triangles, landmarks)`` from the real human mesh."""
     params.validate()
-    from freecad_cloth.avatar.HumanoidMesh import build_humanoid_mesh
+    from freecad_cloth.avatar.HierarchicalPose import generate_hierarchical_mesh
 
-    mesh = build_humanoid_mesh(params)
-    return mesh.vertices, mesh.triangles, _landmarks(params)
+    return generate_hierarchical_mesh(params)

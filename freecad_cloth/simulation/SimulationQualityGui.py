@@ -38,18 +38,12 @@ class SimulationQualityTaskPanel:
     def __init__(self, scene=None):
         App, Gui, QtCore, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+        from freecad_cloth.simulation.SimulationQualityRuntime import (
             apply_quality_preset,
             ensure_quality_properties,
         )
 
-        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = (
-            App,
-            Gui,
-            QtCore,
-            QtWidgets,
-            QtGui,
-        )
+        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None
@@ -237,7 +231,7 @@ class SimulationQualityTaskPanel:
 
     @staticmethod
     def _double(low, high, value, decimals):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         widget = QtWidgets.QDoubleSpinBox()
         widget.setRange(low, high)
         widget.setDecimals(decimals)
@@ -246,7 +240,7 @@ class SimulationQualityTaskPanel:
 
     @staticmethod
     def _spin(low, high, value):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         widget = QtWidgets.QSpinBox()
         widget.setRange(low, high)
         widget.setValue(value)
@@ -352,7 +346,7 @@ class SimulationQualityTaskPanel:
 
     def _ensure_scene(self):
         if self.scene is None:
-            from freecad_cloth.simulation.SimulationQualityRuntimeV2 import (
+            from freecad_cloth.simulation.SimulationQualityRuntime import (
                 create_quality_simulation_scene,
             )
 
@@ -449,7 +443,7 @@ class SimulationQualityTaskPanel:
         if self.scene is None:
             self._refresh("Create or select a Cloth Simulation object.")
             return
-        from freecad_cloth.simulation.SimulationQualityRuntimeV2 import ensure_quality_properties
+        from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
         ensure_quality_properties(self.scene)
         self._load_widgets_only()
@@ -597,12 +591,12 @@ class SimulationQualityTaskPanel:
         return True
 
     def getStandardButtons(self):
-        _, _, QtWidgets, _ = _qt()
+        _, _, _QtCore, QtWidgets, _QtGui = _qt()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
 def show_simulation_quality_task(scene=None):
-    _App, Gui, _QtWidgets, _QtGui = _qt()
+    _App, Gui, _QtCore, _QtWidgets, _QtGui = _qt()
     panel = SimulationQualityTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel

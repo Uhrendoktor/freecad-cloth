@@ -199,22 +199,9 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
 
 def _ensure_collision(obj):
     """Maintain the legacy collision proxy as a derived display adapter only."""
-    from freecad_cloth.simulation.SimulationObjects import create_avatar_collision
+    from freecad_cloth.avatar.AvatarCollision import ensure_collision_proxy
 
-    avatar = obj.Document.getObject("AvatarCollision")
-    if avatar is None:
-        avatar = create_avatar_collision(obj.Document, obj, thickness=2.0, deflection=1.0)
-    else:
-        avatar.SourceObject = obj
-        avatar.CollisionThickness = 2.0
-        avatar.CollisionDeflection = 1.0
-        from freecad_cloth.avatar.AvatarCollision import surface_from_freecad
-
-        surface = surface_from_freecad(obj, 1.0, 2.0)
-        avatar.CollisionType = "MeshSurface"
-        avatar.CollisionVertexCount = len(surface.vertices)
-        avatar.CollisionTriangleCount = len(surface.triangles)
-    return avatar
+    return ensure_collision_proxy(obj.Document, obj, thickness=2.0, deflection=1.0)
 
 
 def _ensure_drape_target(obj):

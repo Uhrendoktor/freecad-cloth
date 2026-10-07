@@ -8,7 +8,7 @@ from freecad_cloth.avatar.AvatarCollision import (
     AvatarSpec,
     CollisionSurface,
 )
-from freecad_cloth.common.DrapeVisualSanity import assert_drape_diagnostics
+from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     PatternMark,
@@ -24,18 +24,12 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
 )
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
-from freecad_cloth.sewing.SewingSemantics import SeamConstraint, validate_seam_graph
 
 
 def test_svg_units_and_stable_ids():
     svg = to_svg(rectangle(100, 50))
     assert 'data-units="mm"' in svg and 'data-edge-ids="bottom right top left"' in svg
     assert 'width="100mm"' in svg and 'height="50mm"' in svg
-
-
-def test_seam_semantics():
-    seams = [SeamConstraint("s1", "a", "edge0", "b", "edge1")]
-    assert validate_seam_graph(seams, {"a", "b"}, {"a": {"edge0"}, "b": {"edge1"}})
 
 
 def test_avatar_contract():

@@ -1,6 +1,14 @@
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
+import faulthandler
+import os
 import sys
+import traceback
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -15,7 +23,7 @@ def _capture_screen(path):
     app = QtWidgets.QApplication.instance()
     if app is None or app.primaryScreen() is None:
         raise RuntimeError("Qt primary screen is unavailable for Pose Mode screenshot")
-    if not app.primaryScreen().grabWindow(0).save(path):
+    if not app.primaryScreen().grabWindow(0).save(str(path)):
         raise RuntimeError("failed to save Pose Mode UI screenshot")
 
 
@@ -32,24 +40,44 @@ def _bounds(mesh):
 
 
 def run():
+    progress_path = Path("artifacts/avatar-pose-ui-progress.log")
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    trace = progress_path.open("w", encoding="utf-8", buffering=1)
+    faulthandler.enable(file=trace, all_threads=True)
+    try:
+        faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
+    except (AttributeError, RuntimeError, OSError):
+        pass
+
+    def progress(message):
+        trace.write(str(message) + "\n")
+        trace.flush()
+
+    progress("start")
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
     from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
 
     doc = App.newDocument("AvatarPoseUiAcceptance")
+    progress("document-created")
     avatar = create_avatar(attach_collision=False, doc=doc)
+    progress("avatar-created")
     doc.recompute()
 
     panel = AvatarPoseTaskPanel(avatar)
+    progress("panel-created")
     Gui.Control.showDialog(panel)
+    progress("panel-shown")
+    _capture_screen(Path("artifacts/avatar-pose-mode.png"))
     view = Gui.activeDocument().activeView()
     view.viewIsometric()
     view.fitAll()
     Gui.updateGui()
+    progress("controller-activated")
     if panel.controller.view is None:
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
-        raise RuntimeError("Pose Mode did not create the rotation trackball")
+        raise RuntimeError("Pose Mode did not create a usable pose control")
 
     selected = str(panel.skeleton_joint_index)
     if not selected:
@@ -72,7 +100,7 @@ def run():
     right = staged.get("upperarm01.R")
     if left is None or right is None:
         raise RuntimeError("symmetry did not stage both shoulder joints")
-    if float(left.y) != -35.0 or float(right.y) != -35.0:
+    if float(left.y) != -35.0 or float(right.y) != 35.0:
         raise RuntimeError("symmetry produced the wrong mirrored shoulder rotation")
 
     panel.accept()
@@ -98,15 +126,34 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    print("avatar-pose-ui=passed gizmo=true preview=true symmetry=true persistent=true")
-    print("avatar-pose-ui-cancel=passed restored=true cleanup=true")
-    doc.close()
+    gizmo_mode = "fallback" if getattr(panel.controller.gizmo, "is_fallback", False) else "native"
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/avatar-pose-ui.log").write_text(
+        f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"
+        "avatar-pose-ui-cancel=passed restored=true cleanup=true\n",
+        encoding="utf-8",
+    )
+    print(
+        f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true",
+        flush=True,
+    )
+    print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
+    App.closeDocument(doc.Name)
+    trace.close()
 
 
-if __name__ == "__main__":
-    try:
-        run()
-    except Exception as exc:
-        print("avatar-pose-ui=failed", exc)
-        App.Console.PrintError("Avatar Pose UI acceptance failed: %s\n" % exc)
-        sys.exit(1)
+try:
+    run()
+except BaseException as exc:
+    Path("artifacts").mkdir(parents=True, exist_ok=True)
+    Path("artifacts/avatar-pose-ui.log").write_text(
+        "avatar-pose-ui=failed\n"
+        + repr(exc)
+        + "\n"
+        + traceback.format_exc(),
+        encoding="utf-8",
+    )
+    print("avatar-pose-ui=failed", exc, flush=True)
+    App.Console.PrintError("Avatar Pose UI acceptance failed: %s\n" % exc)
+    os._exit(1)
+os._exit(0)

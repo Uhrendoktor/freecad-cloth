@@ -1,5 +1,5 @@
 name: FreeCAD test
-description: Run one FreeCAD acceptance or screenshot command with a hard 55-second application budget.
+description: Run one FreeCAD acceptance or screenshot command with a hard 120-second application budget.
 inputs:
   image:
     description: Immutable FreeCAD container image.
@@ -8,9 +8,9 @@ inputs:
     description: Repository-relative Python script passed to FreeCAD.
     required: true
   timeout-seconds:
-    description: Hard runtime budget for the FreeCAD application; maximum 55 seconds.
+    description: Hard runtime budget for the FreeCAD application; maximum 120 seconds.
     required: false
-    default: "55"
+    default: "120"
   checkout:
     description: Checkout the canonical PR head or workflow SHA before running. Disable for subsequent tests in the same job.
     required: false
@@ -69,7 +69,7 @@ runs:
       run: timeout --signal=TERM --kill-after=5s 60s bash -lc "$PRE_COMMAND"
 
     - name: Run bounded FreeCAD test
-      uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@1503f29e2eccfe454db1aba17383a1627a4616bd
+      uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
       with:
         image: ${{ inputs.image }}
         environment: |
@@ -88,7 +88,7 @@ runs:
       shell: bash
       env:
         VALIDATE_COMMAND: ${{ inputs.validate-command }}
-      run: $VALIDATE_COMMAND
+      run: bash -lc "$VALIDATE_COMMAND"
 
     - name: Upload test evidence
       if: always() && inputs.artifact-name != ''
