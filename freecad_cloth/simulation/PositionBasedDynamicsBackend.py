@@ -71,6 +71,26 @@ def _pbd_collision_voxel_mm() -> float:
 
 def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
     voxel_mm = _pbd_collision_voxel_mm()
+    edge_lengths = []
+    seen_edges = set()
+    for triangle in surface.triangles:
+        for left, right in (
+            (int(triangle[0]), int(triangle[1])),
+            (int(triangle[1]), int(triangle[2])),
+            (int(triangle[2]), int(triangle[0])),
+        ):
+            edge = (min(left, right), max(left, right))
+            if edge in seen_edges:
+                continue
+            seen_edges.add(edge)
+            a, b = surface.vertices[left], surface.vertices[right]
+            edge_lengths.append(
+                ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
+            )
+    if edge_lengths:
+        edge_lengths.sort()
+        median_edge = edge_lengths[len(edge_lengths) // 2]
+        voxel_mm = min(voxel_mm, max(1e-6, median_edge * 0.5))
     spans = []
     for axis in range(3):
         values = [float(vertex[axis]) for vertex in surface.vertices]
