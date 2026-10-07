@@ -23,7 +23,7 @@ def _capture_screen(path):
     app = QtWidgets.QApplication.instance()
     if app is None or app.primaryScreen() is None:
         raise RuntimeError("Qt primary screen is unavailable for Pose Mode screenshot")
-    if not app.primaryScreen().grabWindow(0).save(path):
+    if not app.primaryScreen().grabWindow(0).save(str(path)):
         raise RuntimeError("failed to save Pose Mode UI screenshot")
 
 
