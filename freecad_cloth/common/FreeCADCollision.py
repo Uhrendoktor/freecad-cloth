@@ -27,33 +27,3 @@ def surface_from_freecad(obj, deflection: float = 1.0, thickness: float = 0.0) -
     ).validate()
 
 
-
-def decimate_collision_surface(
-    surface: CollisionSurface, target_triangles: int
-) -> CollisionSurface:
-    """Derive a PBD collision mesh with FreeCAD's native mesh simplifier."""
-    target = int(target_triangles)
-    surface.validate()
-    if target < 0:
-        raise ValueError("target_triangles must be >= 0")
-    if target == 0 or len(surface.triangles) <= target:
-        return surface
-
-    import Mesh
-
-    import FreeCAD
-
-    points = [FreeCAD.Vector(*vertex) for vertex in surface.vertices]
-    facets = [tuple(int(index) for index in triangle) for triangle in surface.triangles]
-    simplified = Mesh.Mesh()
-    simplified.addFacets((points, facets))
-    reduction = 1.0 - (float(target) / float(len(surface.triangles)))
-    simplified.decimate(0.25, max(0.0, min(0.99, reduction)))
-    vertices, triangles = simplified.Topology
-    result = CollisionSurface(
-        tuple((float(vertex.x), float(vertex.y), float(vertex.z)) for vertex in vertices),
-        tuple(tuple(int(index) for index in triangle) for triangle in triangles),
-        surface.region,
-        surface.thickness,
-    )
-    return result.validate()
