@@ -305,16 +305,6 @@ jobs:
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@3e9652921cfaeff6ac5f2d6df319a2873c6ec826
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
-          test-script: tests/freecad_tunic_audit_production.py
-          stage-workbench: "true"
-          clean-user: "true"
-          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
-          environment: |
-            CLOTH_PBD_SUBSTEPS=8
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@3e9652921cfaeff6ac5f2d6df319a2873c6ec826
-        with:
-          image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_realtime_benchmark.py
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
@@ -328,6 +318,16 @@ jobs:
             artifacts/pypbd-provenance.txt
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@3e9652921cfaeff6ac5f2d6df319a2873c6ec826
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          test-script: tests/freecad_tunic_audit_production.py
+          stage-workbench: "true"
+          clean-user: "true"
+          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
+          environment: |
+            CLOTH_PBD_SUBSTEPS=8
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
