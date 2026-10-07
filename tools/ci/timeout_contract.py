@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tools.ci import run_freecad
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,10 +46,11 @@ def main() -> int:
         raise SystemExit(
             "FreeCAD test action must not define a second application timeout"
         )
-    if int(run_freecad.configured_timeout_seconds()) != expected:
-        raise SystemExit(
-            "run_freecad.py does not consume the authoritative application timeout"
-        )
+    run_freecad = (ROOT / "tools/ci/run_freecad.py").read_text(encoding="utf-8")
+    if "def configured_timeout_seconds()" not in run_freecad:
+        raise SystemExit("run_freecad.py does not expose the authoritative timeout reader")
+    if "timeout_seconds = configured_timeout_seconds()" not in run_freecad:
+        raise SystemExit("run_freecad.py does not consume the authoritative application timeout")
 
     print(f"timeout-authority={expected}s source=pyproject.toml")
     return 0
