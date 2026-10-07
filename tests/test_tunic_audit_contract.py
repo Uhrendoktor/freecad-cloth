@@ -118,7 +118,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TRIANGLES: 2048" in workflow
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in workflow
+    assert "CLOTH_PBD_COLLISION_RESOLUTION: 30" in workflow
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
@@ -139,8 +139,8 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM" in backend
-    assert "def _pbd_collision_resolution(surface: CollisionSurface)" in backend
+    assert "CLOTH_PBD_COLLISION_RESOLUTION" in backend
+    assert "def _pbd_collision_resolution()" in backend
     assert "resolution=resolution" in backend
     assert "max(configured_tolerance, surface_thickness)" in backend
 
