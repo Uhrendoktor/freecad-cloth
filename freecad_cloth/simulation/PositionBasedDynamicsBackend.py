@@ -4,6 +4,7 @@ This adapter translates the headless FreeCAD cloth model and persistent
 DrapeTarget collision surface into the native pyPBD runtime.
 """
 
+import hashlib
 import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
@@ -102,6 +103,19 @@ def _from_pbd_position(position) -> tuple[float, float, float]:
     return (float(x) * _MM, float(z) * _MM, float(y) * _MM)
 
 
+_PBD_COLLISION_SDF_CACHE_KEY = None
+_PBD_COLLISION_SDF_CACHE = None
+
+
+def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]):
+    digest = hashlib.sha256()
+    digest.update(repr(surface.vertices).encode("utf-8"))
+    digest.update(repr(surface.triangles).encode("utf-8"))
+    digest.update(repr(surface.thickness).encode("utf-8"))
+    digest.update(repr(tuple(int(value) for value in resolution)).encode("utf-8"))
+    return digest.digest()
+
+
 class PositionBasedDynamicsBackend(ClothSimulationBackend):
     """Production backend using the native PositionBasedDynamics Python bindings."""
 
@@ -198,7 +212,16 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         mesh.buildNeighbors()
 
         resolution = _pbd_collision_resolution(collision_surface)
-        if self._collision_sdf is None:
+        cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
+        global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
+        if self._collision_sdf is None and cache_key == _PBD_COLLISION_SDF_CACHE_KEY:
+            self._collision_sdf = _PBD_COLLISION_SDF_CACHE
+            print(
+                "cloth-pbd-collision-sdf cache-hit "
+                f"source_triangles={len(faces)} resolution={resolution}",
+                flush=True,
+            )
+        elif self._collision_sdf is None:
             print(
                 "cloth-pbd-collision-sdf build "
                 f"source_triangles={len(faces)} resolution={resolution}",
@@ -211,6 +234,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
             if self._collision_sdf is None:
                 raise RuntimeError("PositionBasedDynamics failed to generate collision SDF")
+            _PBD_COLLISION_SDF_CACHE_KEY = cache_key
+            _PBD_COLLISION_SDF_CACHE = self._collision_sdf
         else:
             print(
                 "cloth-pbd-collision-sdf reuse "
