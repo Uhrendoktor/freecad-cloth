@@ -38,7 +38,6 @@ env:
   CLOTH_CI_ENABLE_PBD: 1
   CLOTH_PBD_SUBSTEPS: 8
   CLOTH_PBD_COLLISION_MODE: mesh
-  CLOTH_PBD_COLLISION_TRIANGLES: 2048
   CLOTH_PBD_COLLISION_RESOLUTION: 30
   CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
   CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
@@ -170,7 +169,6 @@ jobs:
           environment: |
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
             CLOTH_PBD_SUBSTEPS=1
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
@@ -193,7 +191,6 @@ jobs:
           artifact-name: pbd-contact-diagnostics
           artifact-path: artifacts/pbd-contact-diagnostics/**
           environment: |
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
   simulation-ladder:
@@ -231,7 +228,6 @@ jobs:
             CLOTH_CI_ENABLE_PBD=1
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_TRIANGLES=2048
             CLOTH_PBD_COLLISION_VOXEL_MM=8
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2
 
@@ -323,7 +319,6 @@ jobs:
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           environment: |
             CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_TRIANGLES=8192
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
@@ -370,7 +365,6 @@ jobs:
           artifact-path: docs/images/generated/**
           environment: |
             CLOTH_PBD_SUBSTEPS=10
-            CLOTH_PBD_COLLISION_TRIANGLES=8192
             CLOTH_BLANKET_STEPS=180
             CLOTH_TURNTABLE_FRAMES=72
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
