@@ -38,7 +38,6 @@ env:
   CLOTH_CI_ENABLE_PBD: 1
   CLOTH_PBD_SUBSTEPS: 8
   CLOTH_PBD_COLLISION_MODE: mesh
-  CLOTH_PBD_COLLISION_TRIANGLES: 2048
   CLOTH_PBD_COLLISION_RESOLUTION: 30
   CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
   CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
@@ -323,8 +322,7 @@ jobs:
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           environment: |
             CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_TRIANGLES=8192
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+                        CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
