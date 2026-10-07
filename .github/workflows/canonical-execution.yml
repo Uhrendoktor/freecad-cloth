@@ -74,6 +74,8 @@ jobs:
           python -m ruff check tools/ci
           python -m ruff format --check tools/ci
           python tools/check_documentation_contract.py
+          python tools/check_markdown_contract.py
+          python tools/ci/timeout_contract.py
           python tools/ci/validate_ci_structure.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
@@ -165,7 +167,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_contact_diagnostics.py
-          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/app-run.log
           environment: |
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
@@ -177,7 +178,6 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_cube_ladder.py
-          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
           environment: |
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -187,7 +187,6 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_avatar_ladder.py
-          timeout-seconds: "120"
           log-file: artifacts/pbd-contact-diagnostics/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py diagnostic
           artifact-name: pbd-contact-diagnostics
@@ -209,7 +208,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_cube_ladder.py
-          timeout-seconds: "120"
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
@@ -219,7 +217,6 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_avatar_ladder.py
-          timeout-seconds: "120"
           log-file: artifacts/simulation-ladder/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py simulation
           artifact-name: simulation-collision-ladder
@@ -257,7 +254,6 @@ jobs:
         uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
-          timeout-seconds: "120"
           command: >-
             bash -lc 'set -o pipefail; mkdir -p artifacts; python3 tools/ci/python_validation.py "${{ matrix.group }}" 2>&1 | tee artifacts/python-validation.log'
           environment: CLOTH_CI_ENABLE_PBD=0
@@ -267,7 +263,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tools/ci/python_validation.py
-          timeout-seconds: "120"
           test-args: gui
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
@@ -295,7 +290,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
-          timeout-seconds: "120"
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
           validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}
@@ -317,7 +311,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_tunic_audit_production.py
-          timeout-seconds: "120"
           stage-workbench: "true"
           clean-user: "true"
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
@@ -330,7 +323,6 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_realtime_benchmark.py
-          timeout-seconds: "120"
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
           artifact-name: tunic-visual-audit
@@ -354,7 +346,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_avatar_screenshot.py
-          timeout-seconds: "120"
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
           environment: CLOTH_CI_DISABLE_PBD=1
@@ -363,7 +354,6 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_simulation_turntable.py
-          timeout-seconds: "120"
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
@@ -387,7 +377,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_visual_examples.py
-          timeout-seconds: "120"
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
@@ -486,7 +475,6 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_workbench_benchmark.py
-          timeout-seconds: "120"
           log-file: artifacts/workbench-benchmark.log
           artifact-name: workbench-benchmark-${{ matrix.workbench }}
           artifact-path: artifacts
