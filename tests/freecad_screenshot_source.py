@@ -1013,6 +1013,12 @@ def main():
     Gui.getMainWindow().show()
     events()
     events()
+    if os.environ.get("CLOTH_TUNIC_AUDIT_RUN_AVATAR_ACCEPTANCE"):
+        load_and_run(
+            os.path.join(ROOT, "tests/freecad_avatar_acceptance.py"),
+            "freecad_avatar_acceptance_inprocess",
+        )
+        log("avatar-provider-acceptance=passed")
     if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"):
         run_canonical_acceptance()
         pattern_and_sewing()
