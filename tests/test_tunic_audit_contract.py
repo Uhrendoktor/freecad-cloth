@@ -140,7 +140,9 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     )
     assert "CLOTH_PBD_COLLISION_VOXEL_MM" in backend
     assert "def _pbd_collision_resolution(surface: CollisionSurface)" in backend
-    assert "resolution=resolution" in backend
+    assert "generateSDF(" in backend
+    assert "resolution,
+" in backend
     assert "max(configured_tolerance, surface_thickness)" in backend
 
 
