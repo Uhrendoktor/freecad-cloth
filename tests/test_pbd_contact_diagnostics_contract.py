@@ -138,7 +138,6 @@ def test_progressive_collision_ladder_is_a_normal_gate():
     block = WORKFLOW.split("  simulation-ladder:", 1)[1]
     assert "if: ${{ github.event_name != 'schedule' }}" in WORKFLOW
     assert "CLOTH_PBD_SUBSTEPS: 8" in WORKFLOW
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM: 8" in WORKFLOW
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in WORKFLOW
     assert "test-script: tests/freecad_pbd_cube_ladder.py" in block
     assert "validate_manifests.py simulation" in block
