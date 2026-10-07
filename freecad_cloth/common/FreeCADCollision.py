@@ -41,12 +41,12 @@ def decimate_collision_surface(
 
     import Mesh
 
-    facets = [
-        surface.vertices[index]
-        for triangle in surface.triangles
-        for index in triangle
-    ]
-    simplified = Mesh.Mesh(facets)
+    import FreeCAD
+
+    points = [FreeCAD.Vector(*vertex) for vertex in surface.vertices]
+    facets = [tuple(int(index) for index in triangle) for triangle in surface.triangles]
+    simplified = Mesh.Mesh()
+    simplified.addFacets((points, facets))
     reduction = 1.0 - (float(target) / float(len(surface.triangles)))
     simplified.decimate(0.25, max(0.0, min(0.99, reduction)))
     vertices, triangles = simplified.Topology
