@@ -323,7 +323,7 @@ jobs:
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           environment: |
             CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_TRIANGLES=16384
+            CLOTH_PBD_COLLISION_TRIANGLES=8192
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@2e8ff42c47e79272a6c693eda74b326b0ee35a74
         with:
@@ -370,7 +370,7 @@ jobs:
           artifact-path: docs/images/generated/**
           environment: |
             CLOTH_PBD_SUBSTEPS=10
-            CLOTH_PBD_COLLISION_TRIANGLES=16384
+            CLOTH_PBD_COLLISION_TRIANGLES=8192
             CLOTH_BLANKET_STEPS=180
             CLOTH_TURNTABLE_FRAMES=72
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
