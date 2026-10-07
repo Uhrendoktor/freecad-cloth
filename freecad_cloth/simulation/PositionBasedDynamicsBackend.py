@@ -188,10 +188,18 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 )
                 self._collision_surface = collision_surface
             if len(collision_surface.triangles) > collision_limit:
-                raise RuntimeError(
-                    "collision surface exceeds configured PositionBasedDynamics "
-                    f"triangle budget: {len(collision_surface.triangles)} > {collision_limit}"
-                )
+                if collision_surface is self._source_collision_surface:
+                    print(
+                        "cloth-pbd-collision "
+                        f"budget={collision_limit} "
+                        f"preserved_closed_surface_triangles={len(collision_surface.triangles)}",
+                        flush=True,
+                    )
+                else:
+                    raise RuntimeError(
+                        "collision surface exceeds configured PositionBasedDynamics "
+                        f"triangle budget: {len(collision_surface.triangles)} > {collision_limit}"
+                    )
 
         vertex_data = self._pbd.VertexData()
         for vertex in collision_surface.vertices:
