@@ -56,6 +56,15 @@ def _pbd_collision_voxel_mm() -> float:
     return value
 
 
+def _pbd_collision_effective_tolerance_mm(
+    surface: CollisionSurface,
+) -> float:
+    configured = _pbd_collision_tolerance_mm()
+    thickness = float(getattr(surface, "thickness", 0.0))
+    representation_margin = 0.5 * _pbd_collision_voxel_mm()
+    return max(configured, thickness, representation_margin)
+
+
 def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
     voxel_mm = _pbd_collision_voxel_mm()
     spans = []
@@ -233,9 +242,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         rigid_body.setFrictionCoeff(0.5)
 
         collision_detection = sim.getTimeStep().getCollisionDetection()
-        configured_tolerance = _pbd_collision_tolerance_mm()
-        surface_thickness = float(getattr(collision_surface, "thickness", 0.0))
-        collision_detection.setTolerance(max(configured_tolerance, surface_thickness) / _MM)
+        collision_detection.setTolerance(
+            _pbd_collision_effective_tolerance_mm(collision_surface) / _MM
+        )
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()
