@@ -145,12 +145,27 @@ def run():
     if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
         raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
+    gizmo_mode = panel.controller.gizmo_mode or (
+        "fallback-visual" if fallback else "unknown"
+    )
     if fallback:
         if panel.controller.fallback_gizmo_object is None:
             raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     else:
         if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
             raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
+        if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
+            raise RuntimeError(
+                "Pose Mode did not select a supported interactive gizmo mode"
+            )
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+
+        visible_bones = len(panel.controller._skeleton_segments)
+        if visible_bones <= len(CONTROLLABLE_BONES):
+            raise RuntimeError(
+                "Pose Mode overlay does not contain the complete authored skeleton "
+                f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
+            )
         if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
             raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
     panel.controller.select_joint("upperarm01.L")
@@ -220,11 +235,6 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    gizmo_mode = (
-        "fallback-visual"
-        if getattr(panel.controller.gizmo, "is_fallback", False)
-        else "native"
-    )
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-pose-ui.log").write_text(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"

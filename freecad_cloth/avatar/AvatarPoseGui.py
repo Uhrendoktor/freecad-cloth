@@ -6,6 +6,9 @@ primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
 
+import math
+
+
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
@@ -17,8 +20,8 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def joint_world_positions(parameters):
-    """Return posed world positions for the controllable authored joints."""
+def _pose_world_state(parameters):
+    """Return the posed MakeHuman skeleton, including every authored bone."""
     from freecad_cloth.avatar.HierarchicalPose import _manual_pose_rotations
     from freecad_cloth.avatar.HumanoidMesh import (
         _joint_point,
@@ -26,7 +29,7 @@ def joint_world_positions(parameters):
         _make_source_fitted_mapper,
         load_makehuman_skeleton,
     )
-    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS, build_bone_transforms
+    from freecad_cloth.avatar.SkeletonPose import build_bone_transforms
 
     source_vertices = _load_source_vertices()
     skeleton = load_makehuman_skeleton()
@@ -40,16 +43,46 @@ def joint_world_positions(parameters):
         mapper,
         rotations,
     )
+    return source_vertices, skeleton, mapper, transforms
+
+
+def joint_world_positions(parameters):
+    """Return posed world positions for the controllable authored joints."""
+    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
+    source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
     result = {}
-    for bone, label in CONTROLLABLE_JOINTS:
+    for bone, _label in CONTROLLABLE_JOINTS:
         data = skeleton["bones"].get(bone)
-        if data is None:
+        if data is None or bone not in transforms:
             continue
         fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
         result[bone] = tuple(
             float(value) for value in transforms[bone].apply(fitted_head)
         )
     return result
+
+
+def skeleton_world_segments(parameters):
+    """Return posed head/tail segments for the complete authored skeleton."""
+    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+
+    source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
+    segments = {}
+    joints = {}
+    for bone, data in skeleton["bones"].items():
+        transform = transforms.get(bone)
+        if transform is None:
+            continue
+        fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
+        fitted_tail = mapper(_joint_point(source_vertices, skeleton["joints"][data["tail"]]))
+        head = tuple(float(value) for value in transform.apply(fitted_head))
+        tail = tuple(float(value) for value in transform.apply(fitted_tail))
+        segments[bone] = (head, tail)
+        joints.setdefault(data["head"], head)
+        joints[data["tail"]] = tail
+    return segments, joints
 
 
 class _FallbackGizmo:
@@ -61,6 +94,21 @@ class _FallbackGizmo:
 
     def __init__(self, objects=()):
         self.objects = tuple(objects)
+
+
+class _NativeGizmoHandle:
+    """Compatibility wrapper exposing the legacy controller gizmo surface."""
+
+    is_fallback = False
+    is_visual = True
+
+    def __init__(self, dragger, controller):
+        self.dragger = dragger
+        self._controller = controller
+
+    @property
+    def isActive(self):
+        return bool(self._controller._gizmo_dragging)
 
 
 class SkeletonPoseController:
@@ -83,6 +131,10 @@ class SkeletonPoseController:
         self.selected_bone = None
         self.base_rotation = None
         self._positions = {}
+        self._skeleton_segments = {}
+        self._gizmo_dragging = False
+        self.gizmo_mode = None
+        self._native_dragger = None
         self.fallback_gizmo_object = None
 
     def _coin(self):
@@ -95,11 +147,47 @@ class SkeletonPoseController:
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
+    @staticmethod
+    def _screen_segment_distance(point, start, end):
+        """Return the 2D distance from a point to a projected bone segment."""
+        px, py = point
+        ax, ay = start
+        bx, by = end
+        dx = bx - ax
+        dy = by - ay
+        length_sq = dx * dx + dy * dy
+        if length_sq <= 1e-9:
+            return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+        t = ((px - ax) * dx + (py - ay) * dy) / length_sq
+        t = max(0.0, min(1.0, t))
+        closest_x = ax + t * dx
+        closest_y = ay + t * dy
+        return ((px - closest_x) ** 2 + (py - closest_y) ** 2) ** 0.5
+
     def _build_positions(self):
         self._positions = joint_world_positions(self.panel._staged_parameters())
 
+    def _build_skeleton(self):
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
+        self._skeleton_segments, joints = skeleton_world_segments(
+            self.panel._staged_parameters()
+        )
+        self._positions = {
+            bone: self._skeleton_segments[bone][0]
+            for bone, _label in CONTROLLABLE_JOINTS
+            if bone in self._skeleton_segments
+        }
+        return joints
+
+    def _native_transform_type(self, coin):
+        type_id = coin.SoType.fromName("SoTransformDragger")
+        if type_id.isBad():
+            return None
+        return type_id
+
     def activate(self):
-        """Enable X-ray joints and the selected-joint trackball."""
+        """Enable the X-ray skeleton and selected-joint rotation gizmo."""
         if self.view is not None:
             return
         if self.panel.avatar is None:
@@ -220,6 +308,10 @@ class SkeletonPoseController:
             self.gizmo_separator = None
             self.overlay = None
             self.scene_graph = None
+            self._native_dragger = None
+            self._gizmo_dragging = False
+            self.gizmo_mode = None
+            self._skeleton_segments = {}
             self.view = None
             return
         coin = self._coin()
@@ -244,76 +336,103 @@ class SkeletonPoseController:
         self.gizmo_separator = None
         self.overlay = None
         self.scene_graph = None
+        self._native_dragger = None
+        self._gizmo_dragging = False
+        self.gizmo_mode = None
+        self._skeleton_segments = {}
         self.view = None
 
     def _add_skeleton_overlay(self, coin):
-        draw = coin.SoDrawStyle()
-        draw.lineWidth = 2.0
-        point_draw = coin.SoDrawStyle()
-        point_draw.pointSize = 8.0
-        joint_color = coin.SoBaseColor()
-        joint_color.rgb = (0.82, 0.82, 0.82)
-        bone_color = coin.SoBaseColor()
-        bone_color.rgb = (0.65, 0.65, 0.65)
+        """Draw the complete posed skeleton with selectable controls highlighted."""
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
-        self._build_positions()
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+        joints = self._build_skeleton()
+        editable = set(CONTROLLABLE_BONES)
 
-        point_list = [
-            self._positions[bone]
-            for bone, _label in CONTROLLABLE_JOINTS
-            if bone in self._positions
+        def add_lines(parent, segments, width, rgb):
+            if not segments:
+                return
+            coordinates = []
+            counts = []
+            for head, tail in segments:
+                coordinates.extend((head, tail))
+                counts.append(2)
+            separator = coin.SoSeparator()
+            draw = coin.SoDrawStyle()
+            draw.lineWidth = float(width)
+            color = coin.SoBaseColor()
+            color.rgb = rgb
+            coord = coin.SoCoordinate3()
+            coord.point.setValues(0, len(coordinates), coordinates)
+            line_set = coin.SoLineSet()
+            line_set.numVertices.setValues(0, len(counts), counts)
+            separator.addChild(draw)
+            separator.addChild(color)
+            separator.addChild(coord)
+            separator.addChild(line_set)
+            parent.addChild(separator)
+
+        passive_segments = [
+            segment
+            for bone, segment in self._skeleton_segments.items()
+            if bone not in editable and bone != self.selected_bone
         ]
+        editable_segments = [
+            segment
+            for bone, segment in self._skeleton_segments.items()
+            if bone in editable and bone != self.selected_bone
+        ]
+        selected_segments = (
+            [self._skeleton_segments[self.selected_bone]]
+            if self.selected_bone in self._skeleton_segments
+            else []
+        )
+
+        # Blender-style posing convention: the full rig remains visible, while
+        # editable/active bones are visually stronger than structural bones.
+        add_lines(self.overlay, passive_segments, 1.4, (0.46, 0.48, 0.52))
+        add_lines(self.overlay, editable_segments, 2.4, (0.72, 0.75, 0.80))
+        add_lines(self.overlay, selected_segments, 4.0, (1.0, 0.82, 0.12))
+
+        point_list = list(joints.values())
         if point_list:
-            points_sep = coin.SoSeparator()
+            point_draw = coin.SoDrawStyle()
+            point_draw.pointSize = 7.0
+            joint_color = coin.SoBaseColor()
+            joint_color.rgb = (0.66, 0.68, 0.72)
             points = coin.SoCoordinate3()
-            points.point.setValues(0, len(point_list), [tuple(position) for position in point_list])
+            points.point.setValues(0, len(point_list), point_list)
             point_set = coin.SoPointSet()
             point_set.numPoints = len(point_list)
+            points_sep = coin.SoSeparator()
             points_sep.addChild(point_draw)
             points_sep.addChild(joint_color)
             points_sep.addChild(points)
             points_sep.addChild(point_set)
             self.overlay.addChild(points_sep)
 
-        skeleton = self._joint_connections()
-        if skeleton:
-            coordinates = []
-            counts = []
-            for head, tail in skeleton:
-                coordinates.extend((head, tail))
-                counts.append(2)
-            bones_sep = coin.SoSeparator()
-            coord = coin.SoCoordinate3()
-            coord.point.setValues(0, len(coordinates), coordinates)
-            line_set = coin.SoLineSet()
-            line_set.numVertices.setValues(0, len(counts), counts)
-            bones_sep.addChild(draw)
-            bones_sep.addChild(bone_color)
-            bones_sep.addChild(coord)
-            bones_sep.addChild(line_set)
-            self.overlay.addChild(bones_sep)
+        if self.selected_bone in self._positions:
+            selected_draw = coin.SoDrawStyle()
+            selected_draw.pointSize = 14.0
+            selected_color = coin.SoBaseColor()
+            selected_color.rgb = (1.0, 0.82, 0.12)
+            selected_points = coin.SoCoordinate3()
+            selected_points.point.setValues(
+                0,
+                1,
+                [self._positions[self.selected_bone]],
+            )
+            selected_point_set = coin.SoPointSet()
+            selected_point_set.numPoints = 1
+            selected_sep = coin.SoSeparator()
+            selected_sep.addChild(selected_draw)
+            selected_sep.addChild(selected_color)
+            selected_sep.addChild(selected_points)
+            selected_sep.addChild(selected_point_set)
+            self.overlay.addChild(selected_sep)
 
     def _joint_connections(self):
-        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_skeleton
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
-
-        skeleton = load_makehuman_skeleton()
-        connections = []
-        for bone, _label in CONTROLLABLE_JOINTS:
-            data = skeleton["bones"].get(bone)
-            if data is None:
-                continue
-            for candidate in CONTROLLABLE_JOINTS:
-                if candidate[0] not in self._positions:
-                    continue
-                child_data = skeleton["bones"].get(candidate[0])
-                if child_data and child_data.get("parent") == bone:
-                    connections.append(
-                        (self._positions[bone], self._positions[candidate[0]])
-                    )
-                    break
-        return tuple(connections)
+        return tuple(self._skeleton_segments.values())
 
     def _remove_overlay_children(self):
         if self.overlay is None:
@@ -333,25 +452,109 @@ class SkeletonPoseController:
         self._add_skeleton_overlay(self._coin())
         if self.selected_bone and not keep_gizmo:
             self._create_gizmo(self.selected_bone)
+        elif self.selected_bone and self.gizmo_transform is not None:
+            point = self._positions.get(self.selected_bone)
+            if point is not None:
+                self.gizmo_transform.translation.setValue(
+                    self._coin().SbVec3f(*point)
+                )
 
-    def _create_gizmo(self, bone):
-        if self.scene_graph is None:
-            self.gizmo_separator = None
-            self.gizmo_transform = None
-            self._create_fallback_gizmo(bone)
-            return
-        coin = self._coin()
-        try:
-            if self.gizmo_separator is not None:
+    def _remove_gizmo(self):
+        if self.scene_graph is not None and self.gizmo_separator is not None:
+            try:
                 self.scene_graph.removeChild(self.gizmo_separator)
-        except (AttributeError, RuntimeError):
-            pass
-        self.gizmo_separator = coin.SoSeparator()
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        self.gizmo_separator.addChild(depth)
-        self.gizmo_transform = coin.SoTransform()
+            except (AttributeError, RuntimeError):
+                pass
+        self.gizmo_separator = None
+        self.gizmo_transform = None
+        self.gizmo = None
+        self.gizmo_mode = None
+        self._native_dragger = None
+        self._gizmo_dragging = False
+
+    def _create_native_gizmo(self, coin):
+        type_id = self._native_transform_type(coin)
+        if type_id is None:
+            return False
+        dragger = None
+        try:
+            dragger = type_id.createInstance()
+            required = (
+                "rotation",
+                "rotationIncrement",
+                "rotationIncrementCountX",
+                "rotationIncrementCountY",
+                "rotationIncrementCountZ",
+                "draggerSize",
+            )
+            if dragger is None or any(not hasattr(dragger, field) for field in required):
+                return False
+            methods = (
+                "hideTranslationX",
+                "hideTranslationY",
+                "hideTranslationZ",
+                "hidePlanarTranslationXY",
+                "hidePlanarTranslationYZ",
+                "hidePlanarTranslationZX",
+                "showRotationX",
+                "showRotationY",
+                "showRotationZ",
+                "setAxisColors",
+                "setUpAutoScale",
+                "addStartCallback",
+                "addMotionCallback",
+                "addFinishCallback",
+            )
+            if any(not hasattr(dragger, method) for method in methods):
+                return False
+            for method in methods[:6]:
+                getattr(dragger, method)()
+            for method in methods[6:9]:
+                getattr(dragger, method)()
+
+            view_params = self.App.ParamGet(
+                "User parameter:BaseApp/Preferences/View"
+            )
+            dragger.draggerSize.setValue(
+                view_params.GetFloat("DraggerScale", 0.03)
+            )
+            dragger.setAxisColors(
+                view_params.GetUnsigned("AxisXColor", 0xCC3333FF),
+                view_params.GetUnsigned("AxisYColor", 0x33CC33FF),
+                view_params.GetUnsigned("AxisZColor", 0x3333CCFF),
+            )
+            dragger.rotationIncrement.setValue(
+                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
+            )
+            dragger.rotation.setValue(
+                coin.SbVec3f(0.0, 0.0, 1.0),
+                0.0,
+            )
+            dragger.setName("ClothPoseNativeTransformGizmo")
+            self.gizmo_separator.addChild(dragger)
+            self.scene_graph.addChild(self.gizmo_separator)
+            dragger.setUpAutoScale(self.view.getCameraNode())
+            self._native_dragger = dragger
+            self.gizmo = _NativeGizmoHandle(dragger, self)
+            self.gizmo_mode = "native"
+            dragger.addStartCallback(self._gizmo_start)
+            dragger.addMotionCallback(self._gizmo_motion)
+            dragger.addFinishCallback(self._gizmo_finish)
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            if self.gizmo_separator is not None:
+                try:
+                    self.scene_graph.removeChild(self.gizmo_separator)
+                except (AttributeError, RuntimeError):
+                    pass
+                if dragger is not None:
+                    try:
+                        self.gizmo_separator.removeChild(dragger)
+                    except (AttributeError, RuntimeError):
+                        pass
+            return False
+
+    def _create_trackball_gizmo(self, coin):
         self.gizmo = coin.SoTrackballDragger()
         self.gizmo.scaleFactor.setValue(
             self.GIZMO_SIZE,
@@ -359,15 +562,38 @@ class SkeletonPoseController:
             self.GIZMO_SIZE,
         )
         self.gizmo.setAnimationEnabled(False)
-        self.gizmo_separator.addChild(self.gizmo_transform)
         self.gizmo_separator.addChild(self.gizmo)
-        point = self._positions.get(bone)
-        if point is not None:
-            self.gizmo_transform.translation.setValue(coin.SbVec3f(*point))
         self.scene_graph.addChild(self.gizmo_separator)
+        self.gizmo_mode = "trackball-fallback"
+        self._native_dragger = None
         self.gizmo.addStartCallback(self._gizmo_start)
         self.gizmo.addMotionCallback(self._gizmo_motion)
         self.gizmo.addFinishCallback(self._gizmo_finish)
+
+    def _create_gizmo(self, bone):
+        if self.scene_graph is None:
+            self.gizmo_separator = None
+            self.gizmo_transform = None
+            self.gizmo_mode = "fallback-visual"
+            self._create_fallback_gizmo(bone)
+            return
+        coin = self._coin()
+        self._remove_gizmo()
+        self.gizmo_separator = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        self.gizmo_separator.addChild(depth)
+        self.gizmo_transform = coin.SoTransform()
+        point = self._positions.get(bone)
+        if point is not None:
+            self.gizmo_transform.translation.setValue(
+                coin.SbVec3f(*point)
+            )
+        self.gizmo_separator.addChild(self.gizmo_transform)
+        if self._create_native_gizmo(coin):
+            return
+        self._create_trackball_gizmo(coin)
 
     def select_joint(self, bone):
         bone = str(bone)
@@ -380,6 +606,7 @@ class SkeletonPoseController:
     def _gizmo_start(self, _data, dragger):
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
+        self._gizmo_dragging = True
         self.base_rotation = self.panel._staged_joint_rotations.get(
             self.selected_bone,
             JointRotation(self.selected_bone),
@@ -388,6 +615,12 @@ class SkeletonPoseController:
             self._coin().SbVec3f(0.0, 0.0, 1.0),
             0.0,
         )
+        if self.gizmo_mode == "native":
+            dragger.rotationIncrement.setValue(
+                math.radians(
+                    5.0 if self.panel.angle_snap.isChecked() else 1.0
+                )
+            )
         self.panel.status.setText(
             "Rotating {} — release to keep the staged pose; Cancel restores it.".format(
                 self.panel._joint_label(self.selected_bone)
@@ -426,6 +659,7 @@ class SkeletonPoseController:
             return
 
     def _gizmo_finish(self, _data, _dragger):
+        self._gizmo_dragging = False
         self.base_rotation = None
         if self.selected_bone:
             self.panel.status.setText(
@@ -442,25 +676,55 @@ class SkeletonPoseController:
             return
         if event.getButton() != coin.SoMouseButtonEvent.BUTTON1:
             return
-        if self.gizmo is not None and self.gizmo.isActive:
+        if self._gizmo_dragging:
             return
         position = event.getPosition()
         size = self.view.getSize()
         screen = (float(position[0]), float(size[1] - position[1]))
         try:
-            positions = {
-                bone: self._screen_position(point)
-                for bone, point in self._positions.items()
+            projected_segments = {
+                bone: (
+                    self._screen_position(segment[0]),
+                    self._screen_position(segment[1]),
+                )
+                for bone, segment in self._skeleton_segments.items()
             }
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return
+
+        # Prefer the nearest visible, controllable bone body. This mirrors the
+        # familiar Pose Mode interaction of clicking the bone rather than its joint.
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+
         best = None
         best_distance = self.JOINT_PICK_RADIUS
-        for bone, point in positions.items():
-            distance = ((point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2) ** 0.5
+        for bone in CONTROLLABLE_BONES:
+            segment = projected_segments.get(bone)
+            if segment is None:
+                continue
+            distance = self._screen_segment_distance(
+                screen,
+                segment[0],
+                segment[1],
+            )
             if distance < best_distance:
                 best = bone
                 best_distance = distance
+
+        if best is None:
+            # Keep small joint targets as an intuitive fallback at crowded
+            # endpoints where several bones overlap in screen space.
+            for bone, point in {
+                name: self._screen_position(value)
+                for name, value in self._positions.items()
+            }.items():
+                distance = (
+                    (point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2
+                ) ** 0.5
+                if distance < best_distance:
+                    best = bone
+                    best_distance = distance
+
         if best is not None:
             self.select_joint(best)
 
@@ -532,7 +796,7 @@ class AvatarPoseTaskPanel:
         selected_layout.addWidget(self.selected_label)
 
         instruction = QtWidgets.QLabel(
-            "Drag a colored ring to rotate around one axis, or drag the trackball for free rotation. Release to stage the pose."
+            "Drag a colored ring to rotate around one axis. Release to stage the pose."
         )
         instruction.setWordWrap(True)
         selected_layout.addWidget(instruction)
