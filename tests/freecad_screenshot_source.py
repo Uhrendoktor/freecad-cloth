@@ -321,17 +321,33 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         triangles = tuple(getattr(surface, "triangles", ()) or ())
         if not vertices or not triangles:
             raise RuntimeError("authoritative collision surface has no inside/outside topology")
-        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
-        return sum(
-            1
-            for point in points
-            if point_inside_closed_mesh(
-                tuple(float(value) for value in point),
-                vertices,
-                triangles,
+        # Prefer trimesh's vectorized ray query for production-size mannequins.
+        # The deterministic pure-Python parity test remains the dependency-free fallback.
+        try:
+            import numpy as np
+            import trimesh
+
+            target_mesh = trimesh.Trimesh(
+                vertices=np.asarray(vertices, dtype=float),
+                faces=np.asarray(triangles, dtype=int),
+                process=False,
             )
-        )
+            if target_mesh.is_watertight:
+                states = target_mesh.contains(np.asarray(points, dtype=float))
+                log("penetration-check=trimesh contains points=%d triangles=%d" % (
+                    len(points), len(triangles)
+                ))
+                return int(np.count_nonzero(states))
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass
+
+        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+
+        log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
+            len(points), len(triangles)
+        ))
+        return sum(points_inside_closed_mesh(points, vertices, triangles))
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 def write_drape_metrics(
@@ -1019,7 +1035,13 @@ def simulation():
     from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
     with open(METRICS, encoding="utf-8") as handle:
-        assert_drape_diagnostics(json.load(handle).get("panels", ()))
+        # This fixture is intentionally unpinned: gravity may place the free-draped
+        # hem below the authored hip reference without indicating detachment, collapse,
+        # or collision failure. Keep those other fail-closed diagnostics authoritative.
+        assert_drape_diagnostics(
+            json.load(handle).get("panels", ()),
+            allowed_diagnostics={"below-hem-candidate"},
+        )
     task_dock.show()
     task_dock.raise_()
     events()

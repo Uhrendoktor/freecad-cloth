@@ -112,16 +112,20 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
         encoding="utf-8"
     )
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 4" in source
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
-    assert "CLOTH_PBD_COLLISION_TRIANGLES: 2048" in workflow
-    assert "CLOTH_PBD_COLLISION_RESOLUTION: 30" in workflow
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "tools/ci/validate_manifests.py tunic-production" in workflow
+    validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
+    assert "def validate_tunic_production()" in validator
 
 
 def test_pbd_collision_body_uses_coarsened_solver_surface():
@@ -139,10 +143,24 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
-    assert "CLOTH_PBD_COLLISION_RESOLUTION" in backend
-    assert "def _pbd_collision_resolution()" in backend
-    assert "resolution=resolution" in backend
-    assert "max(configured_tolerance, surface_thickness)" in backend
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM" in backend
+    assert "def _pbd_collision_resolution(surface: CollisionSurface)" in backend
+    assert "generateSDF(" in backend
+    assert "resolution," in backend
+    assert "representation_margin = 0.5 * _pbd_collision_voxel_mm()" in backend
+    assert "max(configured, thickness, representation_margin)" in backend
+
+
+def test_pbd_collision_sdf_is_cached_outside_backend_instance():
+    backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_PBD_COLLISION_SDF_CACHE_KEY" in backend
+    assert "_PBD_COLLISION_SDF_CACHE" in backend
+    assert "cache-hit" in backend
+    assert "generateSDF(" in backend
+    assert "self._collision_sdf" in backend
+
 
 
 def test_pbd_ci_image_is_pinned_and_preinstalled():
@@ -172,22 +190,34 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "TunicRightShoulder" in audit
     assert "TunicLeftShoulder" in audit
     assert "ParticleDistance = 32.0" in audit
-    assert "SolverIterations = 1" in audit
+    assert "SolverIterations = 4" in audit
     assert "SolverSubsteps = 1" in audit
     assert "tunic-simulation-start" in audit
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
 
+def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "import trimesh" in source
+    assert "target_mesh.contains(np.asarray(points, dtype=float))" in source
+    assert "penetration-check=numpy-ray-parity" in source
+    sanity = (ROOT / "freecad_cloth" / "simulation" / "DrapeVisualSanity.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def points_inside_closed_mesh(" in sanity
+    assert "np.einsum" in sanity
+
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
-    gate = source.index('assert_drape_diagnostics(json.load(handle).get("panels", ()))')
+    gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     screenshot = source.index('f"cloth-simulation-draped-{direction}.png"')
     assert metrics_write < screenshot < gate
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    gate = source.index('assert_drape_diagnostics(json.load(handle).get("panels", ()))')
+    gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]

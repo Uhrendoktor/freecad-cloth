@@ -207,7 +207,7 @@ def test_freecad_runner_preserves_script_owned_logs():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
     assert "stdout=subprocess.PIPE" in source
-    assert "process.communicate(timeout=args.timeout_seconds)" in source
+    assert "process.communicate(timeout=timeout_seconds)" in source
     assert "args.log_file.is_file()" in source
     assert 'args.log_file.read_text(' in source
     assert "if not existing_log.strip():" in source

@@ -151,6 +151,18 @@ def test_drape_visual_diagnostics_accept_clean_result():
     )
 
 
+def test_drape_visual_diagnostics_allows_only_explicit_exception():
+    assert_drape_diagnostics(
+        (
+            {
+                "failure_classification": {"state": "structurally-plausible"},
+                "diagnostics": ["below-hem-candidate"],
+            },
+        ),
+        allowed_diagnostics={"below-hem-candidate"},
+    )
+
+
 def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
     cases = (
         {"failure_classification": {"state": "detached-candidate"}, "diagnostics": []},

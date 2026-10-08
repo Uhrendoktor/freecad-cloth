@@ -68,6 +68,9 @@ def main() -> int:
     parser.add_argument("--run-number", required=True)
     args = parser.parse_args()
 
+    # gh uses GH_TOKEN for clone/authentication; configure Git before the raw push.
+    run("gh", "auth", "setup-git")
+
     from visual_evidence import documented_assets, verify, write_provenance
 
     source_root = Path.cwd()

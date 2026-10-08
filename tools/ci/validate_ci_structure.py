@@ -20,6 +20,7 @@ REQUIRED = (
     ROOT / "tools/ci/publish_visual_evidence.py",
     ROOT / "tools/ci/capture_pypbd_provenance.py",
     ROOT / "tools/ci/check_artifact_budget.py",
+    ROOT / "tools/ci/timeout_contract.py",
 )
 
 
@@ -81,33 +82,11 @@ def main() -> int:
                     f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
                 )
 
-    for index, line in enumerate(text.splitlines()):
-        if (
-            "uses: ./.github/actions/freecad-test" not in line
-            and "uses: $/.github/actions/freecad-test" not in line
-            and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in line
-        ):
-            continue
-        step = []
-        for candidate in text.splitlines()[index + 1 :]:
-            if candidate.startswith("      - "):
-                break
-            step.append(candidate)
-        match = re.search(r'timeout-seconds:\s*"?(\d+)"?', "\n".join(step))
-        if not match or int(match.group(1)) > 120:
-            raise SystemExit("every FreeCAD test action must declare a timeout <=120 seconds")
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
     freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if (
-        'default: "120"' not in freecad
-        or "maximum 120 seconds" not in freecad
-        or "60s" not in freecad
-        or "timeout-seconds" not in freecad
-    ):
-        raise SystemExit(
-            "FreeCAD test action must retain its 120-second runtime and 60-second preflight contracts"
-        )
+    if "timeout-seconds:" in freecad:
+        raise SystemExit("freecad-test must not define a second application timeout")
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

@@ -68,16 +68,31 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
     )
 
 
-def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
-    """Provide the public minimum vertex distance operation."""
+def minimum_vertex_distance(
+    source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
+) -> float | None:
+    """Return the minimum point-to-target-vertex distance without a Python cross-product loop."""
     if not source or not target:
         return None
+    try:
+        import numpy as np
+    except ImportError:
+        best = float("inf")
+        for a in source:
+            for b in target:
+                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
+                if d2 < best:
+                    best = d2
+        return sqrt(best) if isfinite(best) else None
+
+    source_data = np.asarray(source, dtype=np.float64)
+    target_data = np.asarray(target, dtype=np.float64)
     best = float("inf")
-    for a in source:
-        for b in target:
-            d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-            if d2 < best:
-                best = d2
+    step = max(1, int(chunk_size))
+    for start in range(0, len(source_data), step):
+        chunk = source_data[start : start + step]
+        delta = chunk[:, None, :] - target_data[None, :, :]
+        best = min(best, float(np.min(np.sum(delta * delta, axis=2))))
     return sqrt(best) if isfinite(best) else None
 
 
@@ -124,6 +139,63 @@ def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
         if distance > epsilon:
             hits += 1
     return bool(hits % 2)
+
+
+def points_inside_closed_mesh(points, vertices, triangles, *, chunk_size: int = 32) -> tuple[bool, ...]:
+    """Return ray-parity results for many points without a Python point×triangle loop."""
+    try:
+        import numpy as np
+    except ImportError:
+        return tuple(point_inside_closed_mesh(point, vertices, triangles) for point in points)
+
+    face_data = [tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3]
+    if not face_data or not points:
+        return tuple(False for _ in points)
+    faces = np.asarray(face_data, dtype=np.int64)
+    valid = (
+        (faces >= 0).all(axis=1)
+        & (faces < len(vertices)).all(axis=1)
+    )
+    faces = faces[valid]
+    if len(faces) == 0:
+        return tuple(False for _ in points)
+
+    vertex_data = np.asarray(vertices, dtype=np.float64)
+    point_data = np.asarray(points, dtype=np.float64)
+    a = vertex_data[faces[:, 0]]
+    b = vertex_data[faces[:, 1]]
+    c = vertex_data[faces[:, 2]]
+    edge_one = b - a
+    edge_two = c - a
+    ray = np.asarray((1.0, 0.3713906763541037, 0.1932424973120743), dtype=np.float64)
+    pvec = np.cross(ray, edge_two)
+    determinant = np.einsum("ij,ij->i", edge_one, pvec)
+    usable = np.abs(determinant) > 1e-9
+    a = a[usable]
+    edge_one = edge_one[usable]
+    edge_two = edge_two[usable]
+    determinant = determinant[usable]
+    if len(a) == 0:
+        return tuple(False for _ in points)
+
+    results = np.zeros(len(point_data), dtype=bool)
+    step = max(1, int(chunk_size))
+    for start in range(0, len(point_data), step):
+        chunk = point_data[start : start + step]
+        tvec = chunk[:, None, :] - a[None, :, :]
+        u = np.einsum("ctd,td->ct", tvec, pvec[usable]) / determinant[None, :]
+        qvec = np.cross(tvec, edge_one[None, :, :])
+        v = np.einsum("d,ctd->ct", ray, qvec) / determinant[None, :]
+        distance = np.einsum("td,ctd->ct", edge_two, qvec) / determinant[None, :]
+        hits = (
+            (u >= -1e-9)
+            & (u <= 1.0 + 1e-9)
+            & (v >= -1e-9)
+            & (u + v <= 1.0 + 1e-9)
+            & (distance > 1e-9)
+        )
+        results[start : start + len(chunk)] = np.count_nonzero(hits, axis=1) % 2 == 1
+    return tuple(bool(value) for value in results)
 
 
 def seam_correspondence_gap(
@@ -270,14 +342,18 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset(
 )
 
 
-def assert_drape_diagnostics(records: Sequence[dict]) -> None:
-    """Fail closed when persisted rendered-drape diagnostics contradict acceptance."""
+def assert_drape_diagnostics(
+    records: Sequence[dict], *, allowed_diagnostics: Sequence[str] = ()
+) -> None:
+    """Fail closed while allowing explicitly documented diagnostic exceptions."""
     failures = []
+    allowed = {str(item) for item in allowed_diagnostics}
+    fatal_diagnostics = _FATAL_VISUAL_DIAGNOSTICS - allowed
     for record in records:
         classification = record.get("failure_classification", {})
         state = str(classification.get("state", ""))
         diagnostics = {str(item) for item in record.get("diagnostics", ())}
-        if state in _FATAL_VISUAL_STATES or diagnostics & _FATAL_VISUAL_DIAGNOSTICS:
+        if state in _FATAL_VISUAL_STATES or diagnostics & fatal_diagnostics:
             failures.append(
                 "{}: classification={} diagnostics={}".format(
                     str(record.get("panel", "<unknown>")),

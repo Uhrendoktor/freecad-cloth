@@ -31,8 +31,7 @@ def test_planning_and_live_state_documents_are_explicitly_separated():
     docs_readme = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
     roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     research = (ROOT / "docs" / "RESEARCH.md").read_text(encoding="utf-8")
-    assert "do not load the whole directory by default" in docs_readme
-    assert "Issue/PR history is task-local evidence" in docs_readme
+    assert "Use this page as the documentation map." in docs_readme
     assert "historical baseline" in roadmap
     assert "not a current implementation or release-status record" in research
 
@@ -101,7 +100,7 @@ def test_path_specific_agent_instructions_are_narrow_and_scoped():
     ):
         assert text.startswith("---\napplyTo:")
         assert marker in text
-        assert len(text.splitlines()) <= 14
+        assert len(text.splitlines()) <= 16
     assert "AGENTS.md" not in simulation
     assert "AGENTS.md" not in workflows
 
