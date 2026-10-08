@@ -117,7 +117,6 @@ def test_sewing_command_group_validator_rejects_invalid_groups():
 def test_workbench_registration_is_idempotent():
     import freecad_cloth.gui as gui_module
 
-    monkeypatch = type("_MonkeyPatch", (), {})()
     original_gui = gui_module.Gui
     gui_module.Gui = object()
     try:
