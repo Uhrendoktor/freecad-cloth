@@ -238,6 +238,15 @@ class SkeletonPoseController:
                 coin.SoMouseButtonEvent.getClassTypeId(),
                 self._mouse_event,
             )
+        except Exception as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self.mouse_callback = None
+            self.panel.status.setText(
+                "Pose Mode: bone clicking is unavailable in this FreeCAD/SWIG build; "
+                "expand Joint list to select a joint, then use the rotation controls."
+            )
+        try:
             self._location_callback = self.view.addEventCallbackPivy(
                 coin.SoLocation2Event.getClassTypeId(),
                 self._location_event,
@@ -245,12 +254,7 @@ class SkeletonPoseController:
         except Exception as exc:
             if "No SWIG wrapped library loaded" not in str(exc):
                 raise
-            self.mouse_callback = None
             self._location_callback = None
-            self.panel.status.setText(
-                "Pose Mode: viewport picking is unavailable in this FreeCAD/SWIG build; "
-                "expand Joint list to select a joint, then use the rotation controls."
-            )
         self._build_positions()
         bone = str(self.panel.skeleton_joint.currentData())
         if bone:
@@ -778,6 +782,8 @@ class SkeletonPoseController:
         return best
 
     def _location_event(self, event_callback):
+        if self._gizmo_dragging:
+            return
         coin = self._coin()
         event = event_callback.getEvent()
         position = event.getPosition()
