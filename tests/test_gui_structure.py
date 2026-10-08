@@ -1,88 +1,43 @@
-"""Static checks for the real FreeCAD GUI layer."""
+"""Behavioral checks for the FreeCAD GUI registration boundary.
 
-import ast
+GUI rendering itself belongs to FreeCAD end-to-end coverage. This suite tests the
+Python-side registration data and registration behavior directly instead of
+searching implementation source text for UI strings.
+"""
+
 from pathlib import Path
 
+from freecad_cloth.avatar import AvatarCommands
+from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
+from freecad_cloth.avatar.AvatarPoseGui import SkeletonPoseController
+from freecad_cloth.pattern import PatternCommands
+from freecad_cloth.sewing.workbench import (
+    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
+    TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS,
+    ClothSewingWorkbench,
+    _validate_sewing_command_groups,
+)
+from freecad_cloth.simulation import SimulationCommands
 from freecad_cloth.gui import ClothWorkbenchBase
-from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
-from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS
-from freecad_cloth.sewing.workbench import ClothSewingWorkbench, _validate_sewing_command_groups
+
 
 ROOT = Path(__file__).resolve().parents[1]
-init_gui = (ROOT / "InitGui.py").read_text()
-gui_base = (ROOT / "freecad_cloth" / "gui.py").read_text()
-sewing_workbench = (ROOT / "freecad_cloth" / "sewing" / "workbench.py").read_text()
-pattern_gui = (ROOT / "freecad_cloth" / "pattern" / "PatternGui.py").read_text()
-sim_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationGui.py").read_text()
-quality_gui = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityGui.py").read_text()
-sewing_gui = (ROOT / "freecad_cloth" / "sewing" / "SewingGui.py").read_text()
-avatar_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text()
-avatar_pose_gui = (ROOT / "freecad_cloth" / "avatar" / "AvatarPoseGui.py").read_text()
-fitting_gui = (ROOT / "freecad_cloth" / "avatar" / "FittingGui.py").read_text()
-fitting_commands = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text()
-commands = (ROOT / "freecad_cloth" / "pattern" / "PatternCommands.py").read_text()
-sim_commands = (ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py").read_text()
-sewing_commands = (ROOT / "freecad_cloth" / "sewing" / "SewingCommands.py").read_text()
-avatar_commands = (ROOT / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text()
 
-assert "Gui.addWorkbench(ClothPatternWorkbench())" in init_gui
-assert "Gui.addWorkbench(ClothSimulationWorkbench())" in init_gui
-assert "Gui.addWorkbench(ClothSewingWorkbench())" in init_gui
-assert 'MenuText = "Cloth Sewing"' in sewing_workbench
-assert "def GetResources(self):" in gui_base
-assert '"MenuText": self.MenuText' in gui_base
-assert '"ToolTip": self.ToolTip' in gui_base
-assert '"Icon": self.Icon' in gui_base
-assert "def __init__(self):" in gui_base
-assert "self.commands = []" in gui_base
-assert "if self.commands:" in gui_base
-assert "duplicates = [c for c in group_commands if c in seen]" in gui_base
-assert 'return "Gui::PythonWorkbench"' in gui_base
-assert "class PatternPieceTaskPanel" in pattern_gui
-assert "Gui.Control.showDialog(panel)" in pattern_gui
-assert "class SimulationTaskPanel" in sim_gui
-assert "Gui.Control.showDialog(panel)" in sim_gui
-assert "class SimulationQualityTaskPanel" in quality_gui
-assert '"Simulation quality"' in quality_gui
-assert '"Fabric"' in quality_gui
-assert '"Collision"' in quality_gui
-assert '"Run"' in quality_gui
-assert '"Pinning mode"' in quality_gui
-assert '"PinMode"' in quality_gui
-assert "None creates the simulation with zero solver pins." in quality_gui
-assert "show_simulation_quality_task" in quality_gui
-assert "class SewingTaskPanel" in sewing_gui
-assert "Gui.Control.showDialog(panel)" in sewing_gui
-assert "class AvatarTaskPanel" in avatar_gui
-assert "class AvatarPoseTaskPanel" in avatar_pose_gui
-assert "class SkeletonPoseController" in avatar_pose_gui
-assert "SoTrackballDragger" in avatar_pose_gui
-assert "ClothFitting_PoseAvatar" in avatar_commands
-assert "class DirectArrangeController" in fitting_gui
-assert "class FittingTaskPanel" in fitting_gui
-assert "Snap to arrangement points" in fitting_gui
-assert "ClothInteractiveArrangeTaskPanel" in fitting_gui
-assert "ClothFitting_InteractiveArrange" in fitting_commands
-assert '"Body measurements"' in avatar_gui
-assert '"Proportions"' in avatar_gui
-assert '"Pose"' in avatar_gui
-assert '"Display"' in avatar_gui
-assert "Apply & Rebuild" in avatar_gui
-assert "Gui.Control.showDialog(panel)" in avatar_gui
-assert "ClothPattern_CreatePieceTask" in commands
-assert "ClothPattern_EditPiece" in commands
-assert "ClothPattern_Show2D" in commands
-assert "ClothSimulation_Edit" in sim_commands
-assert "ClothSimulation_Step" in sim_commands
-assert "ClothSimulation_Run" in sim_commands
-assert "ClothSimulation_Reset" in sim_commands
-assert "ClothSewing_CreateOperation" in sewing_commands
-assert "ClothSewing_EditOperation" in sewing_commands
-assert "ClothSewing_Validate" in sewing_commands
-assert "ClothFitting_CreateAvatar" in avatar_commands
-assert "ClothFitting_EditAvatar" in avatar_commands
-assert '"high_hip": "High_Hip"' in avatar_commands
-assert '"upper_arm": "Upper_Arm"' in avatar_commands
+
+def test_workbench_base_resources_and_lifecycle_contract():
+    workbench = ClothWorkbenchBase.__new__(ClothWorkbenchBase)
+    workbench.MenuText = "Cloth"
+    workbench.ToolTip = "Cloth workbench"
+    workbench.Icon = "icon.svg"
+    workbench.commands = []
+    assert workbench.GetResources() == {
+        "MenuText": "Cloth",
+        "ToolTip": "Cloth workbench",
+        "Icon": "icon.svg",
+    }
+    assert workbench.GetClassName() == "Gui::PythonWorkbench"
+    assert workbench.Activated() is None
+    assert workbench.Deactivated() is None
 
 
 def test_sewing_command_groups_are_unique_and_complete():
@@ -115,18 +70,13 @@ def test_sewing_command_groups_are_unique_and_complete():
     ]
 
 
-def test_sewing_toolbar_is_small_and_stable():
-    assert SEWING_TOOLBAR_COMMANDS == (
-        "ClothSewing_CreateSeam",
-        "ClothSewing_CreateOperation",
-        "ClothSewing_Validate",
-    )
+def test_sewing_toolbar_is_a_unique_subset_of_registered_commands():
     grouped = {command for _group, commands in SEWING_COMMAND_GROUPS for command in commands}
     assert set(SEWING_TOOLBAR_COMMANDS) <= grouped
     assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
 
 
-def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset(monkeypatch):
+def test_sewing_registration_uses_nested_menus_and_toolbar_subset(monkeypatch):
     import freecad_cloth.gui as gui_module
 
     monkeypatch.setattr(gui_module, "Gui", object())
@@ -147,14 +97,15 @@ def test_sewing_registration_uses_native_nested_menu_paths_and_toolbar_subset(mo
     ]
 
 
-def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_commands():
+def test_sewing_command_group_validator_rejects_invalid_groups():
     expected = ["one", "two", "three"]
     _validate_sewing_command_groups((("A", ("one",)), ("B", ("two", "three"))), expected)
-    for groups, marker in [
+    cases = [
         ((("A", ("one",)), ("B", ("two",))), "missing: three"),
         ((("A", ("one", "two")), ("B", ("two", "three"))), "duplicates"),
         ((("A", ("one",)), ("B", ("two", "three")), ("C", ("extra",))), "unexpected"),
-    ]:
+    ]
+    for groups, marker in cases:
         try:
             _validate_sewing_command_groups(groups, expected)
         except ValueError as exc:
@@ -163,103 +114,85 @@ def test_sewing_command_group_validator_rejects_missing_duplicate_or_extra_comma
             raise AssertionError(f"invalid command groups were accepted: {marker}")
 
 
-def test_workbench_group_registration_is_idempotent_and_keeps_flat_context_commands(monkeypatch):
+def test_workbench_registration_is_idempotent():
     import freecad_cloth.gui as gui_module
 
-    monkeypatch.setattr(gui_module, "Gui", object())
-    workbench = ClothSewingWorkbench()
-    calls = []
-    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
-    workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
-    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
-    first_calls = list(calls)
-    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
-    assert calls == first_calls
-    assert workbench.commands == [
-        command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
-    ]
-    assert [kind for kind, _name, _commands in calls] == ["toolbar", "menu", "menu", "menu"]
-    assert calls[0][1] == "Cloth Sewing"
-    assert calls[0][2] == workbench.commands
-    assert calls[1][1] == ["Cloth Sewing", "Sewing Creation"]
-    assert calls[2][1] == ["Cloth Sewing", "Sewing Editing"]
-    assert calls[3][1] == ["Cloth Sewing", "Validation & View"]
+    monkeypatch = type("_MonkeyPatch", (), {})()
+    original_gui = gui_module.Gui
+    gui_module.Gui = object()
+    try:
+        workbench = ClothSewingWorkbench()
+        calls = []
+        workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
+        workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
+        workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
+        first_calls = list(calls)
+        workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
+        assert calls == first_calls
+        assert workbench.commands == [
+            command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
+        ]
+    finally:
+        gui_module.Gui = original_gui
 
 
-def test_workbench_base_exposes_legacy_registration_aliases():
-    assert hasattr(ClothWorkbenchBase, "_normalize_commands")
-    assert hasattr(ClothWorkbenchBase, "_register")
-    assert hasattr(ClothWorkbenchBase, "_register_groups")
+def test_public_command_surfaces_are_nonempty_and_unique():
+    for module in (PatternCommands, SimulationCommands, AvatarCommands):
+        commands = tuple(module.COMMANDS)
+        assert commands
+        assert len(commands) == len(set(commands))
+        assert all(command.startswith("Cloth") for command in commands)
+
+
+def test_public_command_surfaces_preserve_authoring_boundaries():
+    assert "ClothPattern_CreateDrafting" not in PatternCommands.COMMANDS
+    assert {
+        "ClothPattern_EditSketch",
+        "ClothPattern_CreateSketch",
+        "ClothPattern_CreateFromSketch",
+        "ClothPattern_SurfacePen",
+    } <= set(PatternCommands.COMMANDS)
+    assert {
+        "ClothSimulation_Edit",
+        "ClothSimulation_Step",
+        "ClothSimulation_Run",
+        "ClothSimulation_Reset",
+    } <= set(SimulationCommands.COMMANDS)
+    assert {
+        "ClothFitting_CreateAvatar",
+        "ClothFitting_EditAvatar",
+        "ClothFitting_PoseAvatar",
+    } <= set(AvatarCommands.COMMANDS)
+
+
+def test_avatar_gui_schema_matches_authoritative_command_mapping():
+    assert AvatarTaskPanel.PROPERTY_MAP == AvatarCommands.PROPERTY_MAP
+    assert tuple(key for key, _label in AvatarTaskPanel.PROVIDERS) == AvatarCommands.PROVIDER_IDS
+    assert {key for key, _label in AvatarTaskPanel.POSE_FIELDS} == {
+        "left_arm_angle",
+        "right_arm_angle",
+        "left_elbow_angle",
+        "right_elbow_angle",
+    }
+
+
+def test_pose_projection_distance_has_stable_boundary_behavior():
+    distance = SkeletonPoseController._screen_segment_distance
+    assert distance((5, 0), (0, 0), (10, 0)) == 0.0
+    assert distance((5, 3), (0, 0), (10, 0)) == 3.0
+    assert distance((20, 0), (0, 0), (10, 0)) == 10.0
+    assert distance((5, 0), (5, 0), (5, 0)) == 0.0
 
 
 def test_workbench_icons_are_present_and_valid_svg_resources():
-    for name in ("ClothPattern.svg", "ClothSimulation.svg", "ClothSewing.svg", "ClothPattern_SurfacePen.svg"):
+    for name in (
+        "ClothPattern.svg",
+        "ClothSimulation.svg",
+        "ClothSewing.svg",
+        "ClothPattern_SurfacePen.svg",
+    ):
         path = ROOT / "resources" / "icons" / name
         assert path.is_file(), path
         content = path.read_text(encoding="utf-8").lstrip()
         assert content.startswith("<svg "), path
         assert 'xmlns="http://www.w3.org/2000/svg"' in content
-
-
-def test_pattern_authoring_command_surface_is_sketcher_backed():
-    tree = ast.parse(commands)
-    command_list = next(
-        ast.literal_eval(node.value)
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "COMMANDS" for target in node.targets)
-    )
-    native_commands = {
-        "ClothPattern_CreatePieceTask",
-        "ClothPattern_EditPiece",
-        "ClothPattern_EditSketch",
-        "ClothPattern_CreateSketch",
-        "ClothPattern_CreatePieceWithSketch",
-        "ClothPattern_CreateFromSketch",
-        "ClothPattern_CreatePiece",
-        "ClothPattern_CreateCustomPiece",
-        "ClothPattern_SurfacePen",
-    }
-    assert "ClothPattern_CreateDrafting" not in command_list
-    assert native_commands <= set(command_list)
-    assert '"ClothPattern_EditSketch": edit_pattern_sketch' in commands
-    assert '"ClothPattern_CreatePiece": create_pattern_piece_with_sketch' in commands
-    assert '"ClothPattern_CreatePieceWithSketch": create_pattern_piece_with_sketch' in commands
-    assert '"ClothPattern_CreateFromSketch": create_pattern_piece_from_selected_sketch' in commands
-    assert '"ClothPattern_SurfacePen": start_surface_pattern_pen' in commands
-    surface_pen = (ROOT / "freecad_cloth" / "pattern" / "SurfacePen.py").read_text()
-    assert "class SurfacePenController" in surface_pen
-    assert "class SurfacePenTaskPanel" in surface_pen
-    assert "pick_surface_point" in surface_pen
-    assert "flatten_surface_patch" in surface_pen
-    assert "Sketcher" in surface_pen
-    assert "Edit native Sketch" in pattern_gui
-    assert "Compatibility-only editor for legacy PatternDrafting state" in pattern_gui
-
-
-def test_simulation_quality_panel_exposes_bounded_arrange_fit_bridge():
-    handoff = (ROOT / "freecad_cloth" / "simulation" / "FittingHandoff.py").read_text(
-        encoding="utf-8"
-    )
-    assert 'QtWidgets.QGroupBox("Context")' in quality_gui
-    assert 'QtWidgets.QGroupBox("Arrange / Fit")' in quality_gui
-    assert 'QPushButton("Arrange / Fit…")' in quality_gui
-    assert 'QPushButton("Snap pieces to target")' in quality_gui
-    assert 'QPushButton("Reset arrangement")' in quality_gui
-    assert 'QPushButton("Refresh target")' in quality_gui
-    assert "fitting_stage_status" in quality_gui
-    assert "open_arrange_fit_from_simulation" in quality_gui
-    assert "reset_arrangement_from_simulation" in quality_gui
-    assert "snap_to_target" in quality_gui
-    assert "ClothPieces" in handoff
-    assert 'Gui.activateWorkbench("ClothSewingWorkbench")' in handoff
-    assert "assign_avatar_source" not in handoff
-
-
-def test_pattern_drafting_remains_compatibility_only():
-    drafting_source = (ROOT / "freecad_cloth" / "pattern" / "PatternDrafting.py").read_text()
-    assert "Compatibility-only helpers for legacy pattern-drafting documents" in drafting_source
-    assert "ClothPattern_CreateDrafting" not in commands
-
-
-print("GUI structure checks passed")
