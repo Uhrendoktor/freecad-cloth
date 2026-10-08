@@ -27,7 +27,9 @@ on:
   schedule:
     - cron: '0 3 * * *'
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
+  # Keep main pushes independently schedulable so a broken/stuck push cannot block later pushes.
+  # The shared visual-evidence publication job is serialized separately below.
+  group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && format('canonical-main-push-{0}', github.sha)) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
   QT_X11_NO_MITSHM: 1
@@ -402,6 +404,9 @@ jobs:
 
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
+    concurrency:
+      group: canonical-main-visual-publisher
+      cancel-in-progress: false
     needs: [agent-quality, gui-tunic-visual, gui-turntables, gui-visual-examples, gui-simple]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     runs-on: ubuntu-latest
