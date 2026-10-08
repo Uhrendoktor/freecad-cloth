@@ -110,7 +110,7 @@ def test_source_signature_uses_shape_content_when_mesh_is_unavailable():
         ((0, 1, 2),),
     )
     signature = source_signature(SimpleNamespace(Name="Body", Shape=shape), deflection=0.5)
-    assert signature[1][0] == "Shape"
+    assert signature[1][0] == "ShapeContent"
     assert signature[1][-1][0] == "TessellatedShape"
 
 
