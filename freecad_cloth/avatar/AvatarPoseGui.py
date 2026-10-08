@@ -1233,10 +1233,6 @@ class AvatarPoseTaskPanel:
         )
         self.joint_list_widget.setVisible(bool(expanded))
 
-    def _fit_view(self):
-        if self.Gui.activeDocument():
-            self.Gui.activeDocument().activeView().fitAll()
-
     def accept(self):
         if self.avatar is None:
             return False
