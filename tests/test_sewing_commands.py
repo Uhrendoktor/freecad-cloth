@@ -304,6 +304,7 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(mon
         activateWorkbench=lambda name: active_document.calls.append(("activateWorkbench", name)),
     )
     monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(ActiveDocument=active_document))
     monkeypatch.setattr(commands_module, "focus_selected_seam_3d", lambda: None)
 
     edited_sketch, edge_index = commands_module.edit_selected_seam_side_a()
