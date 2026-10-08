@@ -48,6 +48,7 @@ def _pose_world_state(parameters):
 
 def joint_world_positions(parameters):
     """Return posed world positions for the controllable authored joints."""
+    from freecad_cloth.avatar.HumanoidMesh import _joint_point
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
 
     source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
@@ -65,6 +66,8 @@ def joint_world_positions(parameters):
 
 def skeleton_world_segments(parameters):
     """Return posed head/tail segments for the complete authored skeleton."""
+    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+
     source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
     segments = {}
     joints = {}
