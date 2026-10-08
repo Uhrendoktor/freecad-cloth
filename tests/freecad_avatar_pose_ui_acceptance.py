@@ -147,6 +147,10 @@ def run():
             raise RuntimeError("Pose Mode fallback created a misleading non-interactive gizmo")
         if not panel.joint_list_widget.isVisible():
             raise RuntimeError("Pose Mode did not expose the joint-list fallback")
+        if panel.angle_snap.isEnabled():
+            raise RuntimeError("Pose Mode kept Snap enabled when viewport rotation is unavailable")
+        if "Viewport posing is unavailable" not in panel.instruction_label.text():
+            raise RuntimeError("Pose Mode fallback still advertised viewport ring dragging")
     else:
         if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
             raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
