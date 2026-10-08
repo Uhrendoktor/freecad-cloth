@@ -20,11 +20,13 @@ def test_pose_acceptance_waits_for_paint_before_screen_capture():
         encoding="utf-8"
     )
     run = source.split("def run():", 1)[1]
+    capture = source.split("def _capture_pose_screen", 1)[1].split("def _bounds", 1)[0]
     assert run.index("Gui.Control.showDialog(panel)") < run.index("_events()")
-    assert run.index("view.viewIsometric()") < run.index("_capture_pose_screen")
-    assert run.index("view.fitAll()") < run.index("_capture_pose_screen")
-    assert run.index("view.redraw()") < run.index("_capture_pose_screen")
-    assert run.index("time.sleep(0.10)") < run.index("_capture_pose_screen")
+    assert run.index("panel.controller.select_joint(") < run.index("_capture_pose_screen(")
+    assert capture.index("view.viewIsometric()") < capture.index("view.fitAll()")
+    assert capture.index("view.fitAll()") < capture.index("panel.controller.select_joint")
+    assert capture.index("view.redraw()") < capture.index("screen.grabWindow")
+    assert capture.index("time.sleep(0.10)") < capture.index("screen.grabWindow")
     assert "grabWindow(int(window.winId()))" in source
     assert "validate_png_capture(" in source
     assert "min_distinct_rgb=16" in source
