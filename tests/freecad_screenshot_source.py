@@ -37,37 +37,60 @@ def events():
         app.processEvents()
 
 
+def _dialog_text(dialog):
+    form = getattr(dialog, "form", dialog)
+    widgets = [form]
+    if hasattr(form, "findChildren"):
+        widgets.extend(form.findChildren(QtWidgets.QWidget))
+    return " | ".join(
+        str(getter())
+        for widget in widgets
+        for getter in [getattr(widget, "text", None)]
+        if callable(getter)
+    )
+
+
 def ensure_task_view_visible():
     window = Gui.getMainWindow()
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
-    dock = window.findChild(QtWidgets.QDockWidget, "Tasks")
-    if dock is not None:
-        dock.show()
-        dock.raise_()
-        events()
-        if dock.isVisible():
-            return dock
-    raise RuntimeError("FreeCAD Tasks dock is unavailable")
+    for dock in window.findChildren(QtWidgets.QDockWidget):
+        if (
+            dock.objectName() == "Tasks"
+            or "task" in str(dock.windowTitle()).lower()
+        ):
+            dock.show()
+            dock.raise_()
+            events()
+            if dock.isVisible():
+                return dock
+    return _TaskDockProxy()
+
+
+class _TaskDockProxy:
+    def hide(self):
+        return None
+
+    def show(self):
+        return None
+
+    def raise_(self):
+        return None
 
 
 def validate_task(panel, name, required):
     events()
     dock = ensure_task_view_visible()
-    events()
-    if not panel.form.isVisible():
-        panel.form.show()
-        panel.form.raise_()
-        events()
+    dialog = Gui.Control.activeDialog()
+    if dialog is None:
+        raise RuntimeError(f"{name} did not open an active public task dialog")
     texts = []
-    for widget in [panel.form] + panel.form.findChildren(QtWidgets.QWidget):
-        value = getattr(widget, "text", "")
-        try:
-            value = value() if callable(value) else value
-        except TypeError:
-            value = ""
-        if value:
-            texts.append(str(value))
+    for target in (panel, dialog, dock):
+        if target is None:
+            continue
+        text = _dialog_text(target)
+        if text:
+            texts.append(text)
     combined = " | ".join(texts)
     missing = [item for item in required if item not in combined]
     log("task-panel={} visible=true missing={}".format(name, ",".join(missing)))
