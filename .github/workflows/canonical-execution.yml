@@ -308,6 +308,16 @@ jobs:
           test-script: tests/freecad_realtime_benchmark.py
           pre-command: mkdir -p artifacts
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
+          environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_tunic_audit_production.py
+          stage-workbench: "true"
+          clean-user: "true"
+          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
           artifact-name: tunic-visual-audit
           artifact-path: |
@@ -316,15 +326,6 @@ jobs:
             artifacts/tunic-audit/**
             artifacts/freecad-realtime/**
             artifacts/pypbd-provenance.txt
-          environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
-        with:
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          test-script: tests/freecad_tunic_audit_production.py
-          stage-workbench: "true"
-          clean-user: "true"
-          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           environment: |
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
