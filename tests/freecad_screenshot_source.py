@@ -11,9 +11,9 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 try:
-    from PySide import QtWidgets
+    from PySide import QtCore, QtWidgets
 except ImportError:
-    from PySide2 import QtWidgets
+    from PySide2 import QtCore, QtWidgets
 
 ROOT = "/workspace"
 if ROOT not in sys.path:
@@ -53,12 +53,25 @@ def ensure_task_view_visible(panel=None):
             if dock.isVisible():
                 return dock
     form = getattr(panel, "form", None) if panel is not None else None
-    if form is not None:
-        form.show()
-        form.raise_()
-        events()
-        if form.isVisible():
-            return form
+    if form is None:
+        raise RuntimeError("FreeCAD task panel is unavailable")
+    form.show()
+    form.raise_()
+    events()
+    if form.isVisible():
+        return form
+    # Some FreeCAD headless layouts expose the task wrapper without creating
+    # the normal Tasks dock. Provide a real dock only for this CI screenshot.
+    dock = QtWidgets.QDockWidget("Tasks", window)
+    dock.setObjectName("CI-FreeCAD-Tasks")
+    dock.setWidget(form)
+    window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
+    dock.show()
+    dock.raise_()
+    events()
+    if dock.isVisible() and form.isVisible():
+        log("task-dock=ci-fallback")
+        return dock
     raise RuntimeError("FreeCAD task panel is unavailable")
 
 
@@ -100,6 +113,12 @@ def show_task(panel, name, required=()):
 def close_task():
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
+        events()
+    window = Gui.getMainWindow()
+    if window is not None:
+        for dock in window.findChildren(QtWidgets.QDockWidget, "CI-FreeCAD-Tasks"):
+            dock.close()
+            dock.deleteLater()
         events()
 
 
