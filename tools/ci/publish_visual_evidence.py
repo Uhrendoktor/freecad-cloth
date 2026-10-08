@@ -16,6 +16,7 @@ ARTIFACT_ROOTS = (
     Path("tunic"),
     Path("avatar-pose-ui"),
     Path("interactive-arrange"),
+    Path("sewing"),
 )
 
 
