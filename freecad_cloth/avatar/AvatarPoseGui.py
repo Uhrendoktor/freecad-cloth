@@ -831,12 +831,10 @@ class AvatarPoseTaskPanel:
         presets = QtWidgets.QHBoxLayout()
         presets.setSpacing(2)
         self.preset_group = QtWidgets.QButtonGroup(self.form)
-        self.preset_group.setExclusive(True)
         self.preset_buttons = {}
         for preset, label in self.PRESETS:
             button = QtWidgets.QToolButton()
             button.setText(label)
-            button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolTip("Stage the {} starting pose.".format(label.lower()))
             self.preset_group.addButton(button)
@@ -1025,8 +1023,6 @@ class AvatarPoseTaskPanel:
         )
         current_preset = str(getattr(self.avatar, "PosePreset", "standing"))
         self._staged_pose_preset = current_preset
-        button = self.preset_buttons.get(current_preset, self.preset_buttons["standing"])
-        button.setChecked(True)
         self._select_first_joint()
 
     def _select_first_joint(self):
