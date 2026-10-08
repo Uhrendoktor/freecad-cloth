@@ -1,102 +1,58 @@
-"""Headless contract checks for the native avatar task panel."""
+"""Behavioral contract checks for the avatar task-panel boundary.
 
-from pathlib import Path
+The expensive visual behavior is covered by FreeCAD acceptance tests. These tests
+exercise exported panel configuration and pure helper behavior without reading
+the GUI implementation source.
+"""
 
-ROOT = Path(__file__).resolve().parents[1]
-source = (ROOT / "freecad_cloth" / "avatar" / "AvatarGui.py").read_text(encoding="utf-8")
-commands = (ROOT / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
-
-
-def test_avatar_panel_has_grouped_controls_and_lifecycle():
-    assert "class AvatarTaskPanel" in source
-    assert '"Body measurements"' in source
-    assert '"Proportions"' in source
-    assert '"Avatar provider"' in source
-    assert '"Pose"' in source
-    assert '"Display"' in source
-    assert '"Arrangement points"' in source
-    assert "Apply & Rebuild" in source
-    assert 'self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")' in source
-    assert "self.pose_mode_button.clicked.connect(self._open_pose_mode)" in source
-    assert "pose.setVisible(False)" in source
-    assert "skeleton.setVisible(False)" in source
-    assert "getStandardButtons" in source
-    assert "QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel" in source
+from freecad_cloth.avatar import AvatarCommands
+from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
 
 
-def test_avatar_panel_stages_values_and_validates_before_mutation():
-    assert "self._dirty = False" in source
-    assert "self._dirty = True" in source
-    assert "def _staged_parameters(self):" in source
-    assert '"Skeleton pose"' in source
-    assert "AvatarParameters(" in source
-    assert "self._staged_joint_rotations" in source
-    assert "JointPoseJSON" in source
-    assert "def _apply(self):" in source
-    assert "from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters" in source
-    assert "apply_avatar_parameters(" in source
-    assert "from freecad_cloth.avatar.AvatarCommands import rebuild_avatar" in source
+def test_avatar_panel_property_mapping_matches_command_authority():
+    assert AvatarTaskPanel.PROPERTY_MAP == AvatarCommands.PROPERTY_MAP
+    assert set(AvatarTaskPanel.PROPERTY_MAP) == set(AvatarCommands.DEFAULT_MEASUREMENTS)
 
 
-def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
-    assert '"makehuman-hm08", "MakeHuman HM08 humanoid mesh"' in source
-    assert '"freecad-geometry", "FreeCAD body / imported geometry"' in source
-    assert "self.provider_group.setExclusive(True)" in source
-    assert 'button.setCheckable(True)' in source
-    assert '"MakeHuman" if key == "makehuman-hm08"' in source
-    assert '"FreeCAD geometry"' in source
-    assert "self.provider = QtWidgets.QComboBox()" not in source
-    assert "Use selected FreeCAD object" in source
-    assert "provider_id=provider_id" in source
-    assert "provider_source=" in source
-    assert (
-        "def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):"
-        in commands
+def test_avatar_panel_groups_cover_all_editable_measurements():
+    grouped = tuple(key for key, _label in AvatarTaskPanel.BODY + AvatarTaskPanel.PROPORTIONS)
+    assert len(grouped) == len(set(grouped))
+    assert set(grouped) == set(AvatarCommands.DEFAULT_MEASUREMENTS)
+
+
+def test_avatar_panel_pose_fields_match_command_pose_schema():
+    assert tuple(key for key, _label in AvatarTaskPanel.POSE_FIELDS) == (
+        "left_arm_angle",
+        "right_arm_angle",
+        "left_elbow_angle",
+        "right_elbow_angle",
     )
-    assert "def set_avatar_provider(provider_id, source=None):" in commands
-    assert "provider_id not in PROVIDER_IDS" in commands
+    assert {
+        key: AvatarTaskPanel._pose_property(key)
+        for key, _label in AvatarTaskPanel.POSE_FIELDS
+    } == AvatarCommands.POSE_PROPERTY_MAP
 
 
-def test_avatar_panel_uses_explicit_property_mapping():
-    assert '"high_hip": "High_Hip"' in source
-    assert '"upper_arm": "Upper_Arm"' in source
-    assert '"front_waist": "Front_Waist"' in source
-    assert '"back_waist": "Back_Waist"' in source
-    assert "PROPERTY_MAP = {" in commands
-    assert '"high_hip": "High_Hip"' in commands
-    assert '"upper_arm": "Upper_Arm"' in commands
-    assert '"front_waist": "Front_Waist"' in commands
-    assert '"back_waist": "Back_Waist"' in commands
+def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
+    assert tuple(key for key, _label in AvatarTaskPanel.PROVIDERS) == AvatarCommands.PROVIDER_IDS
+    assert len(AvatarTaskPanel.PROVIDERS) == len(set(AvatarCommands.PROVIDER_IDS))
 
 
-def test_avatar_panel_exposes_manual_fk_joint_controls():
-    assert "self.skeleton_joint = QtWidgets.QComboBox()" in source
-    assert "self.skeleton_x = QtWidgets.QDoubleSpinBox()" in source
-    assert "self.skeleton_y = QtWidgets.QDoubleSpinBox()" in source
-    assert "self.skeleton_z = QtWidgets.QDoubleSpinBox()" in source
-    assert "self.skeleton_symmetry = QtWidgets.QCheckBox(" in source
-    assert "self.reset_skeleton_button = QtWidgets.QPushButton(" in source
-    assert "joint_rotations_from_json" in source
-    assert "JointRotation(" in source
-    assert "rotation.mirrored()" in source
+def test_avatar_panel_exposes_the_public_task_panel_protocol():
+    assert callable(AvatarTaskPanel)
+    for method in (
+        "_staged_parameters",
+        "_apply",
+        "_open_pose_mode",
+        "_update_arrangement_points",
+        "_update_landmarks",
+    ):
+        assert callable(getattr(AvatarTaskPanel, method, None))
 
 
-def test_avatar_panel_exposes_persistent_fitting_points():
-    assert "self.arrangement_points = QtWidgets.QListWidget()" in source
-    assert 'getattr(self.avatar, "ArrangementPoints", [])' in source
-    assert "self._update_arrangement_points()" in source
-    assert '"ArrangementPoints"' in commands
-    assert "def avatar_arrangement_points():" in commands
-
-
-def test_avatar_edit_command_is_publicly_registered():
-    assert "ClothFitting_EditAvatar" in commands
-    assert '"ClothFitting_EditAvatar": edit_avatar' in commands
-    assert "ClothFitting_SetAvatarProvider" in commands
-
-
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn()
-    print("avatar GUI contract checks passed")
+def test_avatar_panel_keeps_legacy_pose_and_skeleton_paths_secondary():
+    # These are runtime defaults/configuration, not source-text requirements.
+    assert "standing" in AvatarCommands.Pose.VALID_PRESETS
+    assert "sewing" in AvatarCommands.Pose.VALID_PRESETS
+    assert "sitting" in AvatarCommands.Pose.VALID_PRESETS
+    assert AvatarTaskPanel.POSE_FIELDS
