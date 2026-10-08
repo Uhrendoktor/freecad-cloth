@@ -1003,7 +1003,7 @@ class AvatarPoseTaskPanel:
                 child = self.QtWidgets.QTreeWidgetItem([label])
                 child.setData(0, self.QtCore.Qt.UserRole, bone)
                 top.addChild(child)
-            top.setExpanded(True)
+            top.setExpanded(False)
 
     def _load(self):
         if self.avatar is None:
@@ -1085,14 +1085,17 @@ class AvatarPoseTaskPanel:
             values["y"],
             values["z"],
             preview=True,
+            snap=False,
         )
 
-    def _stage_joint_rotation(self, bone, x, y, z, preview=False):
+    def _stage_joint_rotation(self, bone, x, y, z, preview=False, snap=None):
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
         values = dict(self._staged_joint_rotations)
         rotation = JointRotation(str(bone), float(x), float(y), float(z)).validate()
-        if self.angle_snap.isChecked():
+        if snap is None:
+            snap = self.angle_snap.isChecked()
+        if snap:
             rotation = JointRotation(
                 rotation.bone,
                 round(rotation.x / 5.0) * 5.0,
