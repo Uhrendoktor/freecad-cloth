@@ -33,7 +33,7 @@ def main():
         )
         Gui.updateGui()
         from freecad_cloth.simulation.RealtimePreview import _prepare
-        from freecad_cloth.simulation.SimulationQualityRuntime import (
+        from freecad_cloth.simulation.SimulationCommands import (
             create_quality_simulation_scene,
         )
 

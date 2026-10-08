@@ -306,6 +306,7 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
+          pre-command: mkdir -p artifacts
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
           artifact-name: tunic-visual-audit
