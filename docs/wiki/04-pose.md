@@ -14,11 +14,11 @@ The image above is the dedicated Pose Mode interaction fixture. It is captured f
 
 Pose Mode is a dedicated human-facing editor for the mannequin skeleton and pose.
 
-The viewport is the primary manipulation surface. The task panel provides selection, symmetry, angle snapping, presets, exact rotation fields and explicit Apply/Cancel behavior.
+The viewport is the primary manipulation surface. The task panel keeps only direct-pose aids visible: starting-pose buttons, Mirror/5° Snap toggles, the selected-joint readout, and recovery/commit actions. The joint list and exact angle entry are secondary fallbacks.
 
 The current implementation is manual forward kinematics. Parent joint rotations propagate to descendants through the authored skeleton hierarchy.
 
-The native interaction path uses a Coin3D SoTrackballDragger. The selected joint is kept in a depth-independent overlay so joint markers, bone guides and the active gizmo remain visible against the mannequin surface. FreeCAD builds without the required Coin/SWIG bridge use a visual three-ring fallback gizmo backed by temporary FreeCAD geometry; the fallback keeps joint selection and exact panel editing available, while direct drag rotation remains a native-Coin capability.
+The native interaction path prefers FreeCAD's Coin3D SoTransformDragger with translation handles hidden and the three rotation rings exposed. The selected bone is kept in a depth-independent overlay so the full X-ray rig remains visible. FreeCAD builds without the native transform dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
 
 ## What a human should see
 

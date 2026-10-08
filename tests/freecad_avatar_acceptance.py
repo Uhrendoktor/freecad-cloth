@@ -179,12 +179,12 @@ def run_acceptance():
 
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
-        if panel.provider.currentText() != "MakeHuman HM08 humanoid mesh":
+        if not panel.provider_buttons["makehuman-hm08"].isChecked():
             raise RuntimeError("avatar task panel did not load the persistent default provider")
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(source)
         panel._use_selected_provider_source()
-        if panel.provider.currentText() != "FreeCAD body / imported geometry":
+        if not panel.provider_buttons["freecad-geometry"].isChecked():
             raise RuntimeError("task panel did not stage the FreeCAD provider")
         if panel.provider_source_label.text() != "Source: Provider Acceptance Body":
             raise RuntimeError("task panel did not show the staged FreeCAD provider source")

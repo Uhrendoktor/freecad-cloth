@@ -1,8 +1,8 @@
 """Focused 3D posing UI for the merged Cloth mannequin skeleton.
 
 PoseMode is intentionally separate from the anthropometric avatar editor. The
-task panel keeps common posing actions visible while the viewport carries the
-primary manipulation. Exact Euler entry is retained behind a precision drawer.
+task panel keeps only essential posing aids visible while the viewport carries
+the primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
 
@@ -112,10 +112,11 @@ class _NativeGizmoHandle:
 
 
 class SkeletonPoseController:
-    """Viewport overlay and Coin3D trackball controller for mannequin joints."""
+    """Viewport overlay and Coin3D rotation controller for mannequin joints."""
 
     GIZMO_SIZE = 75.0
-    JOINT_PICK_RADIUS = 28.0
+    BONE_PICK_RADIUS = 12.0
+    JOINT_PICK_RADIUS = 20.0
 
     def __init__(self, panel):
         self.panel = panel
@@ -128,6 +129,9 @@ class SkeletonPoseController:
         self.gizmo_transform = None
         self.gizmo = None
         self.mouse_callback = None
+        self._location_callback = None
+        self._hover_separator = None
+        self._hover_bone = None
         self.selected_bone = None
         self.base_rotation = None
         self._positions = {}
@@ -210,12 +214,21 @@ class SkeletonPoseController:
             self._build_positions()
             self.gizmo = _FallbackGizmo()
             self.panel._select_first_joint()
+            self.panel.joint_list_toggle.setChecked(True)
+            self.panel.angle_snap.setEnabled(False)
+            self.panel.angle_snap.setToolTip(
+                "Unavailable without viewport rotation; Exact angles is the precise fallback."
+            )
+            self.panel.instruction_label.setText(
+                "Viewport posing is unavailable. Use Joint list to select a joint, "
+                "then Exact angles to edit rotation."
+            )
             bone = str(getattr(self.panel, "skeleton_joint_index", ""))
             if bone:
                 self.select_joint(bone)
             self.panel.status.setText(
-                "Pose Mode: Coin/SWIG viewport controls are unavailable in this FreeCAD build; "
-                "use the joint selector and Apply & Rebuild."
+                "Pose Mode: viewport posing is unavailable in this FreeCAD build; "
+                "use Joint list and Exact angles."
             )
             return
 
@@ -240,15 +253,24 @@ class SkeletonPoseController:
                 raise
             self.mouse_callback = None
             self.panel.status.setText(
-                "Pose Mode: viewport joint picking is unavailable in this FreeCAD/SWIG build; "
-                "use the joint selector and Apply & Rebuild."
+                "Pose Mode: bone clicking is unavailable in this FreeCAD/SWIG build; "
+                "use Joint list to select a joint, then Exact angles to edit rotation."
             )
+        try:
+            self._location_callback = self.view.addEventCallbackPivy(
+                coin.SoLocation2Event.getClassTypeId(),
+                self._location_event,
+            )
+        except Exception as exc:
+            if "No SWIG wrapped library loaded" not in str(exc):
+                raise
+            self._location_callback = None
         self._build_positions()
         bone = str(self.panel.skeleton_joint.currentData())
         if bone:
             self.select_joint(bone)
         self.panel.status.setText(
-            "Pose Mode: click a joint, then drag the rotation rings. Symmetry and 5° snapping are on."
+            "Click a bone to select · drag a rotation ring to pose."
         )
 
     def _clear_fallback_gizmo(self):
@@ -265,36 +287,11 @@ class SkeletonPoseController:
             pass
 
     def _create_fallback_gizmo(self, bone):
+        # Do not draw a fake manipulator when viewport dragging is unavailable.
+        # The joint list and exact-angle drawer are the honest fallback controls.
         self._clear_fallback_gizmo()
-        if self.panel.avatar is None:
-            return
-        point = self._positions.get(str(bone))
-        if point is None:
-            return
-        try:
-            import Part
-
-            doc = self.panel.avatar.Document
-            center = self.App.Vector(*point)
-            radius = float(self.GIZMO_SIZE) * 1.6
-            rings = (
-                Part.makeCircle(radius, center, self.App.Vector(1.0, 0.0, 0.0)),
-                Part.makeCircle(radius, center, self.App.Vector(0.0, 1.0, 0.0)),
-                Part.makeCircle(radius, center, self.App.Vector(0.0, 0.0, 1.0)),
-                Part.makeSphere(radius * 0.10, center),
-            )
-            obj = doc.addObject("Part::Feature", "ClothPoseVisualGizmo")
-            obj.Label = "Pose Gizmo (visual fallback)"
-            obj.Shape = Part.makeCompound(rings)
-            obj.ViewObject.LineColor = (1.0, 0.65, 0.10)
-            obj.ViewObject.LineWidth = 4.0
-            obj.ViewObject.ShapeColor = (1.0, 0.65, 0.10)
-            obj.ViewObject.Transparency = 5
-            doc.recompute()
-            self.fallback_gizmo_object = obj
-            self.gizmo = _FallbackGizmo((obj,))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            self.fallback_gizmo_object = None
+        self.fallback_gizmo_object = None
+        self.gizmo = _FallbackGizmo()
 
     def deactivate(self):
         """Remove transient viewport nodes and callbacks."""
@@ -302,6 +299,8 @@ class SkeletonPoseController:
             return
         if self.scene_graph is None:
             self.mouse_callback = None
+            self._location_callback = None
+            self._clear_hover_overlay()
             self._clear_fallback_gizmo()
             self.gizmo = None
             self.gizmo_transform = None
@@ -321,6 +320,11 @@ class SkeletonPoseController:
                     coin.SoMouseButtonEvent.getClassTypeId(),
                     self.mouse_callback,
                 )
+            if self._location_callback is not None:
+                self.view.removeEventCallbackPivy(
+                    coin.SoLocation2Event.getClassTypeId(),
+                    self._location_callback,
+                )
         except (AttributeError, RuntimeError):
             pass
         try:
@@ -331,6 +335,8 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         self.mouse_callback = None
+        self._location_callback = None
+        self._clear_hover_overlay()
         self.gizmo = None
         self.gizmo_transform = None
         self.gizmo_separator = None
@@ -600,6 +606,7 @@ class SkeletonPoseController:
         if bone not in self._positions:
             return
         self.selected_bone = bone
+        self._set_hover_bone(None)
         self.panel._select_joint_without_preview(bone)
         self._create_gizmo(bone)
 
@@ -669,18 +676,57 @@ class SkeletonPoseController:
             )
             self.refresh_overlay()
 
-    def _mouse_event(self, event_callback):
-        coin = self._coin()
-        event = event_callback.getEvent()
-        if event.getState() != coin.SoMouseButtonEvent.DOWN:
+    def _clear_hover_overlay(self):
+        if self._hover_separator is None or self.scene_graph is None:
+            self._hover_separator = None
+            self._hover_bone = None
             return
-        if event.getButton() != coin.SoMouseButtonEvent.BUTTON1:
+        try:
+            self.scene_graph.removeChild(self._hover_separator)
+        except (AttributeError, RuntimeError):
+            pass
+        self._hover_separator = None
+        self._hover_bone = None
+
+    def _set_hover_bone(self, bone):
+        bone = None if bone is None else str(bone)
+        if bone == self._hover_bone:
             return
-        if self._gizmo_dragging:
+        self._clear_hover_overlay()
+        if bone is None or bone == self.selected_bone or self.scene_graph is None:
             return
-        position = event.getPosition()
-        size = self.view.getSize()
-        screen = (float(position[0]), float(size[1] - position[1]))
+        segment = self._skeleton_segments.get(bone)
+        if segment is None:
+            return
+        try:
+            coin = self._coin()
+            separator = coin.SoSeparator()
+            depth = coin.SoDepthBuffer()
+            depth.test = False
+            depth.write = False
+            draw = coin.SoDrawStyle()
+            draw.lineWidth = 4.0
+            color = coin.SoBaseColor()
+            color.rgb = (0.95, 0.88, 0.38)
+            coord = coin.SoCoordinate3()
+            coord.point.setValues(0, 2, [segment[0], segment[1]])
+            line_set = coin.SoLineSet()
+            line_set.numVertices.setValue(2)
+            separator.addChild(depth)
+            separator.addChild(draw)
+            separator.addChild(color)
+            separator.addChild(coord)
+            separator.addChild(line_set)
+            self.scene_graph.addChild(separator)
+            self._hover_separator = separator
+            self._hover_bone = bone
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            self._hover_separator = None
+            self._hover_bone = None
+
+    def _pick_bone(self, screen, include_joint_fallback=False):
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+
         try:
             projected_segments = {
                 bone: (
@@ -690,14 +736,10 @@ class SkeletonPoseController:
                 for bone, segment in self._skeleton_segments.items()
             }
         except (AttributeError, RuntimeError, TypeError, ValueError):
-            return
-
-        # Prefer the nearest visible, controllable bone body. This mirrors the
-        # familiar Pose Mode interaction of clicking the bone rather than its joint.
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+            return None
 
         best = None
-        best_distance = self.JOINT_PICK_RADIUS
+        best_distance = self.BONE_PICK_RADIUS
         for bone in CONTROLLABLE_BONES:
             segment = projected_segments.get(bone)
             if segment is None:
@@ -711,9 +753,7 @@ class SkeletonPoseController:
                 best = bone
                 best_distance = distance
 
-        if best is None:
-            # Keep small joint targets as an intuitive fallback at crowded
-            # endpoints where several bones overlap in screen space.
+        if best is None and include_joint_fallback:
             for bone, point in {
                 name: self._screen_position(value)
                 for name, value in self._positions.items()
@@ -724,7 +764,31 @@ class SkeletonPoseController:
                 if distance < best_distance:
                     best = bone
                     best_distance = distance
+        return best
 
+    def _location_event(self, event_callback):
+        if self._gizmo_dragging:
+            return
+        coin = self._coin()
+        event = event_callback.getEvent()
+        position = event.getPosition()
+        size = self.view.getSize()
+        screen = (float(position[0]), float(size[1] - position[1]))
+        self._set_hover_bone(self._pick_bone(screen))
+
+    def _mouse_event(self, event_callback):
+        coin = self._coin()
+        event = event_callback.getEvent()
+        if event.getState() != coin.SoMouseButtonEvent.DOWN:
+            return
+        if event.getButton() != coin.SoMouseButtonEvent.BUTTON1:
+            return
+        if self._gizmo_dragging:
+            return
+        position = event.getPosition()
+        size = self.view.getSize()
+        screen = (float(position[0]), float(size[1] - position[1]))
+        best = self._pick_bone(screen, include_joint_fallback=True)
         if best is not None:
             self.select_joint(best)
 
@@ -747,101 +811,83 @@ class AvatarPoseTaskPanel:
         title.setStyleSheet("font-weight: bold; font-size: 15px;")
         header.addWidget(title)
         header.addStretch(1)
-        self.symmetry = QtWidgets.QCheckBox("Symmetry")
-        self.symmetry.setChecked(True)
-        self.symmetry.setToolTip("Mirror left/right joint rotations around the mannequin center line.")
-        header.addWidget(self.symmetry)
-        self.angle_snap = QtWidgets.QCheckBox("Snap 5°")
-        self.angle_snap.setChecked(True)
-        self.angle_snap.setToolTip("Round dragged rotations to 5 degree increments.")
-        header.addWidget(self.angle_snap)
         root.addLayout(header)
 
-        preset_row = QtWidgets.QHBoxLayout()
-        preset_label = QtWidgets.QLabel("Preset")
-        preset_row.addWidget(preset_label)
+        presets = QtWidgets.QHBoxLayout()
+        presets.setSpacing(2)
         self.preset_group = QtWidgets.QButtonGroup(self.form)
-        self.preset_group.setExclusive(True)
         self.preset_buttons = {}
         for preset, label in self.PRESETS:
             button = QtWidgets.QToolButton()
             button.setText(label)
-            button.setCheckable(True)
             button.setAutoRaise(True)
+            button.setToolTip("Stage the {} starting pose.".format(label.lower()))
             self.preset_group.addButton(button)
             self.preset_buttons[preset] = button
-            preset_row.addWidget(button)
+            presets.addWidget(button)
             button.clicked.connect(lambda checked=False, value=preset: self._select_preset(value))
-        preset_row.addStretch(1)
-        root.addLayout(preset_row)
+        presets.addStretch(1)
+        root.addLayout(presets)
 
-        main = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        joint_panel = QtWidgets.QWidget()
-        joint_layout = QtWidgets.QVBoxLayout(joint_panel)
-        joint_title = QtWidgets.QLabel("Joints")
-        joint_title.setStyleSheet("font-weight: bold;")
-        joint_layout.addWidget(joint_title)
-        self.joints = QtWidgets.QTreeWidget()
-        self.joints.setHeaderHidden(True)
-        self.joints.setRootIsDecorated(True)
-        self.joints.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self._populate_joints()
-        joint_layout.addWidget(self.joints, 1)
-        main.addWidget(joint_panel)
+        tool_row = QtWidgets.QHBoxLayout()
+        self.symmetry = QtWidgets.QToolButton()
+        self.symmetry.setText("Mirror")
+        self.symmetry.setCheckable(True)
+        self.symmetry.setChecked(False)
+        self.symmetry.setAutoRaise(True)
+        self.symmetry.setToolTip("Mirror left/right joint rotations across the mannequin center line.")
+        self.angle_snap = QtWidgets.QToolButton()
+        self.angle_snap.setText("5° Snap")
+        self.angle_snap.setCheckable(True)
+        self.angle_snap.setChecked(False)
+        self.angle_snap.setAutoRaise(True)
+        self.angle_snap.setToolTip("Snap dragged rotations to 5 degree increments.")
+        tool_row.addWidget(self.symmetry)
+        tool_row.addWidget(self.angle_snap)
+        tool_row.addStretch(1)
+        root.addLayout(tool_row)
 
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
-        self.selected_label = QtWidgets.QLabel("Select a joint in the list or 3D view.")
+        self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
         self.selected_label.setStyleSheet("font-weight: bold;")
         selected_layout.addWidget(self.selected_label)
 
-        instruction = QtWidgets.QLabel(
-            "Drag a colored ring to rotate around one axis. Release to stage the pose."
+        self.instruction_label = QtWidgets.QLabel(
+            "Click a bone to select it. Drag a colored ring to rotate that axis."
         )
-        instruction.setWordWrap(True)
-        selected_layout.addWidget(instruction)
+        self.instruction_label.setWordWrap(True)
+        selected_layout.addWidget(self.instruction_label)
 
-        self._sliders = {}
+        axis_row = QtWidgets.QHBoxLayout()
         self._angle_labels = {}
-        for axis, text in (("x", "X"), ("y", "Y"), ("z", "Z")):
-            row = QtWidgets.QHBoxLayout()
-            label = QtWidgets.QLabel(text)
-            label.setFixedWidth(18)
-            slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            slider.setRange(-180, 180)
-            slider.setSingleStep(1)
-            slider.setPageStep(15)
-            slider.setTracking(True)
-            value = QtWidgets.QLabel("0°")
-            value.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-            value.setFixedWidth(42)
-            row.addWidget(label)
-            row.addWidget(slider, 1)
-            row.addWidget(value)
-            selected_layout.addLayout(row)
-            self._sliders[axis] = slider
+        for axis in ("x", "y", "z"):
+            value = QtWidgets.QLabel("{} 0°".format(axis.upper()))
+            value.setAlignment(QtCore.Qt.AlignCenter)
+            axis_row.addWidget(value, 1)
             self._angle_labels[axis] = value
-            slider.valueChanged.connect(
-                lambda value, axis=axis: self._slider_changed(axis, value)
-            )
+        selected_layout.addLayout(axis_row)
 
         self.precision = QtWidgets.QToolButton()
-        self.precision.setText("Precision")
+        self.precision.setText("Exact angles…")
         self.precision.setCheckable(True)
         self.precision.setChecked(False)
         self.precision.setArrowType(QtCore.Qt.RightArrow)
         self.precision.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         selected_layout.addWidget(self.precision)
+
         self.precision_fields = {}
         precision_widget = QtWidgets.QWidget()
-        precision_layout = QtWidgets.QFormLayout(precision_widget)
+        precision_layout = QtWidgets.QHBoxLayout(precision_widget)
+        precision_layout.setContentsMargins(0, 0, 0, 0)
         for axis in ("x", "y", "z"):
             box = QtWidgets.QDoubleSpinBox()
             box.setRange(-180.0, 180.0)
             box.setDecimals(1)
             box.setSuffix("°")
-            precision_layout.addRow("{} rotation".format(axis.upper()), box)
+            box.setPrefix("{} ".format(axis.upper()))
             self.precision_fields[axis] = box
+            precision_layout.addWidget(box)
             box.valueChanged.connect(
                 lambda value, axis=axis: self._precision_changed(axis, value)
             )
@@ -849,29 +895,43 @@ class AvatarPoseTaskPanel:
         self.precision_widget = precision_widget
         self.precision_widget.setVisible(False)
         self.precision.toggled.connect(self._toggle_precision)
-        main.addWidget(selected)
-        main.setSizes([340, 270])
-        root.addWidget(main, 1)
+        root.addWidget(selected)
+
+        joint_toggle_row = QtWidgets.QHBoxLayout()
+        self.joint_list_toggle = QtWidgets.QToolButton()
+        self.joint_list_toggle.setText("Joint list")
+        self.joint_list_toggle.setCheckable(True)
+        self.joint_list_toggle.setChecked(False)
+        self.joint_list_toggle.setArrowType(QtCore.Qt.RightArrow)
+        self.joint_list_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+        joint_toggle_row.addWidget(self.joint_list_toggle)
+        joint_toggle_row.addStretch(1)
+        root.addLayout(joint_toggle_row)
+
+        joint_list_widget = QtWidgets.QWidget()
+        joint_list_layout = QtWidgets.QVBoxLayout(joint_list_widget)
+        joint_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.joints = QtWidgets.QTreeWidget()
+        self.joints.setHeaderHidden(True)
+        self.joints.setRootIsDecorated(True)
+        self.joints.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self._populate_joints()
+        joint_list_layout.addWidget(self.joints)
+        root.addWidget(joint_list_widget)
+        self.joint_list_widget = joint_list_widget
+        self.joint_list_widget.setVisible(False)
+        self.joint_list_toggle.toggled.connect(self._toggle_joint_list)
 
         action_row = QtWidgets.QHBoxLayout()
         self.reset_button = QtWidgets.QPushButton("Reset pose")
-        self.fit_button = QtWidgets.QPushButton("Fit view")
+        self.reset_button.setToolTip("Clear manual joint rotations and return to the active preset baseline.")
         action_row.addWidget(self.reset_button)
-        action_row.addWidget(self.fit_button)
         action_row.addStretch(1)
         root.addLayout(action_row)
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         root.addWidget(self.status)
-
-        footer = QtWidgets.QHBoxLayout()
-        footer.addStretch(1)
-        self.apply_button = QtWidgets.QPushButton("Apply & Rebuild")
-        self.cancel_button = QtWidgets.QPushButton("Cancel")
-        footer.addWidget(self.apply_button)
-        footer.addWidget(self.cancel_button)
-        root.addLayout(footer)
 
         self._staged_joint_rotations = {}
         self._staged_pose_preset = "standing"
@@ -881,9 +941,6 @@ class AvatarPoseTaskPanel:
 
         self.joints.currentItemChanged.connect(self._joint_item_changed)
         self.reset_button.clicked.connect(self._reset_pose)
-        self.fit_button.clicked.connect(self._fit_view)
-        self.apply_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
 
         self.controller = SkeletonPoseController(self)
         self.controller.activate()
@@ -935,12 +992,11 @@ class AvatarPoseTaskPanel:
                 child = self.QtWidgets.QTreeWidgetItem([label])
                 child.setData(0, self.QtCore.Qt.UserRole, bone)
                 top.addChild(child)
-            top.setExpanded(True)
+            top.setExpanded(False)
 
     def _load(self):
         if self.avatar is None:
             self.status.setText("Create a Cloth Human Mannequin first.")
-            self.apply_button.setEnabled(False)
             return
         from freecad_cloth.avatar.SkeletonPose import (
             joint_rotation_map,
@@ -952,8 +1008,6 @@ class AvatarPoseTaskPanel:
         )
         current_preset = str(getattr(self.avatar, "PosePreset", "standing"))
         self._staged_pose_preset = current_preset
-        button = self.preset_buttons.get(current_preset, self.preset_buttons["standing"])
-        button.setChecked(True)
         self._select_first_joint()
 
     def _select_first_joint(self):
@@ -996,28 +1050,12 @@ class AvatarPoseTaskPanel:
 
     def _set_axis_value(self, axis, value):
         value = float(value)
-        slider = self._sliders[axis]
         label = self._angle_labels[axis]
         precision = self.precision_fields[axis]
-        slider.blockSignals(True)
-        slider.setValue(max(-180, min(180, int(round(value)))))
-        slider.blockSignals(False)
-        label.setText("{:.0f}°".format(value))
+        label.setText("{} {:.1f}°".format(axis.upper(), value))
         precision.blockSignals(True)
         precision.setValue(value)
         precision.blockSignals(False)
-
-    def _slider_changed(self, axis, value):
-        if self._loading or not getattr(self, "skeleton_joint_index", None):
-            return
-        values = {key: self._sliders[key].value() for key in ("x", "y", "z")}
-        self._stage_joint_rotation(
-            self.skeleton_joint_index,
-            values["x"],
-            values["y"],
-            values["z"],
-            preview=True,
-        )
 
     def _precision_changed(self, axis, value):
         if self._loading or not getattr(self, "skeleton_joint_index", None):
@@ -1033,14 +1071,17 @@ class AvatarPoseTaskPanel:
             values["y"],
             values["z"],
             preview=True,
+            snap=False,
         )
 
-    def _stage_joint_rotation(self, bone, x, y, z, preview=False):
+    def _stage_joint_rotation(self, bone, x, y, z, preview=False, snap=None):
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
         values = dict(self._staged_joint_rotations)
         rotation = JointRotation(str(bone), float(x), float(y), float(z)).validate()
-        if self.angle_snap.isChecked():
+        if snap is None:
+            snap = self.angle_snap.isChecked()
+        if snap:
             rotation = JointRotation(
                 rotation.bone,
                 round(rotation.x / 5.0) * 5.0,
@@ -1166,9 +1207,11 @@ class AvatarPoseTaskPanel:
         )
         self.precision_widget.setVisible(bool(expanded))
 
-    def _fit_view(self):
-        if self.Gui.activeDocument():
-            self.Gui.activeDocument().activeView().fitAll()
+    def _toggle_joint_list(self, expanded):
+        self.joint_list_toggle.setArrowType(
+            self.QtCore.Qt.DownArrow if expanded else self.QtCore.Qt.RightArrow
+        )
+        self.joint_list_widget.setVisible(bool(expanded))
 
     def accept(self):
         if self.avatar is None:
@@ -1196,7 +1239,14 @@ class AvatarPoseTaskPanel:
 
     def getStandardButtons(self):
         _, _, _, QtWidgets = _modules()
-        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        return int(getattr(buttons, "value", buttons))
+
+    def modifyStandardButtons(self, button_box):
+        _, _, _, QtWidgets = _modules()
+        ok = button_box.button(QtWidgets.QDialogButtonBox.Ok)
+        if ok is not None:
+            ok.setText("Apply & Rebuild")
 
 
 def show_avatar_pose_task(avatar=None):

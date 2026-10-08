@@ -107,22 +107,36 @@ class AvatarTaskPanel:
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
 
         provider = QtWidgets.QGroupBox("Avatar provider")
-        provider_layout = QtWidgets.QFormLayout(provider)
-        self.provider = QtWidgets.QComboBox()
-        self.provider.addItems([label for _key, label in self.PROVIDERS])
+        provider_layout = QtWidgets.QVBoxLayout(provider)
         self._provider_ids = [key for key, _label in self.PROVIDERS]
-        self.provider.setToolTip(
-            "Swap the geometry provider without replacing the mannequin object or garment relationships."
-        )
-        provider_layout.addRow("Provider", self.provider)
+        self.provider_group = QtWidgets.QButtonGroup(self.form)
+        self.provider_group.setExclusive(True)
+        self.provider_buttons = {}
+        provider_row = QtWidgets.QHBoxLayout()
+        for key, label in self.PROVIDERS:
+            button = QtWidgets.QToolButton()
+            button.setText(
+                "MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry"
+            )
+            button.setCheckable(True)
+            button.setAutoRaise(True)
+            button.setToolTip(label)
+            self.provider_group.addButton(button)
+            self.provider_buttons[key] = button
+            provider_row.addWidget(button)
+            button.clicked.connect(
+                lambda checked=False, value=key: self._provider_changed(value)
+            )
+        provider_row.addStretch(1)
+        provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
         self.provider_source.setToolTip(
             "Select a body or mesh in the 3D view, then stage it as the FreeCAD geometry provider."
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
-        provider_layout.addRow(self.provider_source)
-        provider_layout.addRow(self.provider_source_label)
+        provider_layout.addWidget(self.provider_source)
+        provider_layout.addWidget(self.provider_source_label)
         content_layout.addWidget(provider)
 
         pose = QtWidgets.QGroupBox("Pose")
@@ -245,7 +259,6 @@ class AvatarTaskPanel:
             box.valueChanged.connect(self._joint_changed)
         self.skeleton_symmetry.toggled.connect(self._symmetry_changed)
         self.reset_skeleton_button.clicked.connect(self._reset_skeleton_pose)
-        self.provider.currentIndexChanged.connect(self._provider_changed)
         self.provider_source.clicked.connect(self._use_selected_provider_source)
         self.skin_offset.valueChanged.connect(self._staged_changed)
         self.show_measurements.toggled.connect(self._landmarks_visibility_changed)
@@ -289,20 +302,18 @@ class AvatarTaskPanel:
             self.apply_button.setEnabled(False)
             self.rebuild_button.setEnabled(False)
             self.fit_button.setEnabled(False)
-            self.provider.setEnabled(False)
+            for button in self.provider_buttons.values():
+                button.setEnabled(False)
             self.provider_source.setEnabled(False)
             return
         for key, box in self._boxes.items():
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
-        self.provider.blockSignals(True)
         current_provider = str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08"))
-        try:
-            self.provider.setCurrentIndex(self._provider_ids.index(current_provider))
-        except ValueError:
-            self.provider.setCurrentIndex(0)
-        self.provider.blockSignals(False)
+        if current_provider not in self.provider_buttons:
+            current_provider = "makehuman-hm08"
+        self.provider_buttons[current_provider].setChecked(True)
         self._refresh_provider_source()
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
@@ -335,7 +346,13 @@ class AvatarTaskPanel:
             "right_elbow_angle": "RightElbowAngle",
         }[key]
 
-    def _provider_changed(self, _index):
+    def _provider_id(self):
+        for key, button in self.provider_buttons.items():
+            if button.isChecked():
+                return key
+        return "makehuman-hm08"
+
+    def _provider_changed(self, provider_id):
         self._dirty = True
         self._refresh_provider_source()
         self._refresh_status(
@@ -351,7 +368,7 @@ class AvatarTaskPanel:
                 "Select a FreeCAD body or mesh first, then use it as the provider source."
             )
             return
-        self.provider.setCurrentIndex(self._provider_ids.index("freecad-geometry"))
+        self.provider_buttons["freecad-geometry"].setChecked(True)
         self._provider_source_object = selection[0]
         self._dirty = True
         self._refresh_provider_source()
@@ -376,7 +393,7 @@ class AvatarTaskPanel:
             )
         self.provider_source_label.setText(text)
         self.provider_source.setEnabled(
-            self.provider.currentIndex() == self._provider_ids.index("freecad-geometry")
+            self._provider_id() == "freecad-geometry"
         )
 
     def _preset_changed(self, preset):
@@ -421,7 +438,7 @@ class AvatarTaskPanel:
         if self.avatar is None:
             return False
         params = self._staged_parameters()
-        provider_id = self._provider_ids[self.provider.currentIndex()]
+        provider_id = self._provider_id()
         provider_source = getattr(self, "_provider_source_object", None) or getattr(
             self.avatar, "ProviderSource", None
         )

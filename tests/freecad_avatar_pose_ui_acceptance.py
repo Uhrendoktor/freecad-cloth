@@ -138,19 +138,19 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
-    if getattr(panel.controller.gizmo, "is_fallback", False) and not getattr(
-        panel.controller.gizmo, "is_visual", False
-    ):
-        raise RuntimeError("Pose Mode fallback did not create a visual gizmo")
-    if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
-        raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     gizmo_mode = panel.controller.gizmo_mode or (
-        "fallback-visual" if fallback else "unknown"
+        "fallback-panel" if fallback else "unknown"
     )
     if fallback:
-        if panel.controller.fallback_gizmo_object is None:
-            raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
+        if panel.controller.fallback_gizmo_object is not None:
+            raise RuntimeError("Pose Mode fallback created a misleading non-interactive gizmo")
+        if not panel.joint_list_widget.isVisible():
+            raise RuntimeError("Pose Mode did not expose the joint-list fallback")
+        if panel.angle_snap.isEnabled():
+            raise RuntimeError("Pose Mode kept Snap enabled when viewport rotation is unavailable")
+        if "Viewport posing is unavailable" not in panel.instruction_label.text():
+            raise RuntimeError("Pose Mode fallback still advertised viewport ring dragging")
     else:
         if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
             raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
@@ -171,6 +171,23 @@ def run():
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
+    if not fallback and panel.joint_list_widget.isVisible():
+        raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    if panel.form.findChildren(QtWidgets.QSlider):
+        raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
+    panel.symmetry.setChecked(True)
+    panel.angle_snap.setChecked(True)
+    if not fallback:
+        panel.joint_list_toggle.setChecked(True)
+        _events()
+        if not panel.joint_list_widget.isVisible():
+            raise RuntimeError("Pose Mode Joint list fallback did not expand")
+        panel.joint_list_toggle.setChecked(False)
+        _events()
     metrics = _capture_pose_screen(
         Path("artifacts/avatar-pose-mode.png"),
         panel,
@@ -199,6 +216,7 @@ def run():
         -35.0,
         0.0,
         preview=True,
+        snap=True,
     )
     after = _bounds(avatar.Mesh)
     if before == after:
@@ -211,6 +229,19 @@ def run():
         raise RuntimeError("symmetry did not stage both shoulder joints")
     if float(left.y) != -35.0 or float(right.y) != 35.0:
         raise RuntimeError("symmetry produced the wrong mirrored shoulder rotation")
+
+    panel.angle_snap.setChecked(True)
+    panel._stage_joint_rotation(
+        "lowerarm01.L",
+        0.0,
+        41.0,
+        0.0,
+        preview=False,
+        snap=False,
+    )
+    exact = panel._staged_joint_rotations.get("lowerarm01.L")
+    if exact is None or float(exact.y) != 41.0:
+        raise RuntimeError("Exact angle fallback unexpectedly inherited 5 degree snapping")
 
     panel.accept()
     persisted_payload = str(avatar.JointPoseJSON)
