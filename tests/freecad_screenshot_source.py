@@ -37,12 +37,24 @@ def events():
         app.processEvents()
 
 
-def ensure_task_view_visible(panel=None):
+def _dialog_text(dialog):
+    form = getattr(dialog, "form", dialog)
+    widgets = [form]
+    if hasattr(form, "findChildren"):
+        widgets.extend(form.findChildren(QtWidgets.QWidget))
+    return " | ".join(
+        str(getter())
+        for widget in widgets
+        for getter in [getattr(widget, "text", None)]
+        if callable(getter)
+    )
+
+
+def ensure_task_view_visible():
     window = Gui.getMainWindow()
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
-    docks = window.findChildren(QtWidgets.QDockWidget)
-    for dock in docks:
+    for dock in window.findChildren(QtWidgets.QDockWidget):
         if (
             dock.objectName() == "Tasks"
             or "task" in str(dock.windowTitle()).lower()
@@ -52,46 +64,22 @@ def ensure_task_view_visible(panel=None):
             events()
             if dock.isVisible():
                 return dock
-    form = getattr(panel, "form", None) if panel is not None else None
-    if form is None:
-        raise RuntimeError("FreeCAD task panel is unavailable")
-    form.show()
-    form.raise_()
-    events()
-    if form.isVisible():
-        return form
-    # Some FreeCAD headless layouts expose the task wrapper without creating
-    # the normal Tasks dock. Provide a real dock only for this CI screenshot.
-    dock = QtWidgets.QDockWidget("Tasks", window)
-    dock.setObjectName("CI-FreeCAD-Tasks")
-    dock.setWidget(form)
-    window.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
-    dock.show()
-    dock.raise_()
-    events()
-    if dock.isVisible() and form.isVisible():
-        log("task-dock=ci-fallback")
-        return dock
-    raise RuntimeError("FreeCAD task panel is unavailable")
+    return None
 
 
 def validate_task(panel, name, required):
     events()
-    dock = ensure_task_view_visible(panel)
-    events()
-    if not panel.form.isVisible():
-        panel.form.show()
-        panel.form.raise_()
-        events()
+    dock = ensure_task_view_visible()
+    dialog = Gui.Control.activeDialog()
+    if dialog is None:
+        raise RuntimeError(f"{name} did not open an active public task dialog")
     texts = []
-    for widget in [panel.form] + panel.form.findChildren(QtWidgets.QWidget):
-        value = getattr(widget, "text", "")
-        try:
-            value = value() if callable(value) else value
-        except TypeError:
-            value = ""
-        if value:
-            texts.append(str(value))
+    for target in (panel, dialog, dock):
+        if target is None:
+            continue
+        text = _dialog_text(target)
+        if text:
+            texts.append(text)
     combined = " | ".join(texts)
     missing = [item for item in required if item not in combined]
     log("task-panel={} visible=true missing={}".format(name, ",".join(missing)))
@@ -113,12 +101,6 @@ def show_task(panel, name, required=()):
 def close_task():
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
-        events()
-    window = Gui.getMainWindow()
-    if window is not None:
-        for dock in window.findChildren(QtWidgets.QDockWidget, "CI-FreeCAD-Tasks"):
-            dock.close()
-            dock.deleteLater()
         events()
 
 
@@ -940,18 +922,22 @@ def simulation():
     view.viewFront()
     view.fitAll()
     events()
-    task_dock.hide()
+    if task_dock is not None:
+        task_dock.hide()
     events()
     save(
         "cloth-simulation-arranged.png",
         "Simulation Workbench arranged",
         "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin",
     )
-    task_dock.show()
-    task_dock.raise_()
+    if task_dock is not None:
+        task_dock.show()
+    if task_dock is not None:
+        task_dock.raise_()
     events()
     os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
-    task_dock.hide()
+    if task_dock is not None:
+        task_dock.hide()
     events()
     view.setCameraType("Orthographic")
     view.viewAxonometric()
@@ -974,8 +960,10 @@ def simulation():
             "mannequin drape step %d" % int(scene.Steps),
             "production tunic gravity progression",
         )
-    task_dock.show()
-    task_dock.raise_()
+    if task_dock is not None:
+        task_dock.show()
+    if task_dock is not None:
+        task_dock.raise_()
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
@@ -995,7 +983,8 @@ def simulation():
             "Export analysis data",
         ),
     )
-    diagnostic_dock.hide()
+    if diagnostic_dock is not None:
+        diagnostic_dock.hide()
     events()
     diagnostic_maps = create_diagnostic_map(scene, "stress")
     if not diagnostic_maps:
@@ -1037,7 +1026,8 @@ def simulation():
         b = panel.Mesh.BoundBox
         bounds.append((b.XMin, b.XMax, b.YMin, b.YMax, b.ZMin, b.ZMax))
     log(f"drape-bounds={bounds}")
-    task_dock.hide()
+    if task_dock is not None:
+        task_dock.hide()
     events()
     for direction, method_name in (
         ("front", "viewFront"),
@@ -1072,8 +1062,10 @@ def simulation():
             json.load(handle).get("panels", ()),
             allowed_diagnostics={"below-hem-candidate"},
         )
-    task_dock.show()
-    task_dock.raise_()
+    if task_dock is not None:
+        task_dock.show()
+    if task_dock is not None:
+        task_dock.raise_()
     events()
     close_task()
     App.closeDocument(doc.Name)
