@@ -37,7 +37,7 @@ def main() -> int:
         min_opaque_pixels=500,
     )
     print(
-        f"{args.case}-screenshot=passed "
+        f"{args.case}-screenshot=validated "
         f"opaque_pixels={metrics['opaque_pixels']} "
         f"nonwhite_pixels={metrics['nonwhite_pixels']} "
         f"distinct_rgb={metrics['distinct_rgb']}"
