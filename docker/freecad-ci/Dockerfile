@@ -6,6 +6,36 @@ FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+RUN /opt/conda/envs/freecad/bin/python - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.prefix)
+print("=== base-runtime-before-pivy ===", flush=True)
+try:
+    import pivy
+    from pivy import coin
+    print("pivy-module=" + str(getattr(pivy, "__file__", "unknown")), flush=True)
+    print("coin-version=" + str(coin.SoDB.getVersion()), flush=True)
+    for candidate in sorted(Path(pivy.__file__).parent.glob("_coin*.so")):
+        data = candidate.read_bytes()
+        matches = sorted(set(x.decode("ascii") for x in re.findall(rb"swig_runtime_data([0-9]+)", data)))
+        print("pivy-binary=" + str(candidate) + " swig=" + (",".join(matches) or "none"), flush=True)
+except Exception as exc:
+    print("pivy-error=" + repr(exc), flush=True)
+
+for pattern in ("FreeCAD*.so*", "libFreeCAD*.so*"):
+    for candidate in sorted((root / "lib").rglob(pattern)):
+        try:
+            data = candidate.read_bytes()
+        except OSError:
+            continue
+        matches = sorted(set(x.decode("ascii") for x in re.findall(rb"swig_runtime_data([0-9]+)", data)))
+        if matches:
+            print("freecad-binary=" + str(candidate) + " swig=" + ",".join(matches), flush=True)
+PY
+
 RUN /opt/conda/bin/mamba install -y -n freecad -c conda-forge \
         "pivy=0.6.11" \
     && /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('pivy-module=' + pivy.__file__); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
