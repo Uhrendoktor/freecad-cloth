@@ -135,8 +135,8 @@ class AvatarTaskPanel:
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
-        provider_layout.addRow(self.provider_source)
-        provider_layout.addRow(self.provider_source_label)
+        provider_layout.addWidget(self.provider_source)
+        provider_layout.addWidget(self.provider_source_label)
         content_layout.addWidget(provider)
 
         pose = QtWidgets.QGroupBox("Pose")
@@ -259,7 +259,6 @@ class AvatarTaskPanel:
             box.valueChanged.connect(self._joint_changed)
         self.skeleton_symmetry.toggled.connect(self._symmetry_changed)
         self.reset_skeleton_button.clicked.connect(self._reset_skeleton_pose)
-        self.provider.currentIndexChanged.connect(self._provider_changed)
         self.provider_source.clicked.connect(self._use_selected_provider_source)
         self.skin_offset.valueChanged.connect(self._staged_changed)
         self.show_measurements.toggled.connect(self._landmarks_visibility_changed)
