@@ -128,6 +128,12 @@ class SkeletonPoseController:
 
         self.overlay = coin.SoSeparator()
         self.overlay.setName("ClothAvatarPoseOverlay")
+        # Pose controls are an interaction overlay: keep them visible even when
+        # the mannequin surface would otherwise win the depth test.
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        self.overlay.addChild(depth)
         self.scene_graph.addChild(self.overlay)
 
         self._add_skeleton_overlay(coin)
@@ -285,6 +291,10 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         self.gizmo_separator = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        self.gizmo_separator.addChild(depth)
         self.gizmo_transform = coin.SoTransform()
         self.gizmo = coin.SoTrackballDragger()
         self.gizmo.scaleFactor.setValue(
