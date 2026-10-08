@@ -190,6 +190,13 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
 
+def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "import trimesh" in source
+    assert "target_mesh.contains(np.asarray(points, dtype=float))" in source
+    assert "penetration-check=python-ray-parity" in source
+
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
