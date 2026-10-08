@@ -1064,8 +1064,10 @@ def main():
         log("avatar-provider-acceptance=passed")
     if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"):
         run_canonical_acceptance()
+    if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_PATTERN_SEWING"):
         pattern_and_sewing()
-    simulation()
+    if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_SIMULATION"):
+        simulation()
     log("scenario-pass")
 
 
