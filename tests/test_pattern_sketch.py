@@ -227,5 +227,4 @@ if __name__ == "__main__":
     test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
     test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
-    test_garment_pattern_sketch_scope_contract()
     print("pattern sketch tests passed")
