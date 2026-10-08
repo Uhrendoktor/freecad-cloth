@@ -112,7 +112,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
         encoding="utf-8"
     )
     assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 1" in source
+    assert "SolverIterations = 4" in source
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
@@ -120,6 +120,12 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "tools/ci/validate_manifests.py tunic-production" in workflow
+    validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
+    assert "def validate_tunic_production()" in validator
 
 
 def test_pbd_collision_body_uses_coarsened_solver_surface():
@@ -184,7 +190,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "TunicRightShoulder" in audit
     assert "TunicLeftShoulder" in audit
     assert "ParticleDistance = 32.0" in audit
-    assert "SolverIterations = 1" in audit
+    assert "SolverIterations = 4" in audit
     assert "SolverSubsteps = 1" in audit
     assert "tunic-simulation-start" in audit
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
@@ -194,7 +200,12 @@ def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "import trimesh" in source
     assert "target_mesh.contains(np.asarray(points, dtype=float))" in source
-    assert "penetration-check=python-ray-parity" in source
+    assert "penetration-check=numpy-ray-parity" in source
+    sanity = (ROOT / "freecad_cloth" / "simulation" / "DrapeVisualSanity.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def points_inside_closed_mesh(" in sanity
+    assert "np.einsum" in sanity
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():

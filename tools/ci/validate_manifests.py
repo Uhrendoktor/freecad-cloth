@@ -103,8 +103,8 @@ def validate_turntables() -> None:
     print("turntables=passed")
 
 
-def validate_tunic() -> None:
-    """Validate the canonical tunic visual and simulation evidence."""
+def _validate_tunic(require_canonical_e2e: bool) -> None:
+    """Validate tunic evidence produced by either the canonical or production audit."""
     generated = Path("docs/images/generated")
     progress = generated / "gui-progress.log"
     metrics = Path("artifacts/freecad-realtime/metrics.json")
@@ -127,7 +127,8 @@ def validate_tunic() -> None:
     )
     if any(marker not in text for marker in markers):
         raise SystemExit("tunic: progress contract failed")
-    for path in (
+
+    required_images = (
         generated / "cloth-simulation-draped.png",
         generated / "cloth-simulation-draped-front.png",
         generated / "cloth-simulation-draped-rear.png",
@@ -136,37 +137,53 @@ def validate_tunic() -> None:
         generated / "cloth-simulation-draped-top.png",
         generated / "cloth-simulation-draped-bottom.png",
         generated / "cloth-simulation-draped-diagnostics.png",
-        generated / "cloth-pattern-design.png",
-        generated / "cloth-sewing.png",
-    ):
+    )
+    if require_canonical_e2e:
+        required_images += (
+            generated / "cloth-pattern-design.png",
+            generated / "cloth-sewing.png",
+        )
+    for path in required_images:
         if not path.is_file() or not path.stat().st_size:
             raise SystemExit(f"tunic: missing image {path}")
+
     if len(list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))) != 10:
         raise SystemExit("tunic: wrong mannequin motion frame count")
-    e2e = Path("artifacts/garment-e2e.log").read_text(encoding="utf-8")
-    for marker in (
-        "staged-selection=passed",
-        "sewing-mn=passed sides=2,2 segments=2",
-        "sewing-mn-physical=passed curved-edge=true proportional=true",
-        "seam-markers=passed 3d-and-2d=true",
-        "arrangement=passed pieces=4",
-        "garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation",
-        "material-presentation=passed native=true",
-        "drape-target=passed type=Mannequin",
-        "diagnostics=passed metric=stress",
-        "save-reload=passed pieces=4 seam=1to1 network=2segment",
-        "invalidation=passed seam=",
-        "invalidation-restore=passed seam=Valid",
-        "stale-export=blocked",
-        "diagnostics-after-invalidation=passed metric=stress",
-        "determinism-signature=passed",
-        "pattern-export=passed formats=SVG,DXF",
-        "canonical garment end-to-end acceptance passed",
-    ):
-        if marker not in e2e:
-            raise SystemExit(f"tunic: missing E2E marker {marker}")
+
+    if require_canonical_e2e:
+        e2e = Path("artifacts/garment-e2e.log").read_text(encoding="utf-8")
+        for marker in (
+            "staged-selection=passed",
+            "sewing-mn=passed sides=2,2 segments=2",
+            "sewing-mn-physical=passed curved-edge=true proportional=true",
+            "seam-markers=passed 3d-and-2d=true",
+            "arrangement=passed pieces=4",
+            "garment-hierarchy=passed groups=Patterns,Sewing,Fabric,Avatar,Simulation",
+            "material-presentation=passed native=true",
+            "drape-target=passed type=Mannequin",
+            "diagnostics=passed metric=stress",
+            "save-reload=passed pieces=4 seam=1to1 network=2segment",
+            "invalidation=passed seam=",
+            "invalidation-restore=passed seam=Valid",
+            "stale-export=blocked",
+            "diagnostics-after-invalidation=passed metric=stress",
+            "determinism-signature=passed",
+            "pattern-export=passed formats=SVG,DXF",
+            "canonical garment end-to-end acceptance passed",
+        ):
+            if marker not in e2e:
+                raise SystemExit(f"tunic: missing E2E marker {marker}")
     print("tunic-visual=passed")
 
+
+def validate_tunic() -> None:
+    """Validate the strict canonical tunic evidence."""
+    _validate_tunic(require_canonical_e2e=True)
+
+
+def validate_tunic_production() -> None:
+    """Validate the production tunic evidence without canonical garment E2E artifacts."""
+    _validate_tunic(require_canonical_e2e=False)
 
 def validate_blanket() -> None:
     """Validate the canonical blanket visual evidence."""
@@ -228,13 +245,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "kind",
-        choices=("simulation", "turntables", "tunic", "blanket", "diagnostic"),
+        choices=("simulation", "turntables", "tunic", "tunic-production", "blanket", "diagnostic"),
     )
     args = parser.parse_args()
     {
         "simulation": validate_simulation,
         "turntables": validate_turntables,
         "tunic": validate_tunic,
+        "tunic-production": validate_tunic_production,
         "blanket": validate_blanket,
         "diagnostic": validate_diagnostic,
     }[args.kind]()

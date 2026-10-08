@@ -342,20 +342,12 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
 
-        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-        log("penetration-check=python-ray-parity points=%d triangles=%d" % (
+        log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
             len(points), len(triangles)
         ))
-        return sum(
-            1
-            for point in points
-            if point_inside_closed_mesh(
-                tuple(float(value) for value in point),
-                vertices,
-                triangles,
-            )
-        )
+        return sum(points_inside_closed_mesh(points, vertices, triangles))
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 def write_drape_metrics(

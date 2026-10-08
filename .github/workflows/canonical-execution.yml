@@ -224,7 +224,6 @@ jobs:
             CLOTH_CI_ENABLE_PBD=1
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_VOXEL_MM=8
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2
 
   python:
@@ -318,7 +317,7 @@ jobs:
           stage-workbench: "true"
           clean-user: "true"
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
-          validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic'
+          validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic-production'
           artifact-name: tunic-visual-audit
           artifact-path: |
             docs/images/generated/**
@@ -388,6 +387,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@52081ce07234c3fe6b4af11b3a8be50b168f9cbf
         with:
