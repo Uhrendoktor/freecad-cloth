@@ -18,7 +18,7 @@ def test_pose_controller_screen_distance_clamps_to_segment_endpoints():
 
 def test_pose_controller_screen_distance_handles_degenerate_segments():
     distance = SkeletonPoseController._screen_segment_distance
-    assert distance((8.0, 12.0), (5.0, 5.0), (5.0, 5.0)) == 8.602325267042627
+    assert distance((8.0, 12.0), (5.0, 5.0), (5.0, 5.0)) == 7.615773105863909
 
 
 def test_pose_controller_exposes_bounded_gizmo_constants():
