@@ -155,9 +155,14 @@ Cloth UI mapping:
    mannequin.
 3. The selected joint gets a 3D rotation gizmo; direct dragging is the primary input.
 4. Symmetry and 5-degree angle snapping are visible mode toggles.
-5. X/Y/Z sliders provide a lower-friction secondary input; exact Euler values are
-   behind a collapsed Precision drawer.
-6. Presets provide Standing, Sewing and Sitting starting points.
+5. The selected joint shows compact X/Y/Z readouts; sliders are intentionally
+   removed because they duplicate the gizmo without offering a clearer spatial
+   mapping.
+6. Exact Euler values remain behind a collapsed Exact angles drawer as a precision
+   and accessibility fallback.
+7. Presets provide Standing, Sewing and Sitting starting points.
+8. The joint list is collapsed by default and retained as a recovery/recognition
+   path for crowded views or builds without viewport picking.
 7. Apply/Rebuild and Cancel preserve the existing staged/persistent document
    semantics.
 8. IK and anatomical joint-limit authoring remain explicit follow-up work.
