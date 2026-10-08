@@ -399,7 +399,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@52081ce07234c3fe6b4af11b3a8be50b168f9cbf
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@6769834c2f25e14e0014d72776384bdaaf8f1b2c
         with:
           mode: pr
           source-sha: ${{ github.event.pull_request.head.sha }}
