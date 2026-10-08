@@ -12,7 +12,7 @@ import re
 import sys
 
 root = Path(sys.prefix)
-print("=== base-runtime-before-pivy ===", flush=True)
+print("=== base-runtime-before-pivy probe-20261008b ===", flush=True)
 try:
     import pivy
     from pivy import coin
