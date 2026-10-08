@@ -52,6 +52,9 @@ class _Scalar:
     def setChecked(self, value):
         self._value = bool(value)
 
+    def blockSignals(self, _value):
+        return None
+
 
 class _Status:
     def __init__(self):
