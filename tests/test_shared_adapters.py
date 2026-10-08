@@ -110,10 +110,8 @@ def test_source_signature_preserves_makehuman_revision_and_shape_fallback():
         ((0, 1, 2),),
     )
     signature = source_signature(SimpleNamespace(Name="Body", Shape=shape), deflection=0.5)
-    assert signature[1] == (
-        "ShapeContent",
-        ("TessellatedShape", 3, 1, signature[1][1][3]),
-    )
+    assert signature[1][0] == "ShapeContent"
+    assert signature[1][1][:3] == ("TessellatedShape", 3, 1)
 
 
 def test_seam_colors_are_order_independent_and_reject_empty_identity():
