@@ -83,7 +83,8 @@ runs:
       shell: bash
       env:
         VALIDATE_COMMAND: ${{ inputs.validate-command }}
-      run: $VALIDATE_COMMAND
+      # Keep the caller's command as one argument so nested shell quoting survives.
+      run: bash -lc "$VALIDATE_COMMAND"
 
     - name: Upload test evidence
       if: always() && inputs.artifact-name != ''

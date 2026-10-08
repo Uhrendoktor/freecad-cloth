@@ -13,14 +13,15 @@ def _mesh_object(doc, name, label):
 
 
 def _write_mesh(obj, positions, triangles):
-    import FreeCAD as App
     import Mesh
 
     native = Mesh.Mesh()
-    for a, b, c in triangles:
-        native.addFacet(
-            App.Vector(*positions[a]), App.Vector(*positions[b]), App.Vector(*positions[c])
-        )
+    native.addFacets(
+        [
+            (positions[a], positions[b], positions[c])
+            for a, b, c in triangles
+        ]
+    )
     obj.Mesh = native
 
 

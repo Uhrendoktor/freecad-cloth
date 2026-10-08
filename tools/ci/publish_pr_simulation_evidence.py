@@ -23,6 +23,10 @@ def main() -> int:
     parser.add_argument("--evidence-head", required=True)
     args = parser.parse_args()
 
+    # gh is authenticated via GH_TOKEN; configure Git's credential helper before
+    # the temporary evidence worktree performs its raw git push.
+    run("gh", "auth", "setup-git")
+
     review_root = Path("tunic")
     evidence_branch = f"simulation-evidence/pr-{args.pr_number}"
     worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "simulation-evidence"
