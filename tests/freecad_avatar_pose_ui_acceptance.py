@@ -226,7 +226,7 @@ def run():
     progress("start")
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
-    from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
+    from freecad_cloth.avatar.SkeletonPose import JointRotation, joint_rotations_from_json
 
     doc = App.newDocument("AvatarPoseUiAcceptance")
     progress("document-created")
@@ -352,7 +352,9 @@ def run():
         description="mouse selection of the upper-arm bone",
     )
     recorder.hold(650)
-    pose_before_drag = panel._staged_joint_rotations.get("upperarm01.L")
+    pose_before_drag = panel._staged_joint_rotations.get(
+        "upperarm01.L", JointRotation("upperarm01.L")
+    )
     center = panel.controller._screen_position(
         panel.controller._positions["upperarm01.L"]
     )
