@@ -6,7 +6,7 @@ FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN /opt/conda/bin/mamba install -y --freeze-installed -n freecad -c conda-forge \
+RUN /opt/conda/bin/mamba install -y -n freecad -c conda-forge \
         "pivy=0.6.10" \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pivy; from pivy import coin; print('pivy=' + importlib.metadata.version('pivy')); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
