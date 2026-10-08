@@ -287,6 +287,27 @@ def _seam_coherence(panels, seam_records, proxy=None):
 
 def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
     """Count cloth vertices inside the authoritative FreeCAD mannequin target."""
+    # Prefer the exact authored collision surface already used by the solver.
+    # OCC Shape.isInside()/Mesh.isInside() can be prohibitively expensive when
+    # invoked once per cloth vertex during the post-drape audit.
+    surface = collision_surface
+    if surface is not None:
+        vertices = tuple(getattr(surface, "vertices", ()) or ())
+        triangles = tuple(getattr(surface, "triangles", ()) or ())
+        if not vertices or not triangles:
+            raise RuntimeError("authoritative collision surface has no inside/outside topology")
+        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
+        return sum(
+            1
+            for point in points
+            if point_inside_closed_mesh(
+                tuple(float(value) for value in point),
+                vertices,
+                triangles,
+            )
+        )
+
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     if callable(shape_is_inside):
