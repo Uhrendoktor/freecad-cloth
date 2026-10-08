@@ -145,6 +145,9 @@ def run():
     if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
         raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
+    gizmo_mode = panel.controller.gizmo_mode or (
+        "fallback-visual" if fallback else "unknown"
+    )
     if fallback:
         if panel.controller.fallback_gizmo_object is None:
             raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
@@ -232,11 +235,6 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    gizmo_mode = panel.controller.gizmo_mode or (
-        "fallback-visual"
-        if getattr(panel.controller.gizmo, "is_fallback", False)
-        else "unknown"
-    )
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-pose-ui.log").write_text(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"
