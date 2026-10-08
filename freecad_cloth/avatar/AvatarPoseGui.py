@@ -215,6 +215,14 @@ class SkeletonPoseController:
             self.gizmo = _FallbackGizmo()
             self.panel._select_first_joint()
             self.panel.joint_list_toggle.setChecked(True)
+            self.panel.angle_snap.setEnabled(False)
+            self.panel.angle_snap.setToolTip(
+                "Unavailable without viewport rotation; Exact angles is the precise fallback."
+            )
+            self.panel.instruction_label.setText(
+                "Viewport posing is unavailable. Use Joint list to select a joint, "
+                "then Exact angles to edit rotation."
+            )
             bone = str(getattr(self.panel, "skeleton_joint_index", ""))
             if bone:
                 self.select_joint(bone)
@@ -845,11 +853,11 @@ class AvatarPoseTaskPanel:
         self.selected_label.setStyleSheet("font-weight: bold;")
         selected_layout.addWidget(self.selected_label)
 
-        instruction = QtWidgets.QLabel(
+        self.instruction_label = QtWidgets.QLabel(
             "Click a bone to select it. Drag a colored ring to rotate that axis."
         )
-        instruction.setWordWrap(True)
-        selected_layout.addWidget(instruction)
+        self.instruction_label.setWordWrap(True)
+        selected_layout.addWidget(self.instruction_label)
 
         axis_row = QtWidgets.QHBoxLayout()
         self._angle_labels = {}
