@@ -6,6 +6,9 @@ primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
 
+import math
+
+
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
@@ -17,8 +20,8 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def joint_world_positions(parameters):
-    """Return posed world positions for the controllable authored joints."""
+def _pose_world_state(parameters):
+    """Return the posed MakeHuman skeleton, including every authored bone."""
     from freecad_cloth.avatar.HierarchicalPose import _manual_pose_rotations
     from freecad_cloth.avatar.HumanoidMesh import (
         _joint_point,
@@ -26,7 +29,7 @@ def joint_world_positions(parameters):
         _make_source_fitted_mapper,
         load_makehuman_skeleton,
     )
-    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS, build_bone_transforms
+    from freecad_cloth.avatar.SkeletonPose import build_bone_transforms
 
     source_vertices = _load_source_vertices()
     skeleton = load_makehuman_skeleton()
@@ -40,16 +43,43 @@ def joint_world_positions(parameters):
         mapper,
         rotations,
     )
+    return source_vertices, skeleton, mapper, transforms
+
+
+def joint_world_positions(parameters):
+    """Return posed world positions for the controllable authored joints."""
+    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
+    source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
     result = {}
-    for bone, label in CONTROLLABLE_JOINTS:
+    for bone, _label in CONTROLLABLE_JOINTS:
         data = skeleton["bones"].get(bone)
-        if data is None:
+        if data is None or bone not in transforms:
             continue
         fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
         result[bone] = tuple(
             float(value) for value in transforms[bone].apply(fitted_head)
         )
     return result
+
+
+def skeleton_world_segments(parameters):
+    """Return posed head/tail segments for the complete authored skeleton."""
+    source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
+    segments = {}
+    joints = {}
+    for bone, data in skeleton["bones"].items():
+        transform = transforms.get(bone)
+        if transform is None:
+            continue
+        fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
+        fitted_tail = mapper(_joint_point(source_vertices, skeleton["joints"][data["tail"]]))
+        head = tuple(float(value) for value in transform.apply(fitted_head))
+        tail = tuple(float(value) for value in transform.apply(fitted_tail))
+        segments[bone] = (head, tail)
+        joints.setdefault(data["head"], head)
+        joints[data["tail"]] = tail
+    return segments, joints
 
 
 class _FallbackGizmo:
@@ -61,6 +91,21 @@ class _FallbackGizmo:
 
     def __init__(self, objects=()):
         self.objects = tuple(objects)
+
+
+class _NativeGizmoHandle:
+    """Compatibility wrapper exposing the legacy controller gizmo surface."""
+
+    is_fallback = False
+    is_visual = True
+
+    def __init__(self, dragger, controller):
+        self.dragger = dragger
+        self._controller = controller
+
+    @property
+    def isActive(self):
+        return bool(self._controller._gizmo_dragging)
 
 
 class SkeletonPoseController:
@@ -83,6 +128,10 @@ class SkeletonPoseController:
         self.selected_bone = None
         self.base_rotation = None
         self._positions = {}
+        self._skeleton_segments = {}
+        self._gizmo_dragging = False
+        self.gizmo_mode = None
+        self._native_dragger = None
         self.fallback_gizmo_object = None
 
     def _coin(self):
@@ -97,6 +146,18 @@ class SkeletonPoseController:
 
     def _build_positions(self):
         self._positions = joint_world_positions(self.panel._staged_parameters())
+
+    def _build_skeleton(self):
+        self._skeleton_segments, joints = skeleton_world_segments(
+            self.panel._staged_parameters()
+        )
+        return joints
+
+    def _native_transform_type(self, coin):
+        type_id = coin.SoType.fromName("SoTransformDragger")
+        if type_id.isBad():
+            return None
+        return type_id
 
     def activate(self):
         """Enable X-ray joints and the selected-joint trackball."""
