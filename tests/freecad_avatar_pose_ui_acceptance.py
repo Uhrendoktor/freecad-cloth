@@ -19,18 +19,46 @@ import FreeCADGui as Gui
 def _runtime_diagnostics():
     info = {
         "freecad_version": getattr(App, "Version", lambda: "unknown")(),
+        "freecad_coin_version": "unavailable",
         "pivy_version": "unavailable",
+        "pivy_module": "unavailable",
         "coin_version": "unavailable",
         "coin_module": "unavailable",
+        "pivy_swig_runtime": "unavailable",
     }
     try:
         import importlib.metadata
+        import re
+
         import pivy
+
+        info["pivy_module"] = str(getattr(pivy, "__file__", "unknown"))
+        try:
+            info["pivy_version"] = importlib.metadata.version("pivy")
+        except importlib.metadata.PackageNotFoundError:
+            info["pivy_version"] = "metadata-unavailable"
+
         from pivy import coin
 
-        info["pivy_version"] = importlib.metadata.version("pivy")
+        info["coin_module"] = str(getattr(coin, "__file__", "unknown"))
         info["coin_version"] = str(coin.SoDB.getVersion())
-        info["coin_module"] = str(getattr(coin, "__file__", getattr(pivy, "__file__", "unknown")))
+        try:
+            info["freecad_coin_version"] = str(Gui.getSoDBVersion())
+        except Exception as exc:
+            info["freecad_coin_version"] = "error:" + repr(exc)
+
+        try:
+            coin_binary = Path(info["coin_module"]).read_bytes()
+            matches = sorted(
+                {
+                    match.decode("ascii")
+                    for match in re.findall(rb"swig_runtime_data([0-9]+)", coin_binary)
+                }
+            )
+            if matches:
+                info["pivy_swig_runtime"] = ",".join(matches)
+        except (OSError, TypeError, ValueError):
+            pass
     except Exception as exc:
         info["runtime_error"] = repr(exc)
     return info
