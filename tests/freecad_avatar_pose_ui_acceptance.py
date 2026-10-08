@@ -44,30 +44,30 @@ def _runtime_diagnostics():
         except (OSError, TypeError, ValueError):
             return []
 
+    candidates = []
+    for root_name in ("/opt/conda/envs/freecad", "/usr/local", "/usr/lib"):
+        root = Path(root_name)
+        if not root.exists():
+            continue
+        candidates.extend(
+            sorted(
+                path
+                for path in root.rglob("*FreeCADGui*.so*")
+                if path.is_file()
+            )
+        )
+    info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
+
     try:
         import importlib.util
-        import sys
 
-        gui_spec = importlib.util.find_spec("FreeCADGui")
+        try:
+            gui_spec = importlib.util.find_spec("FreeCADGui")
+        except (ImportError, ValueError):
+            gui_spec = None
         gui_origin = getattr(gui_spec, "origin", None) if gui_spec is not None else None
-        if not gui_origin:
-            module_spec = getattr(sys.modules.get("FreeCADGui"), "__spec__", None)
-            gui_origin = getattr(module_spec, "origin", None)
-        candidates = []
-        for root_name in ("/opt", "/usr/local"):
-            root = Path(root_name)
-            if not root.exists():
-                continue
-            candidates.extend(
-                sorted(
-                    path
-                    for path in root.rglob("*FreeCADGui*.so*")
-                    if path.is_file()
-                )
-            )
         info["freecadgui_module"] = str(gui_origin or "unknown")
-        info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
-        if isinstance(gui_origin, str) and gui_origin not in {"unknown", ""}:
+        if gui_origin:
             runtimes = swig_runtime_strings(gui_origin)
             if runtimes:
                 info["freecad_swig_runtime"] = ",".join(runtimes)
@@ -78,8 +78,6 @@ def _runtime_diagnostics():
                     info["freecadgui_module"] = str(candidate)
                     info["freecad_swig_runtime"] = ",".join(runtimes)
                     break
-        if runtimes:
-            info["freecad_swig_runtime"] = ",".join(runtimes)
     except Exception as exc:
         info["freecad_runtime_error"] = repr(exc)
 
