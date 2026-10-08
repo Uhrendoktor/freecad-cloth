@@ -17,10 +17,14 @@ COMMANDS = (ROOT / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(
 def test_pose_mode_is_a_dedicated_task_panel():
     assert "class AvatarPoseTaskPanel" in SOURCE
     assert 'title = QtWidgets.QLabel("Pose Mode")' in SOURCE
-    assert 'self.symmetry = QtWidgets.QCheckBox("Symmetry")' in SOURCE
-    assert 'self.angle_snap = QtWidgets.QCheckBox("Snap 5°")' in SOURCE
-    assert 'self.precision.setText("Precision")' in SOURCE
+    assert 'self.symmetry.setText("Mirror")' in SOURCE
+    assert 'self.angle_snap.setText("5° Snap")' in SOURCE
+    assert 'self.precision.setText("Exact angles…")' in SOURCE
     assert "self.precision_widget.setVisible(False)" in SOURCE
+    assert 'self.joint_list_toggle.setText("Joint list")' in SOURCE
+    assert "self.joint_list_widget.setVisible(False)" in SOURCE
+    assert "modifyStandardButtons" in SOURCE
+    assert "ok.setText(" in SOURCE
 
 
 def test_pose_mode_is_viewport_first():
@@ -33,6 +37,9 @@ def test_pose_mode_is_viewport_first():
     assert "depth.test = False" in SOURCE
     assert "depth.write = False" in SOURCE
     assert "addEventCallbackPivy" in SOURCE
+    assert "SoLocation2Event" in SOURCE
+    assert "_set_hover_bone" in SOURCE
+    assert "_pick_bone" in SOURCE
     assert "getPointOnScreen" in SOURCE
     assert "_screen_segment_distance" in SOURCE
     assert "projected_segments" in SOURCE
@@ -52,10 +59,11 @@ def test_pose_mode_has_discoverable_joint_groups_and_presets():
 
 
 def test_pose_mode_keeps_precision_as_secondary_path():
-    assert "self._sliders[axis]" in SOURCE
-    assert 'for axis, text in (("x", "X"), ("y", "Y"), ("z", "Z"))' in SOURCE
+    assert "QSlider" not in SOURCE
+    assert 'for axis in ("x", "y", "z")' in SOURCE
     assert 'box.setSuffix("°")' in SOURCE
     assert 'self.precision.setChecked(False)' in SOURCE
+    assert "snap=False" in SOURCE
 
 
 def test_pose_mode_uses_persistent_fk_data_and_cancel_cleanup():
