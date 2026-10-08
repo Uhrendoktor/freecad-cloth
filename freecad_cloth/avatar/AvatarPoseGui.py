@@ -288,6 +288,10 @@ class SkeletonPoseController:
             self.gizmo_separator = None
             self.overlay = None
             self.scene_graph = None
+            self._native_dragger = None
+            self._gizmo_dragging = False
+            self.gizmo_mode = None
+            self._skeleton_segments = {}
             self.view = None
             return
         coin = self._coin()
