@@ -34,6 +34,8 @@ def test_pose_mode_is_viewport_first():
     assert "depth.write = False" in SOURCE
     assert "addEventCallbackPivy" in SOURCE
     assert "getPointOnScreen" in SOURCE
+    assert "_screen_segment_distance" in SOURCE
+    assert "projected_segments" in SOURCE
     assert "JOINT_PICK_RADIUS" in SOURCE
     assert "skeleton_world_segments" in SOURCE
     assert "self._skeleton_segments" in SOURCE
