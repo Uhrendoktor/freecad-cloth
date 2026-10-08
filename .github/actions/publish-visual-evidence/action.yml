@@ -75,6 +75,7 @@ runs:
       if: inputs.mode == 'main'
       shell: bash
       env:
+        GH_TOKEN: \${{ github.token }}
         REPOSITORY: ${{ inputs.repository }}
         SOURCE_SHA: ${{ inputs.source-sha }}
         RUN_ID: ${{ inputs.run-id }}
@@ -90,6 +91,7 @@ runs:
       if: inputs.mode == 'pr'
       shell: bash
       env:
+        GH_TOKEN: \${{ github.token }}
         REPOSITORY: ${{ inputs.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
         RUN_ID: ${{ inputs.run-id }}
