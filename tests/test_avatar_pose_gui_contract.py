@@ -28,7 +28,7 @@ def test_pose_mode_is_a_dedicated_task_panel():
     assert "modifyStandardButtons" in SOURCE
     assert "ok.setText(" in SOURCE
     assert "Do not draw a fake manipulator" in SOURCE
-    assert "self.instruction_label.setText(" in SOURCE
+    assert "self.panel.instruction_label.setText(" in SOURCE
     assert "self.panel.angle_snap.setEnabled(False)" in SOURCE
 
 
