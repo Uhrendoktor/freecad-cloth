@@ -32,7 +32,7 @@ Create/select a `DrapeTarget`: either the native human mannequin or an ordinary 
 
 ### 4. Pose the mannequin
 
-Open the Cloth Human Mannequin editor from the avatar/fitting command. The **Skeleton pose** group provides manual FK controls for the major pelvis, spine, neck, arm and leg joints. Select a joint, edit its X/Y/Z rotation, and use **Symmetry** to mirror bilateral edits. **Reset skeleton pose** clears manual joint overrides and returns to the selected pose preset baseline. The pose is stored on the mannequin object and the mesh is rebuilt from the authored MakeHuman skeleton and skinning weights.
+Open Pose Mode from the avatar/fitting command. Select a visible bone directly in the 3D view and drag its rotation gizmo; the full authored skeleton remains visible in X-ray mode. **Mirror** and **5° Snap** are direct tool toggles. The named **Joint list** and **Exact angles** controls are collapsed fallback paths for crowded views or precise numeric entry. **Reset pose** clears manual joint overrides and returns to the active preset baseline. The pose is stored on the mannequin object and the mesh is rebuilt from the authored MakeHuman skeleton and skinning weights.
 
 The interaction intentionally stays document-driven: joint rotations are persistent parameters, while the deformed mesh is derived and rebuildable. Parent joints propagate to their descendant bones, matching the hierarchical posing model expected for garment fitting.
 
