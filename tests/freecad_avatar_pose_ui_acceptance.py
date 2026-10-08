@@ -138,19 +138,15 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
-    if getattr(panel.controller.gizmo, "is_fallback", False) and not getattr(
-        panel.controller.gizmo, "is_visual", False
-    ):
-        raise RuntimeError("Pose Mode fallback did not create a visual gizmo")
-    if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
-        raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     gizmo_mode = panel.controller.gizmo_mode or (
-        "fallback-visual" if fallback else "unknown"
+        "fallback-panel" if fallback else "unknown"
     )
     if fallback:
-        if panel.controller.fallback_gizmo_object is None:
-            raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
+        if panel.controller.fallback_gizmo_object is not None:
+            raise RuntimeError("Pose Mode fallback created a misleading non-interactive gizmo")
+        if not panel.joint_list_widget.isVisible():
+            raise RuntimeError("Pose Mode did not expose the joint-list fallback")
     else:
         if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
             raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
@@ -171,7 +167,7 @@ def run():
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
-    if panel.joint_list_widget.isVisible():
+    if not fallback and panel.joint_list_widget.isVisible():
         raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
     try:
         from PySide import QtWidgets
@@ -181,12 +177,13 @@ def run():
         raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
-    panel.joint_list_toggle.setChecked(True)
-    _events()
-    if not panel.joint_list_widget.isVisible():
-        raise RuntimeError("Pose Mode Joint list fallback did not expand")
-    panel.joint_list_toggle.setChecked(False)
-    _events()
+    if not fallback:
+        panel.joint_list_toggle.setChecked(True)
+        _events()
+        if not panel.joint_list_widget.isVisible():
+            raise RuntimeError("Pose Mode Joint list fallback did not expand")
+        panel.joint_list_toggle.setChecked(False)
+        _events()
     metrics = _capture_pose_screen(
         Path("artifacts/avatar-pose-mode.png"),
         panel,
