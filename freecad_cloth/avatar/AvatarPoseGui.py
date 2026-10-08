@@ -148,9 +148,16 @@ class SkeletonPoseController:
         self._positions = joint_world_positions(self.panel._staged_parameters())
 
     def _build_skeleton(self):
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+
         self._skeleton_segments, joints = skeleton_world_segments(
             self.panel._staged_parameters()
         )
+        self._positions = {
+            bone: self._skeleton_segments[bone][0]
+            for bone, _label in CONTROLLABLE_JOINTS
+            if bone in self._skeleton_segments
+        }
         return joints
 
     def _native_transform_type(self, coin):
