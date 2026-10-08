@@ -20,6 +20,7 @@ Use this page as the documentation map. Choose the task you are trying to accomp
 | Understand the architecture | [Architecture](ARCHITECTURE.md) | Authorities, boundaries, lifecycle and dependency direction |
 | Find code ownership | [Project structure](PROJECT_STRUCTURE.md) | Package boundaries and canonical module locations |
 | Change the project safely | [Development](DEVELOPMENT.md) | Tests, CI, GUI validation and contribution rules |
+| Configure CI | [CI configuration](CI_CONFIGURATION.md) | Authoritative FreeCAD application timeout and consumers |
 | Understand durable design choices | [Decisions](DECISIONS.md) | Architectural decisions and rationale |
 | Check release/evidence rules | [Release gates](RELEASE_GATES.md) | Acceptance and visual-evidence requirements |
 | Inspect planned capabilities | [Roadmap](ROADMAP.md) | Durable future work, not current status |

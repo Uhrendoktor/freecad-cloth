@@ -73,6 +73,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
     scene = SimpleNamespace(
         QualityPreset="Fast",
+        PinMode="Automatic",
         ParticleDistance=40.0,
         SolverIterations=1,
         SolverSubsteps=1,

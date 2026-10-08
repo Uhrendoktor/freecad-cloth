@@ -4,14 +4,10 @@ The repository has one authoritative setting for the FreeCAD application runtime
 
 ## Authoritative setting
 
-The value lives in `pyproject.toml`:
+The value lives in `pyproject.toml`, in the `[tool.freecad_cloth.ci]` table under
+`freecad_application_timeout_seconds`. That file is the sole source for the runtime limit.
 
-```toml
-[tool.freecad_cloth.ci]
-freecad_application_timeout_seconds = 55
-```
-
-Change that value when the accepted FreeCAD application budget changes.
+Change the value in `pyproject.toml` when the accepted FreeCAD application budget changes.
 
 The number must not be copied into documentation, individual test scripts or multiple workflow defaults. CI consumers are expected to read or validate against this setting.
 

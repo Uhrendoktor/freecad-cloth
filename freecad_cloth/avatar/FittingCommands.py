@@ -83,6 +83,11 @@ def _migrate_visual_output_references(scene):
     recompute. Existing documents keep the property names but migrate their
     values to non-dependency string outputs before proxy execution.
     """
+    # The proxy's persisted-state validation is also exercised with lightweight
+    # headless objects. They have no FreeCAD property API to migrate; real
+    # document objects always expose addProperty.
+    if not callable(getattr(scene, "addProperty", None)):
+        return
     for name in ("ArrangementPointObjects", "BoundingVolumeObjects"):
         if name not in getattr(scene, "PropertiesList", ()):
             scene.addProperty("App::PropertyStringList", name, "Arrangement")
