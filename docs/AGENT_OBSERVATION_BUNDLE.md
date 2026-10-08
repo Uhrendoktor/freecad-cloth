@@ -37,7 +37,6 @@ Add these optional inputs to an existing freecad-test action call that already u
     artifact-name: pbd-contact-diagnostics
     artifact-path: artifacts/pbd-contact-diagnostics/**
     observation-root: artifacts/pbd-contact-diagnostics
-    observation-output: artifacts/pbd-contact-diagnostics/agent-observation.json
     observation-label: PBD contact controls and collision ladders
     observation-files: |
       summary=manifest.json
@@ -48,7 +47,7 @@ Add these optional inputs to an existing freecad-test action call that already u
       visual=avatar-ladder/rung-6-avatar-pinned/step-000.png
       visual=avatar-ladder/rung-6-avatar-pinned/step-090.png
 
-Paths after the equals sign are relative to observation-root. Every selected file must exist at export time and must already be included by artifact-path; the action does not silently add or copy evidence. The manifest itself is added to the same upload. An artifact name is required. Missing, unsafe, symbolic-link, duplicate, unsupported or oversized evidence fails closed with a compact error message.
+Paths after the equals sign are relative to observation-root. Newlines and semicolons both separate entries. The manifest is always written as agent-observation.json directly inside observation-root. Every selected file must exist at export time and must already be included by artifact-path; the action does not silently add or copy evidence. The manifest itself is added to the same upload. An artifact name is required. Missing, unsafe, symbolic-link, duplicate, unsupported or oversized evidence fails closed with a compact error message.
 
 Use stable evidence rather than logs: a concise summary, named metrics with units, before/after viewport images, and only the geometry snapshots needed to disambiguate a failure. Screenshots must come from the exact run and must not be edited. Avoid secrets, user data, unrestricted document dumps and whole logs.
 

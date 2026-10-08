@@ -162,7 +162,6 @@ def _pull_request_number(environment: Mapping[str, str]) -> int | None:
 def create_observation_bundle(
     workspace: Path,
     observation_root: str,
-    output_value: str,
     specifications: Sequence[str],
     label: str,
     environment: Mapping[str, str],
@@ -173,11 +172,7 @@ def create_observation_bundle(
     if not root.is_dir():
         raise ObservationBundleError("observation-root must be an existing directory")
 
-    output = _resolve_relative_path(workspace, output_value, must_exist=False)
-    if output.parent != root or output.suffix.lower() != ".json":
-        raise ObservationBundleError(
-            "observation-output must be a JSON file directly inside observation-root"
-        )
+    output = _resolve_relative_path(root, "agent-observation.json", must_exist=False)
     if len(label) > 160 or "\n" in label or "\r" in label:
         raise ObservationBundleError(
             "observation-label must be a single line of at most 160 characters"
@@ -267,8 +262,7 @@ def main() -> int:
         create_observation_bundle(
             workspace=Path.cwd(),
             observation_root=environment.get("OBSERVATION_ROOT", "artifacts"),
-            output_value=environment.get("OBSERVATION_OUTPUT", "artifacts/agent-observation.json"),
-            specifications=environment.get("OBSERVATION_FILES", "").splitlines(),
+            specifications=environment.get("OBSERVATION_FILES", "").replace(";", "\n").splitlines(),
             label=environment.get("OBSERVATION_LABEL", ""),
             environment=environment,
         )
@@ -279,7 +273,7 @@ def main() -> int:
     count = sum(bool(line.strip()) for line in environment.get("OBSERVATION_FILES", "").splitlines())
     print(
         "agent-observation=written "
-        f"path={environment.get('OBSERVATION_OUTPUT', 'artifacts/agent-observation.json')} "
+        "path=agent-observation.json "
         f"evidence={count}"
     )
     return 0

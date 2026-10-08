@@ -47,7 +47,6 @@ def _create(tmp_path: Path, specifications: list[str]) -> dict[str, object]:
     return create_observation_bundle(
         workspace=tmp_path,
         observation_root="artifacts",
-        output_value="artifacts/agent-observation.json",
         specifications=specifications,
         label="focused diagnostic",
         environment=environment,
@@ -85,7 +84,6 @@ def test_manifest_can_be_created_without_github_metadata(tmp_path: Path):
     manifest = create_observation_bundle(
         workspace=tmp_path,
         observation_root="artifacts",
-        output_value="artifacts/agent-observation.json",
         specifications=["summary=summary.json"],
         label="",
         environment={},
@@ -116,8 +114,7 @@ def test_traversal_and_symlinks_are_rejected(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path / "symlink",
             observation_root="artifacts",
-            output_value="artifacts/agent-observation.json",
-            specifications=["metrics=outside.json"],
+                specifications=["metrics=outside.json"],
             label="",
             environment=environment,
         )
@@ -130,8 +127,7 @@ def test_logs_are_not_valid_evidence(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-            output_value="artifacts/agent-observation.json",
-            specifications=["metrics=run.log"],
+                specifications=["metrics=run.log"],
             label="",
             environment=environment,
         )
@@ -144,8 +140,7 @@ def test_individual_file_budget_is_enforced(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-            output_value="artifacts/agent-observation.json",
-            specifications=["summary=large.json"],
+                specifications=["summary=large.json"],
             label="",
             environment=environment,
         )
@@ -159,25 +154,16 @@ def test_aggregate_evidence_budget_is_enforced(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-            output_value="artifacts/agent-observation.json",
-            specifications=["summary=one.json", "summary=two.json"],
+                specifications=["summary=one.json", "summary=two.json"],
             label="",
             environment=environment,
         )
     assert MAX_EVIDENCE_BYTES == 5_000_000
 
 
-def test_duplicate_paths_and_manifest_location_are_rejected(tmp_path: Path):
+def test_duplicate_paths_are_rejected_and_manifest_uses_standard_name(tmp_path: Path):
     with pytest.raises(ObservationBundleError, match="duplicate evidence path"):
         _create(tmp_path / "duplicate", ["metrics=metrics.json", "summary=metrics.json"])
 
-    environment, _root = _fixture(tmp_path / "output-location")
-    with pytest.raises(ObservationBundleError, match="directly inside observation-root"):
-        create_observation_bundle(
-            workspace=tmp_path / "output-location",
-            observation_root="artifacts",
-            output_value="agent-observation.json",
-            specifications=["metrics=metrics.json"],
-            label="",
-            environment=environment,
-        )
+    _create(tmp_path / "manifest-name", ["metrics=metrics.json"])
+    assert (tmp_path / "manifest-name" / "artifacts" / "agent-observation.json").is_file()

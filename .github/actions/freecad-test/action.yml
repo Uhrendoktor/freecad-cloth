@@ -51,10 +51,6 @@ inputs:
     description: Evidence directory relative to the workspace; selected files are indexed relative to this directory.
     required: false
     default: "artifacts"
-  observation-output:
-    description: Manifest path relative to the workspace; must be directly inside observation-root.
-    required: false
-    default: "artifacts/agent-observation.json"
   observation-label:
     description: Short scenario or hypothesis label for the observation manifest.
     required: false
@@ -108,7 +104,6 @@ runs:
       shell: bash
       env:
         OBSERVATION_ROOT: ${{ inputs.observation-root }}
-        OBSERVATION_OUTPUT: ${{ inputs.observation-output }}
         OBSERVATION_LABEL: ${{ inputs.observation-label }}
         OBSERVATION_FILES: ${{ inputs.observation-files }}
         OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
@@ -123,6 +118,6 @@ runs:
         name: ${{ inputs.artifact-name }}
         path: |
           ${{ inputs.artifact-path }}
-          ${{ inputs.observation-files != '' && inputs.observation-output || '' }}
+          ${{ inputs.observation-files != '' && format('{0}/agent-observation.json', inputs.observation-root) || '' }}
         if-no-files-found: warn
         compression-level: 1
