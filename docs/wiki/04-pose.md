@@ -18,7 +18,7 @@ The viewport is the primary manipulation surface. The task panel provides select
 
 The current implementation is manual forward kinematics. Parent joint rotations propagate to descendants through the authored skeleton hierarchy.
 
-The native interaction path uses a Coin3D SoTrackballDragger. The selected joint is kept in a depth-independent overlay so joint markers, bone guides and the active gizmo remain visible against the mannequin surface. FreeCAD builds without the required Coin/SWIG bridge retain a non-visual fallback for selection and persistent joint editing; that fallback is not used as visual evidence.
+The native interaction path uses a Coin3D SoTrackballDragger. The selected joint is kept in a depth-independent overlay so joint markers, bone guides and the active gizmo remain visible against the mannequin surface. FreeCAD builds without the required Coin/SWIG bridge use a visual three-ring fallback gizmo backed by temporary FreeCAD geometry; the fallback keeps joint selection and exact panel editing available, while direct drag rotation remains a native-Coin capability.
 
 ## What a human should see
 
