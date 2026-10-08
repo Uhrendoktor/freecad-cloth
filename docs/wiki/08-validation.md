@@ -40,7 +40,7 @@ A valid visual fixture must:
 5. be traceable to the current canonical execution;
 6. be reproducible enough for human comparison.
 
-Pose Mode has an additional interaction-evidence requirement: the published Pose screenshot must be captured after the main window and 3D view are painted, must contain the visible joint overlay, and must use the native Coin3D gizmo path. A logical SWIG fallback can keep editing functional, but it cannot substitute for the visual Pose Mode artifact.
+Pose Mode has an additional interaction-evidence requirement: the published Pose screenshot must be captured after the main window and 3D view are painted, must contain the visible joint overlay and selected-joint gizmo, and must use either the native Coin3D gizmo or the supported visual FreeCAD-geometry fallback. The fallback does not claim direct drag rotation, but it must remain visibly identifiable and usable through the joint selector and precision controls.
 
 ## Human review order
 
