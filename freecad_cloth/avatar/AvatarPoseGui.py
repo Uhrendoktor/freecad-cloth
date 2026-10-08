@@ -512,6 +512,10 @@ class SkeletonPoseController:
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError):
             if self.gizmo_separator is not None:
+                try:
+                    self.scene_graph.removeChild(self.gizmo_separator)
+                except (AttributeError, RuntimeError):
+                    pass
                 if dragger is not None:
                     try:
                         self.gizmo_separator.removeChild(dragger)
