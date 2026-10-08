@@ -64,7 +64,18 @@ def ensure_task_view_visible():
             events()
             if dock.isVisible():
                 return dock
-    return None
+    return _TaskDockProxy()
+
+
+class _TaskDockProxy:
+    def hide(self):
+        return None
+
+    def show(self):
+        return None
+
+    def raise_(self):
+        return None
 
 
 def validate_task(panel, name, required):
@@ -922,22 +933,18 @@ def simulation():
     view.viewFront()
     view.fitAll()
     events()
-    if task_dock is not None:
-        task_dock.hide()
+    task_dock.hide()
     events()
     save(
         "cloth-simulation-arranged.png",
         "Simulation Workbench arranged",
         "vertical sewn tunic generated from native Sketcher pattern sources on production mannequin",
     )
-    if task_dock is not None:
-        task_dock.show()
-    if task_dock is not None:
-        task_dock.raise_()
+    task_dock.show()
+    task_dock.raise_()
     events()
     os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
-    if task_dock is not None:
-        task_dock.hide()
+    task_dock.hide()
     events()
     view.setCameraType("Orthographic")
     view.viewAxonometric()
@@ -960,10 +967,8 @@ def simulation():
             "mannequin drape step %d" % int(scene.Steps),
             "production tunic gravity progression",
         )
-    if task_dock is not None:
-        task_dock.show()
-    if task_dock is not None:
-        task_dock.raise_()
+    task_dock.show()
+    task_dock.raise_()
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
@@ -983,8 +988,7 @@ def simulation():
             "Export analysis data",
         ),
     )
-    if diagnostic_dock is not None:
-        diagnostic_dock.hide()
+    diagnostic_dock.hide()
     events()
     diagnostic_maps = create_diagnostic_map(scene, "stress")
     if not diagnostic_maps:
@@ -1026,8 +1030,7 @@ def simulation():
         b = panel.Mesh.BoundBox
         bounds.append((b.XMin, b.XMax, b.YMin, b.YMax, b.ZMin, b.ZMax))
     log(f"drape-bounds={bounds}")
-    if task_dock is not None:
-        task_dock.hide()
+    task_dock.hide()
     events()
     for direction, method_name in (
         ("front", "viewFront"),
@@ -1062,10 +1065,8 @@ def simulation():
             json.load(handle).get("panels", ()),
             allowed_diagnostics={"below-hem-candidate"},
         )
-    if task_dock is not None:
-        task_dock.show()
-    if task_dock is not None:
-        task_dock.raise_()
+    task_dock.show()
+    task_dock.raise_()
     events()
     close_task()
     App.closeDocument(doc.Name)
