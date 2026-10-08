@@ -16,6 +16,103 @@ import FreeCADGui as Gui
 
 
 
+def _runtime_diagnostics():
+    import importlib.metadata
+    import re
+
+    info = {
+        "freecad_version": getattr(App, "Version", lambda: "unknown")(),
+        "freecad_coin_version": "unavailable",
+        "freecad_swig_runtime": "unavailable",
+        "freecadgui_module": "unavailable",
+        "pivy_version": "unavailable",
+        "pivy_module": "unavailable",
+        "coin_version": "unavailable",
+        "coin_module": "unavailable",
+        "pivy_swig_runtime": "unavailable",
+    }
+
+    def swig_runtime_strings(path):
+        try:
+            data = Path(path).read_bytes()
+            return sorted(
+                {
+                    match.decode("ascii")
+                    for match in re.findall(rb"swig_runtime_data([0-9]+)", data)
+                }
+            )
+        except (OSError, TypeError, ValueError):
+            return []
+
+    candidates = []
+    for root_name in ("/opt/conda/envs/freecad", "/usr/local", "/usr/lib"):
+        root = Path(root_name)
+        if not root.exists():
+            continue
+        candidates.extend(
+            sorted(
+                path
+                for path in root.rglob("*FreeCADGui*.so*")
+                if path.is_file()
+            )
+        )
+    info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
+
+    try:
+        import importlib.util
+
+        try:
+            gui_spec = importlib.util.find_spec("FreeCADGui")
+        except (ImportError, ValueError):
+            gui_spec = None
+        gui_origin = getattr(gui_spec, "origin", None) if gui_spec is not None else None
+        info["freecadgui_module"] = str(gui_origin or "unknown")
+        if gui_origin:
+            runtimes = swig_runtime_strings(gui_origin)
+            if runtimes:
+                info["freecad_swig_runtime"] = ",".join(runtimes)
+        if info["freecad_swig_runtime"] == "unavailable":
+            for candidate in candidates:
+                runtimes = swig_runtime_strings(candidate)
+                if runtimes:
+                    info["freecadgui_module"] = str(candidate)
+                    info["freecad_swig_runtime"] = ",".join(runtimes)
+                    break
+    except Exception as exc:
+        info["freecad_runtime_error"] = repr(exc)
+
+    try:
+        info["freecad_coin_version"] = str(Gui.getSoDBVersion())
+    except Exception as exc:
+        info["freecad_coin_version"] = "error:" + repr(exc)
+
+    try:
+        import pivy
+
+        info["pivy_module"] = str(getattr(pivy, "__file__", "unknown"))
+        try:
+            info["pivy_version"] = importlib.metadata.version("pivy")
+        except importlib.metadata.PackageNotFoundError:
+            info["pivy_version"] = "metadata-unavailable"
+
+        from pivy import coin
+
+        info["coin_module"] = str(getattr(coin, "__file__", "unknown"))
+        info["coin_version"] = str(coin.SoDB.getVersion())
+        coin_module = Path(info["coin_module"])
+        candidates = [coin_module.with_name("_coin.so"), coin_module.with_name("_coin.pyd")]
+        candidates.extend(sorted(coin_module.parent.glob("_coin*.so")))
+        candidates.extend(sorted(coin_module.parent.glob("_coin*.pyd")))
+        for candidate in candidates:
+            runtimes = swig_runtime_strings(candidate)
+            if runtimes:
+                info["pivy_swig_runtime"] = ",".join(runtimes)
+                info["pivy_binary"] = str(candidate)
+                break
+    except Exception as exc:
+        info["runtime_error"] = repr(exc)
+    return info
+
 def _events():
     try:
         from PySide import QtWidgets
@@ -127,6 +224,8 @@ def run():
 
     panel = AvatarPoseTaskPanel(avatar)
     progress("panel-created")
+    runtime = _runtime_diagnostics()
+    progress("runtime=" + repr(runtime))
     Gui.Control.showDialog(panel)
     _events()
     progress("panel-shown")
@@ -138,40 +237,42 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
+    progress(
+        "pivy-coin-loaded-before-capability=%s"
+        % ("pivy.coin" in sys.modules)
+    )
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
-    gizmo_mode = panel.controller.gizmo_mode or (
-        "fallback-panel" if fallback else "unknown"
+    runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
+    progress(
+        "viewport-capability gizmo_mode=%s fallback=%s runtime_error=%r"
+        % (getattr(panel.controller, "gizmo_mode", None), fallback, runtime_error)
     )
     if fallback:
-        if panel.controller.fallback_gizmo_object is not None:
-            raise RuntimeError("Pose Mode fallback created a misleading non-interactive gizmo")
-        if not panel.joint_list_widget.isVisible():
-            raise RuntimeError("Pose Mode did not expose the joint-list fallback")
-        if panel.angle_snap.isEnabled():
-            raise RuntimeError("Pose Mode kept Snap enabled when viewport rotation is unavailable")
-        if "Viewport posing is unavailable" not in panel.instruction_label.text():
-            raise RuntimeError("Pose Mode fallback still advertised viewport ring dragging")
-    else:
-        if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
-            raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
-        if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
-            raise RuntimeError(
-                "Pose Mode did not select a supported interactive gizmo mode"
-            )
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+        raise RuntimeError(
+            "Pose Mode did not activate the native Coin/Pivy viewport path: "
+            + str(runtime_error)
+        )
+    gizmo_mode = panel.controller.gizmo_mode or "unknown"
+    if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
+        raise RuntimeError(
+            "Pose Mode did not select a supported interactive gizmo mode"
+        )
+    if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
+        raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
+    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
-        visible_bones = len(panel.controller._skeleton_segments)
-        if visible_bones <= len(CONTROLLABLE_BONES):
-            raise RuntimeError(
-                "Pose Mode overlay does not contain the complete authored skeleton "
-                f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
-            )
-        if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
-            raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    visible_bones = len(panel.controller._skeleton_segments)
+    if visible_bones <= len(CONTROLLABLE_BONES):
+        raise RuntimeError(
+            "Pose Mode overlay does not contain the complete authored skeleton "
+            f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
+        )
+    if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
+        raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
-    if not fallback and panel.joint_list_widget.isVisible():
+    if panel.joint_list_widget.isVisible():
         raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
     try:
         from PySide import QtWidgets
@@ -181,13 +282,12 @@ def run():
         raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
-    if not fallback:
-        panel.joint_list_toggle.setChecked(True)
-        _events()
-        if not panel.joint_list_widget.isVisible():
-            raise RuntimeError("Pose Mode Joint list fallback did not expand")
-        panel.joint_list_toggle.setChecked(False)
-        _events()
+    panel.joint_list_toggle.setChecked(True)
+    _events()
+    if not panel.joint_list_widget.isVisible():
+        raise RuntimeError("Pose Mode Joint list fallback did not expand")
+    panel.joint_list_toggle.setChecked(False)
+    _events()
     metrics = _capture_pose_screen(
         Path("artifacts/avatar-pose-mode.png"),
         panel,
