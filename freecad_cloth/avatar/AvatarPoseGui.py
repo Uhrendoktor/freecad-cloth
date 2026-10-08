@@ -115,7 +115,8 @@ class SkeletonPoseController:
     """Viewport overlay and Coin3D rotation controller for mannequin joints."""
 
     GIZMO_SIZE = 75.0
-    JOINT_PICK_RADIUS = 28.0
+    BONE_PICK_RADIUS = 12.0
+    JOINT_PICK_RADIUS = 20.0
 
     def __init__(self, panel):
         self.panel = panel
@@ -754,7 +755,7 @@ class SkeletonPoseController:
             return None
 
         best = None
-        best_distance = self.JOINT_PICK_RADIUS
+        best_distance = self.BONE_PICK_RADIUS
         for bone in CONTROLLABLE_BONES:
             segment = projected_segments.get(bone)
             if segment is None:
