@@ -151,8 +151,8 @@ Euler-value fields.
 Cloth UI mapping:
 1. The normal avatar editor is for measurements/provider configuration; Pose Mode
    is a dedicated mode for posing.
-2. The user selects a named joint from a small anatomical tree or directly on the
-   mannequin.
+2. The user selects a bone directly on the mannequin; a collapsed named
+   joint list remains available when direct selection is difficult.
 3. The selected joint gets a 3D rotation gizmo; direct dragging is the primary input.
 4. Symmetry and 5-degree angle snapping are visible mode toggles.
 5. The selected joint shows compact X/Y/Z readouts; sliders are intentionally
