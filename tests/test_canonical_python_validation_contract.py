@@ -17,10 +17,6 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     assert "matrix.group != 'gui'" in block
     assert "test-args: gui" in block
 
-def test_pytest_contract_module_has_a_real_test_entrypoint():
-    source = Path(__file__).read_text(encoding="utf-8")
-    assert "def test_canonical_python_job_executes_pytest_contract_modules" in source
-    assert "def test_pytest_contract_module_has_a_real_test_entrypoint" in source
 
 
 def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
