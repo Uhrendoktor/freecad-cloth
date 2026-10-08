@@ -48,7 +48,8 @@ def ensure_task_view_visible():
         events()
         if dock.isVisible():
             return dock
-    raise RuntimeError("FreeCAD Tasks dock is unavailable")
+    log("task-dock=unavailable; validating task panel directly")
+    return None
 
 
 def validate_task(panel, name, required):
