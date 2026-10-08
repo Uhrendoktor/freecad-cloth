@@ -163,9 +163,9 @@ Cloth UI mapping:
 7. Presets provide Standing, Sewing and Sitting starting points.
 8. The joint list is collapsed by default and retained as a recovery/recognition
    path for crowded views or builds without viewport picking.
-7. Apply/Rebuild and Cancel preserve the existing staged/persistent document
+9. Apply/Rebuild and Cancel preserve the existing staged/persistent document
    semantics.
-8. IK and anatomical joint-limit authoring remain explicit follow-up work.
+10. IK and anatomical joint-limit authoring remain explicit follow-up work.
 
 This is intentionally a UI layer over the merged `SkeletonPose`/FK data model;
 it does not replace the rig or introduce a second pose representation.
