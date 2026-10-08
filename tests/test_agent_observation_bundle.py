@@ -15,6 +15,7 @@ from tools.ci.create_agent_observation_bundle import (
 
 def _fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     """Create a minimal set of files and GitHub metadata for a test run."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
     root = tmp_path / "artifacts"
     root.mkdir()
     (root / "metrics.json").write_text('{"vertex_count": 8}', encoding="utf-8")
@@ -78,7 +79,7 @@ def test_manifest_records_provenance_evidence_hashes_and_relative_paths(tmp_path
 
 def test_manifest_can_be_created_without_github_metadata(tmp_path: Path):
     root = tmp_path / "artifacts"
-    root.mkdir()
+    root.mkdir(parents=True)
     (root / "summary.json").write_text("{}", encoding="utf-8")
 
     manifest = create_observation_bundle(
@@ -99,21 +100,21 @@ def test_manifest_can_be_created_without_github_metadata(tmp_path: Path):
 
 def test_missing_evidence_fails_closed(tmp_path: Path):
     with pytest.raises(ObservationBundleError, match="required evidence is missing"):
-        _create(tmp_path, ["metrics=missing.json"])
+        _create(tmp_path / "missing", ["metrics=missing.json"])
 
 
 def test_traversal_and_symlinks_are_rejected(tmp_path: Path):
     with pytest.raises(ObservationBundleError, match="unsafe evidence path"):
-        _create(tmp_path, ["metrics=../metrics.json"])
+        _create(tmp_path / "traversal", ["metrics=../metrics.json"])
 
-    environment, root = _fixture(tmp_path)
+    environment, root = _fixture(tmp_path / "symlink")
     try:
         (root / "outside.json").symlink_to(root / "metrics.json")
     except OSError:
         pytest.skip("symlinks unavailable in this environment")
     with pytest.raises(ObservationBundleError, match="symbolic links"):
         create_observation_bundle(
-            workspace=tmp_path,
+            workspace=tmp_path / "symlink",
             observation_root="artifacts",
             output_value="artifacts/agent-observation.json",
             specifications=["metrics=outside.json"],
@@ -168,12 +169,12 @@ def test_aggregate_evidence_budget_is_enforced(tmp_path: Path):
 
 def test_duplicate_paths_and_manifest_location_are_rejected(tmp_path: Path):
     with pytest.raises(ObservationBundleError, match="duplicate evidence path"):
-        _create(tmp_path, ["metrics=metrics.json", "summary=metrics.json"])
+        _create(tmp_path / "duplicate", ["metrics=metrics.json", "summary=metrics.json"])
 
-    environment, _root = _fixture(tmp_path)
+    environment, _root = _fixture(tmp_path / "output-location")
     with pytest.raises(ObservationBundleError, match="directly inside observation-root"):
         create_observation_bundle(
-            workspace=tmp_path,
+            workspace=tmp_path / "output-location",
             observation_root="artifacts",
             output_value="agent-observation.json",
             specifications=["metrics=metrics.json"],
