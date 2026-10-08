@@ -376,7 +376,7 @@ def run():
             center[0] + 31.0 * math.cos(angle),
             center[1] - 31.0 * math.sin(angle),
         )
-        mouse_move(viewport, point, delay_ms=30)
+        mouse_move(viewport, point, delay_ms=30, buttons_down=True)
     mouse_release(viewport, (center[0], center[1] - 31.0))
     recorder.hold(700)
     pose_after_drag = panel._staged_joint_rotations.get("upperarm01.L")

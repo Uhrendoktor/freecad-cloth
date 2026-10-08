@@ -54,7 +54,7 @@ def viewport_widget(gui: Any, view: Any | None = None) -> Any:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             pass
 
-    candidates: list[tuple[float, Any]] = []
+    candidates: list[tuple[float, Any, str, int, int]] = []
     for widget in window.findChildren(QtWidgets.QWidget):
         try:
             if not widget.isVisible() or not widget.isEnabled():
@@ -65,26 +65,50 @@ def viewport_widget(gui: Any, view: Any | None = None) -> Any:
             class_name = str(widget.metaObject().className()).lower()
             object_name = str(widget.objectName()).lower()
             label = class_name + " " + object_name
-            score = 0.0
-            if "view3dinventorviewer" in label:
-                score += 10000.0
-            elif "soqtglwidget" in label or "qopenglwidget" in label:
-                score += 9000.0
-            elif "viewer" in label or "viewport" in label:
-                score += 7000.0
-            elif "opengl" in label or "coin" in label:
-                score += 5000.0
-            if target_width and target_height:
-                score -= abs(width - target_width) + abs(height - target_height)
-            score += min(width * height / 100000.0, 20.0)
-            candidates.append((score, widget))
+            class_score = 0.0
+            if "soqtglwidget" in label or "qopenglwidget" in label:
+                class_score = 5000.0
+            elif "soqtrenderarea" in label or "renderarea" in label:
+                class_score = 4200.0
+            elif "view3dinventorviewer" in label:
+                class_score = 2200.0
+            elif "viewer" in label or "viewport" in label or "coin" in label:
+                class_score = 1200.0
+            size_delta = (
+                abs(width - target_width) + abs(height - target_height)
+                if target_width and target_height
+                else 0
+            )
+            depth = 0
+            parent = widget.parentWidget()
+            while parent is not None:
+                depth += 1
+                parent = parent.parentWidget()
+            # Prefer the innermost actual rendering surface, not its viewer
+            # container: QtTest sends directly to the named widget and bypasses
+            # the normal child-widget hit test when a parent is targeted.
+            score = class_score + min(width * height / 100000.0, 20.0) - 4.0 * size_delta + min(depth, 12) * 2.0
+            candidates.append((score, widget, label, width, height))
         except (AttributeError, RuntimeError, TypeError, ValueError):
             continue
     if not candidates:
         raise RuntimeError("could not locate a visible FreeCAD viewport widget")
     candidates.sort(key=lambda item: item[0], reverse=True)
-    if candidates[0][0] < 0:
-        raise RuntimeError("could not identify the FreeCAD viewport among visible widgets")
+    top = candidates[:5]
+    print(
+        "freecad-input-viewport=" + repr([
+            {"class": value[2], "size": (value[3], value[4]), "score": round(value[0], 1)}
+            for value in top
+        ]),
+        flush=True,
+    )
+    if target_width and target_height:
+        best_delta = abs(top[0][3] - target_width) + abs(top[0][4] - target_height)
+        if best_delta > max(100, int((target_width + target_height) * 0.2)):
+            raise RuntimeError(
+                "selected Qt widget does not match FreeCAD viewport dimensions: "
+                f"widget={top[0][3]}x{top[0][4]} view={target_width}x{target_height}"
+            )
     return candidates[0][1]
 
 
@@ -115,10 +139,40 @@ def mouse_press(
     )
 
 
-def mouse_move(widget: Any, position: tuple[float, float], delay_ms: int = 20) -> None:
-    """Move the pointer through the Qt event loop to a widget-local coordinate."""
-    QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
-    QtTest.QTest.mouseMove(widget, _position(QtCore, position), max(0, delay_ms))
+def mouse_move(
+    widget: Any,
+    position: tuple[float, float],
+    delay_ms: int = 20,
+    buttons_down: bool = False,
+) -> None:
+    """Move the pointer, optionally preserving the left-button-down drag state."""
+    QtCore, QtGui, QtTest, QtWidgets = _qt_modules()
+    local = _position(QtCore, position)
+    if not buttons_down:
+        QtTest.QTest.mouseMove(widget, local, max(0, delay_ms))
+        return
+
+    screen_position = widget.mapToGlobal(local)
+    no_button = getattr(QtCore.Qt, "NoButton")
+    left_button = getattr(QtCore.Qt, "LeftButton")
+    no_modifier = getattr(QtCore.Qt, "NoModifier")
+    event_type = QtCore.QEvent.MouseMove
+    event = None
+    try:
+        event = QtGui.QMouseEvent(
+            event_type,
+            QtCore.QPointF(local),
+            QtCore.QPointF(screen_position),
+            no_button,
+            left_button,
+            no_modifier,
+        )
+    except TypeError:
+        event = QtGui.QMouseEvent(
+            event_type, QtCore.QPointF(local), no_button, left_button, no_modifier
+        )
+    QtWidgets.QApplication.sendEvent(widget, event)
+    QtTest.QTest.qWait(max(0, delay_ms))
 
 
 def mouse_release(
@@ -187,7 +241,7 @@ def drag_viewport(
             start[0] + (end[0] - start[0]) * fraction,
             start[1] + (end[1] - start[1]) * fraction,
         )
-        mouse_move(widget, point, delay_ms=delay)
+        mouse_move(widget, point, delay_ms=delay, buttons_down=True)
     if release:
         mouse_release(widget, end)
 

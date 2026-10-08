@@ -107,7 +107,7 @@ def run():
             start[0] + (snap[0] - start[0]) * fraction,
             start[1] + (snap[1] - start[1]) * fraction,
         )
-        mouse_move(viewport, position, delay_ms=25)
+        mouse_move(viewport, position, delay_ms=25, buttons_down=True)
     if controller.snap_point is None or controller._snap_indicator is None:
         mouse_release(viewport, snap)
         recorder.stop()
