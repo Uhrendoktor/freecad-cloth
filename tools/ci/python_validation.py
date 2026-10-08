@@ -68,6 +68,8 @@ GROUPS = {
         "tests/test_avatar_skeleton_pose.py",
         "tests/test_avatar_gui_contract.py",
         "tests/test_property_contracts.py",
+        "tests/test_shared_adapters.py",
+        "tests/test_workbench_registration.py",
     ),
 }
 
