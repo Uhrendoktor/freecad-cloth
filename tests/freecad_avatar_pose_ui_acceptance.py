@@ -171,6 +171,18 @@ def run():
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
+    if panel.joint_list_widget.isVisible():
+        raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
+    if "QSlider" in getattr(panel, "__class__", object).__name__:
+        raise RuntimeError("Pose Mode created an unexpected slider-based primary control")
+    panel.symmetry.setChecked(True)
+    panel.angle_snap.setChecked(True)
+    panel.joint_list_toggle.setChecked(True)
+    _events()
+    if not panel.joint_list_widget.isVisible():
+        raise RuntimeError("Pose Mode Joint list fallback did not expand")
+    panel.joint_list_toggle.setChecked(False)
+    _events()
     metrics = _capture_pose_screen(
         Path("artifacts/avatar-pose-mode.png"),
         panel,
@@ -199,6 +211,7 @@ def run():
         -35.0,
         0.0,
         preview=True,
+        snap=True,
     )
     after = _bounds(avatar.Mesh)
     if before == after:
@@ -211,6 +224,19 @@ def run():
         raise RuntimeError("symmetry did not stage both shoulder joints")
     if float(left.y) != -35.0 or float(right.y) != 35.0:
         raise RuntimeError("symmetry produced the wrong mirrored shoulder rotation")
+
+    panel.angle_snap.setChecked(True)
+    panel._stage_joint_rotation(
+        "lowerarm01.L",
+        0.0,
+        41.0,
+        0.0,
+        preview=False,
+        snap=False,
+    )
+    exact = panel._staged_joint_rotations.get("lowerarm01.L")
+    if exact is None or float(exact.y) != 41.0:
+        raise RuntimeError("Exact angle fallback unexpectedly inherited 5 degree snapping")
 
     panel.accept()
     persisted_payload = str(avatar.JointPoseJSON)
