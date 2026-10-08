@@ -1,9 +1,15 @@
-# Pivy is supplied by the FreeCAD base image; do not install an obsolete PyPI wheel.
+# Keep the Pivy extension on the same SWIG-era runtime as the FreeCAD 1.1.0
+# conda build. The unpinned r3 image can resolve a newer Pivy build that is
+# incompatible with FreeCAD's embedded SWIG runtime and breaks Coin scene-graph
+# conversion with "No SWIG wrapped library loaded".
 FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
+RUN /opt/conda/bin/mamba install -y --freeze-installed -n freecad -c conda-forge \
+        "pivy=0.6.10" \
+    && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pivy; from pivy import coin; print('pivy=' + importlib.metadata.version('pivy')); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
+    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
         pytest \
