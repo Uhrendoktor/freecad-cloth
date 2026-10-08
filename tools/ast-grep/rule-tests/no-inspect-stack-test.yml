@@ -1,0 +1,7 @@
+id: no-inspect-stack
+valid:
+  - "inspect.currentframe()"
+  - "helper.inspect.stack()"
+invalid:
+  - "inspect.stack()"
+  - "inspect.stack(context=0)"
