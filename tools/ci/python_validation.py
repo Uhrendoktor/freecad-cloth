@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import traceback
+from collections import Counter
 from pathlib import Path
 
 GROUPS = {
@@ -116,6 +117,29 @@ GROUPS = {
 }
 
 
+
+def validate_test_routing() -> None:
+    """Fail closed when a pytest module is missing from or duplicated across groups."""
+    routed = Counter(Path(test).as_posix() for tests in GROUPS.values() for test in tests)
+    existing = {path.as_posix() for path in Path("tests").glob("test_*.py")}
+    stale = sorted(path for path in routed if not Path(path).is_file())
+    missing = sorted(existing - set(routed))
+    duplicated = sorted(path for path, count in routed.items() if count > 1)
+    errors = []
+    if stale:
+        errors.append("stale routing entries: " + ", ".join(stale))
+    if missing:
+        errors.append("unrouted pytest modules: " + ", ".join(sorted(missing)))
+    if duplicated:
+        errors.append("duplicated pytest modules: " + ", ".join(duplicated))
+    if errors:
+        raise SystemExit("\n".join(errors))
+    print(
+        f"test-routing=passed modules={len(existing)} groups={len(GROUPS)}",
+        flush=True,
+    )
+
+
 def main() -> int:
     """Run the canonical Python validation suite."""
     parser = argparse.ArgumentParser()
@@ -125,10 +149,13 @@ def main() -> int:
         cli_args = cli_args[1:]
     args = parser.parse_args(cli_args)
 
+    validate_test_routing()
     tests = GROUPS[args.group]
     missing = [test for test in tests if not Path(test).is_file()]
     if missing:
         raise SystemExit("missing tests: " + ", ".join(missing))
+    collection_command = ["python3", "tools/ci/check_test_collection.py", *tests]
+    subprocess.run(collection_command, check=True, timeout=60)
     command = ["python3", "-m", "pytest", "-q", *tests]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
     subprocess.run(command, check=True, timeout=110)
