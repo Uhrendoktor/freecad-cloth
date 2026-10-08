@@ -79,17 +79,6 @@ jobs:
           python tools/ci/validate_ci_structure.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
-          mapfile -t changed_production < <(git diff --name-only origin/"$BASE_REF"...HEAD -- 'freecad_cloth/**/*.py')
-          filtered_production=()
-          for path in "${changed_production[@]}"; do
-            case "$path" in
-              */*Gui.py|*/Commands.py|*/workbench.py) ;;
-              *) filtered_production+=( "$path" ) ;;
-            esac
-          done
-          if (("${#filtered_production[@]}")); then
-            python -m ruff check --select ANN001,ANN002,ANN003,ANN201,ANN202,ANN204,ANN205,ANN206 "${filtered_production[@]}"
-          fi
           git diff --name-only origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
           if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py

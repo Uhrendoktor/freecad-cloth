@@ -117,7 +117,6 @@ GROUPS = {
 }
 
 
-
 def validate_test_routing() -> None:
     """Fail closed when a pytest module is missing from or duplicated across groups."""
     routed = Counter(Path(test).as_posix() for tests in GROUPS.values() for test in tests)
