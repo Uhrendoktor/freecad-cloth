@@ -305,6 +305,10 @@ class SkeletonPoseController:
         self.gizmo_separator = None
         self.overlay = None
         self.scene_graph = None
+        self._native_dragger = None
+        self._gizmo_dragging = False
+        self.gizmo_mode = None
+        self._skeleton_segments = {}
         self.view = None
 
     def _add_skeleton_overlay(self, coin):
@@ -417,6 +421,12 @@ class SkeletonPoseController:
         self._add_skeleton_overlay(self._coin())
         if self.selected_bone and not keep_gizmo:
             self._create_gizmo(self.selected_bone)
+        elif self.selected_bone and self.gizmo_transform is not None:
+            point = self._positions.get(self.selected_bone)
+            if point is not None:
+                self.gizmo_transform.translation.setValue(
+                    self._coin().SbVec3f(*point)
+                )
 
     def _remove_gizmo(self):
         if self.scene_graph is not None and self.gizmo_separator is not None:
@@ -458,6 +468,10 @@ class SkeletonPoseController:
                 "showRotationY",
                 "showRotationZ",
                 "setAxisColors",
+                "setUpAutoScale",
+                "addStartCallback",
+                "addMotionCallback",
+                "addFinishCallback",
             )
             if any(not hasattr(dragger, method) for method in methods):
                 return False
@@ -496,6 +510,11 @@ class SkeletonPoseController:
             dragger.addFinishCallback(self._gizmo_finish)
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError):
+            if self.gizmo_separator is not None:
+                try:
+                    self.gizmo_separator.removeChild(dragger)
+                except (AttributeError, RuntimeError):
+                    pass
             return False
 
     def _create_trackball_gizmo(self, coin):
