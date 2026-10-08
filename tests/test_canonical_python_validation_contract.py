@@ -19,6 +19,12 @@ def test_canonical_python_job_executes_pytest_contract_modules():
 
 
 
+def test_gui_acceptance_validator_uses_visual_artifacts_only():
+    from tools.ci import validate_acceptance
+
+    assert set(validate_acceptance.CASES) == {"avatar-pose", "fitting"}
+    assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
+
 def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
