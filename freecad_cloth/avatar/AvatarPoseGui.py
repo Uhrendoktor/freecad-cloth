@@ -1014,7 +1014,6 @@ class AvatarPoseTaskPanel:
     def _load(self):
         if self.avatar is None:
             self.status.setText("Create a Cloth Human Mannequin first.")
-            self.apply_button.setEnabled(False)
             return
         from freecad_cloth.avatar.SkeletonPose import (
             joint_rotation_map,
