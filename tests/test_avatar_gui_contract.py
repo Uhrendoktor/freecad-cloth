@@ -43,8 +43,8 @@ def test_avatar_panel_exposes_provider_swap_without_replacing_avatar_object():
     assert '"freecad-geometry", "FreeCAD body / imported geometry"' in source
     assert "self.provider_group.setExclusive(True)" in source
     assert 'button.setCheckable(True)' in source
-    assert 'button.setText("MakeHuman"' in source
-    assert 'button.setText("FreeCAD geometry"' in source
+    assert '"MakeHuman" if key == "makehuman-hm08"' in source
+    assert '"FreeCAD geometry"' in source
     assert "self.provider = QtWidgets.QComboBox()" not in source
     assert "Use selected FreeCAD object" in source
     assert "provider_id=provider_id" in source
