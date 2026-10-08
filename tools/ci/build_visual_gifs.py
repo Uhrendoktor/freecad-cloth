@@ -63,7 +63,7 @@ def main() -> int:
         build(
             tool,
             sorted((root / "blanket-example").glob("motion-*.png")),
-            root / "blanket-example/blanket-motion.gif",
+            root / "blanket-example/cloth-blanket-motion.gif",
             "10",
         )
         return 0
