@@ -25,15 +25,16 @@ try:
 except Exception as exc:
     print("pivy-error=" + repr(exc), flush=True)
 
-for pattern in ("FreeCAD*.so*", "libFreeCAD*.so*"):
-    for candidate in sorted((root / "lib").rglob(pattern)):
-        try:
-            data = candidate.read_bytes()
-        except OSError:
-            continue
-        matches = sorted(set(x.decode("ascii") for x in re.findall(rb"swig_runtime_data([0-9]+)", data)))
-        if matches:
-            print("freecad-binary=" + str(candidate) + " swig=" + ",".join(matches), flush=True)
+for scan_root in (root / "lib", root / "lib" / "python3.12" / "site-packages"):
+    for pattern in ("FreeCAD*.so*", "libFreeCAD*.so*", "_FreeCAD*.so*"):
+        for candidate in sorted(scan_root.rglob(pattern)):
+            try:
+                data = candidate.read_bytes()
+            except OSError:
+                continue
+            matches = sorted(set(x.decode("ascii") for x in re.findall(rb"swig_runtime_data([0-9]+)", data)))
+            if matches:
+                print("freecad-binary=" + str(candidate) + " swig=" + ",".join(matches), flush=True)
 PY
 
 RUN /opt/conda/bin/mamba install -y -n freecad -c conda-forge \
