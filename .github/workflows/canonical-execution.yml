@@ -420,11 +420,14 @@ jobs:
     permissions:
       contents: write
       actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@52081ce07234c3fe6b4af11b3a8be50b168f9cbf
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@6769834c2f25e14e0014d72776384bdaaf8f1b2c
         with:
           source-sha: ${{ github.sha }}
           repository: ${{ github.repository }}
