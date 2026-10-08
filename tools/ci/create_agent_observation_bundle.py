@@ -270,7 +270,10 @@ def main() -> int:
         print(f"agent observation export failed: {exc}", file=sys.stderr)
         return 2
 
-    count = sum(bool(line.strip()) for line in environment.get("OBSERVATION_FILES", "").splitlines())
+    count = sum(
+        bool(line.strip())
+        for line in environment.get("OBSERVATION_FILES", "").replace(";", "\n").splitlines()
+    )
     print(
         "agent-observation=written "
         "path=agent-observation.json "
