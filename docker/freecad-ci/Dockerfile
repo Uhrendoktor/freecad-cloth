@@ -8,7 +8,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN /opt/conda/bin/mamba install -y -n freecad -c conda-forge \
         "pivy=0.6.10" \
-    && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pivy; from pivy import coin; print('pivy=' + importlib.metadata.version('pivy')); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
+    && /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('pivy-module=' + pivy.__file__); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
