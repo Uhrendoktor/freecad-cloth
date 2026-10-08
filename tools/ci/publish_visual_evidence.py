@@ -50,12 +50,12 @@ def build_tunic_gif() -> None:
     )
     if not frames:
         raise SystemExit("cannot build tunic motion GIF: frames are missing")
-    source = Path("tools/ci/build_visual_gifs.py")
+    source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
         ["python3", str(source), "tunic"],
         check=True,
         timeout=55,
-        cwd=Path("."),
+        cwd=Path("tunic"),
     )
 
 
