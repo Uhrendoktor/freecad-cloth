@@ -2,6 +2,10 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Cloth Sewing workbench" width="900"></p>
 
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Assigning a seam by selecting one edge on each workpiece, reviewing the preview, and committing the seam" width="900"></p>
+
+The animation shows a complete UI interaction: select the source edge, Ctrl-click its counterpart, review the semantic seam preview, then commit. The GIF is recorded from the live FreeCAD window during the canonical GUI acceptance run.
+
 ## What the feature is
 
 Cloth Sewing turns authored pattern edges into semantic garment assembly relationships.

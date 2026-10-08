@@ -4,6 +4,10 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900"></p>
 
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging a garment workpiece onto a blue arrangement snap point in the FreeCAD viewport" width="900"></p>
+
+The animation records the real mouse drag, snap preview, and release-to-commit sequence in the live task panel.
+
 ## What the feature is
 
 Interactive Arrange is the direct-manipulation fitting stage. The viewport is the primary surface for moving garment pieces.

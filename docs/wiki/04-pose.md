@@ -10,6 +10,10 @@ The image above is the dedicated Pose Mode interaction fixture. It is captured f
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif" alt="Mannequin 360 degree turntable" width="820"></p>
 
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin bone and dragging the native rotation gizmo in Pose Mode" width="900"></p>
+
+This recording exercises viewport bone selection and rotation-ring dragging, rather than staging the rotation through the task-panel API.
+
 ## What the feature is
 
 Pose Mode is a dedicated human-facing editor for the mannequin skeleton and pose.
