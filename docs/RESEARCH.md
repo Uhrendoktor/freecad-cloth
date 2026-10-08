@@ -245,6 +245,11 @@ Coin
 `SoTrackballDragger` remains as a compatibility fallback for FreeCAD builds where
 the native runtime type is unavailable.
 
+Bone picking follows the same direct-manipulation convention: clicking the visible body of a
+controllable bone selects that joint, with the endpoint/joint hotspot retained as a fallback
+for crowded joints. Structural helper bones stay visible for orientation but are not direct pose
+targets until the pose data model exposes them as editable controls.
+
 References:
 - Blender Pose Mode: https://docs.blender.org/manual/en/latest/animation/armatures/posing/introduction.html
 - Blender bone display/selection: https://docs.blender.org/manual/en/latest/animation/armatures/bones/properties/display.html
