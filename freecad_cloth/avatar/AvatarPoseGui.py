@@ -269,7 +269,10 @@ class SkeletonPoseController:
                 raise
             self._location_callback = None
         self._build_positions()
-        bone = str(self.panel.skeleton_joint.currentData())
+        bone = str(getattr(self.panel, "skeleton_joint_index", "") or "")
+        if not bone:
+            self.panel._select_first_joint()
+            bone = str(getattr(self.panel, "skeleton_joint_index", "") or "")
         if bone:
             self.select_joint(bone)
         self.panel.status.setText(
