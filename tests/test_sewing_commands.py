@@ -298,7 +298,11 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(mon
     )
     selection = Selection()
     active_document = ActiveDocument()
-    gui = SimpleNamespace(Selection=selection, activeDocument=lambda: active_document)
+    gui = SimpleNamespace(
+        Selection=selection,
+        activeDocument=lambda: active_document,
+        activateWorkbench=lambda name: active_document.calls.append(("activateWorkbench", name)),
+    )
     monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
     monkeypatch.setattr(commands_module, "focus_selected_seam_3d", lambda: None)
 
@@ -309,6 +313,7 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(mon
     assert active_document.calls == [
         ("getInEdit",),
         ("resetEdit",),
+        ("activateWorkbench", "SketcherWorkbench"),
         ("setEdit", "Sketch"),
     ]
     assert selection.calls == [
