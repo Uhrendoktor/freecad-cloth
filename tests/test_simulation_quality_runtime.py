@@ -1,4 +1,3 @@
-from pathlib import Path
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
@@ -7,9 +6,6 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     apply_quality_preset,
     quality_discretization,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def test_quality_names_and_discretization_are_materially_distinct():
     assert QUALITY_NAMES == ("Fast", "Balanced", "Final")
