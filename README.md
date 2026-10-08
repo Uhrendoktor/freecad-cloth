@@ -25,7 +25,7 @@ The documentation follows one rule: <strong>a user-visible feature should be und
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Pattern authoring" width="430"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Sewing workbench" width="430"></p>
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange" width="430"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode" width="430"></p>
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange" width="430"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode with visible joint overlay and selected rotation gizmo" width="430"></p>
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Arranged garment before simulation" width="430"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Final draped garment" width="430"></p>
 
