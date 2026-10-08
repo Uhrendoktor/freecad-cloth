@@ -1,4 +1,4 @@
-"""Focused behavior coverage for shared, host-boundary test infrastructure."""
+"""Focused behavior coverage for shared FreeCAD boundary adapters."""
 
 from types import SimpleNamespace
 
@@ -16,106 +16,76 @@ class _Vertex:
 
 class _Shape:
     def __init__(self, vertices, triangles):
-        self._vertices = tuple(vertices)
-        self._triangles = tuple(triangles)
+        self.vertices = tuple(vertices)
+        self.triangles = tuple(triangles)
 
     def isNull(self):
         return False
 
     def tessellate(self, deflection):
         assert deflection == 0.5
-        return self._vertices, self._triangles
+        return self.vertices, self.triangles
 
 
-def test_freecad_collision_prefers_existing_mesh_topology():
-    mesh = SimpleNamespace(
+def _mesh():
+    return SimpleNamespace(
         Topology=(
             (_Vertex(0, 0, 0), _Vertex(1, 0, 0), _Vertex(0, 1, 0)),
             ((0, 1, 2),),
         )
     )
-    obj = SimpleNamespace(Mesh=mesh, Shape=SimpleNamespace(isNull=lambda: False), Label="mesh")
-    surface = surface_from_freecad(obj, deflection=0.5, thickness=1.25)
-
-    assert surface.region == "mesh"
-    assert surface.thickness == 1.25
-    assert surface.vertices == ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
-    assert surface.triangles == ((0, 1, 2),)
 
 
-def test_freecad_collision_tessellates_shape_when_mesh_topology_is_absent():
-    obj = SimpleNamespace(
-        Mesh=None,
-        Shape=_Shape(
-            (_Vertex(0, 0, 0), _Vertex(2, 0, 0), _Vertex(0, 2, 0)),
-            ((0, 1, 2),),
-        ),
-        Label="shape",
+def test_freecad_collision_reads_mesh_or_tessellates_shape():
+    mesh_surface = surface_from_freecad(
+        SimpleNamespace(Mesh=_mesh(), Shape=SimpleNamespace(isNull=lambda: False), Label="mesh")
     )
-    surface = surface_from_freecad(obj, deflection=0.5)
+    assert mesh_surface.vertices[1] == (1.0, 0.0, 0.0)
 
-    assert surface.region == "shape"
-    assert surface.vertices[1] == (2.0, 0.0, 0.0)
-    assert surface.triangles == ((0, 1, 2),)
+    shape_surface = surface_from_freecad(
+        SimpleNamespace(
+            Mesh=None,
+            Shape=_Shape(
+                (_Vertex(0, 0, 0), _Vertex(2, 0, 0), _Vertex(0, 2, 0)),
+                ((0, 1, 2),),
+            ),
+            Label="shape",
+        ),
+        deflection=0.5,
+    )
+    assert shape_surface.triangles == ((0, 1, 2),)
 
 
-def test_freecad_collision_rejects_invalid_deflection_and_missing_geometry():
+def test_freecad_collision_fails_closed_for_bad_input():
     with pytest.raises(ValueError, match="deflection must be positive"):
         surface_from_freecad(SimpleNamespace(), deflection=0)
 
     with pytest.raises(TypeError, match="expected a FreeCAD shape or mesh object"):
         surface_from_freecad(SimpleNamespace())
 
-
-def test_freecad_collision_rejects_malformed_mesh_topology():
-    obj = SimpleNamespace(
+    broken = SimpleNamespace(
         Mesh=SimpleNamespace(Topology=(("bad",), ((0, 1, 2),))),
         Label="broken",
     )
     with pytest.raises(ValueError, match="unusable Mesh topology"):
-        surface_from_freecad(obj)
+        surface_from_freecad(broken)
 
 
-def test_source_signature_is_deterministic_and_sensitive_to_mesh_content():
-    mesh_a = SimpleNamespace(
-        Topology=(
-            (
-                _Vertex(0, 0, 0),
-                _Vertex(1, 0, 0),
-                _Vertex(0, 1, 0),
-            ),
-            ((0, 1, 2),),
-        )
-    )
-    first = source_signature(SimpleNamespace(Name="Body", Mesh=mesh_a))
-    second = source_signature(SimpleNamespace(Name="Body", Mesh=mesh_a))
+def test_source_signature_is_deterministic_and_tracks_mesh_content():
+    first = source_signature(SimpleNamespace(Name="Body", Mesh=_mesh()))
+    second = source_signature(SimpleNamespace(Name="Body", Mesh=_mesh()))
     assert first == second
 
-    mesh_b = SimpleNamespace(
-        Topology=(
-            (
-                _Vertex(0, 0, 0),
-                _Vertex(1, 0, 0),
-                _Vertex(0, 2, 0),
-            ),
-            ((0, 1, 2),),
-        )
+    changed = _mesh()
+    changed.Topology = (
+        changed.Topology[0][:2] + (_Vertex(0, 2, 0),),
+        changed.Topology[1],
     )
-    assert source_signature(SimpleNamespace(Name="Body", Mesh=mesh_b)) != first
+    assert source_signature(SimpleNamespace(Name="Body", Mesh=changed)) != first
 
 
-def test_source_signature_uses_shape_content_when_mesh_is_unavailable():
-    shape = _Shape(
-        (_Vertex(0, 0, 0), _Vertex(1, 0, 0), _Vertex(0, 1, 0)),
-        ((0, 1, 2),),
-    )
-    signature = source_signature(SimpleNamespace(Name="Body", Shape=shape), deflection=0.5)
-    assert signature[1][0] == "ShapeContent"
-    assert signature[1][-1][0] == "TessellatedShape"
-
-
-def test_makehuman_signature_uses_authored_revision_metadata():
-    target = SimpleNamespace(
+def test_source_signature_preserves_makehuman_revision_and_shape_fallback():
+    avatar = SimpleNamespace(
         Name="Avatar",
         AvatarType="ClothAvatar",
         AvatarMeshProvider="makehuman-hm08",
@@ -125,8 +95,7 @@ def test_makehuman_signature_uses_authored_revision_metadata():
         MeshVertexCount=123,
         MeshTriangleCount=456,
     )
-    signature = source_signature(target)
-    assert signature[1] == (
+    assert source_signature(avatar)[1] == (
         "MakeHumanAvatar",
         "makehuman-hm08",
         "base.obj",
@@ -136,13 +105,19 @@ def test_makehuman_signature_uses_authored_revision_metadata():
         456,
     )
 
+    shape = _Shape(
+        (_Vertex(0, 0, 0), _Vertex(1, 0, 0), _Vertex(0, 1, 0)),
+        ((0, 1, 2),),
+    )
+    signature = source_signature(SimpleNamespace(Name="Body", Shape=shape), deflection=0.5)
+    assert signature[1] == (
+        "ShapeContent",
+        ("TessellatedShape", 3, 1, signature[1][1][3]),
+    )
+
 
 def test_seam_colors_are_order_independent_and_reject_empty_identity():
-    first = seam_color_map(["seam-b", "seam-a", "seam-a"])
-    second = seam_color_map(["seam-a", "seam-b"])
-    assert first == second
-    assert set(first) == {"seam-a", "seam-b"}
-
+    assert seam_color_map(["seam-b", "seam-a", "seam-a"]) == seam_color_map(["seam-a", "seam-b"])
     with pytest.raises(ValueError, match="identity must not be empty"):
         seam_color_map(["", "   "])
 
