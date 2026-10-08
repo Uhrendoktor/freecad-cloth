@@ -225,3 +225,28 @@ Implementation mapping for Cloth:
 
 This intentionally does not duplicate mannequin joint editing or add an alternate
 rig, and it does not change solver contracts.
+
+
+## Avatar Pose Gizmo refinement (2026-10-08)
+
+The pose viewport should keep the whole authored rig visible in the X-ray overlay,
+not only the subset of joints currently exposed as manual controls. Structural bones
+remain muted, controllable bones are stronger, and the active joint/bone is
+highlighted. This follows the common Pose Mode convention in Blender: the rig stays
+visible while selection state communicates what will be transformed.
+
+For 3D rotation, the primary control now prefers FreeCAD's own registered
+`SoTransformDragger`. Pose Mode hides its translation and planar-translation
+components and exposes the three native rotation axes, preserving FreeCAD's axis
+colors and camera-aware autoscaling. This is a better reuse boundary than invoking
+the higher-level `Std_TransformManip` command because Cloth is editing staged
+joint-rotation data rather than an object's persistent Placement. The existing
+Coin
+`SoTrackballDragger` remains as a compatibility fallback for FreeCAD builds where
+the native runtime type is unavailable.
+
+References:
+- Blender Pose Mode: https://docs.blender.org/manual/en/latest/animation/armatures/posing/introduction.html
+- Blender bone display/selection: https://docs.blender.org/manual/en/latest/animation/armatures/bones/properties/display.html
+- FreeCAD native transform dragger: https://github.com/FreeCAD/FreeCAD/blob/main/src/Gui/Inventor/Draggers/SoTransformDragger.h
+- FreeCAD transform editing: https://github.com/FreeCAD/FreeCAD/blob/main/src/Gui/ViewProviderDragger.cpp
