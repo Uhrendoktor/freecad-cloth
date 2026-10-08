@@ -343,7 +343,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", test-script: tests/freecad_screenshot_source.py, stage-workbench: "true", environment: "CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE=1\nCLOTH_TUNIC_AUDIT_SKIP_SIMULATION=1"}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", test-script: tests/freecad_screenshot_source.py, stage-workbench: "true", clean-user: "true", environment: "CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE=1\nCLOTH_TUNIC_AUDIT_SKIP_SIMULATION=1"}
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
