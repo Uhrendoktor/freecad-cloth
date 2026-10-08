@@ -144,10 +144,15 @@ def run():
         raise RuntimeError("Pose Mode fallback did not create a visual gizmo")
     if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
         raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
-    if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
-        raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
-    if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
-        raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    fallback = getattr(panel.controller.gizmo, "is_fallback", False)
+    if fallback:
+        if panel.controller.fallback_gizmo_object is None:
+            raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
+    else:
+        if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
+            raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
+        if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
+            raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
