@@ -56,3 +56,15 @@ repos:
         entry: python tools/ci/validate_ci_structure.py
         language: system
         files: ^(?:\.github/(actions|workflows)/|tools/ci/)
+      - id: ast-grep-tests
+        name: ast-grep rule tests
+        entry: ast-grep test --skip-snapshot-tests --color never
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ast-grep-contracts
+        name: ast-grep repository contracts
+        entry: ast-grep scan --min-severity error --color never freecad_cloth
+        language: system
+        pass_filenames: false
+        files: ^freecad_cloth/.*\.py$
