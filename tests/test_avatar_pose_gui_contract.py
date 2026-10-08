@@ -21,6 +21,8 @@ def test_pose_mode_is_a_dedicated_task_panel():
     assert 'self.angle_snap.setText("5° Snap")' in SOURCE
     assert 'self.precision.setText("Exact angles…")' in SOURCE
     assert "self.precision_widget.setVisible(False)" in SOURCE
+    preset_section = SOURCE.split("self.preset_group", 1)[1].split("selected =", 1)[0]
+    assert "setCheckable(True)" not in preset_section
     assert 'self.joint_list_toggle.setText("Joint list")' in SOURCE
     assert "self.joint_list_widget.setVisible(False)" in SOURCE
     assert "modifyStandardButtons" in SOURCE
