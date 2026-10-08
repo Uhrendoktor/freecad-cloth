@@ -37,23 +37,34 @@ def events():
         app.processEvents()
 
 
-def ensure_task_view_visible():
+def ensure_task_view_visible(panel=None):
     window = Gui.getMainWindow()
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
-    dock = window.findChild(QtWidgets.QDockWidget, "Tasks")
-    if dock is not None:
-        dock.show()
-        dock.raise_()
+    docks = window.findChildren(QtWidgets.QDockWidget)
+    for dock in docks:
+        if (
+            dock.objectName() == "Tasks"
+            or "task" in str(dock.windowTitle()).lower()
+        ):
+            dock.show()
+            dock.raise_()
+            events()
+            if dock.isVisible():
+                return dock
+    form = getattr(panel, "form", None) if panel is not None else None
+    if form is not None:
+        form.show()
+        form.raise_()
         events()
-        if dock.isVisible():
-            return dock
-    raise RuntimeError("FreeCAD Tasks dock is unavailable")
+        if form.isVisible():
+            return form
+    raise RuntimeError("FreeCAD task panel is unavailable")
 
 
 def validate_task(panel, name, required):
     events()
-    dock = ensure_task_view_visible()
+    dock = ensure_task_view_visible(panel)
     events()
     if not panel.form.isVisible():
         panel.form.show()
