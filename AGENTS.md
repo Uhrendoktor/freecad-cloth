@@ -70,6 +70,23 @@ Choose the smallest evidence set that proves the change. Use focused tests for c
 
 Do not declare success from a stale run. Verify the run belongs to the exact commit under review.
 
+## Test design contract for agents
+
+Tests are part of the repository's production infrastructure. Optimize for trustworthy evidence with the fewest independent execution paths.
+
+1. Test observable behavior first. Prefer real application state, persisted FreeCAD documents, exported files, structured manifests, and captured artifacts over implementation details.
+2. Never make a test prove itself. A test must not read its own source, copy expected strings from its own implementation, or use a log line emitted by the same test as evidence that the behavior occurred.
+3. Treat stdout/stderr and progress logs as diagnostics, not acceptance evidence. A `*-passed` marker is never an oracle.
+4. Use source inspection only for repository policy or architecture that is itself the requirement. Prefer AST/YAML/XML parsing over raw substring checks when a check is worth keeping.
+5. Before adding a validator or validation command, name the distinct failure mode it catches that the producing test cannot already catch. If there is no distinct failure mode, do not add the extra run.
+6. For acceptance gates, derive PASS/FAIL from artifacts or state observed independently from the producer's success claims. Existing validators should be extended before introducing another verifier.
+7. Every new harness component must be tested as infrastructure. At minimum, exercise a valid case and a deliberately invalid/tampered case when the component makes an acceptance decision.
+8. Use the cheapest evidence that distinguishes the failure: pure-Python unit/property tests first; real FreeCAD/Xvfb only where FreeCAD or GUI state is the behavior under test; expensive end-to-end runs only for integration boundaries.
+9. Reuse existing fixtures, validators, and canonical CI paths. Do not create parallel workflows, duplicate evidence formats, or one-off frameworks for a single feature.
+10. Keep the test surface smaller than the problem it protects. Prefer deleting a redundant check over adding another layer that repeats the same assertion.
+
+For autonomous work, a green run must mean that the product or produced artifact satisfied an independently stated invariant, not merely that the agent emitted a convincing success message.
+
 ## State-file hygiene
 
 `AGENT_STATUS.md` and `TOOL_STATE.md` are compact summaries. Do not turn them into experiment logs. Put detailed evidence in the governing issue/PR, and update these files only when the live repository state or execution policy changes.
