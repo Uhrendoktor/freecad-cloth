@@ -173,8 +173,12 @@ def run():
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
     if panel.joint_list_widget.isVisible():
         raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
-    if "QSlider" in getattr(panel, "__class__", object).__name__:
-        raise RuntimeError("Pose Mode created an unexpected slider-based primary control")
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+    if panel.form.findChildren(QtWidgets.QSlider):
+        raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
     panel.joint_list_toggle.setChecked(True)
