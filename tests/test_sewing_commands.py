@@ -1,7 +1,6 @@
 """Headless regression coverage for the Sewing workbench command layer."""
 
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -252,23 +251,69 @@ def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edge
     assert seam.EdgeBSignature != "stale-b"
 
 
-def test_edit_selected_seam_side_selects_pattern_piece_before_set_edit():
-    source = (
-        Path(__file__).resolve().parents[1] / "freecad_cloth" / "sewing" / "SewingCommands.py"
-    ).read_text(encoding="utf-8")
-    start = source.index("def _edit_selected_seam_side")
-    end = source.index("\ndef edit_selected_seam_side_a", start)
-    body = source[start:end]
+def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(monkeypatch):
+    import freecad_cloth.sewing.SewingCommands as commands_module
 
-    handoff = (
-        "    Gui.Selection.clearSelection()\n"
-        "    Gui.Selection.addSelection(piece)\n"
-        '    Gui.activateWorkbench("SketcherWorkbench")\n'
-        "    Gui.activeDocument().setEdit(sketch.Name)"
+    class Selection:
+        def __init__(self):
+            self.calls = []
+
+        def getSelection(self):
+            return [seam]
+
+        def clearSelection(self):
+            self.calls.append(("clear",))
+
+        def addSelection(self, obj, sub_name=None):
+            self.calls.append(("add", obj, sub_name))
+
+    class ActiveDocument:
+        def __init__(self):
+            self.calls = []
+
+        def getInEdit(self):
+            self.calls.append(("getInEdit",))
+            return True
+
+        def resetEdit(self):
+            self.calls.append(("resetEdit",))
+
+        def setEdit(self, name):
+            self.calls.append(("setEdit", name))
+
+    piece = SimpleNamespace(PieceId="piece-a", PatternType="PatternPiece")
+    sketch = SimpleNamespace(Name="Sketch")
+    piece.Sketch = sketch
+    seam = SimpleNamespace(
+        SeamId="seam-1",
+        PatternA=piece,
+        PatternB=piece,
+        EdgeAId="piece-a:edge:2",
+        EdgeBId="piece-a:edge:3",
     )
-    edge_selection = '    Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))'
+    sketch.SemanticEdgeIds = (
+        "piece-a:edge:0",
+        "piece-a:edge:1",
+        "piece-a:edge:2",
+    )
+    selection = Selection()
+    active_document = ActiveDocument()
+    gui = SimpleNamespace(Selection=selection, activeDocument=lambda: active_document)
+    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    monkeypatch.setattr(commands_module, "focus_selected_seam_3d", lambda: None)
 
-    assert handoff in body
-    assert body.index("focus_selected_seam_3d()") < body.index(handoff)
-    assert body.index("Gui.activeDocument().setEdit(sketch.Name)") < body.index(edge_selection)
-    assert 'Gui.runCommand("ClothPattern_EditSketch", 0)' not in body
+    edited_sketch, edge_index = commands_module.edit_selected_seam_side_a()
+
+    assert edited_sketch is sketch
+    assert edge_index == 2
+    assert active_document.calls == [
+        ("getInEdit",),
+        ("resetEdit",),
+        ("setEdit", "Sketch"),
+    ]
+    assert selection.calls == [
+        ("clear",),
+        ("add", piece, None),
+        ("clear",),
+        ("add", sketch, "Edge3"),
+    ]
