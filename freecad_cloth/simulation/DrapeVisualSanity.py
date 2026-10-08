@@ -270,14 +270,18 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset(
 )
 
 
-def assert_drape_diagnostics(records: Sequence[dict]) -> None:
-    """Fail closed when persisted rendered-drape diagnostics contradict acceptance."""
+def assert_drape_diagnostics(
+    records: Sequence[dict], *, allowed_diagnostics: Sequence[str] = ()
+) -> None:
+    """Fail closed while allowing explicitly documented diagnostic exceptions."""
     failures = []
+    allowed = {str(item) for item in allowed_diagnostics}
+    fatal_diagnostics = _FATAL_VISUAL_DIAGNOSTICS - allowed
     for record in records:
         classification = record.get("failure_classification", {})
         state = str(classification.get("state", ""))
         diagnostics = {str(item) for item in record.get("diagnostics", ())}
-        if state in _FATAL_VISUAL_STATES or diagnostics & _FATAL_VISUAL_DIAGNOSTICS:
+        if state in _FATAL_VISUAL_STATES or diagnostics & fatal_diagnostics:
             failures.append(
                 "{}: classification={} diagnostics={}".format(
                     str(record.get("panel", "<unknown>")),
