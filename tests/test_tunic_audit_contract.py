@@ -200,13 +200,13 @@ def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
-    gate = source.index('assert_drape_diagnostics(json.load(handle).get("panels", ()))')
+    gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     screenshot = source.index('f"cloth-simulation-draped-{direction}.png"')
     assert metrics_write < screenshot < gate
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    gate = source.index('assert_drape_diagnostics(json.load(handle).get("panels", ()))')
+    gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
