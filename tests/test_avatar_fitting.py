@@ -399,5 +399,47 @@ class AvatarFittingTests(unittest.TestCase):
                     os.unlink(path)
 
 
+def test_fitting_stage_status_without_simulation_is_not_actionable():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    assert fitting_stage_status(None) == ("No simulation scene selected.", False)
+
+
+def test_fitting_stage_status_reports_unarranged_scene():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    doc = type("Doc", (), {"Objects": ()})()
+    simulation = type("Simulation", (), {"Document": doc})()
+
+    assert fitting_stage_status(simulation) == (
+        "Not arranged yet — use Arrange / Fit… to open the fitting stage.",
+        False,
+    )
+
+
+def test_fitting_stage_status_reports_saved_arrangement_state():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    fitting = type(
+        "Fitting",
+        (),
+        {
+            "FittingType": "FittingScene",
+            "PatternPieces": (object(), object()),
+            "PiecePlacements": (object(),),
+            "ArrangementPoints": (object(), object(), object()),
+            "FitStatus": "Assigned",
+            "HomePlacements": ("home",),
+        },
+    )()
+    doc = type("Doc", (), {"Objects": (fitting,)})()
+    simulation = type("Simulation", (), {"Document": doc})()
+
+    message, reset_available = fitting_stage_status(simulation)
+    assert message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    assert reset_available is True
+
+
+
 if __name__ == "__main__":
     unittest.main()
