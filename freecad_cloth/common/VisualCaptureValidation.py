@@ -106,6 +106,7 @@ def validate_png_capture(
     expected_height: int,
     min_nonwhite_pixels: int = 64,
     min_distinct_rgb: int = 8,
+    min_opaque_pixels: int = 64,
 ) -> dict:
     """Validate a GUI screenshot structurally and reject empty/uniform captures."""
     width, height, raw, bytes_per_pixel = _parse_png(path)
@@ -116,14 +117,24 @@ def validate_png_capture(
         )
 
     nonwhite_pixels = 0
+    opaque_pixels = 0
     colors = set()
     for row in _unfilter_rows(raw, width, height, bytes_per_pixel):
         for index in range(0, len(row), bytes_per_pixel):
             rgb = tuple(row[index : index + 3])
+            alpha = 255 if bytes_per_pixel == 3 else row[index + 3]
+            if alpha <= 8:
+                continue
+            opaque_pixels += 1
             colors.add(rgb)
             if min(rgb) < 250:
                 nonwhite_pixels += 1
 
+    if opaque_pixels < min_opaque_pixels:
+        raise ValueError(
+            "PNG content is effectively transparent: opaque_pixels=%d minimum=%d"
+            % (opaque_pixels, min_opaque_pixels)
+        )
     if nonwhite_pixels < min_nonwhite_pixels:
         raise ValueError(
             "PNG content is effectively blank: nonwhite_pixels=%d minimum=%d"
@@ -138,6 +149,7 @@ def validate_png_capture(
     return {
         "width": width,
         "height": height,
+        "opaque_pixels": opaque_pixels,
         "nonwhite_pixels": nonwhite_pixels,
         "distinct_rgb": len(colors),
     }

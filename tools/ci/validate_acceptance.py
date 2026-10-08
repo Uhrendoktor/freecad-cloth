@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 CASES = {
     "sewing": (
@@ -86,6 +91,26 @@ def main() -> int:
     }.get(args.case)
     if image is not None and (not image.is_file() or not image.stat().st_size):
         raise SystemExit(f"missing acceptance screenshot: {image}")
+    if args.case == "avatar-pose":
+        from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+
+        metrics = validate_png_capture(
+            image,
+            expected_width=1280,
+            expected_height=720,
+            min_nonwhite_pixels=500,
+            min_distinct_rgb=16,
+            min_opaque_pixels=500,
+        )
+        print(
+            "avatar-pose-screenshot=passed "
+            "opaque_pixels=%d nonwhite_pixels=%d distinct_rgb=%d"
+            % (
+                metrics["opaque_pixels"],
+                metrics["nonwhite_pixels"],
+                metrics["distinct_rgb"],
+            )
+        )
     print(f"{args.case}-acceptance=passed")
     return 0
 

@@ -23,7 +23,7 @@ The wiki intentionally does not invent a second documentation-only workflow.
 | Pattern | Pattern screenshot | Pattern workbench/export smoke + screenshot source |
 | Sewing | Sewing screenshot | Sewing smoke/creation + garment E2E |
 | Fitting | Interactive Arrange screenshot | <code>freecad_interactive_arrange_acceptance.py</code> |
-| Pose | Pose Mode screenshot + avatar six-side views | <code>freecad_avatar_pose_ui_acceptance.py</code> + avatar acceptance/screenshot |
+| Pose | Native Pose Mode screenshot + geometry-only avatar six-side views | <code>freecad_avatar_pose_ui_acceptance.py</code> + avatar acceptance/screenshot |
 | Simulation | Cube/mannequin ladder + motion + turntables | PBD ladder, contact diagnostics, E2E and screenshot fixtures |
 | Diagnostics | Diagnostic map + six-side views | contact diagnostics + visual sanity/capture validation |
 | Persistence | Inspectable FCStd state | domain/persistence tests and acceptance fixtures |
@@ -35,9 +35,12 @@ A valid visual fixture must:
 
 1. actually launch the current code path;
 2. capture a non-empty, structurally valid artifact;
-3. represent the requested state rather than a camera-only animation;
-4. be traceable to the current canonical execution;
-5. be reproducible enough for human comparison.
+3. reject black, white, transparent or effectively uniform GUI captures;
+4. represent the requested state rather than a camera-only animation;
+5. be traceable to the current canonical execution;
+6. be reproducible enough for human comparison.
+
+Pose Mode has an additional interaction-evidence requirement: the published Pose screenshot must be captured after the main window and 3D view are painted, must contain the visible joint overlay and selected-joint gizmo, and must use either the native Coin3D gizmo or the supported visual FreeCAD-geometry fallback. The fallback does not claim direct drag rotation, but it must remain visibly identifiable and usable through the joint selector and precision controls.
 
 ## Human review order
 

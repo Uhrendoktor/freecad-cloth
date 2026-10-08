@@ -15,6 +15,23 @@ def test_sketcher_acceptance_prepares_gui_before_workbench_assertion():
     assert '_stage("gui-ready")' in run
 
 
+def test_pose_acceptance_waits_for_paint_before_screen_capture():
+    source = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    run = source.split("def run():", 1)[1]
+    capture = source.split("def _capture_pose_screen", 1)[1].split("def _bounds", 1)[0]
+    assert run.index("Gui.Control.showDialog(panel)") < run.index("_events()")
+    assert run.index("panel.controller.select_joint(") < run.index("_capture_pose_screen(")
+    assert capture.index("view.viewIsometric()") < capture.index("view.fitAll()")
+    assert capture.index("view.fitAll()") < capture.index("panel.controller.select_joint")
+    assert capture.index("view.redraw()") < capture.index("screen.grabWindow")
+    assert capture.index("time.sleep(0.10)") < capture.index("screen.grabWindow")
+    assert "grabWindow(int(window.winId()))" in source
+    assert "validate_png_capture(" in source
+    assert "min_distinct_rgb=16" in source
+
+
 def test_visual_capture_contract_uses_structural_validation_without_size_heuristic():
     source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     validator = (ROOT / "freecad_cloth" / "common" / "VisualCaptureValidation.py").read_text(
@@ -26,6 +43,8 @@ def test_visual_capture_contract_uses_structural_validation_without_size_heurist
     assert "expected_height=480" in source
     assert "nonwhite_pixels" in validator
     assert "distinct_rgb" in validator
+    assert "opaque_pixels" in validator
+    assert "effectively transparent" in validator
 
 
 def test_visual_example_prepares_gui_and_explicit_workbench_registration():
