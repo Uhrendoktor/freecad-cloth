@@ -339,6 +339,9 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - name: Install ImageMagick for main GIF publication
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -369,6 +372,9 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - name: Install ImageMagick for main GIF publication
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -415,6 +421,9 @@ jobs:
       contents: write
       actions: read
     steps:
+      - name: Install ImageMagick for main GIF publication
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@52081ce07234c3fe6b4af11b3a8be50b168f9cbf
         with:
           source-sha: ${{ github.sha }}
