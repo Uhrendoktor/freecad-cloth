@@ -28,6 +28,7 @@ In addition to the normal lint/test gates, the development environment enforces 
 - ty is piloted in report-only mode on the deterministic strict-Pyright modules; Ruff remains the blocking annotation-policy gate until the diagnostic baseline is reviewed.
 - Pull-request CI rejects newly introduced Python clones while tolerating legacy duplication.
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
+- Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
 
 These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
 

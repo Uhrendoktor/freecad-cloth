@@ -100,6 +100,7 @@ GROUPS = {
         "tests/test_avatar_skeleton_pose.py",
         "tests/test_property_contracts.py",
         "tests/test_artifact_budget.py",
+        "tests/test_agent_observation_bundle.py",
         "tests/test_ci_configuration.py",
         "tests/test_garment_warning_contract.py",
         "tests/test_markdown_contract.py",
