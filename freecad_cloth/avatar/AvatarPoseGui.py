@@ -160,7 +160,7 @@ class SkeletonPoseController:
         return type_id
 
     def activate(self):
-        """Enable X-ray joints and the selected-joint trackball."""
+        """Enable the X-ray skeleton and selected-joint rotation gizmo."""
         if self.view is not None:
             return
         if self.panel.avatar is None:
@@ -445,6 +445,7 @@ class SkeletonPoseController:
         type_id = self._native_transform_type(coin)
         if type_id is None:
             return False
+        dragger = None
         try:
             dragger = type_id.createInstance()
             required = (
@@ -511,10 +512,11 @@ class SkeletonPoseController:
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError):
             if self.gizmo_separator is not None:
-                try:
-                    self.gizmo_separator.removeChild(dragger)
-                except (AttributeError, RuntimeError):
-                    pass
+                if dragger is not None:
+                    try:
+                        self.gizmo_separator.removeChild(dragger)
+                    except (AttributeError, RuntimeError):
+                        pass
             return False
 
     def _create_trackball_gizmo(self, coin):
@@ -579,9 +581,6 @@ class SkeletonPoseController:
             0.0,
         )
         if self.gizmo_mode == "native":
-            view_params = self.App.ParamGet(
-                "User parameter:BaseApp/Preferences/View"
-            )
             dragger.rotationIncrement.setValue(
                 math.radians(
                     5.0 if self.panel.angle_snap.isChecked() else 1.0
