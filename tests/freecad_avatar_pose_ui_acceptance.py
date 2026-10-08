@@ -243,39 +243,32 @@ def run():
         "viewport-capability gizmo_mode=%s fallback=%s runtime_error=%r"
         % (getattr(panel.controller, "gizmo_mode", None), fallback, runtime_error)
     )
-    gizmo_mode = panel.controller.gizmo_mode or (
-        "fallback-panel" if fallback else "unknown"
-    )
     if fallback:
-        if panel.controller.fallback_gizmo_object is not None:
-            raise RuntimeError("Pose Mode fallback created a misleading non-interactive gizmo")
-        if not panel.joint_list_widget.isVisible():
-            raise RuntimeError("Pose Mode did not expose the joint-list fallback")
-        if panel.angle_snap.isEnabled():
-            raise RuntimeError("Pose Mode kept Snap enabled when viewport rotation is unavailable")
-        if "Viewport posing is unavailable" not in panel.instruction_label.text():
-            raise RuntimeError("Pose Mode fallback still advertised viewport ring dragging")
-    else:
-        if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
-            raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
-        if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
-            raise RuntimeError(
-                "Pose Mode did not select a supported interactive gizmo mode"
-            )
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+        raise RuntimeError(
+            "Pose Mode did not activate the native Coin/Pivy viewport path: "
+            + str(runtime_error)
+        )
+    gizmo_mode = panel.controller.gizmo_mode or "unknown"
+    if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
+        raise RuntimeError(
+            "Pose Mode did not select a supported interactive gizmo mode"
+        )
+    if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
+        raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
+    from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
-        visible_bones = len(panel.controller._skeleton_segments)
-        if visible_bones <= len(CONTROLLABLE_BONES):
-            raise RuntimeError(
-                "Pose Mode overlay does not contain the complete authored skeleton "
-                f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
-            )
-        if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
-            raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    visible_bones = len(panel.controller._skeleton_segments)
+    if visible_bones <= len(CONTROLLABLE_BONES):
+        raise RuntimeError(
+            "Pose Mode overlay does not contain the complete authored skeleton "
+            f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
+        )
+    if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
+        raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
-    if not fallback and panel.joint_list_widget.isVisible():
+    if panel.joint_list_widget.isVisible():
         raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
     try:
         from PySide import QtWidgets
@@ -285,13 +278,12 @@ def run():
         raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
-    if not fallback:
-        panel.joint_list_toggle.setChecked(True)
+    panel.joint_list_toggle.setChecked(True)
         _events()
         if not panel.joint_list_widget.isVisible():
             raise RuntimeError("Pose Mode Joint list fallback did not expand")
-        panel.joint_list_toggle.setChecked(False)
-        _events()
+    panel.joint_list_toggle.setChecked(False)
+    _events()
     metrics = _capture_pose_screen(
         Path("artifacts/avatar-pose-mode.png"),
         panel,

@@ -205,8 +205,11 @@ class SkeletonPoseController:
 
         self.view = self.Gui.activeDocument().activeView()
         try:
-            self.scene_graph = self.view.getSceneGraph()
+            # Import Pivy before requesting FreeCAD's Coin proxy. FreeCAD's
+            # embedded SWIG dispatcher discovers the registered Pivy runtime
+            # through the module initialized by this import.
             coin = self._coin()
+            self.scene_graph = self.view.getSceneGraph()
         except Exception as exc:
             if "No SWIG wrapped library loaded" not in str(exc):
                 raise
