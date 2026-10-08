@@ -237,6 +237,10 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
+    progress(
+        "pivy-coin-loaded-before-capability=%s"
+        % ("pivy.coin" in sys.modules)
+    )
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
     progress(
@@ -279,9 +283,9 @@ def run():
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
     panel.joint_list_toggle.setChecked(True)
-        _events()
-        if not panel.joint_list_widget.isVisible():
-            raise RuntimeError("Pose Mode Joint list fallback did not expand")
+    _events()
+    if not panel.joint_list_widget.isVisible():
+        raise RuntimeError("Pose Mode Joint list fallback did not expand")
     panel.joint_list_toggle.setChecked(False)
     _events()
     metrics = _capture_pose_screen(
