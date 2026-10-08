@@ -25,18 +25,15 @@ def run(*args: str, cwd: Path | None = None) -> None:
 
 
 def find_asset(asset: str) -> Path:
-    """Locate one uniquely named generated visual asset."""
-    matches = sorted(
-        path
-        for root in ARTIFACT_ROOTS
-        if root.is_dir()
-        for path in root.rglob(asset)
-        if path.is_file()
-    )
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        raise SystemExit(f"ambiguous visual asset {asset}: {matches}")
+    """Locate a generated visual asset using deterministic artifact-root precedence."""
+    for root in ARTIFACT_ROOTS:
+        if not root.is_dir():
+            continue
+        matches = sorted(path for path in root.rglob(asset) if path.is_file())
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise SystemExit(f"ambiguous visual asset {asset} within {root}: {matches}")
     raise SystemExit(f"generated visual asset not found: {asset}")
 
 
