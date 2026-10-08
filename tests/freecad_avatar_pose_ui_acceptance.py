@@ -16,6 +16,26 @@ import FreeCADGui as Gui
 
 
 
+def _runtime_diagnostics():
+    info = {
+        "freecad_version": getattr(App, "Version", lambda: "unknown")(),
+        "pivy_version": "unavailable",
+        "coin_version": "unavailable",
+        "coin_module": "unavailable",
+    }
+    try:
+        import importlib.metadata
+        import pivy
+        from pivy import coin
+
+        info["pivy_version"] = importlib.metadata.version("pivy")
+        info["coin_version"] = str(coin.SoDB.getVersion())
+        info["coin_module"] = str(getattr(coin, "__file__", getattr(pivy, "__file__", "unknown")))
+    except Exception as exc:
+        info["runtime_error"] = repr(exc)
+    return info
+
+
 def _events():
     try:
         from PySide import QtWidgets
@@ -127,6 +147,8 @@ def run():
 
     panel = AvatarPoseTaskPanel(avatar)
     progress("panel-created")
+    runtime = _runtime_diagnostics()
+    progress("runtime=" + repr(runtime))
     Gui.Control.showDialog(panel)
     _events()
     progress("panel-shown")
@@ -139,6 +161,11 @@ def run():
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
+    runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
+    progress(
+        "viewport-capability gizmo_mode=%s fallback=%s runtime_error=%r"
+        % (getattr(panel.controller, "gizmo_mode", None), fallback, runtime_error)
+    )
     gizmo_mode = panel.controller.gizmo_mode or (
         "fallback-panel" if fallback else "unknown"
     )
