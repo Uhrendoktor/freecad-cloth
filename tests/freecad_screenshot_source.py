@@ -11,9 +11,9 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 try:
-    from PySide import QtCore, QtWidgets
+    from PySide import QtWidgets
 except ImportError:
-    from PySide2 import QtCore, QtWidgets
+    from PySide2 import QtWidgets
 
 ROOT = "/workspace"
 if ROOT not in sys.path:
