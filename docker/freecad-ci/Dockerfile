@@ -37,9 +37,11 @@ for scan_root in (root / "lib", root / "lib" / "python3.12" / "site-packages"):
                 print("freecad-binary=" + str(candidate) + " swig=" + ",".join(matches), flush=True)
 PY
 
-# Keep the Pivy build shipped with the FreeCAD image. It is built against the same
-# FreeCAD/Coin/SWIG runtime and must not be replaced by an unrelated conda build.
-RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('bundled-pivy-module=' + pivy.__file__); print('bundled-coin=' + coin.SoDB.getVersion()); print('bundled-coin-module=' + coin.__file__)" \
+# Rebuild Pivy from FreeCAD's later upstream revision so the binding matches the
+# SWIG/Coin behavior used by current FreeCAD builds.
+RUN /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir --no-build-isolation \
+        "https://github.com/FreeCAD/pivy/archive/515f038d32f163a976acd8a8cd9e8d26e1d0b884.tar.gz" \
+    && /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('pivy-module=' + pivy.__file__); print('coin=' + coin.SoDB.getVersion()); print('coin-module=' + coin.__file__)" \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
