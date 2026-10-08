@@ -27,6 +27,7 @@ def test_pose_mode_is_a_dedicated_task_panel():
     assert "self.joint_list_widget.setVisible(False)" in SOURCE
     assert "modifyStandardButtons" in SOURCE
     assert "ok.setText(" in SOURCE
+    assert "Do not draw a fake manipulator" in SOURCE
 
 
 def test_pose_mode_is_viewport_first():
