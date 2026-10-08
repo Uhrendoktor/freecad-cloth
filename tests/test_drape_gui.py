@@ -29,25 +29,28 @@ class _Combo:
     def setCurrentText(self, value):
         self.index = self.items.index(value)
 
+    def currentText(self):
+        return self.items[self.index]
+
     def blockSignals(self, value):
         self.blocked.append(bool(value))
 
 
 class _Scalar:
     def __init__(self, value=0.0):
-        self.value = value
+        self._value = value
 
     def value(self):
-        return self.value
+        return self._value
 
     def setValue(self, value):
-        self.value = value
+        self._value = value
 
     def isChecked(self):
-        return bool(self.value)
+        return bool(self._value)
 
     def setChecked(self, value):
-        self.value = bool(value)
+        self._value = bool(value)
 
 
 class _Status:
@@ -62,7 +65,10 @@ def _panel():
     panel = DrapeGui.DrapeTargetTaskPanel.__new__(DrapeGui.DrapeTargetTaskPanel)
     panel.target = object()
     panel.source = _Combo()
-    panel.target_type = _Combo()
+    panel.target_type = _Combo(0)
+    panel.target_type.items = ["FreeCAD Geometry"]
+    panel.preset = _Combo(1)
+    panel.preset.items = ["Preview", "Normal", "Final"]
     panel.deflection = _Scalar(1.0)
     panel.thickness = _Scalar(2.0)
     panel.enabled = _Scalar(True)
@@ -117,8 +123,9 @@ def test_nearest_preset_and_preset_change_update_deflection():
     assert panel.preset.index == 1
 
     panel.preset = _Combo()
+    panel.preset.items = ["Preview", "Normal", "Final"]
     panel._preset_changed("Final")
-    assert panel.deflection.value == pytest.approx(0.35)
+    assert panel.deflection.value() == pytest.approx(0.35)
     assert "Staged target edits" in panel.status.text
 
 
