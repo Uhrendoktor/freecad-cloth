@@ -224,7 +224,7 @@ def create_observation_bundle(
         "label": label.strip() or None,
         "context": {
             "repository": repository,
-            "commit_sha": environment.get("CLOTH_HEAD_SHA") or environment.get("GITHUB_SHA") or None,
+            "commit_sha": environment.get("OBSERVATION_COMMIT_SHA") or environment.get("CLOTH_HEAD_SHA") or environment.get("GITHUB_SHA") or None,
             "workflow": environment.get("GITHUB_WORKFLOW") or None,
             "job": environment.get("GITHUB_JOB") or None,
             "event_name": environment.get("GITHUB_EVENT_NAME") or None,

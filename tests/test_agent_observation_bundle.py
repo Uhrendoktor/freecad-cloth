@@ -76,6 +76,23 @@ def test_manifest_records_provenance_evidence_hashes_and_relative_paths(tmp_path
     assert execution["test_script"] == "tests/freecad_pbd_contact_diagnostics.py"
 
 
+def test_explicit_observation_commit_sha_takes_priority(tmp_path: Path):
+    environment, _root = _fixture(tmp_path)
+    environment["OBSERVATION_COMMIT_SHA"] = "exact-source-sha"
+
+    manifest = create_observation_bundle(
+        workspace=tmp_path,
+        observation_root="artifacts",
+        specifications=["metrics=metrics.json"],
+        label="",
+        environment=environment,
+    )
+
+    context = manifest["context"]
+    assert isinstance(context, dict)
+    assert context["commit_sha"] == "exact-source-sha"
+
+
 def test_manifest_can_be_created_without_github_metadata(tmp_path: Path):
     root = tmp_path / "artifacts"
     root.mkdir(parents=True)

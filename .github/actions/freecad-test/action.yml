@@ -107,6 +107,7 @@ runs:
         OBSERVATION_LABEL: ${{ inputs.observation-label }}
         OBSERVATION_FILES: ${{ inputs.observation-files }}
         OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        OBSERVATION_COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         OBSERVATION_TEST_SCRIPT: ${{ inputs.test-script }}
         OBSERVATION_IMAGE: ${{ inputs.image }}
       run: python3 tools/ci/create_agent_observation_bundle.py
