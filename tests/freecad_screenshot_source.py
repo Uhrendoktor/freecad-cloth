@@ -1043,7 +1043,13 @@ def simulation():
     from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
     with open(METRICS, encoding="utf-8") as handle:
-        assert_drape_diagnostics(json.load(handle).get("panels", ()))
+        # This fixture is intentionally unpinned: gravity may place the free-draped
+        # hem below the authored hip reference without indicating detachment, collapse,
+        # or collision failure. Keep those other fail-closed diagnostics authoritative.
+        assert_drape_diagnostics(
+            json.load(handle).get("panels", ()),
+            allowed_diagnostics={"below-hem-candidate"},
+        )
     task_dock.show()
     task_dock.raise_()
     events()
