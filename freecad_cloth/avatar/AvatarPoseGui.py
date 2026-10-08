@@ -418,24 +418,87 @@ class SkeletonPoseController:
         if self.selected_bone and not keep_gizmo:
             self._create_gizmo(self.selected_bone)
 
-    def _create_gizmo(self, bone):
-        if self.scene_graph is None:
-            self.gizmo_separator = None
-            self.gizmo_transform = None
-            self._create_fallback_gizmo(bone)
-            return
-        coin = self._coin()
-        try:
-            if self.gizmo_separator is not None:
+    def _remove_gizmo(self):
+        if self.scene_graph is not None and self.gizmo_separator is not None:
+            try:
                 self.scene_graph.removeChild(self.gizmo_separator)
-        except (AttributeError, RuntimeError):
-            pass
-        self.gizmo_separator = coin.SoSeparator()
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        self.gizmo_separator.addChild(depth)
-        self.gizmo_transform = coin.SoTransform()
+            except (AttributeError, RuntimeError):
+                pass
+        self.gizmo_separator = None
+        self.gizmo_transform = None
+        self.gizmo = None
+        self.gizmo_mode = None
+        self._native_dragger = None
+        self._gizmo_dragging = False
+
+    def _create_native_gizmo(self, coin):
+        type_id = self._native_transform_type(coin)
+        if type_id is None:
+            return False
+        try:
+            dragger = type_id.createInstance()
+            required = (
+                "rotation",
+                "rotationIncrement",
+                "rotationIncrementCountX",
+                "rotationIncrementCountY",
+                "rotationIncrementCountZ",
+                "draggerSize",
+            )
+            if dragger is None or any(not hasattr(dragger, field) for field in required):
+                return False
+            methods = (
+                "hideTranslationX",
+                "hideTranslationY",
+                "hideTranslationZ",
+                "hidePlanarTranslationXY",
+                "hidePlanarTranslationYZ",
+                "hidePlanarTranslationZX",
+                "showRotationX",
+                "showRotationY",
+                "showRotationZ",
+                "setAxisColors",
+            )
+            if any(not hasattr(dragger, method) for method in methods):
+                return False
+            for method in methods[:6]:
+                getattr(dragger, method)()
+            for method in methods[6:9]:
+                getattr(dragger, method)()
+
+            view_params = self.App.ParamGet(
+                "User parameter:BaseApp/Preferences/View"
+            )
+            dragger.draggerSize.setValue(
+                view_params.GetFloat("DraggerScale", 0.03)
+            )
+            dragger.setAxisColors(
+                view_params.GetUnsigned("AxisXColor", 0xCC3333FF),
+                view_params.GetUnsigned("AxisYColor", 0x33CC33FF),
+                view_params.GetUnsigned("AxisZColor", 0x3333CCFF),
+            )
+            dragger.rotationIncrement.setValue(
+                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
+            )
+            dragger.rotation.setValue(
+                coin.SbVec3f(0.0, 0.0, 1.0),
+                0.0,
+            )
+            dragger.setName("ClothPoseNativeTransformGizmo")
+            self.gizmo_separator.addChild(dragger)
+            self.scene_graph.addChild(self.gizmo_separator)
+            dragger.setUpAutoScale(self.view.getCameraNode())
+            self._native_dragger = dragger
+            self.gizmo = _NativeGizmoHandle(dragger, self)
+            self.gizmo_mode = "native"
+            dragger.addStartCallback(self._gizmo_start)
+            dragger.addMotionCallback(self._gizmo_motion)
+            dragger.addFinishCallback(self._gizmo_finish)
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _create_trackball_gizmo(self, coin):
         self.gizmo = coin.SoTrackballDragger()
         self.gizmo.scaleFactor.setValue(
             self.GIZMO_SIZE,
@@ -443,15 +506,38 @@ class SkeletonPoseController:
             self.GIZMO_SIZE,
         )
         self.gizmo.setAnimationEnabled(False)
-        self.gizmo_separator.addChild(self.gizmo_transform)
         self.gizmo_separator.addChild(self.gizmo)
-        point = self._positions.get(bone)
-        if point is not None:
-            self.gizmo_transform.translation.setValue(coin.SbVec3f(*point))
         self.scene_graph.addChild(self.gizmo_separator)
+        self.gizmo_mode = "trackball-fallback"
+        self._native_dragger = None
         self.gizmo.addStartCallback(self._gizmo_start)
         self.gizmo.addMotionCallback(self._gizmo_motion)
         self.gizmo.addFinishCallback(self._gizmo_finish)
+
+    def _create_gizmo(self, bone):
+        if self.scene_graph is None:
+            self.gizmo_separator = None
+            self.gizmo_transform = None
+            self.gizmo_mode = "fallback-visual"
+            self._create_fallback_gizmo(bone)
+            return
+        coin = self._coin()
+        self._remove_gizmo()
+        self.gizmo_separator = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        self.gizmo_separator.addChild(depth)
+        self.gizmo_transform = coin.SoTransform()
+        point = self._positions.get(bone)
+        if point is not None:
+            self.gizmo_transform.translation.setValue(
+                coin.SbVec3f(*point)
+            )
+        self.gizmo_separator.addChild(self.gizmo_transform)
+        if self._create_native_gizmo(coin):
+            return
+        self._create_trackball_gizmo(coin)
 
     def select_joint(self, bone):
         bone = str(bone)
@@ -464,6 +550,7 @@ class SkeletonPoseController:
     def _gizmo_start(self, _data, dragger):
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
+        self._gizmo_dragging = True
         self.base_rotation = self.panel._staged_joint_rotations.get(
             self.selected_bone,
             JointRotation(self.selected_bone),
@@ -472,6 +559,15 @@ class SkeletonPoseController:
             self._coin().SbVec3f(0.0, 0.0, 1.0),
             0.0,
         )
+        if self.gizmo_mode == "native":
+            view_params = self.App.ParamGet(
+                "User parameter:BaseApp/Preferences/View"
+            )
+            dragger.rotationIncrement.setValue(
+                math.radians(
+                    5.0 if self.panel.angle_snap.isChecked() else 1.0
+                )
+            )
         self.panel.status.setText(
             "Rotating {} — release to keep the staged pose; Cancel restores it.".format(
                 self.panel._joint_label(self.selected_bone)
@@ -510,6 +606,7 @@ class SkeletonPoseController:
             return
 
     def _gizmo_finish(self, _data, _dragger):
+        self._gizmo_dragging = False
         self.base_rotation = None
         if self.selected_bone:
             self.panel.status.setText(
@@ -526,7 +623,7 @@ class SkeletonPoseController:
             return
         if event.getButton() != coin.SoMouseButtonEvent.BUTTON1:
             return
-        if self.gizmo is not None and self.gizmo.isActive:
+        if self._gizmo_dragging:
             return
         position = event.getPosition()
         size = self.view.getSize()
@@ -616,7 +713,7 @@ class AvatarPoseTaskPanel:
         selected_layout.addWidget(self.selected_label)
 
         instruction = QtWidgets.QLabel(
-            "Drag a colored ring to rotate around one axis, or drag the trackball for free rotation. Release to stage the pose."
+            "Drag a colored ring to rotate around one axis. Release to stage the pose."
         )
         instruction.setWordWrap(True)
         selected_layout.addWidget(instruction)
