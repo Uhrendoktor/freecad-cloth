@@ -22,6 +22,7 @@ from tests.support.freecad_input import (
     click_viewport,
     click_widget,
     focus_main_window,
+    key_click,
     project_point,
     viewport_widget,
     wait_until,
@@ -318,10 +319,10 @@ try:
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
-    cancel_panel.cancel_button.click()
+    key_click(cancel_panel.cancel_button, "Space")
     wait_for_task_close()
-    assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
-    record("cancel-1to1=passed")
+    assert {obj.Name for obj in doc.Objects} == cancel_before, "keyboard cancellation persisted preview objects"
+    record("cancel-1to1=passed keyboard=space")
 
     count_before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 2))

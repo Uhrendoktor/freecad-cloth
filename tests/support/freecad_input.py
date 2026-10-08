@@ -246,6 +246,64 @@ def drag_viewport(
         mouse_release(widget, end)
 
 
+def _resolve_key(QtCore: Any, key: Any) -> Any:
+    """Accept a Qt key enum or a readable name such as Escape or Space."""
+    if not isinstance(key, str):
+        return key
+    name = key if key.startswith("Key_") else "Key_" + key
+    try:
+        return getattr(QtCore.Qt, name)
+    except AttributeError as exc:
+        raise ValueError("unknown Qt keyboard key: " + key) from exc
+
+
+def key_press(
+    widget: Any,
+    key: Any,
+    modifiers: Any | None = None,
+    delay_ms: int = 20,
+) -> None:
+    """Inject a keyboard press event into the focused widget."""
+    QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
+    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    QtTest.QTest.keyPress(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
+
+
+def key_release(
+    widget: Any,
+    key: Any,
+    modifiers: Any | None = None,
+    delay_ms: int = 20,
+) -> None:
+    """Inject a keyboard release event into the focused widget."""
+    QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
+    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    QtTest.QTest.keyRelease(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
+
+
+def key_click(
+    widget: Any,
+    key: Any,
+    modifiers: Any | None = None,
+    delay_ms: int = 20,
+) -> None:
+    """Send a complete keyboard interaction after explicitly focusing the target widget."""
+    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
+    if not widget.isVisible() or not widget.isEnabled():
+        raise RuntimeError("cannot send keyboard input to a hidden or disabled widget")
+    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    widget.setFocus()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.keyClick(
+        widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms)
+    )
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.qWait(30)
+
+
 def project_point(view: Any, point: Any) -> tuple[float, float]:
     """Project a FreeCAD world point to the viewport's top-left coordinate system."""
     projected = view.getPointOnScreen(point)
