@@ -1,8 +1,4 @@
-"""Real FreeCAD/Xvfb acceptance for direct fitting manipulation.
-
-The test drives the same viewport callback surface used by the task panel and
-verifies that a drag near an arrangement point becomes a persistent placement.
-"""
+"""Real mouse-driven FreeCAD/Xvfb acceptance for direct fitting manipulation."""
 
 import os
 import sys
@@ -15,6 +11,15 @@ if str(ROOT) not in sys.path:
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    focus_main_window,
+    mouse_move,
+    mouse_press,
+    mouse_release,
+    viewport_widget,
+)
 
 
 def _capture_screen(path):
@@ -77,37 +82,43 @@ def run():
     Gui.updateGui()
     controller = panel.controller
 
-    start = _screen(view, App.Vector(0.0, 0.0, 0.0))
+    window = focus_main_window(Gui, size=(1280, 720))
+    view.fitAll()
+    viewport = viewport_widget(Gui, view)
+    start = _screen(view, App.Vector(25.0, 15.0, 1.0))
     snap = controller._screen_position(
         doc.getObject(scene.ArrangementPointObjects[0])
     )
-
-    controller._mouse_event(
-        {
-            "State": "DOWN",
-            "Button": "BUTTON1",
-            "Position": start,
-            "Object": piece.Label,
-        }
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/interactive-arrange.gif",
+        gui=Gui,
+        window=window,
+        fps=7,
+        scale=0.5,
+        max_frames=100,
     )
-    controller._location_event(
-        {
-            "State": "MOVE",
-            "Position": (int(round(snap[0])), int(round(snap[1]))),
-        }
-    )
-
+    recorder.start()
+    recorder.hold(500)
+    mouse_press(viewport, start)
+    recorder.hold(250)
+    for index in range(1, 21):
+        fraction = index / 20.0
+        position = (
+            start[0] + (snap[0] - start[0]) * fraction,
+            start[1] + (snap[1] - start[1]) * fraction,
+        )
+        mouse_move(viewport, position, delay_ms=25)
     if controller.snap_point is None or controller._snap_indicator is None:
-        raise RuntimeError("drag did not expose an arrangement-point snap preview and marker")
+        mouse_release(viewport, snap)
+        recorder.stop()
+        raise RuntimeError(
+            "real viewport drag did not expose an arrangement-point snap preview and marker"
+        )
+    recorder.hold(900)
     _capture_screen("artifacts/interactive-arrange.png")
-
-    controller._mouse_event(
-        {
-            "State": "UP",
-            "Button": "BUTTON1",
-            "Position": (int(round(snap[0])), int(round(snap[1]))),
-        }
-    )
+    mouse_release(viewport, snap)
+    recorder.hold(700)
+    recorder.stop()
     doc.recompute()
 
     base = piece.Placement.Base

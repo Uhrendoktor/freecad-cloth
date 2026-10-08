@@ -17,6 +17,15 @@ import Part
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    click_viewport,
+    click_widget,
+    focus_main_window,
+    project_point,
+    viewport_widget,
+    wait_until,
+)
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
@@ -146,6 +155,48 @@ def wait_for_task_close():
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
 
 
+
+def edge_screen_position(view, piece, edge_index):
+    """Project the midpoint of a local pattern edge into viewport coordinates."""
+    edge = piece.Shape.Edges[int(edge_index)]
+    parameter = (float(edge.FirstParameter) + float(edge.LastParameter)) * 0.5
+    world = piece.Placement.multVec(edge.valueAt(parameter))
+    return project_point(view, world)
+
+
+def has_selected_edge(object_name, edge_name):
+    """Return whether FreeCAD reports the requested semantic subelement selection."""
+    return any(
+        item.Object.Name == object_name and edge_name in tuple(item.SubElementNames)
+        for item in Gui.Selection.getSelectionEx()
+    )
+
+
+def select_edges_with_mouse(view, viewport, first_piece, first_edge, second_piece, second_edge):
+    """Select two real viewport edges, using Ctrl-click for the counterpart."""
+    Gui.Selection.clearSelection()
+    click_viewport(
+        viewport,
+        edge_screen_position(view, first_piece, first_edge),
+        gui=Gui,
+    )
+    wait_until(
+        lambda: has_selected_edge(first_piece.Name, "Edge%d" % (first_edge + 1)),
+        description="first workpiece edge selection",
+    )
+    click_viewport(
+        viewport,
+        edge_screen_position(view, second_piece, second_edge),
+        gui=Gui,
+        additive=True,
+    )
+    wait_until(
+        lambda: has_selected_edge(first_piece.Name, "Edge%d" % (first_edge + 1))
+        and has_selected_edge(second_piece.Name, "Edge%d" % (second_edge + 1)),
+        description="counterpart workpiece edge selection",
+    )
+
+
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
@@ -216,20 +267,48 @@ try:
         PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-c"),
     )
     doc.recompute()
+    # Keep the outlines separate so the recorded viewport workflow shows two
+    # distinct workpieces and unambiguous source/counterpart edge selection.
+    piece_b.Placement = App.Placement(App.Vector(145.0, 0.0, 0.0), App.Rotation())
+    piece_c.Placement = App.Placement(App.Vector(290.0, 0.0, 0.0), App.Rotation())
+    doc.recompute()
     record("fixtures=created pieces=3")
 
+    view = Gui.activeDocument().activeView()
+    view.setCameraType("Orthographic")
+    view.viewTop()
+    view.fitAll()
+    window = focus_main_window(Gui, size=(1280, 720))
+    view.fitAll()
+    viewport = viewport_widget(Gui, view)
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/seam-assignment.gif",
+        gui=Gui,
+        window=window,
+        fps=7,
+        scale=0.5,
+        max_frames=120,
+    )
+    recorder.start()
+    recorder.hold(700)
+
     before = {obj.Name for obj in doc.Objects}
-    select_edges((piece_a, 0), (piece_b, 0))
+    select_edges_with_mouse(view, viewport, piece_a, 0, piece_b, 0)
+    recorder.hold(700)
     panel = open_public("ClothSewing_CreateSeam")
+    recorder.hold(1100)
     assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
         "1:1 preview did not create a seam"
     )
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
     record("preview-1to1=passed")
-    panel.commit_button.click()
+    recorder.hold(700)
+    click_widget(panel.commit_button)
     process_events()
     wait_for_task_close()
+    recorder.hold(800)
+    recorder.stop()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
         "1:1 commit lost seam"
     )
