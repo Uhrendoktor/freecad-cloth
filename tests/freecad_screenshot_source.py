@@ -321,8 +321,32 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         triangles = tuple(getattr(surface, "triangles", ()) or ())
         if not vertices or not triangles:
             raise RuntimeError("authoritative collision surface has no inside/outside topology")
+
+        # Prefer trimesh's vectorized ray query for production-size mannequins.
+        # The deterministic pure-Python parity test remains the dependency-free fallback.
+        try:
+            import numpy as np
+            import trimesh
+
+            target_mesh = trimesh.Trimesh(
+                vertices=np.asarray(vertices, dtype=float),
+                faces=np.asarray(triangles, dtype=int),
+                process=False,
+            )
+            if target_mesh.is_watertight:
+                states = target_mesh.contains(np.asarray(points, dtype=float))
+                log("penetration-check=trimesh contains points=%d triangles=%d" % (
+                    len(points), len(triangles)
+                ))
+                return int(np.count_nonzero(states))
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass
+
         from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
+        log("penetration-check=python-ray-parity points=%d triangles=%d" % (
+            len(points), len(triangles)
+        ))
         return sum(
             1
             for point in points
