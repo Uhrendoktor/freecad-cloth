@@ -94,6 +94,7 @@ GROUPS = {
         "tests/test_sketcher_bootstrap_contract.py",
         "tests/test_canonical_python_validation_contract.py",
         "tests/test_pbd_contact_diagnostics_contract.py",
+        "tests/test_pbd_cube_ladder_contract.py",
         "tests/test_pbd_avatar_ladder_contract.py",
         "tests/test_avatar_skeleton_pose.py",
         "tests/test_property_contracts.py",
