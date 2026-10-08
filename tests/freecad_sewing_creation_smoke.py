@@ -22,6 +22,7 @@ from tests.support.freecad_input import (
     click_viewport,
     click_widget,
     focus_main_window,
+    release_all_input,
     key_click,
     project_point,
     viewport_widget,
@@ -242,6 +243,7 @@ def close_public_task(panel=None):
 
 
 doc = None
+recorder = None
 _success = False
 try:
     record("smoke=started")
@@ -654,8 +656,13 @@ try:
     _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
-    raise
+
 finally:
+    if recorder is not None and recorder._started:
+        with contextlib.suppress(Exception):
+            from tests.support.freecad_input import release_all_input
+            release_all_input()
+            recorder.stop()
     LOG.append("sewing-creation-smoke=completed")
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("sewing-creation-smoke=completed", flush=True)
@@ -663,3 +670,6 @@ finally:
 if _success:
     sys.stdout.flush()
     getattr(os, "_" + "exit")(0)
+else:
+    sys.stdout.flush()
+    getattr(os, "_" + "exit")(1)

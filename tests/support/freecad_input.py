@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
 import io
+import os
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -112,6 +115,178 @@ def viewport_widget(gui: Any, view: Any | None = None) -> Any:
     return candidates[0][1]
 
 
+class _NativeXInput:
+    """Inject real X11 pointer events so native Coin draggers keep button state."""
+
+    def __init__(self) -> None:
+        x11_name = ctypes.util.find_library("X11") or "libX11.so.6"
+        xtst_name = ctypes.util.find_library("Xtst") or "libXtst.so.6"
+        try:
+            self._x11 = ctypes.CDLL(x11_name)
+            self._xtst = ctypes.CDLL(xtst_name)
+        except OSError as exc:
+            raise RuntimeError(
+                "native viewport input requires libX11 and libXtst in the Xvfb environment"
+            ) from exc
+
+        self._x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        self._x11.XOpenDisplay.restype = ctypes.c_void_p
+        display_name = os.environ.get("DISPLAY")
+        self.display = self._x11.XOpenDisplay(
+            None if not display_name else display_name.encode("utf-8")
+        )
+        if not self.display:
+            raise RuntimeError("could not open the current X11 display for GUI input")
+
+        self._x11.XDefaultScreen.argtypes = [ctypes.c_void_p]
+        self._x11.XDefaultScreen.restype = ctypes.c_int
+        self.screen = int(self._x11.XDefaultScreen(self.display))
+        self._x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self._x11.XSync.restype = ctypes.c_int
+        self._x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        self._x11.XKeysymToKeycode.restype = ctypes.c_uint
+        self._xtst.XTestFakeMotionEvent.argtypes = [
+            ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong
+        ]
+        self._xtst.XTestFakeMotionEvent.restype = ctypes.c_int
+        self._xtst.XTestFakeButtonEvent.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong
+        ]
+        self._xtst.XTestFakeButtonEvent.restype = ctypes.c_int
+        self._xtst.XTestFakeKeyEvent.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong
+        ]
+        self._xtst.XTestFakeKeyEvent.restype = ctypes.c_int
+        self.pressed_buttons: set[int] = set()
+
+    def sync(self) -> None:
+        """Flush native input and wait for the X server to process it."""
+        self._x11.XSync(self.display, 0)
+
+    def move_global(self, x: int, y: int) -> None:
+        """Move the real X11 pointer to global screen coordinates."""
+        if not self._xtst.XTestFakeMotionEvent(
+            self.display, self.screen, int(x), int(y), 0
+        ):
+            raise RuntimeError("XTest could not inject a mouse-move event")
+        self.sync()
+
+    def button(self, number: int, pressed: bool) -> None:
+        """Press or release one native X11 mouse button."""
+        if not self._xtst.XTestFakeButtonEvent(
+            self.display, int(number), int(bool(pressed)), 0
+        ):
+            raise RuntimeError("XTest could not inject a mouse-button event")
+        if pressed:
+            self.pressed_buttons.add(int(number))
+        else:
+            self.pressed_buttons.discard(int(number))
+        self.sync()
+
+    def key(self, keysym: int, pressed: bool) -> None:
+        """Press or release one X11 keyboard keysym, used for modifier keys."""
+        keycode = int(self._x11.XKeysymToKeycode(self.display, int(keysym)))
+        if keycode == 0:
+            raise RuntimeError("X11 could not resolve keyboard keysym " + hex(keysym))
+        if not self._xtst.XTestFakeKeyEvent(
+            self.display, keycode, int(bool(pressed)), 0
+        ):
+            raise RuntimeError("XTest could not inject a keyboard modifier event")
+        self.sync()
+
+
+_NATIVE_INPUT: _NativeXInput | None = None
+_ACTIVE_MOUSE_MODIFIERS: list[int] = []
+
+
+def _native_input() -> _NativeXInput:
+    """Return the process-wide native pointer driver used by FreeCAD/Xvfb tests."""
+    global _NATIVE_INPUT
+    if _NATIVE_INPUT is None:
+        _NATIVE_INPUT = _NativeXInput()
+    return _NATIVE_INPUT
+
+
+def _x_button_number(QtCore: Any, button: Any | None) -> int:
+    """Map Qt mouse-button names to X11 physical button numbers."""
+    if isinstance(button, str):
+        name = button.upper()
+        if name in {"BUTTON1", "LEFT"}:
+            return 1
+        if name in {"BUTTON2", "MIDDLE"}:
+            return 2
+        if name in {"BUTTON3", "RIGHT"}:
+            return 3
+    if button is None or button == getattr(QtCore.Qt, "LeftButton"):
+        return 1
+    if button == getattr(QtCore.Qt, "MiddleButton"):
+        return 2
+    if button == getattr(QtCore.Qt, "RightButton"):
+        return 3
+    raise ValueError("unsupported X11 mouse button: " + repr(button))
+
+
+def _modifier_keysyms(QtCore: Any, modifiers: Any | None) -> list[int]:
+    """Translate common Qt keyboard modifiers to X11 keysyms."""
+    if modifiers is None:
+        return []
+    result: list[int] = []
+    candidates = (
+        ("ControlModifier", 0xFFE3),
+        ("ShiftModifier", 0xFFE1),
+        ("AltModifier", 0xFFE9),
+        ("MetaModifier", 0xFFE7),
+    )
+    for name, keysym in candidates:
+        flag = getattr(QtCore.Qt, name, None)
+        if flag is None:
+            continue
+        try:
+            active = bool(modifiers & flag)
+        except TypeError:
+            active = False
+        if active:
+            result.append(keysym)
+    return result
+
+
+def _global_position(widget: Any, position: tuple[float, float]) -> tuple[int, int]:
+    """Convert local widget coordinates into real display-global coordinates."""
+    QtCore, _QtGui, _QtTest, _QtWidgets = _qt_modules()
+    point = widget.mapToGlobal(_position(QtCore, position))
+    return int(point.x()), int(point.y())
+
+
+def _wait_input(delay_ms: int) -> None:
+    """Pump the Qt event loop after native input reaches the X server."""
+    _QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+    if delay_ms > 0:
+        QtTest.QTest.qWait(int(delay_ms))
+    if app is not None:
+        app.processEvents()
+
+
+def release_all_input() -> None:
+    """Release any pointer buttons or modifiers left down by an interrupted test."""
+    global _ACTIVE_MOUSE_MODIFIERS
+    if _NATIVE_INPUT is None:
+        return
+    for number in tuple(_NATIVE_INPUT.pressed_buttons):
+        try:
+            _NATIVE_INPUT.button(number, False)
+        except RuntimeError:
+            pass
+    for keysym in reversed(_ACTIVE_MOUSE_MODIFIERS):
+        try:
+            _NATIVE_INPUT.key(keysym, False)
+        except RuntimeError:
+            pass
+    _ACTIVE_MOUSE_MODIFIERS = []
+
+
 def _position(QtCore: Any, position: tuple[float, float]) -> Any:
     """Convert a numeric viewport point to a Qt integer point."""
     return QtCore.QPoint(int(round(position[0])), int(round(position[1])))
@@ -131,12 +306,18 @@ def mouse_press(
     modifiers: Any | None = None,
     delay_ms: int = 20,
 ) -> None:
-    """Inject a real Qt mouse-press event into a viewport or widget."""
-    QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
-    resolved_button, resolved_modifiers = _button_and_modifiers(QtCore, button, modifiers)
-    QtTest.QTest.mousePress(
-        widget, resolved_button, resolved_modifiers, _position(QtCore, position), max(0, delay_ms)
-    )
+    """Inject a native X11 mouse press at a viewport or widget-local coordinate."""
+    QtCore, _QtGui, _QtTest, _QtWidgets = _qt_modules()
+    driver = _native_input()
+    number = _x_button_number(QtCore, button)
+    x, y = _global_position(widget, position)
+    driver.move_global(x, y)
+    global _ACTIVE_MOUSE_MODIFIERS
+    _ACTIVE_MOUSE_MODIFIERS = _modifier_keysyms(QtCore, modifiers)
+    for keysym in _ACTIVE_MOUSE_MODIFIERS:
+        driver.key(keysym, True)
+    driver.button(number, True)
+    _wait_input(max(0, delay_ms))
 
 
 def mouse_move(
@@ -145,34 +326,13 @@ def mouse_move(
     delay_ms: int = 20,
     buttons_down: bool = False,
 ) -> None:
-    """Move the pointer, optionally preserving the left-button-down drag state."""
-    QtCore, QtGui, QtTest, QtWidgets = _qt_modules()
-    local = _position(QtCore, position)
-    if not buttons_down:
-        QtTest.QTest.mouseMove(widget, local, max(0, delay_ms))
-        return
-
-    screen_position = widget.mapToGlobal(local)
-    no_button = getattr(QtCore.Qt, "NoButton")
-    left_button = getattr(QtCore.Qt, "LeftButton")
-    no_modifier = getattr(QtCore.Qt, "NoModifier")
-    event_type = QtCore.QEvent.MouseMove
-    event = None
-    try:
-        event = QtGui.QMouseEvent(
-            event_type,
-            QtCore.QPointF(local),
-            QtCore.QPointF(screen_position),
-            no_button,
-            left_button,
-            no_modifier,
-        )
-    except TypeError:
-        event = QtGui.QMouseEvent(
-            event_type, QtCore.QPointF(local), no_button, left_button, no_modifier
-        )
-    QtWidgets.QApplication.sendEvent(widget, event)
-    QtTest.QTest.qWait(max(0, delay_ms))
+    """Move the real pointer; XTest preserves any button held by the caller."""
+    driver = _native_input()
+    if buttons_down and 1 not in driver.pressed_buttons:
+        raise RuntimeError("drag move requested without a preceding left-button press")
+    x, y = _global_position(widget, position)
+    driver.move_global(x, y)
+    _wait_input(max(0, delay_ms))
 
 
 def mouse_release(
@@ -182,12 +342,19 @@ def mouse_release(
     modifiers: Any | None = None,
     delay_ms: int = 20,
 ) -> None:
-    """Inject a real Qt mouse-release event into a viewport or widget."""
-    QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
-    resolved_button, resolved_modifiers = _button_and_modifiers(QtCore, button, modifiers)
-    QtTest.QTest.mouseRelease(
-        widget, resolved_button, resolved_modifiers, _position(QtCore, position), max(0, delay_ms)
-    )
+    """Move to the release point, then emit a native X11 mouse release."""
+    QtCore, _QtGui, _QtTest, _QtWidgets = _qt_modules()
+    driver = _native_input()
+    number = _x_button_number(QtCore, button)
+    x, y = _global_position(widget, position)
+    driver.move_global(x, y)
+    driver.button(number, False)
+    global _ACTIVE_MOUSE_MODIFIERS
+    active_modifiers = _ACTIVE_MOUSE_MODIFIERS or _modifier_keysyms(QtCore, modifiers)
+    for keysym in reversed(active_modifiers):
+        driver.key(keysym, False)
+    _ACTIVE_MOUSE_MODIFIERS = []
+    _wait_input(max(0, delay_ms))
 
 
 def click_viewport(
@@ -197,29 +364,27 @@ def click_viewport(
     additive: bool = False,
     button: Any | None = None,
 ) -> None:
-    """Click a projected 3D point; additive clicks use Ctrl for multi-selection."""
-    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
-    resolved_button, _ = _button_and_modifiers(QtCore, button, None)
-    modifiers = getattr(QtCore.Qt, "ControlModifier") if additive else getattr(QtCore.Qt, "NoModifier")
-    QtTest.QTest.mouseClick(widget, resolved_button, modifiers, _position(QtCore, position), 20)
+    """Click a projected 3D point, using a native Ctrl-click for multi-selection."""
+    QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
+    modifiers = getattr(QtCore.Qt, "ControlModifier") if additive else None
+    mouse_press(widget, position, button=button, modifiers=modifiers)
+    mouse_release(widget, position, button=button)
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
     gui.updateGui()
-    QtTest.QTest.qWait(50)
+    _wait_input(50)
 
 
 def click_widget(widget: Any, button: Any | None = None, modifiers: Any | None = None) -> None:
-    """Click a visible Qt control through QtTest rather than calling its slot directly."""
-    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
-    resolved_button, resolved_modifiers = _button_and_modifiers(QtCore, button, modifiers)
-    if not widget.isVisible():
-        raise RuntimeError("cannot click a hidden UI widget")
-    QtTest.QTest.mouseClick(widget, resolved_button, resolved_modifiers, widget.rect().center(), 20)
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.processEvents()
-    QtTest.QTest.qWait(50)
+    """Click a visible Qt control with native mouse input rather than invoking its slot."""
+    if not widget.isVisible() or not widget.isEnabled():
+        raise RuntimeError("cannot click a hidden or disabled UI widget")
+    rect = widget.rect()
+    center = (float(rect.center().x()), float(rect.center().y()))
+    mouse_press(widget, center, button=button, modifiers=modifiers)
+    mouse_release(widget, center, button=button)
+    _wait_input(50)
 
 
 def drag_viewport(
@@ -230,7 +395,7 @@ def drag_viewport(
     duration_ms: int = 400,
     release: bool = True,
 ) -> None:
-    """Simulate a pointer drag with intermediate move events and optional release."""
+    """Simulate a real pointer drag with intermediate native motion events."""
     if steps < 1:
         raise ValueError("a drag must contain at least one movement step")
     mouse_press(widget, start)
@@ -244,17 +409,6 @@ def drag_viewport(
         mouse_move(widget, point, delay_ms=delay, buttons_down=True)
     if release:
         mouse_release(widget, end)
-
-
-def _resolve_key(QtCore: Any, key: Any) -> Any:
-    """Accept a Qt key enum or a readable name such as Escape or Space."""
-    if not isinstance(key, str):
-        return key
-    name = key if key.startswith("Key_") else "Key_" + key
-    try:
-        return getattr(QtCore.Qt, name)
-    except AttributeError as exc:
-        raise ValueError("unknown Qt keyboard key: " + key) from exc
 
 
 def key_press(

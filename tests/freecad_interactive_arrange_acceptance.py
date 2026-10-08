@@ -18,6 +18,7 @@ from tests.support.freecad_input import (
     mouse_move,
     mouse_press,
     mouse_release,
+    release_all_input,
     viewport_widget,
 )
 
@@ -98,27 +99,42 @@ def run():
         max_frames=100,
     )
     recorder.start()
-    recorder.hold(500)
-    mouse_press(viewport, start)
-    recorder.hold(250)
-    for index in range(1, 21):
-        fraction = index / 20.0
-        position = (
-            start[0] + (snap[0] - start[0]) * fraction,
-            start[1] + (snap[1] - start[1]) * fraction,
-        )
-        mouse_move(viewport, position, delay_ms=25, buttons_down=True)
-    if controller.snap_point is None or controller._snap_indicator is None:
+    try:
+        recorder.hold(500)
+        mouse_press(viewport, start)
+        recorder.hold(250)
+        for index in range(1, 21):
+            fraction = index / 20.0
+            position = (
+                start[0] + (snap[0] - start[0]) * fraction,
+                start[1] + (snap[1] - start[1]) * fraction,
+            )
+            mouse_move(viewport, position, delay_ms=25, buttons_down=True)
+        if controller.drag_piece is None:
+            try:
+                start_info = view.getObjectInfo(int(start[0]), int(start[1]))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                start_info = None
+            raise RuntimeError(
+                "real viewport press did not select a draggable piece: "
+                f"info={start_info!r}, start={start}, view_size={view.getSize()}, "
+                f"widget_class={viewport.metaObject().className()!r}, "
+                f"widget_size={(viewport.width(), viewport.height())!r}"
+            )
+        if controller.snap_point is None or controller._snap_indicator is None:
+            raise RuntimeError(
+                "real viewport drag did not expose a snap preview: "
+                f"drag_piece={getattr(controller.drag_piece, 'Name', None)!r}, "
+                f"drag_start={controller.drag_start_screen!r}, target={snap!r}"
+            )
+        recorder.hold(900)
+        _capture_screen("artifacts/interactive-arrange.png")
         mouse_release(viewport, snap)
-        recorder.stop()
-        raise RuntimeError(
-            "real viewport drag did not expose an arrangement-point snap preview and marker"
-        )
-    recorder.hold(900)
-    _capture_screen("artifacts/interactive-arrange.png")
-    mouse_release(viewport, snap)
-    recorder.hold(700)
-    recorder.stop()
+        recorder.hold(700)
+    finally:
+        release_all_input()
+        if recorder._started:
+            recorder.stop()
     doc.recompute()
 
     base = piece.Placement.Base
