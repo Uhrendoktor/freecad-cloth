@@ -26,6 +26,9 @@ def test_pose_mode_is_a_dedicated_task_panel():
 def test_pose_mode_is_viewport_first():
     assert "class SkeletonPoseController" in SOURCE
     assert "coin.SoTrackballDragger()" in SOURCE
+    assert "coin.SoDepthBuffer()" in SOURCE
+    assert "depth.test = False" in SOURCE
+    assert "depth.write = False" in SOURCE
     assert "addEventCallbackPivy" in SOURCE
     assert "getPointOnScreen" in SOURCE
     assert "JOINT_PICK_RADIUS" in SOURCE
