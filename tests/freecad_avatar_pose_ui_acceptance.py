@@ -45,7 +45,15 @@ def _runtime_diagnostics():
             return []
 
     try:
-        info["freecadgui_module"] = str(getattr(Gui, "__file__", "unknown"))
+        import importlib.util
+        import sys
+
+        gui_spec = importlib.util.find_spec("FreeCADGui")
+        gui_origin = getattr(gui_spec, "origin", None) if gui_spec is not None else None
+        if not gui_origin:
+            module_spec = getattr(sys.modules.get("FreeCADGui"), "__spec__", None)
+            gui_origin = getattr(module_spec, "origin", None)
+        info["freecadgui_module"] = str(gui_origin or "unknown")
         runtimes = swig_runtime_strings(info["freecadgui_module"])
         if runtimes:
             info["freecad_swig_runtime"] = ",".join(runtimes)
