@@ -308,73 +308,96 @@ class SkeletonPoseController:
         self.view = None
 
     def _add_skeleton_overlay(self, coin):
-        draw = coin.SoDrawStyle()
-        draw.lineWidth = 2.0
-        point_draw = coin.SoDrawStyle()
-        point_draw.pointSize = 8.0
-        joint_color = coin.SoBaseColor()
-        joint_color.rgb = (0.82, 0.82, 0.82)
-        bone_color = coin.SoBaseColor()
-        bone_color.rgb = (0.65, 0.65, 0.65)
+        """Draw the complete posed skeleton with selectable controls highlighted."""
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
-        self._build_positions()
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
+        joints = self._build_skeleton()
+        editable = set(CONTROLLABLE_BONES)
 
-        point_list = [
-            self._positions[bone]
-            for bone, _label in CONTROLLABLE_JOINTS
-            if bone in self._positions
+        def add_lines(parent, segments, width, rgb):
+            if not segments:
+                return
+            coordinates = []
+            counts = []
+            for head, tail in segments:
+                coordinates.extend((head, tail))
+                counts.append(2)
+            separator = coin.SoSeparator()
+            draw = coin.SoDrawStyle()
+            draw.lineWidth = float(width)
+            color = coin.SoBaseColor()
+            color.rgb = rgb
+            coord = coin.SoCoordinate3()
+            coord.point.setValues(0, len(coordinates), coordinates)
+            line_set = coin.SoLineSet()
+            line_set.numVertices.setValues(0, len(counts), counts)
+            separator.addChild(draw)
+            separator.addChild(color)
+            separator.addChild(coord)
+            separator.addChild(line_set)
+            parent.addChild(separator)
+
+        passive_segments = [
+            segment
+            for bone, segment in self._skeleton_segments.items()
+            if bone not in editable and bone != self.selected_bone
         ]
+        editable_segments = [
+            segment
+            for bone, segment in self._skeleton_segments.items()
+            if bone in editable and bone != self.selected_bone
+        ]
+        selected_segments = (
+            [self._skeleton_segments[self.selected_bone]]
+            if self.selected_bone in self._skeleton_segments
+            else []
+        )
+
+        # Blender-style posing convention: the full rig remains visible, while
+        # editable/active bones are visually stronger than structural bones.
+        add_lines(self.overlay, passive_segments, 1.4, (0.46, 0.48, 0.52))
+        add_lines(self.overlay, editable_segments, 2.4, (0.72, 0.75, 0.80))
+        add_lines(self.overlay, selected_segments, 4.0, (1.0, 0.82, 0.12))
+
+        point_list = list(joints.values())
         if point_list:
-            points_sep = coin.SoSeparator()
+            point_draw = coin.SoDrawStyle()
+            point_draw.pointSize = 7.0
+            joint_color = coin.SoBaseColor()
+            joint_color.rgb = (0.66, 0.68, 0.72)
             points = coin.SoCoordinate3()
-            points.point.setValues(0, len(point_list), [tuple(position) for position in point_list])
+            points.point.setValues(0, len(point_list), point_list)
             point_set = coin.SoPointSet()
             point_set.numPoints = len(point_list)
+            points_sep = coin.SoSeparator()
             points_sep.addChild(point_draw)
             points_sep.addChild(joint_color)
             points_sep.addChild(points)
             points_sep.addChild(point_set)
             self.overlay.addChild(points_sep)
 
-        skeleton = self._joint_connections()
-        if skeleton:
-            coordinates = []
-            counts = []
-            for head, tail in skeleton:
-                coordinates.extend((head, tail))
-                counts.append(2)
-            bones_sep = coin.SoSeparator()
-            coord = coin.SoCoordinate3()
-            coord.point.setValues(0, len(coordinates), coordinates)
-            line_set = coin.SoLineSet()
-            line_set.numVertices.setValues(0, len(counts), counts)
-            bones_sep.addChild(draw)
-            bones_sep.addChild(bone_color)
-            bones_sep.addChild(coord)
-            bones_sep.addChild(line_set)
-            self.overlay.addChild(bones_sep)
+        if self.selected_bone in self._positions:
+            selected_draw = coin.SoDrawStyle()
+            selected_draw.pointSize = 14.0
+            selected_color = coin.SoBaseColor()
+            selected_color.rgb = (1.0, 0.82, 0.12)
+            selected_points = coin.SoCoordinate3()
+            selected_points.point.setValues(
+                0,
+                1,
+                [self._positions[self.selected_bone]],
+            )
+            selected_point_set = coin.SoPointSet()
+            selected_point_set.numPoints = 1
+            selected_sep = coin.SoSeparator()
+            selected_sep.addChild(selected_draw)
+            selected_sep.addChild(selected_color)
+            selected_sep.addChild(selected_points)
+            selected_sep.addChild(selected_point_set)
+            self.overlay.addChild(selected_sep)
 
     def _joint_connections(self):
-        from freecad_cloth.avatar.HumanoidMesh import load_makehuman_skeleton
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
-
-        skeleton = load_makehuman_skeleton()
-        connections = []
-        for bone, _label in CONTROLLABLE_JOINTS:
-            data = skeleton["bones"].get(bone)
-            if data is None:
-                continue
-            for candidate in CONTROLLABLE_JOINTS:
-                if candidate[0] not in self._positions:
-                    continue
-                child_data = skeleton["bones"].get(candidate[0])
-                if child_data and child_data.get("parent") == bone:
-                    connections.append(
-                        (self._positions[bone], self._positions[candidate[0]])
-                    )
-                    break
-        return tuple(connections)
+        return tuple(self._skeleton_segments.values())
 
     def _remove_overlay_children(self):
         if self.overlay is None:
