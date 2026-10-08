@@ -17,11 +17,13 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     assert "matrix.group != 'gui'" in block
     assert "test-args: gui" in block
 
-def test_pytest_contract_module_has_a_real_test_entrypoint():
-    source = Path(__file__).read_text(encoding="utf-8")
-    assert "def test_canonical_python_job_executes_pytest_contract_modules" in source
-    assert "def test_pytest_contract_module_has_a_real_test_entrypoint" in source
 
+
+def test_gui_acceptance_validator_uses_visual_artifacts_only():
+    from tools.ci import validate_acceptance
+
+    assert set(validate_acceptance.CASES) == {"avatar-pose", "fitting"}
+    assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
 
 def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
