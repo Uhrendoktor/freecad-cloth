@@ -25,6 +25,9 @@ def test_pose_mode_is_a_dedicated_task_panel():
 
 def test_pose_mode_is_viewport_first():
     assert "class SkeletonPoseController" in SOURCE
+    assert 'coin.SoType.fromName("SoTransformDragger")' in SOURCE
+    assert "hideTranslationX" in SOURCE
+    assert "showRotationX" in SOURCE
     assert "coin.SoTrackballDragger()" in SOURCE
     assert "coin.SoDepthBuffer()" in SOURCE
     assert "depth.test = False" in SOURCE
@@ -32,6 +35,8 @@ def test_pose_mode_is_viewport_first():
     assert "addEventCallbackPivy" in SOURCE
     assert "getPointOnScreen" in SOURCE
     assert "JOINT_PICK_RADIUS" in SOURCE
+    assert "skeleton_world_segments" in SOURCE
+    assert "self._skeleton_segments" in SOURCE
     assert "self.panel._stage_joint_rotation(" in SOURCE
     assert "Release to stage the pose" in SOURCE
 
