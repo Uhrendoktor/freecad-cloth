@@ -86,10 +86,10 @@ def skeleton_world_segments(parameters):
 
 
 class _FallbackGizmo:
-    """Visual pose control used when FreeCAD's Coin/SWIG bridge is unavailable."""
+    """Panel-only pose fallback used when Coin/SWIG viewport controls are unavailable."""
 
     is_fallback = True
-    is_visual = True
+    is_visual = False
     isActive = False
 
     def __init__(self, objects=()):
@@ -140,6 +140,7 @@ class SkeletonPoseController:
         self.gizmo_mode = None
         self._native_dragger = None
         self.fallback_gizmo_object = None
+        self.viewport_runtime_error = None
 
     def _coin(self):
         from pivy import coin
@@ -209,9 +210,11 @@ class SkeletonPoseController:
         except Exception as exc:
             if "No SWIG wrapped library loaded" not in str(exc):
                 raise
+            self.viewport_runtime_error = repr(exc)
             self.scene_graph = None
             self.overlay = None
             self._build_positions()
+            self.gizmo_mode = "fallback-panel"
             self.gizmo = _FallbackGizmo()
             self.panel._select_first_joint()
             self.panel.joint_list_toggle.setChecked(True)
@@ -580,7 +583,7 @@ class SkeletonPoseController:
         if self.scene_graph is None:
             self.gizmo_separator = None
             self.gizmo_transform = None
-            self.gizmo_mode = "fallback-visual"
+            self.gizmo_mode = "fallback-panel"
             self._create_fallback_gizmo(bone)
             return
         coin = self._coin()
