@@ -234,6 +234,40 @@ rig, and it does not change solver contracts.
 
 ## Avatar Pose Gizmo refinement (2026-10-08)
 
+## Avatar Pose UI audit and simplification (2026-10-08)
+
+The remaining UI was reviewed against Blender Pose Mode, CLO/Marvelous
+Designer avatar posing, FreeCAD task-panel guidance, and general direct-
+manipulation principles.
+
+The resulting hierarchy is deliberately viewport-first:
+
+- Select the bone in the 3D view; hover feedback shows what will be selected.
+- Drag the native rotation ring to pose; continuous preview keeps the result
+  visible before Apply.
+- Use Mirror and 5° Snap as compact mode toggles rather than fields or menus.
+- Use a named Joint list only when direct selection is difficult.
+- Use Exact angles only for precision/accessibility work.
+- Reset remains visible because recovery is common and low-risk.
+- Apply/Cancel stay at the task-panel boundary; no duplicate custom footer is
+  needed.
+
+The choice removes the three always-visible rotation sliders. A slider presents
+an abstract value axis, while the gizmo already presents the same three axes in
+the spatial context of the selected joint. The two controls therefore compete
+for the same task rather than complementing it. This also follows FreeCAD's
+task-panel guidance to expose common controls by default and progressively
+disclose advanced settings.
+
+Mirror defaults to off so bilateral edits are an explicit action rather than a
+surprising side effect. 5° Snap likewise defaults to off; exact-angle entry
+bypasses snap so "Exact angles" means literal numeric editing.
+
+Bone hover highlighting is intentionally transient and viewport-local. It improves
+recognition without adding another permanent panel control. The joint list remains
+the fallback because direct manipulation can become ambiguous in crowded anatomy
+and is unavailable in some FreeCAD/SWIG configurations.
+
 The pose viewport should keep the whole authored rig visible in the X-ray overlay,
 not only the subset of joints currently exposed as manual controls. Structural bones
 remain muted, controllable bones are stronger, and the active joint/bone is
