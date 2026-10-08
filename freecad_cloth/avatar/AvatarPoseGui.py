@@ -53,10 +53,14 @@ def joint_world_positions(parameters):
 
 
 class _FallbackGizmo:
-    """Logical pose control used when FreeCAD's Coin/SWIG bridge is unavailable."""
+    """Visual pose control used when FreeCAD's Coin/SWIG bridge is unavailable."""
 
     is_fallback = True
+    is_visual = True
     isActive = False
+
+    def __init__(self, objects=()):
+        self.objects = tuple(objects)
 
 
 class SkeletonPoseController:
@@ -79,6 +83,7 @@ class SkeletonPoseController:
         self.selected_bone = None
         self.base_rotation = None
         self._positions = {}
+        self.fallback_gizmo_object = None
 
     def _coin(self):
         from pivy import coin
@@ -158,12 +163,58 @@ class SkeletonPoseController:
             "Pose Mode: click a joint, then drag the rotation rings. Symmetry and 5° snapping are on."
         )
 
+    def _clear_fallback_gizmo(self):
+        obj = self.fallback_gizmo_object
+        self.fallback_gizmo_object = None
+        if obj is None:
+            return
+        try:
+            doc = self.panel.avatar.Document
+            if obj.Name in [item.Name for item in doc.Objects]:
+                doc.removeObject(obj.Name)
+                doc.recompute()
+        except (AttributeError, RuntimeError):
+            pass
+
+    def _create_fallback_gizmo(self, bone):
+        self._clear_fallback_gizmo()
+        if self.panel.avatar is None:
+            return
+        point = self._positions.get(str(bone))
+        if point is None:
+            return
+        try:
+            import Part
+
+            doc = self.panel.avatar.Document
+            center = self.App.Vector(*point)
+            radius = float(self.GIZMO_SIZE) * 1.6
+            rings = (
+                Part.makeCircle(radius, center, self.App.Vector(1.0, 0.0, 0.0)),
+                Part.makeCircle(radius, center, self.App.Vector(0.0, 1.0, 0.0)),
+                Part.makeCircle(radius, center, self.App.Vector(0.0, 0.0, 1.0)),
+                Part.makeSphere(radius * 0.10, center),
+            )
+            obj = doc.addObject("Part::Feature", "ClothPoseVisualGizmo")
+            obj.Label = "Pose Gizmo (visual fallback)"
+            obj.Shape = Part.makeCompound(rings)
+            obj.ViewObject.LineColor = (1.0, 0.65, 0.10)
+            obj.ViewObject.LineWidth = 4.0
+            obj.ViewObject.ShapeColor = (1.0, 0.65, 0.10)
+            obj.ViewObject.Transparency = 5
+            doc.recompute()
+            self.fallback_gizmo_object = obj
+            self.gizmo = _FallbackGizmo((obj,))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            self.fallback_gizmo_object = None
+
     def deactivate(self):
         """Remove transient viewport nodes and callbacks."""
         if self.view is None:
             return
         if self.scene_graph is None:
             self.mouse_callback = None
+            self._clear_fallback_gizmo()
             self.gizmo = None
             self.gizmo_transform = None
             self.gizmo_separator = None
@@ -271,7 +322,12 @@ class SkeletonPoseController:
             self.overlay.removeChild(0)
 
     def refresh_overlay(self, keep_gizmo=False):
-        if self.overlay is None or self.view is None:
+        if self.view is None:
+            return
+        if self.scene_graph is None:
+            if self.selected_bone:
+                self._build_positions()
+                self._create_fallback_gizmo(self.selected_bone)
             return
         self._remove_overlay_children()
         self._add_skeleton_overlay(self._coin())
@@ -282,7 +338,7 @@ class SkeletonPoseController:
         if self.scene_graph is None:
             self.gizmo_separator = None
             self.gizmo_transform = None
-            self.gizmo = _FallbackGizmo()
+            self._create_fallback_gizmo(bone)
             return
         coin = self._coin()
         try:
