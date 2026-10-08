@@ -138,11 +138,12 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
-    if getattr(panel.controller.gizmo, "is_fallback", False):
-        raise RuntimeError(
-            "Pose Mode visual evidence requires the native Coin3D gizmo; "
-            "the SWIG fallback remains supported but is not a visual gizmo."
-        )
+    if getattr(panel.controller.gizmo, "is_fallback", False) and not getattr(
+        panel.controller.gizmo, "is_visual", False
+    ):
+        raise RuntimeError("Pose Mode fallback did not create a visual gizmo")
+    if getattr(panel.controller.gizmo, "is_fallback", False) and panel.controller.fallback_gizmo_object is None:
+        raise RuntimeError("Pose Mode fallback visual gizmo geometry was not created")
     if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
         raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
@@ -214,7 +215,11 @@ def run():
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
         raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
 
-    gizmo_mode = "fallback" if getattr(panel.controller.gizmo, "is_fallback", False) else "native"
+    gizmo_mode = (
+        "fallback-visual"
+        if getattr(panel.controller.gizmo, "is_fallback", False)
+        else "native"
+    )
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-pose-ui.log").write_text(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"
