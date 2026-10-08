@@ -846,18 +846,6 @@ class AvatarPoseTaskPanel:
         presets.addStretch(1)
         root.addLayout(presets)
 
-        selected = QtWidgets.QGroupBox("Selected joint")
-        selected_layout = QtWidgets.QVBoxLayout(selected)
-        self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
-        self.selected_label.setStyleSheet("font-weight: bold;")
-        selected_layout.addWidget(self.selected_label)
-
-        instruction = QtWidgets.QLabel(
-            "Click a bone to select it. Drag a colored ring to rotate that axis."
-        )
-        instruction.setWordWrap(True)
-        selected_layout.addWidget(instruction)
-
         tool_row = QtWidgets.QHBoxLayout()
         self.symmetry = QtWidgets.QToolButton()
         self.symmetry.setText("Mirror")
@@ -874,7 +862,19 @@ class AvatarPoseTaskPanel:
         tool_row.addWidget(self.symmetry)
         tool_row.addWidget(self.angle_snap)
         tool_row.addStretch(1)
-        selected_layout.addLayout(tool_row)
+        root.addLayout(tool_row)
+
+        selected = QtWidgets.QGroupBox("Selected joint")
+        selected_layout = QtWidgets.QVBoxLayout(selected)
+        self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
+        self.selected_label.setStyleSheet("font-weight: bold;")
+        selected_layout.addWidget(self.selected_label)
+
+        instruction = QtWidgets.QLabel(
+            "Click a bone to select it. Drag a colored ring to rotate that axis."
+        )
+        instruction.setWordWrap(True)
+        selected_layout.addWidget(instruction)
 
         axis_row = QtWidgets.QHBoxLayout()
         self._angle_labels = {}
