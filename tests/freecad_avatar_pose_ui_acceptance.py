@@ -53,8 +53,31 @@ def _runtime_diagnostics():
         if not gui_origin:
             module_spec = getattr(sys.modules.get("FreeCADGui"), "__spec__", None)
             gui_origin = getattr(module_spec, "origin", None)
+        candidates = []
+        for root_name in ("/opt", "/usr/local"):
+            root = Path(root_name)
+            if not root.exists():
+                continue
+            candidates.extend(
+                sorted(
+                    path
+                    for path in root.rglob("*FreeCADGui*.so*")
+                    if path.is_file()
+                )
+            )
         info["freecadgui_module"] = str(gui_origin or "unknown")
-        runtimes = swig_runtime_strings(info["freecadgui_module"])
+        info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
+        if isinstance(gui_origin, str) and gui_origin not in {"unknown", ""}:
+            runtimes = swig_runtime_strings(gui_origin)
+            if runtimes:
+                info["freecad_swig_runtime"] = ",".join(runtimes)
+        if info["freecad_swig_runtime"] == "unavailable":
+            for candidate in candidates:
+                runtimes = swig_runtime_strings(candidate)
+                if runtimes:
+                    info["freecadgui_module"] = str(candidate)
+                    info["freecad_swig_runtime"] = ",".join(runtimes)
+                    break
         if runtimes:
             info["freecad_swig_runtime"] = ",".join(runtimes)
     except Exception as exc:
