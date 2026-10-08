@@ -144,6 +144,23 @@ class SkeletonPoseController:
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
+    @staticmethod
+    def _screen_segment_distance(point, start, end):
+        """Return the 2D distance from a point to a projected bone segment."""
+        px, py = point
+        ax, ay = start
+        bx, by = end
+        dx = bx - ax
+        dy = by - ay
+        length_sq = dx * dx + dy * dy
+        if length_sq <= 1e-9:
+            return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+        t = ((px - ax) * dx + (py - ay) * dy) / length_sq
+        t = max(0.0, min(1.0, t))
+        closest_x = ax + t * dx
+        closest_y = ay + t * dy
+        return ((px - closest_x) ** 2 + (py - closest_y) ** 2) ** 0.5
+
     def _build_positions(self):
         self._positions = joint_world_positions(self.panel._staged_parameters())
 
@@ -662,19 +679,49 @@ class SkeletonPoseController:
         size = self.view.getSize()
         screen = (float(position[0]), float(size[1] - position[1]))
         try:
-            positions = {
-                bone: self._screen_position(point)
-                for bone, point in self._positions.items()
+            projected_segments = {
+                bone: (
+                    self._screen_position(segment[0]),
+                    self._screen_position(segment[1]),
+                )
+                for bone, segment in self._skeleton_segments.items()
             }
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return
+
+        # Prefer the nearest visible, controllable bone body. This mirrors the
+        # familiar Pose Mode interaction of clicking the bone rather than its joint.
+        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+
         best = None
         best_distance = self.JOINT_PICK_RADIUS
-        for bone, point in positions.items():
-            distance = ((point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2) ** 0.5
+        for bone in CONTROLLABLE_BONES:
+            segment = projected_segments.get(bone)
+            if segment is None:
+                continue
+            distance = self._screen_segment_distance(
+                screen,
+                segment[0],
+                segment[1],
+            )
             if distance < best_distance:
                 best = bone
                 best_distance = distance
+
+        if best is None:
+            # Keep small joint targets as an intuitive fallback at crowded
+            # endpoints where several bones overlap in screen space.
+            for bone, point in {
+                name: self._screen_position(value)
+                for name, value in self._positions.items()
+            }.items():
+                distance = (
+                    (point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2
+                ) ** 0.5
+                if distance < best_distance:
+                    best = bone
+                    best_distance = distance
+
         if best is not None:
             self.select_joint(best)
 
