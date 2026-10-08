@@ -24,6 +24,8 @@ In addition to the normal lint/test gates, the development environment enforces 
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
 - CrossHair checks a small, explicitly curated pure-function contract surface.
+- ast-grep runs syntax-aware repository rules for prohibited production patterns and validates those rules with positive/negative fixtures.
+- ty is piloted in report-only mode on the deterministic strict-Pyright modules; Ruff remains the blocking annotation-policy gate until the diagnostic baseline is reviewed.
 - Pull-request CI rejects newly introduced Python clones while tolerating legacy duplication.
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
 
