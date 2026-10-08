@@ -17,19 +17,47 @@ import FreeCADGui as Gui
 
 
 def _runtime_diagnostics():
+    import importlib.metadata
+    import re
+
     info = {
         "freecad_version": getattr(App, "Version", lambda: "unknown")(),
         "freecad_coin_version": "unavailable",
+        "freecad_swig_runtime": "unavailable",
+        "freecadgui_module": "unavailable",
         "pivy_version": "unavailable",
         "pivy_module": "unavailable",
         "coin_version": "unavailable",
         "coin_module": "unavailable",
         "pivy_swig_runtime": "unavailable",
     }
-    try:
-        import importlib.metadata
-        import re
 
+    def swig_runtime_strings(path):
+        try:
+            data = Path(path).read_bytes()
+            return sorted(
+                {
+                    match.decode("ascii")
+                    for match in re.findall(rb"swig_runtime_data([0-9]+)", data)
+                }
+            )
+        except (OSError, TypeError, ValueError):
+            return []
+
+    try:
+        info["freecadgui_module"] = str(getattr(Gui, "__file__", "unknown"))
+        runtimes = swig_runtime_strings(info["freecadgui_module"])
+        if runtimes:
+            info["freecad_swig_runtime"] = ",".join(runtimes)
+    except Exception as exc:
+        info["freecad_runtime_error"] = repr(exc)
+
+    try:
+        info["freecad_coin_version"] = str(Gui.getSoDBVersion())
+    except Exception as exc:
+        info["freecad_coin_version"] = "error:" + repr(exc)
+
+    try:
         import pivy
 
         info["pivy_module"] = str(getattr(pivy, "__file__", "unknown"))
@@ -42,27 +70,19 @@ def _runtime_diagnostics():
 
         info["coin_module"] = str(getattr(coin, "__file__", "unknown"))
         info["coin_version"] = str(coin.SoDB.getVersion())
-        try:
-            info["freecad_coin_version"] = str(Gui.getSoDBVersion())
-        except Exception as exc:
-            info["freecad_coin_version"] = "error:" + repr(exc)
-
-        try:
-            coin_binary = Path(info["coin_module"]).read_bytes()
-            matches = sorted(
-                {
-                    match.decode("ascii")
-                    for match in re.findall(rb"swig_runtime_data([0-9]+)", coin_binary)
-                }
-            )
-            if matches:
-                info["pivy_swig_runtime"] = ",".join(matches)
-        except (OSError, TypeError, ValueError):
-            pass
+        coin_module = Path(info["coin_module"])
+        candidates = [coin_module.with_name("_coin.so"), coin_module.with_name("_coin.pyd")]
+        candidates.extend(sorted(coin_module.parent.glob("_coin*.so")))
+        candidates.extend(sorted(coin_module.parent.glob("_coin*.pyd")))
+        for candidate in candidates:
+            runtimes = swig_runtime_strings(candidate)
+            if runtimes:
+                info["pivy_swig_runtime"] = ",".join(runtimes)
+                info["pivy_binary"] = str(candidate)
+                break
     except Exception as exc:
         info["runtime_error"] = repr(exc)
     return info
-
 
 def _events():
     try:
