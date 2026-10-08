@@ -214,12 +214,13 @@ class SkeletonPoseController:
             self._build_positions()
             self.gizmo = _FallbackGizmo()
             self.panel._select_first_joint()
+            self.panel.joint_list_toggle.setChecked(True)
             bone = str(getattr(self.panel, "skeleton_joint_index", ""))
             if bone:
                 self.select_joint(bone)
             self.panel.status.setText(
-                "Pose Mode: Coin/SWIG viewport controls are unavailable in this FreeCAD build; "
-                "use the joint selector and Apply & Rebuild."
+                "Pose Mode: viewport posing is unavailable in this FreeCAD build; "
+                "use Joint list and Exact angles."
             )
             return
 
@@ -245,7 +246,7 @@ class SkeletonPoseController:
             self.mouse_callback = None
             self.panel.status.setText(
                 "Pose Mode: bone clicking is unavailable in this FreeCAD/SWIG build; "
-                "expand Joint list to select a joint, then use the rotation controls."
+                "use Joint list to select a joint, then Exact angles to edit rotation."
             )
         try:
             self._location_callback = self.view.addEventCallbackPivy(
@@ -278,36 +279,11 @@ class SkeletonPoseController:
             pass
 
     def _create_fallback_gizmo(self, bone):
+        # Do not draw a fake manipulator when viewport dragging is unavailable.
+        # The joint list and exact-angle drawer are the honest fallback controls.
         self._clear_fallback_gizmo()
-        if self.panel.avatar is None:
-            return
-        point = self._positions.get(str(bone))
-        if point is None:
-            return
-        try:
-            import Part
-
-            doc = self.panel.avatar.Document
-            center = self.App.Vector(*point)
-            radius = float(self.GIZMO_SIZE) * 1.6
-            rings = (
-                Part.makeCircle(radius, center, self.App.Vector(1.0, 0.0, 0.0)),
-                Part.makeCircle(radius, center, self.App.Vector(0.0, 1.0, 0.0)),
-                Part.makeCircle(radius, center, self.App.Vector(0.0, 0.0, 1.0)),
-                Part.makeSphere(radius * 0.10, center),
-            )
-            obj = doc.addObject("Part::Feature", "ClothPoseVisualGizmo")
-            obj.Label = "Pose Gizmo (visual fallback)"
-            obj.Shape = Part.makeCompound(rings)
-            obj.ViewObject.LineColor = (1.0, 0.65, 0.10)
-            obj.ViewObject.LineWidth = 4.0
-            obj.ViewObject.ShapeColor = (1.0, 0.65, 0.10)
-            obj.ViewObject.Transparency = 5
-            doc.recompute()
-            self.fallback_gizmo_object = obj
-            self.gizmo = _FallbackGizmo((obj,))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            self.fallback_gizmo_object = None
+        self.fallback_gizmo_object = None
+        self.gizmo = _FallbackGizmo()
 
     def deactivate(self):
         """Remove transient viewport nodes and callbacks."""
