@@ -7,6 +7,7 @@ from freecad_cloth.pattern.PatternGeometry import (
     Point,
     rectangle,
     seam_allowance_outline,
+    signed_area,
 )
 from freecad_cloth.pattern.PatternMesh import _self_intersects
 
@@ -28,6 +29,13 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
                 return True
     return False
 
+
+
+def test_signed_area_preserves_orientation():
+    ccw = ((0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0))
+    assert signed_area(ccw) == 2.0
+    assert signed_area(tuple(reversed(ccw))) == -2.0
+    assert signed_area(()) == 0.0
 
 
 def test_rectangle_allowance_offsets_every_side():

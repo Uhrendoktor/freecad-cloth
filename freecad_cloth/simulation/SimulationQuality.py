@@ -5,7 +5,11 @@ store the values returned by ``preset`` and the simulation backend can consume
 ``solver_parameters`` without coupling the semantic material model to a GUI.
 """
 
+from __future__ import annotations
+
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -25,7 +29,7 @@ QUALITY_PRESETS = {
 }
 
 
-def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
+def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     """Normalize FreeCAD/Python color representations to three RGB floats."""
     try:
         values = tuple(float(item) for item in value)
@@ -56,12 +60,12 @@ class FabricMaterial:
     roughness: float = 0.65
     transparency: float = 0.0
 
-    def validate(self):
+    def validate(self) -> FabricMaterial:
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.density_g_m2 <= 0:
-            raise ValueError("density must be positive")
-        if self.thickness_mm <= 0:
-            raise ValueError("thickness must be positive")
+        if not isfinite(self.density_g_m2) or self.density_g_m2 <= 0:
+            raise ValueError("density must be positive and finite")
+        if not isfinite(self.thickness_mm) or self.thickness_mm <= 0:
+            raise ValueError("thickness must be positive and finite")
         for name in ("stretch", "shear", "bend"):
             value = getattr(self, name)
             if not 0 <= value <= 1:
@@ -78,7 +82,7 @@ class FabricMaterial:
         return self
 
     @property
-    def mass_per_area_kg_mm2(self):
+    def mass_per_area_kg_mm2(self) -> float:
         # g/m^2 -> kg/mm^2
         """Provide the public mass per area kg mm2 operation."""
         return self.density_g_m2 * 1e-9
@@ -92,7 +96,12 @@ def preset(name: str) -> SimulationQuality:
         raise ValueError(f"unknown simulation quality preset: {name!r}") from exc
 
 
-def apply_quality(quality: SimulationQuality, *, iterations=None, substeps=None):
+def apply_quality(
+    quality: SimulationQuality | str,
+    *,
+    iterations: int | None = None,
+    substeps: int | None = None,
+) -> SimulationQuality:
     """Return a validated quality profile with explicit overrides."""
     q = preset(quality.name) if isinstance(quality, SimulationQuality) else preset(quality)
     return replace(
@@ -102,7 +111,9 @@ def apply_quality(quality: SimulationQuality, *, iterations=None, substeps=None)
     )
 
 
-def solver_parameters(quality: SimulationQuality, material: FabricMaterial):
+def solver_parameters(
+    quality: SimulationQuality, material: FabricMaterial
+) -> dict[str, float | int]:
     """Provide the public solver parameters operation."""
     material.validate()
     quality = apply_quality(quality)

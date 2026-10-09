@@ -8,6 +8,8 @@ values rather than being replaced by a second database/model.
 from dataclasses import dataclass, field
 from typing import Union
 
+from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_finite_number
+
 Point = tuple[float, float]
 EdgeRef = Union[int, str]
 
@@ -42,6 +44,15 @@ class PatternPiece:
             raise ValueError("seam allowance cannot be negative")
         if not self.id.strip():
             raise ValueError("pattern piece id must not be empty")
+        PatternPieceInput.model_validate(
+            {
+                "name": self.name,
+                "outline": self.outline,
+                "seam_allowance": self.seam_allowance,
+                "grainline_angle": self.grainline_angle,
+                "id": self.id,
+            }
+        )
 
 
 @dataclass(frozen=True)
@@ -92,5 +103,9 @@ class Seam:
             raise ValueError("alignment must be 'endpoints' or 'uniform'")
         if self.kind not in {"plain", "dart", "gather", "pleat", "hem", "fold", "closure"}:
             raise ValueError("unsupported seam construction kind")
+        for value in (self.start_a, self.end_a, self.start_b, self.end_b):
+            validate_finite_number(value)
+        if not isinstance(self.edge_a, (int, str)) or not isinstance(self.edge_b, (int, str)):
+            raise ValueError("seam edge references must be integer indices or stable identifiers")
         if self.stitch_group and not self.stitch_group.strip():
             raise ValueError("stitch group must not be whitespace")

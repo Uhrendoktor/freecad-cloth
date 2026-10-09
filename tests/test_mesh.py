@@ -1,4 +1,5 @@
 import sys
+from math import dist
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
-from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+from freecad_cloth.pattern.PatternMesh import (
+    _point_to_segment_distance,
+    refine_linear_boundary,
+    triangulate,
+)
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
@@ -87,11 +92,19 @@ def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spac
     points = mesh.vertices
     assert (
         max(
-            ((points[a][0] - points[b][0]) ** 2 + (points[a][1] - points[b][1]) ** 2) ** 0.5
+            dist(points[a], points[b])
             for a, b in mesh.boundary_edges()
         )
         <= 20.000001
     )
+
+
+def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
+    assert _point_to_segment_distance((1.0, 1.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
+    assert _point_to_segment_distance((-1.0, 0.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
+    assert _point_to_segment_distance((3.0, 0.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
+    assert _point_to_segment_distance((3.0, 4.0), (0.0, 0.0), (0.0, 0.0)) == 5.0
+    assert _point_to_segment_distance((1.0, 1.0), (2.0, 0.0), (0.0, 0.0)) == 1.0
 
 
 def test_seam_generates_stitches():
@@ -114,13 +127,6 @@ def test_triangulation_rejects_nonfinite_area_limits() -> None:
             assert "finite" in str(exc).lower()
         else:
             raise AssertionError("non-finite max_area was accepted")
-
-
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn()
-    print("mesh tests passed")
 
 
 
@@ -169,7 +175,6 @@ def test_sewing_constraints_apply_partial_seam_ranges():
     assert pairs[-1][1][1] == 90.0
 
 
-
 def test_sewing_constraints_allow_equal_local_indices_across_panel_meshes():
     a = rectangle(100.0, 50.0)
     b = rectangle(100.0, 50.0)
@@ -205,3 +210,9 @@ def test_sewing_constraints_never_select_a_nearby_unrelated_boundary():
     x, y = mesh_a.vertices[middle.vertex_a]
     assert x == 100.0
     assert y in (0.0, 100.0)
+
+if __name__ == "__main__":
+    for name, fn in globals().copy().items():
+        if name.startswith("test_"):
+            fn()
+    print("mesh tests passed")
