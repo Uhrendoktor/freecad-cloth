@@ -58,3 +58,25 @@ The library investigation was tracked through issues #479–#481. Those issues a
 - meshio provides broad mesh-format conversion and point/cell data handling.
 - vedo provides VTK/NumPy mesh analysis and scalar-field visualization.
 - Seamly2D and FreeSewing are useful references for measurement-driven and parametric pattern workflows but should not become core runtime dependencies.
+
+
+## Numerical validation and complexity audit
+
+### Boundary validation
+
+Pydantic v2 is adopted for **external and cross-module numerical input boundaries** through `freecad_cloth.common.ValidationModels`. Schemas reject NaN/infinity, booleans masquerading as numbers, fractional/string mesh indices, invalid sample counts, and out-of-range connectivity before geometry algorithms run. Models are immutable and reject unknown fields. Integer coordinates normalize to floats; mesh indices and sample counts remain exact integers.
+
+Pydantic is not used for each arithmetic operation or inside per-particle solver loops: model construction in hot loops adds overhead without stronger invariants. Core math remains testable by Hypothesis and CrossHair. Property-based tests explore broad input spaces; they are regression evidence, not a proof of correctness.
+
+### Delegation choices
+
+- **Triangle** remains responsible for constrained Delaunay triangulation and mesh refinement. The adapter retains checks needed for authored-boundary provenance, face orientation, and area preservation. Boundary-vertex reconciliation now builds one quantized-coordinate index instead of rescanning all output vertices for every boundary point.
+- **trimesh** remains an optional diagnostics library for point-to-triangle-surface queries and mesh metrics. The dependency-free component-count fallback stays because it preserves optional-install behavior.
+- **`math.dist`** replaces hand-rolled Euclidean norm loops for vertex clearance. It prevents non-strict `zip` from silently ignoring mismatched dimensions and delegates norm arithmetic to the standard library.
+- **FreeCAD Part/OCCT** remains authoritative for native editable geometry and offsets. Shapely/GEOS is a candidate for polygon buffering/overlay, but is not a mandatory dependency or a blind substitute: buffer join and self-intersection semantics differ from authored topology.
+- **svgpathtools**, **libigl**, and other optional geometry tools remain candidates until a concrete production path and FreeCAD packaging/runtime compatibility are demonstrated. Do not duplicate a geometry kernel simply to remove loops that preserve semantic identities a library does not know about.
+
+Research references:
+- [Pydantic strict mode](https://pydantic.dev/docs/validation/2.12/concepts/strict_mode/)
+- [Hypothesis quickstart](https://hypothesis.readthedocs.io/en/latest/quickstart.html)
+- [trimesh proximity queries](https://trimesh.org/trimesh.proximity.html)
