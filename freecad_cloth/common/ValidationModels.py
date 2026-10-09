@@ -391,7 +391,8 @@ class SurfaceAnchorInput(InputModel):
     @model_validator(mode="after")
     def normal_is_usable(self) -> SurfaceAnchorInput:
         """Reject a zero-length normal, which has no surface orientation."""
-        if hypot(*self.normal) <= 1e-12:
+        normal_length = hypot(*self.normal)
+        if not isfinite(normal_length) or normal_length <= 1e-12:
             raise ValueError("surface anchor normal must be non-zero and finite")
         return self
 
@@ -411,7 +412,8 @@ class FlattenedSurfacePatchInput(InputModel):
             raise ValueError("surface patch needs at least three points")
         if self.max_deviation_mm < 0.0:
             raise ValueError("surface patch deviation must be non-negative")
-        if hypot(*self.normal) <= 1e-12:
+        normal_length = hypot(*self.normal)
+        if not isfinite(normal_length) or normal_length <= 1e-12:
             raise ValueError("surface patch normal must be non-zero and finite")
         return self
 

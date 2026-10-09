@@ -268,6 +268,7 @@ def flatten_surface_patch(
     turning a strongly curved region into a misleading flat pattern.
     """
     tolerance_mm = validate_finite_number(tolerance_mm)
+    tolerance_mm = validate_finite_number(tolerance_mm)
     values = tuple(_as_point3(point) for point in points)
     if len(values) < 3:
         raise ValueError("surface patch needs at least three points")
