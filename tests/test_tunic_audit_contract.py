@@ -153,6 +153,9 @@ def test_canonical_tunic_surface_mapping_uses_the_quality_mesh_and_authoritative
     assert "points_inside_closed_mesh(" in source
     assert '"clearance-correction"' in source
     assert '"inside-correction"' in source
+    assert "def _fit_outside_surface_point(point, triangle_index):" in source
+    assert "inside_candidates = (preferred, opposite)" in source
+    assert "both offset directions remain inside the mannequin target" in source
 
 
 def test_canonical_tunic_source_rewrite_compiles():

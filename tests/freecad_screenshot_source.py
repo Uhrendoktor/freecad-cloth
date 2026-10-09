@@ -1152,6 +1152,34 @@ def simulation():
             normal = tuple(-value for value in normal)
         return tuple(float(point[i]) + outward_offset * normal[i] for i in range(3))
 
+    def _fit_outside_surface_point(point, triangle_index):
+        """Choose the facet-normal offset that the closed-mesh predicate classifies outside."""
+        preferred = _fit_surface_point(point, triangle_index)
+        opposite = tuple(2.0 * float(point[i]) - preferred[i] for i in range(3))
+        inside_candidates = (preferred, opposite)
+        inside_flags = tuple(
+            bool(value)
+            for value in points_inside_closed_mesh(
+                inside_candidates,
+                target_surface.vertices,
+                target_surface.triangles,
+            )
+        )
+        if len(inside_flags) != 2:
+            raise RuntimeError("canonical tunic surface correction returned an invalid inside result")
+        if not inside_flags[0] and inside_flags[1]:
+            return preferred
+        if inside_flags[0] and not inside_flags[1]:
+            return opposite
+        if not any(inside_flags):
+            # Both sides are outside (for example near a thin/concave feature); preserve
+            # the radial orientation chosen by _fit_surface_point.
+            return preferred
+        raise RuntimeError(
+            "canonical tunic surface correction: both offset directions remain inside "
+            "the mannequin target"
+        )
+
     def _seam_surface_vertex(x, z):
         key = (round(float(x), 4), round(float(z), 4))
         if key not in seam_fit_cache:
@@ -1283,7 +1311,7 @@ def simulation():
                     target_surface.triangles,
                 )
                 mapped[index] = tuple(
-                    float(value) for value in _fit_surface_point(closest, triangle_index)
+                    float(value) for value in _fit_outside_surface_point(closest, triangle_index)
                 )
                 fit_counts["inside-correction"] += 1
         remaining_inside = points_inside_closed_mesh(
