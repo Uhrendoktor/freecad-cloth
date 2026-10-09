@@ -13,7 +13,7 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2 available in its embedded Python environment; the canonical CI image installs it automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
 
 ## User installation
 
