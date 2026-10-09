@@ -330,6 +330,14 @@ def _selected_seam_id(gui: Any, document: Any) -> str:
     return ""
 
 
+def _release_controller() -> None:
+    """Remove the current view node without disabling future refreshes."""
+    global _ACTIVE_CONTROLLER
+    if _ACTIVE_CONTROLLER is not None:
+        _ACTIVE_CONTROLLER.deactivate()
+    _ACTIVE_CONTROLLER = None
+
+
 def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
     """Attach or refresh the current view's overlay; safe outside a GUI process."""
     global _ACTIVE_CONTROLLER
@@ -340,13 +348,13 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
 
         active = Gui.activeDocument()
         if active is None:
-            deactivate_seam_overlay()
+            _release_controller()
             return None
         view = active.activeView()
         active_document = getattr(active, "Document", None)
         target_document = document or active_document
         if view is None or target_document is None:
-            deactivate_seam_overlay()
+            _release_controller()
             return None
         if active_document is not None and getattr(active_document, "Name", None) != getattr(
             target_document, "Name", None
@@ -388,14 +396,12 @@ def get_active_seam_overlay() -> SeamOverlayController | None:
 
 def deactivate_seam_overlay() -> None:
     """Discard the transient overlay when the user leaves a Cloth workbench."""
-    global _ACTIVE_CONTROLLER, _OVERLAY_ENABLED, _REFRESH_PENDING, _PENDING_DOCUMENT
+    global _OVERLAY_ENABLED, _REFRESH_PENDING, _PENDING_DOCUMENT
     _OVERLAY_ENABLED = False
     _REFRESH_PENDING = False
     _PENDING_DOCUMENT = None
     register_seam_refresh_callback(None)
-    if _ACTIVE_CONTROLLER is not None:
-        _ACTIVE_CONTROLLER.deactivate()
-    _ACTIVE_CONTROLLER = None
+    _release_controller()
 
 
 def _run_scheduled_refresh() -> None:
