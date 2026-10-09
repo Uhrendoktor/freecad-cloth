@@ -256,6 +256,20 @@ def _add_line_groups(
     parent.addChild(separator)
 
 
+def _depth_buffer(coin: Any, respect_depth: bool) -> Any:
+    """Configure depth testing without losing coplanar seam lines to z-fighting."""
+    depth = coin.SoDepthBuffer()
+    depth.test = bool(respect_depth)
+    depth.write = False
+    if respect_depth:
+        # Solver seam points can lie exactly on cloth triangles. LEQUAL preserves
+        # those lines while still hiding fragments behind nearer geometry.
+        less_equal = getattr(coin.SoDepthBuffer, "LEQUAL", None)
+        if less_equal is not None:
+            depth.function = less_equal
+    return depth
+
+
 def _add_label(
     parent: Any,
     coin: Any,
@@ -271,9 +285,7 @@ def _add_label(
         else getattr(coin, "SoAnnotation", coin.SoSeparator)
     )
     annotation = annotation_type()
-    depth = coin.SoDepthBuffer()
-    depth.test = bool(respect_depth)
-    depth.write = False
+    depth = _depth_buffer(coin, respect_depth)
     color = coin.SoBaseColor()
     color.rgb = tuple(float(channel) for channel in rgb)
     transform = coin.SoTransform()
@@ -520,10 +532,7 @@ class SeamOverlayController:
 
         while self.root.getNumChildren():
             self.root.removeChild(0)
-        depth = coin.SoDepthBuffer()
-        depth.test = bool(_RESPECT_DEPTH_OCCLUSION)
-        depth.write = False
-        self.root.addChild(depth)
+        self.root.addChild(_depth_buffer(coin, _RESPECT_DEPTH_OCCLUSION))
 
         seams = _canonical_seams(self.document)
         ids = [str(seam.SeamId).strip() for seam in seams]
@@ -546,10 +555,7 @@ class SeamOverlayController:
                 side_group = coin.SoSeparator()
                 # Respect occlusion by default; the UI can explicitly opt into
                 # always-on-top rendering for crowded editing/simulation views.
-                depth = coin.SoDepthBuffer()
-                depth.test = bool(_RESPECT_DEPTH_OCCLUSION)
-                depth.write = False
-                side_group.addChild(depth)
+                side_group.addChild(_depth_buffer(coin, _RESPECT_DEPTH_OCCLUSION))
                 color = colors[identity]
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
