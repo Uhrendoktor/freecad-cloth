@@ -69,6 +69,11 @@ replacements = {
     log("tunic-avatar-pose=near-t left_arm_angle=5 right_arm_angle=5")
     pre_status = target_status(target)""",
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
+    # The near-T fixture removed the arm-related penetrations; move the side seam
+    # outboard of the measured torso envelope to address the remaining side-surface
+    # vertices. The previous width-only run was confounded by hanging arms.
+    "panel_width = max(420.0, shoulder_width + 100.0)": "panel_width = max(560.0, shoulder_width + 200.0)",
+    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(620.0, panel_width + 60.0)",
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
