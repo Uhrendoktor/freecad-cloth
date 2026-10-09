@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from importlib import import_module
 from math import dist, isfinite
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
@@ -142,20 +143,63 @@ def validate_mesh(
     )
 
 
-def nearest_target_clearance(
+def _nearest_target_clearance_bruteforce(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
 ) -> float:
-    """Return minimum Euclidean distance between validated 3D vertices."""
-    garment = validate_points3d(garment_vertices)
-    target = validate_points3d(target_vertices)
-    if not garment or not target:
-        raise ValueError("garment and target vertices are required")
-    clearance = min(dist(source, candidate) for source in garment for candidate in target)
+    """Reference calculation and fallback for small or unsupported point clouds."""
+    clearance = min(
+        dist(source, candidate)
+        for source in garment_vertices
+        for candidate in target_vertices
+    )
     if not isfinite(clearance):
         raise ValueError("computed vertex clearance must be finite")
     return clearance
 
+
+def nearest_target_clearance(
+    garment_vertices: Sequence[Point3],
+    target_vertices: Sequence[Point3],
+) -> float:
+    """Return minimum Euclidean vertex clearance.
+
+    For larger point clouds, SciPy's exact cKDTree query avoids the quadratic
+    pairwise scan. SciPy remains optional. Small inputs use the scalar reference
+    implementation to avoid tree-construction overhead; unsupported/extreme
+    numeric inputs fall back to the reference path, which retains fail-closed
+    finite-distance validation.
+    """
+    garment = validate_points3d(garment_vertices)
+    target = validate_points3d(target_vertices)
+    if not garment or not target:
+        raise ValueError("garment and target vertices are required")
+
+    # Below this threshold, constructing a spatial index is usually more work
+    # than the direct comparison. The threshold is a performance choice only.
+    if len(garment) * len(target) < 1024:
+        return _nearest_target_clearance_bruteforce(garment, target)
+
+    try:
+        spatial = import_module("scipy.spatial")
+    except ImportError:
+        return _nearest_target_clearance_bruteforce(garment, target)
+
+    tree_type = getattr(spatial, "cKDTree", None)
+    if tree_type is None:
+        return _nearest_target_clearance_bruteforce(garment, target)
+
+    try:
+        distances, _ = tree_type(target).query(garment, k=1, eps=0.0, workers=1)
+        clearance = min(float(value) for value in distances)
+    except (OverflowError, ValueError, RuntimeError):
+        return _nearest_target_clearance_bruteforce(garment, target)
+
+    # cKDTree can return infinity for a finite but unrepresentable distance.
+    # The scalar reference provides the canonical error behavior for that case.
+    if not isfinite(clearance):
+        return _nearest_target_clearance_bruteforce(garment, target)
+    return clearance
 
 def nearest_surface_clearance(
     garment_vertices: Sequence[Point3],
