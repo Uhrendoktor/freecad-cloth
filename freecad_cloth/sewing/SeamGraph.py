@@ -7,7 +7,11 @@ compatibility adapter, not a second seam representation.
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from math import isfinite
 
+from freecad_cloth.common.ValidationModels import (
+    TransformMatrixInput, validate_finite_number, validate_points3d,
+)
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
@@ -35,11 +39,9 @@ class Transform3D:
         1.0,
     )
 
-    def __post_init__(self):
-        if len(self.matrix) != 16:
-            raise ValueError("assembly transform must contain 16 values")
-        if abs(self.matrix[15]) < 1e-12:
-            raise ValueError("assembly transform has an invalid homogeneous scale")
+    def __post_init__(self) -> None:
+        validated = TransformMatrixInput(matrix=self.matrix)
+        object.__setattr__(self, "matrix", validated.matrix)
 
     @classmethod
     def identity(cls):
@@ -50,23 +52,24 @@ class Transform3D:
     def translation(cls, x: float, y: float, z: float = 0.0):
         """Provide the public translation operation."""
         values = list(cls().matrix)
-        values[3], values[7], values[11] = float(x), float(y), float(z)
+        values[3], values[7], values[11] = (
+            validate_finite_number(x), validate_finite_number(y), validate_finite_number(z)
+        )
         return cls(tuple(values))
 
     def apply(self, point: Sequence[float]) -> tuple[float, float, float]:
         """Provide the public apply operation."""
-        if len(point) != 3:
-            raise ValueError("point must contain three coordinates")
-        x, y, z = point
+        x, y, z = validate_points3d((point,))[0]
         m = self.matrix
         w = m[12] * x + m[13] * y + m[14] * z + m[15]
-        if abs(w) < 1e-12:
+        if not isfinite(w) or abs(w) < 1e-12:
             raise ValueError("assembly transform produced invalid homogeneous scale")
-        return (
+        result = (
             (m[0] * x + m[1] * y + m[2] * z + m[3]) / w,
             (m[4] * x + m[5] * y + m[6] * z + m[7]) / w,
             (m[8] * x + m[9] * y + m[10] * z + m[11]) / w,
         )
+        return validate_points3d((result,))[0]
 
 
 @dataclass(frozen=True)
