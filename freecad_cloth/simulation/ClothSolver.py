@@ -74,19 +74,24 @@ class ClothSystem:
         stitches: Iterable[DistanceConstraint] = (),
         pins: Iterable[int] = (),
     ) -> None:
-        self.particles: list[Particle] = list(particles)
-        if any(not isinstance(particle, Particle) for particle in self.particles):
-            raise TypeError("particles must be Particle instances")
-        # Particle is mutable; revalidate when crossing into a solver system.
-        for particle in self.particles:
+        raw_particles: list[object] = list(particles)
+        self.particles = []
+        for particle in raw_particles:
+            if not isinstance(particle, Particle):
+                raise TypeError("particles must be Particle instances")
+            # Particle is mutable; revalidate at the solver-system boundary.
             ParticleInput.model_validate(
                 {"x": particle.x, "y": particle.y, "z": particle.z, "inv_mass": particle.inv_mass}
             )
-        self.constraints: list[DistanceConstraint] = list(constraints)
-        if any(not isinstance(item, DistanceConstraint) for item in self.constraints):
-            raise TypeError("constraints must be DistanceConstraint instances")
-        for constraint in self.constraints:
+            self.particles.append(particle)
+
+        raw_constraints: list[object] = list(constraints)
+        self.constraints = []
+        for constraint in raw_constraints:
+            if not isinstance(constraint, DistanceConstraint):
+                raise TypeError("constraints must be DistanceConstraint instances")
             self._validate_constraint_indices(constraint)
+            self.constraints.append(constraint)
         self.stitches: list[DistanceConstraint] = []
         self.pins: dict[int, tuple[float, float, float]] = {}
         self.add_stitches(stitches)
