@@ -216,8 +216,18 @@ def project_avatar_attachments(
         )
         if source_distance > maximum_distance:
             raise ValueError(
-                "avatar attachment is too far from the DrapeTarget surface: {:.2f} mm".format(
-                    source_distance
+                (
+                    "avatar attachment is too far from the DrapeTarget surface: {:.2f} mm "
+                    "(maximum {:.2f} mm; particle_index={}; source={}; particle={}; "
+                    "direction={}; hit={})"
+                ).format(
+                    source_distance,
+                    maximum_distance,
+                    particle_index,
+                    tuple(round(value, 3) for value in source),
+                    tuple(round(value, 3) for value in particle_position),
+                    tuple(round(value, 3) for value in direction),
+                    tuple(round(value, 3) for value in closest),
                 )
             )
 
