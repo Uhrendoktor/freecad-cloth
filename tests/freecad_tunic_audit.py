@@ -39,6 +39,10 @@ POSE_SOURCE = """    target_source = getattr(target, "SourceObject", None)
             "visual fixture DrapeTarget does not reference the production ClothAvatar"
         )
     pre_status = target_status(target)"""
+
+LANDMARK_SOURCE = """    shoulder_left = arrangement_world("shoulder_left")
+    shoulder_right = arrangement_world("shoulder_right")
+    hip_point = arrangement_world("hip")"""
 replacements = {
     POSE_SOURCE: """    target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
@@ -55,10 +59,11 @@ replacements = {
     initial_parameters = _parameters(avatar)
     near_t_pose = _replace_dataclass(
         initial_parameters.pose,
-        left_arm_angle=5.0,
-        right_arm_angle=5.0,
+        left_arm_angle=0.0,
+        right_arm_angle=0.0,
         left_elbow_angle=0.0,
         right_elbow_angle=0.0,
+        joint_rotations=(),
     )
     apply_avatar_parameters(
         avatar,
@@ -66,8 +71,25 @@ replacements = {
     )
     refresh_drape_target(target)
     doc.recompute()
-    log("tunic-avatar-pose=near-t left_arm_angle=5 right_arm_angle=5")
+    log("tunic-avatar-pose=near-t left_arm_angle=0 right_arm_angle=0 joint_overrides=cleared")
     pre_status = target_status(target)""",
+    LANDMARK_SOURCE: """    shoulder_left = arrangement_world("shoulder_left")
+    shoulder_right = arrangement_world("shoulder_right")
+    hip_point = arrangement_world("hip")
+    wrist_left = arrangement_world("wrist_left")
+    wrist_right = arrangement_world("wrist_right")
+    left_span = abs(float(wrist_left.x) - float(shoulder_left.x))
+    right_span = abs(float(wrist_right.x) - float(shoulder_right.x))
+    left_vertical = abs(float(wrist_left.z) - float(shoulder_left.z))
+    right_vertical = abs(float(wrist_right.z) - float(shoulder_right.z))
+    log("tunic-pose-geometry left_dx=%.1f left_dz=%.1f right_dx=%.1f right_dz=%.1f" % (left_span, left_vertical, right_span, right_vertical))
+    if min(left_span, right_span) < 150.0 or left_vertical > 0.22 * left_span or right_vertical > 0.22 * right_span:
+        raise RuntimeError("tunic mannequin FK mesh is not near-T-pose: wrists are not near shoulder height")
+    pose_view = Gui.activeDocument().activeView()
+    pose_view.viewFront()
+    pose_view.fitAll()
+    events()
+    save("cloth-mannequin-near-t-pose.png", "Mannequin near-T pose before cloth", "FK pose verified by shoulder-to-wrist geometry before draping")""",
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
     # The near-T fixture removed the arm-related penetrations; move the side seam
     # outboard of the measured torso envelope to address the remaining side-surface
