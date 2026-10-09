@@ -216,6 +216,75 @@ def _canonical_seams(document: Any) -> list[Any]:
     return seams
 
 
+def _simulation_seam_geometry(
+    document: Any,
+) -> dict[
+    str,
+    tuple[
+        list[tuple[float, float, float]],
+        list[tuple[float, float, float]],
+        list[list[tuple[float, float, float]]],
+    ],
+]:
+    """Resolve current draped seam sides from exact solver particle provenance."""
+    for scene in getattr(document, "Objects", ()):
+        proxy = getattr(scene, "Proxy", None)
+        panels = tuple(getattr(scene, "DrapePanels", ()) or ())
+        if not panels or not any(
+            bool(getattr(getattr(panel, "ViewObject", None), "Visibility", True))
+            for panel in panels
+        ):
+            continue
+        try:
+            seam_pairs = getattr(proxy, "seam_stitch_pairs", {})
+            backend = getattr(proxy, "backend", None)
+            position_reader = getattr(backend, "positions", None)
+            if not seam_pairs or not callable(position_reader):
+                continue
+            positions = tuple(position_reader())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+        if not positions:
+            continue
+
+        resolved: dict[
+            str,
+            tuple[
+                list[tuple[float, float, float]],
+                list[tuple[float, float, float]],
+                list[list[tuple[float, float, float]]],
+            ],
+        ] = {}
+        for raw_seam_id, raw_pairs in seam_pairs.items():
+            seam_id = str(raw_seam_id).strip()
+            if not seam_id:
+                continue
+            side_a: list[tuple[float, float, float]] = []
+            side_b: list[tuple[float, float, float]] = []
+            connectors: list[list[tuple[float, float, float]]] = []
+            for raw_pair in raw_pairs:
+                try:
+                    if len(raw_pair) != 2:
+                        continue
+                    index_a, index_b = int(raw_pair[0]), int(raw_pair[1])
+                    if not (
+                        0 <= index_a < len(positions)
+                        and 0 <= index_b < len(positions)
+                    ):
+                        continue
+                    point_a, point_b = _xyz(positions[index_a]), _xyz(positions[index_b])
+                except (IndexError, TypeError, ValueError):
+                    continue
+                side_a.append(point_a)
+                side_b.append(point_b)
+                connectors.append([point_a, point_b])
+            if len(side_a) >= 2 and len(side_b) >= 2:
+                resolved[seam_id] = (side_a, side_b, connectors)
+        if resolved:
+            return resolved
+    return {}
+
+
 class SeamOverlayController:
     """Own one transient overlay tree for the active FreeCAD 3D view."""
 
@@ -279,6 +348,34 @@ class SeamOverlayController:
         rendered_ids: list[str] = []
         self.rendered_seam_ids = ()
         self.last_error = ""
+
+        simulated = _simulation_seam_geometry(self.document)
+        if simulated:
+            colors = seam_color_map(simulated.keys())
+            labels = seam_display_labels(simulated.keys())
+            rendered_ids: list[str] = []
+            for identity, (points_a, points_b, connectors) in sorted(simulated.items()):
+                focused = identity == str(active_seam_id)
+                width = 5.5 if focused else 3.5
+                side_group = coin.SoSeparator()
+                # Solver positions lie exactly on the live cloth surface; disable
+                # depth testing only for this path to avoid z-fighting with its mesh.
+                depth = coin.SoDepthBuffer()
+                depth.test = False
+                depth.write = False
+                side_group.addChild(depth)
+                color = colors[identity]
+                _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
+                _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
+                _add_line_groups(side_group, coin, connectors, color, 1.25)
+                label_a = points_a[len(points_a) // 3]
+                label_b = points_b[(len(points_b) * 2) // 3]
+                _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
+                _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
+                self.root.addChild(side_group)
+                rendered_ids.append(identity)
+            self.rendered_seam_ids = tuple(sorted(rendered_ids))
+            return
 
         if not seams:
             return
