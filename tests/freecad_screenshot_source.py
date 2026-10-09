@@ -1131,6 +1131,7 @@ def simulation():
         "seam-outside": 0,
         "panel-surface": 0,
         "panel-fallback": 0,
+        "anchor-surface": 0,
         "clearance-correction": 0,
         "inside-correction": 0,
     }
@@ -1152,33 +1153,6 @@ def simulation():
             normal = tuple(-value for value in normal)
         return tuple(float(point[i]) + outward_offset * normal[i] for i in range(3))
 
-    def _fit_outside_surface_point(point, triangle_index):
-        """Choose the facet-normal offset that the closed-mesh predicate classifies outside."""
-        preferred = _fit_surface_point(point, triangle_index)
-        opposite = tuple(2.0 * float(point[i]) - preferred[i] for i in range(3))
-        inside_candidates = (preferred, opposite)
-        inside_flags = tuple(
-            bool(value)
-            for value in points_inside_closed_mesh(
-                inside_candidates,
-                target_surface.vertices,
-                target_surface.triangles,
-            )
-        )
-        if len(inside_flags) != 2:
-            raise RuntimeError("canonical tunic surface correction returned an invalid inside result")
-        if not inside_flags[0] and inside_flags[1]:
-            return preferred
-        if inside_flags[0] and not inside_flags[1]:
-            return opposite
-        if not any(inside_flags):
-            # Both sides are outside (for example near a thin/concave feature); preserve
-            # the radial orientation chosen by _fit_surface_point.
-            return preferred
-        raise RuntimeError(
-            "canonical tunic surface correction: both offset directions remain inside "
-            "the mannequin target"
-        )
 
     def _seam_surface_vertex(x, z):
         key = (round(float(x), 4), round(float(z), 4))
@@ -1247,9 +1221,26 @@ def simulation():
                 "for %s: %s (mesh edges=%s)"
                 % (piece_id, missing_sewn_ids, sorted(chain_by_id))
             )
+        anchor_edge_ids = set()
+        for descriptor in (getattr(scene, "AvatarAttachmentAnchors", ()) or ()):
+            parts = str(descriptor).split("|", 2)
+            if len(parts) == 3 and parts[0].strip() == piece_id:
+                anchor_edge_ids.add(parts[1].strip())
+        missing_anchor_ids = sorted(anchor_edge_ids - set(chain_by_id))
+        if missing_anchor_ids:
+            raise RuntimeError(
+                "canonical tunic avatar-anchor edges are missing from the simulation mesh "
+                "for %s: %s (mesh edges=%s)"
+                % (piece_id, missing_anchor_ids, sorted(chain_by_id))
+            )
         sewn_vertices = {
             index
             for edge_id in sewn_ids
+            for index in chain_by_id[edge_id]
+        }
+        anchor_vertices = {
+            index
+            for edge_id in anchor_edge_ids
             for index in chain_by_id[edge_id]
         }
         is_front = piece_id == str(front.PieceId)
@@ -1262,15 +1253,40 @@ def simulation():
             else:
                 hit = _ray_surface_hit(x, z, direction)
                 if hit is None:
+                    if index in anchor_vertices:
+                        raise RuntimeError(
+                            "canonical tunic avatar-anchor vertex could not be mapped to the "
+                            "DrapeTarget surface: piece=%s vertex=%d edges=%s"
+                            % (
+                                piece_id,
+                                index,
+                                sorted(
+                                    edge_id
+                                    for edge_id in anchor_edge_ids
+                                    if index in chain_by_id[edge_id]
+                                ),
+                            )
+                        )
                     fit_counts["panel-fallback"] += 1
                     point = (x, y, z)
                 else:
                     triangle_index, surface_point = hit
                     point = _fit_surface_point(surface_point, triangle_index)
-                    fit_counts["panel-surface"] += 1
+                    if index in anchor_vertices:
+                        fit_counts["anchor-surface"] += 1
+                    else:
+                        fit_counts["panel-surface"] += 1
             mapped.append(tuple(float(value) for value in point))
-        # Ray misses and fallback vertices must still respect the same authored
-        # outward offset; the hard gate remains unchanged.
+        # Use the same native/watertight containment method as the final penetration
+        # gate. Ray parity alone can disagree with a concave mannequin's authoritative
+        # solid classification and is not the source of truth for offset direction.
+        clearance_inside_flags = _inside_target_states(
+            tuple(mapped), avatar, target_surface
+        )
+        log(
+            "tunic-initial-clearance-direction inside=%d points=%d"
+            % (sum(1 for inside in clearance_inside_flags if inside), len(mapped))
+        )
         for index, raw_point in enumerate(mapped):
             point = tuple(float(value) for value in raw_point)
             distance, _target_vertex_index = target_vertex_tree.query(
@@ -1280,6 +1296,7 @@ def simulation():
                 continue
             fit_counts["clearance-correction"] += 1
             corrected = point
+            inside = bool(clearance_inside_flags[index])
             for _attempt in range(3):
                 distance, _target_vertex_index = target_vertex_tree.query(
                     corrected, k=1, eps=0.0, workers=1
@@ -1291,17 +1308,61 @@ def simulation():
                     target_surface.vertices,
                     target_surface.triangles,
                 )
-                corrected = _fit_surface_point(closest, triangle_index)
+                # Move away from the nearest surface if already outside; from the
+                # interior toward its nearest boundary if inside. The global-center
+                # facet normal is unreliable at concavities and tangential features.
+                correction_vector = tuple(
+                    (
+                        float(closest[axis]) - float(corrected[axis])
+                        if inside
+                        else float(corrected[axis]) - float(closest[axis])
+                    )
+                    for axis in range(3)
+                )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    corrected = _fit_surface_point(closest, triangle_index)
+                else:
+                    corrected = tuple(
+                        float(closest[axis])
+                        + outward_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                if _attempt < 2:
+                    inside = _inside_target_states(
+                        (corrected,), avatar, target_surface
+                    )[0]
             mapped[index] = tuple(float(value) for value in corrected)
-        # Nearest-vertex clearance does not prove that a particle is outside a
-        # closed triangle surface. Apply the existing mesh-inside predicate as a gate.
-        for _attempt in range(3):
-            inside_flags = points_inside_closed_mesh(
-                tuple(mapped),
-                target_surface.vertices,
-                target_surface.triangles,
+
+        parity_flags = points_inside_closed_mesh(
+            tuple(mapped),
+            target_surface.vertices,
+            target_surface.triangles,
+        )
+        inside_flags = _inside_target_states(tuple(mapped), avatar, target_surface)
+        classifier_mismatches = sum(
+            1 for parity, authoritative in zip(parity_flags, inside_flags, strict=True)
+            if parity != authoritative
+        )
+        log(
+            "tunic-initial-inside-classifiers authoritative=%d parity=%d mismatches=%d points=%d"
+            % (
+                sum(1 for inside in inside_flags if inside),
+                sum(1 for inside in parity_flags if inside),
+                classifier_mismatches,
+                len(mapped),
             )
-            inside_indices = [index for index, inside in enumerate(inside_flags) if inside]
+        )
+        for _attempt in range(3):
+            inside_indices = [
+                index for index, inside in enumerate(inside_flags) if inside
+            ]
+            log(
+                "tunic-initial-inside-correction attempt=%d interior=%d"
+                % (_attempt + 1, len(inside_indices))
+            )
             if not inside_indices:
                 break
             for index in inside_indices:
@@ -1310,19 +1371,77 @@ def simulation():
                     target_surface.vertices,
                     target_surface.triangles,
                 )
-                mapped[index] = tuple(
-                    float(value) for value in _fit_outside_surface_point(closest, triangle_index)
+                correction_vector = tuple(
+                    float(closest[axis]) - float(mapped[index][axis])
+                    for axis in range(3)
                 )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    corrected = _fit_surface_point(closest, triangle_index)
+                else:
+                    corrected = tuple(
+                        float(closest[axis])
+                        + outward_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                mapped[index] = tuple(float(value) for value in corrected)
                 fit_counts["inside-correction"] += 1
-        remaining_inside = points_inside_closed_mesh(
-            tuple(mapped),
-            target_surface.vertices,
-            target_surface.triangles,
+            inside_flags = _inside_target_states(
+                tuple(mapped), avatar, target_surface
+            )
+        remaining_inside = _inside_target_states(
+            tuple(mapped), avatar, target_surface
         )
-        if any(remaining_inside):
+        remaining_indices = [
+            index for index, inside in enumerate(remaining_inside) if inside
+        ]
+        if remaining_indices:
+            log(
+                "tunic-initial-inside-residual sample=%s"
+                % tuple(
+                    (
+                        int(index),
+                        tuple(round(float(value), 2) for value in mapped[index]),
+                    )
+                    for index in remaining_indices[:12]
+                )
+            )
             raise RuntimeError(
                 "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target"
-                % sum(1 for inside in remaining_inside if inside)
+                % len(remaining_indices)
+            )
+
+        final_distances, final_target_indices = target_vertex_tree.query(
+            tuple(mapped), k=1, eps=0.0, workers=1
+        )
+        minimum_vertex_clearance = min(float(value) for value in final_distances)
+        log(
+            "tunic-initial-min-vertex-clearance-mm=%.2f required-offset-mm=%.2f points=%d"
+            % (minimum_vertex_clearance, outward_offset, len(mapped))
+        )
+        clearance_residuals = [
+            index for index, distance in enumerate(final_distances)
+            if float(distance) < outward_offset - 1e-3
+        ]
+        if clearance_residuals:
+            log(
+                "tunic-initial-clearance-residual sample=%s"
+                % tuple(
+                    (
+                        int(index),
+                        round(float(final_distances[index]), 2),
+                        int(final_target_indices[index]),
+                        tuple(round(float(value), 2) for value in mapped[index]),
+                    )
+                    for index in clearance_residuals[:12]
+                )
+            )
+            raise RuntimeError(
+                "canonical tunic surface mapping leaves %d cloth vertices below configured outward offset: "
+                "%.2f mm < %.2f mm"
+                % (len(clearance_residuals), minimum_vertex_clearance, outward_offset)
             )
         return tuple(mapped), triangles, boundary_edges
 
