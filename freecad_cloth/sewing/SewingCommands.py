@@ -347,7 +347,7 @@ def repair_selected_seam():
 
 
 def focus_selected_seam_3d():
-    """Fit the 3D viewport to the selected semantic seam."""
+    """Focus a seam while keeping both participating pattern edges in view."""
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -360,20 +360,59 @@ def focus_selected_seam_3d():
     apply_seam_colors(doc.Objects)
     if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
         raise ValueError("selected seam has no presentation geometry")
+
+    pair_pieces = tuple(
+        piece
+        for piece in (getattr(seam, "PatternA", None), getattr(seam, "PatternB", None))
+        if piece is not None
+    )
     previous = []
     for obj in doc.Objects:
-        view = getattr(obj, "ViewObject", None)
-        if view is None:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is None:
             continue
-        previous.append((obj, bool(getattr(view, "Visibility", True))))
-        view.Visibility = obj is seam
+        previous.append((obj, bool(getattr(view_object, "Visibility", True))))
+        view_object.Visibility = obj is seam or any(obj is piece for piece in pair_pieces)
     try:
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
         view = Gui.activeDocument().activeView()
+        view.setCameraType("Orthographic")
         view.viewAxonometric()
         view.fitAll()
         doc.recompute()
+
+        # Fit the paired pattern-piece bounds as well as the seam feature. Fitting
+        # only the usually narrow seam shape crops its labels when the pieces are
+        # restored below, because those pieces are much larger than the seam.
+        boxes = []
+        for piece in pair_pieces:
+            shape = getattr(piece, "Shape", None)
+            if shape is None or shape.isNull():
+                continue
+            boxes.append(shape.BoundBox)
+        if boxes:
+            extent_x = max(float(box.XMax) for box in boxes) - min(
+                float(box.XMin) for box in boxes
+            )
+            extent_y = max(float(box.YMax) for box in boxes) - min(
+                float(box.YMin) for box in boxes
+            )
+            extent_z = max(float(box.ZMax) for box in boxes) - min(
+                float(box.ZMin) for box in boxes
+            )
+            projected_span = extent_x + extent_y + extent_z
+            if projected_span > 0.0:
+                size = view.getSize()
+                width, height = float(size[0]), float(size[1])
+                aspect = width / height if width > 0.0 and height > 0.0 else 1.0
+                camera_height = max(
+                    10.0,
+                    1.25 * projected_span * 0.57735026919,
+                    1.25 * projected_span * 0.81649658093 / aspect,
+                )
+                view.getCameraNode().height.setValue(float(camera_height))
+                view.redraw()
     finally:
         for obj, visible in previous:
             with contextlib.suppress(AttributeError, RuntimeError):
@@ -382,7 +421,6 @@ def focus_selected_seam_3d():
 
     refresh_seam_overlay(doc)
     return seam
-
 
 def _edit_selected_seam_side(side):
     import FreeCAD as App
