@@ -1161,10 +1161,12 @@ def simulation():
             str(front.PieceId), str(back.PieceId)
         }:
             return vertices, triangles, boundary_edges
+        is_front = str(piece.PieceId) == str(front.PieceId)
+        semantic_edge_ids = front_edge_ids if is_front else back_edge_ids
         sewn_ids = {
-            str(piece_ir.boundaries[index].id)
+            str(semantic_edge_ids[index])
             for index in (1, 3, 5, 7)
-            if index < len(piece_ir.boundaries)
+            if index < len(semantic_edge_ids)
         }
         sewn_vertices = {
             int(vertex_index)
@@ -1172,7 +1174,6 @@ def simulation():
             if str(boundary.id) in sewn_ids
             for vertex_index in chain
         }
-        is_front = str(piece.PieceId) == str(front.PieceId)
         direction = -1 if is_front else 1
         mapped = []
         for index, raw in enumerate(vertices):
