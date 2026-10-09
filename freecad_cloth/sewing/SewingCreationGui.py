@@ -291,11 +291,10 @@ class SewingCreationTaskPanel:
             from PySide import QtCore
         except ImportError:
             from PySide2 import QtCore
-        timer = QtCore.QTimer(self.form)
-        timer.setSingleShot(True)
-        timer.timeout.connect(_close_active_task_dialog)
-        self._close_timer = timer
-        timer.start(0)
+        # FreeCAD may tear down or reparent the task-panel form as Commit/Cancel
+        # returns. A child timer can be destroyed with that form before it runs,
+        # leaving the task dialog open. Queue the close independently of the form.
+        QtCore.QTimer.singleShot(0, _close_active_task_dialog)
 
     def accept(self):
         if self._closing:
