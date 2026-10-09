@@ -45,6 +45,16 @@ python -m pip install -e ".[dev]"
 pre-commit install
 ```
 
+Install optional SciPy/Shapely geometry accelerations only when useful for large derived meshes and outlines:
+
+```bash
+python -m pip install -e ".[geometry]"
+```
+
+These packages are not required by the default workbench installation. The affected code keeps a
+standard-library fallback; the benchmark under `tools/benchmarks/benchmark_geometry_libraries.py`
+checks output equivalence before reporting timings.
+
 The canonical GUI tests run inside the published FreeCAD CI environment because they exercise the actual GUI, solver backend and rendering path.
 
 The project keeps one canonical GitHub Actions workflow. See [DEVELOPMENT.md](DEVELOPMENT.md) for the validation matrix and [CI configuration](CI_CONFIGURATION.md) for the single authoritative runtime-budget setting.
