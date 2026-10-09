@@ -1,9 +1,12 @@
+from math import cos, sin, tau
+
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
     ParametricPattern,
     rectangle,
     seam_allowance_outline,
 )
+from freecad_cloth.pattern.PatternMesh import _self_intersects, _self_intersects_python
 
 
 def test_rectangle_allowance_offsets_every_side():
@@ -55,6 +58,21 @@ def test_invalid_allowance_is_rejected():
     except ValueError:
         return
     raise AssertionError("negative seam allowance must be rejected")
+
+
+def test_large_simple_ring_matches_intersection_reference():
+    """The optional GEOS fast path agrees with the Python oracle on a simple ring."""
+    points = tuple((cos(tau * index / 64), sin(tau * index / 64)) for index in range(64))
+    assert not _self_intersects_python(points)
+    assert not _self_intersects(points)
+
+
+def test_suspicious_crossing_outline_uses_tolerance_aware_reference():
+    """Potential intersections retain the existing Python predicate as authority."""
+    bow_tie = ((0.0, 0.0), (2.0, 2.0), (0.0, 2.0), (2.0, 0.0))
+    points = tuple(bow_tie[index % len(bow_tie)] for index in range(64))
+    assert _self_intersects_python(points)
+    assert _self_intersects(points)
 
 
 if __name__ == "__main__":
