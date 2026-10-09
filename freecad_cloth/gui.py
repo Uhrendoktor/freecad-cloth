@@ -69,6 +69,12 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
         return None
 
     def Deactivated(self):
+        try:
+            from freecad_cloth.sewing.SeamOverlay import deactivate_seam_overlay
+
+            deactivate_seam_overlay()
+        except (ImportError, RuntimeError, TypeError):
+            pass
         return None
 
     def ContextMenu(self, recipient):
