@@ -20,6 +20,11 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
+def coin_position_to_screen(position, viewport_height):
+    """Convert Coin's bottom-left-origin event point to top-left screen coordinates."""
+    return float(position[0]), float(viewport_height) - float(position[1])
+
+
 def nearest_arrangement_point(position, points, max_distance):
     """Return the nearest 2D arrangement point within the supplied distance.
 
@@ -334,7 +339,8 @@ class DirectArrangeController:
                 self.drag_start_base[1] + float(delta.y),
                 self.drag_start_base[2] + float(delta.z),
             )
-            snap = self._nearest_snap_point(position) if self.snap_enabled else None
+            screen_position = coin_position_to_screen(position, self.view.getSize()[1])
+            snap = self._nearest_snap_point(screen_position) if self.snap_enabled else None
             self.snap_point = snap
             if snap is not None:
                 self._show_snap_indicator(snap)
