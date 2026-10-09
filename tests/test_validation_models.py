@@ -7,6 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
+from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
+from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput,
     CorrespondenceAnalysisInput,
@@ -18,7 +20,7 @@ from freecad_cloth.common.ValidationModels import (
     validate_point2d,
     validate_points3d,
 )
-from freecad_cloth.pattern.PatternGeometry import LineSegment, rectangle
+from freecad_cloth.pattern.PatternGeometry import LineSegment, QuadraticBezier, rectangle, seam_allowance_outline
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
@@ -153,3 +155,89 @@ def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
     )
     with pytest.raises(ValueError, match="boundary"):
         mesh.validate()
+
+
+
+def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
+    line = LineSegment("extreme-line", (-1e308, 0.0), (1e308, 0.0))
+    assert line.point(0.5) == (0.0, 0.0)
+    curve = QuadraticBezier(
+        "extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0)
+    )
+    assert curve.point(0.5) == (0.0, 0.0)
+
+
+def test_computed_polygon_area_overflow_fails_closed() -> None:
+    pattern = rectangle(1e308, 1e308)
+    with pytest.raises(ValueError, match="area must be finite"):
+        seam_allowance_outline(pattern, 1.0)
+
+
+def test_triangle_mesh_area_overflow_fails_closed() -> None:
+    mesh = TriangleMesh(
+        vertices=((0.0, 0.0), (1e308, 0.0), (0.0, 1e308)),
+        triangles=((0, 1, 2),),
+        boundary_vertex_indices=(0, 1, 2),
+    )
+    with pytest.raises(ValueError, match="area must be finite"):
+        _ = mesh.area
+
+
+def test_vertex_clearance_overflow_fails_closed() -> None:
+    with pytest.raises(ValueError, match="clearance must be finite"):
+        nearest_target_clearance(((-1e308, 0.0, 0.0),), ((1e308, 0.0, 0.0),))
+
+
+@pytest.mark.parametrize(
+    "particle",
+    [
+        (math.nan, 0.0, 0.0, 1.0),
+        (0.0, math.inf, 0.0, 1.0),
+        (0.0, 0.0, 0.0, math.nan),
+        (0.0, 0.0, 0.0, -1.0),
+    ],
+)
+def test_particle_rejects_nonfinite_state_and_negative_inverse_mass(
+    particle: tuple[float, float, float, float],
+) -> None:
+    with pytest.raises(ValueError):
+        Particle(*particle)
+
+
+def test_solver_grid_validates_finite_dimensions_origin_and_integer_resolution() -> None:
+    with pytest.raises(ValueError):
+        ClothSystem.grid(math.nan, 10.0)
+    with pytest.raises(ValueError):
+        ClothSystem.grid(10.0, 10.0, nx=2.5)  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        ClothSystem.grid(10.0, 10.0, origin=(0.0, math.inf, 0.0))
+
+
+def test_solver_rejects_fractional_pin_and_stitch_indices() -> None:
+    system = ClothSystem.grid(10.0, 10.0, nx=2, ny=2)
+    with pytest.raises(ValueError):
+        system.pin([0.5])  # type: ignore[list-item]
+    with pytest.raises(ValueError):
+        system.add_stitches([(0.5, 1)])  # type: ignore[list-item]
+
+
+def test_distance_constraints_validate_fields_and_particle_references() -> None:
+    with pytest.raises(ValueError):
+        DistanceConstraint(0.5, 1, 0.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        DistanceConstraint(0, 1, math.nan)
+    with pytest.raises(ValueError):
+        DistanceConstraint(0, 1, 0.0, math.inf)
+    system_particles = [Particle(0.0, 0.0, 0.0), Particle(1.0, 0.0, 0.0)]
+    with pytest.raises(ValueError, match="outside system"):
+        ClothSystem(system_particles, constraints=[DistanceConstraint(0, 2, 1.0)])
+
+
+def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
+    matrix = list(Transform3D.identity().matrix)
+    matrix[0] = math.nan
+    with pytest.raises(ValueError):
+        Transform3D(tuple(matrix))
+    transform = Transform3D.translation(1e308, 0.0, 0.0)
+    with pytest.raises(ValueError):
+        transform.apply((1e308, 0.0, 0.0))
