@@ -80,3 +80,31 @@ Research references:
 - [Pydantic strict mode](https://pydantic.dev/docs/validation/2.12/concepts/strict_mode/)
 - [Hypothesis quickstart](https://hypothesis.readthedocs.io/en/latest/quickstart.html)
 - [trimesh proximity queries](https://trimesh.org/trimesh.proximity.html)
+
+## Implemented optional geometry accelerations
+
+The `geometry` extra installs **SciPy** and **Shapely** without making either library a default
+FreeCAD runtime dependency.
+
+- `nearest_target_clearance` uses an exact `scipy.spatial.cKDTree` nearest-neighbour query for
+  larger vertex sets. Small inputs keep the direct `math.dist` implementation to avoid tree-build
+  overhead. Missing SciPy and unsupported/extreme numeric cases use the checked scalar fallback.
+- `PatternMesh._self_intersects` asks GEOS/Shapely whether sufficiently large outlines are simple.
+  If GEOS reports any possible intersection, the pre-existing tolerance-aware segment predicate
+  remains authoritative. This uses Shapely as a conservative fast path, not as a new topology model.
+- Seam-allowance buffering was **not** replaced by Shapely `buffer`: its join styles, handling of
+  collapsed concavities/self-intersections, and ring ordering can alter generated outline topology.
+  FreeCAD Part/OCCT also remains authoritative for native editable geometry.
+- Run `python tools/benchmarks/benchmark_geometry_libraries.py --sizes 128 512 1024` after
+  `python -m pip install -e ".[geometry]"` to compare result equivalence and timings on the local
+  machine. Timings are informative only; no hardware-sensitive threshold is used as a CI assertion.
+
+## Python symbolic contract checking
+
+The canonical static gate runs CrossHair against `tools/crosshair_contracts.py`. The contracts call
+the **production implementations** for particle distance, seam-parameter mapping, interpolation,
+and line intersection; the file is not a duplicate implementation of those formulas. CrossHair
+symbolically explores the supported paths and reports counterexamples to the assertions. This is
+stronger than testing a few concrete examples, but it is not a complete proof of arbitrary Python,
+IEEE-754 behaviour, FreeCAD/OCCT, or native PositionBasedDynamics code. Hypothesis tests and native
+integration/visual acceptance remain separate validation layers.
