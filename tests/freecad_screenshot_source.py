@@ -566,8 +566,8 @@ def _make_tunic_sketch(
     # The previous coordinates anchored the upper panel at x=0, so changing
     # hem_width moved the hem center without moving the shoulder center.
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.88 * garment_height
-    shoulder_z = 0.98 * garment_height
+    armhole_z = 0.68 * garment_height
+    shoulder_z = 0.78 * garment_height
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
@@ -837,6 +837,12 @@ def simulation():
     panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
+    authored_shoulder_z = hem_z + 0.78 * garment_height
+    log(
+        "tunic-pattern-vertical hip-z=%.2f shoulder-landmark-z=%.2f "
+        "authored-shoulder-z=%.2f mismatch-mm=%.2f"
+        % (hem_z, shoulder_z, authored_shoulder_z, authored_shoulder_z - shoulder_z)
+    )
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     # Select depth from the central torso column as well as the pattern
@@ -951,17 +957,14 @@ def simulation():
     scene.PinMode = "Avatar Attachment"
     scene.PinSelection = []
     scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
-    # Attach each panel at both shoulder endpoints and its neckline center.
-    # The front/back neck descriptors share the named neck landmark, while the
-    # resolver derives opposite depth-side rays from each panel's world placement.
-    # This supports the neckline without changing the solver or collision budget.
+    # Both panels attach to the same lateral skin points at each sewn shoulder.
+    # Initial seam gaps diagnose whether the solver stitches pair the pinned particles
+    # with their actual counterparts; neckline remains free to drape naturally.
     scene.AvatarAttachmentAnchors = [
         "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
         "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5]),
-        "%s|%s|neck" % (front.PieceId, front_edge_ids[4]),
         "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
         "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
-        "%s|%s|neck" % (back.PieceId, back_edge_ids[4]),
     ]
     refresh_drape_target(target)
     doc.recompute()
