@@ -6,6 +6,22 @@
 
 The animation shows the complete seam workflow in the live FreeCAD window: source and counterpart edges are selected, the semantic seam preview is reviewed, and the seam is committed. In headless CI the harness activates edge subelements through FreeCAD's selection API rather than relying on fragile screen-coordinate hit testing; preview and commit are exercised in the live task panel.
 
+## Seam highlights, hover labels and visibility options
+
+Cloth Pattern, **Cloth Sewing**, and Cloth Simulation draw the same transient highlights from the canonical `SeamId` and semantic pattern-edge references. In the Sewing workbench, open **Validation & View → Seam Overlay Options**. **Show seam color highlights** enables or disables identity colors, direction/notch marks and hover labels; when disabled, seam linework remains visible in neutral gray. **Respect depth and occlusion** is enabled by default so nearer geometry hides seam lines and labels behind it.
+
+Labels are intentionally sparse: only the seam under the pointer displays its paired `-A` and `-B` labels. Moving away hides the labels without removing the underlying sewing relationship. Both settings persist in FreeCAD user preferences.
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-overlay-options.png" alt="Sewing workbench Seam Overlay Options dialog with seam color highlights and depth-aware occlusion enabled" width="560"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-overlay-pattern-2d.png" alt="Pattern workbench with paired seam edges highlighted by semantic color and direction marks" width="800"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-overlay-sewing-2d.png" alt="Cloth Sewing workbench showing matching colored seam sides and the A/B label for the hovered seam" width="800"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-overlay-hover.gif" alt="Viewport sequence showing labels switching to the hovered seam and colored highlights being disabled and restored" width="800"></p>
+
+The overlay is view-only: it is regenerated from the same semantic seam records after recompute, restore and workbench activation. It does not create a second seam identity or persist its Coin3D scene nodes in the document.
+
 ## What the feature is
 
 Cloth Sewing turns authored pattern edges into semantic garment assembly relationships.
