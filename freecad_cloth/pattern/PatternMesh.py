@@ -11,6 +11,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from math import ceil, hypot, isclose, isfinite
 
+from shapely.geometry import LineString
+
+from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
 
@@ -29,10 +32,23 @@ class TriangleMesh:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
         for tri in self.triangles:
-            if len(set(tri)) != 3 or any(i < 0 or i >= n for i in tri):
+            if (
+                len(set(tri)) != 3
+                or any(type(index) is not int or index < 0 or index >= n for index in tri)
+            ):
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
+        if any(
+            type(index) is not int or index < 0 or index >= n
+            for index in self.boundary_vertex_indices
+        ):
+            raise ValueError("invalid boundary vertex index")
+        if any(
+            len(point) != 2 or not all(isfinite(coordinate) for coordinate in point)
+            for point in self.vertices
+        ):
+            raise ValueError("mesh coordinates must be finite 2D points")
         if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(
             self.boundary_vertex_indices
         ):
@@ -41,10 +57,13 @@ class TriangleMesh:
     @property
     def area(self) -> float:
         """Provide the public area operation."""
-        return sum(
+        total = sum(
             abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
             for a, b, c in self.triangles
         )
+        if not isfinite(total):
+            raise ValueError("computed mesh area must be finite")
+        return total
 
     def boundary_edges(self) -> tuple[tuple[int, int], ...]:
         """Provide the public boundary edges operation."""
@@ -62,10 +81,17 @@ def triangulate(
     semantic seam edge indices remain stable while Triangle adds interior
     vertices where needed.
     """
+    options_input = TriangulationOptions.model_validate(
+        {"curve_samples": curve_samples, "max_area": max_area}
+    )
+    curve_samples, max_area = options_input.curve_samples, options_input.max_area
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
-    if abs(_signed_area(points)) < 1e-9:
+    signed_area = _signed_area(points)
+    if not isfinite(signed_area):
+        raise ValueError("pattern area must be finite")
+    if abs(signed_area) < 1e-9:
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
@@ -75,17 +101,12 @@ def triangulate(
         edge_ids = [segment.id for segment in pattern.segments]
     else:
         edge_ids = _edge_segment_ids(pattern, points)
-    if _signed_area(points) < 0:
+    if signed_area < 0:
         points = list(reversed(points))
         # Recompute provenance from geometry after normalization. A refined
         # authored edge can contain several internal sub-segments, so a fixed
         # one-slot rotation is not a valid semantic mapping.
         edge_ids = _edge_segment_ids(pattern, points)
-
-    if max_area is not None:
-        max_area = float(max_area)
-        if max_area <= 0.0:
-            raise ValueError("max_area must be positive")
 
     try:
         import numpy as np
@@ -115,18 +136,18 @@ def triangulate(
             "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
 
-    {(_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)}
+    output_index_by_coordinate: dict[tuple[int, int], int] = {}
+    for index, vertex in enumerate(result_vertices):
+        key = (_quantize(float(vertex[0])), _quantize(float(vertex[1])))
+        output_index_by_coordinate.setdefault(key, index)
+
     boundary_indices: list[int] = []
-    for _source_index, (x, y) in enumerate(points):
+    for x, y in points:
         key = (_quantize(x), _quantize(y))
-        matches = [
-            i
-            for i, vertex in enumerate(result_vertices.tolist())
-            if (_quantize(vertex[0]), _quantize(vertex[1])) == key
-        ]
-        if not matches:
+        index = output_index_by_coordinate.get(key)
+        if index is None:
             raise ValueError("Triangle dropped an authored boundary vertex")
-        boundary_indices.append(matches[0])
+        boundary_indices.append(index)
 
     triangles: list[tuple[int, int, int]] = []
     for raw in result_triangles.tolist():
@@ -149,7 +170,10 @@ def triangulate(
     mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
     mesh.validate()
     expected_area = abs(_signed_area(points))
-    if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
+    actual_area = mesh.area
+    if not isfinite(expected_area) or not isfinite(actual_area):
+        raise ValueError("triangulation area must be finite")
+    if abs(actual_area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
     return mesh
 
@@ -250,19 +274,7 @@ def _cross(a: Point, b: Point, c: Point) -> float:
 
 
 def _self_intersects(points: Sequence[Point]) -> bool:
-    n = len(points)
-    for i in range(n):
-        a, b = points[i], points[(i + 1) % n]
-        for j in range(i + 1, n):
-            if j in (i, (i + 1) % n, (i - 1) % n):
-                continue
-            c, d = points[j], points[(j + 1) % n]
-            if _segments_intersect(a, b, c, d):
-                return True
-    return False
-
-
-def _segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool:
-    ab1, ab2 = _cross(a, b, c), _cross(a, b, d)
-    cd1, cd2 = _cross(c, d, a), _cross(c, d, b)
-    return ab1 * ab2 < -1e-10 and cd1 * cd2 < -1e-10
+    """Return whether a closed polygon boundary crosses itself using GEOS."""
+    if len(points) < 3:
+        return False
+    return not LineString([*points, points[0]]).is_simple

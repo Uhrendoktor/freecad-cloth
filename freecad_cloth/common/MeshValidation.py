@@ -11,6 +11,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite
 
+from scipy.spatial import cKDTree
+
+from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
@@ -29,16 +33,11 @@ class MeshValidationResult:
     degenerate_faces: int
 
 
-def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> None:
-    count = len(vertices)
-    for vertex in vertices:
-        if len(vertex) != 3 or not all(isfinite(float(value)) for value in vertex):
-            raise ValueError("mesh vertices must be finite 3D points")
-    for triangle in triangles:
-        if len(triangle) != 3:
-            raise ValueError("mesh triangles must contain exactly three indices")
-        if any(int(index) < 0 or int(index) >= count for index in triangle):
-            raise ValueError("mesh triangle index is out of range")
+def _validate_arrays(
+    vertices: Sequence[Point3], triangles: Sequence[Triangle]
+) -> MeshArrays:
+    """Validate mesh coordinates and connectivity with one schema boundary."""
+    return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
 
 def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
@@ -69,13 +68,15 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
         if left_root != right_root:
             parent[right_root] = left_root
 
-    first_face_by_vertex: dict[int, int] = {}
-    for face_index, triangle in enumerate(triangles):
-        for vertex_index in triangle:
-            vertex_index = int(vertex_index)
-            previous_face = first_face_by_vertex.get(vertex_index)
+    # Mesh components are connected through shared edges, not just shared
+    # vertices. Vertex-only adjacency incorrectly merges shells touching at a point.
+    first_face_by_edge: dict[tuple[int, int], int] = {}
+    for face_index, (a, b, c) in enumerate(triangles):
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            previous_face = first_face_by_edge.get(edge)
             if previous_face is None:
-                first_face_by_vertex[vertex_index] = face_index
+                first_face_by_edge[edge] = face_index
             else:
                 union(face_index, previous_face)
 
@@ -93,8 +94,9 @@ def validate_mesh(
     ``trimesh`` is imported lazily and remains optional. A deterministic
     Python fallback keeps the validator useful in the core test environment.
     """
-    _validate_arrays(vertices, triangles)
-    degenerate = sum(1 for a, b, c in triangles if len({int(a), int(b), int(c)}) < 3)
+    validated = _validate_arrays(vertices, triangles)
+    vertices, triangles = validated.vertices, validated.triangles
+    degenerate = sum(1 for a, b, c in triangles if len({a, b, c}) < 3)
 
     if prefer_trimesh:
         try:
@@ -107,6 +109,9 @@ def validate_mesh(
                 process=False,
             )
             bounds = mesh.bounds
+            surface_area = float(mesh.area)
+            if not isfinite(surface_area):
+                raise ValueError("computed mesh surface area must be finite")
             return MeshValidationResult(
                 vertices=len(vertices),
                 faces=len(triangles),
@@ -119,7 +124,7 @@ def validate_mesh(
                     float(bounds[0][2]),
                     float(bounds[1][2]),
                 ),
-                surface_area=float(mesh.area),
+                surface_area=surface_area,
                 watertight=bool(mesh.is_watertight),
                 finite=bool(np.isfinite(mesh.vertices).all()),
                 degenerate_faces=degenerate,
@@ -143,17 +148,24 @@ def nearest_target_clearance(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
 ) -> float:
-    """Return minimum garment-to-target vertex distance."""
-    if not garment_vertices or not target_vertices:
-        raise ValueError("garment and target vertices are required")
-    best = float("inf")
-    for source in garment_vertices:
-        for target in target_vertices:
-            distance = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
-            if distance < best:
-                best = distance
-    return best**0.5
+    """Return the minimum Euclidean distance between two validated 3D vertex sets.
 
+    SciPy's exact cKDTree query is the single production implementation. Coordinates
+    are validated before indexing, and an unrepresentable result fails closed.
+    """
+    garment = validate_points3d(garment_vertices)
+    target = validate_points3d(target_vertices)
+    if not garment or not target:
+        raise ValueError("garment and target vertices are required")
+
+    try:
+        distances, _ = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        clearance = min(float(value) for value in distances)
+    except (OverflowError, ValueError, RuntimeError) as exc:
+        raise ValueError("could not calculate finite nearest vertex clearance") from exc
+    if not isfinite(clearance):
+        raise ValueError("computed vertex clearance must be finite")
+    return clearance
 
 def nearest_surface_clearance(
     garment_vertices: Sequence[Point3],
@@ -161,9 +173,13 @@ def nearest_surface_clearance(
     target_triangles: Sequence[Triangle],
 ) -> float:
     """Return minimum point-to-surface distance using trimesh when available."""
-    _validate_arrays(target_vertices, target_triangles)
+    validated = _validate_arrays(target_vertices, target_triangles)
+    garment_vertices = validate_points3d(garment_vertices)
+    target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
         raise ValueError("garment vertices are required")
+    if not target_triangles:
+        raise ValueError("target triangles are required")
     try:
         import numpy as np
         import trimesh
@@ -175,4 +191,9 @@ def nearest_surface_clearance(
         process=False,
     )
     _, distances, _ = mesh.nearest.on_surface(np.asarray(garment_vertices, dtype=float))
-    return float(np.min(distances)) if len(distances) else float("inf")
+    if not len(distances):
+        raise ValueError("surface clearance produced no distance results")
+    clearance = float(np.min(distances))
+    if not isfinite(clearance):
+        raise ValueError("computed surface clearance must be finite")
+    return clearance

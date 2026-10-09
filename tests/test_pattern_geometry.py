@@ -1,9 +1,33 @@
+from collections.abc import Sequence
+from math import cos, sin, tau
+
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
     ParametricPattern,
+    Point,
     rectangle,
     seam_allowance_outline,
 )
+from freecad_cloth.pattern.PatternMesh import _self_intersects
+
+
+def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
+    """Test-only copy of the former segment predicate for regression comparisons."""
+
+    def cross(a: Point, b: Point, c: Point) -> float:
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    for i in range(len(points)):
+        a, b = points[i], points[(i + 1) % len(points)]
+        for j in range(i + 1, len(points)):
+            if j in (i, (i + 1) % len(points), (i - 1) % len(points)):
+                continue
+            c, d = points[j], points[(j + 1) % len(points)]
+            values = (cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b))
+            if values[0] * values[1] < -1e-10 and values[2] * values[3] < -1e-10:
+                return True
+    return False
+
 
 
 def test_rectangle_allowance_offsets_every_side():
@@ -55,6 +79,20 @@ def test_invalid_allowance_is_rejected():
     except ValueError:
         return
     raise AssertionError("negative seam allowance must be rejected")
+
+
+def test_large_simple_ring_matches_intersection_reference():
+    """Required GEOS predicate agrees with the former Python oracle on a simple ring."""
+    points = tuple((cos(tau * index / 64), sin(tau * index / 64)) for index in range(64))
+    assert not _python_self_intersects_reference(points)
+    assert not _self_intersects(points)
+
+
+def test_geos_detects_a_crossing_outline():
+    """GEOS and the test-only reference both detect a crossing polygon outline."""
+    points = ((0.0, 0.0), (2.0, 2.0), (0.0, 2.0), (2.0, 0.0))
+    assert _python_self_intersects_reference(points)
+    assert _self_intersects(points)
 
 
 if __name__ == "__main__":

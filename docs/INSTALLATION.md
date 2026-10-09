@@ -7,10 +7,13 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - FreeCAD **1.1.0 or newer** for user installation; this minimum is declared in `package.xml`.
 - Python **3.12** for repository development/CI and the PositionBasedDynamics-capable canonical environment.
 - `triangle==20250106` for constrained pattern meshing.
+- `pydantic>=2.11,<3` for validated geometry, mesh, and seam inputs.
+- `scipy>=1.14,<2` for exact spatial-index nearest-vertex clearance.
+- `shapely>=2,<3` for GEOS-backed polygon simplicity checks.
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
 
 ## User installation
 
@@ -43,6 +46,15 @@ Install the development toolchain with:
 python -m pip install -e ".[dev]"
 pre-commit install
 ```
+
+SciPy and Shapely are required dependencies for the core geometry pipeline and are installed with the main package. There is no separate geometry extra or runtime fallback path.
+
+```bash
+python -m pip install -e .
+```
+
+The benchmark under `tools/benchmarks/benchmark_geometry_libraries.py` compares the required
+library outputs with independent test/reference calculations before reporting timings.
 
 The canonical GUI tests run inside the published FreeCAD CI environment because they exercise the actual GUI, solver backend and rendering path.
 

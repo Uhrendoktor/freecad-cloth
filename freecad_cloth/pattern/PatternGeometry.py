@@ -2,7 +2,12 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from math import hypot
+from math import hypot, isfinite
+
+from freecad_cloth.common.ValidationModels import (
+    RectangleDimensions, SampleCount, SeamAllowanceOptions,
+    validate_finite_number, validate_point2d, validate_points2d,
+)
 
 Point = tuple[float, float]
 
@@ -15,16 +20,22 @@ class LineSegment:
     start: Point
     end: Point
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        object.__setattr__(self, "start", validate_point2d(self.start))
+        object.__setattr__(self, "end", validate_point2d(self.end))
+
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
-        return (
-            self.start[0] + (self.end[0] - self.start[0]) * t,
-            self.start[1] + (self.end[1] - self.start[1]) * t,
+        t = validate_finite_number(t)
+        return _require_finite_point(
+            (_lerp(self.start[0], self.end[0], t), _lerp(self.start[1], self.end[1], t))
         )
 
     def length(self) -> float:
-        """Return the geometric length represented by this object."""
-        return hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
+        """Return the finite geometric length represented by this object."""
+        return _distance(self.start, self.end)
 
 
 @dataclass(frozen=True)
@@ -36,18 +47,31 @@ class QuadraticBezier:
     control: Point
     end: Point
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        object.__setattr__(self, "start", validate_point2d(self.start))
+        object.__setattr__(self, "control", validate_point2d(self.control))
+        object.__setattr__(self, "end", validate_point2d(self.end))
+
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
-        u = 1.0 - t
-        return (
-            u * u * self.start[0] + 2 * u * t * self.control[0] + t * t * self.end[0],
-            u * u * self.start[1] + 2 * u * t * self.control[1] + t * t * self.end[1],
+        t = validate_finite_number(t)
+        first = (
+            _lerp(self.start[0], self.control[0], t),
+            _lerp(self.start[1], self.control[1], t),
+        )
+        second = (
+            _lerp(self.control[0], self.end[0], t),
+            _lerp(self.control[1], self.end[1], t),
+        )
+        return _require_finite_point(
+            (_lerp(first[0], second[0], t), _lerp(first[1], second[1], t))
         )
 
     def polyline(self, samples: int = 32) -> list[Point]:
         """Return sampled polyline points for this geometry."""
-        if samples < 2:
-            raise ValueError("samples must be at least 2")
+        samples = SampleCount(count=samples).count
         return [self.point(i / (samples - 1)) for i in range(samples)]
 
 
@@ -58,9 +82,13 @@ class PolylineSegment:
     id: str
     points: tuple[Point, ...]
 
-    def __post_init__(self):
-        if len(self.points) < 2:
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        points = validate_points2d(self.points)
+        if len(points) < 2:
             raise ValueError("polyline segment needs at least two points")
+        object.__setattr__(self, "points", points)
 
     @property
     def start(self) -> Point:
@@ -74,10 +102,13 @@ class PolylineSegment:
 
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
-        fraction = min(1.0, max(0.0, float(t)))
+        fraction = min(1.0, max(0.0, validate_finite_number(t)))
         lengths = [0.0]
         for a, b in zip(self.points, self.points[1:], strict=False):
-            lengths.append(lengths[-1] + _distance(a, b))
+            total_length = lengths[-1] + _distance(a, b)
+            if not isfinite(total_length):
+                raise ValueError("polyline length must be finite")
+            lengths.append(total_length)
         total = lengths[-1]
         if total <= 1e-12:
             return self.points[0]
@@ -87,7 +118,7 @@ class PolylineSegment:
                 span = lengths[index] - lengths[index - 1]
                 local = 0.0 if span <= 1e-12 else (target - lengths[index - 1]) / span
                 a, b = self.points[index - 1], self.points[index]
-                return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
+                return _require_finite_point((_lerp(a[0], b[0], local), _lerp(a[1], b[1], local)))
         return self.points[-1]
 
     def polyline(self, samples: int = 32) -> list[Point]:
@@ -96,7 +127,10 @@ class PolylineSegment:
 
     def length(self) -> float:
         """Return the geometric length represented by this object."""
-        return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
+        total = sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
+        if not isfinite(total):
+            raise ValueError("polyline length must be finite")
+        return total
 
 
 Segment = LineSegment | QuadraticBezier | PolylineSegment
@@ -109,12 +143,22 @@ class ParametricPattern:
     regeneration as long as the topology is unchanged.
     """
 
-    def __init__(self, segments: Iterable[Segment]):
+    def __init__(self, segments: Iterable[Segment]) -> None:
         self.segments = list(segments)
         self.validate()
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
+        if any(not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment)) for segment in self.segments):
+            raise TypeError("pattern segments must be supported segment types")
+        # Recheck coordinates in case a caller bypassed frozen dataclasses.
+        for segment in self.segments:
+            if isinstance(segment, LineSegment):
+                validate_points2d((segment.start, segment.end))
+            elif isinstance(segment, QuadraticBezier):
+                validate_points2d((segment.start, segment.control, segment.end))
+            else:
+                validate_points2d(segment.points)
         if len(self.segments) < 3:
             raise ValueError("pattern needs at least three boundary segments")
         ids = [segment.id for segment in self.segments]
@@ -131,6 +175,7 @@ class ParametricPattern:
 
     def sampled_outline(self, curve_samples: int = 32) -> list[Point]:
         """Provide the public sampled outline operation."""
+        curve_samples = SampleCount(count=curve_samples).count
         result: list[Point] = []
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -141,6 +186,7 @@ class ParametricPattern:
 
     def lengths(self, curve_samples: int = 128) -> dict[str, float]:
         """Provide the public lengths operation."""
+        curve_samples = SampleCount(count=curve_samples).count
         values: dict[str, float] = {}
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -150,6 +196,8 @@ class ParametricPattern:
                 values[segment.id] = sum(
                     _distance(a, b) for a, b in zip(points, points[1:], strict=False)
                 )
+            if not isfinite(values[segment.id]):
+                raise ValueError("pattern segment lengths must be finite")
         return values
 
 
@@ -164,9 +212,8 @@ def seam_allowance_outline(
     supports ordinary simple convex/concave outlines and deliberately leaves
     self-intersection resolution to a later geometry layer.
     """
-    allowance = float(allowance)
-    if allowance < 0.0:
-        raise ValueError("seam allowance cannot be negative")
+    options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
+    allowance, curve_samples = options.allowance, options.curve_samples
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
         raise ValueError("pattern needs at least three outline points")
@@ -198,32 +245,51 @@ def seam_allowance_outline(
         if point is None:
             point = current[0]
         result.append(point)
-    return result
+    return list(validate_points2d(result))
 
 
 def _signed_area(points: Sequence[Point]) -> float:
-    return 0.5 * sum(
+    area = 0.5 * sum(
         points[i][0] * points[(i + 1) % len(points)][1]
         - points[(i + 1) % len(points)][0] * points[i][1]
         for i in range(len(points))
     )
+    if not isfinite(area):
+        raise ValueError("pattern outline area must be finite")
+    return area
 
 
-def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point):
+def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | None:
     ax, ay = a2[0] - a1[0], a2[1] - a1[1]
     bx, by = b2[0] - b1[0], b2[1] - b1[1]
     denominator = ax * by - ay * bx
+    if not isfinite(denominator):
+        raise ValueError("offset line intersection must be finite")
     if abs(denominator) < 1e-12:
         return None
     cx, cy = b1[0] - a1[0], b1[1] - a1[1]
     t = (cx * by - cy * bx) / denominator
-    return a1[0] + t * ax, a1[1] + t * ay
+    return _require_finite_point((a1[0] + t * ax, a1[1] + t * ay))
+
+
+def _lerp(start: float, end: float, fraction: float) -> float:
+    """Interpolate robustly on [0, 1] and preserve extrapolation elsewhere."""
+    if 0.0 <= fraction <= 1.0:
+        return start * (1.0 - fraction) + end * fraction
+    return start + (end - start) * fraction
+
+
+def _require_finite_point(point: Point) -> Point:
+    """Reject non-finite values produced by otherwise finite arithmetic."""
+    if not all(isfinite(value) for value in point):
+        raise ValueError("computed geometry point must be finite")
+    return point
 
 
 def rectangle(width: float, height: float) -> ParametricPattern:
     """Create a deterministic rectangular pattern from dimensions in mm."""
-    if width <= 0 or height <= 0:
-        raise ValueError("rectangle dimensions must be positive")
+    dimensions = RectangleDimensions(width=width, height=height)
+    width, height = dimensions.width, dimensions.height
     return ParametricPattern(
         [
             LineSegment("bottom", (0.0, 0.0), (width, 0.0)),
@@ -235,4 +301,7 @@ def rectangle(width: float, height: float) -> ParametricPattern:
 
 
 def _distance(a: Point, b: Point) -> float:
-    return hypot(a[0] - b[0], a[1] - b[1])
+    distance = hypot(a[0] - b[0], a[1] - b[1])
+    if not isfinite(distance):
+        raise ValueError("computed segment length must be finite")
+    return distance

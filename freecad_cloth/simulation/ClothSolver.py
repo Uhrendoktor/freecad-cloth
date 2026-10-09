@@ -9,6 +9,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from math import dist, isfinite
 
+from freecad_cloth.common.ValidationModels import (
+    DistanceConstraintInput, GridInput, ParticleIndexInput, ParticleInput,
+    ParticlePairInput, validate_finite_number,
+)
+
 
 @dataclass
 class Particle:
@@ -18,6 +23,14 @@ class Particle:
     y: float
     z: float
     inv_mass: float = 1.0
+
+    def __post_init__(self) -> None:
+        validated = ParticleInput.model_validate(
+            {"x": self.x, "y": self.y, "z": self.z, "inv_mass": self.inv_mass}
+        )
+        self.x, self.y, self.z, self.inv_mass = (
+            validated.x, validated.y, validated.z, validated.inv_mass
+        )
 
     def position(self) -> tuple[float, float, float]:
         """Return the particle position."""
@@ -33,10 +46,22 @@ class DistanceConstraint:
     rest: float
     compliance: float = 0.0
 
+    def __post_init__(self) -> None:
+        validated = DistanceConstraintInput.model_validate(
+            {"a": self.a, "b": self.b, "rest": self.rest, "compliance": self.compliance}
+        )
+        object.__setattr__(self, "a", validated.a)
+        object.__setattr__(self, "b", validated.b)
+        object.__setattr__(self, "rest", validated.rest)
+        object.__setattr__(self, "compliance", validated.compliance)
+
 
 def distance(a: Particle, b: Particle) -> float:
-    """Return Euclidean distance between two particles."""
-    return dist(a.position(), b.position())
+    """Return a finite Euclidean distance between two particles."""
+    result = dist(a.position(), b.position())
+    if not isfinite(result):
+        raise ValueError("particle distance must be finite")
+    return result
 
 
 class ClothSystem:
@@ -49,8 +74,24 @@ class ClothSystem:
         stitches: Iterable[DistanceConstraint] = (),
         pins: Iterable[int] = (),
     ) -> None:
-        self.particles: list[Particle] = list(particles)
-        self.constraints: list[DistanceConstraint] = list(constraints)
+        raw_particles: list[object] = list(particles)
+        self.particles: list[Particle] = []
+        for particle in raw_particles:
+            if not isinstance(particle, Particle):
+                raise TypeError("particles must be Particle instances")
+            # Particle is mutable; revalidate at the solver-system boundary.
+            ParticleInput.model_validate(
+                {"x": particle.x, "y": particle.y, "z": particle.z, "inv_mass": particle.inv_mass}
+            )
+            self.particles.append(particle)
+
+        raw_constraints: list[object] = list(constraints)
+        self.constraints: list[DistanceConstraint] = []
+        for constraint in raw_constraints:
+            if not isinstance(constraint, DistanceConstraint):
+                raise TypeError("constraints must be DistanceConstraint instances")
+            self._validate_constraint_indices(constraint)
+            self.constraints.append(constraint)
         self.stitches: list[DistanceConstraint] = []
         self.pins: dict[int, tuple[float, float, float]] = {}
         self.add_stitches(stitches)
@@ -66,12 +107,12 @@ class ClothSystem:
         origin: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> "ClothSystem":
         """Build a deterministic rectangular solver-input mesh."""
-        if width <= 0.0 or height <= 0.0:
-            raise ValueError("grid dimensions must be positive")
-        if nx < 2 or ny < 2:
-            raise ValueError("grid resolution must be at least 2 by 2")
-
-        ox, oy, oz = (float(value) for value in origin)
+        spec = GridInput.model_validate(
+            {"width": width, "height": height, "nx": nx, "ny": ny, "origin": origin}
+        )
+        width, height, nx, ny, (ox, oy, oz) = (
+            spec.width, spec.height, spec.nx, spec.ny, spec.origin
+        )
         particles = [
             Particle(
                 ox + width * i / (nx - 1),
@@ -114,27 +155,46 @@ class ClothSystem:
         compliance: float = 0.0,
     ) -> None:
         """Append sewing constraints, deriving zero-rest length from particle positions."""
+        compliance = validate_finite_number(compliance)
         if compliance < 0.0:
             raise ValueError("compliance must be non-negative")
         for pair in pairs:
             if isinstance(pair, DistanceConstraint):
                 constraint = pair
             else:
-                a, b = (int(pair[0]), int(pair[1]))
-                if a < 0 or b < 0 or a >= len(self.particles) or b >= len(self.particles):
-                    raise ValueError("stitch particle index outside system")
-                constraint = DistanceConstraint(a, b, 0.0, compliance)
+                values = tuple(pair)
+                if len(values) != 2:
+                    raise ValueError("stitch pairs must contain exactly two particle indices")
+                validated = ParticlePairInput.model_validate({"a": values[0], "b": values[1]})
+                constraint = DistanceConstraint(validated.a, validated.b, 0.0, compliance)
+            self._validate_constraint_indices(constraint)
             self.stitches.append(constraint)
 
     def pin(self, indices: Iterable[int]) -> None:
         """Record pinned particles and set their inverse mass to zero."""
-        for index in indices:
-            index = int(index)
-            if index < 0 or index >= len(self.particles):
+        for raw_index in indices:
+            index = ParticleIndexInput.model_validate({"index": raw_index}).index
+            if index >= len(self.particles):
                 raise ValueError("pin index outside system")
             self.pins[index] = self.particles[index].position()
             self.particles[index].inv_mass = 0.0
 
+    def _validate_constraint_indices(self, constraint: DistanceConstraint) -> None:
+        """Reject constraints that reference missing particles."""
+        count = len(self.particles)
+        if constraint.a >= count or constraint.b >= count:
+            raise ValueError("constraint particle index outside system")
+
     def finite(self) -> bool:
-        """Return whether all input particle coordinates are finite."""
-        return all(isfinite(value) for particle in self.particles for value in particle.position())
+        """Return whether particle state and constraint parameters remain finite."""
+        return all(
+            isfinite(value) and isfinite(particle.inv_mass) and particle.inv_mass >= 0.0
+            for particle in self.particles
+            for value in particle.position()
+        ) and all(
+            isfinite(constraint.rest)
+            and isfinite(constraint.compliance)
+            and constraint.rest >= 0.0
+            and constraint.compliance >= 0.0
+            for constraint in (*self.constraints, *self.stitches)
+        )

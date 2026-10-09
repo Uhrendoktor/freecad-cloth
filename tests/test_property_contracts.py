@@ -12,9 +12,9 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle, distance
 
 
 @given(
-    st.floats(allow_nan=False, allow_infinity=False),
-    st.floats(allow_nan=False, allow_infinity=False),
-    st.floats(allow_nan=False, allow_infinity=False),
+    st.floats(min_value=-1e100, max_value=1e100, allow_nan=False, allow_infinity=False),
+    st.floats(min_value=-1e100, max_value=1e100, allow_nan=False, allow_infinity=False),
+    st.floats(min_value=-1e100, max_value=1e100, allow_nan=False, allow_infinity=False),
 )
 def test_particle_distance_is_symmetric(x: float, y: float, z: float) -> None:
     """Euclidean distance is symmetric and zero for identical inputs."""
@@ -22,6 +22,12 @@ def test_particle_distance_is_symmetric(x: float, y: float, z: float) -> None:
     b = Particle(-x, y, -z)
     assert distance(a, b) == distance(b, a)
     assert distance(a, a) == 0.0
+
+
+def test_particle_distance_rejects_unrepresentable_finite_coordinates() -> None:
+    """Finite coordinates can have a Euclidean distance outside float range."""
+    with pytest.raises(ValueError, match="distance must be finite"):
+        distance(Particle(0.0, 0.0, 1e308), Particle(0.0, 0.0, -1e308))
 
 
 class ClothSystemStateMachine(RuleBasedStateMachine):

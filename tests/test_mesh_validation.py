@@ -63,6 +63,13 @@ def test_vertex_clearance_is_translation_sensitive():
     _approx(nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)), 2.0)
 
 
+def test_large_vertex_clearance_returns_exact_nearest_distance():
+    """The required spatial index preserves the exact nearest-point distance."""
+    garment = tuple((float(index), 5.0, 0.0) for index in range(48))
+    target = tuple((float(index), 0.0, 0.0) for index in range(48))
+    _approx(nearest_target_clearance(garment, target), 5.0)
+
+
 def test_trimesh_surface_clearance_is_optional():
     vertices, triangles = square_mesh()
     try:

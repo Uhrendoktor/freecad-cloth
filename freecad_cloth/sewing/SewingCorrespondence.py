@@ -12,6 +12,10 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from freecad_cloth.common.ValidationModels import (
+    ArcLengthSamplingInput, CorrespondenceAnalysisInput, CorrespondenceSamplesInput,
+)
+
 STATUS_VALID = "valid"
 STATUS_REVERSED = "reversed"
 STATUS_LENGTH_MISMATCH = "length_mismatch"
@@ -104,13 +108,18 @@ def analyze_correspondence(
     accepted.  A length mismatch is reported when the relative difference
     exceeds ``length_tolerance``.
     """
-    values = (length_a, length_b, length_tolerance)
-    if any(not math.isfinite(float(value)) for value in values):
-        raise ValueError("seam lengths and tolerance must be finite")
-    if length_a <= 0.0 or length_b <= 0.0:
-        raise ValueError("seam lengths must be positive")
-    if length_tolerance < 0.0 or length_tolerance >= 1.0:
-        raise ValueError("length tolerance must be in [0, 1)")
+    inputs = CorrespondenceAnalysisInput.model_validate(
+        {
+            "length_a": length_a, "length_b": length_b,
+            "start_a": start_a, "end_a": end_a,
+            "start_b": start_b, "end_b": end_b,
+            "reversed_b": reversed_b, "length_tolerance": length_tolerance,
+        }
+    )
+    length_a, length_b = inputs.length_a, inputs.length_b
+    start_a, end_a = inputs.start_a, inputs.end_a
+    start_b, end_b = inputs.start_b, inputs.end_b
+    reversed_b, length_tolerance = inputs.reversed_b, inputs.length_tolerance
 
     if not _range_is_valid(start_a, end_a) or not _range_is_valid(start_b, end_b):
         return CorrespondenceReport(
@@ -161,33 +170,23 @@ def arc_length_vertex_indices(
     end: float = 1.0,
 ) -> tuple[int, ...]:
     """Select existing edge vertices by physical arc length over a normalized range."""
-    if int(count) < 2:
-        raise ValueError("at least two correspondence samples are required")
-    start = float(start)
-    end = float(end)
-    if not _range_is_valid(start, end):
-        raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
-
-    values = tuple(values)
-    points = tuple(tuple(float(x) for x in point) for point in points)
-    if len(values) != len(points):
-        raise ValueError("arc-length sampling points must match edge vertices")
-    if len(points) < 2:
-        raise ValueError("arc-length sampling needs at least two points")
-    dimensions = len(points[0])
-    if dimensions < 2 or any(len(point) != dimensions for point in points):
-        raise ValueError("arc-length sampling points must have matching dimensions")
-    if any(any(not math.isfinite(value) for value in point) for point in points):
-        raise ValueError("arc-length sampling points must be finite")
+    inputs = ArcLengthSamplingInput.model_validate(
+        {"values": values, "points": points, "count": count, "start": start, "end": end}
+    )
+    values, points = inputs.values, inputs.points
+    count, start, end = inputs.count, inputs.start, inputs.end
 
     cumulative = [0.0]
     for first, second in zip(points, points[1:], strict=False):
-        cumulative.append(cumulative[-1] + math.dist(first, second))
+        next_distance = cumulative[-1] + math.dist(first, second)
+        if not math.isfinite(next_distance):
+            raise ValueError("arc-length sampling total length must be finite")
+        cumulative.append(next_distance)
     total = cumulative[-1]
     if total <= 0.0:
         raise ValueError("arc-length sampling needs a positive total length")
 
-    sample_count = min(int(count), len(values))
+    sample_count = min(count, len(values))
     last = len(values) - 1
     start_distance = start * total
     end_distance = end * total
@@ -285,8 +284,16 @@ def correspondence_samples(
     reversed_b: bool = False,
 ) -> tuple[tuple[float, float], ...]:
     """Return paired normalized parameters for deterministic mesh sampling."""
-    if count < 2:
-        raise ValueError("at least two correspondence samples are required")
+    inputs = CorrespondenceSamplesInput.model_validate(
+        {
+            "count": count, "start_a": start_a, "end_a": end_a,
+            "start_b": start_b, "end_b": end_b, "reversed_b": reversed_b,
+        }
+    )
+    count = inputs.count
+    start_a, end_a = inputs.start_a, inputs.end_a
+    start_b, end_b = inputs.start_b, inputs.end_b
+    reversed_b = inputs.reversed_b
     return tuple(
         (
             start_a + (end_a - start_a) * i / (count - 1),
