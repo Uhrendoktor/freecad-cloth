@@ -11,9 +11,10 @@ from pathlib import Path
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 ARTIFACT_ROOTS = (
+    # The tunic audit owns the canonical profiles also used by the 3D arranged/draped views.
+    Path("tunic"),
     Path("turntables"),
     Path("blanket"),
-    Path("tunic"),
     Path("avatar-pose-ui"),
     Path("interactive-arrange"),
     Path("sewing"),

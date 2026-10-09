@@ -79,9 +79,14 @@ def main() -> int:
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     ref = os.environ.get("GITHUB_REF", "")
     publish_result = os.environ.get("VISUAL_PUBLISH_RESULT", "")
-    if event_name == "push" and ref == "refs/heads/main" and publish_result != "success":
+    publish_required = os.environ.get("VISUAL_PUBLISH_REQUIRED", "").lower() == "true"
+    # Preserve local/manual test behavior, but require publication for both merge pushes
+    # and the hosted fallback dispatch that actually runs the publisher.
+    if not os.environ.get("VISUAL_PUBLISH_REQUIRED"):
+        publish_required = event_name == "push" and ref == "refs/heads/main"
+    if publish_required and publish_result != "success":
         errors.append(
-            "merge-to-main run must generate and publish the exact visual inventory; "
+            "main visual-evidence release must generate and publish the exact visual inventory; "
             f"publisher result was {publish_result!r}"
         )
     if errors:
