@@ -65,6 +65,8 @@ def test_canonical_tunic_uses_arrangement_points_collision_and_named_avatar_anch
     assert "scene.AvatarAttachmentAnchors = [" in source
     assert '"%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3])' in source
     assert '"%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5])' in source
+    assert '"%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5])' in source
     assert "scene.PinSelection = [str(index) for index in anchor_indices]" not in source
     assert "AttachmentOffset" in source
     assert "side-support-pins" not in source
@@ -260,6 +262,8 @@ def test_canonical_tunic_anchors_to_avatar_surface_by_semantic_shoulder_edges():
     assert "scene.AttachmentOffset" in source
     assert '"%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3])' in source
     assert '"%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5])' in source
+    assert '"%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5])' in source
     assert "select_support_vertex_below_highest" not in source
     assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False)' in source
     assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False)' in source
@@ -290,7 +294,7 @@ def test_tunic_attachment_selection_uses_semantic_shoulder_landmarks():
     assert len(assignments) == 1
     anchors = assignments[0]
     assert isinstance(anchors, ast.List)
-    assert len(anchors.elts) == 2
+    assert len(anchors.elts) == 4
     formats = tuple(
         element.left.value
         for element in anchors.elts
@@ -298,8 +302,8 @@ def test_tunic_attachment_selection_uses_semantic_shoulder_landmarks():
         and isinstance(element.left, ast.Constant)
         and isinstance(element.left.value, str)
     )
-    assert formats.count("%s|%s|shoulder_right") == 1
-    assert formats.count("%s|%s|shoulder_left") == 1
+    assert formats.count("%s|%s|shoulder_right") == 2
+    assert formats.count("%s|%s|shoulder_left") == 2
     assert "side-support-pins" not in source
 
 

@@ -873,11 +873,14 @@ def simulation():
     scene.PinMode = "Avatar Attachment"
     scene.PinSelection = []
     scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
-    # Anchor the front shoulder edges only; sewn back edges follow the
-    # front panel through the authoritative shoulder seam constraints.
+    # Both panels attach to the same lateral skin points at each sewn shoulder.
+    # This supports the seam on both sides; initial gaps below diagnose whether the
+    # solver stitches pair pinned particles with their actual counterparts.
     scene.AvatarAttachmentAnchors = [
         "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
         "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5]),
+        "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
+        "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
     ]
     refresh_drape_target(target)
     doc.recompute()
@@ -899,6 +902,33 @@ def simulation():
                 solver_pins, expected_pins
             )
         )
+    # Trace the exact solver stitch correspondence before stepping. Pinned-particle
+    # flags show whether the avatar anchors are members of stitched samples; XYZ
+    # deltas distinguish incorrect edge pairing from later solver dynamics.
+    initial_solver_positions = tuple(backend.positions())
+    pinned_indices = set(solver_pins)
+    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    for seam, _piece_a, _piece_b in seam_records:
+        seam_id = str(getattr(seam, "SeamId", ""))
+        stitch_pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
+        if not stitch_pairs:
+            raise RuntimeError("canonical tunic seam has no solver stitch pairs: %s" % seam_id)
+        for sample_index, (index_a, index_b) in enumerate(stitch_pairs):
+            point_a = initial_solver_positions[int(index_a)]
+            point_b = initial_solver_positions[int(index_b)]
+            dx = float(point_a[0]) - float(point_b[0])
+            dy = float(point_a[1]) - float(point_b[1])
+            dz = float(point_a[2]) - float(point_b[2])
+            gap = (dx * dx + dy * dy + dz * dz) ** 0.5
+            log(
+                "tunic-seam-initial-pair id=%s sample=%d vertices=%d,%d pins=%s,%s "
+                "dx=%.2f dy=%.2f dz=%.2f gap=%.2f"
+                % (
+                    seam_id, sample_index, int(index_a), int(index_b),
+                    int(index_a) in pinned_indices, int(index_b) in pinned_indices,
+                    dx, dy, dz, gap,
+                )
+            )
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
