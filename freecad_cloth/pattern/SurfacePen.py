@@ -19,6 +19,8 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from shapely.geometry import LineString
+
 from freecad_cloth.shared.SourceSignature import source_signature
 
 
@@ -94,55 +96,12 @@ def polygon_area_2d(points: Sequence[Point2]) -> float:
     )
 
 
-def _orientation(a: Point2, b: Point2, c: Point2) -> float:
-    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def _on_segment(a: Point2, b: Point2, p: Point2, tolerance: float = 1e-9) -> bool:
-    return (
-        min(a[0], b[0]) - tolerance <= p[0] <= max(a[0], b[0]) + tolerance
-        and min(a[1], b[1]) - tolerance <= p[1] <= max(a[1], b[1]) + tolerance
-    )
-
-
-def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
-    values = (_orientation(a, b, c), _orientation(a, b, d), _orientation(c, d, a), _orientation(c, d, b))
-    eps = 1e-9
-    if (
-        ((values[0] > eps and values[1] < -eps) or (values[0] < -eps and values[1] > eps))
-        and ((values[2] > eps and values[3] < -eps) or (values[2] < -eps and values[3] > eps))
-    ):
-        return True
-    return any(
-        abs(value) <= eps and _on_segment(pair[0], pair[1], pair[2])
-        for value, pair in (
-            (values[0], (a, b, c)),
-            (values[1], (a, b, d)),
-            (values[2], (c, d, a)),
-            (values[3], (c, d, b)),
-        )
-    )
-
-
 def polygon_self_intersects(points: Sequence[Point2]) -> bool:
-    """Return True when a non-adjacent polygon edge pair intersects."""
-    count = len(points)
-    if count < 4:
+    """Return True when a closed polygon boundary is not simple under GEOS."""
+    if len(points) < 4:
         return False
-    for first in range(count):
-        first_end = (first + 1) % count
-        for second in range(first + 1, count):
-            second_end = (second + 1) % count
-            if first == second or first_end == second or second_end == first:
-                continue
-            if _segments_intersect(
-                points[first],
-                points[first_end],
-                points[second],
-                points[second_end],
-            ):
-                return True
-    return False
+    return not LineString([*points, points[0]]).is_simple
+
 
 
 def simplify_polyline(points: Sequence[Point3], tolerance_mm: float = 1.0) -> tuple[Point3, ...]:
