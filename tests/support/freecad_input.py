@@ -143,6 +143,13 @@ class _NativeXInput:
         self.screen = int(self._x11.XDefaultScreen(self.display))
         self._x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
         self._x11.XSync.restype = ctypes.c_int
+        self._x11.XSetInputFocus.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_ulong,
+        ]
+        self._x11.XSetInputFocus.restype = ctypes.c_int
         self._x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
         self._x11.XKeysymToKeycode.restype = ctypes.c_uint
         self._xtst.XTestFakeMotionEvent.argtypes = [
@@ -162,6 +169,12 @@ class _NativeXInput:
     def sync(self) -> None:
         """Flush native input and wait for the X server to process it."""
         self._x11.XSync(self.display, 0)
+
+    def focus_window(self, window_id: int) -> None:
+        """Give the X server keyboard focus to a visible top-level Qt window."""
+        if not self._x11.XSetInputFocus(self.display, int(window_id), 2, 0):
+            raise RuntimeError("X11 could not focus native window " + hex(int(window_id)))
+        self.sync()
 
     def move_global(self, x: int, y: int) -> None:
         """Move the real X11 pointer to global screen coordinates."""
@@ -539,6 +552,9 @@ def native_key_click(
         raise RuntimeError("native keyboard target did not acquire focus: " + type(widget).__name__)
 
     driver = _native_input()
+    if window is not None:
+        driver.focus_window(int(window.winId()))
+        _wait_input(30)
     pressed: list[int] = []
     try:
         for modifier in _modifier_keysyms(QtCore, modifiers):

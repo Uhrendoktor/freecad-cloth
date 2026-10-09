@@ -51,3 +51,64 @@ def test_resolve_key_maps_names_and_preserves_qt_enums():
     assert _resolve_key(core, 27) == 27
     with pytest.raises(ValueError, match="unknown Qt keyboard key"):
         _resolve_key(core, "NotARealKey")
+
+
+def test_native_key_click_focuses_x11_window_before_key_events(monkeypatch):
+    from types import SimpleNamespace
+
+    from tests.support import freecad_input
+
+    events = []
+
+    class Widget:
+        focused = False
+
+        def isVisible(self):
+            return True
+
+        def isEnabled(self):
+            return True
+
+        def window(self):
+            return self
+
+        def winId(self):
+            return 42
+
+        def raise_(self):
+            pass
+
+        def activateWindow(self):
+            pass
+
+        def setFocus(self, *_args):
+            self.focused = True
+
+        def hasFocus(self):
+            return self.focused
+
+    class Driver:
+        def focus_window(self, window_id):
+            events.append(("focus", window_id))
+
+        def key(self, keysym, pressed):
+            events.append(("key", keysym, pressed))
+
+    app = SimpleNamespace(processEvents=lambda: None)
+    qt_core = SimpleNamespace(Qt=SimpleNamespace(OtherFocusReason=1))
+    qt_test = SimpleNamespace(QTest=SimpleNamespace(qWait=lambda _ms: None))
+    qt_widgets = SimpleNamespace(QApplication=SimpleNamespace(instance=lambda: app))
+    driver = Driver()
+    monkeypatch.setattr(
+        freecad_input, "_qt_modules", lambda: (qt_core, None, qt_test, qt_widgets)
+    )
+    monkeypatch.setattr(freecad_input, "_native_input", lambda: driver)
+    monkeypatch.setattr(freecad_input, "_wait_input", lambda _ms: None)
+
+    freecad_input.native_key_click(Widget(), "Space")
+
+    assert events == [
+        ("focus", 42),
+        ("key", 0x20, True),
+        ("key", 0x20, False),
+    ]
