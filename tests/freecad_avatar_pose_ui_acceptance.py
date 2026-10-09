@@ -330,7 +330,7 @@ def run():
         "artifacts/ui-gifs/pose-joint-rotation.gif",
         gui=Gui,
         window=window,
-        fps=7,
+        fps=12,
         scale=0.5,
         max_frames=110,
         show_cursor=False,
