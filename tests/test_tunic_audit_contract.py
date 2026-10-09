@@ -38,16 +38,41 @@ def test_canonical_tunic_panel_width_matches_authoritative_shoulder_span():
     assert "panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)" in source
 
 
-def test_tunic_panel_placement_uses_shoulder_depth_not_global_avatar_extents():
+def test_tunic_panel_placement_uses_silhouette_local_surface_depth():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "shoulder_y = (shoulder_left.y + shoulder_right.y) / 2.0" in source
-    placement = source.split("def target_relative_piece_placement(side):", 1)[1].split(
+    assert "def _projected_point_within_outline_margin(" in source
+    placement = source.split("def target_relative_piece_placement(side, outline):", 1)[1].split(
         "def make_piece(", 1
     )[0]
-    assert "shoulder_y - clearance" in placement
-    assert "shoulder_y + clearance" in placement
+    assert "_projected_point_within_outline_margin(" in placement
+    assert "target_front_y = min(projected_target_ys)" in placement
+    assert "target_back_y = max(projected_target_ys)" in placement
+    assert "target_front_y - clearance" in placement
+    assert "target_back_y + clearance" in placement
     assert "min(target_ys)" not in placement
     assert "max(target_ys)" not in placement
+
+
+def test_tunic_projection_filter_keeps_pattern_and_clearance_band():
+    import ast
+
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_projected_point_within_outline_margin"
+    )
+    namespace = {}
+    module = ast.Module(body=[helper], type_ignores=[])
+    exec(compile(module, "freecad_screenshot_source.py", "exec"), namespace, namespace)
+    overlaps = namespace["_projected_point_within_outline_margin"]
+    outline = ((0, 0), (10, 0), (10, 10), (0, 10))
+    assert overlaps(5, 5, outline, 2)
+    assert overlaps(-1, 5, outline, 2)
+    assert not overlaps(-3, 5, outline, 2)
+    assert not overlaps(13, 5, outline, 2)
 
 
 def test_canonical_tunic_uses_avatar_surface_attachments_not_world_side_pins():
