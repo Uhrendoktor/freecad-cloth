@@ -63,9 +63,12 @@ class MeshData:
         if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
         count = len(self.vertices)
-        for tri in self.triangles:
-            if len(tri) != 3 or any(i < 0 or i >= count for i in tri):
-                raise HumanoidMeshError("humanoid mesh contains an invalid face")
+        try:
+            MeshArrays.model_validate(
+                {"vertices": self.vertices, "triangles": self.triangles}
+            )
+        except (TypeError, ValueError) as exc:
+            raise HumanoidMeshError(f"humanoid mesh contains invalid geometry: {exc}") from exc
         return self
 
 
@@ -362,7 +365,9 @@ def _profile_scale(z, profile):
 
 def _is_default_measurement_shape(parameters) -> bool:
     """Return whether the authoritative dimensions are the canonical defaults."""
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+    from freecad_cloth.common.ValidationModels import MeshArrays
+
+from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     return all(
         math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)
