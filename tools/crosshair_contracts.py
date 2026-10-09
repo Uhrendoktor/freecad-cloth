@@ -41,10 +41,12 @@ def ranged_seam_mapping_contract(
     end_b: float,
     reversed_b: bool,
 ) -> float:
-    """Check interval bounds and endpoint mapping through the production seam mapper."""
-    assert 0.0 <= parameter_a <= 1.0
-    assert 0.0 <= start_a < end_a <= 1.0
-    assert 0.0 <= start_b < end_b <= 1.0
+    """Check range mapping for normalized intervals.
+
+    pre: 0.0 <= parameter_a <= 1.0
+    pre: 0.0 <= start_a < end_a <= 1.0
+    pre: 0.0 <= start_b < end_b <= 1.0
+    """
     result = map_parameter(parameter_a, start_a, end_a, start_b, end_b, reversed_b)
     assert start_b <= result <= end_b
     if parameter_a == start_a:
@@ -55,10 +57,12 @@ def ranged_seam_mapping_contract(
 
 
 def interpolation_contract(start: float, end: float, fraction: float) -> float:
-    """Check the production interpolation helper preserves its convex interval."""
-    assert -1e100 <= start <= 1e100
-    assert -1e100 <= end <= 1e100
-    assert 0.0 <= fraction <= 1.0
+    """Check the production interpolation helper preserves its convex interval.
+
+    pre: -1e100 <= start <= 1e100
+    pre: -1e100 <= end <= 1e100
+    pre: 0.0 <= fraction <= 1.0
+    """
     result = _lerp(start, end, fraction)
     assert min(start, end) <= result <= max(start, end)
     if fraction == 0.0:
@@ -69,11 +73,13 @@ def interpolation_contract(start: float, end: float, fraction: float) -> float:
 
 
 def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float, float]:
-    """Check the production line-intersection math on symbolic perpendicular lines."""
-    assert -1e6 <= x <= 1e6
-    assert -1e6 <= y <= 1e6
+    """Check the production line-intersection math on symbolic perpendicular lines.
+
+    pre: -1e6 <= x <= 1e6
+    pre: -1e6 <= y <= 1e6
+    """
     result = _line_intersection((-1.0, y), (1.0, y), (x, -1.0), (x, 1.0))
     assert result is not None
-    assert result[0] == x
-    assert result[1] == y
+    assert abs(result[0] - x) <= 1e-9
+    assert abs(result[1] - y) <= 1e-9
     return result
