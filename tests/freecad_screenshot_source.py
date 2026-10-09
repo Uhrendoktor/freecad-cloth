@@ -308,107 +308,98 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
-def _native_mesh_inside_states(points, vertices, triangles):
-    """Use FreeCAD's native closed-mesh predicate when available."""
-    try:
-        import Mesh
-
-        native_mesh = Mesh.Mesh()
-        native_mesh.addFacets(
-            [
-                (vertices[int(face[0])], vertices[int(face[1])], vertices[int(face[2])])
-                for face in triangles
-                if len(face) == 3
-            ]
-        )
-        is_inside = getattr(native_mesh, "isInside", None)
-        if not callable(is_inside):
-            return None
-        states = []
-        for point in points:
-            try:
-                states.append(bool(is_inside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError, RuntimeError):
-                return None
-        return tuple(states)
-    except (ImportError, AttributeError, IndexError, TypeError, ValueError, RuntimeError):
-        return None
-
-
-def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
-    """Count cloth vertices inside the authoritative FreeCAD mannequin target."""
+def _inside_target_states(points, target, collision_surface=None):
+    """Return inside/outside states and report the topology used by the audit."""
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     if callable(shape_is_inside):
-        count = 0
-        for point in points:
-            try:
-                if bool(shape_is_inside(App.Vector(*point), 1e-6, True)):
-                    count += 1
-            except (AttributeError, TypeError, ValueError):
-                count = None
-                break
-        if count is not None:
-            return count
-
-    mesh = getattr(target, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    if callable(mesh_is_inside):
-        count = 0
-        for point in points:
-            try:
-                if bool(mesh_is_inside(App.Vector(*point), 1e-6, True)):
-                    count += 1
-            except (AttributeError, TypeError, ValueError):
-                count = None
-                break
-        if count is not None:
-            return count
-
-    surface = collision_surface
-    if surface is not None:
-        vertices = tuple(getattr(surface, "vertices", ()) or ())
-        triangles = tuple(getattr(surface, "triangles", ()) or ())
-        if not vertices or not triangles:
-            raise RuntimeError("authoritative collision surface has no inside/outside topology")
-
-        # Prefer FreeCAD's native inside predicate for the validated collision surface
-        # before the generic ray-parity fallback used on non-FreeCAD platforms.
-        native_states = _native_mesh_inside_states(points, vertices, triangles)
-        if native_states is not None:
-            log(
-                "penetration-check=FreeCAD-Mesh.isInside points=%d triangles=%d"
-                % (len(points), len(triangles))
-            )
-            return sum(native_states)
-
-        # Prefer trimesh's vectorized ray query for production-size mannequins.
-        # The deterministic pure-Python parity test remains the dependency-free fallback.
+        states = []
         try:
-            import numpy as np
-            import trimesh
+            for point in points:
+                states.append(bool(shape_is_inside(App.Vector(*point), 1e-6, True)))
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            states = None
+        if states is not None:
+            log("penetration-check=FreeCAD-Shape.isInside points=%d" % len(points))
+            return tuple(states)
 
+    native_mesh = getattr(target, "Mesh", None)
+    mesh_is_inside = getattr(native_mesh, "isInside", None) if native_mesh is not None else None
+    if callable(mesh_is_inside):
+        states = []
+        try:
+            for point in points:
+                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            states = None
+        if states is not None:
+            log("penetration-check=FreeCAD-Mesh.isInside points=%d" % len(points))
+            return tuple(states)
+
+    if collision_surface is None:
+        raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
+    triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+    if not vertices or not triangles:
+        raise RuntimeError("authoritative collision surface has no inside/outside topology")
+
+    native_mesh_solid = None
+    native_is_solid = getattr(native_mesh, "isSolid", None) if native_mesh is not None else None
+    if callable(native_is_solid):
+        try:
+            native_mesh_solid = bool(native_is_solid())
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            native_mesh_solid = None
+
+    # trimesh provides a robust vectorized point-containment query only for a
+    # watertight target. Log both topology and query fallback reasons so open
+    # target meshes cannot silently masquerade as a valid solid classification.
+    try:
+        import numpy as np
+        import trimesh
+    except ImportError as error:
+        log("penetration-trimesh-unavailable reason=%s:%s" % (
+            type(error).__name__, str(error)[:180]
+        ))
+    else:
+        try:
             target_mesh = trimesh.Trimesh(
                 vertices=np.asarray(vertices, dtype=float),
                 faces=np.asarray(triangles, dtype=int),
                 process=False,
             )
-            if target_mesh.is_watertight:
-                states = target_mesh.contains(np.asarray(points, dtype=float))
-                log("penetration-check=trimesh contains points=%d triangles=%d" % (
-                    len(points), len(triangles)
-                ))
-                return int(np.count_nonzero(states))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+            watertight = bool(target_mesh.is_watertight)
+            winding_consistent = bool(target_mesh.is_winding_consistent)
+            log(
+                "penetration-target-topology watertight=%s winding_consistent=%s native_mesh_solid=%s"
+                % (watertight, winding_consistent, native_mesh_solid)
+            )
+            if watertight:
+                try:
+                    states = target_mesh.contains(np.asarray(points, dtype=float))
+                except Exception as error:
+                    log("penetration-trimesh-contains-fallback reason=%s:%s" % (
+                        type(error).__name__, str(error)[:180]
+                    ))
+                else:
+                    log("penetration-check=trimesh-contains points=%d triangles=%d" % (
+                        len(points), len(triangles)
+                    ))
+                    return tuple(bool(state) for state in states)
+            else:
+                log("penetration-trimesh-contains-fallback reason=target-not-watertight")
+        except (RuntimeError, TypeError, ValueError, IndexError) as error:
+            log("penetration-trimesh-topology-fallback reason=%s:%s" % (
+                type(error).__name__, str(error)[:180]
+            ))
 
-        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+    from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-        log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
-            len(points), len(triangles)
-        ))
-        return sum(points_inside_closed_mesh(points, vertices, triangles))
-    raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
+        len(points), len(triangles)
+    ))
+    return points_inside_closed_mesh(points, vertices, triangles)
+
 
 def write_drape_metrics(
     panels,
@@ -478,12 +469,8 @@ def write_drape_metrics(
             if backend_for_collision is not None
             else None
         )
-        penetrating_vertices = _inside_target_count(
-            vertices,
-            avatar,
-            collision_surface,
-            solver_collision_surface,
-        )
+        inside_flags = _inside_target_states(vertices, avatar, collision_surface)
+        penetrating_vertices = sum(inside_flags)
         record["penetration_surface"] = (
             "solver" if solver_collision_surface is not None else "authoritative-target"
         )
@@ -513,29 +500,9 @@ def write_drape_metrics(
                     else ()
                 )
                 inside_points = []
+                inside_positions = []
                 if target_points and target_triangles:
-                    target_inside_states = _native_mesh_inside_states(
-                        vertices, target_points, target_triangles
-                    )
-                    if target_inside_states is None:
-                        target_inside_states = points_inside_closed_mesh(
-                            vertices, target_points, target_triangles
-                        )
-                    solver_inside_states = None
-                    if solver_vertices and solver_triangles:
-                        solver_inside_states = _native_mesh_inside_states(
-                            vertices, solver_vertices, solver_triangles
-                        )
-                        if solver_inside_states is None:
-                            solver_inside_states = points_inside_closed_mesh(
-                                vertices, solver_vertices, solver_triangles
-                            )
-                    for point, authoritative_inside, solver_inside in zip(
-                        vertices,
-                        target_inside_states,
-                        solver_inside_states or (None,) * len(vertices),
-                        strict=False,
-                    ):
+                    for point, authoritative_inside in zip(vertices, inside_flags, strict=False):
                         if not authoritative_inside:
                             continue
                         point_tuple = tuple(float(value) for value in point)
@@ -543,17 +510,22 @@ def write_drape_metrics(
                             dist(point_tuple, tuple(float(value) for value in target))
                             for target in target_points
                         )
+                        inside_positions.append(point_tuple)
                         inside_points.append(
                             {
                                 "point": tuple(round(value, 3) for value in point_tuple),
                                 "nearest_target_vertex_mm": round(float(nearest), 3),
-                                "solver_surface_inside": solver_inside,
+                                "solver_surface_inside": None,
                             }
                         )
-                        # Evidence stores twelve samples; stop after collecting the same
-                        # bounded payload instead of scanning every cloth point again.
                         if len(inside_points) >= 12:
                             break
+                if inside_positions and solver_vertices and solver_triangles:
+                    solver_inside_states = points_inside_closed_mesh(
+                        inside_positions, solver_vertices, solver_triangles
+                    )
+                    for sample, solver_inside in zip(inside_points, solver_inside_states, strict=False):
+                        sample["solver_surface_inside"] = bool(solver_inside)
                 log(
                     "penetration-evidence panel=%s count=%d samples=%s"
                     % (record["panel"], penetrating_vertices, inside_points)
