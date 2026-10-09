@@ -47,15 +47,14 @@ python -m pip install -e ".[dev]"
 pre-commit install
 ```
 
-Install optional SciPy/Shapely geometry accelerations only when useful for large derived meshes and outlines:
+SciPy and Shapely are required dependencies for the core geometry pipeline and are installed with the main package. There is no separate geometry extra or runtime fallback path.
 
 ```bash
-python -m pip install -e ".[geometry]"
+python -m pip install -e .
 ```
 
-These packages are not required by the default workbench installation. The affected code keeps a
-standard-library fallback; the benchmark under `tools/benchmarks/benchmark_geometry_libraries.py`
-checks output equivalence before reporting timings.
+The benchmark under `tools/benchmarks/benchmark_geometry_libraries.py` compares the required
+library outputs with independent test/reference calculations before reporting timings.
 
 The canonical GUI tests run inside the published FreeCAD CI environment because they exercise the actual GUI, solver backend and rendering path.
 
