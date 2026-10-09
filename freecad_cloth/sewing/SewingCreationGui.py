@@ -305,7 +305,9 @@ class SewingCreationTaskPanel:
     def toggle_viewport_picking(self):
         if self._viewport_picking:
             self._stop_viewport_picking()
-            self._show_status("Viewport picking paused. Preview the current edge selection when ready.")
+            self.feedback.setText("Viewport picking paused. Press Preview to review the selected edges.")
+            self.feedback.setStyleSheet("")
+            self.commit_button.setEnabled(False)
             return
         self._start_viewport_picking()
 
