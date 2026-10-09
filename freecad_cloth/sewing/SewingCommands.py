@@ -378,6 +378,9 @@ def focus_selected_seam_3d():
         for obj, visible in previous:
             with contextlib.suppress(AttributeError, RuntimeError):
                 obj.ViewObject.Visibility = visible
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    refresh_seam_overlay(doc)
     return seam
 
 
@@ -437,6 +440,9 @@ def show_sewing_2d():
     view = Gui.activeDocument().activeView()
     view.viewTop()
     view.fitAll()
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    refresh_seam_overlay(document)
 
 
 COMMANDS = [
