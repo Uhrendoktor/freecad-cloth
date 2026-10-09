@@ -204,7 +204,11 @@ def _add_label(
     label: str,
     rgb: tuple[float, float, float],
 ) -> None:
-    separator = coin.SoSeparator()
+    # Pattern solids can cover labels when their sampled edge lies below the
+    # face surface. SoAnnotation renders its children in Coin's foreground pass,
+    # keeping semantic A/B identifiers legible in both flat and 3D workbench views.
+    annotation_type = getattr(coin, "SoAnnotation", coin.SoSeparator)
+    annotation = annotation_type()
     depth = coin.SoDepthBuffer()
     depth.test = False
     depth.write = False
@@ -217,12 +221,12 @@ def _add_label(
     font.size.setValue(12.0)
     text = coin.SoText2()
     text.string.setValue(str(label))
-    separator.addChild(depth)
-    separator.addChild(color)
-    separator.addChild(transform)
-    separator.addChild(font)
-    separator.addChild(text)
-    parent.addChild(separator)
+    annotation.addChild(depth)
+    annotation.addChild(color)
+    annotation.addChild(transform)
+    annotation.addChild(font)
+    annotation.addChild(text)
+    parent.addChild(annotation)
 
 
 def _canonical_seams(document: Any) -> list[Any]:
