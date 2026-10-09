@@ -28,6 +28,10 @@ simulation = [
   "numpy>=2,<3",
   "pyPBD==2.2.2",
 ]
+geometry = [
+  "scipy>=1.14,<2",
+  "shapely>=2,<3",
+]
 dev = [
   "import-linter==2.15",
   "pre-commit==4.6.2",
