@@ -203,22 +203,110 @@ def assert_seam_overlay(document, expected_ids, hovered_seam_id=None):
     return controller
 
 
+@contextlib.contextmanager
+def isolated_seam_overlay_evidence(document, seam_ids, pattern_pieces=()):
+    """Frame only the intended paired pieces and their semantic seams for screenshots."""
+    expected = {str(value).strip() for value in seam_ids if str(value).strip()}
+    piece_names = {str(getattr(piece, "Name", "")) for piece in pattern_pieces}
+    visibility_snapshots = []
+    snapshotted_names = set()
+    placement_snapshots = []
+
+    def set_visibility(obj, visible):
+        view_object = getattr(obj, "ViewObject", None)
+        name = str(getattr(obj, "Name", ""))
+        if view_object is None or name in snapshotted_names:
+            if view_object is not None:
+                view_object.Visibility = bool(visible)
+            return
+        snapshotted_names.add(name)
+        visibility_snapshots.append((view_object, bool(getattr(view_object, "Visibility", True))))
+        view_object.Visibility = bool(visible)
+
+    try:
+        for obj in document.Objects:
+            identity = str(getattr(obj, "SeamId", "")).strip()
+            if identity:
+                set_visibility(obj, identity in expected)
+            elif str(getattr(obj, "PatternType", "")) == "PatternPiece":
+                set_visibility(obj, str(getattr(obj, "Name", "")) in piece_names)
+
+        for piece in pattern_pieces:
+            set_visibility(piece, True)
+
+        if len(pattern_pieces) >= 2:
+            import FreeCAD as App
+
+            piece_a, piece_b = pattern_pieces[:2]
+            placement_b = piece_b.Placement
+            placement_snapshots.append((piece_b, placement_b))
+            bounds_a = piece_a.Shape.BoundBox
+            bounds_b = piece_b.Shape.BoundBox
+            gap = 30.0
+            shift_x = float(bounds_a.XMax) + gap - float(bounds_b.XMin)
+            piece_b.Placement = App.Placement(
+                App.Vector(
+                    float(placement_b.Base.x) + shift_x,
+                    float(placement_b.Base.y),
+                    float(placement_b.Base.z),
+                ),
+                placement_b.Rotation,
+            )
+
+        document.recompute()
+        active_document = Gui.activeDocument()
+        view = active_document.activeView() if active_document is not None else None
+        if view is not None:
+            view.viewTop()
+            view.fitAll()
+            process_events()
+        yield
+    finally:
+        for piece, placement in reversed(placement_snapshots):
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+                piece.Placement = placement
+        for view_object, visible in reversed(visibility_snapshots):
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+                view_object.Visibility = visible
+        with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+            document.recompute()
+            process_events()
+
+
 def save_seam_overlay_evidence(document, expected_ids, filename, hovered_seam_id=None):
     """Capture a view only after its transient Coin overlay passes semantic checks."""
-    controller = assert_seam_overlay(document, expected_ids, hovered_seam_id)
-    active_document = Gui.activeDocument()
-    view = active_document.activeView() if active_document is not None else None
-    assert view is not None, "active FreeCAD view is unavailable for seam evidence"
-    process_events()
-    view.redraw()
-    process_events()
-    destination = LOG_PATH.parent / filename
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    view.saveImage(str(destination), 1280, 720, "White")
-    size = destination.stat().st_size if destination.is_file() else 0
-    assert size > 5000, f"seam overlay screenshot is missing or suspiciously small: {destination}"
-    record(f"seam-overlay-image={filename} bytes={size}")
-    return controller
+    pieces = ()
+    for seam in getattr(document, "Objects", ()):
+        if str(getattr(seam, "SeamId", "")).strip() in {
+            str(value).strip() for value in expected_ids
+        }:
+            pieces = (
+                getattr(seam, "PatternA", None),
+                getattr(seam, "PatternB", None),
+            )
+            if all(piece is not None for piece in pieces):
+                break
+    with isolated_seam_overlay_evidence(document, expected_ids, pieces):
+        controller = assert_seam_overlay(document, expected_ids, hovered_seam_id)
+        assert set(controller.rendered_seam_ids) == {
+            str(value).strip() for value in expected_ids
+        }, (
+            "visual evidence must not include unrelated semantic seam overlays: "
+            f"expected={sorted(expected_ids)!r} rendered={controller.rendered_seam_ids!r}"
+        )
+        active_document = Gui.activeDocument()
+        view = active_document.activeView() if active_document is not None else None
+        assert view is not None, "active FreeCAD view is unavailable for seam evidence"
+        process_events()
+        view.redraw()
+        process_events()
+        destination = LOG_PATH.parent / filename
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        view.saveImage(str(destination), 1280, 720, "White")
+        size = destination.stat().st_size if destination.is_file() else 0
+        assert size > 5000, f"seam overlay screenshot is missing or suspiciously small: {destination}"
+        record(f"seam-overlay-image={filename} bytes={size}")
+        return controller
 
 
 def save_seam_overlay_hover_animation(document, seam_ids, filename):
@@ -234,75 +322,84 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
     view = active_document.activeView() if active_document is not None else None
     assert view is not None, "active FreeCAD view is unavailable for seam animation"
     target_a, target_b = identities[0], identities[-1]
-
-    frame_dir = LOG_PATH.parent / "seam-overlay-hover-frames"
-    frame_dir.mkdir(parents=True, exist_ok=True)
-    specs = (
-        ("no-hover", True, ""),
-        ("hover-first", True, target_a),
-        ("hover-second", True, target_b),
-        ("highlights-disabled", False, ""),
-        ("highlights-restored", True, target_a),
+    target_seam = next(
+        obj for obj in document.Objects
+        if str(getattr(obj, "SeamId", "")).strip() == target_a
     )
-    frames = []
-    try:
-        for index, (state_name, enabled, hovered) in enumerate(specs):
-            if seam_highlights_enabled() != enabled:
-                set_seam_highlights_enabled(enabled)
-            controller = refresh_seam_overlay(document) if enabled else None
-            if enabled:
-                assert controller is not None and controller.root is not None
-                controller.refresh(
-                    document,
-                    active_seam_id=hovered,
-                    prefer_simulation=False,
-                    hovered_seam_id=hovered,
-                )
-                expected_labels = (hovered,) if hovered else ()
-                assert controller.rendered_label_seam_ids == expected_labels, (
-                    "hover animation rendered unexpected labels: "
-                    f"state={state_name} labels={controller.rendered_label_seam_ids!r}"
-                )
-            else:
-                assert controller is None, "disabled color highlights left an overlay attached"
-                neutral = (0.48, 0.48, 0.48)
-                colored_seams = [
-                    obj
-                    for obj in document.Objects
-                    if str(getattr(obj, "SeamId", "")).strip()
-                    and getattr(obj, "ViewObject", None) is not None
-                ]
-                assert colored_seams and all(
-                    tuple(round(float(c), 6) for c in obj.ViewObject.LineColor[:3]) == neutral
-                    for obj in colored_seams
-                ), "disabled highlights left identity colors on native seam linework"
+    pieces = (target_seam.PatternA, target_seam.PatternB)
 
-            process_events()
-            view.redraw()
-            process_events()
-            frame_path = frame_dir / f"state-{index:02d}-{state_name}.png"
-            view.saveImage(str(frame_path), 1280, 720, "White")
-            assert frame_path.is_file() and frame_path.stat().st_size > 5000, (
-                f"seam overlay animation frame is missing or empty: {state_name}"
+    with isolated_seam_overlay_evidence(document, identities, pieces):
+        frame_dir = LOG_PATH.parent / "seam-overlay-hover-frames"
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        specs = (
+            ("no-hover", True, ""),
+            ("hover-first", True, target_a),
+            ("hover-second", True, target_b),
+            ("highlights-disabled", False, ""),
+            ("highlights-restored", True, target_a),
+        )
+        frames = []
+        try:
+            for index, (state_name, enabled, hovered) in enumerate(specs):
+                if seam_highlights_enabled() != enabled:
+                    set_seam_highlights_enabled(enabled)
+                controller = refresh_seam_overlay(document) if enabled else None
+                if enabled:
+                    assert controller is not None and controller.root is not None
+                    controller.refresh(
+                        document,
+                        active_seam_id=hovered,
+                        prefer_simulation=False,
+                        hovered_seam_id=hovered,
+                    )
+                    assert set(controller.rendered_seam_ids) == set(identities), (
+                        "hover animation contains unrelated semantic seams: "
+                        f"state={state_name} ids={controller.rendered_seam_ids!r}"
+                    )
+                    expected_labels = (hovered,) if hovered else ()
+                    assert controller.rendered_label_seam_ids == expected_labels, (
+                        "hover animation rendered unexpected labels: "
+                        f"state={state_name} labels={controller.rendered_label_seam_ids!r}"
+                    )
+                else:
+                    assert controller is None, "disabled color highlights left an overlay attached"
+                    neutral = (0.48, 0.48, 0.48)
+                    colored_seams = [
+                        obj
+                        for obj in document.Objects
+                        if str(getattr(obj, "SeamId", "")).strip() in set(identities)
+                        and getattr(obj, "ViewObject", None) is not None
+                    ]
+                    assert colored_seams and all(
+                        tuple(round(float(c), 6) for c in obj.ViewObject.LineColor[:3]) == neutral
+                        for obj in colored_seams
+                    ), "disabled highlights left identity colors on native seam linework"
+
+                process_events()
+                view.redraw()
+                process_events()
+                frame_path = frame_dir / f"state-{index:02d}-{state_name}.png"
+                view.saveImage(str(frame_path), 1280, 720, "White")
+                assert frame_path.is_file() and frame_path.stat().st_size > 5000, (
+                    f"seam overlay animation frame is missing or empty: {state_name}"
+                )
+                with Image.open(frame_path) as image_frame:
+                    rgb = image_frame.convert("RGB")
+                    resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                    frames.append(rgb.resize((640, 360), resampling).copy())
+
+            output = LOG_PATH.parent / "ui-gifs" / filename
+            write_gif(frames, output, fps=2, max_colors=96)
+            assert output.is_file() and output.stat().st_size > 5000, (
+                "seam overlay hover animation is missing or suspiciously small"
             )
-            with Image.open(frame_path) as image_frame:
-                rgb = image_frame.convert("RGB")
-                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
-                frames.append(rgb.resize((640, 360), resampling).copy())
-
-        output = LOG_PATH.parent / "ui-gifs" / filename
-        write_gif(frames, output, fps=2, max_colors=96)
-        assert output.is_file() and output.stat().st_size > 5000, (
-            "seam overlay hover animation is missing or suspiciously small"
-        )
-        record(
-            f"seam-overlay-animation={filename} frames={len(frames)} bytes={output.stat().st_size}"
-        )
-        return output
-    finally:
-        # The smoke continues using color identities after the animation.
-        set_seam_highlights_enabled(True)
-        set_seam_overlay_respect_depth(True)
+            record(
+                f"seam-overlay-animation={filename} frames={len(frames)} bytes={output.stat().st_size}"
+            )
+            return output
+        finally:
+            set_seam_highlights_enabled(True)
+            set_seam_overlay_respect_depth(True)
 
 
 def save_seam_overlay_options_evidence(filename):
