@@ -482,6 +482,80 @@ def key_release(
     QtTest.QTest.keyRelease(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
 
 
+def native_key_click(
+    widget: Any,
+    key: str,
+    modifiers: Any | None = None,
+    delay_ms: int = 20,
+) -> None:
+    """Send a native X11 key click to the focused Qt widget."""
+    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
+    if not widget.isVisible() or not widget.isEnabled():
+        raise RuntimeError("cannot send native keyboard input to a hidden or disabled widget")
+
+    name = key.strip().lower().replace("key_", "")
+    keysyms = {
+        "space": 0x20,
+        "return": 0xFF0D,
+        "enter": 0xFF0D,
+        "escape": 0xFF1B,
+        "esc": 0xFF1B,
+        "tab": 0xFF09,
+        "backspace": 0xFF08,
+        "delete": 0xFFFF,
+        "left": 0xFF51,
+        "up": 0xFF52,
+        "right": 0xFF53,
+        "down": 0xFF54,
+    }
+    if name in keysyms:
+        keysym = keysyms[name]
+    elif len(name) == 1:
+        keysym = ord(name)
+    else:
+        raise ValueError("unknown native X11 key: " + key)
+
+    window = widget.window()
+    if window is not None:
+        raise_window = getattr(window, "raise_", None)
+        activate_window = getattr(window, "activateWindow", None)
+        if callable(raise_window):
+            raise_window()
+        if callable(activate_window):
+            activate_window()
+    focus_reason = getattr(QtCore.Qt, "OtherFocusReason", None)
+    if focus_reason is None:
+        widget.setFocus()
+    else:
+        widget.setFocus(focus_reason)
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.qWait(50)
+    if app is not None:
+        app.processEvents()
+    has_focus = getattr(widget, "hasFocus", None)
+    if callable(has_focus) and not has_focus():
+        raise RuntimeError("native keyboard target did not acquire focus: " + type(widget).__name__)
+
+    driver = _native_input()
+    pressed: list[int] = []
+    try:
+        for modifier in _modifier_keysyms(QtCore, modifiers):
+            driver.key(modifier, True)
+            pressed.append(modifier)
+        driver.key(keysym, True)
+        pressed.append(keysym)
+        _wait_input(max(0, delay_ms))
+    finally:
+        for pressed_key in reversed(pressed):
+            try:
+                driver.key(pressed_key, False)
+            except RuntimeError:
+                pass
+        _wait_input(30)
+
+
 def key_click(
     widget: Any,
     key: Any,
@@ -489,6 +563,9 @@ def key_click(
     delay_ms: int = 20,
 ) -> None:
     """Send a keyboard interaction after activating and focusing the target widget."""
+    if isinstance(key, str) and key.strip().lower().replace("key_", "") == "space":
+        native_key_click(widget, key, modifiers, delay_ms)
+        return
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
         raise RuntimeError("cannot send keyboard input to a hidden or disabled widget")
