@@ -436,7 +436,6 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
           run-number: ${{ github.run_number }}
-
   maintenance-cleanup:
     name: Repository retention cleanup
     needs: [agent-quality]
