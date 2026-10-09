@@ -27,19 +27,40 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     if any(not identity for identity in identities):
         raise ValueError("seam identity must not be empty")
 
-    labels: dict[str, str] = {}
-    used: set[str] = set()
-    for identity in identities:
-        if identity.startswith("seam-") and identity[5:].isdigit():
-            base = "S" + identity[5:]
-        else:
-            slug = "".join(char for char in identity if char.isalnum())[:6] or "Seam"
-            base = f"{slug}-{sha1(identity.encode('utf-8')).hexdigest()[:6]}"
-        candidate = base
-        while candidate in used:
-            candidate += "x"
-        labels[identity] = candidate
-        used.add(candidate)
+    labels = {
+        identity: "S" + identity[5:]
+        for identity in identities
+        if identity.startswith("seam-") and identity[5:].isdigit()
+    }
+    hashed = {
+        identity: sha1(identity.encode("utf-8")).hexdigest().upper()
+        for identity in identities
+        if identity not in labels
+    }
+    widths = {identity: 6 for identity in hashed}
+    while True:
+        candidates = {
+            identity: "S" + hashed[identity][:widths[identity]]
+            for identity in hashed
+        }
+        by_label: dict[str, list[str]] = {}
+        for identity, label in candidates.items():
+            by_label.setdefault(label, []).append(identity)
+        collisions = [members for members in by_label.values() if len(members) > 1]
+        if not collisions:
+            labels.update(candidates)
+            break
+        for members in collisions:
+            for identity in members:
+                widths[identity] = min(widths[identity] + 2, len(hashed[identity]))
+        # SHA-1 is long enough that the terminal collision path is only a defensive
+        # guard; retain unique labels even if all digest characters collide.
+        if any(widths[identity] >= len(hashed[identity]) for group in collisions for identity in group):
+            labels.update(candidates)
+            for identity in identities:
+                if labels[identity] in {labels[other] for other in labels if other != identity}:
+                    labels[identity] += "-" + str(identities.index(identity) + 1)
+            break
     return labels
 
 
@@ -126,9 +147,13 @@ def _side_segments(
         _add(notch_center, _scale(perpendicular, notch_half)),
     ])
 
-    arrow_index = max(1, min(len(coords) - 2, round((len(coords) - 1) * 0.68)))
-    tip = coords[arrow_index]
-    arrow_tangent = _unit(_subtract(coords[arrow_index + 1], coords[arrow_index - 1]))
+    if len(coords) >= 3:
+        arrow_index = max(1, min(len(coords) - 2, round((len(coords) - 1) * 0.68)))
+        tip = coords[arrow_index]
+        arrow_tangent = _unit(_subtract(coords[arrow_index + 1], coords[arrow_index - 1]))
+    else:
+        tip = coords[-1]
+        arrow_tangent = _unit(_subtract(coords[-1], coords[0]))
     if arrow_tangent is not None:
         arrow_perpendicular = _unit(_cross(arrow_tangent, (0.0, 0.0, 1.0)))
         if arrow_perpendicular is None:
@@ -189,7 +214,7 @@ def _add_label(
     x, y, z = _xyz(point)
     transform.translation.setValue(coin.SbVec3f(x, y, z + 1.2))
     font = coin.SoFont()
-    font.size.setValue(14.0)
+    font.size.setValue(12.0)
     text = coin.SoText2()
     text.string.setValue(str(label))
     separator.addChild(depth)
