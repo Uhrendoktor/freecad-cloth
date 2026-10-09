@@ -360,6 +360,35 @@ def test_avatar_attachment_projection_uses_semantic_front_back_ray_and_native_no
         assert abs(records[0].source_distance_mm - 10.0) < 1e-9
 
 
+def test_avatar_attachment_projection_tries_reverse_ray_but_keeps_outward_normal(monkeypatch):
+    from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments
+
+    native_mesh = _install_native_mesh_projection(
+        monkeypatch,
+        plane_axis="x",
+        plane_value=180.0,
+        normal=(1.0, 0.0, 0.0),
+    )
+    source = (220.0, 0.0, 1347.5)
+    projected, records = project_avatar_attachments(
+        (source,),
+        (0,),
+        _attachment_test_surface(),
+        offset_mm=3.0,
+        target_points={0: source},
+        projection_directions={0: (1.0, 0.0, 0.0)},
+    )
+
+    assert tuple(direction for _point, direction in native_mesh.rays) == (
+        (1.0, 0.0, 0.0),
+        (-1.0, 0.0, 0.0),
+    )
+    assert records[0].source_distance_mm == 40.0
+    assert records[0].surface_point == (180.0, 0.0, 1347.5)
+    assert records[0].outward_normal == (1.0, 0.0, 0.0)
+    assert projected[0] == (183.0, 0.0, 1347.5)
+
+
 def test_avatar_attachment_projection_rejects_points_too_far_from_target(monkeypatch):
     import pytest
     from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments

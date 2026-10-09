@@ -181,22 +181,28 @@ def project_avatar_attachments(
         source = supplied_targets.get(particle_index, particle_position)
         source_vector = App.Vector(*source)
         if particle_index in supplied_directions:
-            direction_vector = App.Vector(*supplied_directions[particle_index])
-            if float(direction_vector.Length) <= 1e-9:
+            outward_vector = App.Vector(*supplied_directions[particle_index])
+            if float(outward_vector.Length) <= 1e-9:
                 raise ValueError("avatar projection direction must be non-zero")
-            direction_vector.normalize()
-            directions = (
-                (float(direction_vector.x), float(direction_vector.y), float(direction_vector.z)),
-            )
+            outward_vector.normalize()
         else:
-            radial = source_vector - center_vector
-            if float(radial.Length) <= 1e-9:
+            outward_vector = source_vector - center_vector
+            if float(outward_vector.Length) <= 1e-9:
                 raise ValueError("avatar landmark at the DrapeTarget center has no projection direction")
-            radial.normalize()
-            directions = (
-                (float(radial.x), float(radial.y), float(radial.z)),
-                (-float(radial.x), -float(radial.y), -float(radial.z)),
-            )
+            outward_vector.normalize()
+        # Search both ways along the semantic axis. A landmark may sit just outside
+        # the skin, where the outward ray can miss the local torso and hit a distant
+        # arm instead. Keep the semantic outward vector separate from the ray used
+        # to find the nearest surface so the attachment offset still points outward.
+        preferred_direction = (
+            float(outward_vector.x),
+            float(outward_vector.y),
+            float(outward_vector.z),
+        )
+        directions = (
+            preferred_direction,
+            tuple(-component for component in preferred_direction),
+        )
         candidates = []
         for direction in directions:
             hits = native_mesh.nearestFacetOnRay(source, direction)
@@ -219,14 +225,15 @@ def project_avatar_attachments(
                 (
                     "avatar attachment is too far from the DrapeTarget surface: {:.2f} mm "
                     "(maximum {:.2f} mm; particle_index={}; source={}; particle={}; "
-                    "direction={}; hit={})"
+                    "direction={}; outward={}; hit={})"
                 ).format(
                     source_distance,
                     maximum_distance,
                     particle_index,
                     tuple(round(value, 3) for value in source),
                     tuple(round(value, 3) for value in particle_position),
-                    tuple(round(value, 3) for value in direction),
+                    tuple(round(value, 3) for value in hit_direction),
+                    preferred_direction,
                     tuple(round(value, 3) for value in closest),
                 )
             )
@@ -236,8 +243,7 @@ def project_avatar_attachments(
         if float(normal.Length) <= 1e-12:
             raise ValueError("FreeCAD returned a degenerate facet normal for an avatar anchor")
         normal.normalize()
-        direction_vector = App.Vector(*hit_direction)
-        if float(normal.dot(direction_vector)) < 0.0:
+        if float(normal.dot(outward_vector)) < 0.0:
             normal = -normal
         closest_vector = App.Vector(*closest)
         anchor_vector = closest_vector + normal * offset
