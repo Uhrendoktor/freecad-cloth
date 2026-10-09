@@ -14,13 +14,16 @@ def test_write_gif_emits_looping_animation(tmp_path):
         Image.new("RGB", (32, 24), (20, 20, 255)),
         Image.new("RGB", (32, 24), (20, 255, 20)),
     ]
-    path = write_gif(frames, tmp_path / "ui.gif", fps=5)
+    path = write_gif(frames, tmp_path / "ui.gif", fps=12)
     assert path.is_file()
     with Image.open(path) as gif:
         assert gif.format == "GIF"
         assert gif.info.get("loop") == 0
         assert sum(1 for _ in ImageSequence.Iterator(gif)) == 3
         assert gif.size == (32, 24)
+        # GIF delays have centisecond precision; 12 FPS encodes to about 80 ms.
+        durations = [frame.info["duration"] for frame in ImageSequence.Iterator(gif)]
+        assert all(80 <= duration < 100 for duration in durations)
 
 
 def test_write_gif_rejects_invalid_frame_rate(tmp_path):
