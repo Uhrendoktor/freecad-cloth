@@ -84,7 +84,8 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         print(f"visual-asset-contract-error={exc}", file=sys.stderr)
         return 1
-    print(f"visual-asset-contract=passed documented_and_generated={count} event={event_name or \"local\"}")
+    event = event_name or "local"
+    print(f"visual-asset-contract=passed documented_and_generated={count} event={event}")
     if event_name == "push" and ref == "refs/heads/main":
         print(f"merge-publication=passed result={publish_result}")
     return 0
