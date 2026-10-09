@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from math import hypot
+from math import hypot, isfinite
 
 from freecad_cloth.common.ValidationModels import (
     RectangleDimensions, SampleCount, SeamAllowanceOptions,
@@ -29,14 +29,13 @@ class LineSegment:
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
         t = validate_finite_number(t)
-        return (
-            self.start[0] + (self.end[0] - self.start[0]) * t,
-            self.start[1] + (self.end[1] - self.start[1]) * t,
+        return _require_finite_point(
+            (_lerp(self.start[0], self.end[0], t), _lerp(self.start[1], self.end[1], t))
         )
 
     def length(self) -> float:
-        """Return the geometric length represented by this object."""
-        return hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
+        """Return the finite geometric length represented by this object."""
+        return _distance(self.start, self.end)
 
 
 @dataclass(frozen=True)
@@ -58,10 +57,16 @@ class QuadraticBezier:
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
         t = validate_finite_number(t)
-        u = 1.0 - t
-        return (
-            u * u * self.start[0] + 2 * u * t * self.control[0] + t * t * self.end[0],
-            u * u * self.start[1] + 2 * u * t * self.control[1] + t * t * self.end[1],
+        first = (
+            _lerp(self.start[0], self.control[0], t),
+            _lerp(self.start[1], self.control[1], t),
+        )
+        second = (
+            _lerp(self.control[0], self.end[0], t),
+            _lerp(self.control[1], self.end[1], t),
+        )
+        return _require_finite_point(
+            (_lerp(first[0], second[0], t), _lerp(first[1], second[1], t))
         )
 
     def polyline(self, samples: int = 32) -> list[Point]:
@@ -100,7 +105,10 @@ class PolylineSegment:
         fraction = min(1.0, max(0.0, validate_finite_number(t)))
         lengths = [0.0]
         for a, b in zip(self.points, self.points[1:], strict=False):
-            lengths.append(lengths[-1] + _distance(a, b))
+            total_length = lengths[-1] + _distance(a, b)
+            if not isfinite(total_length):
+                raise ValueError("polyline length must be finite")
+            lengths.append(total_length)
         total = lengths[-1]
         if total <= 1e-12:
             return self.points[0]
@@ -119,7 +127,10 @@ class PolylineSegment:
 
     def length(self) -> float:
         """Return the geometric length represented by this object."""
-        return sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
+        total = sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
+        if not isfinite(total):
+            raise ValueError("polyline length must be finite")
+        return total
 
 
 Segment = LineSegment | QuadraticBezier | PolylineSegment
@@ -185,6 +196,8 @@ class ParametricPattern:
                 values[segment.id] = sum(
                     _distance(a, b) for a, b in zip(points, points[1:], strict=False)
                 )
+            if not isfinite(values[segment.id]):
+                raise ValueError("pattern segment lengths must be finite")
         return values
 
 
@@ -232,26 +245,45 @@ def seam_allowance_outline(
         if point is None:
             point = current[0]
         result.append(point)
-    return result
+    return list(validate_points2d(result))
 
 
 def _signed_area(points: Sequence[Point]) -> float:
-    return 0.5 * sum(
+    area = 0.5 * sum(
         points[i][0] * points[(i + 1) % len(points)][1]
         - points[(i + 1) % len(points)][0] * points[i][1]
         for i in range(len(points))
     )
+    if not isfinite(area):
+        raise ValueError("pattern outline area must be finite")
+    return area
 
 
 def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | None:
     ax, ay = a2[0] - a1[0], a2[1] - a1[1]
     bx, by = b2[0] - b1[0], b2[1] - b1[1]
     denominator = ax * by - ay * bx
+    if not isfinite(denominator):
+        raise ValueError("offset line intersection must be finite")
     if abs(denominator) < 1e-12:
         return None
     cx, cy = b1[0] - a1[0], b1[1] - a1[1]
     t = (cx * by - cy * bx) / denominator
-    return a1[0] + t * ax, a1[1] + t * ay
+    return _require_finite_point((a1[0] + t * ax, a1[1] + t * ay))
+
+
+def _lerp(start: float, end: float, fraction: float) -> float:
+    """Interpolate robustly on [0, 1] and preserve extrapolation elsewhere."""
+    if 0.0 <= fraction <= 1.0:
+        return start * (1.0 - fraction) + end * fraction
+    return start + (end - start) * fraction
+
+
+def _require_finite_point(point: Point) -> Point:
+    """Reject non-finite values produced by otherwise finite arithmetic."""
+    if not all(isfinite(value) for value in point):
+        raise ValueError("computed geometry point must be finite")
+    return point
 
 
 def rectangle(width: float, height: float) -> ParametricPattern:
@@ -269,4 +301,7 @@ def rectangle(width: float, height: float) -> ParametricPattern:
 
 
 def _distance(a: Point, b: Point) -> float:
-    return hypot(a[0] - b[0], a[1] - b[1])
+    distance = hypot(a[0] - b[0], a[1] - b[1])
+    if not isfinite(distance):
+        raise ValueError("computed segment length must be finite")
+    return distance
