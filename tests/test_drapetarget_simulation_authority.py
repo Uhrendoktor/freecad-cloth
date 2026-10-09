@@ -46,15 +46,14 @@ class DrapeTargetAuthorityTests(unittest.TestCase):
         self.assertTrue(status["stale"])
 
     def test_stale_target_guard_blocks_proxy_recompute(self):
-        from freecad_cloth.simulation.SimulationCommands import _drape_target_guard
+        from freecad_cloth.simulation.SimulationCommands import _require_drape_target_ready
 
         source, target = self._target()
-        self.assertFalse(_drape_target_guard(target)["blocked"])
+        document = SimpleNamespace(Objects=(target,))
+        self.assertIs(_require_drape_target_ready(document), target)
         source.Placement.Base.x = 10.0
-        status = _drape_target_guard(target)
-        self.assertTrue(status["blocked"])
-        self.assertEqual(status["state"], "stale")
-        self.assertIn("rebuild collision surface", status["message"])
+        with self.assertRaisesRegex(RuntimeError, "rebuild collision surface"):
+            _require_drape_target_ready(document)
 
     def test_target_contract_is_provider_neutral(self):
         from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec

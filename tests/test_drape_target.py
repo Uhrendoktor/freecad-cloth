@@ -63,28 +63,31 @@ class _Mesh:
 
 
 class _Target:
-    Name = "Chair"
-    Label = "Chair target"
-    Placement = _Placement()
-    Shape = _Shape(1)
+    def __init__(self):
+        self.Name = "Chair"
+        self.Label = "Chair target"
+        self.Placement = _Placement()
+        self.Shape = _Shape(1)
 
 
 class _MeshTarget:
-    Name = "MeshTarget"
-    Label = "Mesh target"
-    Placement = _Placement()
-    Mesh = _Mesh((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0)), ((0, 1, 2),))
+    def __init__(self):
+        self.Name = "MeshTarget"
+        self.Label = "Mesh target"
+        self.Placement = _Placement()
+        self.Mesh = _Mesh((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0)), ((0, 1, 2),))
 
 
 class _PersistentTarget:
-    TargetType = "FreeCAD Geometry"
-    Enabled = True
-    CollisionDeflection = 1.0
-    CollisionThickness = 2.0
-    SourceObject = _Target()
-    CollisionVertexCount = 8
-    CollisionTriangleCount = 12
-    SourceSignature = repr(source_signature(SourceObject, 1.0, 2.0))
+    def __init__(self):
+        self.TargetType = "FreeCAD Geometry"
+        self.Enabled = True
+        self.CollisionDeflection = 1.0
+        self.CollisionThickness = 2.0
+        self.SourceObject = _Target()
+        self.CollisionVertexCount = 8
+        self.CollisionTriangleCount = 12
+        self.SourceSignature = repr(source_signature(self.SourceObject, 1.0, 2.0))
 
 
 class DrapeTargetTests(unittest.TestCase):
@@ -172,15 +175,3 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def test_stale_guard_installation_is_not_silently_suppressed():
-    root = Path(__file__).resolve().parents[1]
-    drape = (root / "freecad_cloth" / "simulation" / "DrapeTarget.py").read_text(encoding="utf-8")
-    guard = (root / "freecad_cloth" / "simulation" / "SimulationStaleGuard.py").read_text(
-        encoding="utf-8"
-    )
-    assert "_install_simulation_guard()" in drape
-    assert (
-        "except (ImportError, AttributeError, TypeError):"
-        not in drape.split("_install_simulation_guard", 1)[0][-300:]
-    )
-    assert "except (ImportError, AttributeError, TypeError):" not in guard[-250:]

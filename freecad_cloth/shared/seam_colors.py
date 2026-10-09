@@ -1,5 +1,6 @@
 """Neutral deterministic seam presentation helpers."""
 
+from collections.abc import Iterable
 from colorsys import hsv_to_rgb
 from hashlib import sha512
 
@@ -8,7 +9,7 @@ _SEAM_COLOR_VALUE = 0.92
 _SEAM_COLOR_HASH_SCALE = float(1 << 64)
 
 
-def _seam_color_for_id(seam_id):
+def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
     """Return a stable presentation color derived only from semantic seam identity."""
     identity = str(seam_id).strip()
     if not identity:
@@ -19,13 +20,16 @@ def _seam_color_for_id(seam_id):
     return tuple(round(channel, 6) for channel in rgb)
 
 
-def seam_color_map(seam_ids):
-    """Return deterministic seam colors keyed only by semantic seam ID."""
-    ids = sorted({str(seam_id).strip() for seam_id in seam_ids if str(seam_id).strip()})
+def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, float]]:
+    """Return deterministic seam colors keyed only by non-empty semantic IDs."""
+    identities = [str(seam_id).strip() for seam_id in seam_ids]
+    if any(not identity for identity in identities):
+        raise ValueError("seam identity must not be empty")
+    ids = sorted(set(identities))
     return {seam_id: _seam_color_for_id(seam_id) for seam_id in ids}
 
 
-def apply_seam_colors(objects):
+def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float, float]]:
     """Apply deterministic colors to document seam objects."""
     seam_objects = [obj for obj in objects if str(getattr(obj, "SeamId", "")).strip()]
     colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)

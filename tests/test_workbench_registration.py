@@ -59,3 +59,82 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
     assert set(wb.commands) == set(
         command for _name, group in SEWING_COMMAND_GROUPS for command in group
     ) | set(fitting.COMMANDS) | set(avatar.COMMANDS)
+
+def test_workbench_package_metadata_matches_registration_surface():
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(ROOT / "package.xml").getroot()
+    namespace = "{https://wiki.freecad.org/Package_Metadata}"
+    assert root.tag == namespace + "package"
+    assert root.findtext(namespace + "name") == "FreeCAD Cloth"
+    assert root.findtext(namespace + "version") == "0.1.0"
+    assert root.findtext(namespace + "license") == "LGPL-2.1-or-later"
+    assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
+    content = root.find(namespace + "content")
+    declared = {
+        item.findtext(namespace + "classname")
+        for item in content.findall(namespace + "workbench")
+    }
+    assert declared == {
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+    }
+
+
+def test_sewing_toolbar_is_stable_and_registered():
+    from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
+
+    assert TOOLBAR_COMMANDS == (
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_Validate",
+    )
+    workbench = ClothSewingWorkbench()
+    workbench.Initialize()
+    assert set(TOOLBAR_COMMANDS) <= set(workbench.commands)
+
+
+def test_workbench_command_groups_do_not_overlap():
+    import importlib
+
+    groups = {
+        "Pattern": {
+            command
+            for module_name in (
+                "freecad_cloth.pattern.PatternCommands",
+                "freecad_cloth.pattern.PatternMarks",
+            )
+            for command in importlib.import_module(module_name).COMMANDS
+        },
+        "Sewing": {
+            command
+            for module_name in (
+                "freecad_cloth.sewing.SewingCommands",
+                "freecad_cloth.sewing.SewingNetworkCommands",
+                "freecad_cloth.avatar.FittingCommands",
+                "freecad_cloth.avatar.AvatarCommands",
+            )
+            for command in importlib.import_module(module_name).COMMANDS
+        },
+        "Simulation": {
+            command
+            for module_name in (
+                "freecad_cloth.simulation.SimulationCommands",
+                "freecad_cloth.simulation.DrapeCommands",
+            )
+            for command in importlib.import_module(module_name).COMMANDS
+        }
+        | {"ClothRealtimePreview"},
+    }
+    seen = {}
+    for workbench, commands in groups.items():
+        assert commands
+        for command in commands:
+            assert command not in seen, (command, seen.get(command))
+            seen[command] = workbench
+
+
+def test_root_bootstrap_registers_exactly_the_three_package_workbenches():
+    source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
+    assert source.count("Gui.addWorkbench(") == 3

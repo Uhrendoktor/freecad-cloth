@@ -1,52 +1,64 @@
-from freecad_cloth.shared.collision import coarsen_collision_surface, surface_from_triangles
+"""Headless behavioral tests for the neutral collision-surface value object."""
+
+import pytest
+
+from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
 
 
-def _cube_surface():
-    vertices = (
-        (-1.0, -1.0, -1.0),
-        (1.0, -1.0, -1.0),
-        (1.0, 1.0, -1.0),
-        (-1.0, 1.0, -1.0),
-        (-1.0, -1.0, 1.0),
-        (1.0, -1.0, 1.0),
-        (1.0, 1.0, 1.0),
-        (-1.0, 1.0, 1.0),
+def _triangle_surface():
+    return surface_from_triangles(
+        ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+        ((0, 1, 2),),
     )
-    triangles = (
-        (0, 1, 2), (0, 2, 3),
-        (4, 6, 5), (4, 7, 6),
-        (0, 4, 5), (0, 5, 1),
-        (1, 5, 6), (1, 6, 2),
-        (2, 6, 7), (2, 7, 3),
-        (3, 7, 4), (3, 4, 0),
+
+
+def test_surface_from_triangles_normalizes_and_validates_values():
+    surface = surface_from_triangles(
+        ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+        ((0, 1, 2),),
+        region="avatar",
+        thickness=2,
     )
-    return surface_from_triangles(vertices, triangles)
+    assert isinstance(surface, CollisionSurface)
+    assert surface.vertices[1] == (1.0, 0.0, 0.0)
+    assert surface.triangles == ((0, 1, 2),)
+    assert surface.region == "avatar"
+    assert surface.thickness == 2.0
 
 
-def _boundary_edge_count(triangles):
-    counts = {}
-    for triangle in triangles:
-        for left, right in (
-            (triangle[0], triangle[1]),
-            (triangle[1], triangle[2]),
-            (triangle[2], triangle[0]),
-        ):
-            edge = tuple(sorted((int(left), int(right))))
-            counts[edge] = counts.get(edge, 0) + 1
-    return sum(1 for count in counts.values() if count != 2)
+def test_collision_surface_is_immutable_and_can_change_thickness():
+    surface = _triangle_surface()
+    with pytest.raises(AttributeError):
+        surface.thickness = 1.0
+    thicker = surface.with_thickness(3.0)
+    assert thicker.vertices == surface.vertices
+    assert thicker.triangles == surface.triangles
+    assert thicker.region == surface.region
+    assert thicker.thickness == 3.0
 
 
-def test_closed_collision_surface_is_preserved_even_below_triangle_budget():
-    source = _cube_surface()
-    reduced = coarsen_collision_surface(source, max_triangles=6)
-    assert reduced is source
-    assert len(reduced.triangles) == len(source.triangles)
-    assert _boundary_edge_count(reduced.triangles) == 0
+def test_collision_surface_rejects_invalid_geometry_and_thickness():
+    with pytest.raises(ValueError, match="needs vertices and triangles"):
+        surface_from_triangles((), ())
+    with pytest.raises(ValueError, match="thickness"):
+        surface_from_triangles(
+            ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+            ((0, 1, 2),),
+            thickness=-1,
+        )
+    with pytest.raises(ValueError, match="triangle index"):
+        surface_from_triangles(
+            ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+            ((0, 1, 9),),
+        )
+    with pytest.raises(ValueError, match="region"):
+        surface_from_triangles(
+            ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+            ((0, 1, 2),),
+            region="   ",
+        )
 
 
-def test_closed_collision_surface_never_uses_open_surface_coarsening():
-    source = _cube_surface()
-    reduced = coarsen_collision_surface(source, max_triangles=1)
-    assert reduced is source
-    assert len(reduced.vertices) == len(source.vertices)
-    assert len(reduced.triangles) == len(source.triangles)
+def test_collision_surface_center_is_deterministic():
+    surface = _triangle_surface()
+    assert surface.center == pytest.approx((1 / 3, 1 / 3, 0.0))

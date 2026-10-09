@@ -47,6 +47,18 @@ inputs:
     description: Optional artifact path to upload.
     required: false
     default: "artifacts"
+  observation-root:
+    description: Evidence directory relative to the workspace; selected files are indexed relative to this directory.
+    required: false
+    default: "artifacts"
+  observation-label:
+    description: Short scenario or hypothesis label for the observation manifest.
+    required: false
+    default: ""
+  observation-files:
+    description: Optional newline-delimited role=relative/path entries; only existing, allowlisted files are indexed, never copied.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -65,9 +77,10 @@ runs:
       run: timeout --signal=TERM --kill-after=5s 60s bash -lc "$PRE_COMMAND"
 
     - name: Run bounded FreeCAD test
-      uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
+      uses: ./.github/actions/freecad-container
       with:
         image: ${{ inputs.image }}
+        runner-writable-path: ${{ inputs.observation-files != '' && inputs.observation-root || '' }}
         environment: |
           ${{ inputs.environment }}
           CLOTH_CI_STAGE_WORKBENCH=${{ inputs.stage-workbench }}
@@ -86,11 +99,27 @@ runs:
       # Keep the caller's command as one argument so nested shell quoting survives.
       run: bash -lc "$VALIDATE_COMMAND"
 
+    - name: Create optional agent observation manifest
+      id: agent-observation
+      if: ${{ always() && inputs.observation-files != '' }}
+      shell: bash
+      env:
+        OBSERVATION_ROOT: ${{ inputs.observation-root }}
+        OBSERVATION_LABEL: ${{ inputs.observation-label }}
+        OBSERVATION_FILES: ${{ inputs.observation-files }}
+        OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        OBSERVATION_COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        OBSERVATION_TEST_SCRIPT: ${{ inputs.test-script }}
+        OBSERVATION_IMAGE: ${{ inputs.image }}
+      run: python3 tools/ci/create_agent_observation_bundle.py
+
     - name: Upload test evidence
       if: always() && inputs.artifact-name != ''
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.artifact-name }}
-        path: ${{ inputs.artifact-path }}
+        path: |
+          ${{ inputs.artifact-path }}
+          ${{ inputs.observation-files != '' && format('{0}/agent-observation.json', inputs.observation-root) || '' }}
         if-no-files-found: warn
         compression-level: 1

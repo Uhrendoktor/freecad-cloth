@@ -1,0 +1,7 @@
+id: no-sys-path-insert
+valid:
+  - "sys.path.append('x')"
+  - "path.insert('x')"
+invalid:
+  - "sys.path.insert(0, root)"
+  - "sys.path.insert(0, str(root))"

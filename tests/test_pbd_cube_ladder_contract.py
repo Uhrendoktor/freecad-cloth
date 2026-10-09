@@ -29,5 +29,8 @@ def test_cube_ladder_contract_is_gate_and_frozen():
     assert "before-shared-helper-runpath" in source
     assert "after-shared-helper-runpath" in source
     assert '"right_x": 20.0' in source
-    assert "Run cube complexity ladder" in workflow
-    assert "Validate cube ladder artifact" in workflow
+    # The canonical job owns the full ladder gate and uploads the frozen evidence.
+    assert "simulation-ladder:" in workflow
+    assert "test-script: tests/freecad_pbd_cube_ladder.py" in workflow
+    assert "validate-command: python3 tools/ci/validate_manifests.py simulation" in workflow
+    assert "artifact-name: simulation-collision-ladder" in workflow
