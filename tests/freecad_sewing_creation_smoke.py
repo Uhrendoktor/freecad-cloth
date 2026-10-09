@@ -376,6 +376,47 @@ try:
     )
     record("commit-1to1=passed")
 
+    # Exercise the viewport picker event handler with native document selection
+    # and the existing transactional Preview/Cancel boundary.
+    from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel
+
+    class HitView:
+        def __init__(self, hits):
+            self.hits = list(hits)
+
+        def getObjectInfo(self, _x, _y):
+            return self.hits.pop(0)
+
+    pick_before = {obj.Name for obj in doc.Objects}
+    Gui.Selection.clearSelection()
+    picker = SewingCreationTaskPanel("seam")
+    Gui.Control.showDialog(picker)
+    process_events()
+    picker._viewport_view = HitView(
+        [
+            {"Object": piece_a.Name, "Component": "Edge3"},
+            {"Object": piece_b.Name, "Component": "Edge3"},
+        ]
+    )
+    picker._viewport_callback = None
+    picker._viewport_picking = True
+    picker._viewport_mouse_event(
+        {"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)}
+    )
+    assert len(picker._viewport_picks) == 1
+    assert "Side A" in picker.feedback.text()
+    picker._viewport_mouse_event(
+        {"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)}
+    )
+    assert any(getattr(obj, "SeamId", "") for obj in picker.session.created)
+    assert "Seam preview shown" in picker.feedback.text()
+    assert picker.commit_button.isEnabled()
+    picker.reject()
+    wait_for_task_close()
+    process_events()
+    assert {obj.Name for obj in doc.Objects} == pick_before
+    record("viewport-pick-preview-cancel=passed")
+
     cancel_before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
