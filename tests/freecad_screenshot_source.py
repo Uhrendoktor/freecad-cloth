@@ -1135,7 +1135,7 @@ def simulation():
         key = (round(float(x), 4), round(float(z), 4), int(direction))
         if key not in ray_hit_cache:
             origin = App.Vector(float(x), float(tunic_torso_y_mid), float(z))
-            vector = App.Vector(0.0, float(direction), 0.0)
+            vector = (0.0, float(direction), 0.0)
             raw_hits = native_avatar_mesh.nearestFacetOnRay(origin, vector)
             candidates = []
             for raw_index, hit in raw_hits.items():
