@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from hashlib import sha1
+from numbers import Integral
 from typing import Any
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
@@ -292,23 +293,36 @@ def _simulation_seam_geometry(
             side_a: list[tuple[float, float, float]] = []
             side_b: list[tuple[float, float, float]] = []
             connectors: list[list[tuple[float, float, float]]] = []
+            seam_valid = True
             for raw_pair in raw_pairs:
                 try:
                     if len(raw_pair) != 2:
-                        continue
-                    index_a, index_b = int(raw_pair[0]), int(raw_pair[1])
+                        seam_valid = False
+                        break
+                    raw_index_a, raw_index_b = raw_pair
+                    if (
+                        isinstance(raw_index_a, bool)
+                        or not isinstance(raw_index_a, Integral)
+                        or isinstance(raw_index_b, bool)
+                        or not isinstance(raw_index_b, Integral)
+                    ):
+                        seam_valid = False
+                        break
+                    index_a, index_b = int(raw_index_a), int(raw_index_b)
                     if not (
                         0 <= index_a < len(positions)
                         and 0 <= index_b < len(positions)
                     ):
-                        continue
+                        seam_valid = False
+                        break
                     point_a, point_b = _xyz(positions[index_a]), _xyz(positions[index_b])
                 except (IndexError, TypeError, ValueError):
-                    continue
+                    seam_valid = False
+                    break
                 side_a.append(point_a)
                 side_b.append(point_b)
                 connectors.append([point_a, point_b])
-            if len(side_a) >= 2 and len(side_b) >= 2:
+            if seam_valid and len(side_a) >= 2 and len(side_b) >= 2:
                 resolved[seam_id] = (side_a, side_b, connectors)
         if resolved:
             return resolved

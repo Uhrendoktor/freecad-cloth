@@ -236,6 +236,22 @@ def test_simulation_seam_geometry_fails_closed_for_missing_or_stale_indices():
     scene = SimpleNamespace(Proxy=proxy, DrapePanels=[panel])
     assert _simulation_seam_geometry(SimpleNamespace(Objects=[scene])) == {}
 
+    positions = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (10.0, 1.0, 0.0),
+    )
+    mixed_proxy = SimpleNamespace(
+        seam_stitch_pairs={
+            "seam-stale": ((0, 1), (2, 3), (0, 4)),
+            "seam-malformed": ((0, 1), (2, 3), (0,)),
+        },
+        backend=SimpleNamespace(positions=lambda: positions),
+    )
+    mixed_scene = SimpleNamespace(Proxy=mixed_proxy, DrapePanels=[panel])
+    assert _simulation_seam_geometry(SimpleNamespace(Objects=[mixed_scene])) == {}
+
 
 def test_seam_side_overlay_creates_edge_direction_and_notch_strokes():
     points = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
