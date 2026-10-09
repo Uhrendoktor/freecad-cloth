@@ -144,12 +144,48 @@ def assert_seam_overlay(document, expected_ids):
     controller = refresh_seam_overlay(document)
     assert controller is not None, "semantic seam overlay was not attached to the active viewport"
     assert controller.root is not None, "semantic seam overlay has no Coin root"
+    assert getattr(controller, "_location_callback", None) is not None, (
+        "seam hover callback is not installed on the active viewport"
+    )
     rendered = set(controller.rendered_seam_ids)
     assert set(expected_ids) <= rendered, (
         "visible valid semantic seams missing from viewport overlay: "
         f"expected={sorted(expected_ids)!r} rendered={sorted(rendered)!r}"
     )
     assert controller.root.getNumChildren() > 1, "viewport overlay contains no seam geometry"
+
+    target = sorted(expected_ids)[0]
+    try:
+        workbench_name = str(Gui.activeWorkbench().name()).lower()
+    except (AttributeError, RuntimeError, TypeError):
+        workbench_name = ""
+    prefer_simulation = "simulation" in workbench_name
+    controller.refresh(
+        document,
+        active_seam_id=target,
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id=target,
+    )
+    assert controller.rendered_label_seam_ids == (target,), (
+        "hover should show only the matching seam's two labels: "
+        f"actual={controller.rendered_label_seam_ids!r}"
+    )
+    controller.refresh(
+        document,
+        active_seam_id="",
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id="",
+    )
+    assert controller.rendered_label_seam_ids == (), (
+        "seam labels should be hidden when no seam edge is hovered"
+    )
+    # Leave one seam hovered for a useful visual-evidence screenshot.
+    controller.refresh(
+        document,
+        active_seam_id=target,
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id=target,
+    )
     return controller
 
 
@@ -241,6 +277,7 @@ try:
         "ClothSewing_CreateSeam",
         "ClothSewing_CreateMNSewing",
         "ClothSewing_FreeSewing",
+        "ClothSewing_SeamOverlayOptions",
     ):
         assert command in Gui.listCommands(), "missing public sewing command: " + command
     record("commands=registered")
