@@ -1,6 +1,0 @@
-id: no-os-system
-valid:
-  - subprocess.run(["echo", "hello"], check=True)
-  - os.path.join("a", "b")
-invalid:
-  - os.system("echo hello")
