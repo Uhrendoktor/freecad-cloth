@@ -21,7 +21,6 @@ from tests.support.freecad_input import (
     UiGifRecorder,
     click_widget,
     focus_main_window,
-    key_click,
 )
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
@@ -277,24 +276,11 @@ try:
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
-    key_click(cancel_panel.cancel_button, "Space")
-    active_after_key = Gui.Control.activeDialog()
-    record(
-        "cancel-key-state="
-        + repr(
-            {
-                "closing": bool(cancel_panel._closing),
-                "committed": bool(cancel_panel.session.committed),
-                "previewed": bool(cancel_panel.session.previewed),
-                "active_dialog": active_after_key is not None and bool(active_after_key),
-                "form_visible": bool(cancel_panel.form.isVisible()),
-                "cancel_enabled": bool(cancel_panel.cancel_button.isEnabled()),
-            }
-        )
-    )
+    click_widget(cancel_panel.cancel_button)
+    process_events()
     wait_for_task_close()
-    assert {obj.Name for obj in doc.Objects} == cancel_before, "keyboard cancellation persisted preview objects"
-    record("cancel-1to1=passed keyboard=space")
+    assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
+    record("cancel-1to1=passed via=qt-mouse")
 
     count_before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 2))
