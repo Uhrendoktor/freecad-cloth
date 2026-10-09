@@ -38,17 +38,20 @@ def test_canonical_tunic_panel_width_matches_authoritative_shoulder_span():
     assert "panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)" in source
 
 
-def test_tunic_panel_placement_uses_silhouette_local_surface_depth():
+def test_tunic_panel_placement_uses_silhouette_local_torso_depth():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "def _projected_point_within_outline_margin(" in source
     placement = source.split("def target_relative_piece_placement(side, outline):", 1)[1].split(
         "def make_piece(", 1
     )[0]
+    assert "torso_half_width = max(80.0, 0.30 * shoulder_width)" in source
+    assert "abs(float(vertex[0]) - x_mid) <= torso_half_width" in placement
     assert "_projected_point_within_outline_margin(" in placement
     assert "target_front_y = min(projected_target_ys)" in placement
     assert "target_back_y = max(projected_target_ys)" in placement
     assert "target_front_y - clearance" in placement
     assert "target_back_y + clearance" in placement
+    assert "torso-x=[%.2f, %.2f]" in placement
     assert "min(target_ys)" not in placement
     assert "max(target_ys)" not in placement
 
