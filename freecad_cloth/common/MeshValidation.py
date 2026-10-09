@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import dist, isfinite
+from math import dist
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 
@@ -66,13 +66,15 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
         if left_root != right_root:
             parent[right_root] = left_root
 
-    first_face_by_vertex: dict[int, int] = {}
-    for face_index, triangle in enumerate(triangles):
-        for vertex_index in triangle:
-            vertex_index = int(vertex_index)
-            previous_face = first_face_by_vertex.get(vertex_index)
+    # Mesh components are connected through shared edges, not just shared
+    # vertices. Vertex-only adjacency incorrectly merges shells touching at a point.
+    first_face_by_edge: dict[tuple[int, int], int] = {}
+    for face_index, (a, b, c) in enumerate(triangles):
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (min(left, right), max(left, right))
+            previous_face = first_face_by_edge.get(edge)
             if previous_face is None:
-                first_face_by_vertex[vertex_index] = face_index
+                first_face_by_edge[edge] = face_index
             else:
                 union(face_index, previous_face)
 
