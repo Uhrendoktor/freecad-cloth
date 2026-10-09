@@ -12,7 +12,7 @@ from math import isfinite
 from freecad_cloth.common.ValidationModels import (
     TransformMatrixInput, validate_finite_number, validate_points3d,
 )
-from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
 
@@ -44,12 +44,12 @@ class Transform3D:
         object.__setattr__(self, "matrix", validated.matrix)
 
     @classmethod
-    def identity(cls):
+    def identity(cls) -> "Transform3D":
         """Provide the public identity operation."""
         return cls()
 
     @classmethod
-    def translation(cls, x: float, y: float, z: float = 0.0):
+    def translation(cls, x: float, y: float, z: float = 0.0) -> "Transform3D":
         """Provide the public translation operation."""
         values = list(cls().matrix)
         values[3], values[7], values[11] = (
@@ -80,7 +80,7 @@ class SeamPair:
     stitch_group: str = ""
     alignment: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(
             self, "stitch_group", self.seam.stitch_group or self.stitch_group or self.seam.id
         )
@@ -89,32 +89,32 @@ class SeamPair:
         )
 
     @property
-    def id(self):
+    def id(self) -> str:
         """Return the stable identifier."""
         return self.seam.id
 
     @property
-    def piece_a(self):
+    def piece_a(self) -> str:
         """Return the first referenced pattern piece."""
         return self.seam.piece_a
 
     @property
-    def edge_a(self):
+    def edge_a(self) -> EdgeRef:
         """Return the first referenced edge."""
         return self.seam.edge_a
 
     @property
-    def piece_b(self):
+    def piece_b(self) -> str:
         """Return the second referenced pattern piece."""
         return self.seam.piece_b
 
     @property
-    def edge_b(self):
+    def edge_b(self) -> EdgeRef:
         """Return the second referenced edge."""
         return self.seam.edge_b
 
     @property
-    def reversed_b(self):
+    def reversed_b(self) -> bool:
         """Read reversal from the canonical seam; never copy it into the pair."""
         return self.seam.reversed_b
 
@@ -185,9 +185,9 @@ class SeamGraph:
 
     def stitch_pairs(
         self,
-        edge_vertices: Mapping[tuple[str, int], Sequence[int]],
+        edge_vertices: Mapping[tuple[str, EdgeRef], Sequence[int]],
         seam_ids: Iterable[str] = (),
-        edge_points: Mapping[tuple[str, int], Sequence[Sequence[float]]] | None = None,
+        edge_points: Mapping[tuple[str, EdgeRef], Sequence[Sequence[float]]] | None = None,
     ) -> tuple[tuple[int, int], ...]:
         """Return deterministic particle-index stitch pairs for selected seams."""
         selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
@@ -213,7 +213,12 @@ class SeamGraph:
         return tuple(pairs)
 
     @staticmethod
-    def _edge_points(edge_points, piece_id, edge_index, expected_count):
+    def _edge_points(
+        edge_points: Mapping[tuple[str, EdgeRef], Sequence[Sequence[float]]],
+        piece_id: str,
+        edge_index: EdgeRef,
+        expected_count: int,
+    ) -> tuple[Sequence[float], ...]:
         key = (piece_id, edge_index)
         if key not in edge_points:
             raise ValueError(f"missing mesh edge points for {piece_id}:{edge_index}")
@@ -265,17 +270,26 @@ class SeamGraph:
         return self.pieces[piece_id]
 
     @staticmethod
-    def _edge_vertices(edge_vertices, piece_id, edge_index):
+    def _edge_vertices(
+        edge_vertices: Mapping[tuple[str, EdgeRef], Sequence[int]],
+        piece_id: str,
+        edge_index: EdgeRef,
+    ) -> tuple[int, ...]:
         key = (piece_id, edge_index)
         if key not in edge_vertices:
             raise ValueError(f"missing mesh edge vertices for {piece_id}:{edge_index}")
-        values = tuple(int(i) for i in edge_vertices[key])
+        raw_values = tuple(edge_vertices[key])
+        if any(not isinstance(index, int) or isinstance(index, bool) or index < 0 for index in raw_values):
+            raise ValueError(f"mesh edge {piece_id}:{edge_index} contains invalid vertex indices")
+        values = tuple(raw_values)
         if len(values) < 2:
             raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
         return values
 
 
-def _sample_indices(values: Sequence[int], start: float, end: float, count: int):
+def _sample_indices(
+    values: Sequence[int], start: float, end: float, count: int
+) -> list[int]:
     span = end - start
     if count < 2 or span <= 0.0:
         raise ValueError("seam range must contain at least two samples")
