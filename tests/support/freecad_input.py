@@ -488,15 +488,33 @@ def key_click(
     modifiers: Any | None = None,
     delay_ms: int = 20,
 ) -> None:
-    """Send a complete keyboard interaction after explicitly focusing the target widget."""
+    """Send a keyboard interaction after activating and focusing the target widget."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
         raise RuntimeError("cannot send keyboard input to a hidden or disabled widget")
     resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
-    widget.setFocus()
+    window = widget.window()
+    if window is not None:
+        raise_window = getattr(window, "raise_", None)
+        activate_window = getattr(window, "activateWindow", None)
+        if callable(raise_window):
+            raise_window()
+        if callable(activate_window):
+            activate_window()
+    focus_reason = getattr(QtCore.Qt, "OtherFocusReason", None)
+    if focus_reason is None:
+        widget.setFocus()
+    else:
+        widget.setFocus(focus_reason)
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
+    QtTest.QTest.qWait(50)
+    if app is not None:
+        app.processEvents()
+    has_focus = getattr(widget, "hasFocus", None)
+    if callable(has_focus) and not has_focus():
+        raise RuntimeError("keyboard target did not acquire focus: " + type(widget).__name__)
     QtTest.QTest.keyClick(
         widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms)
     )
