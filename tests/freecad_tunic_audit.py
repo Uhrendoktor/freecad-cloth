@@ -32,13 +32,43 @@ SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))"""
+
+POSE_SOURCE = """    target_source = getattr(target, "SourceObject", None)
+    if target_source is not avatar:
+        raise RuntimeError(
+            "visual fixture DrapeTarget does not reference the production ClothAvatar"
+        )
+    pre_status = target_status(target)"""
 replacements = {
+    POSE_SOURCE: """    target_source = getattr(target, "SourceObject", None)
+    if target_source is not avatar:
+        raise RuntimeError(
+            "visual fixture DrapeTarget does not reference the production ClothAvatar"
+        )
+
+    # Start the drape fixture with arms abducted rather than hanging beside the torso.
+    # Rebuild through the product FK pipeline and refresh the collision target before
+    # measuring clearances or placing any garment pieces.
+    from dataclasses import replace as _replace_dataclass
+    from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
+
+    initial_parameters = _parameters(avatar)
+    near_t_pose = _replace_dataclass(
+        initial_parameters.pose,
+        left_arm_angle=5.0,
+        right_arm_angle=5.0,
+        left_elbow_angle=0.0,
+        right_elbow_angle=0.0,
+    )
+    apply_avatar_parameters(
+        avatar,
+        _replace_dataclass(initial_parameters, pose=near_t_pose),
+    )
+    refresh_drape_target(target)
+    doc.recompute()
+    log("tunic-avatar-pose=near-t left_arm_angle=5 right_arm_angle=5")
+    pre_status = target_status(target)""",
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
-    # Measured side-edge penetrations occurred around |x|=175..214 mm, inside
-    # the torso's ±247.7 mm collision envelope. Add 70 mm of ease to each side
-    # of the front/back pattern without changing collision tolerances or solver steps.
-    "panel_width = max(420.0, shoulder_width + 100.0)": "panel_width = max(560.0, shoulder_width + 200.0)",
-    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(620.0, panel_width + 60.0)",
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
