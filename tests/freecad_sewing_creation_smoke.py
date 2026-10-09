@@ -28,6 +28,17 @@ from tests.support.freecad_input import (
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+from freecad_cloth.sewing.SeamOverlay import (
+    seam_highlights_enabled,
+    seam_overlay_respects_depth,
+    set_seam_highlights_enabled,
+    set_seam_overlay_respect_depth,
+)
+
+_ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
+_ORIGINAL_DEPTH_SETTING = seam_overlay_respects_depth()
+set_seam_highlights_enabled(True)
+set_seam_overlay_respect_depth(True)
 
 LOG_PATH = Path(
     os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log")
@@ -205,6 +216,116 @@ def save_seam_overlay_evidence(document, expected_ids, filename):
     assert size > 5000, f"seam overlay screenshot is missing or suspiciously small: {destination}"
     record(f"seam-overlay-image={filename} bytes={size}")
     return controller
+
+
+def save_seam_overlay_hover_animation(document, seam_ids, filename):
+    """Capture real viewport frames while hover labels and highlights change."""
+    from PIL import Image
+
+    from tests.support.freecad_input import write_gif
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    identities = sorted({str(value).strip() for value in seam_ids if str(value).strip()})
+    assert identities, "seam overlay animation requires at least one semantic seam ID"
+    active_document = Gui.activeDocument()
+    view = active_document.activeView() if active_document is not None else None
+    assert view is not None, "active FreeCAD view is unavailable for seam animation"
+    target_a, target_b = identities[0], identities[-1]
+
+    frame_dir = LOG_PATH.parent / "seam-overlay-hover-frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    specs = (
+        ("no-hover", True, ""),
+        ("hover-first", True, target_a),
+        ("hover-second", True, target_b),
+        ("highlights-disabled", False, ""),
+        ("highlights-restored", True, target_a),
+    )
+    frames = []
+    try:
+        for index, (state_name, enabled, hovered) in enumerate(specs):
+            if seam_highlights_enabled() != enabled:
+                set_seam_highlights_enabled(enabled)
+            controller = refresh_seam_overlay(document) if enabled else None
+            if enabled:
+                assert controller is not None and controller.root is not None
+                controller.refresh(
+                    document,
+                    active_seam_id=hovered,
+                    prefer_simulation=False,
+                    hovered_seam_id=hovered,
+                )
+                expected_labels = (hovered,) if hovered else ()
+                assert controller.rendered_label_seam_ids == expected_labels, (
+                    "hover animation rendered unexpected labels: "
+                    f"state={state_name} labels={controller.rendered_label_seam_ids!r}"
+                )
+            else:
+                assert controller is None, "disabled color highlights left an overlay attached"
+                neutral = (0.48, 0.48, 0.48)
+                colored_seams = [
+                    obj
+                    for obj in document.Objects
+                    if str(getattr(obj, "SeamId", "")).strip()
+                    and getattr(obj, "ViewObject", None) is not None
+                ]
+                assert colored_seams and all(
+                    tuple(round(float(c), 6) for c in obj.ViewObject.LineColor[:3]) == neutral
+                    for obj in colored_seams
+                ), "disabled highlights left identity colors on native seam linework"
+
+            process_events()
+            view.redraw()
+            process_events()
+            frame_path = frame_dir / f"state-{index:02d}-{state_name}.png"
+            view.saveImage(str(frame_path), 1280, 720, "White")
+            assert frame_path.is_file() and frame_path.stat().st_size > 5000, (
+                f"seam overlay animation frame is missing or empty: {state_name}"
+            )
+            with Image.open(frame_path) as image_frame:
+                rgb = image_frame.convert("RGB")
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                frames.append(rgb.resize((640, 360), resampling).copy())
+
+        output = LOG_PATH.parent / "ui-gifs" / filename
+        write_gif(frames, output, fps=2, max_colors=96)
+        assert output.is_file() and output.stat().st_size > 5000, (
+            "seam overlay hover animation is missing or suspiciously small"
+        )
+        record(
+            f"seam-overlay-animation={filename} frames={len(frames)} bytes={output.stat().st_size}"
+        )
+        return output
+    finally:
+        # The smoke continues using color identities after the animation.
+        set_seam_highlights_enabled(True)
+        set_seam_overlay_respect_depth(True)
+
+
+def save_seam_overlay_options_evidence(filename):
+    """Capture the real Sewing workbench options dialog as visual evidence."""
+    from freecad_cloth.sewing.SewingCommands import _build_seam_overlay_options_dialog
+
+    dialog, highlights, respect_depth = _build_seam_overlay_options_dialog()
+    assert highlights.isChecked() is True
+    assert respect_depth.isChecked() is True
+    destination = LOG_PATH.parent / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dialog.show()
+        if callable(getattr(dialog, "raise_", None)):
+            dialog.raise_()
+        process_events()
+        image = dialog.grab()
+        assert not image.isNull(), "overlay options dialog could not be captured"
+        assert image.save(str(destination), "PNG"), "overlay options screenshot could not be saved"
+        assert destination.is_file() and destination.stat().st_size > 1000, (
+            "overlay options screenshot is missing or suspiciously small"
+        )
+        record(f"seam-overlay-options-image={filename} bytes={destination.stat().st_size}")
+    finally:
+        dialog.close()
+        process_events()
 
 
 def wait_for_task_close():
@@ -751,6 +872,9 @@ try:
         "seam-overlay-sewing-2d.png",
     )
     record("seam-viewport-overlay-sewing-2d=passed labels=paired-A-B")
+    overlay_ids = [str(seam.SeamId) for seam in curved_network.Seams]
+    save_seam_overlay_hover_animation(doc, overlay_ids, "seam-overlay-hover.gif")
+    save_seam_overlay_options_evidence("seam-overlay-options.png")
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
@@ -847,6 +971,9 @@ finally:
             from tests.support.freecad_input import release_all_input
             release_all_input()
             recorder.stop()
+    with contextlib.suppress(Exception):
+        set_seam_highlights_enabled(_ORIGINAL_HIGHLIGHTS_ENABLED)
+        set_seam_overlay_respect_depth(_ORIGINAL_DEPTH_SETTING)
     LOG.append("sewing-creation-smoke=completed")
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("sewing-creation-smoke=completed", flush=True)
