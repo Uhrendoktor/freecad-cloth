@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "LGPL-2.1-or-later"}
 dependencies = [
+  "pydantic>=2.11,<3",
   "triangle==20250106",
 ]
 classifiers = [
