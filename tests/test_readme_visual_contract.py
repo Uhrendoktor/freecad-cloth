@@ -98,7 +98,7 @@ def test_turntable_job_has_no_orphaned_or_legacy_tunic_screenshot_step():
     )[0]
     action = "      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9"
     assert "tests/freecad_screenshot_source.py" not in block
-    assert action + "\\n" + action not in block
+    assert action + "\n" + action not in block
 
 def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     import json
