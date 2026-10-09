@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SewingView import (
+    _normalized_xy_direction,
     apply_seam_colors,
     pattern_pieces_for_2d,
     seam_color_map,
@@ -163,6 +164,13 @@ def test_seam_visual_markers_reject_mismatched_correspondence():
         raise AssertionError("marker builder must reject mismatched correspondence")
 
 
+def test_seam_direction_is_absent_when_edge_projects_to_a_point():
+    # Vertical-in-Z geometry has no meaningful direction in the XY sewing view.
+    assert _normalized_xy_direction(0.0, 0.0) is None
+    assert _normalized_xy_direction(1e-13, 0.0) is None
+    assert _normalized_xy_direction(3.0, 4.0) == (0.6, 0.8)
+
+
 if __name__ == "__main__":
     test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order()
     test_2d_focus_ignores_unrelated_objects_without_freecad_runtime()
@@ -171,4 +179,5 @@ if __name__ == "__main__":
     test_same_seam_id_always_maps_to_one_pair_identity_color()
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
+    test_seam_direction_is_absent_when_edge_projects_to_a_point()
     print("sewing Show 2D tests passed")

@@ -3,6 +3,15 @@
 from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
 
 
+def _normalized_xy_direction(dx, dy):
+    """Return a unit XY direction or None for a projected-degenerate edge."""
+    dx, dy = float(dx), float(dy)
+    length = (dx * dx + dy * dy) ** 0.5
+    if length <= 1e-12:
+        return None
+    return dx / length, dy / length
+
+
 def pattern_pieces_for_2d(objects):
     """Return pattern pieces participating in the sewing 2D focus.
 
@@ -21,8 +30,8 @@ def seam_visual_markers(points_a, points_b):
     def direction(start, end):
         dx = float(end[0]) - float(start[0])
         dy = float(end[1]) - float(start[1])
-        length = (dx * dx + dy * dy) ** 0.5
-        return (1.0, 0.0) if length <= 1e-12 else (dx / length, dy / length)
+        result = _normalized_xy_direction(dx, dy)
+        return (1.0, 0.0) if result is None else result
 
     mid = len(points_a) // 2
     ap, an = points_a[max(0, mid - 1)], points_a[min(len(points_a) - 1, mid + 1)]
@@ -108,8 +117,13 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         mid = len(points) // 2
         prev, nxt = points[max(0, mid - 1)], points[min(len(points) - 1, mid + 1)]
         dx, dy = nxt.x - prev.x, nxt.y - prev.y
+        direction = _normalized_xy_direction(dx, dy)
+        if direction is None:
+            # The edge is distinct in 3D but projects to a point in the 2D sewing view.
+            # Keep the seam/panel geometry and omit only the undefined 2D direction glyph.
+            continue
+        ux, uy = direction
         length = (dx * dx + dy * dy) ** 0.5
-        ux, uy = dx / length, dy / length
         tip = points[mid]
         arrow_len = min(6.0, max(1.0, length * 0.3))
         base = App.Vector(tip.x - ux * arrow_len, tip.y - uy * arrow_len, tip.z)
