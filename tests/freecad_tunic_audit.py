@@ -209,6 +209,35 @@ for old, new in replacements.items():
     source = source.replace(old, new, 1)
 
 
+OUTLINE_MARGIN_HELPER = '''def _projected_point_within_outline_margin(x, z, points, margin):
+    """Check whether a projected mesh vertex overlaps a pattern outline or its clearance band."""
+    px = float(x)
+    pz = float(z)
+    margin_sq = float(margin) * float(margin)
+    inside = False
+    near = False
+    for index, (ax_raw, az_raw) in enumerate(points):
+        bx_raw, bz_raw = points[(index + 1) % len(points)]
+        ax, az = float(ax_raw), float(az_raw)
+        bx, bz = float(bx_raw), float(bz_raw)
+        if (az > pz) != (bz > pz):
+            crossing_x = ax + (pz - az) * (bx - ax) / (bz - az)
+            if px < crossing_x:
+                inside = not inside
+        dx, dz = bx - ax, bz - az
+        length_sq = dx * dx + dz * dz
+        if length_sq > 0.0:
+            factor = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / length_sq))
+            closest_x = ax + factor * dx
+            closest_z = az + factor * dz
+        else:
+            closest_x, closest_z = ax, az
+        if (px - closest_x) ** 2 + (pz - closest_z) ** 2 <= margin_sq:
+            near = True
+    return inside or near
+'''
+
+
 source = source.replace("\ndef simulation():", "\n" + OUTLINE_MARGIN_HELPER + "def simulation():", 1)
 if "_projected_point_within_outline_margin" not in source:
     raise RuntimeError("tunic placement silhouette helper was not installed")
