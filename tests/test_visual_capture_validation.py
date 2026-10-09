@@ -42,7 +42,12 @@ def test_validate_png_capture_accepts_real_nonuniform_rgb(tmp_path: Path):
     pixels[8] = (160, 170, 180)
     _write_png(path, 3, 3, pixels)
     metrics = validate_png_capture(
-        path, expected_width=3, expected_height=3, min_nonwhite_pixels=2, min_distinct_rgb=3
+        path,
+        expected_width=3,
+        expected_height=3,
+        min_nonwhite_pixels=2,
+        min_distinct_rgb=3,
+        min_opaque_pixels=9,
     )
     assert metrics["opaque_pixels"] == 9
     assert metrics["nonwhite_pixels"] == 3
@@ -53,14 +58,20 @@ def test_validate_png_capture_rejects_uniform_capture(tmp_path: Path):
     path = tmp_path / "uniform.png"
     _write_png(path, 3, 3, [(255, 255, 255)] * 9)
     with pytest.raises(ValueError, match="effectively blank"):
-        validate_png_capture(path, expected_width=3, expected_height=3)
+        validate_png_capture(path, expected_width=3, expected_height=3, min_opaque_pixels=9)
 
 
 def test_validate_png_capture_rejects_all_black_capture(tmp_path: Path):
     path = tmp_path / "black.png"
     _write_png(path, 3, 3, [(0, 0, 0)] * 9)
     with pytest.raises(ValueError, match="effectively uniform"):
-        validate_png_capture(path, expected_width=3, expected_height=3)
+        validate_png_capture(
+            path,
+            expected_width=3,
+            expected_height=3,
+            min_nonwhite_pixels=1,
+            min_opaque_pixels=9,
+        )
 
 
 def test_validate_png_capture_rejects_transparent_capture(tmp_path: Path):

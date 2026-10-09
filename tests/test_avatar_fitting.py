@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import unittest
-from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from freecad_cloth.avatar.AvatarArrangement import (
@@ -37,19 +37,33 @@ from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_st
 
 
 class AvatarFittingTests(unittest.TestCase):
-    def test_fitting_proxy_is_validation_only_during_recompute(self):
-        root = Path(__file__).resolve().parents[1]
-        source = (root / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(
-            encoding="utf-8"
+    def test_fitting_proxy_validates_persisted_state_without_freecad_side_effects(self):
+        from freecad_cloth.avatar.FittingCommands import _FittingProxy
+
+        obj = SimpleNamespace(
+            MeasurementData=BodyMeasurements({"waist": 760, "hip": 960}).to_json(),
+            AvatarProxy=SimpleNamespace(Label="Avatar"),
+            PiecePlacements=(),
+            ArrangementPoints=(),
+            BoundingVolumes=(),
+            SymmetryEnabled=True,
         )
-        proxy_start = source.index("class _FittingProxy")
-        proxy_end = source.index("\n\nCOMMANDS =", proxy_start)
-        proxy_body = source[proxy_start:proxy_end]
-        self.assertNotIn("_sync_visuals(obj)", proxy_body)
-        sync_start = source.index("def _sync_visuals(")
-        sync_end = source.index("\n\ndef create_fitting_scene", sync_start)
-        self.assertNotIn("Document.recompute()", source[sync_start:sync_end])
-        self.assertIn("scene.Document.addObject", source[sync_start:sync_end])
+        _FittingProxy().execute(obj)
+
+
+    def test_fitting_proxy_rejects_invalid_persisted_state(self):
+        from freecad_cloth.avatar.FittingCommands import _FittingProxy
+
+        obj = SimpleNamespace(
+            MeasurementData="{not-json}",
+            AvatarProxy=None,
+            PiecePlacements=(),
+            ArrangementPoints=(),
+            BoundingVolumes=(),
+            SymmetryEnabled=True,
+        )
+        with self.assertRaises(ValueError):
+            _FittingProxy().execute(obj)
 
     def test_measurements_are_valid_and_canonical(self):
         measurements = BodyMeasurements({"waist": 760, "height": 1700, "chest": 900})
@@ -397,6 +411,48 @@ class AvatarFittingTests(unittest.TestCase):
             if path:
                 with contextlib.suppress(OSError):
                     os.unlink(path)
+
+
+def test_fitting_stage_status_without_simulation_is_not_actionable():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    assert fitting_stage_status(None) == ("No simulation scene selected.", False)
+
+
+def test_fitting_stage_status_reports_unarranged_scene():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    doc = type("Doc", (), {"Objects": ()})()
+    simulation = type("Simulation", (), {"Document": doc})()
+
+    assert fitting_stage_status(simulation) == (
+        "Not arranged yet — use Arrange / Fit… to open the fitting stage.",
+        False,
+    )
+
+
+def test_fitting_stage_status_reports_saved_arrangement_state():
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+
+    fitting = type(
+        "Fitting",
+        (),
+        {
+            "FittingType": "FittingScene",
+            "PatternPieces": (object(), object()),
+            "PiecePlacements": (object(),),
+            "ArrangementPoints": (object(), object(), object()),
+            "FitStatus": "Assigned",
+            "HomePlacements": ("home",),
+        },
+    )()
+    doc = type("Doc", (), {"Objects": (fitting,)})()
+    simulation = type("Simulation", (), {"Document": doc})()
+
+    message, reset_available = fitting_stage_status(simulation)
+    assert message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    assert reset_available is True
+
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+id: no-exec
+valid:
+  - "compile(source, filename, 'exec')"
+  - "runner.exec()"
+invalid:
+  - "exec(source)"
+  - "exec(code, globals(), locals())"

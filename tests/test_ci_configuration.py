@@ -1,5 +1,6 @@
 """Tests for the repository's single-source CI configuration contracts."""
 
+import tomllib
 from pathlib import Path
 
 from tools.ci.run_freecad import configured_timeout_seconds
@@ -12,7 +13,11 @@ def test_freecad_timeout_is_positive_and_declared_once():
     """The application timeout comes from the project configuration."""
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert configured_timeout_seconds() == 55
+    configured = tomllib.loads(pyproject)["tool"]["freecad_cloth"]["ci"][
+        "freecad_application_timeout_seconds"
+    ]
+    assert configured > 0
+    assert configured_timeout_seconds() == configured
     assert pyproject.count("freecad_application_timeout_seconds") == 1
 
 

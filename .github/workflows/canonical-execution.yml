@@ -27,8 +27,7 @@ on:
   schedule:
     - cron: '0 3 * * *'
 concurrency:
-  # Keep main pushes independently schedulable so a broken/stuck push cannot block later pushes.
-  # The shared visual-evidence publication job is serialized separately below.
+  # Main pushes stay independently schedulable; visual publication is serialized separately.
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && format('canonical-main-push-{0}', github.sha)) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
@@ -79,6 +78,10 @@ jobs:
           python tools/ci/validate_ci_structure.py
           lint-imports
           pyright -p pyrightconfig.agent-strict.json
+          ast-grep test --skip-snapshot-tests --color never
+          ast-grep scan --min-severity error --color never freecad_cloth
+          ty check --exit-zero --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
+          python tools/ci/check_changed_python_types.py
           git diff --name-only origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
           if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py
@@ -154,7 +157,6 @@ jobs:
       - uses: ./.github/actions/pbd-image
         with:
           image: ${{ steps.image.outputs.image }}
-
   diagnostic-pbd-contact:
     name: Diagnostic PBD contact controls
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
@@ -179,9 +181,7 @@ jobs:
           checkout: "false"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
-          environment: |
-            CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-            CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
+          environment: CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -193,7 +193,6 @@ jobs:
           artifact-path: artifacts/pbd-contact-diagnostics/**
           environment: |
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-
   simulation-ladder:
     name: Simulation collision ladder
     if: ${{ github.event_name != 'schedule' }}
@@ -211,7 +210,7 @@ jobs:
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9
+      - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -220,6 +219,13 @@ jobs:
           validate-command: python3 tools/ci/validate_manifests.py simulation
           artifact-name: simulation-collision-ladder
           artifact-path: artifacts/simulation-ladder/**
+          observation-root: artifacts/simulation-ladder
+          observation-label: PBD simulation collision ladder
+          observation-files: >-
+            metrics=cube-ladder-manifest.json;metrics=avatar-ladder-manifest.json;
+            visual=cube-ladder/rung-1-cube-pinned/step-000.png;
+            visual=cube-ladder/rung-1-cube-pinned/step-090.png;
+            visual=avatar-ladder/rung-6-avatar-pinned/step-090.png
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}

@@ -36,6 +36,8 @@ dev = [
   "hypothesis==6.168.3",
   "vulture==2.16",
   "crosshair-tool==0.0.111",
+  "ast-grep-cli==0.45.3",
+  "ty==0.0.85",
 ]
 
 [tool.freecad_cloth.ci]

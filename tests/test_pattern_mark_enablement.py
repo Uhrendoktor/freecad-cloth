@@ -28,9 +28,9 @@ def _set_gui(selection):
 
 def test_marks_require_selected_pattern_piece():
     commands = [
-        PatternMarks._FunctionCommand(PatternMarks.add_notch),
-        PatternMarks._FunctionCommand(PatternMarks.add_grainline),
-        PatternMarks._FunctionCommand(PatternMarks.add_internal_mark),
+        PatternMarks._FunctionCommand(PatternMarks.add_notch, "ClothPattern_AddNotch"),
+        PatternMarks._FunctionCommand(PatternMarks.add_grainline, "ClothPattern_AddGrainline"),
+        PatternMarks._FunctionCommand(PatternMarks.add_internal_mark, "ClothPattern_AddInternalMark"),
     ]
     selection = _Selection([_Other()])
     _set_gui(selection)

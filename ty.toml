@@ -1,0 +1,19 @@
+[environment]
+root = ["."]
+
+[terminal]
+output-format = "github"
+error-on-warning = false
+
+[rules]
+all = "warn"
+
+[analysis]
+allowed-unresolved-imports = [
+  "FreeCAD",
+  "FreeCAD.*",
+  "FreeCADGui",
+  "FreeCADGui.*",
+  "pivy",
+  "pivy.*",
+]

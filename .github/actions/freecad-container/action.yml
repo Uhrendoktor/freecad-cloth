@@ -15,6 +15,10 @@ inputs:
     description: Optional newline-delimited KEY=VALUE environment entries for the container.
     required: false
     default: ""
+  runner-writable-path:
+    description: Optional safe workspace-relative directory to make writable after the batch command so the host runner can append evidence.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -43,6 +47,7 @@ runs:
         EXTRA_ENV: ${{ inputs.environment }}
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
         INPUT_COMMAND: ${{ inputs.command }}
+        RUNNER_WRITABLE_PATH: ${{ inputs.runner-writable-path }}
       run: |
         set -euo pipefail
         env_file="$RUNNER_TEMP/freecad-container-${GITHUB_JOB}.env"
@@ -63,6 +68,20 @@ runs:
           echo "timeout-seconds must be <= 120" >&2
           exit 2
         fi
+        command_to_run="$INPUT_COMMAND"
+        if [ -n "$RUNNER_WRITABLE_PATH" ]; then
+          case "$RUNNER_WRITABLE_PATH" in
+            /*|..|../*|*/..|*/../*|*\\*)
+              echo "runner-writable-path must stay inside the workspace" >&2
+              exit 2
+              ;;
+          esac
+          if [[ ! "$RUNNER_WRITABLE_PATH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "runner-writable-path contains unsupported characters" >&2
+            exit 2
+          fi
+          command_to_run="$INPUT_COMMAND; command_status=\$?; chmod a+wx \"/workspace/$RUNNER_WRITABLE_PATH\" 2>/dev/null || true; exit \$command_status"
+        fi
         set +e
         container_timeout_seconds=$((timeout_seconds + 10))
         timeout --signal=TERM --kill-after=5s "${container_timeout_seconds}s" \
@@ -70,7 +89,7 @@ runs:
           --env-file "$env_file" \
           -v "$GITHUB_WORKSPACE:/workspace:rw" \
           -w /workspace \
-          "$IMAGE" bash -lc "$INPUT_COMMAND"
+          "$IMAGE" bash -lc "$command_to_run"
         status=$?
         set -e
         if [ "$status" -ne 0 ]; then

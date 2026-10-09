@@ -20,6 +20,7 @@ REQUIRED = (
     ROOT / "tools/ci/publish_visual_evidence.py",
     ROOT / "tools/ci/capture_pypbd_provenance.py",
     ROOT / "tools/ci/check_artifact_budget.py",
+    ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/timeout_contract.py",
 )
 

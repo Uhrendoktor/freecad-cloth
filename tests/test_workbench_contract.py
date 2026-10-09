@@ -1,9 +1,7 @@
-"""Contract checks for the package-owned Cloth workbenches."""
+"""Behavioral checks for the package-owned Cloth workbenches."""
 
 import importlib
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
 
 _WORKBENCHES = (
     ("freecad_cloth.pattern.workbench", "ClothPatternWorkbench", "Cloth Pattern"),
@@ -12,7 +10,7 @@ _WORKBENCHES = (
 )
 
 
-def test_registered_workbenches_have_stable_metadata():
+def test_workbench_metadata_and_resources_are_runtime_objects():
     for module_name, class_name, menu in _WORKBENCHES:
         cls = getattr(importlib.import_module(module_name), class_name)
         workbench = cls()
@@ -23,7 +21,7 @@ def test_registered_workbenches_have_stable_metadata():
         assert workbench.commands == []
 
 
-def test_package_workbench_initializers_are_import_safe():
+def test_package_workbench_initializers_are_import_safe_and_unique():
     for module_name, class_name, _menu in _WORKBENCHES:
         cls = getattr(importlib.import_module(module_name), class_name)
         workbench = cls()
@@ -32,9 +30,10 @@ def test_package_workbench_initializers_are_import_safe():
         assert len(workbench.commands) == len(set(workbench.commands))
 
 
-def test_initgui_contains_only_loader_registration():
-    source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    assert "Gui.addWorkbench(ClothPatternWorkbench())" in source
-    assert "Gui.addWorkbench(ClothSimulationWorkbench())" in source
-    assert "Gui.addWorkbench(ClothSewingWorkbench())" in source
-    assert "from freecad_cloth." in source
+def test_simulation_workbench_registers_drape_and_simulation_surfaces():
+    cls = getattr(importlib.import_module("freecad_cloth.simulation.workbench"), "ClothSimulationWorkbench")
+    workbench = cls()
+    workbench.Initialize()
+    assert "ClothSimulation_CreateDrape" in workbench.commands
+    assert "ClothSimulation_Step" in workbench.commands
+    assert "ClothDrape_EditTarget" in workbench.commands

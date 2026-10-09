@@ -10,6 +10,10 @@ COMMANDS = (
     "ClothSewing_ReverseSeam",
     "ClothSewing_ToggleAlignment",
     "ClothSewing_Validate",
+    "ClothSewing_RepairSeam",
+    "ClothSewing_FocusSeam3D",
+    "ClothSewing_EditSeamSideA",
+    "ClothSewing_EditSeamSideB",
     "ClothSewing_Show2D",
 )
 

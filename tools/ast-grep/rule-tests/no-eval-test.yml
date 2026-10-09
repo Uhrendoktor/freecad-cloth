@@ -1,0 +1,7 @@
+id: no-eval
+valid:
+  - "ast.literal_eval(text)"
+  - "parser.eval(text)"
+invalid:
+  - "eval(text)"
+  - "eval(expression, globals(), locals())"

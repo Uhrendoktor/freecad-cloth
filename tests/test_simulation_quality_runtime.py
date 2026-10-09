@@ -1,4 +1,3 @@
-from pathlib import Path
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
@@ -7,9 +6,6 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     apply_quality_preset,
     quality_discretization,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def test_quality_names_and_discretization_are_materially_distinct():
     assert QUALITY_NAMES == ("Fast", "Balanced", "Final")
@@ -56,18 +52,69 @@ def test_material_defaults_are_document_metadata():
     assert material.friction == 0.5
 
 
-def test_runtime_has_no_legacy_backend_or_damping_path():
-    source = (ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py").read_text(
-        encoding="utf-8"
-    )
+def test_advance_preview_frame_advances_backend_once_without_document_recompute():
+    from freecad_cloth.simulation import SimulationQualityRuntime as runtime
 
-    assert "default_backend_registry" not in source
-    assert "preferred_backend_name" not in source
-    assert "_collision_surface_for_step" not in source
-    assert "_apply_material" not in source
-    assert "damping =" not in source
-    assert 'name="xpbd-cpu"' not in source
-    assert "PositionBasedDynamicsBackend" in source
+    class Backend:
+        name = "position-based-dynamics"
+        time = 0.25
+
+        def __init__(self):
+            self.calls = []
+
+        def step(self, dt, iterations, gravity, surface):
+            self.calls.append((dt, iterations, gravity, surface))
+
+        def positions(self):
+            raise AssertionError("preview publication should be stubbed in this focused test")
+
+        def finite(self):
+            return True
+
+    scene = SimpleNamespace(
+        QualityPreset="Fast",
+        PinMode="Automatic",
+        ParticleDistance=40.0,
+        SolverIterations=1,
+        SolverSubsteps=1,
+        FabricDensity=150.0,
+        FabricThickness=0.5,
+        FabricStretch=0.02,
+        FabricShear=0.02,
+        FabricBend=0.01,
+        FabricFriction=0.5,
+        FabricColor=(0.72, 0.34, 0.46),
+        FabricSpecular=0.25,
+        FabricRoughness=0.65,
+        FabricTransparency=0,
+        AvatarSkinOffset=0.0,
+        TimeStep=1.0 / 60.0,
+        GravityX=0.0,
+        GravityY=0.0,
+        GravityZ=-9810.0,
+        DrapePanels=(),
+    )
+    proxy = runtime.QualitySimulationProxy()
+    base = proxy._base_or_restore()
+    backend = Backend()
+    base.backend = backend
+    base.collision_surface = "collision"
+    base.last_steps = 0
+    published = []
+    proxy._publish_state = lambda obj, state: published.append((obj, state))
+
+    proxy.advance_preview_frame(scene)
+
+    assert backend.calls == [
+        (
+            scene.TimeStep,
+            scene.SolverIterations,
+            (scene.GravityX, scene.GravityY, scene.GravityZ),
+            "collision",
+        )
+    ]
+    assert published == [(scene, base)]
+    assert base.last_steps == 1
 
 
 def test_quality_proxy_keeps_solver_stitch_provenance():
@@ -82,19 +129,3 @@ def test_quality_proxy_keeps_solver_stitch_provenance():
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
 
 
-def test_realtime_preview_uses_persistent_backend_path():
-    runtime = (ROOT / "freecad_cloth" / "simulation" / "RealtimePreview.py").read_text(
-        encoding="utf-8"
-    )
-    quality = (
-        ROOT / "freecad_cloth" / "simulation" / "SimulationQualityRuntime.py"
-    ).read_text(encoding="utf-8")
-    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
-        encoding="utf-8"
-    )
-
-    assert "proxy.advance_preview_frame(self.scene)" in runtime
-    assert "scene.Steps = int(scene.Steps) + 1" not in runtime
-    assert "doc.recompute()" not in runtime[runtime.index("    def tick"):runtime.index("    @staticmethod")]
-    assert "def advance_preview_frame(self, obj):" in quality
-    assert "proxy.advance_preview_frame(scene)" in benchmark

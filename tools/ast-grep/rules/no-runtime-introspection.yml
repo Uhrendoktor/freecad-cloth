@@ -1,0 +1,17 @@
+id: no-inspect-stack
+language: Python
+severity: error
+message: "Do not use inspect.stack() for runtime routing or compatibility."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: inspect.stack($$$ARGS)
+---
+id: no-os-system
+language: Python
+severity: error
+message: "Do not use os.system(); use explicit subprocess arguments with bounded execution."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: os.system($$$ARGS)
