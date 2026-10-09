@@ -353,7 +353,7 @@ class SeamOverlayController:
         if simulated:
             colors = seam_color_map(simulated.keys())
             labels = seam_display_labels(simulated.keys())
-            rendered_ids: list[str] = []
+            simulation_rendered_ids: list[str] = []
             for identity, (points_a, points_b, connectors) in sorted(simulated.items()):
                 focused = identity == str(active_seam_id)
                 width = 5.5 if focused else 3.5
@@ -373,8 +373,8 @@ class SeamOverlayController:
                 _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
                 _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
                 self.root.addChild(side_group)
-                rendered_ids.append(identity)
-            self.rendered_seam_ids = tuple(sorted(rendered_ids))
+                simulation_rendered_ids.append(identity)
+            self.rendered_seam_ids = tuple(sorted(simulation_rendered_ids))
             return
 
         if not seams:
