@@ -74,7 +74,7 @@ def triangle_metrics(positions, triangles):
             ab[2] * ac[0] - ab[0] * ac[2],
             ab[0] * ac[1] - ab[1] * ac[0],
         )
-        area = 0.5 * math.sqrt(sum(v * v for v in cross))
+        area = 0.5 * math.hypot(*cross)
         edges = (math.dist(pa, pb), math.dist(pa, pc), math.dist(pb, pc))
         min_area = min(min_area, area)
         min_edge = min(min_edge, *edges)

@@ -233,7 +233,7 @@ def _post_drape_seam_gap(stitch_pairs, positions):
     """Measure the gap on the exact particle pairs passed to the solver."""
     if not stitch_pairs:
         raise ValueError("solver stitch pair provenance is required")
-    from math import sqrt
+    from math import dist
 
     maximum = 0.0
     for a_index, b_index in stitch_pairs:
@@ -243,7 +243,7 @@ def _post_drape_seam_gap(stitch_pairs, positions):
         b = positions[int(b_index)]
         maximum = max(
             maximum,
-            sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))),
+            dist(a, b),
         )
     return maximum
 
@@ -453,7 +453,7 @@ def write_drape_metrics(
         record["penetrating_vertices"] = int(penetrating_vertices)
         if penetrating_vertices:
             if collision_surface is not None:
-                from math import sqrt
+                from math import dist
 
                 from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
 
@@ -488,13 +488,7 @@ def write_drape_metrics(
                         if not authoritative_inside:
                             continue
                         nearest = min(
-                            sqrt(
-                                sum(
-                                    (point_tuple[i] - tuple(float(value) for value in target)[i])
-                                    ** 2
-                                    for i in range(3)
-                                )
-                            )
+                            dist(point_tuple, tuple(float(value) for value in target))
                             for target in target_points
                         )
                         solver_inside = None

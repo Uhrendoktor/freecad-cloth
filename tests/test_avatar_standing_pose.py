@@ -70,10 +70,12 @@ class AvatarStandingPoseTests(unittest.TestCase):
 
         actual, expected = bounds(actual_vertices), bounds(reference)
 
-        # The 70-degree standing preset deliberately widens the mannequin's
-        # X envelope; comparing it to the unposed reference envelope is stale.
-        self.assertLess(actual[0][0], expected[0][0] - 50.0)
-        self.assertGreater(actual[0][1], expected[0][1] + 50.0)
+        # The MakeHuman reference has near-horizontal arms. The 70-degree
+        # standing preset lowers them inward, so its lateral envelope must be
+        # narrower. The companion 12-degree test verifies the near-horizontal
+        # authored pose widens the emitted mesh again.
+        self.assertGreater(actual[0][0], expected[0][0] + 50.0)
+        self.assertLess(actual[0][1], expected[0][1] - 50.0)
         self.assertAlmostEqual(actual[0][0], -actual[0][1], delta=2.0)
 
         # Arm rotation is in the sagittal plane; depth must remain unchanged.

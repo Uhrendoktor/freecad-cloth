@@ -107,11 +107,41 @@ replacements = {
     events()
     save("cloth-mannequin-near-t-pose.png", "Mannequin near-T pose before cloth", "FK pose verified by shoulder-to-wrist geometry before draping")""",
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
-    # The near-T fixture removed the arm-related penetrations; move the side seam
-    # outboard of the measured torso envelope to address the remaining side-surface
-    # vertices. The previous width-only run was confounded by hanging arms.
-    "panel_width = max(420.0, shoulder_width + 100.0)": "panel_width = max(560.0, shoulder_width + 200.0)",
-    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(620.0, panel_width + 60.0)",
+    # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
+    # depth extrema are dominated by hands in the near-T pose and can pull the stitched
+    # panels through the body; the silhouette filter excludes those outliers.
+    "panel_width = max(420.0, shoulder_width + 100.0)": "shoulder_span_ratio = 0.86 - 0.14; panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)",
+    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(500.0, panel_width + 80.0)",
+    """    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    points = [
+        (0.00, 0.00),
+        (hem_width, 0.00),
+        (panel_width, 0.82 * garment_height),
+        (0.86 * panel_width, 0.97 * garment_height),
+        (neckline_ratio * panel_width, neck_z),
+        ((1.0 - neckline_ratio) * panel_width, neck_z),
+        (0.14 * panel_width, 0.97 * garment_height),
+        (0.00, 0.82 * garment_height),
+    ]
+""": """    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = 0.88 * garment_height
+    shoulder_z = 0.98 * garment_height
+    points = [
+        (0.00, 0.00),
+        (hem_width, 0.00),
+        (x_offset + panel_width, armhole_z),
+        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + neckline_ratio * panel_width, neck_z),
+        (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
+        (x_offset + 0.14 * panel_width, shoulder_z),
+        (x_offset, armhole_z),
+    ]
+    center_x = 0.5 * float(hem_width)
+    for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
+        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
+            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
+""",
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
@@ -127,14 +157,61 @@ replacements = {
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
     "scene.SolverIterations = 8": 'scene.ParticleDistance = 32.0; scene.SolverIterations = 4; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-4 substeps-env");',
-    "            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance": "            y = min(target_ys) - clearance",
-    "            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance": "            y = max(target_ys) + clearance",
+    """    def target_relative_piece_placement(side):
+        if side == "front":
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+        elif side == "back":
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+        else:
+            raise ValueError("tunic target-relative side must be front or back")
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+""": """    panel_origin_x = x_mid - hem_width / 2.0
+    torso_half_width = max(80.0, 0.30 * shoulder_width)
+
+    def target_relative_piece_placement(side, outline):
+        projected_target_ys = [
+            float(vertex[1])
+            for vertex in target_surface.vertices
+            if abs(float(vertex[0]) - x_mid) <= torso_half_width
+            and _projected_point_within_outline_margin(
+                float(vertex[0]) - panel_origin_x,
+                float(vertex[2]) - hem_z,
+                outline,
+                clearance,
+            )
+        ]
+        if not projected_target_ys:
+            raise RuntimeError("canonical tunic torso silhouette does not overlap DrapeTarget projections")
+        target_front_y = min(projected_target_ys)
+        target_back_y = max(projected_target_ys)
+        if side == "front":
+            y = target_front_y - clearance
+        elif side == "back":
+            y = target_back_y + clearance
+        else:
+            raise ValueError("tunic target-relative side must be front or back")
+        log(
+            "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
+            "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+            % (
+                side, target_front_y, target_back_y, y, clearance,
+                x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
+            )
+        )
+        return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
+""",
+    "piece.Placement = target_relative_piece_placement(side)": "piece.Placement = target_relative_piece_placement(side, outline)",
     "upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))": "upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))",
 }
 for old, new in replacements.items():
     if old not in source:
         raise RuntimeError(f"audit replacement did not match source: {old}")
     source = source.replace(old, new, 1)
+
+
+source = source.replace("\ndef simulation():", "\n" + OUTLINE_MARGIN_HELPER + "def simulation():", 1)
+if "_projected_point_within_outline_margin" not in source:
+    raise RuntimeError("tunic placement silhouette helper was not installed")
 
 
 preview_probe = """    from freecad_cloth.simulation import RealtimePreview
