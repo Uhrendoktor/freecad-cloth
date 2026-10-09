@@ -277,12 +277,22 @@ try:
     doc.recompute()
     record("fixtures=created pieces=3")
 
+    # Pattern-piece fixtures must be visibly rendered before a real viewport
+    # click can be projected onto their edges. Refit only after the resized
+    # FreeCAD window and its view have processed their pending GUI events.
+    for fixture in (piece_a, piece_b, piece_c):
+        fixture.ViewObject.Visibility = True
+    Gui.updateGui()
+    process_events()
+
     view = Gui.activeDocument().activeView()
+    window = focus_main_window(Gui, size=(1280, 720))
+    process_events()
     view.setCameraType("Orthographic")
     view.viewTop()
     view.fitAll()
-    window = focus_main_window(Gui, size=(1280, 720))
-    view.fitAll()
+    Gui.updateGui()
+    process_events()
     viewport = viewport_widget(Gui, view)
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
