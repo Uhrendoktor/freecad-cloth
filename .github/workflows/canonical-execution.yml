@@ -84,7 +84,7 @@ jobs:
           python tools/ci/check_changed_python_types.py
           git diff --name-only origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
           if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
-          python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py
+          python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
       - name: Workflow linters
         run: |
@@ -103,7 +103,6 @@ jobs:
           baseline-from-ref: "origin/${{ github.base_ref }}"
           fail-on-new-clones: "true"
           fail-on-empty: "true"
-
   local_runner_readiness:
     name: Selected runner readiness
     needs: [agent-quality]
@@ -112,7 +111,6 @@ jobs:
     timeout-minutes: 2
     steps:
       - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
-
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     needs: [agent-quality]
@@ -130,7 +128,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
-
   pbd_validation_image:
     name: Build/publish pinned PBD image
     needs: [agent-quality]
@@ -360,7 +357,11 @@ jobs:
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
-          artifact-path: docs/images/generated/**
+          artifact-path: |
+            docs/images/generated/*.png
+            docs/images/generated/*.gif
+            docs/images/generated/*.log
+            docs/images/generated/*.txt
           environment: |
             CLOTH_PBD_SUBSTEPS=10
             CLOTH_BLANKET_STEPS=180
@@ -456,7 +457,7 @@ jobs:
   artifact-budget:
     name: Accumulated artifact budget
     if: ${{ always() }}
-    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark]
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, publish-readme-turntables]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {actions: read, contents: read}
@@ -465,13 +466,12 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          filter: blob:none
-          sparse-checkout: tools/ci/check_artifact_budget.py
-          sparse-checkout-cone-mode: false
-      - name: Check accumulated artifact size
+      - name: Check visual assets and accumulated artifact size
+        if: ${{ always() }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python tools/ci/check_artifact_budget.py
+          VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
+        run: python3 tools/ci/check_visual_assets_and_budget.py
 
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})

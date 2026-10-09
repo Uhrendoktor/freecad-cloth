@@ -159,7 +159,11 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         "benchmark",
     ):
         assert producer in budget
-    assert "tools/ci/check_artifact_budget.py" in budget
+    assert "tools/ci/check_visual_assets_and_budget.py" in budget
+    checks = (ROOT / "tools" / "ci" / "check_visual_assets_and_budget.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert "python -m ruff format tools/ci" in quality
     for job in (

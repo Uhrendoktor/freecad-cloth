@@ -21,6 +21,10 @@ The documentation follows one rule: <strong>a user-visible feature should be und
 | Persistence and architecture | What is authoritative, what is derived, and how data moves | [Data model](docs/wiki/07-data-model.md) |
 | Validation | CI, acceptance and visual evidence | [Validation](docs/wiki/08-validation.md) |
 
+## Interactive demos
+
+Watch the generated UI recordings: [seam assignment](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif), [viewport fitting and snapping](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif), and [Pose Mode joint rotation](https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif). The [Sewing](docs/wiki/02-sewing.md), [Fitting](docs/wiki/03-fitting.md), and [Pose](docs/wiki/04-pose.md) pages explain each workflow and its acceptance checks.
+
 ## The product, shown as a workflow
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Pattern authoring" width="430"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Sewing workbench" width="430"></p>

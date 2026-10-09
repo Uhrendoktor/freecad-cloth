@@ -61,3 +61,22 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     assert "ClothPoseRotationY" in source
     assert "ClothPoseRotationZ" in source
     assert "coin.SoTrackballDragger()" in source
+
+
+def test_avatar_panel_initializes_preset_loading_guard_before_loading():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "AvatarGui.py"
+    ).read_text(encoding="utf-8")
+    initialization = source.split("def __init__(self, avatar=None):", 1)[1].split(
+        "def _open_pose_mode", 1
+    )[0]
+    assert "self._loading = True" in initialization
+    assert "finally:" in initialization
+    assert "self._loading = False" in initialization
+    assert initialization.index("self._loading = True") < initialization.index("self._load()")
+    assert initialization.index("self._load()") < initialization.index("self._loading = False")

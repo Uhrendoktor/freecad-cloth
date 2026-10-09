@@ -14,13 +14,16 @@ def test_write_gif_emits_looping_animation(tmp_path):
         Image.new("RGB", (32, 24), (20, 20, 255)),
         Image.new("RGB", (32, 24), (20, 255, 20)),
     ]
-    path = write_gif(frames, tmp_path / "ui.gif", fps=5)
+    path = write_gif(frames, tmp_path / "ui.gif", fps=12)
     assert path.is_file()
     with Image.open(path) as gif:
         assert gif.format == "GIF"
         assert gif.info.get("loop") == 0
         assert sum(1 for _ in ImageSequence.Iterator(gif)) == 3
         assert gif.size == (32, 24)
+        # GIF delays have centisecond precision; 12 FPS encodes to about 80 ms.
+        durations = [frame.info["duration"] for frame in ImageSequence.Iterator(gif)]
+        assert all(80 <= duration < 100 for duration in durations)
 
 
 def test_write_gif_rejects_invalid_frame_rate(tmp_path):
@@ -51,3 +54,30 @@ def test_resolve_key_maps_names_and_preserves_qt_enums():
     assert _resolve_key(core, 27) == 27
     with pytest.raises(ValueError, match="unknown Qt keyboard key"):
         _resolve_key(core, "NotARealKey")
+
+def test_visual_asset_inventory_has_live_ci_producers():
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    checker = root / "tools" / "ci" / "check_visual_asset_contract.py"
+    env = os.environ.copy()
+    env.update(
+        {
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_REF": "refs/pull/1/merge",
+            "VISUAL_PUBLISH_RESULT": "skipped",
+        }
+    )
+    result = subprocess.run(
+        [sys.executable, str(checker)],
+        cwd=root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "visual-asset-contract=passed documented_and_generated=27" in result.stdout

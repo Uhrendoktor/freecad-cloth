@@ -88,7 +88,7 @@ def run():
         "artifacts/ui-gifs/interactive-arrange.gif",
         gui=Gui,
         window=Gui.getMainWindow(),
-        fps=7,
+        fps=12,
         scale=0.5,
         max_frames=100,
         show_cursor=False,

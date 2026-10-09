@@ -246,9 +246,13 @@ class AvatarTaskPanel:
         self.status.setWordWrap(True)
         root.addWidget(self.status)
 
+        self._loading = True
         self._dirty = False
         self._staged_joint_rotations = {}
-        self._load()
+        try:
+            self._load()
+        finally:
+            self._loading = False
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
         for box in self._pose_boxes.values():
