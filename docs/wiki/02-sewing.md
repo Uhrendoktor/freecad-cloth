@@ -72,4 +72,4 @@ For a network/free-sewing relationship, pick all desired edges, stop viewport pi
 
 The colored paths and A/B tags are transient viewport overlays, not document objects. They are regenerated from valid semantic seam references after recompute, document restore, view entry, and workbench activation. The object's SeamId remains canonical; colors and short labels are only presentation. Invalid or stale edge references are deliberately not drawn as valid seams.
 
-When reviewing a crowded scene, verify the seam ID and side suffix as well as color. Color alone is not a sufficient identity cue, and directional marks should agree before Commit.
+Open **Seam Overlay Options** under Sewing → Validation & View to hide or show the colored overlays and choose whether linework and labels respect foreground geometry. A/B labels appear only while the pointer is over a sewn pattern edge; moving away hides them. When reviewing a crowded scene, verify the seam ID and side suffix as well as color. Color alone is not a sufficient identity cue, and directional marks should agree before Commit.
