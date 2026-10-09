@@ -259,11 +259,19 @@ try:
     world_bounds = []
     for piece in (piece_a, piece_b, piece_c):
         box = piece.Shape.BoundBox
-        base = piece.Placement.Base
+        if box.isNull() or float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
+            raise RuntimeError(
+                "seam-assignment GIF fixture has empty pattern geometry: " + piece.Label
+            )
+        if not bool(piece.ViewObject.Visibility):
+            raise RuntimeError(
+                "seam-assignment GIF fixture is not visible: " + piece.Label
+            )
+        # FreeCAD's Shape.BoundBox already includes the object's Placement.
+        # Adding Placement.Base a second time shifts and enlarges the camera box.
         world_bounds.append((
-            float(box.XMin + base.x), float(box.YMin + base.y),
-            float(box.ZMin + base.z), float(box.XMax + base.x),
-            float(box.YMax + base.y), float(box.ZMax + base.z),
+            float(box.XMin), float(box.YMin), float(box.ZMin),
+            float(box.XMax), float(box.YMax), float(box.ZMax),
         ))
     xmin = min(value[0] for value in world_bounds)
     ymin = min(value[1] for value in world_bounds)
@@ -284,8 +292,15 @@ try:
     extent_x, extent_y = xmax - xmin, ymax - ymin
     camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
     camera = view.getCameraNode()
+    previous_position = coin.SbVec3f(camera.position.getValue())
+    # Preserve the distance used by FreeCAD's top view. Moving the camera far
+    # beyond the inherited clipping range can hide every piece even when its
+    # orthographic height is correct.
+    camera_distance = abs(float(previous_position[2]) - float(center[2]))
+    if camera_distance < 10.0:
+        camera_distance = max(100.0, 2.0 * max(extent_x, extent_y))
     camera.position.setValue(
-        coin.SbVec3f(center[0], center[1], center[2] + max(100.0, 2.0 * max(extent_x, extent_y)))
+        coin.SbVec3f(center[0], center[1], center[2] + camera_distance)
     )
     camera.height.setValue(float(camera_height))
     camera.pointAt(center, coin.SbVec3f(0.0, 1.0, 0.0))
@@ -302,6 +317,14 @@ try:
             "seam-assignment GIF camera did not apply the requested world-space framing: "
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
+    record(
+        "seam-camera=passed center=(%.2f,%.2f,%.2f) bounds=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f) "
+        "height=%.2f distance=%.2f viewport=%dx%d"
+        % (
+            center[0], center[1], center[2], xmin, ymin, zmin, xmax, ymax, zmax,
+            float(camera_match.group(1)), camera_distance, int(view_width), int(view_height),
+        )
+    )
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
         gui=Gui,
