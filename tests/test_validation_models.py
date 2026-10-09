@@ -20,7 +20,9 @@ from freecad_cloth.common.ValidationModels import (
     validate_point2d,
     validate_points3d,
 )
-from freecad_cloth.pattern.PatternGeometry import LineSegment, QuadraticBezier, rectangle, seam_allowance_outline
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment, PolylineSegment, QuadraticBezier, rectangle, seam_allowance_outline,
+)
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
@@ -241,3 +243,9 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
     transform = Transform3D.translation(1e308, 0.0, 0.0)
     with pytest.raises(ValueError):
         transform.apply((1e308, 0.0, 0.0))
+
+
+
+def test_polyline_interpolation_avoids_overflow_for_finite_extreme_points() -> None:
+    segment = PolylineSegment("extreme-polyline", ((-1e308, 0.0), (1e308, 0.0)))
+    assert segment.point(0.5) == (0.0, 0.0)
