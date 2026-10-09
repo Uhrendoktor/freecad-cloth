@@ -342,7 +342,12 @@ def run():
         _events()
         recorder.hold(450)
         field = panel.precision_fields["y"]
-        type_text(field, "35", replace_selection=True, press_enter=True)
+        type_text(field, "35", replace_selection=True)
+        # Return activates FreeCAD's task-panel default button in headless CI.
+        # Commit the spin-box edit by leaving the field instead of accepting
+        # the whole Pose Mode dialog.
+        field.clearFocus()
+        _events()
         wait_until(
             lambda: (
                 panel._staged_joint_rotations.get("upperarm01.L") is not None
