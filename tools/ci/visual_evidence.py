@@ -9,8 +9,8 @@ from pathlib import Path
 
 IMAGE_SUFFIXES = (".png", ".gif", ".jpg", ".jpeg", ".webp")
 PREFIX = (
-    "https://github.com/Uhrendoktor/freecad-cloth/"
-    "raw/refs/heads/docs/screenshots/docs/images/generated/"
+    "https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/"
+    "refs/heads/docs/screenshots/docs/images/generated/"
 )
 ASSET_RE = re.compile(re.escape(PREFIX) + r"""([^\s'"<>\)]+)""")
 
