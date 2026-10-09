@@ -384,3 +384,13 @@ def test_tunic_side_seams_keep_the_authored_edge_direction():
     assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False)' in source
     assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", True)' not in source
     assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", True)' not in source
+
+
+def test_canonical_tunic_maps_seams_to_shared_surface_positions_before_build():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "def tunic_initial_surface_mesh(" in source
+    assert "native_avatar_mesh.nearestFacetOnRay(origin, vector)" in source
+    assert "simulation_objects._piece_mesh = tunic_initial_surface_mesh" in source
+    assert "simulation_objects._piece_mesh = original_piece_mesh" in source
+    assert "tunic-seam-initial-max-gap-mm=" in source
+    assert "canonical tunic initial seam span exceeds the 35 mm convergence gate" in source
