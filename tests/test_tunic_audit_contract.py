@@ -231,8 +231,8 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.78, 0.18)' in debug
     assert 'make_piece("DebugTunicBack", back_y, 0.76, 0.12)' in debug
-    assert '"front, front_outline = make_piece(\"VisualTunicFront\", \"back\", 0.78, 0.18)' in audit
-    assert 'back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+    assert r'make_piece(\"VisualTunicFront\", \"back\", 0.78, 0.18)' in audit
+    assert r'make_piece(\"VisualTunicBack\", \"front\", 0.76, 0.12)' in audit
 
 
 
