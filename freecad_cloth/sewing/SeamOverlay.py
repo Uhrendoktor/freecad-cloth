@@ -8,7 +8,6 @@ correspondence. No overlay node is persisted in the FreeCAD document.
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Iterable
 from hashlib import sha1
 from typing import Any
@@ -27,33 +26,17 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     if any(not identity for identity in identities):
         raise ValueError("seam identity must not be empty")
 
-    bases: dict[str, str] = {}
-    for identity in identities:
-        if identity.startswith("seam-") and identity[5:].isdigit():
-            bases[identity] = "S" + identity[5:]
-        elif len(identity) <= 8:
-            bases[identity] = identity
-        else:
-            bases[identity] = identity[:6]
-
-    counts = Counter(bases.values())
     labels: dict[str, str] = {}
     used: set[str] = set()
     for identity in identities:
-        base = bases[identity]
-        if counts[base] == 1 and base not in used:
-            candidate = base
+        if identity.startswith("seam-") and identity[5:].isdigit():
+            base = "S" + identity[5:]
         else:
-            digest = sha1(identity.encode("utf-8")).hexdigest()
-            candidate = base
-            for width in range(4, len(digest) + 1, 2):
-                candidate = f"{base}-{digest[:width]}"
-                if candidate not in used and candidate not in {
-                    bases[other] for other in identities if other != identity
-                }:
-                    break
-            while candidate in used:
-                candidate += "x"
+            slug = "".join(char for char in identity if char.isalnum())[:6] or "Seam"
+            base = f"{slug}-{sha1(identity.encode('utf-8')).hexdigest()[:6]}"
+        candidate = base
+        while candidate in used:
+            candidate += "x"
         labels[identity] = candidate
         used.add(candidate)
     return labels
