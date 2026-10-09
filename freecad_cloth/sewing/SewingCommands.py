@@ -422,6 +422,7 @@ def focus_selected_seam_3d():
     refresh_seam_overlay(doc)
     return seam
 
+
 def _edit_selected_seam_side(side):
     import FreeCAD as App
     import FreeCADGui as Gui
