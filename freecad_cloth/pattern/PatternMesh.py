@@ -99,7 +99,7 @@ def triangulate(
         edge_ids = [segment.id for segment in pattern.segments]
     else:
         edge_ids = _edge_segment_ids(pattern, points)
-    if signed_area < 0:
+    if outline_area < 0:
         points = list(reversed(points))
         # Recompute provenance from geometry after normalization. A refined
         # authored edge can contain several internal sub-segments, so a fixed
