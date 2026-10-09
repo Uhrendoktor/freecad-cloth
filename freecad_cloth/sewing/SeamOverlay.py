@@ -493,7 +493,7 @@ class SeamOverlayController:
         if seam_id == self.hovered_seam_id:
             return
         self.hovered_seam_id = seam_id
-        refresh_seam_overlay(self.document)
+        schedule_seam_overlay_refresh(self.document)
 
     def deactivate(self) -> None:
         """Remove only this controller's transient Coin node and hover callback."""
