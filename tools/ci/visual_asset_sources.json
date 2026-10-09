@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "assets": {
+    "avatar-pose-mode.png": {
+      "artifact": "avatar-pose-ui",
+      "producers": [
+        "tests/freecad_avatar_pose_ui_acceptance.py"
+      ]
+    },
+    "cloth-avatar-bottom.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-front.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-left.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-rear.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-right.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-top.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
+    "cloth-avatar-turntable.gif": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py",
+        "tools/ci/build_visual_gifs.py"
+      ]
+    },
+    "cloth-blanket-motion.gif": {
+      "artifact": "blanket-visual-example",
+      "producers": [
+        "tests/freecad_visual_examples.py",
+        "tools/ci/build_visual_gifs.py"
+      ]
+    },
+    "cloth-pattern-design.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_screenshot_source.py"
+      ]
+    },
+    "cloth-sewing.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_screenshot_source.py"
+      ]
+    },
+    "cloth-simulation-arranged-turntable.gif": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_simulation_turntable.py",
+        "tools/ci/build_visual_gifs.py"
+      ]
+    },
+    "cloth-simulation-arranged.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_screenshot_source.py"
+      ]
+    },
+    "cloth-simulation-draped-bottom.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-diagnostics.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-front.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-left.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-rear.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-right.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-top.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-simulation-draped-turntable.gif": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_simulation_turntable.py",
+        "tools/ci/build_visual_gifs.py"
+      ]
+    },
+    "cloth-simulation-draped.png": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py"
+      ]
+    },
+    "cloth-tunic-mannequin-motion.gif": {
+      "artifact": "tunic-visual-audit",
+      "producers": [
+        "tests/freecad_tunic_audit_production.py",
+        "tools/ci/build_visual_gifs.py"
+      ]
+    },
+    "interactive-arrange.gif": {
+      "artifact": "interactive-arrange",
+      "producers": [
+        "tests/freecad_interactive_arrange_acceptance.py"
+      ]
+    },
+    "interactive-arrange.png": {
+      "artifact": "interactive-arrange",
+      "producers": [
+        "tests/freecad_interactive_arrange_acceptance.py"
+      ]
+    },
+    "pose-joint-rotation.gif": {
+      "artifact": "avatar-pose-ui",
+      "producers": [
+        "tests/freecad_avatar_pose_ui_acceptance.py"
+      ]
+    },
+    "seam-assignment.gif": {
+      "artifact": "sewing-creation-smoke",
+      "producers": [
+        "tests/freecad_sewing_creation_smoke.py"
+      ]
+    }
+  }
+}
