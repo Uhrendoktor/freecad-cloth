@@ -75,6 +75,7 @@ GROUPS = {
         "tests/test_freecad_gui_startup_contract.py",
         "tests/test_drape_gui.py",
         "tests/test_simulation_gui.py",
+        "tests/test_freecad_input.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",

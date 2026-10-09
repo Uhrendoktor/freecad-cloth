@@ -20,6 +20,11 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
+def coin_position_to_screen(position, viewport_height):
+    """Convert Coin's bottom-left-origin event point to top-left screen coordinates."""
+    return float(position[0]), float(viewport_height) - float(position[1])
+
+
 def nearest_arrangement_point(position, points, max_distance):
     """Return the nearest 2D arrangement point within the supplied distance.
 
@@ -83,6 +88,9 @@ class DirectArrangeController:
         self._location_callback = None
         self._transaction_open = False
         self._snap_indicator = None
+        self._pending_snap_point = None
+        self._snap_indicator_update_pending = False
+        self._snap_indicator_generation = 0
 
     def _status(self, message):
         self.status_callback(str(message))
@@ -183,6 +191,26 @@ class DirectArrangeController:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             self._snap_indicator = None
 
+    def _queue_snap_indicator(self, point):
+        """Defer scene-graph mutation until Coin finishes the active event traversal."""
+        self._pending_snap_point = point
+        if self._snap_indicator_update_pending:
+            return
+        self._snap_indicator_update_pending = True
+        generation = self._snap_indicator_generation
+
+        def apply_pending():
+            if generation != self._snap_indicator_generation:
+                return
+            self._snap_indicator_update_pending = False
+            pending = self._pending_snap_point
+            self._pending_snap_point = None
+            if self.view is None:
+                return
+            self._show_snap_indicator(pending)
+
+        self.QtCore.QTimer.singleShot(0, apply_pending)
+
     def _set_piece_placement(self, piece, base, rotation_z):
         piece.Placement = self.App.Placement(
             self.App.Vector(float(base[0]), float(base[1]), float(base[2])),
@@ -233,6 +261,9 @@ class DirectArrangeController:
                 pass
         self.drag_piece = None
         self.snap_point = None
+        self._snap_indicator_generation += 1
+        self._pending_snap_point = None
+        self._snap_indicator_update_pending = False
         self._clear_snap_indicator()
         self._abort_transaction()
         if self.view is not None:
@@ -268,7 +299,7 @@ class DirectArrangeController:
             )
             self.drag_start_rotation = float(placement.Rotation.Angle)
             self.snap_point = None
-            self._clear_snap_indicator()
+            self._queue_snap_indicator(None)
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
@@ -314,7 +345,7 @@ class DirectArrangeController:
             self._commit_transaction()
             self.drag_piece = None
             self.snap_point = None
-            self._clear_snap_indicator()
+            self._queue_snap_indicator(None)
 
     def _location_event(self, info):
         if self.drag_piece is None or self.drag_start_screen is None:
@@ -334,10 +365,11 @@ class DirectArrangeController:
                 self.drag_start_base[1] + float(delta.y),
                 self.drag_start_base[2] + float(delta.z),
             )
-            snap = self._nearest_snap_point(position) if self.snap_enabled else None
+            screen_position = coin_position_to_screen(position, self.view.getSize()[1])
+            snap = self._nearest_snap_point(screen_position) if self.snap_enabled else None
             self.snap_point = snap
             if snap is not None:
-                self._show_snap_indicator(snap)
+                self._queue_snap_indicator(snap)
                 base = (float(snap.X), float(snap.Y), float(snap.Offset))
                 rotation = arrangement_rotation(snap)
                 self._status(
@@ -347,7 +379,7 @@ class DirectArrangeController:
                     )
                 )
             else:
-                self._clear_snap_indicator()
+                self._queue_snap_indicator(None)
                 rotation = self.drag_start_rotation
             self._set_piece_placement(self.drag_piece, base, rotation)
         except (AttributeError, TypeError, ValueError, RuntimeError):

@@ -2,7 +2,11 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.avatar.FittingGui import arrangement_rotation, nearest_arrangement_point
+from freecad_cloth.avatar.FittingGui import (
+    arrangement_rotation,
+    coin_position_to_screen,
+    nearest_arrangement_point,
+)
 
 
 def test_nearest_arrangement_point_returns_closest_candidate_within_threshold():
@@ -30,3 +34,11 @@ def test_arrangement_rotation_maps_wrap_direction_to_viewport_rotation():
     assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="back")) == 185.0
     assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="left")) == 95.0
     assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="right")) == -85.0
+
+
+def test_coin_event_coordinates_are_converted_before_snap_matching():
+    screen_position = coin_position_to_screen((710.0, 461.0), 590.0)
+    assert screen_position == (710.0, 129.0)
+
+    target = SimpleNamespace(X=710.0, Y=129.0)
+    assert nearest_arrangement_point(screen_position, (target,), 36.0) is target

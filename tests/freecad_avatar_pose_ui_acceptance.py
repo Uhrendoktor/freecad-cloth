@@ -14,6 +14,13 @@ if str(ROOT) not in sys.path:
 import FreeCAD as App
 import FreeCADGui as Gui
 
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    click_widget,
+    type_text,
+    wait_until,
+)
+
 
 
 def _runtime_diagnostics():
@@ -308,6 +315,56 @@ def run():
     selected = str(panel.skeleton_joint_index)
     if not selected:
         raise RuntimeError("Pose Mode did not select a default joint")
+
+    # Pivy mouse callbacks are unavailable in this FreeCAD/SWIG build.
+    # Select the joint through the controller API, then edit Exact angles using
+    # real Qt keyboard events and capture the resulting live UI/model preview.
+    # The preceding screenshot helper has already sized and activated the main window.
+    # Do not resize it again here: some FreeCAD task-panel builds recreate child widgets.
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD main window is unavailable for Pose Mode GIF recording")
+    panel.controller.select_joint("upperarm01.L")
+    _events()
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/pose-joint-rotation.gif",
+        gui=Gui,
+        window=window,
+        fps=7,
+        scale=0.5,
+        max_frames=110,
+        show_cursor=False,
+    )
+    recorder.start()
+    try:
+        recorder.hold(600)
+        click_widget(panel.precision)
+        _events()
+        recorder.hold(450)
+        field = panel.precision_fields["y"]
+        type_text(field, "35", replace_selection=True)
+        # Return activates FreeCAD's task-panel default button in headless CI.
+        # Commit the spin-box edit by leaving the field instead of accepting
+        # the whole Pose Mode dialog.
+        field.clearFocus()
+        _events()
+        wait_until(
+            lambda: (
+                panel._staged_joint_rotations.get("upperarm01.L") is not None
+                and abs(
+                    float(panel._staged_joint_rotations["upperarm01.L"].y) - 35.0
+                ) < 1e-4
+            ),
+            description="keyboard-edited upper-arm joint rotation",
+        )
+        recorder.hold(900)
+        pose_after_edit = panel._staged_joint_rotations.get("upperarm01.L")
+        if pose_after_edit is None or abs(float(pose_after_edit.y) - 35.0) > 1e-4:
+            raise RuntimeError("Exact angles keyboard input did not stage the expected rotation")
+    finally:
+        if recorder._started:
+            recorder.stop()
+
 
     before = _bounds(avatar.Mesh)
     panel._stage_joint_rotation(

@@ -2,6 +2,10 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Cloth Sewing workbench" width="900"></p>
 
+<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Assigning a seam by selecting one edge on each workpiece, reviewing the preview, and committing the seam" width="900"></p>
+
+The animation shows the complete seam workflow in the live FreeCAD window: source and counterpart edges are selected, the semantic seam preview is reviewed, and the seam is committed. In headless CI the harness activates edge subelements through FreeCAD's selection API rather than relying on fragile screen-coordinate hit testing; preview and commit are exercised in the live task panel.
+
 ## What the feature is
 
 Cloth Sewing turns authored pattern edges into semantic garment assembly relationships.

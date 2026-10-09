@@ -17,6 +17,11 @@ import Part
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    click_widget,
+    focus_main_window,
+)
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
@@ -146,6 +151,7 @@ def wait_for_task_close():
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
 
 
+
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
@@ -190,6 +196,7 @@ def close_public_task(panel=None):
 
 
 doc = None
+recorder = None
 _success = False
 try:
     record("smoke=started")
@@ -216,20 +223,50 @@ try:
         PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-c"),
     )
     doc.recompute()
+    # Keep the outlines separate so the recorded viewport workflow shows two
+    # distinct workpieces and unambiguous source/counterpart edge selection.
+    piece_b.Placement = App.Placement(App.Vector(145.0, 0.0, 0.0), App.Rotation())
+    piece_c.Placement = App.Placement(App.Vector(290.0, 0.0, 0.0), App.Rotation())
+    doc.recompute()
     record("fixtures=created pieces=3")
 
+    view = Gui.activeDocument().activeView()
+    view.setCameraType("Orthographic")
+    view.viewTop()
+    view.fitAll()
+    window = focus_main_window(Gui, size=(1280, 720))
+    view.fitAll()
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/seam-assignment.gif",
+        gui=Gui,
+        window=window,
+        fps=7,
+        scale=0.5,
+        max_frames=120,
+    )
+    recorder.start()
+    recorder.hold(700)
+
     before = {obj.Name for obj in doc.Objects}
+    # Activate semantic edge subelements through FreeCAD's selection API. The
+    # viewport highlights and task-panel selection are real; screen-coordinate
+    # edge hit-testing is unreliable in this headless FreeCAD/Pivy build.
     select_edges((piece_a, 0), (piece_b, 0))
+    recorder.hold(700)
     panel = open_public("ClothSewing_CreateSeam")
+    recorder.hold(1100)
     assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
         "1:1 preview did not create a seam"
     )
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
     record("preview-1to1=passed")
-    panel.commit_button.click()
+    recorder.hold(700)
+    click_widget(panel.commit_button)
     process_events()
     wait_for_task_close()
+    recorder.hold(800)
+    recorder.stop()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
         "1:1 commit lost seam"
     )
@@ -239,10 +276,11 @@ try:
     select_edges((piece_a, 1), (piece_b, 1))
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
-    cancel_panel.cancel_button.click()
+    click_widget(cancel_panel.cancel_button)
+    process_events()
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == cancel_before, "cancel persisted preview objects"
-    record("cancel-1to1=passed")
+    record("cancel-1to1=passed via=qt-mouse")
 
     count_before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 2))
@@ -574,8 +612,13 @@ try:
     _success = True
 except Exception:
     record("smoke=exception\n" + traceback.format_exc())
-    raise
+
 finally:
+    if recorder is not None and recorder._started:
+        with contextlib.suppress(Exception):
+            from tests.support.freecad_input import release_all_input
+            release_all_input()
+            recorder.stop()
     LOG.append("sewing-creation-smoke=completed")
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("sewing-creation-smoke=completed", flush=True)
@@ -583,3 +626,6 @@ finally:
 if _success:
     sys.stdout.flush()
     getattr(os, "_" + "exit")(0)
+else:
+    sys.stdout.flush()
+    getattr(os, "_" + "exit")(1)

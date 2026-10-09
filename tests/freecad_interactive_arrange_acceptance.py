@@ -1,8 +1,4 @@
-"""Real FreeCAD/Xvfb acceptance for direct fitting manipulation.
-
-The test drives the same viewport callback surface used by the task panel and
-verifies that a drag near an arrangement point becomes a persistent placement.
-"""
+"""FreeCAD/Xvfb acceptance for Interactive Arrange using controller callback activation."""
 
 import os
 import sys
@@ -15,6 +11,8 @@ if str(ROOT) not in sys.path:
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+
+from tests.support.freecad_input import UiGifRecorder
 
 
 def _capture_screen(path):
@@ -77,37 +75,71 @@ def run():
     Gui.updateGui()
     controller = panel.controller
 
-    start = _screen(view, App.Vector(0.0, 0.0, 0.0))
-    snap = controller._screen_position(
+    viewport_height = float(view.getSize()[1])
+    start_screen = _screen(view, App.Vector(0.0, 0.0, 0.0))
+    start = (start_screen[0], int(round(viewport_height - start_screen[1])))
+    snap_screen = controller._screen_position(
         doc.getObject(scene.ArrangementPointObjects[0])
     )
-
-    controller._mouse_event(
-        {
-            "State": "DOWN",
-            "Button": "BUTTON1",
-            "Position": start,
-            "Object": piece.Label,
-        }
+    # Coin mouse/location events use a bottom-left origin; the controller's
+    # projected snap points are top-left screen coordinates.
+    snap = (snap_screen[0], viewport_height - snap_screen[1])
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/interactive-arrange.gif",
+        gui=Gui,
+        window=Gui.getMainWindow(),
+        fps=7,
+        scale=0.5,
+        max_frames=100,
+        show_cursor=False,
     )
-    controller._location_event(
-        {
-            "State": "MOVE",
-            "Position": (int(round(snap[0])), int(round(snap[1]))),
-        }
-    )
-
-    if controller.snap_point is None or controller._snap_indicator is None:
-        raise RuntimeError("drag did not expose an arrangement-point snap preview and marker")
-    _capture_screen("artifacts/interactive-arrange.png")
-
-    controller._mouse_event(
-        {
-            "State": "UP",
-            "Button": "BUTTON1",
-            "Position": (int(round(snap[0])), int(round(snap[1]))),
-        }
-    )
+    recorder.start()
+    try:
+        recorder.hold(500)
+        # Drive the same Coin callback boundary that the viewport task panel
+        # registers. Native pointer injection into unsupported Pivy builds is
+        # unstable, so the acceptance uses deterministic callback activation
+        # while recording the full live 3D view and task panel.
+        controller._mouse_event(
+            {
+                "State": "DOWN",
+                "Button": "BUTTON1",
+                "Position": start,
+                "Object": piece.Label,
+            }
+        )
+        recorder.hold(250)
+        for index in range(1, 21):
+            fraction = index / 20.0
+            position = (
+                start[0] + (snap[0] - start[0]) * fraction,
+                start[1] + (snap[1] - start[1]) * fraction,
+            )
+            controller._location_event(
+                {
+                    "State": "MOVE",
+                    "Position": (int(round(position[0])), int(round(position[1]))),
+                }
+            )
+            if index % 4 == 0:
+                recorder.hold(100)
+        if controller.snap_point is None or controller._snap_indicator is None:
+            raise RuntimeError(
+                "callback-driven viewport drag did not expose snap preview and marker"
+            )
+        recorder.hold(900)
+        _capture_screen("artifacts/interactive-arrange.png")
+        controller._mouse_event(
+            {
+                "State": "UP",
+                "Button": "BUTTON1",
+                "Position": (int(round(snap[0])), int(round(snap[1]))),
+            }
+        )
+        recorder.hold(700)
+    finally:
+        if recorder._started:
+            recorder.stop()
     doc.recompute()
 
     base = piece.Placement.Base
