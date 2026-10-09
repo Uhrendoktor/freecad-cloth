@@ -766,6 +766,103 @@ def _projected_point_within_outline_margin(x, z, points, margin):
     return inside or near
 
 
+def capture_tunic_pattern_view(doc, front, back, hem_width):
+    """Capture the exact Sketcher profiles that are subsequently used by the 3D audit."""
+    from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
+
+    pieces = (front, back)
+    original_piece_placements = {
+        piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
+        for piece in pieces
+    }
+    original_sketch_placements = {
+        piece.Sketch.Name: App.Placement(
+            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
+        )
+        for piece in pieces
+    }
+    original_visibility = {}
+    for obj in doc.Objects:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None and hasattr(view_object, "Visibility"):
+            original_visibility[obj.Name] = bool(view_object.Visibility)
+
+    # Show the same authoritative Sketcher objects in a flat, side-by-side layout.
+    # Only their placements change for this screenshot; the local profile geometry
+    # remains exactly what the canonical 3D simulation consumes.
+    gap = max(80.0, 0.15 * float(hem_width))
+    try:
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is not None and hasattr(view_object, "Visibility"):
+                view_object.Visibility = False
+
+        front_placement = App.Placement(
+            App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        back_placement = App.Placement(
+            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        front.Placement = front_placement
+        front.Sketch.Placement = front_placement
+        back.Placement = back_placement
+        back.Sketch.Placement = back_placement
+        front.ViewObject.Visibility = False
+        back.ViewObject.Visibility = False
+        front.Sketch.ViewObject.Visibility = True
+        back.Sketch.ViewObject.Visibility = True
+        doc.recompute()
+
+        activate(
+            "ClothPatternWorkbench",
+            "Cloth Pattern",
+            [
+                "ClothPattern_CreatePieceTask",
+                "ClothPattern_EditPiece",
+                "ClothPattern_Show2D",
+                "ClothPattern_CreateFromSketch",
+            ],
+        )
+        panel = PatternPieceTaskPanel(front)
+        show_task(
+            panel,
+            "Pattern Workbench",
+            ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"),
+        )
+        # The floating task panel obscures the second profile in the captured view.
+        # Keep the workbench active, but close the panel so both canonical pieces are visible.
+        close_task()
+        view = Gui.activeDocument().activeView()
+        view.viewTop()
+        view.fitAll()
+        events()
+        save(
+            "cloth-pattern-design.png",
+            "Pattern Workbench canonical tunic profile",
+            "same native Sketcher profiles used by the canonical 3D tunic audit",
+        )
+        log(
+            "pattern-profile-alignment=passed front=%s front_edges=%d back=%s back_edges=%d"
+            % (
+                front.Sketch.Name,
+                len(front.Sketch.Geometry),
+                back.Sketch.Name,
+                len(back.Sketch.Geometry),
+            )
+        )
+    finally:
+        close_task()
+        for piece in pieces:
+            piece.Placement = original_piece_placements[piece.Name]
+            piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
+        for obj in doc.Objects:
+            if obj.Name in original_visibility:
+                obj.ViewObject.Visibility = original_visibility[obj.Name]
+        doc.recompute()
+        Gui.activateWorkbench("ClothSimulationWorkbench")
+        events()
+
+
 def simulation():
     import os
 
@@ -855,6 +952,8 @@ def simulation():
     torso_half_width = max(80.0, 0.30 * shoulder_width)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
+    tunic_torso_y_mid = None
+
     def target_relative_piece_placement(side, outline):
         projected_target_ys = [
             float(vertex[1])
@@ -871,6 +970,8 @@ def simulation():
             raise RuntimeError("canonical tunic torso silhouette does not overlap DrapeTarget projections")
         target_front_y = min(projected_target_ys)
         target_back_y = max(projected_target_ys)
+        nonlocal tunic_torso_y_mid
+        tunic_torso_y_mid = 0.5 * (target_front_y + target_back_y)
         if side == "front":
             y = target_front_y - clearance
         elif side == "back":
@@ -908,6 +1009,7 @@ def simulation():
     # but this planar fixture represents the shared shoulder-to-neck join with identical authored coordinates.
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)
+    capture_tunic_pattern_view(doc, front, back, hem_width)
     # Resolve sewn edges by native semantic IDs; PatternIR boundary order is independent
     # of Sketcher insertion order. Side seams run in opposite authored directions on
     # the mirrored panels, so B is reversed only for the two side seams.
@@ -969,8 +1071,135 @@ def simulation():
         "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
         "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
     ]
-    refresh_drape_target(target)
-    doc.recompute()
+    # Start the diagnostic cloth on an offset target surface instead of two
+    # parallel planes whose matching side seams are about 238 mm apart.
+    # Source Sketcher geometry and PatternIR topology are not modified.
+    import Mesh
+    from freecad_cloth.simulation import SimulationObjects as simulation_objects
+    from freecad_cloth.simulation.ClothAttachments import _nearest_surface_point
+
+    original_piece_mesh = simulation_objects._piece_mesh
+    native_avatar_mesh = Mesh.Mesh()
+    native_avatar_mesh.addFacets(
+        [
+            (target_surface.vertices[a], target_surface.vertices[b], target_surface.vertices[c])
+            for a, b, c in target_surface.triangles
+        ]
+    )
+    native_avatar_facets = tuple(native_avatar_mesh.Facets)
+    if len(native_avatar_facets) != len(target_surface.triangles):
+        raise RuntimeError("tunic initialization lost DrapeTarget facet correspondence")
+    fit_radius = 3.0 * float(scene.ParticleDistance)
+    outward_offset = float(clearance) + 3.0
+    fit_zs = tuple(float(vertex[2]) for vertex in target_surface.vertices)
+    target_fit_center = (
+        float(x_mid),
+        float(tunic_torso_y_mid),
+        0.5 * (min(fit_zs) + max(fit_zs)),
+    )
+    seam_fit_cache = {}
+    ray_hit_cache = {}
+    fit_counts = {"seam-surface": 0, "seam-outside": 0, "panel-surface": 0, "panel-fallback": 0}
+
+    def _fit_surface_point(point, triangle_index):
+        facet_normal = native_avatar_facets[int(triangle_index)].Normal
+        normal = (float(facet_normal.x), float(facet_normal.y), float(facet_normal.z))
+        length = sum(value * value for value in normal) ** 0.5
+        if length <= 1e-12:
+            raise RuntimeError("tunic initialization found a degenerate DrapeTarget facet")
+        normal = tuple(value / length for value in normal)
+        radial = tuple(float(point[i]) - target_fit_center[i] for i in range(3))
+        if sum(normal[i] * radial[i] for i in range(3)) < 0.0:
+            normal = tuple(-value for value in normal)
+        return tuple(float(point[i]) + outward_offset * normal[i] for i in range(3))
+
+    def _seam_surface_vertex(x, z):
+        key = (round(float(x), 4), round(float(z), 4))
+        if key not in seam_fit_cache:
+            distance, triangle_index, closest = _nearest_surface_point(
+                (float(x), float(tunic_torso_y_mid), float(z)),
+                target_surface.vertices,
+                target_surface.triangles,
+            )
+            if float(distance) <= fit_radius:
+                seam_fit_cache[key] = _fit_surface_point(closest, triangle_index)
+                fit_counts["seam-surface"] += 1
+            else:
+                # Keep garment ease where the silhouette is well outside the avatar,
+                # while putting corresponding front/back seam vertices at one point.
+                seam_fit_cache[key] = (float(x), float(tunic_torso_y_mid), float(z))
+                fit_counts["seam-outside"] += 1
+        return seam_fit_cache[key]
+
+    def _ray_surface_hit(x, z, direction):
+        key = (round(float(x), 4), round(float(z), 4), int(direction))
+        if key not in ray_hit_cache:
+            origin = App.Vector(float(x), float(tunic_torso_y_mid), float(z))
+            vector = App.Vector(0.0, float(direction), 0.0)
+            raw_hits = native_avatar_mesh.nearestFacetOnRay(origin, vector)
+            candidates = []
+            for raw_index, hit in raw_hits.items():
+                triangle_index = int(raw_index)
+                point = (float(hit.x), float(hit.y), float(hit.z))
+                delta_y = point[1] - float(tunic_torso_y_mid)
+                if direction < 0 and delta_y > 1e-6:
+                    continue
+                if direction > 0 and delta_y < -1e-6:
+                    continue
+                candidates.append((abs(delta_y), triangle_index, point))
+            ray_hit_cache[key] = (
+                min(candidates, key=lambda item: (item[0], item[1]))[1:]
+                if candidates else None
+            )
+        return ray_hit_cache[key]
+
+    def tunic_initial_surface_mesh(piece, start_height, piece_ir=None):
+        vertices, triangles, boundary_edges = original_piece_mesh(
+            piece, start_height, piece_ir=piece_ir
+        )
+        if piece_ir is None or str(getattr(piece, "PieceId", "")) not in {
+            str(front.PieceId), str(back.PieceId)
+        }:
+            return vertices, triangles, boundary_edges
+        sewn_ids = {
+            str(piece_ir.boundaries[index].id)
+            for index in (1, 3, 5, 7)
+            if index < len(piece_ir.boundaries)
+        }
+        sewn_vertices = {
+            int(vertex_index)
+            for boundary, chain in zip(piece_ir.boundaries, boundary_edges, strict=False)
+            if str(boundary.id) in sewn_ids
+            for vertex_index in chain
+        }
+        is_front = str(piece.PieceId) == str(front.PieceId)
+        direction = -1 if is_front else 1
+        mapped = []
+        for index, raw in enumerate(vertices):
+            x, y, z = (float(value) for value in raw)
+            if index in sewn_vertices:
+                point = _seam_surface_vertex(x, z)
+            else:
+                hit = _ray_surface_hit(x, z, direction)
+                if hit is None:
+                    fit_counts["panel-fallback"] += 1
+                    point = (x, y, z)
+                else:
+                    triangle_index, surface_point = hit
+                    point = _fit_surface_point(surface_point, triangle_index)
+                    fit_counts["panel-surface"] += 1
+            mapped.append(tuple(float(value) for value in point))
+        return tuple(mapped), triangles, boundary_edges
+
+    try:
+        simulation_objects._piece_mesh = tunic_initial_surface_mesh
+        refresh_drape_target(target)
+        doc.recompute()
+    finally:
+        simulation_objects._piece_mesh = original_piece_mesh
+    log("tunic-initial-surface-map=%s fit-radius-mm=%.1f offset-mm=%.2f" % (
+        fit_counts, fit_radius, outward_offset
+    ))
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError(
@@ -994,6 +1223,20 @@ def simulation():
     # deltas distinguish incorrect edge pairing from later solver dynamics.
     initial_solver_positions = tuple(backend.positions())
     pinned_indices = set(solver_pins)
+    from freecad_cloth.simulation.SimulationObjects import seam_gap_diagnostics
+    initial_seam_reports = seam_gap_diagnostics(
+        initial_solver_positions,
+        getattr(proxy, "seam_stitch_pairs", {}),
+    )
+    initial_max_seam_gap = max(
+        float(report["max_gap"]) for report in initial_seam_reports.values()
+    )
+    log("tunic-seam-initial-max-gap-mm=%.2f" % initial_max_seam_gap)
+    if initial_max_seam_gap > 35.0:
+        raise RuntimeError(
+            "canonical tunic initial seam span exceeds the 35 mm convergence gate: "
+            "%.2f mm" % initial_max_seam_gap
+        )
     stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
     for seam, _piece_a, _piece_b in seam_records:
         seam_id = str(getattr(seam, "SeamId", ""))
