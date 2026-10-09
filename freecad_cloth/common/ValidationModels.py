@@ -10,7 +10,7 @@ from math import isfinite
 from numbers import Real
 from typing import Annotated, TypeAlias
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictInt, TypeAdapter, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictInt, StrictStr, TypeAdapter, model_validator
 
 
 def _finite_real(value: object) -> float:
@@ -261,6 +261,88 @@ class TransformMatrixInput(InputModel):
             raise ValueError("assembly transform must contain 16 values")
         if abs(self.matrix[15]) < 1e-12:
             raise ValueError("assembly transform has an invalid homogeneous scale")
+        return self
+
+
+
+class CollisionSurfaceInput(InputModel):
+    """Validate the finite geometry and topology passed to a collision solver."""
+
+    vertices: tuple[Point3D, ...]
+    triangles: tuple[Triangle, ...]
+    region: StrictStr = "body"
+    thickness: FiniteNumber = 0.0
+
+    @model_validator(mode="after")
+    def surface_is_valid(self) -> CollisionSurfaceInput:
+        """Reject empty surfaces, invalid connectivity, and invalid thickness."""
+        if len(self.vertices) < 3 or not self.triangles:
+            raise ValueError("collision surface needs vertices and triangles")
+        if self.thickness < 0.0:
+            raise ValueError("collision thickness must be finite and non-negative")
+        if not self.region.strip():
+            raise ValueError("collision region must not be empty")
+        for triangle in self.triangles:
+            if any(index < 0 or index >= len(self.vertices) for index in triangle):
+                raise ValueError("collision triangle index out of range")
+        return self
+
+
+class PBDStepInput(InputModel):
+    """Validated timestep, iteration count, and gravity for one solver step."""
+
+    dt: FiniteNumber
+    iterations: StrictInt = Field(ge=1)
+    gravity: Point3D = (0.0, 0.0, -9810.0)
+
+    @model_validator(mode="after")
+    def timestep_is_positive(self) -> PBDStepInput:
+        """Reject non-positive timesteps."""
+        if self.dt <= 0.0:
+            raise ValueError("dt must be positive and finite")
+        return self
+
+
+class PBDCollisionConfig(InputModel):
+    """Validated environment settings for collision voxelization."""
+
+    substeps: StrictInt = Field(ge=1)
+    collision_tolerance_mm: FiniteNumber = Field(ge=0.0)
+    collision_voxel_mm: FiniteNumber = Field(ge=2.0)
+
+
+class SimulationMeshQualityInput(InputModel):
+    """Validate height and boundary spacing before simulation mesh generation."""
+
+    start_height: FiniteNumber
+    particle_distance: FiniteNumber
+
+    @model_validator(mode="after")
+    def spacing_is_positive(self) -> SimulationMeshQualityInput:
+        """Require a positive particle spacing."""
+        if self.particle_distance <= 0.0:
+            raise ValueError("particle_distance must be positive and finite")
+        return self
+
+
+class PatternPieceInput(InputModel):
+    """Validate the numeric boundary of a canonical 2D pattern piece."""
+
+    name: StrictStr
+    outline: tuple[Point2D, ...]
+    seam_allowance: FiniteNumber = 0.0
+    grainline_angle: FiniteNumber = 0.0
+    id: StrictStr
+
+    @model_validator(mode="after")
+    def piece_is_valid(self) -> PatternPieceInput:
+        """Require identity, a usable outline, and non-negative allowance."""
+        if not self.name.strip() or not self.id.strip():
+            raise ValueError("pattern piece name and id must not be empty")
+        if len(self.outline) < 3:
+            raise ValueError("pattern piece outline needs at least three points")
+        if self.seam_allowance < 0.0:
+            raise ValueError("seam allowance must be non-negative and finite")
         return self
 
 

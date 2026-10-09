@@ -1,6 +1,10 @@
 """Neutral solver-facing collision-surface value objects."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from numbers import Real
+
+from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
 @dataclass(frozen=True)
 class CollisionSurface:
@@ -13,16 +17,14 @@ class CollisionSurface:
 
     def validate(self) -> "CollisionSurface":
         """Validate the immutable collision surface and return it."""
-        count = len(self.vertices)
-        if count < 3 or not self.triangles:
-            raise ValueError("collision surface needs vertices and triangles")
-        if self.thickness < 0:
-            raise ValueError("collision thickness must not be negative")
-        for triangle in self.triangles:
-            if len(triangle) != 3 or any(i < 0 or i >= count for i in triangle):
-                raise ValueError("collision triangle index out of range")
-        if not self.region.strip():
-            raise ValueError("collision region must not be empty")
+        CollisionSurfaceInput.model_validate(
+            {
+                "vertices": self.vertices,
+                "triangles": self.triangles,
+                "region": self.region,
+                "thickness": self.thickness,
+            }
+        )
         return self
 
     @property
@@ -40,11 +42,24 @@ class CollisionSurface:
         ).validate()
 
 
-def surface_from_triangles(vertices, triangles, region="body", thickness=0.0) -> CollisionSurface:
+def surface_from_triangles(
+    vertices: Iterable[Iterable[Real]],
+    triangles: Iterable[Iterable[int]],
+    region: str = "body",
+    thickness: float = 0.0,
+) -> CollisionSurface:
     """Build and validate a collision surface without a host dependency."""
+    validated = CollisionSurfaceInput.model_validate(
+        {
+            "vertices": vertices,
+            "triangles": triangles,
+            "region": region,
+            "thickness": thickness,
+        }
+    )
     return CollisionSurface(
-        tuple(tuple(float(c) for c in vertex) for vertex in vertices),
-        tuple(tuple(int(i) for i in triangle) for triangle in triangles),
-        str(region),
-        float(thickness),
-    ).validate()
+        validated.vertices,
+        validated.triangles,
+        validated.region,
+        validated.thickness,
+    )

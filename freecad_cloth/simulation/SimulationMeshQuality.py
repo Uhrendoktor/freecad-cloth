@@ -1,17 +1,26 @@
 """Simulation mesh density delegated to the Triangle constrained-Delaunay library."""
 
+from collections.abc import Sequence
 from math import hypot
+from typing import Any
+
+from freecad_cloth.common.ValidationModels import SimulationMeshQualityInput
 
 
-def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
+def quality_piece_mesh(
+    piece: Any, start_height: float, particle_distance: float, piece_ir: Any = None
+) -> Any:
     """Provide the public quality piece mesh operation."""
+    inputs = SimulationMeshQualityInput.model_validate(
+        {"start_height": start_height, "particle_distance": particle_distance}
+    )
+    start_height = inputs.start_height
+    spacing = max(0.25, inputs.particle_distance)
     from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
     from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
-
-    spacing = max(0.25, float(particle_distance))
     if piece_ir is None:
         piece_ir = resolve_piece_ir(piece)
 
@@ -122,7 +131,7 @@ def quality_piece_mesh(piece, start_height, particle_distance, piece_ir=None):
     )
 
 
-def _polyline_parameter(point, polyline):
+def _polyline_parameter(point: Sequence[float], polyline: Sequence[Sequence[float]]) -> float:
     if len(polyline) < 2:
         return 0.0
     total = 0.0
