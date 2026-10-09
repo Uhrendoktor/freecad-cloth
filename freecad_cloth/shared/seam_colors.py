@@ -30,12 +30,17 @@ def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, 
 
 
 def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float, float]]:
-    """Apply deterministic colors to document seam objects."""
+    """Apply stable seam highlighting and keep seam overlays visible across workbenches."""
     seam_objects = [obj for obj in objects if str(getattr(obj, "SeamId", "")).strip()]
     colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)
     for obj in seam_objects:
         view = getattr(obj, "ViewObject", None)
         color = colors.get(str(getattr(obj, "SeamId", "")))
-        if view is not None and color is not None:
-            view.LineColor = color
+        if view is None or color is None:
+            continue
+        view.LineColor = color
+        if hasattr(view, "LineWidth"):
+            view.LineWidth = 4.0
+        if hasattr(view, "Visibility"):
+            view.Visibility = True
     return colors

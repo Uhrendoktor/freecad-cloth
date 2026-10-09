@@ -79,3 +79,76 @@ def test_reject_restores_snapshot_before_closing_dialog():
     )
     assert panel.reject() is True
     assert calls == ["restore", "close"]
+
+
+def test_avatar_attachment_controls_write_semantic_anchors_to_scene():
+    recomputes = []
+    scene = SimpleNamespace(
+        Document=SimpleNamespace(recompute=lambda: recomputes.append("recompute"))
+    )
+    panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
+    panel.scene = scene
+    panel._fabric_qcolor = None
+    panel._refresh = lambda _message: None
+    panel.pin_mode = SimpleNamespace(currentText=lambda: "Avatar Attachment")
+    panel.attachment_offset = SimpleNamespace(value=lambda: 7.5)
+    panel.attachment_anchors = SimpleNamespace(
+        text=lambda: (
+            "FrontPiece|edge-right|shoulder_right; "
+            "BackPiece|edge-left|shoulder_left"
+        )
+    )
+    for name, value in {
+        "particle_distance": 4.0,
+        "iterations": 8,
+        "substeps": 1,
+        "density": 150.0,
+        "thickness": 0.5,
+        "stretch": 0.02,
+        "shear": 0.02,
+        "bend": 0.01,
+        "friction": 0.5,
+        "specular": 0.25,
+        "roughness": 0.65,
+        "transparency": 0,
+        "skin_offset": 0.0,
+        "collision_radius": 2.0,
+    }.items():
+        setattr(panel, name, SimpleNamespace(value=lambda value=value: value))
+
+    panel._parameters_changed()
+
+    assert scene.PinMode == "Avatar Attachment"
+    assert scene.AttachmentOffset == 7.5
+    assert scene.AvatarAttachmentAnchors == [
+        "FrontPiece|edge-right|shoulder_right",
+        "BackPiece|edge-left|shoulder_left",
+    ]
+    assert recomputes == ["recompute"]
+
+
+def test_pin_mode_change_shows_and_hides_attachment_controls():
+    class VisibilityControl:
+        def setVisible(self, visible):
+            self.visible = visible
+
+    panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
+    panel.attachment_offset = VisibilityControl()
+    panel.attachment_anchors = VisibilityControl()
+    panel.attachment_offset_label = VisibilityControl()
+    panel.attachment_anchors_label = VisibilityControl()
+    changes = []
+    panel._parameters_changed = lambda: changes.append("applied")
+
+    panel._pin_mode_changed("Avatar Attachment")
+    assert panel.attachment_offset.visible is True
+    assert panel.attachment_anchors.visible is True
+    assert panel.attachment_offset_label.visible is True
+    assert panel.attachment_anchors_label.visible is True
+
+    panel._pin_mode_changed("None")
+    assert panel.attachment_offset.visible is False
+    assert panel.attachment_anchors.visible is False
+    assert panel.attachment_offset_label.visible is False
+    assert panel.attachment_anchors_label.visible is False
+    assert changes == ["applied", "applied"]

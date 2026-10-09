@@ -49,3 +49,26 @@ class AvatarVisualSanityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def test_arrangement_point_parser_shared_with_simulation_layer():
+    from freecad_cloth.shared.ArrangementPointRecord import parse_arrangement_point_record
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    legacy = "shoulder_right|220,0,1347"
+    extended = "shoulder_left|-220,0,1347|back|12.5|shoulder"
+    assert parse_arrangement_point_record(legacy) == (
+        "shoulder_right", (220.0, 0.0, 1347.0), "front", 0.0, ""
+    )
+    assert ArrangementPoint.from_string(legacy).position() == (220.0, 0.0, 1347.0)
+    assert ArrangementPoint.from_string(extended).to_string() == extended
+
+
+def test_arrangement_point_parser_rejects_malformed_or_non_finite_records():
+    import pytest
+    from freecad_cloth.shared.ArrangementPointRecord import parse_arrangement_point_record
+
+    for record in ("", "shoulder|1,2", "shoulder|1,2,3|front", "shoulder|nan,2,3"):
+        with pytest.raises(ValueError):
+            parse_arrangement_point_record(record)

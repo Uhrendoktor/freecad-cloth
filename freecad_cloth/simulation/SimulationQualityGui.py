@@ -33,6 +33,8 @@ class SimulationQualityTaskPanel:
         "CollisionRadius",
         "Steps",
         "PinMode",
+        "AttachmentOffset",
+        "AvatarAttachmentAnchors",
     )
 
     def __init__(self, scene=None):
@@ -113,13 +115,36 @@ class SimulationQualityTaskPanel:
         self.pin_mode = QtWidgets.QComboBox()
         self.pin_mode.addItems(PIN_MODE_NAMES)
         self.pin_mode.setToolTip(
-            "Automatic preserves legacy behavior; Explicit uses only PinSelection; None creates the simulation with zero solver pins."
+            "Automatic preserves demo defaults; Explicit fixes selected particles in world space; "
+            "Avatar Attachment projects selected particles to the DrapeTarget surface plus an offset "
+            "and reprojects after the target is refreshed; None creates the simulation with zero solver pins."
+        )
+        self.attachment_offset = self._double(0.0, 100.0, 3.0, 1)
+        self.attachment_offset.setToolTip(
+            "Offset along the outward DrapeTarget surface normal for Avatar Attachment pins. "
+            "After changing avatar pose, refresh the DrapeTarget and rebuild the simulation."
+        )
+        self.attachment_anchors = QtWidgets.QLineEdit()
+        self.attachment_anchors.setToolTip(
+            "Semicolon-separated stable descriptors: PieceId|SemanticEdgeId|avatar-landmark. "
+            "Example: FrontPiece|FrontPiece:edge:3|shoulder_right. These are resolved against "
+            "the current mesh, so particle-distance changes do not retarget anchors."
         )
         self.particle_distance = self._double(0.25, 100.0, 4.0, 2)
         self.iterations = self._spin(1, 200, 8)
         self.substeps = self._spin(1, 32, 1)
         qform.addRow("Preset", self.quality)
         qform.addRow("Pinning mode", self.pin_mode)
+        qform.addRow("Avatar attachment offset (mm)", self.attachment_offset)
+        self.attachment_offset_label = qform.labelForField(self.attachment_offset)
+        qform.addRow("Avatar anchor descriptors", self.attachment_anchors)
+        self.attachment_anchors_label = qform.labelForField(self.attachment_anchors)
+        self.attachment_offset.setVisible(self.pin_mode.currentText() == "Avatar Attachment")
+        self.attachment_anchors.setVisible(self.pin_mode.currentText() == "Avatar Attachment")
+        if self.attachment_offset_label is not None:
+            self.attachment_offset_label.setVisible(self.pin_mode.currentText() == "Avatar Attachment")
+        if self.attachment_anchors_label is not None:
+            self.attachment_anchors_label.setVisible(self.pin_mode.currentText() == "Avatar Attachment")
         qform.addRow("Particle distance (mm)", self.particle_distance)
         qform.addRow("Solver iterations", self.iterations)
         qform.addRow("Solver substeps", self.substeps)
@@ -199,7 +224,8 @@ class SimulationQualityTaskPanel:
         root.addWidget(self.status)
         root.addStretch(1)
         self.quality.currentTextChanged.connect(self._preset_changed)
-        self.pin_mode.currentTextChanged.connect(self._parameters_changed)
+        self.pin_mode.currentTextChanged.connect(self._pin_mode_changed)
+        self.attachment_anchors.editingFinished.connect(self._parameters_changed)
         self.arrange_fit_button.clicked.connect(self.open_arrange_fit)
         self.snap_to_target_button.clicked.connect(self.snap_to_target)
         self.reset_arrangement_button.clicked.connect(self.reset_arrangement)
@@ -209,6 +235,7 @@ class SimulationQualityTaskPanel:
             self.particle_distance,
             self.iterations,
             self.substeps,
+            self.attachment_offset,
             self.density,
             self.thickness,
             self.stretch,
@@ -419,6 +446,8 @@ class SimulationQualityTaskPanel:
         try:
             self.quality.setCurrentText(str(self.scene.QualityPreset))
             self.pin_mode.setCurrentText(str(getattr(self.scene, "PinMode", "Automatic")))
+            self.attachment_offset.setValue(float(getattr(self.scene, "AttachmentOffset", 3.0)))
+            self.attachment_anchors.setText(";".join(str(value) for value in getattr(self.scene, "AvatarAttachmentAnchors", ()) or ()))
             self.particle_distance.setValue(float(self.scene.ParticleDistance))
             self.iterations.setValue(int(self.scene.SolverIterations))
             self.substeps.setValue(int(self.scene.SolverSubsteps))
@@ -447,6 +476,7 @@ class SimulationQualityTaskPanel:
 
         ensure_quality_properties(self.scene)
         self._load_widgets_only()
+        self._update_pin_mode_visibility(self.pin_mode.currentText())
         self._capture_snapshot()
         self._refresh()
 
@@ -466,11 +496,30 @@ class SimulationQualityTaskPanel:
         self.scene.Document.recompute()
         self._refresh("Preset applied. Cancel restores the values from when this panel opened.")
 
+    def _update_pin_mode_visibility(self, mode):
+        avatar_attachment = str(mode) == "Avatar Attachment"
+        self.attachment_offset.setVisible(avatar_attachment)
+        self.attachment_anchors.setVisible(avatar_attachment)
+        if self.attachment_offset_label is not None:
+            self.attachment_offset_label.setVisible(avatar_attachment)
+        if self.attachment_anchors_label is not None:
+            self.attachment_anchors_label.setVisible(avatar_attachment)
+
+    def _pin_mode_changed(self, mode):
+        self._update_pin_mode_visibility(mode)
+        self._parameters_changed()
+
     def _parameters_changed(self):
         if self.scene is None:
             return
         color = getattr(self, "_fabric_qcolor", None)
         self.scene.PinMode = self.pin_mode.currentText()
+        self.scene.AttachmentOffset = self.attachment_offset.value()
+        self.scene.AvatarAttachmentAnchors = [
+            item.strip()
+            for item in self.attachment_anchors.text().replace("\\n", ";").split(";")
+            if item.strip()
+        ]
         self.scene.ParticleDistance = self.particle_distance.value()
         self.scene.SolverIterations = self.iterations.value()
         self.scene.SolverSubsteps = self.substeps.value()
@@ -568,10 +617,16 @@ class SimulationQualityTaskPanel:
             )
         mode = str(getattr(self.scene, "PinMode", "Automatic"))
         selected = len(getattr(self.scene, "PinSelection", ()) or ())
+        anchor_count = len(getattr(self.scene, "AvatarAttachmentAnchors", ()) or ())
         if mode == "None":
             pin_status = "Pinning: None — zero solver pins"
+        elif mode == "Avatar Attachment":
+            pin_status = "Pinning: Avatar Attachment — %d semantic surface anchor(s), offset %.1f mm" % (
+                anchor_count,
+                float(getattr(self.scene, "AttachmentOffset", 3.0)),
+            )
         elif mode == "Explicit":
-            pin_status = "Pinning: Explicit — %d selected pin(s)" % selected
+            pin_status = "Pinning: Explicit — %d fixed world-space pin(s)" % selected
         elif selected:
             pin_status = "Pinning: Automatic — using %d selected pin(s)" % selected
         else:

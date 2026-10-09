@@ -1,6 +1,6 @@
 name: Canonical execution
 run-name: Canonical execution
-# CI iteration policy: gather the complete matrix before each repair batch.
+# CI fixes check the full matrix; main pushes and visual publication keep independent scheduling.
 on:
   push:
     branches: [main]
@@ -27,7 +27,6 @@ on:
   schedule:
     - cron: '0 3 * * *'
 concurrency:
-  # Main pushes stay independently schedulable; visual publication is serialized separately.
   group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && format('canonical-main-push-{0}', github.sha)) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
@@ -333,6 +332,7 @@ jobs:
             artifacts/pypbd-provenance.txt
           environment: |
             CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_COLLISION_VOXEL_MM=8
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence

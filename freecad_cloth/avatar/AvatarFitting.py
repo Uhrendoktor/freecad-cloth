@@ -5,6 +5,7 @@ these immutable records as its source of truth for fitting metadata.
 """
 
 import json
+from freecad_cloth.shared.ArrangementPointRecord import parse_arrangement_point_record
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -122,7 +123,7 @@ class ArrangementPoint:
         self.validate()
         return (float(self.x), float(self.y), float(self.offset))
 
-    def mirrored(self, name=None) -> "ArrangementPoint":
+    def mirrored(self, name: str | None = None) -> "ArrangementPoint":
         """Provide the public mirrored operation."""
         self.validate()
         mirror_wrap = {"left": "right", "right": "left"}.get(
@@ -145,26 +146,12 @@ class ArrangementPoint:
 
     @classmethod
     def from_string(cls, value: str) -> "ArrangementPoint":
-        """Provide the public from string operation."""
-        parts = str(value).split("|")
-        if len(parts) == 2:
-            # Existing FreeCAD documents store landmark-backed arrangement
-            # points as name|x,y,z. Normalize that legacy form to the
-            # dataclass defaults without changing persisted coordinates.
-            name, position = parts
-            wrap, rotation, symmetry = "front", 0.0, ""
-        elif len(parts) == 5:
-            name, position, wrap, rotation, symmetry = parts
-        else:
-            raise ValueError(
-                "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
-            )
-        coords = tuple(float(v) for v in position.split(","))
-        if len(coords) != 3:
-            raise ValueError("arrangement point position requires x, y, and offset")
-        result = cls(name, coords[0], coords[1], coords[2], wrap, float(rotation), symmetry)
+        """Parse the shared serialized form and apply the avatar-domain validation."""
+        name, coords, wrap, rotation, symmetry = parse_arrangement_point_record(value)
+        result = cls(name, coords[0], coords[1], coords[2], wrap, rotation, symmetry)
         result.validate()
         return result
+
 
 
 @dataclass(frozen=True)

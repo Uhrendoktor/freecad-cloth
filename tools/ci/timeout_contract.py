@@ -3,33 +3,22 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-
-
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.ci.run_freecad import configured_timeout_seconds
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 TEST_ACTION = ROOT / ".github/actions/freecad-test/action.yml"
 PYPROJECT = ROOT / "pyproject.toml"
 
 
 def configured_timeout() -> int:
-    """Return the authoritative FreeCAD application timeout from pyproject.toml."""
-    import tomllib
-
-    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    value = (
-        data.get("tool", {})
-        .get("freecad_cloth", {})
-        .get("ci", {})
-        .get("freecad_application_timeout_seconds")
-    )
-    if not isinstance(value, int) or value <= 0:
-        raise ValueError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds "
-            "must be a positive integer"
-        )
-    return value
+    """Return the authoritative FreeCAD application timeout from run_freecad.py."""
+    return int(configured_timeout_seconds())
 
 
 def main() -> int:

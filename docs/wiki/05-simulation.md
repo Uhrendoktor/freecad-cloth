@@ -36,11 +36,14 @@ Pinning is explicit.
 
 The current pinning model distinguishes:
 
-- <strong>Automatic</strong> — preserve legacy automatic behavior where appropriate;
-- <strong>Explicit</strong> — use the persisted PinSelection;
+- <strong>Automatic</strong> — preserve demo/default automatic behavior where appropriate;
+- <strong>Explicit</strong> — use persisted world-space particle indices from <code>PinSelection</code>; these pins do not follow an avatar pose;
+- <strong>Avatar Attachment</strong> — resolve persistent <code>PieceId|SemanticEdgeId|landmark</code> descriptors against the current pattern mesh, project the named avatar landmarks onto the authoritative <code>DrapeTarget</code> surface, and pin at the configured outward offset. Particle indices are resolved at build time, so changing mesh resolution does not retarget an attachment. A pose/target change must refresh the target and rebuild the simulation;
 - <strong>None</strong> — run with zero solver pins.
 
-Sewing constraints are derived from the semantic sewing model; they are not hand-created mesh-index relationships.
+Avatar attachment descriptors fail closed when their piece, semantic edge or named landmark is missing, when the edge selection is ambiguous, or when the target surface is invalid. The projected anchor records identify the original particle, target surface point, outward normal, triangle and projection distance for diagnosis.
+
+Sewing constraints are derived from the semantic sewing model; they are not hand-created mesh-index relationships. Their rest length is zero and their correspondence direction is explicit in the seam contract.
 
 ## Target boundary
 

@@ -64,6 +64,17 @@ def test_seam_color_surface_contract_carries_identity_to_sewing_operations():
     assert "apply_seam_colors(doc.Objects)" in source
 
 
+def test_seam_colors_restore_visible_emphasized_presentation():
+    first = SimpleNamespace(
+        SeamId="seam-a",
+        ViewObject=SimpleNamespace(LineColor=None, LineWidth=1.0, Visibility=False),
+    )
+    apply_seam_colors([first])
+    assert first.ViewObject.LineColor is not None
+    assert first.ViewObject.LineWidth == 4.0
+    assert first.ViewObject.Visibility is True
+
+
 def test_apply_seam_colors_marks_each_seam_pair():
     first = SimpleNamespace(SeamId="seam-a", ViewObject=SimpleNamespace(LineColor=None))
     second = SimpleNamespace(SeamId="seam-b", ViewObject=SimpleNamespace(LineColor=None))

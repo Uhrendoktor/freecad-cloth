@@ -540,16 +540,26 @@ def _make_tunic_sketch(
 
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
+    # Keep the shoulder/neck construction centered within the wider hem.
+    # The previous coordinates anchored the upper panel at x=0, so changing
+    # hem_width moved the hem center without moving the shoulder center.
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = 0.88 * garment_height
+    shoulder_z = 0.98 * garment_height
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (neckline_ratio * panel_width, neck_z),
-        ((1.0 - neckline_ratio) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.00, 0.82 * garment_height),
+        (x_offset + panel_width, armhole_z),
+        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + neckline_ratio * panel_width, neck_z),
+        (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
+        (x_offset + 0.14 * panel_width, shoulder_z),
+        (x_offset, armhole_z),
     ]
+    center_x = 0.5 * float(hem_width)
+    for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
+        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
+            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
     geometry = [
         Part.LineSegment(
             App.Vector(points[i][0], points[i][1], 0),
@@ -730,6 +740,7 @@ def simulation():
         raise RuntimeError(
             "visual fixture DrapeTarget does not reference the production ClothAvatar"
         )
+    refresh_drape_target(target)
     pre_status = target_status(target)
     if str(pre_status.get("state", "")) != "ready":
         raise RuntimeError(
@@ -769,7 +780,11 @@ def simulation():
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
-    panel_width = max(420.0, shoulder_width + 100.0)
+    # The shoulder line occupies 72% of the authored panel width (0.86 - 0.14).
+    # Size the panel from the mannequin shoulder span so the garment is not
+    # undersized at the shoulders before the sewing constraints are evaluated.
+    shoulder_span_ratio = 0.86 - 0.14
+    panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
@@ -778,9 +793,9 @@ def simulation():
 
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = min(target_ys) - clearance
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = max(target_ys) + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
@@ -802,22 +817,46 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
+    # Match the sewn shoulder endpoints on both panels. Front/back neckline shape may diverge at the center,
+    # but this planar fixture represents the shared shoulder-to-neck join with identical authored coordinates.
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)
+    # Resolve sewn edges by native semantic IDs; PatternIR boundary order is independent
+    # of Sketcher insertion order. Side seams run in opposite authored directions on
+    # the mirrored panels, so B is reversed only for the two side seams.
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical tunic sketches have no complete semantic edge map")
+    required_indices = (1, 3, 5, 7)
+    if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
+        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False),
+        (front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False),
+        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False),
+    )
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
+    for edge_a_id, edge_b_id, seam_id, reversed_b in seam_specs:
         seam = Seam(
             str(front.PieceId),
-            edge_a,
+            edge_a_id,
             str(back.PieceId),
-            edge_b,
+            edge_b_id,
             id=seam_id,
+            reversed_b=reversed_b,
             alignment="uniform",
             stitch_group="TunicAssembly",
         )
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if (
+            str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id
+            or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id
+            or bool(getattr(seam_obj, "ReversedB", False)) != reversed_b
+        ):
+            raise RuntimeError("canonical tunic seam %s did not retain its authored correspondence" % seam_id)
         seam_records.append((seam_obj, front, back))
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
@@ -829,9 +868,19 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.75
-    scene.PinMode = "None"
-    scene.PinSelection = []
+    # Semantic descriptors survive remeshing: piece ID + authored edge ID + avatar landmark.
     scene.ClothPieces = [front, back]
+    scene.PinMode = "Avatar Attachment"
+    scene.PinSelection = []
+    scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
+    # Front and back descriptors for each shoulder project laterally to the same
+    # mannequin surface point so the sewn shoulder seams share compatible anchors.
+    scene.AvatarAttachmentAnchors = [
+        "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
+        "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5]),
+        "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
+        "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
+    ]
     refresh_drape_target(target)
     doc.recompute()
     status = target_status(target)
@@ -842,17 +891,16 @@ def simulation():
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
-        raise RuntimeError("canonical tunic did not build a simulation backend")
-    if list(getattr(scene, "PinSelection", ())) != []:
-        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
-    solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
-    if not solver_pins:
-        system = getattr(backend, "system", None)
-        solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {})))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
-    if solver_pins:
-        raise RuntimeError(f"canonical tunic PinMode=None still has solver pins: {solver_pins}")
+        raise RuntimeError("canonical tunic did not build an avatar-attached simulation backend")
+    solver_pins = tuple(sorted(int(index) for index in getattr(backend, "_pin_indices", ())))
+    projections = tuple(getattr(proxy, "attachment_projections", ()))
+    expected_pins = tuple(sorted(int(projection.particle_index) for projection in projections))
+    if not projections or solver_pins != expected_pins:
+        raise RuntimeError(
+            "canonical tunic semantic avatar anchors did not resolve to solver pins: {} != {}".format(
+                solver_pins, expected_pins
+            )
+        )
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
@@ -862,8 +910,13 @@ def simulation():
     try:
         from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
+        current_positions = tuple(backend.positions())
+        pinned_set = set(solver_pins)
+        unanchored_positions = tuple(
+            position for index, position in enumerate(current_positions) if index not in pinned_set
+        )
         initial_clearance = nearest_target_clearance(
-            tuple(backend.positions()), tuple(surface.vertices)
+            unanchored_positions, tuple(surface.vertices)
         )
     except (ImportError, ValueError):
         initial_clearance = None
@@ -872,7 +925,7 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
-    log("pin-mode=None solver-pins=0")
+    log("pin-mode=Avatar Attachment shoulder-anchor-pins=%s offset-mm=%.2f" % (solver_pins, float(scene.AttachmentOffset)))
     log("target-collision-mode=mesh")
     log(
         f"step0-target-vertex-clearance-mm={float(initial_clearance):.2f} required-mm={float(clearance):.2f}"
@@ -966,6 +1019,53 @@ def simulation():
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
+    # A tunic that begins at the shoulders must remain supported by the upper
+    # body after gravity; a skirt-like result is a simulation failure even
+    # when the solver remains finite and non-penetrating.
+    final_positions = tuple(backend.positions())
+    from freecad_cloth.simulation.SimulationObjects import seam_gap_diagnostics
+    seam_reports = seam_gap_diagnostics(
+        final_positions,
+        getattr(proxy, "seam_stitch_pairs", {}),
+    )
+    expected_seam_ids = tuple(str(seam.SeamId) for seam, _piece_a, _piece_b in seam_records)
+    if set(seam_reports) != set(expected_seam_ids):
+        raise RuntimeError(
+            "authoritative tunic seam set mismatch: expected=%s actual=%s"
+            % (expected_seam_ids, tuple(sorted(seam_reports)))
+        )
+    for seam, _piece_a, _piece_b in seam_records:
+        report = seam_reports[str(seam.SeamId)]
+        log(
+            "authoritative-seam-detail id=%s reversed_b=%s pairs=%d first_gap=%.2f last_gap=%.2f max_gap=%.2f"
+            % (
+                str(seam.SeamId),
+                bool(getattr(seam, "ReversedB", False)),
+                int(report["pair_count"]),
+                float(report["first_gap"]),
+                float(report["last_gap"]),
+                float(report["max_gap"]),
+            )
+        )
+    max_seam_gap = max(float(report["max_gap"]) for report in seam_reports.values())
+    if max_seam_gap > 35.0:
+        raise RuntimeError(
+            "authoritative tunic seams did not converge: max endpoint gap %.1f mm"
+            % max_seam_gap
+        )
+    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, expected_seam_ids))
+    minimum_top_z = float(shoulder_z) - 30.0
+    for panel in scene.DrapePanels:
+        panel_indices = tuple(getattr(proxy, "panel_indices", {}).get(panel.Name, ()))
+        if not panel_indices:
+            raise RuntimeError(f"missing solver indices for drape panel {panel.Name}")
+        top_z = max(float(final_positions[index][2]) for index in panel_indices)
+        log(f"tunic-upper-support={panel.Name} top-z={top_z:.2f} shoulder-z={float(shoulder_z):.2f} minimum-top-z={minimum_top_z:.2f}")
+        if top_z < minimum_top_z:
+            raise RuntimeError(
+                "simulated tunic slipped below the shoulder line: "
+                f"{panel.Name} top z={top_z:.2f} mm < required {minimum_top_z:.2f} mm"
+            )
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
@@ -1018,6 +1118,7 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
+        collision_surface=target_surface,
     )
     bounds = []
     for panel in scene.DrapePanels:

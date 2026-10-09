@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert (
         'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())'
         in source
@@ -18,39 +18,69 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
         'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())'
         in source
     )
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
+    assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False)' in source
+    assert '(front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False)' in source
+    assert '(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False)' in source
+    assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False)' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_pattern_is_centered_and_shallow_at_the_armholes():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "ArrangementPoint.from_string" in source
-    assert 'shoulder_left = arrangement_world("shoulder_left")' in source
-    assert 'shoulder_right = arrangement_world("shoulder_right")' in source
-    assert 'hip_point = arrangement_world("hip")' in source
-    assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
-    assert "status = target_status(target)" in source
-    assert 'scene.PinMode = "None"' in source
-    assert "scene.PinSelection = []" in source
-    assert "if solver_pins:" in source
-    assert "nearest_target_clearance" in source
-    assert "step0-target-vertex-clearance-mm=" in source
-    assert "authored_shoulder_pins" not in source
-    assert "scene.PinSelection = [str(i) for i in front_pins]" not in source
-    assert "target_surface = collision_surface(" in source
-    assert "target_source.Mesh.BoundBox" not in source
+    assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in source
+    assert "armhole_z = 0.88 * garment_height" in source
+    assert "shoulder_z = 0.98 * garment_height" in source
+    assert "canonical tunic pattern lost bilateral symmetry" in source
 
 
-def test_canonical_tunic_uses_matching_authored_mapping():
+def test_canonical_tunic_panel_width_matches_authoritative_shoulder_span():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "shoulder_span_ratio = 0.86 - 0.14" in source
+    assert "panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)" in source
+
+
+def test_canonical_tunic_uses_avatar_surface_attachments_not_world_side_pins():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'scene.PinMode = "Avatar Attachment"' in source
+    assert "scene.AttachmentOffset" in source
+    assert "support_pins =" not in source
+    assert "support_pins =" not in source
+    assert "front_right_shoulder" not in source
+    assert "front_left_shoulder" not in source
+    assert "back_right_shoulder" not in source
+    assert "back_left_shoulder" not in source
+    assert "scene.AvatarAttachmentAnchors = [" in source
+
+def test_canonical_tunic_rejects_skirt_like_final_height():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "tunic-upper-support=" in source
+    assert "minimum_top_z = float(shoulder_z) - 30.0" in source
+    assert "simulated tunic slipped below the shoulder line" in source
+
+
+def test_canonical_tunic_uses_arrangement_points_collision_and_named_avatar_anchors():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "arrangement_world" in source
+    assert "collision_surface(" in source
+    assert 'scene.PinMode = "Avatar Attachment"' in source
+    assert "scene.AvatarAttachmentAnchors = [" in source
+    assert '"%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5])' in source
+    assert '"%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5])' in source
+    assert "scene.PinSelection = [str(index) for index in anchor_indices]" not in source
+    assert "AttachmentOffset" in source
+    assert "side-support-pins" not in source
+
+def test_tunic_audit_runs_the_production_source_without_rewriting_it():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 2, 6, 7)" in audit
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' not in audit
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "replacements =" not in audit
+    assert "source.replace(" not in audit
+    assert 'exec(compiled_source, namespace, namespace)' in audit
+    assert "required_indices = (1, 3, 5, 7)" in source
+    assert "authoritative tunic seams did not converge" in source
+    assert "if max_seam_gap > 35.0" in source
+    assert "collision_surface=target_surface" in source
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -73,9 +103,10 @@ def test_canonical_tunic_source_rewrite_compiles():
 
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
-    assert "proxy=proxy" in source
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in audit
+    assert "seam_gap_diagnostics(" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
 
@@ -107,19 +138,19 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
 
 
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 4" in source
-    assert "SolverSubsteps = 1" in source
+    assert "scene.ParticleDistance = 24.0" in source
+    assert "scene.SolverIterations = 8" in source
+    assert "scene.SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
-    assert "tunic-simulation-start" in source
-    assert "realtime-preview=passed backend=position-based-dynamics" in source
+    assert 'scene.PinMode = "Avatar Attachment"' in source
+    assert "tunic-upper-support=" in source
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -183,17 +214,19 @@ def test_pbd_ci_image_is_pinned_and_preinstalled():
 
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
-    assert "SEAM_SOURCE = " in audit
-    assert "required_indices = (1, 2, 6, 7)" in audit
-    assert "TunicRightShoulder" in audit
-    assert "TunicLeftShoulder" in audit
-    assert "ParticleDistance = 32.0" in audit
-    assert "SolverIterations = 4" in audit
-    assert "SolverSubsteps = 1" in audit
-    assert "tunic-simulation-start" in audit
-    assert "realtime-preview=passed backend=position-based-dynamics" in audit
+    assert "exec(compiled_source, namespace, namespace)" in audit
+    assert "seam_specs = (" in source
+    assert "required_indices = (1, 3, 5, 7)" in source
+    assert "TunicRightShoulder" in source
+    assert "TunicLeftShoulder" in source
+    assert "scene.ParticleDistance = 24.0" in source
+    assert "scene.SolverIterations = 8" in source
+    assert "scene.SolverSubsteps = 1" in source
+    assert 'scene.PinMode = "Avatar Attachment"' in source
+    assert "scene.AvatarAttachmentAnchors = [" in source
 
 
 def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback():
@@ -221,3 +254,75 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+def test_canonical_tunic_anchors_to_avatar_surface_by_semantic_shoulder_edges():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "scene.AvatarAttachmentAnchors = [" in source
+    assert 'scene.PinMode = "Avatar Attachment"' in source
+    assert "scene.AttachmentOffset" in source
+    assert '"%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5])' in source
+    assert '"%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3])' in source
+    assert '"%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5])' in source
+    assert "select_support_vertex_below_highest" not in source
+    assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False)' in source
+    assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False)' in source
+    assert '(front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False)' in source
+    assert '(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False)' in source
+
+def test_canonical_tunic_shoulder_endpoints_match_between_front_and_back():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)' in source
+    assert 'back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)' in source
+
+
+def test_tunic_attachment_selection_uses_semantic_shoulder_landmarks():
+    import ast
+
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    assignments = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Attribute)
+            and target.attr == "AvatarAttachmentAnchors"
+            for target in node.targets
+        )
+    ]
+    assert len(assignments) == 1
+    anchors = assignments[0]
+    assert isinstance(anchors, ast.List)
+    assert len(anchors.elts) == 4
+    formats = tuple(
+        element.left.value
+        for element in anchors.elts
+        if isinstance(element, ast.BinOp)
+        and isinstance(element.left, ast.Constant)
+        and isinstance(element.left.value, str)
+    )
+    assert formats.count("%s|%s|shoulder_right") == 2
+    assert formats.count("%s|%s|shoulder_left") == 2
+    assert "side-support-pins" not in source
+
+
+
+def test_avatar_projection_records_survive_pattern_scene_build():
+    simulation = (
+        ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py"
+    ).read_text(encoding="utf-8")
+    build = simulation.split("def _build_pattern_scene", 1)[1].split("def _build_demo", 1)[0]
+    record_assignment = build.index("self.attachment_projections = tuple(projections)")
+    backend_build = build.index("self.backend = PositionBasedDynamicsBackend(")
+    panel_metadata = build.index("self.panel_indices = {}")
+    assert record_assignment < backend_build < panel_metadata
+    assert "self.attachment_projections = ()" not in build[backend_build:panel_metadata]
+
+
+def test_tunic_side_seams_keep_the_authored_edge_direction():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False)' in source
+    assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False)' in source
+    assert '(front_edge_ids[1], back_edge_ids[1], "TunicRightSide", True)' not in source
+    assert '(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", True)' not in source
