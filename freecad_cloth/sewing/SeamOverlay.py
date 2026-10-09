@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from hashlib import sha1
-import re
 from typing import Any
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
@@ -392,7 +391,12 @@ def _seam_id_at_position(document: Any, view: Any, position: object) -> str:
             continue
         try:
             result = getter((x, y))
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except TypeError:
+            try:
+                result = getter(x, y)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+        except (AttributeError, RuntimeError, ValueError):
             continue
         if isinstance(result, dict):
             hits.extend([result])
@@ -517,7 +521,7 @@ class SeamOverlayController:
         while self.root.getNumChildren():
             self.root.removeChild(0)
         depth = coin.SoDepthBuffer()
-        depth.test = True
+        depth.test = bool(_RESPECT_DEPTH_OCCLUSION)
         depth.write = False
         self.root.addChild(depth)
 
