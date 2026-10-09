@@ -132,7 +132,7 @@ class ParametricPattern:
     regeneration as long as the topology is unchanged.
     """
 
-    def __init__(self, segments: Iterable[Segment]):
+    def __init__(self, segments: Iterable[Segment]) -> None:
         self.segments = list(segments)
         self.validate()
 
@@ -243,7 +243,7 @@ def _signed_area(points: Sequence[Point]) -> float:
     )
 
 
-def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point):
+def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | None:
     ax, ay = a2[0] - a1[0], a2[1] - a1[1]
     bx, by = b2[0] - b1[0], b2[1] - b1[1]
     denominator = ax * by - ay * bx
