@@ -7,10 +7,11 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - FreeCAD **1.1.0 or newer** for user installation; this minimum is declared in `package.xml`.
 - Python **3.12** for repository development/CI and the PositionBasedDynamics-capable canonical environment.
 - `triangle==20250106` for constrained pattern meshing.
+- `pydantic>=2.11,<3` for validated geometry, mesh, and seam inputs.
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2 available in its embedded Python environment; the canonical CI image installs it automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
 
 ## User installation
 
