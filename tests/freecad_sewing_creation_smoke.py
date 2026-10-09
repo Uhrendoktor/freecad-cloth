@@ -259,7 +259,7 @@ try:
     QtTest.QTest.qWait(150)
     view.fitAll()
     process_events()
-    camera_match = re.search(r"\\bheight\\s+([0-9]+(?:\\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)", view.getCamera())
+    camera_match = re.search(r"\bheight\s+([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)", view.getCamera())
     if camera_match is not None and float(camera_match.group(1)) < 150.0:
         raise RuntimeError(
             "seam-assignment GIF camera did not frame the workpieces: "
