@@ -65,17 +65,24 @@ def _make_tunic_sketch(
 ):
 
     h = float(garment_height)
-    neck_z = h * float(neckline_drop)
+    neck_z = (1.0 - float(neckline_drop)) * h
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = 0.88 * h
+    shoulder_z = 0.98 * h
     points = [
-        (0, 0),
-        (hem_width, 0),
-        (panel_width, 0.82 * h),
-        (0.86 * panel_width, 0.97 * h),
-        (float(neckline_ratio) * panel_width, neck_z),
-        ((1.0 - float(neckline_ratio)) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * h),
-        (0, 0.82 * h),
+        (0.0, 0.0),
+        (hem_width, 0.0),
+        (x_offset + panel_width, armhole_z),
+        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + float(neckline_ratio) * panel_width, neck_z),
+        (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
+        (x_offset + 0.14 * panel_width, shoulder_z),
+        (x_offset, armhole_z),
     ]
+    center_x = 0.5 * float(hem_width)
+    for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
+        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
+            raise RuntimeError("debug tunic profile lost canonical bilateral symmetry")
     sketch = doc.addObject("Sketcher::SketchObject", name)
     for idx, start in enumerate(points):
         end = points[(idx + 1) % len(points)]
@@ -216,23 +223,43 @@ def run():
     if avatar is None:
         raise RuntimeError("production avatar missing")
     box = avatar.Mesh.BoundBox
-    x_mid = (box.XMin + box.XMax) / 2.0
     y_span = box.YMax - box.YMin
-    z_span = box.ZMax - box.ZMin
-    panel_width = max(420.0, min(560.0, 0.50 * float(box.XMax - box.XMin) + 35.0))
-    hem_width = max(440.0, min(590.0, 0.52 * float(box.XMax - box.XMin) + 35.0))
-    shoulder_z = box.ZMin + 0.76 * z_span
-    hem_z = box.ZMin + 0.40 * z_span
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    def arrangement_world(name):
+        raw = next(
+            (
+                value
+                for value in getattr(avatar, "ArrangementPoints", ())
+                if str(value).split("|", 1)[0] == name
+            ),
+            None,
+        )
+        if raw is None:
+            raise RuntimeError("canonical tunic is missing avatar arrangement point %s" % name)
+        point = ArrangementPoint.from_string(raw)
+        return avatar.Placement.multVec(App.Vector(*point.position()))
+
+    shoulder_left = arrangement_world("shoulder_left")
+    shoulder_right = arrangement_world("shoulder_right")
+    hip_point = arrangement_world("hip")
+    x_mid = 0.5 * (float(shoulder_left.x) + float(shoulder_right.x))
+    shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
+    hem_z = float(hip_point.z)
+    shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
+    shoulder_span_ratio = 0.86 - 0.14
+    panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)
+    hem_width = max(500.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
-    clearance = max(6.0, 0.02 * body_depth)
+    clearance = max(20.0, 0.08 * body_depth)
     front_y = box.YMax + clearance
     back_y = box.YMin - clearance
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def make_piece(name, y):
+    def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
-            doc, name + "Source", panel_width, garment_height, hem_width, 0.64, 0.08
+            doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
         )
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0)
@@ -240,8 +267,8 @@ def run():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("DebugTunicFront", front_y)
-    back, back_outline = make_piece("DebugTunicBack", back_y)
+    front, front_outline = make_piece("DebugTunicFront", front_y, 0.78, 0.18)
+    back, back_outline = make_piece("DebugTunicBack", back_y, 0.76, 0.12)
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam

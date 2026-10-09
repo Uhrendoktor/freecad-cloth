@@ -590,104 +590,6 @@ def _adopt_sketch(sketch, name, allowance, grainline):
     return piece
 
 
-def pattern_and_sewing():
-    import Part
-
-    from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
-    from freecad_cloth.sewing.SewingCommands import create_sewing_operation
-    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
-
-    doc = App.newDocument("ClothVisualPattern")
-    front_sketch, _front_outline = _make_tunic_sketch(
-        doc, "VisualFront", 520.0, 720.0, 600.0, 0.64, 0.10
-    )
-    back_sketch, _back_outline = _make_tunic_sketch(
-        doc, "VisualBack", 520.0, 720.0, 600.0, 0.64, 0.07
-    )
-    doc.recompute()
-    front = _adopt_sketch(front_sketch, "Front Tunic", 10.0, 0.0)
-    back = _adopt_sketch(back_sketch, "Back Tunic", 10.0, 0.0)
-    front.Placement.Base.x = -660
-    back.Placement.Base.x = 40
-    front.Sketch.Placement = front.Placement
-    back.Sketch.Placement = back.Placement
-    marker = doc.addObject("Part::Feature", "GrainlineMarker")
-    marker.Shape = Part.makeLine(App.Vector(-400, 90, 1), App.Vector(-400, 640, 1))
-    front.ViewObject.Visibility = False
-    back.ViewObject.Visibility = False
-    front.Sketch.ViewObject.Visibility = True
-    back.Sketch.ViewObject.Visibility = True
-    doc.recompute()
-    if front.Shape.isNull() or back.Shape.isNull():
-        raise RuntimeError("pattern fixture produced empty geometry from native sketches")
-    activate(
-        "ClothPatternWorkbench",
-        "Cloth Pattern",
-        [
-            "ClothPattern_CreatePieceTask",
-            "ClothPattern_EditPiece",
-            "ClothPattern_Show2D",
-            "ClothPattern_CreateFromSketch",
-        ],
-    )
-    panel = PatternPieceTaskPanel(front)
-    show_task(
-        panel,
-        "Pattern Workbench",
-        ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"),
-    )
-    Gui.activeDocument().activeView().viewTop()
-    Gui.activeDocument().activeView().fitAll()
-    events()
-    save(
-        "cloth-pattern-design.png",
-        "Pattern Workbench",
-        "native Sketcher tunic pattern adopted into Cloth PatternPiece",
-    )
-    close_task()
-    seam = add_seam(
-        doc,
-        Seam(
-            str(front.PieceId),
-            7,
-            str(back.PieceId),
-            7,
-            id="FrontBack",
-            alignment="endpoints",
-            stitch_group="MainSeam",
-        ),
-    )
-    doc.recompute()
-    sewing = create_sewing_operation()
-    doc.recompute()
-    if (
-        str(seam.Status) != "Valid"
-        or seam.Shape.isNull()
-        or str(sewing.Status) != "Valid"
-        or sewing.Shape.isNull()
-    ):
-        raise RuntimeError("sewing fixture is invalid")
-    activate(
-        "ClothSewingWorkbench",
-        "Cloth Sewing",
-        ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"],
-    )
-    panel = SewingTaskPanel(sewing)
-    show_task(
-        panel,
-        "Sewing Workbench",
-        ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
-    )
-    Gui.activeDocument().activeView().viewTop()
-    Gui.activeDocument().activeView().fitAll()
-    events()
-    save("cloth-sewing.png", "Sewing Workbench", "native tunic Sketcher boundary and semantic seam")
-    close_task()
-    App.closeDocument(doc.Name)
-
-
 def style_mesh(obj, label):
     obj.Label = label
     try:
@@ -790,6 +692,125 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         )
     finally:
         close_task()
+        for piece in pieces:
+            piece.Placement = original_piece_placements[piece.Name]
+            piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
+        for obj in doc.Objects:
+            if obj.Name in original_visibility:
+                obj.ViewObject.Visibility = original_visibility[obj.Name]
+        doc.recompute()
+        Gui.activateWorkbench("ClothSimulationWorkbench")
+        events()
+
+
+def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
+    """Capture the Sewing workbench using the canonical simulation's tunic pieces and seams."""
+    from freecad_cloth.sewing.SewingCommands import create_sewing_operation
+    from freecad_cloth.sewing.SewingGui import SewingTaskPanel
+
+    if not seam_records:
+        raise RuntimeError("canonical tunic sewing view needs the simulation's semantic seam records")
+
+    pieces = (front, back)
+    original_piece_placements = {
+        piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
+        for piece in pieces
+    }
+    original_sketch_placements = {
+        piece.Sketch.Name: App.Placement(
+            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
+        )
+        for piece in pieces
+    }
+    original_visibility = {}
+    for obj in doc.Objects:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None and hasattr(view_object, "Visibility"):
+            original_visibility[obj.Name] = bool(view_object.Visibility)
+
+    sewing = None
+    gap = max(80.0, 0.15 * float(hem_width))
+    try:
+        # Reuse the exact native Sketcher sources used by the drape. Only their
+        # placements and visibility change for the flat Sewing-workbench capture.
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is not None and hasattr(view_object, "Visibility"):
+                view_object.Visibility = False
+
+        front_placement = App.Placement(
+            App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        back_placement = App.Placement(
+            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        front.Placement = front_placement
+        front.Sketch.Placement = front_placement
+        back.Placement = back_placement
+        back.Sketch.Placement = back_placement
+        front.ViewObject.Visibility = False
+        back.ViewObject.Visibility = False
+        front.Sketch.ViewObject.Visibility = True
+        back.Sketch.ViewObject.Visibility = True
+        for seam, _piece_a, _piece_b in seam_records:
+            seam.ViewObject.Visibility = True
+        doc.recompute()
+
+        invalid_seams = [
+            str(getattr(seam, "SeamId", getattr(seam, "Label", seam.Name)))
+            for seam, _piece_a, _piece_b in seam_records
+            if str(getattr(seam, "Status", "")) != "Valid"
+            or getattr(getattr(seam, "Shape", None), "isNull", lambda: True)()
+        ]
+        if invalid_seams:
+            raise RuntimeError(
+                "canonical tunic has invalid semantic seams before Sewing capture: "
+                + ", ".join(invalid_seams)
+            )
+
+        activate(
+            "ClothSewingWorkbench",
+            "Cloth Sewing",
+            ["ClothSewing_CreateOperation", "ClothSewing_EditOperation", "ClothSewing_Validate"],
+        )
+        sewing = create_sewing_operation()
+        doc.recompute()
+        if (
+            str(getattr(sewing, "Status", "")) != "Valid"
+            or getattr(getattr(sewing, "Shape", None), "isNull", lambda: True)()
+        ):
+            raise RuntimeError("canonical tunic Sewing operation is invalid")
+
+        panel = SewingTaskPanel(sewing)
+        show_task(
+            panel,
+            "Sewing Workbench",
+            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
+        )
+        # As with the pattern view, close the task panel so neither canonical
+        # profile is obscured in the generated evidence.
+        close_task()
+        view = Gui.activeDocument().activeView()
+        view.viewTop()
+        view.fitAll()
+        events()
+        save(
+            "cloth-sewing.png",
+            "Sewing Workbench canonical tunic",
+            "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit",
+        )
+        log(
+            "canonical-tunic-sewing=passed front=%s back=%s seam-ids=%s"
+            % (
+                front.Sketch.Name,
+                back.Sketch.Name,
+                tuple(str(getattr(seam, "SeamId", "")) for seam, _a, _b in seam_records),
+            )
+        )
+    finally:
+        close_task()
+        if sewing is not None:
+            sewing.ViewObject.Visibility = False
         for piece in pieces:
             piece.Placement = original_piece_placements[piece.Name]
             piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
@@ -918,6 +939,7 @@ def simulation():
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
+    capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 24.0
@@ -1180,8 +1202,6 @@ def main():
         log("avatar-provider-acceptance=passed")
     if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"):
         run_canonical_acceptance()
-    if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_PATTERN_SEWING"):
-        pattern_and_sewing()
     if not os.environ.get("CLOTH_TUNIC_AUDIT_SKIP_SIMULATION"):
         simulation()
     log("scenario-pass")

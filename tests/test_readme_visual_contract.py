@@ -88,6 +88,18 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
 
 
 
+
+def test_turntable_job_has_no_orphaned_or_legacy_tunic_screenshot_step():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    block = workflow.split("  gui-turntables:", 1)[1].split(
+        "  gui-visual-examples:", 1
+    )[0]
+    action = "      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9"
+    assert "tests/freecad_screenshot_source.py" not in block
+    assert action + "\n" + action not in block
+
 def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     import json
 
@@ -108,7 +120,14 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     )[0]
     assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
     assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
-    for name in ("cloth-pattern-design.png", "cloth-simulation-arranged.png"):
+    assert "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)" in screenshot_source
+    assert "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit" in screenshot_source
+    assert "def pattern_and_sewing(" not in screenshot_source
+    for name in (
+        "cloth-pattern-design.png",
+        "cloth-sewing.png",
+        "cloth-simulation-arranged.png",
+    ):
         assert manifest[name]["artifact"] == "tunic-visual-audit"
         assert manifest[name]["producers"] == ["tests/freecad_tunic_audit_production.py"]
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')

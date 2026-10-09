@@ -216,6 +216,26 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     assert metrics_write < screenshot < gate
 
 
+def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
+    debug = (ROOT / "tests" / "freecad_drape_debug.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+
+    # Keep the diagnostic A/B garment on the same authored silhouette, dimensions,
+    # avatar landmarks, and front/back neckline profile as the production tunic.
+    assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
+    assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
+    assert "armhole_z = 0.88 * h" in debug
+    assert "shoulder_z = 0.98 * h" in debug
+    assert 'ArrangementPoint.from_string(raw)' in debug
+    assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
+    assert "hem_width = max(500.0, panel_width + 80.0)" in debug
+    assert 'make_piece("DebugTunicFront", front_y, 0.78, 0.18)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, 0.76, 0.12)' in debug
+    assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in audit
+    assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+
+
+
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
