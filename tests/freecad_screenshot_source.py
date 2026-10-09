@@ -789,13 +789,17 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    # Place the panel origins relative to the shoulder line, not the entire avatar's
+    # front/back extrema. Global mesh Y bounds include the full torso depth and put
+    # matching shoulder seam samples hundreds of millimetres apart before draping.
+    shoulder_y = (shoulder_left.y + shoulder_right.y) / 2.0
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
     def target_relative_piece_placement(side):
         if side == "front":
-            y = min(target_ys) - clearance
+            y = shoulder_y - clearance
         elif side == "back":
-            y = max(target_ys) + clearance
+            y = shoulder_y + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
