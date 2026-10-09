@@ -6,7 +6,25 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
     seam_allowance_outline,
 )
-from freecad_cloth.pattern.PatternMesh import _self_intersects, _self_intersects_python
+from freecad_cloth.pattern.PatternMesh import _self_intersects
+
+
+def _python_self_intersects_reference(points):
+    """Test-only copy of the former segment predicate for regression comparisons."""
+    def cross(a, b, c):
+        return ((b[0] - a[0]) * (c[1] - a[1])) - ((b[1] - a[1]) * (c[0] - a[0]))
+
+    for i in range(len(points)):
+        a, b = points[i], points[(i + 1) % len(points)]
+        for j in range(i + 1, len(points)):
+            if j in (i, (i + 1) % len(points), (i - 1) % len(points)):
+                continue
+            c, d = points[j], points[(j + 1) % len(points)]
+            values = (cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b))
+            if values[0] * values[1] < -1e-10 and values[2] * values[3] < -1e-10:
+                return True
+    return False
+
 
 
 def test_rectangle_allowance_offsets_every_side():
@@ -63,7 +81,7 @@ def test_invalid_allowance_is_rejected():
 def test_large_simple_ring_matches_intersection_reference():
     """The optional GEOS fast path agrees with the Python oracle on a simple ring."""
     points = tuple((cos(tau * index / 64), sin(tau * index / 64)) for index in range(64))
-    assert not _self_intersects_python(points)
+    assert not _python_self_intersects_reference(points)
     assert not _self_intersects(points)
 
 
@@ -71,7 +89,7 @@ def test_suspicious_crossing_outline_uses_tolerance_aware_reference():
     """Potential intersections retain the existing Python predicate as authority."""
     bow_tie = ((0.0, 0.0), (2.0, 2.0), (0.0, 2.0), (2.0, 0.0))
     points = tuple(bow_tie[index % len(bow_tie)] for index in range(64))
-    assert _self_intersects_python(points)
+    assert _python_self_intersects_reference(points)
     assert _self_intersects(points)
 
 
