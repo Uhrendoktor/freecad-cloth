@@ -88,7 +88,7 @@ def _seam_geometry(backend, seam_stitch_pairs):
         for left, right in pairs:
             a = positions[int(left)]
             b = positions[int(right)]
-            distance = math.sqrt(sum((a[index] - b[index]) ** 2 for index in range(3)))
+            distance = math.dist(a, b)
             measurements.append(
                 {
                     "particle_a": int(left),

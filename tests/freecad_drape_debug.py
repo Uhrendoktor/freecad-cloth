@@ -139,12 +139,8 @@ def _triangle_degeneracy(positions, triangles):
             ab[2] * ac[0] - ab[0] * ac[2],
             ab[0] * ac[1] - ab[1] * ac[0],
         )
-        area = 0.5 * math.sqrt(sum(v * v for v in cross))
-        edges = (
-            math.sqrt(sum((float(pa[i]) - float(pb[i])) ** 2 for i in range(3))),
-            math.sqrt(sum((float(pa[i]) - float(pc[i])) ** 2 for i in range(3))),
-            math.sqrt(sum((float(pb[i]) - float(pc[i])) ** 2 for i in range(3))),
-        )
+        area = 0.5 * math.hypot(*cross)
+        edges = (math.dist(pa, pb), math.dist(pa, pc), math.dist(pb, pc))
         min_area = min(min_area, area)
         min_edge = min(min_edge, *edges)
         if area < 1e-3 or min(edges) < 1e-2:
@@ -174,13 +170,11 @@ def _metrics(
     seam_gaps = []
     for a, b in stitches:
         pa, pb = positions[int(a)], positions[int(b)]
-        seam_gaps.append(math.sqrt(sum((float(pa[i]) - float(pb[i])) ** 2 for i in range(3))))
+        seam_gaps.append(math.dist(pa, pb))
     pin_drifts = []
     for index, initial in zip(pin_indices, initial_pins, strict=False):
         current = positions[int(index)]
-        pin_drifts.append(
-            math.sqrt(sum((float(current[i]) - float(initial[i])) ** 2 for i in range(3)))
-        )
+        pin_drifts.append(math.dist(current, initial))
     xs = [float(p[0]) for p in positions]
     ys = [float(p[1]) for p in positions]
     zs = [float(p[2]) for p in positions]
