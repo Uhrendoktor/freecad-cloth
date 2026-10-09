@@ -153,6 +153,24 @@ def assert_seam_overlay(document, expected_ids):
     return controller
 
 
+def save_seam_overlay_evidence(document, expected_ids, filename):
+    """Capture a view only after its transient Coin overlay passes semantic checks."""
+    controller = assert_seam_overlay(document, expected_ids)
+    active_document = Gui.activeDocument()
+    view = active_document.activeView() if active_document is not None else None
+    assert view is not None, "active FreeCAD view is unavailable for seam evidence"
+    process_events()
+    view.redraw()
+    process_events()
+    destination = LOG_PATH.parent / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    view.saveImage(str(destination), 1280, 720, "White")
+    size = destination.stat().st_size if destination.is_file() else 0
+    assert size > 5000, f"seam overlay screenshot is missing or suspiciously small: {destination}"
+    record(f"seam-overlay-image={filename} bytes={size}")
+    return controller
+
+
 def wait_for_task_close():
     try:
         from PySide import QtCore, QtWidgets
@@ -596,6 +614,13 @@ try:
     )
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
+    Gui.activateWorkbench("ClothPatternWorkbench")
+    process_events()
+    active_workbench = Gui.activeWorkbench()
+    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    assert "pattern" in active_name.lower(), (
+        "seam overlay acceptance requires the Cloth Pattern workbench to be active"
+    )
     Gui.runCommand("ClothPattern_Show2D", 0)
     process_events()
     pattern_network = next(
@@ -606,9 +631,14 @@ try:
     )
     assert seam_color_snapshot(pattern_network.Seams) == baseline_seam_colors
     record("seam-colors-pattern-2d=passed")
-    Gui.activateWorkbench("Cloth Sewing")
+    pattern_overlay_ids = [str(seam.SeamId) for seam in pattern_network.Seams]
+    save_seam_overlay_evidence(doc, pattern_overlay_ids, "seam-overlay-pattern-2d.png")
+    record("seam-viewport-overlay-pattern-2d=passed labels=paired-A-B")
+    Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
-    assert Gui.activeWorkbench() == "Cloth Sewing", (
+    active_workbench = Gui.activeWorkbench()
+    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    assert "sewing" in active_name.lower(), (
         "seam overlay acceptance requires the Cloth Sewing workbench to be active"
     )
     endpoint_snapshot = tuple(
@@ -664,9 +694,13 @@ try:
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 3
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
-    overlay = assert_seam_overlay(doc, [str(seam.SeamId) for seam in curved_network.Seams])
+    overlay = save_seam_overlay_evidence(
+        doc,
+        [str(seam.SeamId) for seam in curved_network.Seams],
+        "seam-overlay-sewing-3d.png",
+    )
     assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
-    record("seam-viewport-overlay-3d=passed labels=paired-A-B")
+    record("seam-viewport-overlay-sewing-3d=passed labels=paired-A-B")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
@@ -674,8 +708,12 @@ try:
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-sewing-2d=passed")
     record("seam-visual-2d=passed top-view=true")
-    assert_seam_overlay(doc, [str(seam.SeamId) for seam in curved_network.Seams])
-    record("seam-viewport-overlay-2d=passed")
+    save_seam_overlay_evidence(
+        doc,
+        [str(seam.SeamId) for seam in curved_network.Seams],
+        "seam-overlay-sewing-2d.png",
+    )
+    record("seam-viewport-overlay-sewing-2d=passed labels=paired-A-B")
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
