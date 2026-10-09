@@ -141,6 +141,17 @@ def test_tunic_audit_runs_the_production_source_without_rewriting_it():
     assert "collision_surface=target_surface" in source
 
 
+def test_canonical_tunic_surface_mapping_uses_the_quality_mesh_and_authoritative_builder():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh" in source
+    assert "for seam_obj, piece_a, piece_b in seam_records:" in source
+    assert "scene_signature = scene_proxy._signature(scene)" in source
+    assert "scene_proxy._build(" in source
+    assert "sync_seam_provenance(base_proxy_getter())" in source
+    assert "canonical tunic surface mapping leaves" in source
+    assert "simulation_objects._piece_mesh = tunic_initial_surface_mesh" not in source
+
+
 def test_canonical_tunic_source_rewrite_compiles():
     import subprocess
     import sys

@@ -227,7 +227,12 @@ def _attachment_test_surface():
 
 
 def _install_native_mesh_projection(
-    monkeypatch, facet_area=200.0, plane_axis="z", plane_value=10.0, normal=(0.0, 0.0, 1.0)
+    monkeypatch,
+    facet_area=200.0,
+    plane_axis="z",
+    plane_value=10.0,
+    normal=(0.0, 0.0, 1.0),
+    normal_as_tuple=False,
 ):
     import sys
     from types import SimpleNamespace
@@ -268,7 +273,7 @@ def _install_native_mesh_projection(
 
         @property
         def Normal(self):
-            return Vector(*normal)
+            return tuple(normal) if normal_as_tuple else Vector(*normal)
 
     class NativeMesh:
         def __init__(self):
@@ -300,6 +305,45 @@ def _install_native_mesh_projection(
     monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(Vector=Vector))
     monkeypatch.setitem(sys.modules, "Mesh", SimpleNamespace(Mesh=lambda: native_mesh))
     return native_mesh
+
+
+def test_avatar_attachment_projection_accepts_tuple_facet_normals(monkeypatch):
+    from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments
+
+    _install_native_mesh_projection(monkeypatch, normal=(0.0, 0.0, 1.0), normal_as_tuple=True)
+    source = (0.0, 0.0, 5.0)
+    projected, records = project_avatar_attachments(
+        (source,),
+        (0,),
+        _attachment_test_surface(),
+        offset_mm=3.0,
+        target_points={0: source},
+        projection_directions={0: (0.0, 0.0, 1.0)},
+    )
+    assert projected[0] == (0.0, 0.0, 13.0)
+    assert records[0].outward_normal == (0.0, 0.0, 1.0)
+
+
+def test_avatar_attachment_projection_orients_normal_outward_when_semantic_axis_is_tangent(monkeypatch):
+    from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments
+
+    _install_native_mesh_projection(
+        monkeypatch,
+        plane_axis="z",
+        plane_value=10.0,
+        normal=(0.0, 0.0, -1.0),
+    )
+    source = (0.0, 0.0, 5.0)
+    projected, records = project_avatar_attachments(
+        (source,),
+        (0,),
+        _attachment_test_surface(),
+        offset_mm=3.0,
+        target_points={0: source},
+        projection_directions={0: (1.0, 0.0, 0.0)},
+    )
+    assert projected[0] == (0.0, 0.0, 13.0)
+    assert records[0].outward_normal == (0.0, 0.0, 1.0)
 
 
 def test_avatar_attachment_projection_delegates_surface_queries_to_freecad_mesh(monkeypatch):
@@ -472,7 +516,9 @@ def test_avatar_attachment_projection_fails_closed_on_invalid_selection_offset_a
         region=surface.region,
         thickness=surface.thickness,
     )
-    with pytest.raises(ValueError, match="invalid triangle"):
+    # CollisionSurface rejects fractional indices during its own validation. Keep
+    # the fail-closed contract without depending on a Pydantic error-message version.
+    with pytest.raises(ValueError):
         project_avatar_attachments(positions, (0,), malformed)
     degenerate = surface_from_triangles(
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)),

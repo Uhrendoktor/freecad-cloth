@@ -23,7 +23,7 @@ def validate_simulation() -> None:
     """Validate the canonical simulation collision manifests."""
     specs = (
         ("cube", ROOT / "cube-ladder-manifest.json", 5, 3.0, "simulation-collision-ladder"),
-        ("avatar", ROOT / "avatar-ladder-manifest.json", 5, 8.0, "simulation-avatar-ladder"),
+        ("avatar", ROOT / "avatar-ladder-manifest.json", 7, 8.0, "simulation-avatar-ladder"),
     )
     for name, path, count, max_penetration, purpose in specs:
         data = read(path)

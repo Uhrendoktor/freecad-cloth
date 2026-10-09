@@ -47,6 +47,11 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert "avatar-ladder-2482" in WORKFLOW
 
 
+def test_avatar_ladder_manifest_validator_accepts_seven_rungs():
+    validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
+    assert '("avatar", ROOT / "avatar-ladder-manifest.json", 7, 8.0, "simulation-avatar-ladder")' in validator
+
+
 def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs():
     assert "reversed_b=True" in SOURCE
     assert '"right_offset": 0.5' in SOURCE

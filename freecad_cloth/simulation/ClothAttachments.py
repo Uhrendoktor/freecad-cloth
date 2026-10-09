@@ -349,13 +349,41 @@ def project_avatar_attachments(
             )
 
         facet_normal = native_facets[triangle_index].Normal
-        normal = App.Vector(float(facet_normal.x), float(facet_normal.y), float(facet_normal.z))
+        # Mesh.Facet.Normal may be a tuple in FreeCAD's Mesh API, while
+        # other geometry APIs expose a vector with x/y/z attributes.
+        if all(hasattr(facet_normal, axis) for axis in ("x", "y", "z")):
+            normal_components = (
+                float(facet_normal.x),
+                float(facet_normal.y),
+                float(facet_normal.z),
+            )
+        else:
+            try:
+                normal_components = tuple(float(component) for component in facet_normal)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "FreeCAD returned an invalid facet normal for an avatar anchor"
+                ) from exc
+        if len(normal_components) != 3:
+            raise ValueError("FreeCAD returned an invalid facet normal for an avatar anchor")
+        normal = App.Vector(*normal_components)
         if float(normal.Length) <= 1e-12:
             raise ValueError("FreeCAD returned a degenerate facet normal for an avatar anchor")
         normal.normalize()
-        if float(normal.dot(outward_vector)) < 0.0:
-            normal = -normal
         closest_vector = App.Vector(*closest)
+        radial_vector = closest_vector - center_vector
+        if float(radial_vector.Length) > 1e-9:
+            radial_vector.normalize()
+            radial_alignment = float(normal.dot(radial_vector))
+        else:
+            radial_alignment = 0.0
+        if abs(radial_alignment) > 1e-6:
+            if radial_alignment < 0.0:
+                normal = -normal
+        elif float(normal.dot(outward_vector)) < 0.0:
+            # Near the target centre the radial direction is ambiguous, so fall
+            # back to the semantic projection direction.
+            normal = -normal
         anchor_vector = closest_vector + normal * offset
         anchor_position = (float(anchor_vector.x), float(anchor_vector.y), float(anchor_vector.z))
         updated[particle_index] = anchor_position

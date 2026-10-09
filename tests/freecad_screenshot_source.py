@@ -215,6 +215,24 @@ def run_canonical_acceptance():
         log(marker + "=passed")
 
 
+def _as_coordinates3(value, label):
+    """Normalize either a FreeCAD vector or a tuple-like 3D value."""
+    if all(hasattr(value, axis) for axis in ("x", "y", "z")):
+        raw = (value.x, value.y, value.z)
+    else:
+        try:
+            raw = tuple(value)
+        except TypeError as exc:
+            raise ValueError("%s must be a three-component coordinate" % label) from exc
+    try:
+        coordinates = tuple(float(component) for component in raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("%s must be a three-component coordinate" % label) from exc
+    if len(coordinates) != 3:
+        raise ValueError("%s must be a three-component coordinate" % label)
+    return coordinates
+
+
 def _mesh_geometry(mesh):
     topology = getattr(mesh, "Topology", None)
     if topology is None:
@@ -1075,10 +1093,18 @@ def simulation():
     # parallel planes whose matching side seams are about 238 mm apart.
     # Source Sketcher geometry and PatternIR topology are not modified.
     import Mesh
-    from freecad_cloth.simulation import SimulationObjects as simulation_objects
     from freecad_cloth.simulation.ClothAttachments import _nearest_surface_point
+    from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+    from scipy.spatial import cKDTree
 
-    original_piece_mesh = simulation_objects._piece_mesh
+    def original_piece_mesh(piece, start_height, piece_ir=None):
+        return quality_piece_mesh(
+            piece,
+            start_height,
+            float(scene.ParticleDistance),
+            piece_ir=piece_ir,
+        )
     native_avatar_mesh = Mesh.Mesh()
     native_avatar_mesh.addFacets(
         [
@@ -1087,6 +1113,7 @@ def simulation():
         ]
     )
     native_avatar_facets = tuple(native_avatar_mesh.Facets)
+    target_vertex_tree = cKDTree(target_surface.vertices)
     if len(native_avatar_facets) != len(target_surface.triangles):
         raise RuntimeError("tunic initialization lost DrapeTarget facet correspondence")
     fit_radius = 3.0 * float(scene.ParticleDistance)
@@ -1099,11 +1126,23 @@ def simulation():
     )
     seam_fit_cache = {}
     ray_hit_cache = {}
-    fit_counts = {"seam-surface": 0, "seam-outside": 0, "panel-surface": 0, "panel-fallback": 0}
+    fit_counts = {
+        "seam-surface": 0,
+        "seam-outside": 0,
+        "panel-surface": 0,
+        "panel-fallback": 0,
+        "clearance-correction": 0,
+        "inside-correction": 0,
+    }
 
     def _fit_surface_point(point, triangle_index):
         facet_normal = native_avatar_facets[int(triangle_index)].Normal
-        normal = (float(facet_normal.x), float(facet_normal.y), float(facet_normal.z))
+        try:
+            normal = _as_coordinates3(facet_normal, "DrapeTarget facet normal")
+        except ValueError as exc:
+            raise RuntimeError(
+                "tunic initialization received an invalid DrapeTarget facet normal"
+            ) from exc
         length = sum(value * value for value in normal) ** 0.5
         if length <= 1e-12:
             raise RuntimeError("tunic initialization found a degenerate DrapeTarget facet")
@@ -1140,7 +1179,7 @@ def simulation():
             candidates = []
             for raw_index, hit in raw_hits.items():
                 triangle_index = int(raw_index)
-                point = (float(hit.x), float(hit.y), float(hit.z))
+                point = _as_coordinates3(hit, "Mesh ray intersection")
                 delta_y = point[1] - float(tunic_torso_y_mid)
                 if direction < 0 and delta_y > 1e-6:
                     continue
@@ -1161,19 +1200,31 @@ def simulation():
             str(front.PieceId), str(back.PieceId)
         }:
             return vertices, triangles, boundary_edges
-        is_front = str(piece.PieceId) == str(front.PieceId)
-        semantic_edge_ids = front_edge_ids if is_front else back_edge_ids
-        sewn_ids = {
-            str(semantic_edge_ids[index])
-            for index in (1, 3, 5, 7)
-            if index < len(semantic_edge_ids)
-        }
-        sewn_vertices = {
-            int(vertex_index)
+        piece_id = str(piece.PieceId)
+        # Use the semantic seam objects that are passed to the production solver.
+        sewn_ids = set()
+        for seam_obj, piece_a, piece_b in seam_records:
+            if str(piece_a.PieceId) == piece_id:
+                sewn_ids.add(str(getattr(seam_obj, "EdgeAId", "")).strip())
+            if str(piece_b.PieceId) == piece_id:
+                sewn_ids.add(str(getattr(seam_obj, "EdgeBId", "")).strip())
+        chain_by_id = {
+            str(boundary.id): tuple(int(index) for index in chain)
             for boundary, chain in zip(piece_ir.boundaries, boundary_edges, strict=False)
-            if str(boundary.id) in sewn_ids
-            for vertex_index in chain
         }
+        missing_sewn_ids = sorted(sewn_ids - set(chain_by_id))
+        if missing_sewn_ids:
+            raise RuntimeError(
+                "canonical tunic sewn semantic edges are missing from the simulation mesh "
+                "for %s: %s (mesh edges=%s)"
+                % (piece_id, missing_sewn_ids, sorted(chain_by_id))
+            )
+        sewn_vertices = {
+            index
+            for edge_id in sewn_ids
+            for index in chain_by_id[edge_id]
+        }
+        is_front = piece_id == str(front.PieceId)
         direction = -1 if is_front else 1
         mapped = []
         for index, raw in enumerate(vertices):
@@ -1190,28 +1241,83 @@ def simulation():
                     point = _fit_surface_point(surface_point, triangle_index)
                     fit_counts["panel-surface"] += 1
             mapped.append(tuple(float(value) for value in point))
+        # Ray misses and fallback vertices must still respect the same authored
+        # outward offset; the hard gate remains unchanged.
+        for index, raw_point in enumerate(mapped):
+            point = tuple(float(value) for value in raw_point)
+            distance, _target_vertex_index = target_vertex_tree.query(
+                point, k=1, eps=0.0, workers=1
+            )
+            if float(distance) >= outward_offset - 1e-6:
+                continue
+            fit_counts["clearance-correction"] += 1
+            corrected = point
+            for _attempt in range(3):
+                distance, _target_vertex_index = target_vertex_tree.query(
+                    corrected, k=1, eps=0.0, workers=1
+                )
+                if float(distance) >= outward_offset - 1e-3:
+                    break
+                _surface_distance, triangle_index, closest = _nearest_surface_point(
+                    corrected,
+                    target_surface.vertices,
+                    target_surface.triangles,
+                )
+                corrected = _fit_surface_point(closest, triangle_index)
+            mapped[index] = tuple(float(value) for value in corrected)
+        # Nearest-vertex clearance does not prove that a particle is outside a
+        # closed triangle surface. Apply the existing mesh-inside predicate as a gate.
+        for _attempt in range(3):
+            inside_flags = points_inside_closed_mesh(
+                tuple(mapped),
+                target_surface.vertices,
+                target_surface.triangles,
+            )
+            inside_indices = [index for index, inside in enumerate(inside_flags) if inside]
+            if not inside_indices:
+                break
+            for index in inside_indices:
+                _surface_distance, triangle_index, closest = _nearest_surface_point(
+                    mapped[index],
+                    target_surface.vertices,
+                    target_surface.triangles,
+                )
+                mapped[index] = tuple(
+                    float(value) for value in _fit_surface_point(closest, triangle_index)
+                )
+                fit_counts["inside-correction"] += 1
+        remaining_inside = points_inside_closed_mesh(
+            tuple(mapped),
+            target_surface.vertices,
+            target_surface.triangles,
+        )
+        if any(remaining_inside):
+            raise RuntimeError(
+                "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target"
+                % sum(1 for inside in remaining_inside if inside)
+            )
         return tuple(mapped), triangles, boundary_edges
 
-    try:
-        simulation_objects._piece_mesh = tunic_initial_surface_mesh
-        # Existing recomputes may already have built the proxy before this fixture
-        # installs its mesh transform. Force one authoritative rebuild so the
-        # diagnostic hook is consumed by SimulationProxy._build_pattern_scene.
-        scene_proxy = scene.Proxy
-        scene_proxy.backend = None
-        scene_proxy.source_signature = None
-        scene_proxy.last_steps = 0
-        refresh_drape_target(target)
-        # Runtime proxy resets do not dirty the FreeCAD document object themselves.
-        # Touch only after the target refresh so the forced rebuild sees a ready target.
-        scene.touch()
-        doc.recompute()
-        if not any(fit_counts.values()):
-            raise RuntimeError(
-                "canonical tunic surface fit did not intercept the initial mesh build"
-            )
-    finally:
-        simulation_objects._piece_mesh = original_piece_mesh
+    # Refresh collision metadata, then explicitly build through the authoritative
+    # proxy with the fixture mesh and wrapper's exact source signature.
+    refresh_drape_target(target)
+    scene_proxy = scene.Proxy
+    scene_signature = scene_proxy._signature(scene)
+    scene_proxy._build(
+        scene,
+        signature=scene_signature,
+        piece_mesh=tunic_initial_surface_mesh,
+    )
+    base_proxy_getter = getattr(scene_proxy, "_base_or_restore", None)
+    sync_seam_provenance = getattr(scene_proxy, "_sync_seam_stitch_provenance", None)
+    if not callable(base_proxy_getter) or not callable(sync_seam_provenance):
+        raise RuntimeError("canonical tunic fixture cannot synchronize authoritative seam provenance")
+    sync_seam_provenance(base_proxy_getter())
+    doc.recompute()
+    if not any(fit_counts.values()):
+        raise RuntimeError(
+            "canonical tunic surface-mapped mesh builder was not used: %s" % fit_counts
+        )
     log("tunic-initial-surface-map=%s fit-radius-mm=%.1f offset-mm=%.2f" % (
         fit_counts, fit_radius, outward_offset
     ))
