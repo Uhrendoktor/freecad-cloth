@@ -26,6 +26,8 @@ This fixture intentionally avoids the human avatar so users can isolate cloth, c
 
 The tunic is the full garment acceptance scenario. It uses two pattern pieces, semantic sewing, a production MakeHuman mannequin, persisted quality/material settings, diagnostics, save/reload and invalidation.
 
+The Pattern and Sewing screenshots are captured from the same native Sketcher pieces and semantic seams that the production tunic audit sends through fitting and simulation; they are not independent garment fixtures.
+
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
 ## Visual regression policy
