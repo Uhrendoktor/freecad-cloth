@@ -171,6 +171,8 @@ def test_seam_overlay_labels_are_unique_stable_pair_identifiers():
     extended = seam_display_labels((*initial_ids, "seam-3"))
     assert baseline["seam-1"] == "S1"
     assert len(set(extended.values())) == len(extended)
+    assert baseline["custom-long-identity"].startswith("S")
+    assert len(baseline["custom-long-identity"]) <= 9
     for seam_id in initial_ids:
         assert extended[seam_id] == baseline[seam_id]
 
@@ -241,5 +243,9 @@ def test_seam_side_overlay_creates_edge_direction_and_notch_strokes():
     assert segments[0] == list(points)
     assert len(segments) >= 3
     assert all(len(segment) >= 2 for segment in segments)
+    two_points = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
+    short_segments = _side_segments(two_points)
+    assert short_segments[0] == list(two_points)
+    assert len(short_segments) >= 3
 
 
