@@ -7,7 +7,7 @@ for tests and adapters while leaving one production simulation implementation.
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from math import isfinite, sqrt
+from math import dist, isfinite
 
 
 @dataclass
@@ -36,7 +36,7 @@ class DistanceConstraint:
 
 def distance(a: Particle, b: Particle) -> float:
     """Return Euclidean distance between two particles."""
-    return sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2)
+    return dist(a.position(), b.position())
 
 
 class ClothSystem:
@@ -48,7 +48,7 @@ class ClothSystem:
         constraints: Iterable[DistanceConstraint] = (),
         stitches: Iterable[DistanceConstraint] = (),
         pins: Iterable[int] = (),
-    ):
+    ) -> None:
         self.particles: list[Particle] = list(particles)
         self.constraints: list[DistanceConstraint] = list(constraints)
         self.stitches: list[DistanceConstraint] = []

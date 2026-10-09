@@ -9,6 +9,7 @@ model.
 
 import bisect
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 STATUS_VALID = "valid"
@@ -152,7 +153,13 @@ def analyze_correspondence(
     )
 
 
-def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
+def arc_length_vertex_indices(
+    values: Iterable[int],
+    points: Iterable[Iterable[float]],
+    count: int,
+    start: float = 0.0,
+    end: float = 1.0,
+) -> tuple[int, ...]:
     """Select existing edge vertices by physical arc length over a normalized range."""
     if int(count) < 2:
         raise ValueError("at least two correspondence samples are required")
@@ -175,10 +182,7 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
 
     cumulative = [0.0]
     for first, second in zip(points, points[1:], strict=False):
-        cumulative.append(
-            cumulative[-1]
-            + math.sqrt(sum((a - b) ** 2 for a, b in zip(first, second, strict=False)))
-        )
+        cumulative.append(cumulative[-1] + math.dist(first, second))
     total = cumulative[-1]
     if total <= 0.0:
         raise ValueError("arc-length sampling needs a positive total length")
@@ -188,7 +192,7 @@ def arc_length_vertex_indices(values, points, count, start=0.0, end=1.0):
     start_distance = start * total
     end_distance = end * total
 
-    def nearest_index(distance):
+    def nearest_index(distance: float) -> int:
         right = bisect.bisect_left(cumulative, distance)
         if right <= 0:
             return 0
@@ -279,7 +283,7 @@ def correspondence_samples(
     start_b: float = 0.0,
     end_b: float = 1.0,
     reversed_b: bool = False,
-):
+) -> tuple[tuple[float, float], ...]:
     """Return paired normalized parameters for deterministic mesh sampling."""
     if count < 2:
         raise ValueError("at least two correspondence samples are required")
