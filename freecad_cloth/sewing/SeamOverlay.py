@@ -13,11 +13,12 @@ from collections.abc import Iterable
 from hashlib import sha1
 from typing import Any
 
-from freecad_cloth.shared.seam_colors import seam_color_map
+from freecad_cloth.shared.seam_colors import register_seam_refresh_callback, seam_color_map
 
 _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False
 _PENDING_DOCUMENT = None
+_OVERLAY_ENABLED = False
 
 
 def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
@@ -292,7 +293,8 @@ class SeamOverlayController:
         ids = [str(seam.SeamId).strip() for seam in seams]
         colors = seam_color_map(ids)
         labels = seam_display_labels(ids)
-        self.rendered_seam_ids = tuple(sorted(set(ids)))
+        rendered_ids: list[str] = []
+        self.rendered_seam_ids = ()
         self.last_error = ""
 
         if not seams:
@@ -330,6 +332,8 @@ class SeamOverlayController:
             _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
             _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
             self.root.addChild(side_group)
+            rendered_ids.append(identity)
+        self.rendered_seam_ids = tuple(sorted(set(rendered_ids)))
 
 
 def _selected_seam_id(gui: Any, document: Any) -> str:
@@ -346,6 +350,8 @@ def _selected_seam_id(gui: Any, document: Any) -> str:
 def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
     """Attach or refresh the current view's overlay; safe outside a GUI process."""
     global _ACTIVE_CONTROLLER
+    if not _OVERLAY_ENABLED:
+        return None
     try:
         import FreeCADGui as Gui
 
@@ -384,6 +390,14 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
         return None
 
 
+def activate_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
+    """Enable view overlays and register shared presentation refresh dispatch."""
+    global _OVERLAY_ENABLED
+    _OVERLAY_ENABLED = True
+    register_seam_refresh_callback(schedule_seam_overlay_refresh)
+    return refresh_seam_overlay(document)
+
+
 def get_active_seam_overlay() -> SeamOverlayController | None:
     """Return the active controller for focused GUI acceptance tests."""
     return _ACTIVE_CONTROLLER
@@ -391,7 +405,11 @@ def get_active_seam_overlay() -> SeamOverlayController | None:
 
 def deactivate_seam_overlay() -> None:
     """Discard the transient overlay when the user leaves a Cloth workbench."""
-    global _ACTIVE_CONTROLLER
+    global _ACTIVE_CONTROLLER, _OVERLAY_ENABLED, _REFRESH_PENDING, _PENDING_DOCUMENT
+    _OVERLAY_ENABLED = False
+    _REFRESH_PENDING = False
+    _PENDING_DOCUMENT = None
+    register_seam_refresh_callback(None)
     if _ACTIVE_CONTROLLER is not None:
         _ACTIVE_CONTROLLER.deactivate()
     _ACTIVE_CONTROLLER = None
