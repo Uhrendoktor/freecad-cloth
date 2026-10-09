@@ -37,6 +37,83 @@ def _distance_squared(first: Any, second: Any) -> float:
     return sum((first[axis] - second[axis]) ** 2 for axis in range(3))
 
 
+def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
+    """Return the closest point on a triangle using its Voronoi regions."""
+    ab = tuple(b[i] - a[i] for i in range(3))
+    ac = tuple(c[i] - a[i] for i in range(3))
+    ap = tuple(point[i] - a[i] for i in range(3))
+
+    def dot(first: Any, second: Any) -> float:
+        return sum(first[i] * second[i] for i in range(3))
+
+    d1, d2 = dot(ab, ap), dot(ac, ap)
+    if d1 <= 0.0 and d2 <= 0.0:
+        return a
+
+    bp = tuple(point[i] - b[i] for i in range(3))
+    d3, d4 = dot(ab, bp), dot(ac, bp)
+    if d3 >= 0.0 and d4 <= d3:
+        return b
+
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+        v = d1 / (d1 - d3)
+        return tuple(a[i] + v * ab[i] for i in range(3))
+
+    cp = tuple(point[i] - c[i] for i in range(3))
+    d5, d6 = dot(ab, cp), dot(ac, cp)
+    if d6 >= 0.0 and d5 <= d6:
+        return c
+
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+        w = d2 / (d2 - d6)
+        return tuple(a[i] + w * ac[i] for i in range(3))
+
+    va = d3 * d6 - d5 * d4
+    if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+        w = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+        return tuple(b[i] + w * (c[i] - b[i]) for i in range(3))
+
+    denominator = va + vb + vc
+    if abs(denominator) <= 1e-24:
+        # Degenerate face: its nearest point lies on one of its three segments.
+        candidates = []
+        for start, end in ((a, b), (b, c), (c, a)):
+            delta = tuple(end[i] - start[i] for i in range(3))
+            length_squared = dot(delta, delta)
+            factor = (
+                0.0
+                if length_squared <= 1e-24
+                else max(0.0, min(1.0, dot(tuple(point[i] - start[i] for i in range(3)), delta) / length_squared))
+            )
+            candidate = tuple(start[i] + factor * delta[i] for i in range(3))
+            candidates.append((_distance_squared(point, candidate), candidate))
+        return min(candidates, key=lambda item: item[0])[1]
+
+    inverse = 1.0 / denominator
+    v, w = vb * inverse, vc * inverse
+    return tuple(a[i] + ab[i] * v + ac[i] * w for i in range(3))
+
+
+def _nearest_surface_point(
+    point: Any, vertices: Any, triangles: Any
+) -> tuple[float, int, Point3]:
+    """Find the globally closest point on a validated triangulated target."""
+    best = None
+    for triangle_index, (ia, ib, ic) in enumerate(triangles):
+        candidate = _closest_point_on_triangle(
+            point, vertices[ia], vertices[ib], vertices[ic]
+        )
+        distance_squared = _distance_squared(point, candidate)
+        record = (distance_squared, triangle_index, candidate)
+        if best is None or record[:2] < best[:2]:
+            best = record
+    if best is None:
+        raise ValueError("DrapeTarget surface has no triangles for nearest-point fallback")
+    return sqrt(best[0]), best[1], best[2]
+
+
 @dataclass(frozen=True)
 class AttachmentProjection:
     """Auditable projection for one cloth particle."""
@@ -215,26 +292,48 @@ def project_avatar_attachments(
                 hit = _point(hit_point, "FreeCAD Mesh ray intersection")
                 distance = sqrt(_distance_squared(source, hit))
                 candidates.append((distance, triangle_index, hit, direction))
-        if not candidates:
-            raise ValueError("FreeCAD Mesh found no ray/facet intersection for avatar landmark")
-        source_distance, triangle_index, closest, hit_direction = min(
-            candidates, key=lambda candidate: (candidate[0], candidate[1])
-        )
+        projection_method = "directional-ray"
+        if candidates:
+            source_distance, triangle_index, closest, hit_direction = min(
+                candidates, key=lambda candidate: (candidate[0], candidate[1])
+            )
+        else:
+            source_distance = float("inf")
+            triangle_index = -1
+            closest = None
+            hit_direction = preferred_direction
+
+        # A directional ray can miss the nearby torso while intersecting a distant
+        # arm. In that case, query the exact closest point on the validated triangle
+        # surface; the same maximum-distance guard still rejects genuinely remote
+        # landmarks. This fallback runs only when ray projection cannot be trusted.
         if source_distance > maximum_distance:
+            nearest_distance, nearest_triangle, nearest_point = _nearest_surface_point(
+                source, vertices, triangles
+            )
+            if nearest_distance < source_distance:
+                source_distance = nearest_distance
+                triangle_index = nearest_triangle
+                closest = nearest_point
+                hit_direction = preferred_direction
+                projection_method = "nearest-triangle"
+
+        if closest is None or source_distance > maximum_distance:
             raise ValueError(
                 (
                     "avatar attachment is too far from the DrapeTarget surface: {:.2f} mm "
-                    "(maximum {:.2f} mm; particle_index={}; source={}; particle={}; "
-                    "direction={}; outward={}; hit={})"
+                    "(maximum {:.2f} mm; projection={}; particle_index={}; source={}; "
+                    "particle={}; direction={}; outward={}; hit={})"
                 ).format(
                     source_distance,
                     maximum_distance,
+                    projection_method,
                     particle_index,
                     tuple(round(value, 3) for value in source),
                     tuple(round(value, 3) for value in particle_position),
                     tuple(round(value, 3) for value in hit_direction),
                     preferred_direction,
-                    tuple(round(value, 3) for value in closest),
+                    tuple(round(value, 3) for value in closest or ()),
                 )
             )
 

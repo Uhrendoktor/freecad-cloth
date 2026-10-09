@@ -389,6 +389,46 @@ def test_avatar_attachment_projection_tries_reverse_ray_but_keeps_outward_normal
     assert projected[0] == (183.0, 0.0, 1347.5)
 
 
+def test_avatar_attachment_projection_uses_nearest_surface_when_directional_ray_is_distant(monkeypatch):
+    from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments
+    from freecad_cloth.shared.collision import surface_from_triangles
+
+    native_mesh = _install_native_mesh_projection(
+        monkeypatch,
+        plane_axis="x",
+        plane_value=328.539,
+        normal=(1.0, 0.0, 0.0),
+    )
+    surface = surface_from_triangles(
+        (
+            (180.0, -100.0, 1300.0),
+            (180.0, 100.0, 1300.0),
+            (180.0, 0.0, 1500.0),
+        ),
+        ((0, 1, 2),),
+    )
+    source = (220.0, 0.0, 1347.5)
+    projected, records = project_avatar_attachments(
+        (source,),
+        (0,),
+        surface,
+        offset_mm=3.0,
+        target_points={0: source},
+        projection_directions={0: (1.0, 0.0, 0.0)},
+    )
+
+    # The +X ray intersects only a distant surface; the -X ray has no hit.
+    # The closest triangle point is 40 mm away, inside the unchanged 100 mm guard.
+    assert tuple(direction for _point, direction in native_mesh.rays) == (
+        (1.0, 0.0, 0.0),
+        (-1.0, 0.0, 0.0),
+    )
+    assert abs(records[0].source_distance_mm - 40.0) < 1e-9
+    assert records[0].surface_point == (180.0, 0.0, 1347.5)
+    assert records[0].outward_normal == (1.0, 0.0, 0.0)
+    assert projected[0] == (183.0, 0.0, 1347.5)
+
+
 def test_avatar_attachment_projection_rejects_points_too_far_from_target(monkeypatch):
     import pytest
     from freecad_cloth.simulation.ClothAttachments import project_avatar_attachments
