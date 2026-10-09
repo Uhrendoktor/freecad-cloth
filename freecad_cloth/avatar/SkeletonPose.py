@@ -11,6 +11,7 @@ import json
 import math
 from dataclasses import dataclass
 from collections.abc import Callable, Iterable, Mapping
+from typing import Any
 
 CONTROLLABLE_JOINTS = (
     ("spine05", "Pelvis"),
@@ -62,7 +63,7 @@ class JointRotation:
     y: float = 0.0
     z: float = 0.0
 
-    def validate(self):
+    def validate(self) -> JointRotation:
         """Validate the joint name and bounded Euler angles."""
         if self.bone not in CONTROLLABLE_BONES:
             raise ValueError(f"unsupported mannequin joint: {self.bone}")
@@ -72,7 +73,7 @@ class JointRotation:
                 raise ValueError(f"{self.bone}.{axis} must be between -180 and 180 degrees")
         return self
 
-    def mirrored(self):
+    def mirrored(self) -> JointRotation:
         """Return the sagittal mirror of this joint rotation."""
         mirror = MIRROR_BONES.get(self.bone)
         if mirror is None:
@@ -83,7 +84,9 @@ class JointRotation:
         return JointRotation(mirror, float(self.x), -float(self.y), -float(self.z))
 
 
-def normalize_joint_rotations(rotations) -> tuple[JointRotation, ...]:
+def normalize_joint_rotations(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> tuple[JointRotation, ...]:
     """Validate, de-duplicate and deterministically order joint rotations."""
     values = {}
     for rotation in rotations or ():
@@ -98,12 +101,16 @@ def normalize_joint_rotations(rotations) -> tuple[JointRotation, ...]:
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
 
 
-def joint_rotation_map(rotations) -> dict[str, JointRotation]:
+def joint_rotation_map(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> dict[str, JointRotation]:
     """Return joint rotations keyed by authored MakeHuman bone name."""
     return {item.bone: item for item in normalize_joint_rotations(rotations)}
 
 
-def joint_rotations_to_json(rotations) -> str:
+def joint_rotations_to_json(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> str:
     """Serialize persistent joint rotations to deterministic JSON."""
     values = normalize_joint_rotations(rotations)
     return json.dumps(
@@ -124,7 +131,7 @@ def joint_rotations_to_json(rotations) -> str:
     )
 
 
-def joint_rotations_from_json(payload) -> tuple[JointRotation, ...]:
+def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
     """Deserialize persistent joint rotations, accepting legacy empty values."""
     raw = str(payload or "").strip()
     if not raw:
@@ -153,7 +160,9 @@ def joint_rotations_from_json(payload) -> tuple[JointRotation, ...]:
     return normalize_joint_rotations(rotations)
 
 
-def mirror_rotations(rotations) -> tuple[JointRotation, ...]:
+def mirror_rotations(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> tuple[JointRotation, ...]:
     """Return a deterministic left/right mirrored pose."""
     mirrored = []
     for item in normalize_joint_rotations(rotations):
