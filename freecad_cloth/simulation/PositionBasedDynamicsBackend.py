@@ -150,7 +150,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._initial = deepcopy(system)
         validated_mesh = MeshArrays.model_validate(
             {
-                "vertices": [particle.position for particle in system.particles],
+                "vertices": [particle.position() for particle in system.particles],
                 "triangles": triangles,
             }
         )
