@@ -1,6 +1,6 @@
-"""Optional benchmark for the SciPy/GEOS geometry accelerations.
+"""Benchmark for the required SciPy/GEOS geometry implementations.
 
-Run after installing the optional extra:
+Run after installing package dependencies:
     python -m pip install -e .
     python tools/benchmarks/benchmark_geometry_libraries.py --sizes 128 512 1024
 
@@ -116,7 +116,7 @@ def _time_outline(count: int) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Validate and time optional accelerated geometry implementations."""
+    """Validate and time required geometry library implementations."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=(128, 512, 1024))
     args = parser.parse_args(argv)
