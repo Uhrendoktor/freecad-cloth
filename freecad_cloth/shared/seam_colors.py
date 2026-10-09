@@ -7,6 +7,8 @@ from hashlib import sha512
 _SEAM_COLOR_SATURATION = 0.78
 _SEAM_COLOR_VALUE = 0.92
 _SEAM_COLOR_HASH_SCALE = float(1 << 64)
+_NEUTRAL_SEAM_COLOR = (0.48, 0.48, 0.48)
+_SEAM_COLOR_HIGHLIGHTS_ENABLED = True
 _SEAM_REFRESH_CALLBACK: Callable[[object | None], None] | None = None
 
 
@@ -16,6 +18,17 @@ def register_seam_refresh_callback(
     """Register an optional GUI-layer refresh without reversing module dependencies."""
     global _SEAM_REFRESH_CALLBACK
     _SEAM_REFRESH_CALLBACK = callback
+
+
+def set_seam_color_highlighting_enabled(enabled: bool) -> None:
+    """Choose identity colors or neutral linework for native seam view objects."""
+    global _SEAM_COLOR_HIGHLIGHTS_ENABLED
+    _SEAM_COLOR_HIGHLIGHTS_ENABLED = bool(enabled)
+
+
+def seam_color_highlighting_enabled() -> bool:
+    """Return whether native seam objects should use identity-specific colors."""
+    return _SEAM_COLOR_HIGHLIGHTS_ENABLED
 
 
 def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
@@ -46,7 +59,7 @@ def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float
         view = getattr(obj, "ViewObject", None)
         color = colors.get(str(getattr(obj, "SeamId", "")))
         if view is not None and color is not None:
-            view.LineColor = color
+            view.LineColor = color if _SEAM_COLOR_HIGHLIGHTS_ENABLED else _NEUTRAL_SEAM_COLOR
     if seam_objects and _SEAM_REFRESH_CALLBACK is not None:
         document = getattr(seam_objects[0], "Document", None)
         if document is not None:
