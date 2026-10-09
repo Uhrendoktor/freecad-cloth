@@ -445,6 +445,59 @@ def show_sewing_2d():
     refresh_seam_overlay(document)
 
 
+def show_seam_overlay_options():
+    """Present persistent controls for seam highlight visibility and occlusion."""
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+
+    from freecad_cloth.sewing.SeamOverlay import (
+        seam_highlights_enabled,
+        seam_overlay_respects_depth,
+        set_seam_highlights_enabled,
+        set_seam_overlay_respect_depth,
+    )
+
+    dialog = QtWidgets.QDialog()
+    dialog.setWindowTitle("Seam Overlay Options")
+    dialog.setMinimumWidth(360)
+    layout = QtWidgets.QVBoxLayout(dialog)
+
+    highlights = QtWidgets.QCheckBox("Show seam color highlights")
+    highlights.setChecked(seam_highlights_enabled())
+    highlights.setToolTip("Show or hide the transient colored seam paths in the viewport.")
+    layout.addWidget(highlights)
+
+    respect_depth = QtWidgets.QCheckBox("Respect depth and occlusion")
+    respect_depth.setChecked(seam_overlay_respects_depth())
+    respect_depth.setToolTip(
+        "When checked, seam lines and labels are hidden by foreground geometry."
+    )
+    layout.addWidget(respect_depth)
+
+    explanation = QtWidgets.QLabel(
+        "Seam labels appear only while the pointer is over a sewn pattern edge."
+    )
+    explanation.setWordWrap(True)
+    layout.addWidget(explanation)
+
+    buttons = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    layout.addWidget(buttons)
+
+    execute = getattr(dialog, "exec_", None) or dialog.exec
+    if execute() != QtWidgets.QDialog.Accepted:
+        return False
+
+    set_seam_highlights_enabled(highlights.isChecked())
+    set_seam_overlay_respect_depth(respect_depth.isChecked())
+    return True
+
+
 COMMANDS = [
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateMNSewing",
@@ -458,6 +511,7 @@ COMMANDS = [
     "ClothSewing_EditSeamSideA",
     "ClothSewing_EditSeamSideB",
     "ClothSewing_Show2D",
+    "ClothSewing_SeamOverlayOptions",
 ]
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": start_staged_seam_creation,
@@ -472,6 +526,7 @@ _COMMAND_HANDLERS = {
     "ClothSewing_EditSeamSideA": edit_selected_seam_side_a,
     "ClothSewing_EditSeamSideB": edit_selected_seam_side_b,
     "ClothSewing_Show2D": show_sewing_2d,
+    "ClothSewing_SeamOverlayOptions": show_seam_overlay_options,
 }
 _MENU_TEXT = {
     "ClothSewing_CreateSeam": "Create Seam",
@@ -486,6 +541,7 @@ _MENU_TEXT = {
     "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
     "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     "ClothSewing_Show2D": "Show Sewing 2D",
+    "ClothSewing_SeamOverlayOptions": "Seam Overlay Options",
 }
 _TOOLTIPS = {
     "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
@@ -500,6 +556,9 @@ _TOOLTIPS = {
     "ClothSewing_EditSeamSideA": "Open the seam A edge in its authoritative native Sketcher source",
     "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
+    "ClothSewing_SeamOverlayOptions": (
+        "Configure seam color highlights, hover labels, and depth-aware occlusion"
+    ),
 }
 
 
@@ -566,6 +625,7 @@ _ACTIVATION = {
     "ClothSewing_EditSeamSideA": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_EditSeamSideB": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_Show2D": lambda: _has_active_document(),
+    "ClothSewing_SeamOverlayOptions": lambda: _has_active_document(),
 }
 
 try:
