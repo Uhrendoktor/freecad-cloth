@@ -1,5 +1,7 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 
+import json
+
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,

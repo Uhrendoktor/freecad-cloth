@@ -72,7 +72,7 @@ def _arm_pose_configuration(
         radial = max(1e-9, side * (wrist[0] - shoulder[0]))
         downward = max(0.0, shoulder[2] - wrist[2])
         rest_angle = math.degrees(math.atan2(downward, radial))
-        rotations.append(JointRotation(bone_name, 0.0, side * (desired - rest_angle), 0.0))
+        rotations.append(JointRotation(bone_name, 0.0, -side * (desired - rest_angle), 0.0))
         # Preserve the established fitted shoulder pivot in the common FK path.
         pivots[bone_name] = (shoulder[0], 0.0, shoulder_z)
 
