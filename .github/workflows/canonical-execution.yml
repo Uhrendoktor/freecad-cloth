@@ -360,11 +360,7 @@ jobs:
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
-          artifact-path: |
-            docs/images/generated/*.png
-            docs/images/generated/*.gif
-            docs/images/generated/*.log
-            docs/images/generated/*.txt
+          artifact-path: docs/images/generated/*.{png,gif,log,txt}
           environment: |
             CLOTH_PBD_SUBSTEPS=10
             CLOTH_BLANKET_STEPS=180
@@ -440,23 +436,6 @@ jobs:
           run-id: ${{ github.run_id }}
           run-number: ${{ github.run_number }}
 
-  visual-asset-contract:
-    name: README/wiki visual asset contract
-    if: ${{ always() }}
-    needs: [agent-quality, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, publish-readme-turntables]
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - name: Check documented assets and merge-run publication
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_REF: ${{ github.ref }}
-          VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
-        run: python3 tools/ci/check_visual_asset_contract.py
   maintenance-cleanup:
     name: Repository retention cleanup
     needs: [agent-quality]
@@ -477,7 +456,7 @@ jobs:
   artifact-budget:
     name: Accumulated artifact budget
     if: ${{ always() }}
-    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark]
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, publish-readme-turntables]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {actions: read, contents: read}
@@ -486,13 +465,12 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          filter: blob:none
-          sparse-checkout: tools/ci/check_artifact_budget.py
-          sparse-checkout-cone-mode: false
-      - name: Check accumulated artifact size
+      - name: Check visual assets and accumulated artifact size
+        if: ${{ always() }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python tools/ci/check_artifact_budget.py
+          VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
+        run: python3 tools/ci/check_visual_assets_and_budget.py
 
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
