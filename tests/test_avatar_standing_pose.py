@@ -36,6 +36,23 @@ class AvatarStandingPoseTests(unittest.TestCase):
         self.assertEqual(vertices, built.vertices)
         self.assertEqual(triangles, built.triangles)
 
+    def test_near_horizontal_arm_angle_extends_the_mesh_laterally(self):
+        horizontal = AvatarParameters(pose=Pose("standing", 12.0, 12.0))
+        lowered = AvatarParameters(pose=Pose("standing", 70.0, 70.0))
+
+        def x_bounds(parameters):
+            vertices, _triangles, _landmarks = generate_mesh(parameters)
+            xs = tuple(float(point[0]) for point in vertices)
+            return min(xs), max(xs)
+
+        horizontal_bounds = x_bounds(horizontal)
+        lowered_bounds = x_bounds(lowered)
+
+        # A 12-degree arm should be much closer to horizontal than the 70-degree
+        # standing preset. Assert against the emitted mesh, not only its landmarks.
+        self.assertLess(horizontal_bounds[0], lowered_bounds[0] - 100.0)
+        self.assertGreater(horizontal_bounds[1], lowered_bounds[1] + 100.0)
+
     def test_default_fk_raises_arms_and_preserves_bilateral_symmetry(self):
         params = AvatarParameters()
         actual_vertices, _triangles, _landmarks = generate_mesh(params)
