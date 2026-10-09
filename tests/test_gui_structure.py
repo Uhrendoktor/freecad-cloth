@@ -67,6 +67,7 @@ def test_sewing_command_groups_are_unique_and_complete():
         "ClothSewing_EditSeamSideA",
         "ClothSewing_EditSeamSideB",
         "ClothSewing_Show2D",
+        "ClothSewing_SeamOverlayOptions",
     ]
 
 

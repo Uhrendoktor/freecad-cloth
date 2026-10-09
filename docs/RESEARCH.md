@@ -294,3 +294,33 @@ References:
 - Blender bone display/selection: https://docs.blender.org/manual/en/latest/animation/armatures/bones/properties/display.html
 - FreeCAD native transform dragger: https://github.com/FreeCAD/FreeCAD/blob/main/src/Gui/Inventor/Draggers/SoTransformDragger.h
 - FreeCAD transform editing: https://github.com/FreeCAD/FreeCAD/blob/main/src/Gui/ViewProviderDragger.cpp
+
+## Seam highlighting and authoring interaction audit (2026-10-09)
+
+### Evidence from garment tools and Blender
+
+| Tool / documented pattern | Useful observable behavior | Design implication for Cloth |
+| --- | --- | --- |
+| CLO 2D Segment Sewing | Click one pattern segment, hover the mate, and drag the directional notches before clicking. When sewing length difference is material, the mismatch is surfaced rather than silently accepted. [Official workflow](https://support.clo3d.com/hc/en-us/articles/115012381248-Segment-Sewing) | Put the counterpart and direction feedback in the same interaction; make reversal/mismatch visible before Commit. |
+| CLO 3D Segment Sewing and Free Sewing | Sew directly on 3D garment outlines; the same sewing lines appear in 2D and 3D. A blue guide point indicates correspondence and snaps when close; sewable segments are emphasized while the tool is active. [3D Segment Sewing](https://support.clo3d.com/hc/en-us/articles/360001771047--3D-Tool-Segment-Sewing), [3D Free Sewing](https://support.clo3d.com/hc/en-us/articles/360001754628--3D-Tool-Free-Sewing) | Allow edge picking in the viewport, show live pair feedback, retain the preview/commit/cancel boundary, and reuse the canonical seam on every view. |
+| CLO sewing visibility and editing | Sewing lines can be hidden when a view becomes crowded; selected lines are bolded and a color chip identifies the selected sewing line. [Edit Sewing](https://support.clo3d.com/hc/en-us/articles/115012380148-Edit-Sewing), [Show/Hide Sewing](https://support.clo3d.com/hc/en-us/articles/115000528428--Popup-Show-Hide-Sewing) | The Seam Overlay Options dialog exposes show/hide and depth-aware occlusion; hover-only labels keep the view uncluttered. Selected-seam isolation remains a possible follow-up. |
+| Blender 3D View snapping | Offers edge/face targets, surface projection, optional target-normal alignment, and selectable snapping modes. This is general-purpose geometry interaction, not paired garment sewing. [Blender snapping manual](https://docs.blender.org/manual/en/latest/editors/3dview/controls/snapping.html) | Reuse predictable hover/pick/target feedback. Do not equate Blender UV seam marking with Cloth's semantic relationship between two different PatternPiece edges. |
+
+### Problems found in the previous presentation path
+
+The previous path relied primarily on setting ViewObject.LineColor for persistent Part features. That property remains useful for the tree/document view, but does not itself provide an explicit relationship cue, direction indicator, side-specific identity, or guaranteed refresh tied to the active viewport. A matching RGB is ambiguous when edges overlap and insufficient as the only cue for color-vision differences.
+
+The overlay path now creates a non-persistent Coin3D subtree in the active viewport: each canonical seam draws both sampled edge paths in the SeamId color, direction arrows, a directional notch, and short paired labels with -A/-B suffixes. It follows the canonical semantic reference and is discarded on workbench change; no extra seam identity or persisted visualization object is introduced. Direct edge picking uses FreeCAD's viewport hit information and native selection API, then feeds the existing staged Preview/Commit/Cancel transaction.
+
+### Good-practice checklist
+
+- **Identity before decoration:** SeamId is the authority; deterministic color and short A/B labels derive from it.
+- **Redundant encoding:** the color, matching identifier and directional marks all communicate pairing; never rely on RGB alone.
+- **In-context preview:** emphasize eligible edges during authoring, identify Side A after the first click, then show both sides and orientation before commit.
+- **Reversibility:** keep Preview, Commit and Cancel distinct. Reject a second edge from the same piece before creating document state.
+- **Lifecycle and scope:** transient overlays are derived from valid semantic references, refresh after recompute/restore/view entry, and are not serialized as another source of truth.
+- **Crowded-view recovery:** expose hide/show and depth-aware occlusion, display labels only for the hovered seam, and retain native edge selection and task-panel status as accessible fallbacks. Selected-seam isolation remains a follow-up.
+
+### Limits
+
+This is a FreeCAD-native workflow informed by documented public behavior, not a claim of CLO/Blender feature parity. The viewport picker is a two-edge shortcut for 1:1 seams; M:N/free relationships use the same direct edge-picking control but still require an explicit Preview. Snapping blue guide points to arc-length correspondence and selected-seam isolation remain candidates for a later bounded change.

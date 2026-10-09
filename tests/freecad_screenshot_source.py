@@ -1087,6 +1087,17 @@ def simulation():
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    overlay = refresh_seam_overlay(doc)
+    expected_seam_ids = {str(seam.SeamId) for seam, _piece_a, _piece_b in seam_records}
+    rendered_seam_ids = set(getattr(overlay, "rendered_seam_ids", ()))
+    if overlay is None or not expected_seam_ids or not expected_seam_ids <= rendered_seam_ids:
+        raise RuntimeError(
+            "simulation seam overlay is not rendering exact solver stitch pairs: "
+            f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
+        )
+    log("simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs" % sorted(rendered_seam_ids))
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map

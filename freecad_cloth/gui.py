@@ -4,10 +4,23 @@ This module intentionally imports FreeCAD lazily so packaging/build metadata and
 non-GUI tests can import the package outside a FreeCAD process.
 """
 
+from collections.abc import Callable
+
 try:
     import FreeCADGui as Gui
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
     Gui = None
+
+
+_WORKBENCH_DEACTIVATION_CALLBACK: Callable[[], None] | None = None
+
+
+def register_workbench_deactivation_callback(
+    callback: Callable[[], None] | None,
+) -> None:
+    """Register optional transient cleanup without coupling the base GUI to a workbench."""
+    global _WORKBENCH_DEACTIVATION_CALLBACK
+    _WORKBENCH_DEACTIVATION_CALLBACK = callback
 
 
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
@@ -69,6 +82,34 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
         return None
 
     def Deactivated(self):
+        callback = _WORKBENCH_DEACTIVATION_CALLBACK
+        if callback is not None:
+            def finish_deactivation() -> None:
+                # FreeCAD may deliver the new workbench's Activated() before
+                # the previous workbench's Deactivated(). Defer cleanup until
+                # the transition settles so a Cloth-to-Cloth switch does not
+                # disable the overlay that the incoming workbench just enabled.
+                if Gui is not None:
+                    try:
+                        active = Gui.activeWorkbench()
+                        active_name = str(active.name()).lower()
+                    except (AttributeError, RuntimeError, TypeError):
+                        active_name = ""
+                    if active_name.startswith("cloth"):
+                        return
+                try:
+                    callback()
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    pass
+
+            try:
+                try:
+                    from PySide import QtCore
+                except ImportError:
+                    from PySide2 import QtCore
+                QtCore.QTimer.singleShot(0, finish_deactivation)
+            except ImportError:
+                finish_deactivation()
         return None
 
     def ContextMenu(self, recipient):

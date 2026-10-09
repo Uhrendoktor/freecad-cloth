@@ -52,11 +52,40 @@ def test_all_registered_sewing_commands_have_stable_user_facing_labels():
         "ClothSewing_Validate": "Validate Sewing",
         "ClothSewing_RepairSeam": "Repair Seam",
         "ClothSewing_Show2D": "Show Sewing 2D",
+        "ClothSewing_SeamOverlayOptions": "Seam Overlay Options",
         "ClothSewing_FocusSeam3D": "Focus Seam in 3D",
         "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
         "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     }
     assert expected == _MENU_TEXT
+
+
+def test_seam_overlay_labels_are_limited_to_the_hovered_seam():
+    from freecad_cloth.sewing.SeamOverlay import should_show_seam_label
+
+    assert should_show_seam_label("seam-1", "seam-1")
+    assert not should_show_seam_label("seam-1", "")
+    assert not should_show_seam_label("seam-1", "seam-2")
+
+
+def test_seam_overlay_preferences_can_be_changed_and_restored():
+    from freecad_cloth.sewing.SeamOverlay import (
+        seam_highlights_enabled,
+        seam_overlay_respects_depth,
+        set_seam_highlights_enabled,
+        set_seam_overlay_respect_depth,
+    )
+
+    original_highlights = seam_highlights_enabled()
+    original_depth = seam_overlay_respects_depth()
+    try:
+        assert set_seam_highlights_enabled(not original_highlights) is (not original_highlights)
+        assert seam_highlights_enabled() is (not original_highlights)
+        assert set_seam_overlay_respect_depth(not original_depth) is (not original_depth)
+        assert seam_overlay_respects_depth() is (not original_depth)
+    finally:
+        set_seam_highlights_enabled(original_highlights)
+        set_seam_overlay_respect_depth(original_depth)
 
 
 def test_selected_pattern_edges_requires_two_different_pieces(monkeypatch):

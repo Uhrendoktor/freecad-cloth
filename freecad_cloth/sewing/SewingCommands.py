@@ -347,7 +347,7 @@ def repair_selected_seam():
 
 
 def focus_selected_seam_3d():
-    """Fit the 3D viewport to the selected semantic seam."""
+    """Focus a seam while keeping both participating pattern edges in view."""
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -360,24 +360,66 @@ def focus_selected_seam_3d():
     apply_seam_colors(doc.Objects)
     if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
         raise ValueError("selected seam has no presentation geometry")
+
+    pair_pieces = tuple(
+        piece
+        for piece in (getattr(seam, "PatternA", None), getattr(seam, "PatternB", None))
+        if piece is not None
+    )
     previous = []
     for obj in doc.Objects:
-        view = getattr(obj, "ViewObject", None)
-        if view is None:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is None:
             continue
-        previous.append((obj, bool(getattr(view, "Visibility", True))))
-        view.Visibility = obj is seam
+        previous.append((obj, bool(getattr(view_object, "Visibility", True))))
+        view_object.Visibility = obj is seam or any(obj is piece for piece in pair_pieces)
     try:
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(seam)
         view = Gui.activeDocument().activeView()
+        view.setCameraType("Orthographic")
         view.viewAxonometric()
         view.fitAll()
         doc.recompute()
+
+        # Fit the paired pattern-piece bounds as well as the seam feature. Fitting
+        # only the usually narrow seam shape crops its labels when the pieces are
+        # restored below, because those pieces are much larger than the seam.
+        boxes = []
+        for piece in pair_pieces:
+            shape = getattr(piece, "Shape", None)
+            if shape is None or shape.isNull():
+                continue
+            boxes.append(shape.BoundBox)
+        if boxes:
+            extent_x = max(float(box.XMax) for box in boxes) - min(
+                float(box.XMin) for box in boxes
+            )
+            extent_y = max(float(box.YMax) for box in boxes) - min(
+                float(box.YMin) for box in boxes
+            )
+            extent_z = max(float(box.ZMax) for box in boxes) - min(
+                float(box.ZMin) for box in boxes
+            )
+            projected_span = extent_x + extent_y + extent_z
+            if projected_span > 0.0:
+                size = view.getSize()
+                width, height = float(size[0]), float(size[1])
+                aspect = width / height if width > 0.0 and height > 0.0 else 1.0
+                camera_height = max(
+                    10.0,
+                    1.25 * projected_span * 0.57735026919,
+                    1.25 * projected_span * 0.81649658093 / aspect,
+                )
+                view.getCameraNode().height.setValue(float(camera_height))
+                view.redraw()
     finally:
         for obj, visible in previous:
             with contextlib.suppress(AttributeError, RuntimeError):
                 obj.ViewObject.Visibility = visible
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    refresh_seam_overlay(doc)
     return seam
 
 
@@ -437,7 +479,78 @@ def show_sewing_2d():
     view = Gui.activeDocument().activeView()
     view.viewTop()
     view.fitAll()
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
+    refresh_seam_overlay(document)
+
+
+def _build_seam_overlay_options_dialog():
+    """Build the real overlay options dialog and return its setting controls."""
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+
+    from freecad_cloth.sewing.SeamOverlay import (
+        seam_highlights_enabled,
+        seam_overlay_respects_depth,
+    )
+
+    dialog = QtWidgets.QDialog()
+    dialog.setWindowTitle("Seam Overlay Options")
+    dialog.setMinimumWidth(360)
+    layout = QtWidgets.QVBoxLayout(dialog)
+
+    highlights = QtWidgets.QCheckBox("Show seam color highlights")
+    highlights.setChecked(seam_highlights_enabled())
+    highlights.setToolTip(
+        "Use identity colors, direction marks, and hover labels; "
+        "disable them to leave neutral seam linework."
+    )
+    layout.addWidget(highlights)
+
+    respect_depth = QtWidgets.QCheckBox("Respect depth and occlusion")
+    respect_depth.setChecked(seam_overlay_respects_depth())
+    respect_depth.setToolTip(
+        "When checked, seam lines and labels are hidden by foreground geometry."
+    )
+    layout.addWidget(respect_depth)
+
+    explanation = QtWidgets.QLabel(
+        "Seam labels appear only while the pointer is over a sewn pattern edge."
+    )
+    explanation.setWordWrap(True)
+    layout.addWidget(explanation)
+
+    buttons = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    layout.addWidget(buttons)
+    return dialog, highlights, respect_depth
+
+
+def show_seam_overlay_options():
+    """Present persistent controls for seam highlight visibility and occlusion."""
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+
+    from freecad_cloth.sewing.SeamOverlay import (
+        set_seam_highlights_enabled,
+        set_seam_overlay_respect_depth,
+    )
+
+    dialog, highlights, respect_depth = _build_seam_overlay_options_dialog()
+    execute = getattr(dialog, "exec_", None) or dialog.exec
+    if execute() != QtWidgets.QDialog.Accepted:
+        return False
+
+    set_seam_highlights_enabled(highlights.isChecked())
+    set_seam_overlay_respect_depth(respect_depth.isChecked())
+    return True
 
 COMMANDS = [
     "ClothSewing_CreateSeam",
@@ -452,6 +565,7 @@ COMMANDS = [
     "ClothSewing_EditSeamSideA",
     "ClothSewing_EditSeamSideB",
     "ClothSewing_Show2D",
+    "ClothSewing_SeamOverlayOptions",
 ]
 _COMMAND_HANDLERS = {
     "ClothSewing_CreateSeam": start_staged_seam_creation,
@@ -466,6 +580,7 @@ _COMMAND_HANDLERS = {
     "ClothSewing_EditSeamSideA": edit_selected_seam_side_a,
     "ClothSewing_EditSeamSideB": edit_selected_seam_side_b,
     "ClothSewing_Show2D": show_sewing_2d,
+    "ClothSewing_SeamOverlayOptions": show_seam_overlay_options,
 }
 _MENU_TEXT = {
     "ClothSewing_CreateSeam": "Create Seam",
@@ -480,6 +595,7 @@ _MENU_TEXT = {
     "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
     "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     "ClothSewing_Show2D": "Show Sewing 2D",
+    "ClothSewing_SeamOverlayOptions": "Seam Overlay Options",
 }
 _TOOLTIPS = {
     "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
@@ -494,6 +610,9 @@ _TOOLTIPS = {
     "ClothSewing_EditSeamSideA": "Open the seam A edge in its authoritative native Sketcher source",
     "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",
     "ClothSewing_Show2D": "Show pattern, seam, and stitch correspondence in top view",
+    "ClothSewing_SeamOverlayOptions": (
+        "Configure seam color highlights, hover labels, and depth-aware occlusion"
+    ),
 }
 
 
@@ -560,6 +679,7 @@ _ACTIVATION = {
     "ClothSewing_EditSeamSideA": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_EditSeamSideB": lambda: _has_active_document() and _has_selected_seam(),
     "ClothSewing_Show2D": lambda: _has_active_document(),
+    "ClothSewing_SeamOverlayOptions": lambda: _has_active_document(),
 }
 
 try:

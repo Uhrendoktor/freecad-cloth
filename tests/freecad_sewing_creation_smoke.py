@@ -28,6 +28,17 @@ from tests.support.freecad_input import (
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+from freecad_cloth.sewing.SeamOverlay import (
+    seam_highlights_enabled,
+    seam_overlay_respects_depth,
+    set_seam_highlights_enabled,
+    set_seam_overlay_respect_depth,
+)
+
+_ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
+_ORIGINAL_DEPTH_SETTING = seam_overlay_respects_depth()
+set_seam_highlights_enabled(True)
+set_seam_overlay_respect_depth(True)
 
 LOG_PATH = Path(
     os.environ.get("CLOTH_SEWING_SMOKE_LOG", ROOT / "artifacts" / "sewing-creation-smoke.log")
@@ -138,6 +149,188 @@ def seam_color_snapshot(seams):
     return actual
 
 
+def assert_seam_overlay(document, expected_ids, hovered_seam_id=None):
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    controller = refresh_seam_overlay(document)
+    assert controller is not None, "semantic seam overlay was not attached to the active viewport"
+    assert controller.root is not None, "semantic seam overlay has no Coin root"
+    assert getattr(controller, "_location_callback", None) is not None, (
+        "seam hover callback is not installed on the active viewport"
+    )
+    rendered = set(controller.rendered_seam_ids)
+    assert set(expected_ids) <= rendered, (
+        "visible valid semantic seams missing from viewport overlay: "
+        f"expected={sorted(expected_ids)!r} rendered={sorted(rendered)!r}"
+    )
+    assert controller.root.getNumChildren() > 1, "viewport overlay contains no seam geometry"
+
+    target = str(hovered_seam_id or "").strip() or sorted(expected_ids)[0]
+    assert target in set(expected_ids), (
+        "requested hover label must belong to the visible semantic seam IDs"
+    )
+    try:
+        workbench_name = str(Gui.activeWorkbench().name()).lower()
+    except (AttributeError, RuntimeError, TypeError):
+        workbench_name = ""
+    prefer_simulation = "simulation" in workbench_name
+    controller.refresh(
+        document,
+        active_seam_id=target,
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id=target,
+    )
+    assert controller.rendered_label_seam_ids == (target,), (
+        "hover should show only the matching seam's two labels: "
+        f"actual={controller.rendered_label_seam_ids!r}"
+    )
+    controller.refresh(
+        document,
+        active_seam_id="",
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id="",
+    )
+    assert controller.rendered_label_seam_ids == (), (
+        "seam labels should be hidden when no seam edge is hovered"
+    )
+    # Leave one seam hovered for a useful visual-evidence screenshot.
+    controller.refresh(
+        document,
+        active_seam_id=target,
+        prefer_simulation=prefer_simulation,
+        hovered_seam_id=target,
+    )
+    return controller
+
+
+def save_seam_overlay_evidence(document, expected_ids, filename, hovered_seam_id=None):
+    """Capture a view only after its transient Coin overlay passes semantic checks."""
+    controller = assert_seam_overlay(document, expected_ids, hovered_seam_id)
+    active_document = Gui.activeDocument()
+    view = active_document.activeView() if active_document is not None else None
+    assert view is not None, "active FreeCAD view is unavailable for seam evidence"
+    process_events()
+    view.redraw()
+    process_events()
+    destination = LOG_PATH.parent / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    view.saveImage(str(destination), 1280, 720, "White")
+    size = destination.stat().st_size if destination.is_file() else 0
+    assert size > 5000, f"seam overlay screenshot is missing or suspiciously small: {destination}"
+    record(f"seam-overlay-image={filename} bytes={size}")
+    return controller
+
+
+def save_seam_overlay_hover_animation(document, seam_ids, filename):
+    """Capture real viewport frames while hover labels and highlights change."""
+    from PIL import Image
+
+    from tests.support.freecad_input import write_gif
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    identities = sorted({str(value).strip() for value in seam_ids if str(value).strip()})
+    assert identities, "seam overlay animation requires at least one semantic seam ID"
+    active_document = Gui.activeDocument()
+    view = active_document.activeView() if active_document is not None else None
+    assert view is not None, "active FreeCAD view is unavailable for seam animation"
+    target_a, target_b = identities[0], identities[-1]
+
+    frame_dir = LOG_PATH.parent / "seam-overlay-hover-frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    specs = (
+        ("no-hover", True, ""),
+        ("hover-first", True, target_a),
+        ("hover-second", True, target_b),
+        ("highlights-disabled", False, ""),
+        ("highlights-restored", True, target_a),
+    )
+    frames = []
+    try:
+        for index, (state_name, enabled, hovered) in enumerate(specs):
+            if seam_highlights_enabled() != enabled:
+                set_seam_highlights_enabled(enabled)
+            controller = refresh_seam_overlay(document) if enabled else None
+            if enabled:
+                assert controller is not None and controller.root is not None
+                controller.refresh(
+                    document,
+                    active_seam_id=hovered,
+                    prefer_simulation=False,
+                    hovered_seam_id=hovered,
+                )
+                expected_labels = (hovered,) if hovered else ()
+                assert controller.rendered_label_seam_ids == expected_labels, (
+                    "hover animation rendered unexpected labels: "
+                    f"state={state_name} labels={controller.rendered_label_seam_ids!r}"
+                )
+            else:
+                assert controller is None, "disabled color highlights left an overlay attached"
+                neutral = (0.48, 0.48, 0.48)
+                colored_seams = [
+                    obj
+                    for obj in document.Objects
+                    if str(getattr(obj, "SeamId", "")).strip()
+                    and getattr(obj, "ViewObject", None) is not None
+                ]
+                assert colored_seams and all(
+                    tuple(round(float(c), 6) for c in obj.ViewObject.LineColor[:3]) == neutral
+                    for obj in colored_seams
+                ), "disabled highlights left identity colors on native seam linework"
+
+            process_events()
+            view.redraw()
+            process_events()
+            frame_path = frame_dir / f"state-{index:02d}-{state_name}.png"
+            view.saveImage(str(frame_path), 1280, 720, "White")
+            assert frame_path.is_file() and frame_path.stat().st_size > 5000, (
+                f"seam overlay animation frame is missing or empty: {state_name}"
+            )
+            with Image.open(frame_path) as image_frame:
+                rgb = image_frame.convert("RGB")
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                frames.append(rgb.resize((640, 360), resampling).copy())
+
+        output = LOG_PATH.parent / "ui-gifs" / filename
+        write_gif(frames, output, fps=2, max_colors=96)
+        assert output.is_file() and output.stat().st_size > 5000, (
+            "seam overlay hover animation is missing or suspiciously small"
+        )
+        record(
+            f"seam-overlay-animation={filename} frames={len(frames)} bytes={output.stat().st_size}"
+        )
+        return output
+    finally:
+        # The smoke continues using color identities after the animation.
+        set_seam_highlights_enabled(True)
+        set_seam_overlay_respect_depth(True)
+
+
+def save_seam_overlay_options_evidence(filename):
+    """Capture the real Sewing workbench options dialog as visual evidence."""
+    from freecad_cloth.sewing.SewingCommands import _build_seam_overlay_options_dialog
+
+    dialog, highlights, respect_depth = _build_seam_overlay_options_dialog()
+    assert highlights.isChecked() is True
+    assert respect_depth.isChecked() is True
+    destination = LOG_PATH.parent / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dialog.show()
+        if callable(getattr(dialog, "raise_", None)):
+            dialog.raise_()
+        process_events()
+        image = dialog.grab()
+        assert not image.isNull(), "overlay options dialog could not be captured"
+        assert image.save(str(destination), "PNG"), "overlay options screenshot could not be saved"
+        assert destination.is_file() and destination.stat().st_size > 1000, (
+            "overlay options screenshot is missing or suspiciously small"
+        )
+        record(f"seam-overlay-options-image={filename} bytes={destination.stat().st_size}")
+    finally:
+        dialog.close()
+        process_events()
+
+
 def wait_for_task_close():
     try:
         from PySide import QtCore, QtWidgets
@@ -208,6 +401,7 @@ try:
         "ClothSewing_CreateSeam",
         "ClothSewing_CreateMNSewing",
         "ClothSewing_FreeSewing",
+        "ClothSewing_SeamOverlayOptions",
     ):
         assert command in Gui.listCommands(), "missing public sewing command: " + command
     record("commands=registered")
@@ -360,6 +554,47 @@ try:
         "1:1 commit lost seam"
     )
     record("commit-1to1=passed")
+
+    # Exercise the viewport picker event handler with native document selection
+    # and the existing transactional Preview/Cancel boundary.
+    from freecad_cloth.sewing.SewingCreationGui import SewingCreationTaskPanel
+
+    class HitView:
+        def __init__(self, hits):
+            self.hits = list(hits)
+
+        def getObjectInfo(self, _x, _y):
+            return self.hits.pop(0)
+
+    pick_before = {obj.Name for obj in doc.Objects}
+    Gui.Selection.clearSelection()
+    picker = SewingCreationTaskPanel("seam")
+    Gui.Control.showDialog(picker)
+    process_events()
+    picker._viewport_view = HitView(
+        [
+            {"Object": piece_a.Name, "Component": "Edge3"},
+            {"Object": piece_b.Name, "Component": "Edge3"},
+        ]
+    )
+    picker._viewport_callback = None
+    picker._viewport_picking = True
+    picker._viewport_mouse_event(
+        {"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)}
+    )
+    assert len(picker._viewport_picks) == 1
+    assert "Side A" in picker.feedback.text()
+    picker._viewport_mouse_event(
+        {"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)}
+    )
+    assert any(getattr(obj, "SeamId", "") for obj in picker.session.created)
+    assert "Seam preview shown" in picker.feedback.text()
+    assert picker.commit_button.isEnabled()
+    picker.reject()
+    wait_for_task_close()
+    process_events()
+    assert {obj.Name for obj in doc.Objects} == pick_before
+    record("viewport-pick-preview-cancel=passed")
 
     cancel_before = {obj.Name for obj in doc.Objects}
     select_edges((piece_a, 1), (piece_b, 1))
@@ -540,6 +775,13 @@ try:
     )
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
+    Gui.activateWorkbench("ClothPatternWorkbench")
+    process_events()
+    active_workbench = Gui.activeWorkbench()
+    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    assert "pattern" in active_name.lower(), (
+        "seam overlay acceptance requires the Cloth Pattern workbench to be active"
+    )
     Gui.runCommand("ClothPattern_Show2D", 0)
     process_events()
     pattern_network = next(
@@ -550,8 +792,16 @@ try:
     )
     assert seam_color_snapshot(pattern_network.Seams) == baseline_seam_colors
     record("seam-colors-pattern-2d=passed")
+    pattern_overlay_ids = [str(seam.SeamId) for seam in pattern_network.Seams]
+    save_seam_overlay_evidence(doc, pattern_overlay_ids, "seam-overlay-pattern-2d.png")
+    record("seam-viewport-overlay-pattern-2d=passed labels=paired-A-B")
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
+    active_workbench = Gui.activeWorkbench()
+    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    assert "sewing" in active_name.lower(), (
+        "seam overlay acceptance requires the Cloth Sewing workbench to be active"
+    )
     endpoint_snapshot = tuple(
         sorted(
             (
@@ -604,7 +854,22 @@ try:
     record("seam-colors-3d-focus=passed")
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 3
+    focus_view = Gui.activeDocument().activeView()
+    focus_camera_height = float(focus_view.getCameraNode().height.getValue())
+    assert focus_camera_height >= 100.0, (
+        "Focus Seam in 3D cropped the paired pattern-edge context: "
+        f"camera_height={focus_camera_height:.3f}"
+    )
+    record(f"seam-focus-camera-framing=passed height={focus_camera_height:.3f}")
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
+    overlay = save_seam_overlay_evidence(
+        doc,
+        [str(seam.SeamId) for seam in curved_network.Seams],
+        "seam-overlay-sewing-3d.png",
+        hovered_seam_id=str(visual_seam.SeamId),
+    )
+    assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
+    record("seam-viewport-overlay-sewing-3d=passed labels=paired-A-B")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
@@ -612,6 +877,15 @@ try:
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-sewing-2d=passed")
     record("seam-visual-2d=passed top-view=true")
+    save_seam_overlay_evidence(
+        doc,
+        [str(seam.SeamId) for seam in curved_network.Seams],
+        "seam-overlay-sewing-2d.png",
+    )
+    record("seam-viewport-overlay-sewing-2d=passed labels=paired-A-B")
+    overlay_ids = [str(seam.SeamId) for seam in curved_network.Seams]
+    save_seam_overlay_hover_animation(doc, overlay_ids, "seam-overlay-hover.gif")
+    save_seam_overlay_options_evidence("seam-overlay-options.png")
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
@@ -708,6 +982,9 @@ finally:
             from tests.support.freecad_input import release_all_input
             release_all_input()
             recorder.stop()
+    with contextlib.suppress(Exception):
+        set_seam_highlights_enabled(_ORIGINAL_HIGHLIGHTS_ENABLED)
+        set_seam_overlay_respect_depth(_ORIGINAL_DEPTH_SETTING)
     LOG.append("sewing-creation-smoke=completed")
     LOG_PATH.write_text("\n".join(LOG) + "\n", encoding="utf-8")
     print("sewing-creation-smoke=completed", flush=True)

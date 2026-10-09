@@ -167,6 +167,30 @@
       "producers": [
         "tests/freecad_sewing_creation_smoke.py"
       ]
+    },
+    "seam-overlay-hover.gif": {
+      "artifact": "sewing-creation-smoke",
+      "producers": [
+        "tests/freecad_sewing_creation_smoke.py"
+      ]
+    },
+    "seam-overlay-options.png": {
+      "artifact": "sewing-creation-smoke",
+      "producers": [
+        "tests/freecad_sewing_creation_smoke.py"
+      ]
+    },
+    "seam-overlay-pattern-2d.png": {
+      "artifact": "sewing-creation-smoke",
+      "producers": [
+        "tests/freecad_sewing_creation_smoke.py"
+      ]
+    },
+    "seam-overlay-sewing-2d.png": {
+      "artifact": "sewing-creation-smoke",
+      "producers": [
+        "tests/freecad_sewing_creation_smoke.py"
+      ]
     }
   }
 }

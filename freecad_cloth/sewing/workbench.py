@@ -33,6 +33,7 @@ COMMAND_GROUPS = (
             "ClothSewing_EditSeamSideA",
             "ClothSewing_EditSeamSideB",
             "ClothSewing_Show2D",
+            "ClothSewing_SeamOverlayOptions",
         ),
     ),
     ("Fitting & Avatar", ()),
@@ -74,9 +75,11 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
         import FreeCAD as App
 
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+        from freecad_cloth.sewing.SeamOverlay import activate_seam_overlay
 
         if App.ActiveDocument is not None:
             apply_seam_colors(App.ActiveDocument.Objects)
+            activate_seam_overlay(App.ActiveDocument)
 
     def Initialize(self):
         if self.commands:
