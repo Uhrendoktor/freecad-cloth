@@ -23,7 +23,6 @@ from freecad_cloth.common.ValidationModels import (
     FlattenedSurfacePatchInput,
     SurfaceAnchorInput,
     validate_finite_number,
-    validate_points2d,
     validate_points3d,
 )
 from freecad_cloth.shared.SourceSignature import source_signature
@@ -268,6 +267,7 @@ def flatten_surface_patch(
     general mesh parameterization; the explicit deviation test prevents silently
     turning a strongly curved region into a misleading flat pattern.
     """
+    tolerance_mm = validate_finite_number(tolerance_mm)
     values = tuple(_as_point3(point) for point in points)
     if len(values) < 3:
         raise ValueError("surface patch needs at least three points")

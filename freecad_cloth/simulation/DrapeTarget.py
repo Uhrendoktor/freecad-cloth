@@ -145,7 +145,11 @@ def _geometry_signature(target):
 
 
 def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
-    """Provide the public source signature operation."""
+    """Return a stable source signature for validated collision settings."""
+    deflection = validate_finite_number(deflection)
+    thickness = validate_finite_number(thickness)
+    if deflection <= 0.0 or thickness < 0.0:
+        raise ValueError("collision deflection must be positive and thickness non-negative")
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None
