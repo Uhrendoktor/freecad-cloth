@@ -6,7 +6,11 @@ import pytest
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.SourceSignature import source_signature
-from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
+from freecad_cloth.shared.seam_colors import (
+    apply_seam_colors,
+    register_seam_refresh_callback,
+    seam_color_map,
+)
 
 
 class _Vertex:
@@ -130,3 +134,20 @@ def test_apply_seam_colors_updates_only_objects_with_semantic_ids():
     assert colored_a.ViewObject.LineColor == colors["a"]
     assert colored_b.ViewObject.LineColor == colors["b"]
     assert untouched.ViewObject.LineColor is None
+
+
+def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
+    document = SimpleNamespace(Name="doc")
+    seam = SimpleNamespace(
+        SeamId="seam-a",
+        Document=document,
+        ViewObject=SimpleNamespace(LineColor=None),
+    )
+    calls = []
+    register_seam_refresh_callback(calls.append)
+    try:
+        apply_seam_colors([seam])
+        assert calls == [document]
+    finally:
+        register_seam_refresh_callback(None)
+
