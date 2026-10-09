@@ -91,8 +91,9 @@ between optimized and scalar fallback implementations.
 - `nearest_target_clearance` uses one exact `scipy.spatial.cKDTree` nearest-neighbour query for
   all non-empty vertex sets. Non-finite or unrepresentable results fail closed; there is no scalar
   production fallback.
-- `PatternMesh._self_intersects` uses GEOS/Shapely's simplicity predicate on the closed polygon
-  boundary for all input sizes. There is no custom segment-intersection production path.
+- `PatternMesh._self_intersects` and `SurfacePen.polygon_self_intersects` use the same
+  GEOS/Shapely simplicity predicate on closed polygon boundaries. There is no custom
+  segment-intersection production path.
 - Seam-allowance buffering was **not** replaced by Shapely `buffer`: its join styles, handling of
   collapsed concavities/self-intersections, and ring ordering can alter generated outline topology.
   FreeCAD Part/OCCT also remains authoritative for native editable geometry.
