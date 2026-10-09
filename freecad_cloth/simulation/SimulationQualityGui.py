@@ -501,6 +501,9 @@ class SimulationQualityTaskPanel:
         self._parameters_changed()
         scene.Steps = int(scene.Steps) + int(count)
         scene.Document.recompute()
+        from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+        refresh_seam_overlay(scene.Document)
         self.steps.setValue(int(scene.Steps))
         self._refresh()
         if self.Gui.activeDocument():
@@ -511,6 +514,9 @@ class SimulationQualityTaskPanel:
             from freecad_cloth.simulation.SimulationObjects import reset_scene
 
             reset_scene(self.scene)
+            from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+            refresh_seam_overlay(self.scene.Document)
         self.steps.setValue(0)
         self._refresh("Simulation reset; quality and fabric values retained.")
 
