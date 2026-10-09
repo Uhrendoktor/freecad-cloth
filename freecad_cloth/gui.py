@@ -4,10 +4,23 @@ This module intentionally imports FreeCAD lazily so packaging/build metadata and
 non-GUI tests can import the package outside a FreeCAD process.
 """
 
+from collections.abc import Callable
+
 try:
     import FreeCADGui as Gui
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
     Gui = None
+
+
+_WORKBENCH_DEACTIVATION_CALLBACK: Callable[[], None] | None = None
+
+
+def register_workbench_deactivation_callback(
+    callback: Callable[[], None] | None,
+) -> None:
+    """Register optional transient cleanup without coupling the base GUI to a workbench."""
+    global _WORKBENCH_DEACTIVATION_CALLBACK
+    _WORKBENCH_DEACTIVATION_CALLBACK = callback
 
 
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
@@ -69,12 +82,12 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
         return None
 
     def Deactivated(self):
-        try:
-            from freecad_cloth.sewing.SeamOverlay import deactivate_seam_overlay
-
-            deactivate_seam_overlay()
-        except (ImportError, RuntimeError, TypeError):
-            pass
+        callback = _WORKBENCH_DEACTIVATION_CALLBACK
+        if callback is not None:
+            try:
+                callback()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
         return None
 
     def ContextMenu(self, recipient):
