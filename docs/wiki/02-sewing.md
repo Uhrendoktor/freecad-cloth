@@ -4,7 +4,7 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Assigning a seam by selecting one edge on each workpiece, reviewing the preview, and committing the seam" width="900"></p>
 
-The animation shows a complete UI interaction: select the source edge, Ctrl-click its counterpart, review the semantic seam preview, then commit. The GIF is recorded from the live FreeCAD window during the canonical GUI acceptance run.
+The animation shows the complete seam workflow in the live FreeCAD window: source and counterpart edges are selected, the semantic seam preview is reviewed, and the seam is committed. In headless CI the harness activates edge subelements through FreeCAD's selection API rather than relying on fragile screen-coordinate hit testing; preview and commit are exercised in the live task panel.
 
 ## What the feature is
 

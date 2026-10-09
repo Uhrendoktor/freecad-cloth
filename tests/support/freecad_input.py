@@ -364,7 +364,7 @@ def click_viewport(
     additive: bool = False,
     button: Any | None = None,
 ) -> None:
-    """Click a projected 3D point, using a native Ctrl-click for multi-selection."""
+    """Inject a native viewport click; use semantic selection APIs in unsupported Pivy builds."""
     QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
     modifiers = getattr(QtCore.Qt, "ControlModifier") if additive else None
     mouse_press(widget, position, button=button, modifiers=modifiers)
@@ -377,14 +377,18 @@ def click_viewport(
 
 
 def click_widget(widget: Any, button: Any | None = None, modifiers: Any | None = None) -> None:
-    """Click a visible Qt control with native mouse input rather than invoking its slot."""
+    """Click a visible Qt control through QtTest instead of calling its slot directly."""
+    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
         raise RuntimeError("cannot click a hidden or disabled UI widget")
-    rect = widget.rect()
-    center = (float(rect.center().x()), float(rect.center().y()))
-    mouse_press(widget, center, button=button, modifiers=modifiers)
-    mouse_release(widget, center, button=button)
-    _wait_input(50)
+    resolved_button, resolved_modifiers = _button_and_modifiers(QtCore, button, modifiers)
+    QtTest.QTest.mouseClick(
+        widget, resolved_button, resolved_modifiers, widget.rect().center(), 20
+    )
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.qWait(40)
 
 
 def drag_viewport(
@@ -421,6 +425,37 @@ def key_press(
     QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
     resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
     QtTest.QTest.keyPress(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
+
+
+def type_text(
+    widget: Any,
+    text: str,
+    *,
+    replace_selection: bool = True,
+    press_enter: bool = False,
+    delay_ms: int = 15,
+) -> None:
+    """Type text using Qt keyboard events, optionally replacing the current value."""
+    QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
+    if not widget.isVisible() or not widget.isEnabled():
+        raise RuntimeError("cannot type into a hidden or disabled UI widget")
+    widget.setFocus()
+    if replace_selection and hasattr(widget, "selectAll"):
+        widget.selectAll()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.keyClicks(
+        widget, str(text), getattr(QtCore.Qt, "NoModifier"), max(0, delay_ms)
+    )
+    if press_enter:
+        enter_key = getattr(QtCore.Qt, "Key_Enter", None)
+        if enter_key is None:
+            enter_key = getattr(QtCore.Qt, "Key_Return")
+        QtTest.QTest.keyClick(widget, enter_key, delay=max(0, delay_ms))
+    if app is not None:
+        app.processEvents()
+    QtTest.QTest.qWait(40)
 
 
 def key_release(

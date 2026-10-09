@@ -6,7 +6,7 @@
 
 <p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging a garment workpiece onto a blue arrangement snap point in the FreeCAD viewport" width="900"></p>
 
-The animation records the real mouse drag, snap preview, and release-to-commit sequence in the live task panel.
+The animation records the snap preview and release-to-commit state changes in the live task panel. Headless acceptance drives the task panel's registered controller callbacks directly because native viewport injection is unstable in some FreeCAD/Pivy builds.
 
 ## What the feature is
 

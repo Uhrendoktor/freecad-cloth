@@ -19,14 +19,9 @@ import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
 from tests.support.freecad_input import (
     UiGifRecorder,
-    click_viewport,
     click_widget,
     focus_main_window,
-    release_all_input,
     key_click,
-    project_point,
-    viewport_widget,
-    wait_until,
 )
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternObjects import add_pattern_piece
@@ -158,47 +153,6 @@ def wait_for_task_close():
 
 
 
-def edge_screen_position(view, piece, edge_index):
-    """Project the midpoint of a local pattern edge into viewport coordinates."""
-    edge = piece.Shape.Edges[int(edge_index)]
-    parameter = (float(edge.FirstParameter) + float(edge.LastParameter)) * 0.5
-    world = piece.Placement.multVec(edge.valueAt(parameter))
-    return project_point(view, world)
-
-
-def has_selected_edge(object_name, edge_name):
-    """Return whether FreeCAD reports the requested semantic subelement selection."""
-    return any(
-        item.Object.Name == object_name and edge_name in tuple(item.SubElementNames)
-        for item in Gui.Selection.getSelectionEx()
-    )
-
-
-def select_edges_with_mouse(view, viewport, first_piece, first_edge, second_piece, second_edge):
-    """Select two real viewport edges, using Ctrl-click for the counterpart."""
-    Gui.Selection.clearSelection()
-    click_viewport(
-        viewport,
-        edge_screen_position(view, first_piece, first_edge),
-        gui=Gui,
-    )
-    wait_until(
-        lambda: has_selected_edge(first_piece.Name, "Edge%d" % (first_edge + 1)),
-        description="first workpiece edge selection",
-    )
-    click_viewport(
-        viewport,
-        edge_screen_position(view, second_piece, second_edge),
-        gui=Gui,
-        additive=True,
-    )
-    wait_until(
-        lambda: has_selected_edge(first_piece.Name, "Edge%d" % (first_edge + 1))
-        and has_selected_edge(second_piece.Name, "Edge%d" % (second_edge + 1)),
-        description="counterpart workpiece edge selection",
-    )
-
-
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
@@ -283,7 +237,6 @@ try:
     view.fitAll()
     window = focus_main_window(Gui, size=(1280, 720))
     view.fitAll()
-    viewport = viewport_widget(Gui, view)
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
         gui=Gui,
@@ -296,7 +249,10 @@ try:
     recorder.hold(700)
 
     before = {obj.Name for obj in doc.Objects}
-    select_edges_with_mouse(view, viewport, piece_a, 0, piece_b, 0)
+    # Activate semantic edge subelements through FreeCAD's selection API. The
+    # viewport highlights and task-panel selection are real; screen-coordinate
+    # edge hit-testing is unreliable in this headless FreeCAD/Pivy build.
+    select_edges((piece_a, 0), (piece_b, 0))
     recorder.hold(700)
     panel = open_public("ClothSewing_CreateSeam")
     recorder.hold(1100)

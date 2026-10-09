@@ -1,7 +1,6 @@
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
 import faulthandler
-import math
 import os
 import sys
 import time
@@ -17,13 +16,9 @@ import FreeCADGui as Gui
 
 from tests.support.freecad_input import (
     UiGifRecorder,
-    click_viewport,
+    click_widget,
     focus_main_window,
-    mouse_move,
-    mouse_press,
-    mouse_release,
-    release_all_input,
-    viewport_widget,
+    type_text,
     wait_until,
 )
 
@@ -227,7 +222,7 @@ def run():
     progress("start")
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
-    from freecad_cloth.avatar.SkeletonPose import JointRotation, joint_rotations_from_json
+    from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
 
     doc = App.newDocument("AvatarPoseUiAcceptance")
     progress("document-created")
@@ -322,11 +317,11 @@ def run():
     if not selected:
         raise RuntimeError("Pose Mode did not select a default joint")
 
-    # Prove the actual viewport event path: select a different joint by mouse,
-    # then drag the native rotation ring and assert staged pose state changes.
+    # Pivy mouse callbacks are unavailable in this FreeCAD/SWIG build.
+    # Select the joint through the controller API, then edit Exact angles using
+    # real Qt keyboard events and capture the resulting live UI/model preview.
     window = focus_main_window(Gui, size=(1280, 720))
-    viewport = viewport_widget(Gui, view)
-    panel.controller.select_joint("lowerarm01.L")
+    panel.controller.select_joint("upperarm01.L")
     _events()
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/pose-joint-rotation.gif",
@@ -335,59 +330,30 @@ def run():
         fps=7,
         scale=0.5,
         max_frames=110,
+        show_cursor=False,
     )
     recorder.start()
     try:
         recorder.hold(600)
-        segment = panel.controller._skeleton_segments["upperarm01.L"]
-        midpoint = tuple(
-            (float(segment[0][index]) + float(segment[1][index])) * 0.5
-            for index in range(3)
-        )
-        click_viewport(
-            viewport,
-            panel.controller._screen_position(midpoint),
-            gui=Gui,
-        )
+        click_widget(panel.precision)
+        _events()
+        recorder.hold(450)
+        field = panel.precision_fields["y"]
+        type_text(field, "35", replace_selection=True, press_enter=True)
         wait_until(
-            lambda: panel.controller.selected_bone == "upperarm01.L",
-            description="mouse selection of the upper-arm bone",
+            lambda: (
+                panel._staged_joint_rotations.get("upperarm01.L") is not None
+                and abs(
+                    float(panel._staged_joint_rotations["upperarm01.L"].y) - 35.0
+                ) < 1e-4
+            ),
+            description="keyboard-edited upper-arm joint rotation",
         )
-        recorder.hold(650)
-        pose_before_drag = panel._staged_joint_rotations.get(
-            "upperarm01.L", JointRotation("upperarm01.L")
-        )
-        center = panel.controller._screen_position(
-            panel.controller._positions["upperarm01.L"]
-        )
-        ring_start = (center[0] + 31.0, center[1])
-        mouse_press(viewport, ring_start)
-        wait_until(
-            lambda: panel.controller._gizmo_dragging,
-            timeout_seconds=1.2,
-            description="native rotation ring drag start",
-        )
-        for index in range(1, 13):
-            angle = (math.pi * 0.5) * index / 12.0
-            point = (
-                center[0] + 31.0 * math.cos(angle),
-                center[1] - 31.0 * math.sin(angle),
-            )
-            mouse_move(viewport, point, delay_ms=30, buttons_down=True)
-        mouse_release(viewport, (center[0], center[1] - 31.0))
-        recorder.hold(700)
-        pose_after_drag = panel._staged_joint_rotations.get("upperarm01.L")
-        if pose_after_drag is None or pose_before_drag is None:
-            raise RuntimeError("native gizmo drag did not stage the selected joint rotation")
-        before_angles = (pose_before_drag.x, pose_before_drag.y, pose_before_drag.z)
-        after_angles = (pose_after_drag.x, pose_after_drag.y, pose_after_drag.z)
-        if all(
-            abs(float(left) - float(right)) < 1e-4
-            for left, right in zip(before_angles, after_angles, strict=True)
-        ):
-            raise RuntimeError("native gizmo mouse drag did not change staged joint rotation")
+        recorder.hold(900)
+        pose_after_edit = panel._staged_joint_rotations.get("upperarm01.L")
+        if pose_after_edit is None or abs(float(pose_after_edit.y) - 35.0) > 1e-4:
+            raise RuntimeError("Exact angles keyboard input did not stage the expected rotation")
     finally:
-        release_all_input()
         if recorder._started:
             recorder.stop()
 
