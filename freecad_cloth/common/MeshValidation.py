@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import dist
+from math import dist, isfinite
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 
@@ -107,6 +107,9 @@ def validate_mesh(
                 process=False,
             )
             bounds = mesh.bounds
+            surface_area = float(mesh.area)
+            if not isfinite(surface_area):
+                raise ValueError("computed mesh surface area must be finite")
             return MeshValidationResult(
                 vertices=len(vertices),
                 faces=len(triangles),
@@ -119,7 +122,7 @@ def validate_mesh(
                     float(bounds[0][2]),
                     float(bounds[1][2]),
                 ),
-                surface_area=float(mesh.area),
+                surface_area=surface_area,
                 watertight=bool(mesh.is_watertight),
                 finite=bool(np.isfinite(mesh.vertices).all()),
                 degenerate_faces=degenerate,
@@ -148,7 +151,10 @@ def nearest_target_clearance(
     target = validate_points3d(target_vertices)
     if not garment or not target:
         raise ValueError("garment and target vertices are required")
-    return min(dist(source, candidate) for source in garment for candidate in target)
+    clearance = min(dist(source, candidate) for source in garment for candidate in target)
+    if not isfinite(clearance):
+        raise ValueError("computed vertex clearance must be finite")
+    return clearance
 
 
 def nearest_surface_clearance(
@@ -175,4 +181,9 @@ def nearest_surface_clearance(
         process=False,
     )
     _, distances, _ = mesh.nearest.on_surface(np.asarray(garment_vertices, dtype=float))
-    return float(np.min(distances)) if len(distances) else float("inf")
+    if not len(distances):
+        raise ValueError("surface clearance produced no distance results")
+    clearance = float(np.min(distances))
+    if not isfinite(clearance):
+        raise ValueError("computed surface clearance must be finite")
+    return clearance
