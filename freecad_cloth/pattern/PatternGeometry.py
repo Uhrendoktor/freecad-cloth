@@ -4,6 +4,11 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import hypot
 
+from freecad_cloth.common.ValidationModels import (
+    RectangleDimensions, SampleCount, SeamAllowanceOptions,
+    validate_finite_number, validate_point2d, validate_points2d,
+)
+
 Point = tuple[float, float]
 
 
@@ -15,8 +20,15 @@ class LineSegment:
     start: Point
     end: Point
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        object.__setattr__(self, "start", validate_point2d(self.start))
+        object.__setattr__(self, "end", validate_point2d(self.end))
+
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
+        t = validate_finite_number(t)
         return (
             self.start[0] + (self.end[0] - self.start[0]) * t,
             self.start[1] + (self.end[1] - self.start[1]) * t,
@@ -36,8 +48,16 @@ class QuadraticBezier:
     control: Point
     end: Point
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        object.__setattr__(self, "start", validate_point2d(self.start))
+        object.__setattr__(self, "control", validate_point2d(self.control))
+        object.__setattr__(self, "end", validate_point2d(self.end))
+
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
+        t = validate_finite_number(t)
         u = 1.0 - t
         return (
             u * u * self.start[0] + 2 * u * t * self.control[0] + t * t * self.end[0],
@@ -46,8 +66,7 @@ class QuadraticBezier:
 
     def polyline(self, samples: int = 32) -> list[Point]:
         """Return sampled polyline points for this geometry."""
-        if samples < 2:
-            raise ValueError("samples must be at least 2")
+        samples = SampleCount(count=samples).count
         return [self.point(i / (samples - 1)) for i in range(samples)]
 
 
@@ -58,9 +77,13 @@ class PolylineSegment:
     id: str
     points: tuple[Point, ...]
 
-    def __post_init__(self):
-        if len(self.points) < 2:
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not self.id.strip():
+            raise ValueError("segment ID must be a non-empty string")
+        points = validate_points2d(self.points)
+        if len(points) < 2:
             raise ValueError("polyline segment needs at least two points")
+        object.__setattr__(self, "points", points)
 
     @property
     def start(self) -> Point:
@@ -74,7 +97,7 @@ class PolylineSegment:
 
     def point(self, t: float) -> Point:
         """Return the point at the requested parameter."""
-        fraction = min(1.0, max(0.0, float(t)))
+        fraction = min(1.0, max(0.0, validate_finite_number(t)))
         lengths = [0.0]
         for a, b in zip(self.points, self.points[1:], strict=False):
             lengths.append(lengths[-1] + _distance(a, b))
@@ -115,6 +138,16 @@ class ParametricPattern:
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
+        if any(not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment)) for segment in self.segments):
+            raise TypeError("pattern segments must be supported segment types")
+        # Recheck coordinates in case a caller bypassed frozen dataclasses.
+        for segment in self.segments:
+            if isinstance(segment, LineSegment):
+                validate_points2d((segment.start, segment.end))
+            elif isinstance(segment, QuadraticBezier):
+                validate_points2d((segment.start, segment.control, segment.end))
+            else:
+                validate_points2d(segment.points)
         if len(self.segments) < 3:
             raise ValueError("pattern needs at least three boundary segments")
         ids = [segment.id for segment in self.segments]
@@ -131,6 +164,7 @@ class ParametricPattern:
 
     def sampled_outline(self, curve_samples: int = 32) -> list[Point]:
         """Provide the public sampled outline operation."""
+        curve_samples = SampleCount(count=curve_samples).count
         result: list[Point] = []
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -141,6 +175,7 @@ class ParametricPattern:
 
     def lengths(self, curve_samples: int = 128) -> dict[str, float]:
         """Provide the public lengths operation."""
+        curve_samples = SampleCount(count=curve_samples).count
         values: dict[str, float] = {}
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -164,9 +199,8 @@ def seam_allowance_outline(
     supports ordinary simple convex/concave outlines and deliberately leaves
     self-intersection resolution to a later geometry layer.
     """
-    allowance = float(allowance)
-    if allowance < 0.0:
-        raise ValueError("seam allowance cannot be negative")
+    options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
+    allowance, curve_samples = options.allowance, options.curve_samples
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
         raise ValueError("pattern needs at least three outline points")
@@ -222,8 +256,8 @@ def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point):
 
 def rectangle(width: float, height: float) -> ParametricPattern:
     """Create a deterministic rectangular pattern from dimensions in mm."""
-    if width <= 0 or height <= 0:
-        raise ValueError("rectangle dimensions must be positive")
+    dimensions = RectangleDimensions(width=width, height=height)
+    width, height = dimensions.width, dimensions.height
     return ParametricPattern(
         [
             LineSegment("bottom", (0.0, 0.0), (width, 0.0)),
