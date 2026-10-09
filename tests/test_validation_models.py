@@ -19,6 +19,7 @@ from freecad_cloth.common.ValidationModels import (
     validate_points3d,
 )
 from freecad_cloth.pattern.PatternGeometry import LineSegment, rectangle
+from freecad_cloth.pattern.PatternMesh import TriangleMesh
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     arc_length_vertex_indices,
@@ -129,3 +130,26 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     assert nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)) == 2.0
     with pytest.raises(ValueError):
         nearest_target_clearance(((0.0, 0.0),), ((0.0, 0.0, 0.0),))
+
+
+
+def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() -> None:
+    vertices = (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (-1.0, 0.0, 0.0),
+        (0.0, -1.0, 0.0),
+    )
+    result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
+    assert result.components == 2
+
+
+def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
+    mesh = TriangleMesh(
+        vertices=((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)),
+        triangles=((0, 1, 2),),
+        boundary_vertex_indices=(0, 1, 9),
+    )
+    with pytest.raises(ValueError, match="boundary"):
+        mesh.validate()
