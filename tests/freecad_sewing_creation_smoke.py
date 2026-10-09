@@ -1,6 +1,7 @@
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -230,12 +231,40 @@ try:
     doc.recompute()
     record("fixtures=created pieces=3")
 
+    # Set the window size before acquiring/resetting the active view. On some
+    # FreeCAD/Pivy builds resizing after fitAll silently resets the camera to
+    # its default 8 mm field of view, leaving 100 mm workpieces off-screen.
+    window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
+    for piece, color in (
+        (piece_a, (0.34, 0.65, 0.88)),
+        (piece_b, (0.94, 0.62, 0.30)),
+        (piece_c, (0.42, 0.72, 0.52)),
+    ):
+        view_object = piece.ViewObject
+        view_object.Visibility = True
+        view_object.DisplayMode = "Flat Lines"
+        view_object.ShapeColor = color
+        view_object.LineColor = (0.12, 0.16, 0.21)
+        view_object.LineWidth = 3.0
+    doc.recompute()
     view.setCameraType("Orthographic")
     view.viewTop()
+    process_events()
+    from tests.support.freecad_input import _qt_modules
+    _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
+    QtTest.QTest.qWait(200)
     view.fitAll()
-    window = focus_main_window(Gui, size=(1280, 720))
+    process_events()
+    QtTest.QTest.qWait(150)
     view.fitAll()
+    process_events()
+    camera_match = re.search(r"\\bheight\\s+([0-9]+(?:\\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)", view.getCamera())
+    if camera_match is not None and float(camera_match.group(1)) < 150.0:
+        raise RuntimeError(
+            "seam-assignment GIF camera did not frame the workpieces: "
+            f"orthographic_height={camera_match.group(1)}"
+        )
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
         gui=Gui,

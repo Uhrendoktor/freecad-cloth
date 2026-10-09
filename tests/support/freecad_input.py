@@ -377,14 +377,21 @@ def click_viewport(
 
 
 def click_widget(widget: Any, button: Any | None = None, modifiers: Any | None = None) -> None:
-    """Click a visible Qt control through QtTest instead of calling its slot directly."""
+    """Click a visible Qt control through QtTest and move the visible OS cursor there."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
         raise RuntimeError("cannot click a hidden or disabled UI widget")
+    center = widget.rect().center()
+    try:
+        # QtTest delivers the normal widget event path but does not move the
+        # system cursor on every platform; move it separately for useful GIFs.
+        global_position = widget.mapToGlobal(center)
+        _native_input().move_global(global_position.x(), global_position.y())
+    except RuntimeError:
+        # Non-X11 local development still gets working QtTest click coverage.
+        pass
     resolved_button, resolved_modifiers = _button_and_modifiers(QtCore, button, modifiers)
-    QtTest.QTest.mouseClick(
-        widget, resolved_button, resolved_modifiers, widget.rect().center(), 20
-    )
+    QtTest.QTest.mouseClick(widget, resolved_button, resolved_modifiers, center, 20)
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
