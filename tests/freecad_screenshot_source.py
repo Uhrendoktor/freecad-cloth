@@ -1202,6 +1202,9 @@ def simulation():
         scene_proxy.source_signature = None
         scene_proxy.last_steps = 0
         refresh_drape_target(target)
+        # Runtime proxy resets do not dirty the FreeCAD document object themselves.
+        # Touch only after the target refresh so the forced rebuild sees a ready target.
+        scene.touch()
         doc.recompute()
         if not any(fit_counts.values()):
             raise RuntimeError(

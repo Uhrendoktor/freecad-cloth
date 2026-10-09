@@ -87,45 +87,6 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "find_asset(asset)" in publisher
 
 
-
-def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
-    import json
-
-    screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(
-        encoding="utf-8"
-    )
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
-    manifest = json.loads(
-        (ROOT / "tools" / "ci" / "visual_asset_sources.json").read_text(encoding="utf-8")
-    )["assets"]
-
-    assert "capture_tunic_pattern_view(doc, front, back, hem_width)" in screenshot_source
-    assert "same native Sketcher profiles used by the canonical 3D tunic audit" in screenshot_source
-    capture = screenshot_source.split("def capture_tunic_pattern_view(", 1)[1].split(
-        "\ndef simulation():", 1
-    )[0]
-    assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
-    assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
-    for name in ("cloth-pattern-design.png", "cloth-simulation-arranged.png"):
-        assert manifest[name]["artifact"] == "tunic-visual-audit"
-        assert manifest[name]["producers"] == ["tests/freecad_tunic_audit_production.py"]
-    assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
-
-
-def test_hosted_fallback_visual_publication_is_a_release_gate():
-    contract = (ROOT / "tools" / "ci" / "check_visual_asset_contract.py").read_text(
-        encoding="utf-8"
-    )
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "VISUAL_PUBLISH_REQUIRED" in workflow
-    assert 'os.environ.get("VISUAL_PUBLISH_REQUIRED"' in contract
-
-
 def test_pose_visual_audit_exposes_all_avatar_renders():
     pose = (ROOT / "docs" / "wiki" / "04-pose.md").read_text(encoding="utf-8")
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(

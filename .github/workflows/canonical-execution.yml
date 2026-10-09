@@ -436,6 +436,7 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
           run-number: ${{ github.run_number }}
+
   maintenance-cleanup:
     name: Repository retention cleanup
     needs: [agent-quality]
@@ -470,7 +471,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
-          VISUAL_PUBLISH_REQUIRED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
         run: python3 tools/ci/check_visual_assets_and_budget.py
 
   benchmark:

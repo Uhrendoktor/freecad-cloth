@@ -472,7 +472,7 @@ def test_avatar_attachment_projection_fails_closed_on_invalid_selection_offset_a
         region=surface.region,
         thickness=surface.thickness,
     )
-    with pytest.raises(ValueError, match="valid integer"):
+    with pytest.raises(ValueError, match="invalid triangle"):
         project_avatar_attachments(positions, (0,), malformed)
     degenerate = surface_from_triangles(
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)),

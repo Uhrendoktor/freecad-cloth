@@ -58,9 +58,9 @@
       ]
     },
     "cloth-pattern-design.png": {
-      "artifact": "tunic-visual-audit",
+      "artifact": "readme-turntables",
       "producers": [
-        "tests/freecad_tunic_audit_production.py"
+        "tests/freecad_screenshot_source.py"
       ]
     },
     "cloth-sewing.png": {
@@ -77,9 +77,9 @@
       ]
     },
     "cloth-simulation-arranged.png": {
-      "artifact": "tunic-visual-audit",
+      "artifact": "readme-turntables",
       "producers": [
-        "tests/freecad_tunic_audit_production.py"
+        "tests/freecad_screenshot_source.py"
       ]
     },
     "cloth-simulation-draped-bottom.png": {
