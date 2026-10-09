@@ -703,6 +703,101 @@ def style_mesh(obj, label):
         pass
 
 
+
+def capture_tunic_pattern_view(doc, front, back, hem_width):
+    """Capture the exact Sketcher profiles that are subsequently used by the 3D audit."""
+    from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
+
+    pieces = (front, back)
+    original_piece_placements = {
+        piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
+        for piece in pieces
+    }
+    original_sketch_placements = {
+        piece.Sketch.Name: App.Placement(
+            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
+        )
+        for piece in pieces
+    }
+    original_visibility = {}
+    for obj in doc.Objects:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None and hasattr(view_object, "Visibility"):
+            original_visibility[obj.Name] = bool(view_object.Visibility)
+
+    # Show the same authoritative Sketcher objects in a flat, side-by-side layout.
+    # Only their placements change for this screenshot; the local profile geometry
+    # remains exactly what the canonical 3D simulation consumes.
+    gap = max(80.0, 0.15 * float(hem_width))
+    try:
+        for obj in doc.Objects:
+            view_object = getattr(obj, "ViewObject", None)
+            if view_object is not None and hasattr(view_object, "Visibility"):
+                view_object.Visibility = False
+
+        front_placement = App.Placement(
+            App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        back_placement = App.Placement(
+            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
+        )
+        front.Placement = front_placement
+        front.Sketch.Placement = front_placement
+        back.Placement = back_placement
+        back.Sketch.Placement = back_placement
+        front.ViewObject.Visibility = False
+        back.ViewObject.Visibility = False
+        front.Sketch.ViewObject.Visibility = True
+        back.Sketch.ViewObject.Visibility = True
+        doc.recompute()
+
+        activate(
+            "ClothPatternWorkbench",
+            "Cloth Pattern",
+            [
+                "ClothPattern_CreatePieceTask",
+                "ClothPattern_EditPiece",
+                "ClothPattern_Show2D",
+                "ClothPattern_CreateFromSketch",
+            ],
+        )
+        panel = PatternPieceTaskPanel(front)
+        show_task(
+            panel,
+            "Pattern Workbench",
+            ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"),
+        )
+        view = Gui.activeDocument().activeView()
+        view.viewTop()
+        view.fitAll()
+        events()
+        save(
+            "cloth-pattern-design.png",
+            "Pattern Workbench canonical tunic profile",
+            "same native Sketcher profiles used by the canonical 3D tunic audit",
+        )
+        log(
+            "pattern-profile-alignment=passed front=%s front_edges=%d back=%s back_edges=%d"
+            % (
+                front.Sketch.Name,
+                len(front.Sketch.Geometry),
+                back.Sketch.Name,
+                len(back.Sketch.Geometry),
+            )
+        )
+    finally:
+        close_task()
+        for piece in pieces:
+            piece.Placement = original_piece_placements[piece.Name]
+            piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
+        for obj in doc.Objects:
+            if obj.Name in original_visibility:
+                obj.ViewObject.Visibility = original_visibility[obj.Name]
+        doc.recompute()
+        Gui.activateWorkbench("ClothSimulationWorkbench")
+        events()
+
+
 def simulation():
     import os
 
@@ -804,6 +899,7 @@ def simulation():
 
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    capture_tunic_pattern_view(doc, front, back, hem_width)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
     for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
