@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from hashlib import sha1
 from typing import Any
 
+from freecad_cloth.gui import register_workbench_deactivation_callback
 from freecad_cloth.shared.seam_colors import register_seam_refresh_callback, seam_color_map
 
 _ACTIVE_CONTROLLER = None
@@ -493,6 +494,7 @@ def activate_seam_overlay(document: Any | None = None) -> SeamOverlayController 
     global _OVERLAY_ENABLED
     _OVERLAY_ENABLED = True
     register_seam_refresh_callback(schedule_seam_overlay_refresh)
+    register_workbench_deactivation_callback(deactivate_seam_overlay)
     return refresh_seam_overlay(document)
 
 
@@ -508,6 +510,7 @@ def deactivate_seam_overlay() -> None:
     _REFRESH_PENDING = False
     _PENDING_DOCUMENT = None
     register_seam_refresh_callback(None)
+    register_workbench_deactivation_callback(None)
     _release_controller()
 
 
