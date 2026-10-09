@@ -323,8 +323,13 @@ class SeamOverlayController:
         self.root = None
         self.rendered_seam_ids = ()
 
-    def refresh(self, document: Any | None = None, active_seam_id: str = "") -> None:
-        """Rebuild the overlay from current canonical seam geometry."""
+    def refresh(
+        self,
+        document: Any | None = None,
+        active_seam_id: str = "",
+        prefer_simulation: bool = False,
+    ) -> None:
+        """Rebuild the overlay from the active semantic or simulated seam geometry."""
         if document is not None:
             self.document = document
         if self.root is None or self.scene_graph is None:
@@ -349,7 +354,7 @@ class SeamOverlayController:
         self.rendered_seam_ids = ()
         self.last_error = ""
 
-        simulated = _simulation_seam_geometry(self.document)
+        simulated = _simulation_seam_geometry(self.document) if prefer_simulation else {}
         if simulated:
             colors = seam_color_map(simulated.keys())
             labels = seam_display_labels(simulated.keys())
@@ -469,9 +474,14 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
             _ACTIVE_CONTROLLER.deactivate()
             _ACTIVE_CONTROLLER = None
             return None
+        try:
+            workbench_name = str(Gui.activeWorkbench().name()).lower()
+        except (AttributeError, RuntimeError, TypeError):
+            workbench_name = ""
         _ACTIVE_CONTROLLER.refresh(
             target_document,
             active_seam_id=_selected_seam_id(Gui, target_document),
+            prefer_simulation="simulation" in workbench_name,
         )
         return _ACTIVE_CONTROLLER
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
