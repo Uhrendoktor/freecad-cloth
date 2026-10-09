@@ -16,7 +16,6 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
 | libigl | Geometry processing, remeshing, parametrization, distances; NumPy Python bindings | Derived-mesh/analysis utilities where OCCT is insufficient | Mixed optional modules/licensing; C++ dependency | **Evaluate selectively** |
 | SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on large meshes | NumPy-based dependency, installed with the main package | **Adopted / required** |
-| SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on meshes | Installed with the main package | **Adopted / required** |
 | Shapely / GEOS | Robust 2D polygon simplicity predicate | Pattern boundary simplicity validation | GEOS-backed dependency, installed with the main package | **Adopted / required** |
 | svgpathtools | SVG paths, Bézier geometry, arc length, intersections | SVG interoperability and correspondence utilities | MIT; Python dependency | **Evaluate selectively** |
 | meshio | Broad mesh import/export | Developer fixtures, benchmark interoperability | MIT; useful but not core | **Developer tooling** |
