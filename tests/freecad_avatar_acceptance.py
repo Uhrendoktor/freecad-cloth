@@ -220,22 +220,30 @@ def run_acceptance():
             )
         _progress("pose-edit-applied")
         _close_task()
+        _progress("pose-edit-task-closed")
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
         if str(avatar.PosePreset) != "sewing":
             raise RuntimeError("pose edit did not persist on the avatar object")
         if target_status(target)["state"] != "stale":
             raise RuntimeError("pose change did not deterministically invalidate DrapeTarget")
+        _progress("pose-edit-target-stale-verified")
         pose_revision = int(avatar.AvatarRevision)
 
         fd, path = tempfile.mkstemp(prefix="cloth-avatar-provider-", suffix=".FCStd")
         os.close(fd)
+        _progress("before-provider-save-recompute")
         doc.recompute()
+        _progress("after-provider-save-recompute")
         doc.saveAs(path)
+        _progress("after-provider-save")
         App.closeDocument(doc.Name)
         doc = None
+        _progress("provider-doc-closed-for-reload")
         reloaded = App.openDocument(path)
+        _progress("provider-doc-opened-from-save")
         reloaded.recompute()
+        _progress("provider-document-recomputed-after-reload")
         avatar = reloaded.getObject(identity)
         target = reloaded.getObject("DrapeTarget")
         restored_source = reloaded.getObject("ProviderAcceptanceBody")
@@ -251,10 +259,12 @@ def run_acceptance():
             raise RuntimeError("avatar pose was not persisted across save/reload")
         if target_status(target)["state"] != "stale":
             raise RuntimeError("stale DrapeTarget state was not preserved across save/reload")
+        _progress("provider-document-reload-state-verified")
 
         refresh_drape_target(target)
         if target_status(target)["state"] != "ready":
             raise RuntimeError("reloaded avatar target could not be explicitly refreshed")
+        _progress("provider-document-reloaded-and-target-refreshed")
         _close_task()
         App.closeDocument(reloaded.Name)
     finally:

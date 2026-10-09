@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any
 
 CONTROLLABLE_JOINTS = (
     ("spine05", "Pelvis"),
@@ -61,7 +63,7 @@ class JointRotation:
     y: float = 0.0
     z: float = 0.0
 
-    def validate(self):
+    def validate(self) -> JointRotation:
         """Validate the joint name and bounded Euler angles."""
         if self.bone not in CONTROLLABLE_BONES:
             raise ValueError(f"unsupported mannequin joint: {self.bone}")
@@ -71,7 +73,7 @@ class JointRotation:
                 raise ValueError(f"{self.bone}.{axis} must be between -180 and 180 degrees")
         return self
 
-    def mirrored(self):
+    def mirrored(self) -> JointRotation:
         """Return the sagittal mirror of this joint rotation."""
         mirror = MIRROR_BONES.get(self.bone)
         if mirror is None:
@@ -82,7 +84,9 @@ class JointRotation:
         return JointRotation(mirror, float(self.x), -float(self.y), -float(self.z))
 
 
-def normalize_joint_rotations(rotations) -> tuple[JointRotation, ...]:
+def normalize_joint_rotations(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> tuple[JointRotation, ...]:
     """Validate, de-duplicate and deterministically order joint rotations."""
     values = {}
     for rotation in rotations or ():
@@ -97,12 +101,16 @@ def normalize_joint_rotations(rotations) -> tuple[JointRotation, ...]:
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
 
 
-def joint_rotation_map(rotations) -> dict[str, JointRotation]:
+def joint_rotation_map(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> dict[str, JointRotation]:
     """Return joint rotations keyed by authored MakeHuman bone name."""
     return {item.bone: item for item in normalize_joint_rotations(rotations)}
 
 
-def joint_rotations_to_json(rotations) -> str:
+def joint_rotations_to_json(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> str:
     """Serialize persistent joint rotations to deterministic JSON."""
     values = normalize_joint_rotations(rotations)
     return json.dumps(
@@ -123,7 +131,7 @@ def joint_rotations_to_json(rotations) -> str:
     )
 
 
-def joint_rotations_from_json(payload) -> tuple[JointRotation, ...]:
+def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
     """Deserialize persistent joint rotations, accepting legacy empty values."""
     raw = str(payload or "").strip()
     if not raw:
@@ -152,7 +160,9 @@ def joint_rotations_from_json(payload) -> tuple[JointRotation, ...]:
     return normalize_joint_rotations(rotations)
 
 
-def mirror_rotations(rotations) -> tuple[JointRotation, ...]:
+def mirror_rotations(
+    rotations: Iterable[JointRotation | dict[str, Any]] | None,
+) -> tuple[JointRotation, ...]:
     """Return a deterministic left/right mirrored pose."""
     mirrored = []
     for item in normalize_joint_rotations(rotations):
@@ -251,8 +261,14 @@ def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
     return AffineTransform(rotation, tuple(point[i] - rotated[i] for i in range(3)))
 
 
-def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
-    """Build the FK transform for every authored skeleton bone."""
+def build_bone_transforms(
+    source_vertices: tuple[Vector, ...],
+    skeleton: dict,
+    fit_point: Callable[[Vector], Vector],
+    rotations: Iterable[JointRotation],
+    rotation_pivots: Mapping[str, Vector] | None = None,
+) -> dict[str, AffineTransform]:
+    """Build FK transforms, using optional rig-defined pivots for driven bones."""
     from freecad_cloth.avatar.HumanoidMesh import _joint_point
 
     rotation_map = joint_rotation_map(rotations)
@@ -272,8 +288,9 @@ def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
         if rotation is None:
             local = IDENTITY
         else:
+            pivot = (rotation_pivots or {}).get(bone_name, rest_head)
             local = _rotation_about_point(
-                rest_head,
+                pivot,
                 _rotation_matrix(rotation.x, rotation.y, rotation.z),
             )
         combined = _compose(parent_transform, local)
@@ -285,9 +302,19 @@ def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
     return cache
 
 
-def apply_weighted_fk(source_vertices, rest_vertices, skeleton, weights, fit_point, rotations):
-    """Apply weighted FK transforms to a fitted mesh using source skin weights."""
-    transforms = build_bone_transforms(source_vertices, skeleton, fit_point, rotations)
+def apply_weighted_fk(
+    source_vertices: tuple[Vector, ...],
+    rest_vertices: tuple[Vector, ...],
+    skeleton: dict,
+    weights: Mapping[str, tuple[tuple[int, float], ...]],
+    fit_point: Callable[[Vector], Vector],
+    rotations: Iterable[JointRotation],
+    rotation_pivots: Mapping[str, Vector] | None = None,
+) -> tuple[Vector, ...]:
+    """Apply shared weighted-FK deformation using the same rig pivots."""
+    transforms = build_bone_transforms(
+        source_vertices, skeleton, fit_point, rotations, rotation_pivots
+    )
     count = len(rest_vertices)
     accum = [[0.0, 0.0, 0.0] for _ in range(count)]
     weight_sum = [0.0] * count

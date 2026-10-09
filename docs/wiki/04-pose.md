@@ -1,16 +1,16 @@
 # 04 · Mannequin Pose Mode
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode task panel with visible mannequin joints and a selected shoulder rotation gizmo" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode task panel with visible mannequin joints and a selected shoulder rotation gizmo" width="900"></p>
 
-The image above is the dedicated Pose Mode interaction fixture. It is captured from the active FreeCAD window after the viewport is fitted and painted, with the left shoulder selected so the native Coin3D trackball gizmo is visible.
+The image above is the dedicated Pose Mode interaction fixture. It is captured from the active FreeCAD window after the viewport is fitted and painted, with the left shoulder selected so the native three-axis Coin3D rotation gizmo with cone tips and spherical pivot is visible.
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Mannequin front view" width="280"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Mannequin rear view" width="280"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Mannequin front view" width="280"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Mannequin rear view" width="280"></p>
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png" alt="Mannequin left view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png" alt="Mannequin right view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png" alt="Mannequin top view" width="200"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png" alt="Mannequin bottom view" width="200"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png" alt="Mannequin left view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png" alt="Mannequin right view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png" alt="Mannequin top view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png" alt="Mannequin bottom view" width="200"></p>
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif" alt="Mannequin 360 degree turntable" width="820"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-turntable.gif" alt="Mannequin 360 degree turntable" width="820"></p>
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting an upper-arm joint and editing its exact rotation angle in Pose Mode" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting an upper-arm joint and editing its exact rotation angle in Pose Mode" width="900"></p>
 
 This recording shows joint selection and a keyboard-edited Exact angles value in the live Pose Mode panel. This path works in headless CI builds where native Pivy viewport callbacks cannot be registered safely.
 
@@ -22,14 +22,14 @@ The viewport is the primary manipulation surface. The task panel keeps only dire
 
 The current implementation is manual forward kinematics. Parent joint rotations propagate to descendants through the authored skeleton hierarchy.
 
-The native interaction path prefers FreeCAD's Coin3D SoTransformDragger with translation handles hidden and the three rotation rings exposed. The selected bone is kept in a depth-independent overlay so the full X-ray rig remains visible. FreeCAD builds without the native transform dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
+The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one per axis, with a near-complete colored ring, cone arrowheads and spherical pivot geometry. The selected bone is kept in a depth-independent overlay so the full X-ray rig remains visible. FreeCAD builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
 
 ## What a human should see
 
 | Control | Visual proof to look for |
 | --- | --- |
 | Joint selection | A selected anatomical joint is obvious in the viewport/tree |
-| Rotation gizmo | Axis rings or trackball afford direct manipulation |
+| Rotation gizmo | Three color-coded rotation rings with cone tips and a spherical pivot afford direct manipulation |
 | Symmetry | Left/right edits can be mirrored across the sagittal plane |
 | 5° snap | Rotation feedback visibly changes in quantized increments |
 | Presets | Standing, Sewing and Sitting provide recognizable starting poses |
@@ -85,3 +85,7 @@ Source:
 - <code>freecad_cloth/avatar/AvatarModel.py</code>
 
 The avatar screenshot generator is also the source for the six-side mannequin review and avatar turntable.
+
+## Visual design rationale
+
+The rotation control follows established 3D-manipulation conventions: three color-coded axis rings provide the primary affordance, small cone tips clarify the direction of each arc, and spherical pivots mark the selected joint. The implementation reuses FreeCAD's native rotation-dragger geometry rather than drawing a separate imitation control.

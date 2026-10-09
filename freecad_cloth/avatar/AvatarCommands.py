@@ -1,5 +1,7 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 
+import json
+
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -57,17 +59,42 @@ def _set_prop(obj, kind, name, group, value):
 
 def _parameters(obj):
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
+    preset = str(getattr(obj, "PosePreset", "standing"))
+    preset_defaults = Pose(preset)
+    fallback = {
+        "left_arm_angle": float(preset_defaults.left_arm_angle),
+        "right_arm_angle": float(preset_defaults.right_arm_angle),
+        "left_elbow_angle": float(preset_defaults.left_elbow_angle),
+        "right_elbow_angle": float(preset_defaults.right_elbow_angle),
+    }
+    angles = {
+        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name]))
+        for name in fallback
+    }
+
+    # Migrate the stored schema once at the document boundary. New pose code uses
+    # explicit defaults, not 12° magic values during geometry generation.
+    payload = str(getattr(obj, "ParametersJSON", "") or "")
+    if payload:
+        try:
+            stored_data = json.loads(payload)
+            stored_pose_data = stored_data.get("pose", {})
+            if int(stored_data.get("schema_version", 1)) == 1:
+                stored_pose = AvatarParameters.from_json(payload).pose
+                if str(stored_pose_data.get("preset", "standing")) == preset:
+                    for name in ("left_arm_angle", "right_arm_angle"):
+                        serialized = float(stored_pose_data.get(name, 12.0))
+                        if angles[name] == serialized:
+                            angles[name] = float(getattr(stored_pose, name))
+        except (TypeError, ValueError):
+            pass
+
     pose = Pose(
-        str(obj.PosePreset),
-        *(
-            float(getattr(obj, POSE_PROPERTY_MAP[name], 12.0 if "arm" in name else 0.0))
-            for name in (
-                "left_arm_angle",
-                "right_arm_angle",
-                "left_elbow_angle",
-                "right_elbow_angle",
-            )
-        ),
+        preset,
+        angles["left_arm_angle"],
+        angles["right_arm_angle"],
+        angles["left_elbow_angle"],
+        angles["right_elbow_angle"],
         tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
     return AvatarParameters(values, float(obj.SkinOffset), pose)

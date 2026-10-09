@@ -4,6 +4,8 @@ Anthropometric measurements remain authoritative; geometry is now backed by the
 real MakeHuman HM08 human base mesh and a deterministic measurement/pose fit.
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass, field
 
@@ -35,6 +37,11 @@ DEFAULT_MEASUREMENTS = {
     "front_waist": 430.0,
     "back_waist": 440.0,
 }
+
+
+DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0}
+
+
 LIMITS = {
     "height": (1200, 2300),
     "neck": (250, 600),
@@ -63,17 +70,28 @@ class Pose:
     """Public data model or service class for Pose."""
 
     preset: str = "standing"
-    left_arm_angle: float = 12.0
-    right_arm_angle: float = 12.0
+    left_arm_angle: float | None = None
+    right_arm_angle: float | None = None
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
     joint_rotations: tuple[JointRotation, ...] = ()
     VALID_PRESETS = ("standing", "sewing", "sitting")
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        default_angle = DEFAULT_POSE_ARM_ANGLES.get(
+            self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
+        )
+        object.__setattr__(
+            self, "left_arm_angle",
+            default_angle if self.left_arm_angle is None else float(self.left_arm_angle),
+        )
+        object.__setattr__(
+            self, "right_arm_angle",
+            default_angle if self.right_arm_angle is None else float(self.right_arm_angle),
+        )
         object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if self.preset not in self.VALID_PRESETS:
             raise ValueError(f"unsupported avatar pose: {self.preset}")
@@ -101,17 +119,17 @@ class AvatarParameters:
     # remains a target setting rather than a visible layer on the avatar.
     skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
-    schema_version: int = 1
+    schema_version: int = 2
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
         self.validate()
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.schema_version != 1:
+        if self.schema_version != 2:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
@@ -132,19 +150,19 @@ class AvatarParameters:
             raise TypeError("pose must be a Pose")
         self.pose.validate()
 
-    def measurement(self, name):
+    def measurement(self, name: str) -> float:
         """Return the requested body measurement."""
         if name not in self.measurements:
             raise KeyError(name)
         return float(self.measurements[name])
 
-    def with_measurements(self, **changes):
+    def with_measurements(self, **changes: float) -> AvatarParameters:
         """Return a copy with updated body measurements."""
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
 
-    def to_json(self):
+    def to_json(self) -> str:
         """Serialize this object to JSON."""
         self.validate()
         return json.dumps(
@@ -169,16 +187,34 @@ class AvatarParameters:
         )
 
     @classmethod
-    def from_json(cls, payload):
-        """Create an object from serialized JSON."""
+    def from_json(cls, payload: str) -> AvatarParameters:
+        """Load avatar parameters and migrate schema-1 pose sentinels once."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
+        source_version = int(data.get("schema_version", 1))
+        if source_version not in (1, 2):
+            raise ValueError("unsupported avatar schema version")
         p = data.get("pose", {})
+        preset = str(p.get("preset", "standing"))
+        if source_version == 1:
+            left_angle: float | None = float(p.get("left_arm_angle", 12.0))
+            right_angle: float | None = float(p.get("right_arm_angle", 12.0))
+            if preset == "standing" and left_angle == 12.0 and right_angle == 12.0:
+                left_angle = None
+                right_angle = None
+            elif preset != "standing":
+                if left_angle == 12.0:
+                    left_angle = None
+                if right_angle == 12.0:
+                    right_angle = None
+        else:
+            left_angle = p.get("left_arm_angle")
+            right_angle = p.get("right_arm_angle")
         pose = Pose(
-            str(p.get("preset", "standing")),
-            float(p.get("left_arm_angle", 12)),
-            float(p.get("right_arm_angle", 12)),
+            preset,
+            left_angle,
+            right_angle,
             float(p.get("left_elbow_angle", 0)),
             float(p.get("right_elbow_angle", 0)),
             joint_rotations_from_json(
@@ -189,15 +225,10 @@ class AvatarParameters:
                 )
             ),
         )
-        return cls(
-            data.get("measurements", {}),
-            float(data.get("skin_offset", 0)),
-            pose,
-            int(data.get("schema_version", 1)),
-        )
+        return cls(data.get("measurements", {}), float(data.get("skin_offset", 0)), pose, 2)
 
 
-def _landmarks(params):
+def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     m = params.measurements
     height = float(m["height"])
     pelvis_z = min(height * 0.53, float(m["inseam"]) + 120.0)
@@ -255,8 +286,14 @@ def _landmarks(params):
     )
 
 
-def generate_mesh(params):
-    """Return ``(vertices, triangles, landmarks)`` from the real human mesh."""
+def generate_mesh(
+    params: AvatarParameters,
+) -> tuple[
+    tuple[tuple[float, float, float], ...],
+    tuple[tuple[int, int, int], ...],
+    tuple[Landmark, ...],
+]:
+    """Return the compact mesh produced by the mannequin's shared FK pipeline."""
     params.validate()
     from freecad_cloth.avatar.HierarchicalPose import generate_hierarchical_mesh
 

@@ -246,9 +246,13 @@ class AvatarTaskPanel:
         self.status.setWordWrap(True)
         root.addWidget(self.status)
 
+        self._loading = True
         self._dirty = False
         self._staged_joint_rotations = {}
-        self._load()
+        try:
+            self._load()
+        finally:
+            self._loading = False
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
         for box in self._pose_boxes.values():
@@ -318,11 +322,14 @@ class AvatarTaskPanel:
         self.pose.blockSignals(True)
         self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
         self.pose.blockSignals(False)
+        from freecad_cloth.avatar.AvatarModel import Pose
+
+        pose_defaults = Pose(str(self.pose.currentText()))
         pose_values = {
-            "left_arm_angle": 12.0,
-            "right_arm_angle": 12.0,
-            "left_elbow_angle": 0.0,
-            "right_elbow_angle": 0.0,
+            "left_arm_angle": float(pose_defaults.left_arm_angle),
+            "right_arm_angle": float(pose_defaults.right_arm_angle),
+            "left_elbow_angle": float(pose_defaults.left_elbow_angle),
+            "right_elbow_angle": float(pose_defaults.right_elbow_angle),
         }
         for key, box in self._pose_boxes.items():
             box.blockSignals(True)
@@ -397,6 +404,16 @@ class AvatarTaskPanel:
         )
 
     def _preset_changed(self, preset):
+        if self._loading:
+            return
+        from freecad_cloth.avatar.AvatarModel import Pose
+
+        defaults = Pose(str(preset))
+        for name in ("left_arm_angle", "right_arm_angle"):
+            box = self._pose_boxes[name]
+            box.blockSignals(True)
+            box.setValue(float(getattr(defaults, name)))
+            box.blockSignals(False)
         self._staged_changed()
 
     def _staged_changed(self):

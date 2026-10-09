@@ -1,6 +1,6 @@
 # 08 · Validation and visual evidence
 
-<p align="center"><img src="https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif" alt="Simple blanket collision and drape sequence" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-blanket-motion.gif" alt="Simple blanket collision and drape sequence" width="900"></p>
 
 The project treats validation as both an engineering problem and a human-vision problem.
 

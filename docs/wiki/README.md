@@ -30,7 +30,7 @@ The goal is not to repeat every engineering note. The goal is to let a human ans
 
 Images in these pages use the generated evidence published by the canonical workflow:
 
-<code>https://github.com/Uhrendoktor/freecad-cloth/raw/refs/heads/docs/screenshots/docs/images/generated/</code>
+<code>https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/</code>
 
 That branch is a publication target. The current source code and canonical workflow remain authoritative.
 
