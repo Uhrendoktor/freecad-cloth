@@ -40,6 +40,15 @@ def contract_errors() -> list[str]:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     publisher_text = PUBLISH_ACTION.read_text(encoding="utf-8")
     production_config = workflow_text + chr(10) + publisher_text
+    required_upload_patterns = (
+        "docs/images/generated/*.png",
+        "docs/images/generated/*.gif",
+        "docs/images/generated/*.log",
+        "docs/images/generated/*.txt",
+    )
+    for pattern in required_upload_patterns:
+        if pattern not in workflow_text:
+            errors.append(f"turntable artifact upload does not include required pattern: {pattern}")
     for name in sorted(documented & declared):
         entry = assets[name]
         if not isinstance(entry, dict):

@@ -103,7 +103,6 @@ jobs:
           baseline-from-ref: "origin/${{ github.base_ref }}"
           fail-on-new-clones: "true"
           fail-on-empty: "true"
-
   local_runner_readiness:
     name: Selected runner readiness
     needs: [agent-quality]
@@ -112,7 +111,6 @@ jobs:
     timeout-minutes: 2
     steps:
       - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
-
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     needs: [agent-quality]
@@ -130,7 +128,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
-
   pbd_validation_image:
     name: Build/publish pinned PBD image
     needs: [agent-quality]
@@ -360,7 +357,11 @@ jobs:
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
-          artifact-path: docs/images/generated/*.{png,gif,log,txt}
+          artifact-path: |
+            docs/images/generated/*.png
+            docs/images/generated/*.gif
+            docs/images/generated/*.log
+            docs/images/generated/*.txt
           environment: |
             CLOTH_PBD_SUBSTEPS=10
             CLOTH_BLANKET_STEPS=180
