@@ -16,6 +16,7 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
 | libigl | Geometry processing, remeshing, parametrization, distances; NumPy Python bindings | Derived-mesh/analysis utilities where OCCT is insufficient | Mixed optional modules/licensing; C++ dependency | **Evaluate selectively** |
 | SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on large meshes | NumPy-based dependency, installed with the main package | **Adopted / required** |
+| SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on meshes | Installed with the main package | **Adopted / required** |
 | Shapely / GEOS | Robust 2D polygon simplicity predicate | Pattern boundary simplicity validation | GEOS-backed dependency, installed with the main package | **Adopted / required** |
 | svgpathtools | SVG paths, Bézier geometry, arc length, intersections | SVG interoperability and correspondence utilities | MIT; Python dependency | **Evaluate selectively** |
 | meshio | Broad mesh import/export | Developer fixtures, benchmark interoperability | MIT; useful but not core | **Developer tooling** |
@@ -74,7 +75,7 @@ Pydantic is not used for each arithmetic operation or inside per-particle solver
 - **Triangle** remains responsible for constrained Delaunay triangulation and mesh refinement. The adapter retains checks needed for authored-boundary provenance, face orientation, and area preservation. Boundary-vertex reconciliation now builds one quantized-coordinate index instead of rescanning all output vertices for every boundary point.
 - **trimesh** remains an optional diagnostics library for point-to-triangle-surface queries and mesh metrics. The dependency-free component-count fallback stays because it preserves optional-install behavior.
 - **`math.dist`** replaces hand-rolled Euclidean norm loops for vertex clearance. It prevents non-strict `zip` from silently ignoring mismatched dimensions and delegates norm arithmetic to the standard library.
-- **FreeCAD Part/OCCT** remains authoritative for native editable geometry and offsets. Shapely/GEOS is a candidate for polygon buffering/overlay, but is not a mandatory dependency or a blind substitute: buffer join and self-intersection semantics differ from authored topology.
+- **FreeCAD Part/OCCT** remains authoritative for native editable geometry and offsets. Shapely is required for the polygon simplicity predicate, but is not used as a drop-in seam-allowance buffer: buffer join styles, collapsed concavities and ring ordering can alter authored topology.
 - **svgpathtools**, **libigl**, and other optional geometry tools remain candidates until a concrete production path and FreeCAD packaging/runtime compatibility are demonstrated. Do not duplicate a geometry kernel simply to remove loops that preserve semantic identities a library does not know about.
 
 Research references:
@@ -82,17 +83,17 @@ Research references:
 - [Hypothesis quickstart](https://hypothesis.readthedocs.io/en/latest/quickstart.html)
 - [trimesh proximity queries](https://trimesh.org/trimesh.proximity.html)
 
-## Implemented optional geometry accelerations
+## Implemented geometry-library accelerations
 
 SciPy and Shapely are required runtime dependencies declared in `pyproject.toml` and installed
 by the same package setup and pinned FreeCAD CI image. The production geometry paths do not branch
 between optimized and scalar fallback implementations.
 
-- `nearest_target_clearance` uses an exact `scipy.spatial.cKDTree` nearest-neighbour query for
-  larger vertex sets. Small inputs keep the direct `math.dist` implementation to avoid tree-build
-  overhead. Non-finite or unrepresentable results fail closed; there is no alternate production path.
-- `PatternMesh._self_intersects` asks GEOS/Shapely whether sufficiently large outlines are simple.
-  GEOS is the authoritative simplicity predicate for the application-level polygon check.
+- `nearest_target_clearance` uses one exact `scipy.spatial.cKDTree` nearest-neighbour query for
+  all non-empty vertex sets. Non-finite or unrepresentable results fail closed; there is no scalar
+  production fallback.
+- `PatternMesh._self_intersects` uses GEOS/Shapely's simplicity predicate on the closed polygon
+  boundary for all input sizes. There is no custom segment-intersection production path.
 - Seam-allowance buffering was **not** replaced by Shapely `buffer`: its join styles, handling of
   collapsed concavities/self-intersections, and ring ordering can alter generated outline topology.
   FreeCAD Part/OCCT also remains authoritative for native editable geometry.
