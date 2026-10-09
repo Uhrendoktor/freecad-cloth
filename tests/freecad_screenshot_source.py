@@ -561,13 +561,16 @@ def _make_tunic_sketch(
     import Sketcher
 
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
-    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    shoulder_z = 0.78 * garment_height
+    # Express neckline drop relative to the shoulder line, not the panel top.
+    # This keeps the neckline below the shoulders when the pattern is height-aligned
+    # to the avatar instead of silently moving the neckline above the shoulder seam.
+    neck_z = shoulder_z - float(neckline_drop) * garment_height
     # Keep the shoulder/neck construction centered within the wider hem.
     # The previous coordinates anchored the upper panel at x=0, so changing
     # hem_width moved the hem center without moving the shoulder center.
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.68 * garment_height
-    shoulder_z = 0.78 * garment_height
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),

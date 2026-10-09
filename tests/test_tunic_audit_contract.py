@@ -46,6 +46,7 @@ def test_canonical_tunic_pattern_is_centered_and_shallow_at_the_armholes():
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in source
     assert "armhole_z = 0.68 * garment_height" in source
     assert "shoulder_z = 0.78 * garment_height" in source
+    assert "neck_z = shoulder_z - float(neckline_drop) * garment_height" in source
     assert "canonical tunic pattern lost bilateral symmetry" in source
 
 
