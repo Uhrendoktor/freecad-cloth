@@ -103,6 +103,17 @@ def test_seam_generates_stitches():
     constraints.validate()
 
 
+def test_triangulation_rejects_nonfinite_area_limits() -> None:
+    """NaN and infinity must not bypass the maximum-area positivity guard."""
+    for max_area in (float("nan"), float("inf")):
+        try:
+            triangulate(rectangle(10.0, 10.0), max_area=max_area)
+        except ValueError as exc:
+            assert "finite" in str(exc).lower()
+        else:
+            raise AssertionError("non-finite max_area was accepted")
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):

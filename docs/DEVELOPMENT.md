@@ -23,7 +23,8 @@ In addition to the normal lint/test gates, the development environment enforces 
 - Pyright runs in standard mode for the existing broad core profile and strict mode for selected deterministic core modules.
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
-- CrossHair checks a small, explicitly curated pure-function contract surface.
+- CrossHair symbolically checks a small, explicitly curated pure-math contract surface; Pydantic schemas validate the boundary preconditions those contracts assume.
+- Numeric geometry boundaries use Pydantic v2 models with finite coordinates, integer-only mesh indices, and explicit cross-field invariants. See [Numeric validation and mathematical contracts](MATH_VALIDATION.md).
 - ast-grep runs syntax-aware repository rules for prohibited production patterns and validates those rules with positive/negative fixtures.
 - ty is piloted in report-only mode on the deterministic strict-Pyright modules; Ruff remains the blocking annotation-policy gate until the diagnostic baseline is reviewed.
 - Pull-request CI rejects newly introduced Python clones while tolerating legacy duplication.
