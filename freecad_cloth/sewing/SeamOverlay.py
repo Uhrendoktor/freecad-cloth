@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from hashlib import sha1
+import re
 from typing import Any
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
@@ -19,6 +20,30 @@ _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False
 _PENDING_DOCUMENT = None
 _OVERLAY_ENABLED = False
+
+
+def _read_preference(name: str, default: bool) -> bool:
+    try:
+        import FreeCAD as App
+
+        params = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Cloth")
+        return bool(params.GetBool(name, bool(default)))
+    except (ImportError, AttributeError, RuntimeError, TypeError):
+        return bool(default)
+
+
+def _write_preference(name: str, value: bool) -> None:
+    try:
+        import FreeCAD as App
+
+        params = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Cloth")
+        params.SetBool(name, bool(value))
+    except (ImportError, AttributeError, RuntimeError, TypeError):
+        pass
+
+
+_HIGHLIGHTS_ENABLED = _read_preference("ShowSeamColorHighlights", True)
+_RESPECT_DEPTH_OCCLUSION = _read_preference("SeamOverlayRespectDepth", True)
 
 
 def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
@@ -62,6 +87,13 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
                     labels[identity] += "-" + str(identities.index(identity) + 1)
             break
     return labels
+
+
+def should_show_seam_label(seam_id: object, hovered_seam_id: object) -> bool:
+    """Show labels only for the one semantic seam currently under the pointer."""
+    identity = str(seam_id).strip()
+    hovered = str(hovered_seam_id).strip()
+    return bool(hovered) and identity == hovered
 
 
 def _coin_modules() -> Any | None:
@@ -231,20 +263,22 @@ def _add_label(
     point: object,
     label: str,
     rgb: tuple[float, float, float],
+    respect_depth: bool = True,
 ) -> None:
-    # Pattern solids can cover labels when their sampled edge lies below the
-    # face surface. SoAnnotation renders its children in Coin's foreground pass,
-    # keeping semantic A/B identifiers legible in both flat and 3D workbench views.
-    annotation_type = getattr(coin, "SoAnnotation", coin.SoSeparator)
+    """Add a label that either obeys scene occlusion or is explicitly foregrounded."""
+    annotation_type = (
+        coin.SoSeparator
+        if respect_depth
+        else getattr(coin, "SoAnnotation", coin.SoSeparator)
+    )
     annotation = annotation_type()
     depth = coin.SoDepthBuffer()
-    depth.test = False
+    depth.test = bool(respect_depth)
     depth.write = False
     color = coin.SoBaseColor()
     color.rgb = tuple(float(channel) for channel in rgb)
     transform = coin.SoTransform()
     x, y, z = _xyz(point)
-    # Keep labels at the sampled depth to avoid top-view camera near clipping.
     transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
     font.size.setValue(16.0)
@@ -344,6 +378,58 @@ def _simulation_seam_geometry(
     return {}
 
 
+def _seam_id_at_position(document: Any, view: Any, position: object) -> str:
+    """Map a viewport hover to the seam using the underlying pattern edge hit."""
+    try:
+        x, y = int(position[0]), int(position[1])  # type: ignore[index]
+    except (IndexError, TypeError, ValueError):
+        return ""
+
+    hits: list[dict[str, Any]] = []
+    for getter_name in ("getObjectsInfo", "getObjectInfo"):
+        getter = getattr(view, getter_name, None)
+        if not callable(getter):
+            continue
+        try:
+            result = getter((x, y))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+        if isinstance(result, dict):
+            hits.extend([result])
+        elif isinstance(result, (list, tuple)):
+            hits.extend(item for item in result if isinstance(item, dict))
+        if any(str(hit.get("Component", "")).startswith("Edge") for hit in hits):
+            break
+
+    get_object = getattr(document, "getObject", None)
+    seams = _canonical_seams(document)
+    for hit in hits:
+        component = str(hit.get("Component", hit.get("component", ""))).strip()
+        if not component.startswith("Edge") or not component[4:].isdigit():
+            continue
+        edge_index = int(component[4:]) - 1
+        if edge_index < 0:
+            continue
+        object_name = str(hit.get("Object", hit.get("object", ""))).strip()
+        piece = get_object(object_name) if callable(get_object) and object_name else None
+        if piece is None or str(getattr(piece, "PatternType", "")) != "PatternPiece":
+            continue
+        piece_name = str(getattr(piece, "Name", object_name))
+        for seam in seams:
+            for side in ("A", "B"):
+                seam_piece = getattr(seam, "Pattern" + side, None)
+                if seam_piece is None or str(getattr(seam_piece, "Name", "")) != piece_name:
+                    continue
+                try:
+                    from freecad_cloth.sewing.SewingObjects import _resolved_edge
+
+                    if int(_resolved_edge(seam_piece, seam, side)) == edge_index:
+                        return str(getattr(seam, "SeamId", "")).strip()
+                except (AttributeError, IndexError, KeyError, RuntimeError, TypeError, ValueError):
+                    continue
+    return ""
+
+
 class SeamOverlayController:
     """Own one transient overlay tree for the active FreeCAD 3D view."""
 
@@ -353,6 +439,9 @@ class SeamOverlayController:
         self.scene_graph = None
         self.root = None
         self.rendered_seam_ids: tuple[str, ...] = ()
+        self.rendered_label_seam_ids: tuple[str, ...] = ()
+        self.hovered_seam_id = ""
+        self._location_callback = None
         self.last_error = ""
         self._attach()
 
@@ -366,13 +455,38 @@ class SeamOverlayController:
             self.root = coin.SoSeparator()
             self.root.setName("ClothSemanticSeamOverlay")
             self.scene_graph.addChild(self.root)
+            try:
+                self._location_callback = self.view.addEventCallback(
+                    "SoLocation2Event", self._location_event
+                )
+            except (AttributeError, RuntimeError, TypeError):
+                self._location_callback = None
         except (AttributeError, RuntimeError, TypeError) as exc:
             self.scene_graph = None
             self.root = None
             self.last_error = str(exc)
 
+    def _location_event(self, event_info: Any) -> None:
+        """Refresh the transient label when the hovered semantic seam changes."""
+        if not _OVERLAY_ENABLED or not _HIGHLIGHTS_ENABLED:
+            return
+        position = event_info.get("Position") if isinstance(event_info, dict) else None
+        if position is None:
+            return
+        seam_id = _seam_id_at_position(self.document, self.view, position)
+        if seam_id == self.hovered_seam_id:
+            return
+        self.hovered_seam_id = seam_id
+        refresh_seam_overlay(self.document)
+
     def deactivate(self) -> None:
-        """Remove only this controller's transient Coin node."""
+        """Remove only this controller's transient Coin node and hover callback."""
+        if self._location_callback is not None:
+            try:
+                self.view.removeEventCallback("SoLocation2Event", self._location_callback)
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+        self._location_callback = None
         if self.scene_graph is not None and self.root is not None:
             try:
                 self.scene_graph.removeChild(self.root)
@@ -387,10 +501,12 @@ class SeamOverlayController:
         document: Any | None = None,
         active_seam_id: str = "",
         prefer_simulation: bool = False,
+        hovered_seam_id: str = "",
     ) -> None:
-        """Rebuild the overlay from the active semantic or simulated seam geometry."""
+        """Rebuild overlay geometry and show a label only for the hovered seam."""
         if document is not None:
             self.document = document
+        self.hovered_seam_id = str(hovered_seam_id or "").strip()
         if self.root is None or self.scene_graph is None:
             return
         coin = _coin_modules()
@@ -410,7 +526,9 @@ class SeamOverlayController:
         colors = seam_color_map(ids)
         labels = seam_display_labels(ids)
         rendered_ids: list[str] = []
+        rendered_label_ids: list[str] = []
         self.rendered_seam_ids = ()
+        self.rendered_label_seam_ids = ()
         self.last_error = ""
 
         simulated = _simulation_seam_geometry(self.document) if prefer_simulation else {}
@@ -422,10 +540,10 @@ class SeamOverlayController:
                 focused = identity == str(active_seam_id)
                 width = 5.5 if focused else 3.5
                 side_group = coin.SoSeparator()
-                # Solver positions lie exactly on the live cloth surface; disable
-                # depth testing only for this path to avoid z-fighting with its mesh.
+                # Respect occlusion by default; the UI can explicitly opt into
+                # always-on-top rendering for crowded editing/simulation views.
                 depth = coin.SoDepthBuffer()
-                depth.test = False
+                depth.test = bool(_RESPECT_DEPTH_OCCLUSION)
                 depth.write = False
                 side_group.addChild(depth)
                 color = colors[identity]
@@ -434,11 +552,20 @@ class SeamOverlayController:
                 _add_line_groups(side_group, coin, connectors, color, 1.25)
                 label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
                 label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
-                _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
-                _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
+                if should_show_seam_label(identity, hovered_seam_id):
+                    _add_label(
+                        side_group, coin, label_a, labels[identity] + "-A", color,
+                        respect_depth=_RESPECT_DEPTH_OCCLUSION,
+                    )
+                    _add_label(
+                        side_group, coin, label_b, labels[identity] + "-B", color,
+                        respect_depth=_RESPECT_DEPTH_OCCLUSION,
+                    )
+                    rendered_label_ids.append(identity)
                 self.root.addChild(side_group)
                 simulation_rendered_ids.append(identity)
             self.rendered_seam_ids = tuple(sorted(simulation_rendered_ids))
+            self.rendered_label_seam_ids = tuple(sorted(set(rendered_label_ids)))
             return
 
         if not seams:
@@ -475,11 +602,20 @@ class SeamOverlayController:
             _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
             label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
             label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
-            _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
-            _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
+            if should_show_seam_label(identity, hovered_seam_id):
+                _add_label(
+                    side_group, coin, label_a, labels[identity] + "-A", color,
+                    respect_depth=_RESPECT_DEPTH_OCCLUSION,
+                )
+                _add_label(
+                    side_group, coin, label_b, labels[identity] + "-B", color,
+                    respect_depth=_RESPECT_DEPTH_OCCLUSION,
+                )
+                rendered_label_ids.append(identity)
             self.root.addChild(side_group)
             rendered_ids.append(identity)
         self.rendered_seam_ids = tuple(sorted(set(rendered_ids)))
+        self.rendered_label_seam_ids = tuple(sorted(set(rendered_label_ids)))
 
 
 def _selected_seam_id(gui: Any, document: Any) -> str:
@@ -501,10 +637,45 @@ def _release_controller() -> None:
     _ACTIVE_CONTROLLER = None
 
 
+def seam_highlights_enabled() -> bool:
+    """Return whether transient seam color highlights are enabled."""
+    return bool(_HIGHLIGHTS_ENABLED)
+
+
+def set_seam_highlights_enabled(enabled: bool) -> bool:
+    """Persist the highlight visibility setting and apply it to the active view."""
+    global _HIGHLIGHTS_ENABLED
+    _HIGHLIGHTS_ENABLED = bool(enabled)
+    _write_preference("ShowSeamColorHighlights", _HIGHLIGHTS_ENABLED)
+    if not _HIGHLIGHTS_ENABLED:
+        _release_controller()
+    elif _OVERLAY_ENABLED:
+        refresh_seam_overlay()
+    return _HIGHLIGHTS_ENABLED
+
+
+def seam_overlay_respects_depth() -> bool:
+    """Return whether seam lines and labels are hidden by foreground geometry."""
+    return bool(_RESPECT_DEPTH_OCCLUSION)
+
+
+def set_seam_overlay_respect_depth(enabled: bool) -> bool:
+    """Persist the overlay's depth/occlusion mode and refresh visible geometry."""
+    global _RESPECT_DEPTH_OCCLUSION
+    _RESPECT_DEPTH_OCCLUSION = bool(enabled)
+    _write_preference("SeamOverlayRespectDepth", _RESPECT_DEPTH_OCCLUSION)
+    if _OVERLAY_ENABLED and _HIGHLIGHTS_ENABLED:
+        refresh_seam_overlay()
+    return _RESPECT_DEPTH_OCCLUSION
+
+
 def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
     """Attach or refresh the current view's overlay; safe outside a GUI process."""
     global _ACTIVE_CONTROLLER
     if not _OVERLAY_ENABLED:
+        return None
+    if not _HIGHLIGHTS_ENABLED:
+        _release_controller()
         return None
     try:
         import FreeCADGui as Gui
@@ -541,10 +712,12 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
             workbench_name = str(Gui.activeWorkbench().name()).lower()
         except (AttributeError, RuntimeError, TypeError):
             workbench_name = ""
+        hovered_seam_id = _ACTIVE_CONTROLLER.hovered_seam_id
         _ACTIVE_CONTROLLER.refresh(
             target_document,
-            active_seam_id=_selected_seam_id(Gui, target_document),
+            active_seam_id=hovered_seam_id or _selected_seam_id(Gui, target_document),
             prefer_simulation="simulation" in workbench_name,
+            hovered_seam_id=hovered_seam_id,
         )
         return _ACTIVE_CONTROLLER
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
