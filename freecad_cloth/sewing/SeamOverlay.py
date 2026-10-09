@@ -525,6 +525,8 @@ def _run_scheduled_refresh() -> None:
 def schedule_seam_overlay_refresh(document: Any | None = None) -> None:
     """Coalesce recompute/restore refreshes until FreeCAD has completed the event."""
     global _REFRESH_PENDING, _PENDING_DOCUMENT
+    if not _OVERLAY_ENABLED:
+        return
     _PENDING_DOCUMENT = document or _PENDING_DOCUMENT
     if _REFRESH_PENDING:
         return
