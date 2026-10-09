@@ -164,6 +164,7 @@ if __name__ == "__main__":
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
 
+
 def test_seam_overlay_labels_are_unique_stable_pair_identifiers():
     initial_ids = ("seam-1", "seam-2", "custom-long-identity")
     baseline = seam_display_labels(initial_ids)
