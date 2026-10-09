@@ -1,5 +1,6 @@
 import sys
 import unittest
+from math import dist
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -47,6 +48,14 @@ class SimulationQualityTests(unittest.TestCase):
         for field, value in invalid:
             with self.subTest(field=field), self.assertRaises(ValueError):
                 FabricMaterial(**{field: value}).validate()
+
+    def test_material_validation_rejects_nonfinite_density_and_thickness(self):
+        for field in ("density_g_m2", "thickness_mm"):
+            for value in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(
+                    ValueError, "positive and finite"
+                ):
+                    FabricMaterial(**{field: value}).validate()
 
     def test_material_presentation_defaults_and_validation(self):
         material = FabricMaterial()
@@ -115,11 +124,7 @@ class SimulationQualityTests(unittest.TestCase):
         for edge in boundary:
             self.assertLessEqual(
                 max(
-                    (
-                        (positions[a][0] - positions[b][0]) ** 2
-                        + (positions[a][1] - positions[b][1]) ** 2
-                    )
-                    ** 0.5
+                    dist(positions[a], positions[b])
                     for a, b in zip(edge, edge[1:], strict=False)
                 ),
                 20.000001,
