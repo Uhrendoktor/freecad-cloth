@@ -320,7 +320,11 @@ def run():
     # Pivy mouse callbacks are unavailable in this FreeCAD/SWIG build.
     # Select the joint through the controller API, then edit Exact angles using
     # real Qt keyboard events and capture the resulting live UI/model preview.
-    window = focus_main_window(Gui, size=(1280, 720))
+    # The preceding screenshot helper has already sized and activated the main window.
+    # Do not resize it again here: some FreeCAD task-panel builds recreate child widgets.
+    window = Gui.getMainWindow()
+    if window is None or not window.isVisible():
+        raise RuntimeError("FreeCAD main window is unavailable for Pose Mode GIF recording")
     panel.controller.select_joint("upperarm01.L")
     _events()
     recorder = UiGifRecorder(

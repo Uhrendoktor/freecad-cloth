@@ -75,10 +75,15 @@ def run():
     Gui.updateGui()
     controller = panel.controller
 
-    start = _screen(view, App.Vector(0.0, 0.0, 0.0))
-    snap = controller._screen_position(
+    viewport_height = float(view.getSize()[1])
+    start_screen = _screen(view, App.Vector(0.0, 0.0, 0.0))
+    start = (start_screen[0], int(round(viewport_height - start_screen[1])))
+    snap_screen = controller._screen_position(
         doc.getObject(scene.ArrangementPointObjects[0])
     )
+    # Coin mouse/location events use a bottom-left origin; the controller's
+    # projected snap points are top-left screen coordinates.
+    snap = (snap_screen[0], viewport_height - snap_screen[1])
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/interactive-arrange.gif",
         gui=Gui,
