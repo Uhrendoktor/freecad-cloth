@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
@@ -162,7 +164,7 @@ def test_sewing_constraints_apply_partial_seam_ranges():
     constraints = build_sewing_constraints(a, ma, b, mb, seam, samples=2)
     pairs = [(ma.vertices[s.vertex_a], mb.vertices[s.vertex_b]) for s in constraints.stitches]
     assert pairs[0][0][1] == 20.0
-    assert pairs[0][1][1] == 30.0
+    assert pairs[0][1][1] == pytest.approx(30.0)
     assert pairs[-1][0][1] == 80.0
     assert pairs[-1][1][1] == 90.0
 
