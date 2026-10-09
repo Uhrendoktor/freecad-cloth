@@ -351,6 +351,8 @@ def _inside_target_states(points, target, collision_surface=None):
         except (AttributeError, TypeError, ValueError, RuntimeError):
             native_mesh_solid = None
 
+    log("penetration-target-native-solid=%s" % native_mesh_solid)
+
     # trimesh provides a robust vectorized point-containment query only for a
     # watertight target. Log both topology and query fallback reasons so open
     # target meshes cannot silently masquerade as a valid solid classification.
