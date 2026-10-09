@@ -85,8 +85,10 @@ def _label_anchor(
     points: Iterable[object],
     index: int,
     offset: float = 14.0,
+    lane: int = 0,
+    lane_spacing: float = 36.0,
 ) -> tuple[float, float, float]:
-    """Offset a label in the pattern plane so it does not sit on its seam edge."""
+    """Offset a label from its edge and into a deterministic seam-specific lane."""
     coordinates = [_xyz(point) for point in points]
     if not coordinates:
         raise ValueError("label anchor requires at least one point")
@@ -97,9 +99,14 @@ def _label_anchor(
     dx = after[0] - before[0]
     dy = after[1] - before[1]
     length = (dx * dx + dy * dy) ** 0.5
+    lane_shift = int(lane) * float(lane_spacing)
     if length <= 1e-9:
-        return point
-    return (point[0] - dy / length * float(offset), point[1] + dx / length * float(offset), point[2])
+        return (point[0], point[1] + lane_shift, point[2])
+    return (
+        point[0] - dy / length * float(offset),
+        point[1] + dx / length * float(offset) + lane_shift,
+        point[2],
+    )
 
 
 def _subtract(
@@ -240,7 +247,7 @@ def _add_label(
     # Keep labels at the sampled depth to avoid top-view camera near clipping.
     transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
-    font.size.setValue(18.0)
+    font.size.setValue(16.0)
     text = coin.SoText2()
     text.string.setValue(str(label))
     annotation.addChild(depth)
@@ -411,7 +418,7 @@ class SeamOverlayController:
             colors = seam_color_map(simulated.keys())
             labels = seam_display_labels(simulated.keys())
             simulation_rendered_ids: list[str] = []
-            for identity, (points_a, points_b, connectors) in sorted(simulated.items()):
+            for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(sorted(simulated.items())):
                 focused = identity == str(active_seam_id)
                 width = 5.5 if focused else 3.5
                 side_group = coin.SoSeparator()
@@ -425,8 +432,8 @@ class SeamOverlayController:
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
                 _add_line_groups(side_group, coin, connectors, color, 1.25)
-                label_a = _label_anchor(points_a, len(points_a) // 3)
-                label_b = _label_anchor(points_b, (len(points_b) * 2) // 3)
+                label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
+                label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
                 _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
                 _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
                 self.root.addChild(side_group)
@@ -439,8 +446,10 @@ class SeamOverlayController:
 
         from freecad_cloth.sewing.SewingObjects import _edge_samples, _resolved_edge
 
+        label_lanes = {identity: lane for lane, identity in enumerate(sorted(ids))}
         for seam in seams:
             identity = str(seam.SeamId).strip()
+            label_lane = label_lanes[identity]
             piece_a = seam.PatternA
             piece_b = seam.PatternB
             try:
@@ -464,8 +473,8 @@ class SeamOverlayController:
             side_group = coin.SoSeparator()
             _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
             _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
-            label_a = _label_anchor(points_a, len(points_a) // 3)
-            label_b = _label_anchor(points_b, (len(points_b) * 2) // 3)
+            label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
+            label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
             _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
             _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
             self.root.addChild(side_group)

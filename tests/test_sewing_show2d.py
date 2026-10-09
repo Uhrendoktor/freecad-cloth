@@ -20,11 +20,12 @@ from freecad_cloth.sewing.SewingView import (
 )
 
 
-def test_seam_overlay_label_anchor_offsets_from_edge_without_changing_depth():
+def test_seam_overlay_label_anchor_offsets_from_edge_and_separates_lanes():
     horizontal = ((0.0, 0.0, 2.0), (10.0, 0.0, 2.0), (20.0, 0.0, 2.0))
     assert _label_anchor(horizontal, 1, offset=14.0) == (10.0, 14.0, 2.0)
+    assert _label_anchor(horizontal, 1, offset=14.0, lane=1) == (10.0, 50.0, 2.0)
 
-    vertical = ((0.0, 0.0, 2.0), (0.0, 10.0, 2.0), (0.0, 20.0, 2.0))
+    vertical = ((0.0, 0.0, 2.0), (0.0, 10.0, 2.0), (0.0, 0.0, 2.0))
     assert _label_anchor(vertical, 1, offset=14.0) == (-14.0, 10.0, 2.0)
 
 
