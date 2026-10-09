@@ -713,6 +713,34 @@ def style_mesh(obj, label):
         pass
 
 
+def _projected_point_within_outline_margin(x, z, points, margin):
+    """Check whether a projected mesh vertex overlaps a pattern outline or its clearance band."""
+    px = float(x)
+    pz = float(z)
+    margin_sq = float(margin) * float(margin)
+    inside = False
+    near = False
+    for index, (ax_raw, az_raw) in enumerate(points):
+        bx_raw, bz_raw = points[(index + 1) % len(points)]
+        ax, az = float(ax_raw), float(az_raw)
+        bx, bz = float(bx_raw), float(bz_raw)
+        if (az > pz) != (bz > pz):
+            crossing_x = ax + (pz - az) * (bx - ax) / (bz - az)
+            if px < crossing_x:
+                inside = not inside
+        dx, dz = bx - ax, bz - az
+        length_sq = dx * dx + dz * dz
+        if length_sq > 0.0:
+            factor = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / length_sq))
+            closest_x = ax + factor * dx
+            closest_z = az + factor * dz
+        else:
+            closest_x, closest_z = ax, az
+        if (px - closest_x) ** 2 + (pz - closest_z) ** 2 <= margin_sq:
+            near = True
+    return inside or near
+
+
 def simulation():
     import os
 
@@ -789,20 +817,39 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    # Place the panel origins relative to the shoulder line, not the entire avatar's
-    # front/back extrema. Global mesh Y bounds include the full torso depth and put
-    # matching shoulder seam samples hundreds of millimetres apart before draping.
-    shoulder_y = (shoulder_left.y + shoulder_right.y) / 2.0
+    # Use target depths only beneath the actual pattern silhouette, plus a
+    # clearance-width boundary band. Whole-avatar extrema are dominated by limbs;
+    # shoulder-center offsets, meanwhile, can place the panels inside the torso.
+    panel_origin_x = x_mid - hem_width / 2.0
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(side):
+    def target_relative_piece_placement(side, outline):
+        projected_target_ys = [
+            float(vertex[1])
+            for vertex in target_surface.vertices
+            if _projected_point_within_outline_margin(
+                float(vertex[0]) - panel_origin_x,
+                float(vertex[2]) - hem_z,
+                outline,
+                clearance,
+            )
+        ]
+        if not projected_target_ys:
+            raise RuntimeError("canonical tunic silhouette does not overlap DrapeTarget projections")
+        target_front_y = min(projected_target_ys)
+        target_back_y = max(projected_target_ys)
         if side == "front":
-            y = shoulder_y - clearance
+            y = target_front_y - clearance
         elif side == "back":
-            y = shoulder_y + clearance
+            y = target_back_y + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        log(
+            "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
+            "panel-y=%.2f clearance-mm=%.2f projected-vertices=%d"
+            % (side, target_front_y, target_back_y, y, clearance, len(projected_target_ys))
+        )
+        return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
 
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
@@ -817,7 +864,7 @@ def simulation():
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0, 0.0)
         piece.Label = name
-        piece.Placement = target_relative_piece_placement(side)
+        piece.Placement = target_relative_piece_placement(side, outline)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
