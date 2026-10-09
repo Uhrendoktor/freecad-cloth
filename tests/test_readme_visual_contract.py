@@ -103,6 +103,10 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
 
     assert "capture_tunic_pattern_view(doc, front, back, hem_width)" in screenshot_source
     assert "same native Sketcher profiles used by the canonical 3D tunic audit" in screenshot_source
+    capture = screenshot_source.split("def capture_tunic_pattern_view(", 1)[1].split(
+        "\\ndef simulation():", 1
+    )[0]
+    assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
     assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
     for name in ("cloth-pattern-design.png", "cloth-simulation-arranged.png"):
         assert manifest[name]["artifact"] == "tunic-visual-audit"

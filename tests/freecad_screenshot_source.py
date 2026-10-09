@@ -767,6 +767,9 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
             "Pattern Workbench",
             ("Piece name", "Width", "Height", "Seam allowance", "Grainline angle"),
         )
+        # The floating task panel obscures the second profile in the captured view.
+        # Keep the workbench active, but close the panel so both canonical pieces are visible.
+        close_task()
         view = Gui.activeDocument().activeView()
         view.viewTop()
         view.fitAll()
