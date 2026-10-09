@@ -39,3 +39,15 @@ def test_write_gif_rejects_empty_frames(tmp_path):
 
     with pytest.raises(ValueError, match="at least one frame"):
         write_gif([], tmp_path / "empty.gif")
+
+def test_resolve_key_maps_names_and_preserves_qt_enums():
+    from types import SimpleNamespace
+
+    from tests.support.freecad_input import _resolve_key
+
+    core = SimpleNamespace(Qt=SimpleNamespace(Key_Space=32, Key_Return=13))
+    assert _resolve_key(core, "Space") == 32
+    assert _resolve_key(core, "Key_Return") == 13
+    assert _resolve_key(core, 27) == 27
+    with pytest.raises(ValueError, match="unknown Qt keyboard key"):
+        _resolve_key(core, "NotARealKey")
