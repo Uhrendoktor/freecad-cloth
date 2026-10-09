@@ -29,6 +29,7 @@ import math
 import runpy
 import struct
 import time
+import traceback
 import zlib
 
 _boot("script-start")
@@ -818,6 +819,8 @@ def _run_and_shutdown():
         status = int(main() or 0)
     except BaseException as exc:
         _progress(f"avatar-ladder: main-failed={exc!r}")
+        for line in traceback.format_exc().rstrip().splitlines():
+            _boot(f"exception-trace: {line}")
     finally:
         _boot(f"shutdown-status={status}")
         faulthandler.cancel_dump_traceback_later()
