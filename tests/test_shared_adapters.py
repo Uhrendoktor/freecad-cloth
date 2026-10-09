@@ -10,6 +10,8 @@ from freecad_cloth.shared.seam_colors import (
     apply_seam_colors,
     register_seam_refresh_callback,
     seam_color_map,
+    seam_color_highlighting_enabled,
+    set_seam_color_highlighting_enabled,
 )
 
 
@@ -134,6 +136,18 @@ def test_apply_seam_colors_updates_only_objects_with_semantic_ids():
     assert colored_a.ViewObject.LineColor == colors["a"]
     assert colored_b.ViewObject.LineColor == colors["b"]
     assert untouched.ViewObject.LineColor is None
+
+
+def test_apply_seam_colors_uses_neutral_linework_when_highlights_are_disabled():
+    seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
+    original = seam_color_highlighting_enabled()
+    try:
+        set_seam_color_highlighting_enabled(False)
+        colors = apply_seam_colors([seam])
+        assert colors["seam-1"] == seam_color_map(["seam-1"])["seam-1"]
+        assert seam.ViewObject.LineColor == (0.48, 0.48, 0.48)
+    finally:
+        set_seam_color_highlighting_enabled(original)
 
 
 def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
