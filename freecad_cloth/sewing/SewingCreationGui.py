@@ -410,8 +410,6 @@ class SewingCreationTaskPanel:
                 )
 
     def _show_error(self, exc):
-
-    def _show_error(self, exc):
         self.feedback.setText(
             f"Preview rejected: {str(exc)}. Adjust the selection, then press Preview again."
         )
