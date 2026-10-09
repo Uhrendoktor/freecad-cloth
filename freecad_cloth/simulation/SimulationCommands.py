@@ -122,6 +122,9 @@ def simulate_selected(steps=None):
         raise ValueError("steps must be positive")
     scene.Steps = int(scene.Steps) + count
     doc.recompute()
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    refresh_seam_overlay(doc)
     panels = tuple(getattr(scene, "DrapePanels", ()))
     return panels[0] if panels else scene
 
