@@ -118,7 +118,7 @@ class PolylineSegment:
                 span = lengths[index] - lengths[index - 1]
                 local = 0.0 if span <= 1e-12 else (target - lengths[index - 1]) / span
                 a, b = self.points[index - 1], self.points[index]
-                return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
+                return _require_finite_point((_lerp(a[0], b[0], local), _lerp(a[1], b[1], local)))
         return self.points[-1]
 
     def polyline(self, samples: int = 32) -> list[Point]:
