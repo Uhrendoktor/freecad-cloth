@@ -873,13 +873,11 @@ def simulation():
     scene.PinMode = "Avatar Attachment"
     scene.PinSelection = []
     scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
-    # Front and back descriptors for each shoulder project laterally to the same
-    # mannequin surface point so the sewn shoulder seams share compatible anchors.
+    # Anchor the front shoulder edges only; sewn back edges follow the
+    # front panel through the authoritative shoulder seam constraints.
     scene.AvatarAttachmentAnchors = [
         "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
         "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5]),
-        "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
-        "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
     ]
     refresh_drape_target(target)
     doc.recompute()
