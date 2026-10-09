@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from math import ceil, hypot, isclose, isfinite
 
+from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
 
 
@@ -62,6 +63,10 @@ def triangulate(
     semantic seam edge indices remain stable while Triangle adds interior
     vertices where needed.
     """
+    options_input = TriangulationOptions.model_validate(
+        {"curve_samples": curve_samples, "max_area": max_area}
+    )
+    curve_samples, max_area = options_input.curve_samples, options_input.max_area
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
@@ -81,11 +86,6 @@ def triangulate(
         # authored edge can contain several internal sub-segments, so a fixed
         # one-slot rotation is not a valid semantic mapping.
         edge_ids = _edge_segment_ids(pattern, points)
-
-    if max_area is not None:
-        max_area = float(max_area)
-        if max_area <= 0.0:
-            raise ValueError("max_area must be positive")
 
     try:
         import numpy as np
@@ -115,18 +115,18 @@ def triangulate(
             "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
 
-    {(_quantize(x), _quantize(y)): i for i, (x, y) in enumerate(points)}
+    output_index_by_coordinate: dict[tuple[int, int], int] = {}
+    for index, vertex in enumerate(result_vertices):
+        key = (_quantize(float(vertex[0])), _quantize(float(vertex[1])))
+        output_index_by_coordinate.setdefault(key, index)
+
     boundary_indices: list[int] = []
-    for _source_index, (x, y) in enumerate(points):
+    for x, y in points:
         key = (_quantize(x), _quantize(y))
-        matches = [
-            i
-            for i, vertex in enumerate(result_vertices.tolist())
-            if (_quantize(vertex[0]), _quantize(vertex[1])) == key
-        ]
-        if not matches:
+        index = output_index_by_coordinate.get(key)
+        if index is None:
             raise ValueError("Triangle dropped an authored boundary vertex")
-        boundary_indices.append(matches[0])
+        boundary_indices.append(index)
 
     triangles: list[tuple[int, int, int]] = []
     for raw in result_triangles.tolist():
