@@ -150,6 +150,9 @@ def test_canonical_tunic_surface_mapping_uses_the_quality_mesh_and_authoritative
     assert "sync_seam_provenance(base_proxy_getter())" in source
     assert "canonical tunic surface mapping leaves" in source
     assert "simulation_objects._piece_mesh = tunic_initial_surface_mesh" not in source
+    assert "points_inside_closed_mesh(" in source
+    assert '"clearance-correction"' in source
+    assert '"inside-correction"' in source
 
 
 def test_canonical_tunic_source_rewrite_compiles():
