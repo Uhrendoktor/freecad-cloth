@@ -453,7 +453,6 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/maintenance_cleanup.py
-
   artifact-budget:
     name: Accumulated artifact budget
     if: ${{ always() }}
