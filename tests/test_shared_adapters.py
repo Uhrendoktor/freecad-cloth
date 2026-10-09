@@ -9,8 +9,8 @@ from freecad_cloth.shared.SourceSignature import source_signature
 from freecad_cloth.shared.seam_colors import (
     apply_seam_colors,
     register_seam_refresh_callback,
-    seam_color_map,
     seam_color_highlighting_enabled,
+    seam_color_map,
     set_seam_color_highlighting_enabled,
 )
 
