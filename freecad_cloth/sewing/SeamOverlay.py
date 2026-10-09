@@ -216,7 +216,7 @@ def _add_label(
     color.rgb = tuple(float(channel) for channel in rgb)
     transform = coin.SoTransform()
     x, y, z = _xyz(point)
-    transform.translation.setValue(coin.SbVec3f(x, y, z + 1.2))
+    # Keep the label on the sampled point: a positive Z lift can push text\n    # through the top-view camera's near clip plane in the Pattern workbench.\n    transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
     font.size.setValue(12.0)
     text = coin.SoText2()
