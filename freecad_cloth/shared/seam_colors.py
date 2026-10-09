@@ -1,12 +1,21 @@
 """Neutral deterministic seam presentation helpers."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from colorsys import hsv_to_rgb
 from hashlib import sha512
 
 _SEAM_COLOR_SATURATION = 0.78
 _SEAM_COLOR_VALUE = 0.92
 _SEAM_COLOR_HASH_SCALE = float(1 << 64)
+_SEAM_REFRESH_CALLBACK: Callable[[object | None], None] | None = None
+
+
+def register_seam_refresh_callback(
+    callback: Callable[[object | None], None] | None,
+) -> None:
+    """Register an optional GUI-layer refresh without reversing module dependencies."""
+    global _SEAM_REFRESH_CALLBACK
+    _SEAM_REFRESH_CALLBACK = callback
 
 
 def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
@@ -38,10 +47,8 @@ def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float
         color = colors.get(str(getattr(obj, "SeamId", "")))
         if view is not None and color is not None:
             view.LineColor = color
-    if seam_objects:
+    if seam_objects and _SEAM_REFRESH_CALLBACK is not None:
         document = getattr(seam_objects[0], "Document", None)
         if document is not None:
-            from freecad_cloth.sewing.SeamOverlay import schedule_seam_overlay_refresh
-
-            schedule_seam_overlay_refresh(document)
+            _SEAM_REFRESH_CALLBACK(document)
     return colors
