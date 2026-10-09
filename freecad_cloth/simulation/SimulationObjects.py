@@ -639,14 +639,28 @@ class SimulationProxy:
                 target.particle_index: target.projection_direction
                 for target in attachment_targets
             }
-            _projected_positions, projections = project_avatar_attachments(
-                positions,
-                pins,
-                collision_surface,
-                float(getattr(obj, "AttachmentOffset", 3.0)),
-                target_points=target_points,
-                projection_directions=projection_directions,
-            )
+            try:
+                _projected_positions, projections = project_avatar_attachments(
+                    positions,
+                    pins,
+                    collision_surface,
+                    float(getattr(obj, "AttachmentOffset", 3.0)),
+                    target_points=target_points,
+                    projection_directions=projection_directions,
+                )
+            except ValueError as exc:
+                resolved_anchors = ", ".join(
+                    "{}:{}|{}|{}".format(
+                        target.particle_index,
+                        target.piece_id,
+                        target.edge_id,
+                        target.landmark_name,
+                    )
+                    for target in attachment_targets
+                )
+                raise ValueError(
+                    "{}; resolved semantic anchors=[{}]".format(exc, resolved_anchors)
+                ) from exc
             # Structural rest lengths above reflect authored cloth. Move anchor particles
             # only afterward, then lock them to their projected avatar-surface positions.
             for projection in projections:
