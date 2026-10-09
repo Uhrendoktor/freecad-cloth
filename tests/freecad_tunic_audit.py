@@ -59,8 +59,8 @@ replacements = {
     initial_parameters = _parameters(avatar)
     near_t_pose = _replace_dataclass(
         initial_parameters.pose,
-        left_arm_angle=0.0,
-        right_arm_angle=0.0,
+        left_arm_angle=90.0,
+        right_arm_angle=90.0,
         left_elbow_angle=0.0,
         right_elbow_angle=0.0,
         joint_rotations=(),
@@ -71,13 +71,29 @@ replacements = {
     )
     refresh_drape_target(target)
     doc.recompute()
-    log("tunic-avatar-pose=near-t left_arm_angle=0 right_arm_angle=0 joint_overrides=cleared")
+    log("tunic-avatar-pose=near-t left_arm_angle=90 right_arm_angle=90 joint_overrides=cleared")
     pre_status = target_status(target)""",
     LANDMARK_SOURCE: """    shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
-    wrist_left = arrangement_world("wrist_left")
-    wrist_right = arrangement_world("wrist_right")
+    def landmark_world(name):
+        raw = next(
+            (
+                value
+                for value in getattr(avatar, "Landmarks", ())
+                if str(value).split("|", 1)[0] == name
+            ),
+            None,
+        )
+        if raw is None:
+            raise RuntimeError("posed avatar mesh is missing FK landmark %s" % name)
+        coordinates = tuple(float(value) for value in str(raw).split("|", 1)[1].split(","))
+        if len(coordinates) != 3:
+            raise RuntimeError("posed avatar FK landmark %s has invalid coordinates" % name)
+        return avatar.Placement.multVec(App.Vector(*coordinates))
+
+    wrist_left = landmark_world("wrist_left")
+    wrist_right = landmark_world("wrist_right")
     left_span = abs(float(wrist_left.x) - float(shoulder_left.x))
     right_span = abs(float(wrist_right.x) - float(shoulder_right.x))
     left_vertical = abs(float(wrist_left.z) - float(shoulder_left.z))
