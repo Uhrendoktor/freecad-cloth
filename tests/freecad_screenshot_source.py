@@ -1391,44 +1391,101 @@ def simulation():
             inside_flags = _inside_target_states(
                 tuple(mapped), avatar, target_surface
             )
-        remaining_inside = _inside_target_states(
-            tuple(mapped), avatar, target_surface
-        )
-        remaining_indices = [
-            index for index, inside in enumerate(remaining_inside) if inside
-        ]
-        if remaining_indices:
+        # The inside correction above can shift a point near a concavity close to
+        # a neighboring part of the target mesh. Recheck both invariants together and
+        # correct any remaining point against the nearest surface, not just its facet
+        # normal. The final gate remains fail-closed after eight bounded passes.
+        final_distances = ()
+        final_target_indices = ()
+        final_inside_flags = ()
+        for correction_pass in range(8):
+            final_distances, final_target_indices = target_vertex_tree.query(
+                tuple(mapped), k=1, eps=0.0, workers=1
+            )
+            final_inside_flags = _inside_target_states(
+                tuple(mapped), avatar, target_surface
+            )
+            residual_indices = [
+                index
+                for index, distance in enumerate(final_distances)
+                if final_inside_flags[index]
+                or float(distance) < outward_offset - 1e-3
+            ]
             log(
-                "tunic-initial-inside-residual sample=%s"
-                % tuple(
-                    (
-                        int(index),
-                        tuple(round(float(value), 2) for value in mapped[index]),
-                    )
-                    for index in remaining_indices[:12]
+                "tunic-initial-final-clearance-pass=%d residual=%d inside=%d min-mm=%.2f"
+                % (
+                    correction_pass + 1,
+                    len(residual_indices),
+                    sum(1 for inside in final_inside_flags if inside),
+                    min(float(value) for value in final_distances),
                 )
             )
-            raise RuntimeError(
-                "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target"
-                % len(remaining_indices)
-            )
+            if not residual_indices:
+                break
+            fit_counts["clearance-correction"] += len(residual_indices)
+            for index in residual_indices:
+                point = tuple(float(value) for value in mapped[index])
+                _surface_distance, triangle_index, closest = _nearest_surface_point(
+                    point,
+                    target_surface.vertices,
+                    target_surface.triangles,
+                )
+                if final_inside_flags[index]:
+                    correction_vector = tuple(
+                        float(closest[axis]) - float(point[axis])
+                        for axis in range(3)
+                    )
+                else:
+                    correction_vector = tuple(
+                        float(point[axis]) - float(closest[axis])
+                        for axis in range(3)
+                    )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    corrected = _fit_surface_point(closest, triangle_index)
+                else:
+                    corrected = tuple(
+                        float(closest[axis])
+                        + outward_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                mapped[index] = tuple(float(value) for value in corrected)
 
         final_distances, final_target_indices = target_vertex_tree.query(
             tuple(mapped), k=1, eps=0.0, workers=1
+        )
+        final_inside_flags = _inside_target_states(
+            tuple(mapped), avatar, target_surface
         )
         minimum_vertex_clearance = min(float(value) for value in final_distances)
         log(
             "tunic-initial-min-vertex-clearance-mm=%.2f required-offset-mm=%.2f points=%d"
             % (minimum_vertex_clearance, outward_offset, len(mapped))
         )
+        remaining_indices = [
+            index for index, inside in enumerate(final_inside_flags) if inside
+        ]
         clearance_residuals = [
             index for index, distance in enumerate(final_distances)
             if float(distance) < outward_offset - 1e-3
         ]
+        if remaining_indices:
+            log(
+                "tunic-initial-inside-residual sample=%s"
+                % (tuple(
+                    (
+                        int(index),
+                        tuple(round(float(value), 2) for value in mapped[index]),
+                    )
+                    for index in remaining_indices[:12]
+                ),)
+            )
         if clearance_residuals:
             log(
                 "tunic-initial-clearance-residual sample=%s"
-                % tuple(
+                % (tuple(
                     (
                         int(index),
                         round(float(final_distances[index]), 2),
@@ -1436,12 +1493,18 @@ def simulation():
                         tuple(round(float(value), 2) for value in mapped[index]),
                     )
                     for index in clearance_residuals[:12]
-                )
+                ),)
             )
+        if remaining_indices or clearance_residuals:
             raise RuntimeError(
-                "canonical tunic surface mapping leaves %d cloth vertices below configured outward offset: "
-                "%.2f mm < %.2f mm"
-                % (len(clearance_residuals), minimum_vertex_clearance, outward_offset)
+                "canonical tunic surface mapping failed final outside/clearance gate: "
+                "inside=%d clearance=%d min=%.2f mm required=%.2f mm"
+                % (
+                    len(remaining_indices),
+                    len(clearance_residuals),
+                    minimum_vertex_clearance,
+                    outward_offset,
+                )
             )
         return tuple(mapped), triangles, boundary_edges
 

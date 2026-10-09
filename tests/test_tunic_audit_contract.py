@@ -157,6 +157,9 @@ def test_canonical_tunic_surface_mapping_uses_the_quality_mesh_and_authoritative
     assert "correction_vector = tuple(" in source
     assert "tunic-initial-min-vertex-clearance-mm=" in source
     assert "below configured outward offset" in source
+    assert "tunic-initial-final-clearance-pass=%d residual=%d inside=%d min-mm=%.2f" in source
+    assert "failed final outside/clearance gate" in source
+    assert '"tunic-initial-clearance-residual sample=%s"' in source
     assert "anchor_edge_ids = set()" in source
     assert "missing_anchor_ids" in source
     assert '"anchor-surface"' in source
