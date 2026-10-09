@@ -59,3 +59,17 @@ The canonical workflow also exercises the sewn garment through the visual tunic 
 Implementation is concentrated under `freecad_cloth/sewing/`. The package boundary is the durable source map; individual compatibility modules should not be treated as public API.
 
 See [Architecture](../ARCHITECTURE.md) for semantic ownership and dependency direction.
+
+## Viewport-first picking and seam identity
+
+You can create a pair without preselecting edges in the tree or relying on tiny subelement clicks:
+
+1. Start **Create Seam**, then choose **Pick edges in viewport**.
+2. Click the first outline edge. The panel names side A; then click the matching edge on a different PatternPiece.
+3. Review the preview before committing. Both sides carry the same seam color and stable A/B labels (for example, S3-A and S3-B); directional arrows and notches expose traversal/reversal. Cancel removes the staged relationship.
+
+For a network/free-sewing relationship, pick all desired edges, stop viewport picking, then press Preview. Native selection remains available as a precision/fallback workflow. The preview and persisted object use the same semantic edge-reference model; viewport interaction does not create a second geometry authority.
+
+The colored paths and A/B tags are transient viewport overlays, not document objects. They are regenerated from valid semantic seam references after recompute, document restore, view entry, and workbench activation. The object's SeamId remains canonical; colors and short labels are only presentation. Invalid or stale edge references are deliberately not drawn as valid seams.
+
+When reviewing a crowded scene, verify the seam ID and side suffix as well as color. Color alone is not a sufficient identity cue, and directional marks should agree before Commit.
