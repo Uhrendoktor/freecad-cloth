@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import isfinite
+from math import dist, isfinite
+
+from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -29,16 +31,11 @@ class MeshValidationResult:
     degenerate_faces: int
 
 
-def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> None:
-    count = len(vertices)
-    for vertex in vertices:
-        if len(vertex) != 3 or not all(isfinite(float(value)) for value in vertex):
-            raise ValueError("mesh vertices must be finite 3D points")
-    for triangle in triangles:
-        if len(triangle) != 3:
-            raise ValueError("mesh triangles must contain exactly three indices")
-        if any(int(index) < 0 or int(index) >= count for index in triangle):
-            raise ValueError("mesh triangle index is out of range")
+def _validate_arrays(
+    vertices: Sequence[Point3], triangles: Sequence[Triangle]
+) -> MeshArrays:
+    """Validate mesh coordinates and connectivity with one schema boundary."""
+    return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
 
 def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
@@ -93,8 +90,9 @@ def validate_mesh(
     ``trimesh`` is imported lazily and remains optional. A deterministic
     Python fallback keeps the validator useful in the core test environment.
     """
-    _validate_arrays(vertices, triangles)
-    degenerate = sum(1 for a, b, c in triangles if len({int(a), int(b), int(c)}) < 3)
+    validated = _validate_arrays(vertices, triangles)
+    vertices, triangles = validated.vertices, validated.triangles
+    degenerate = sum(1 for a, b, c in triangles if len({a, b, c}) < 3)
 
     if prefer_trimesh:
         try:
@@ -143,16 +141,12 @@ def nearest_target_clearance(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
 ) -> float:
-    """Return minimum garment-to-target vertex distance."""
-    if not garment_vertices or not target_vertices:
+    """Return minimum Euclidean distance between validated 3D vertices."""
+    garment = validate_points3d(garment_vertices)
+    target = validate_points3d(target_vertices)
+    if not garment or not target:
         raise ValueError("garment and target vertices are required")
-    best = float("inf")
-    for source in garment_vertices:
-        for target in target_vertices:
-            distance = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
-            if distance < best:
-                best = distance
-    return best**0.5
+    return min(dist(source, candidate) for source in garment for candidate in target)
 
 
 def nearest_surface_clearance(
@@ -161,9 +155,13 @@ def nearest_surface_clearance(
     target_triangles: Sequence[Triangle],
 ) -> float:
     """Return minimum point-to-surface distance using trimesh when available."""
-    _validate_arrays(target_vertices, target_triangles)
+    validated = _validate_arrays(target_vertices, target_triangles)
+    garment_vertices = validate_points3d(garment_vertices)
+    target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
         raise ValueError("garment vertices are required")
+    if not target_triangles:
+        raise ValueError("target triangles are required")
     try:
         import numpy as np
         import trimesh
