@@ -9,8 +9,9 @@ workbench's semantic boundary/provenance contract.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from importlib import import_module
 from math import ceil, hypot, isclose, isfinite
+
+from shapely.geometry import LineString
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
@@ -273,46 +274,7 @@ def _cross(a: Point, b: Point, c: Point) -> float:
 
 
 def _self_intersects(points: Sequence[Point]) -> bool:
-    """Return whether a polygon outline self-intersects.
-
-    Shapely/GEOS provides a fast simplicity predicate for larger outlines. A
-    simple result is a safe fast path; when GEOS reports any possible intersection,
-    the original tolerance-aware segment predicate remains authoritative.
-    Shapely is optional and imported only at the point of use.
-    """
-    if len(points) >= 32:
-        try:
-            geometry = import_module("shapely.geometry")
-        except ImportError:
-            pass
-        else:
-            line_string_type = getattr(geometry, "LineString", None)
-            if line_string_type is not None:
-                try:
-                    is_simple = bool(line_string_type([*points, points[0]]).is_simple)
-                except Exception:
-                    # GEOS can decline pathological finite coordinates; then
-                    # use the application-defined Python predicate below.
-                    is_simple = False
-                if is_simple:
-                    return False
-    return _self_intersects_python(points)
-
-
-def _self_intersects_python(points: Sequence[Point]) -> bool:
-    """Reference implementation preserving the existing intersection tolerance."""
-    n = len(points)
-    for i in range(n):
-        a, b = points[i], points[(i + 1) % n]
-        for j in range(i + 1, n):
-            if j in (i, (i + 1) % n, (i - 1) % n):
-                continue
-            c, d = points[j], points[(j + 1) % n]
-            if _segments_intersect(a, b, c, d):
-                return True
-    return False
-
-def _segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool:
-    ab1, ab2 = _cross(a, b, c), _cross(a, b, d)
-    cd1, cd2 = _cross(c, d, a), _cross(c, d, b)
-    return ab1 * ab2 < -1e-10 and cd1 * cd2 < -1e-10
+    """Return whether a closed polygon boundary crosses itself using GEOS."""
+    if len(points) < 3:
+        return False
+    return not LineString([*points, points[0]]).is_simple
