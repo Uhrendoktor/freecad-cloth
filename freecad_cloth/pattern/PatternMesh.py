@@ -34,6 +34,13 @@ class TriangleMesh:
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
+        if any(index < 0 or index >= n for index in self.boundary_vertex_indices):
+            raise ValueError("invalid boundary vertex index")
+        if any(
+            len(point) != 2 or not all(isfinite(coordinate) for coordinate in point)
+            for point in self.vertices
+        ):
+            raise ValueError("mesh coordinates must be finite 2D points")
         if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(
             self.boundary_vertex_indices
         ):
