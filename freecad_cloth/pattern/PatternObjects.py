@@ -306,6 +306,9 @@ class SeamProxy:
         document = getattr(obj, "Document", None)
         if document is not None:
             apply_seam_colors(getattr(document, "Objects", ()))
+            from freecad_cloth.sewing.SeamOverlay import schedule_seam_overlay_refresh
+
+            schedule_seam_overlay_refresh(document)
         piece_a = getattr(obj, "PatternA", None)
         piece_b = getattr(obj, "PatternB", None)
         if piece_a is None or piece_b is None:
@@ -358,6 +361,9 @@ class SeamProxy:
         if document is None:
             return
         apply_seam_colors(getattr(document, "Objects", ()))
+        from freecad_cloth.sewing.SeamOverlay import schedule_seam_overlay_refresh
+
+        schedule_seam_overlay_refresh(document)
 
 
 def add_seam(doc, seam: Seam):
@@ -366,7 +372,7 @@ def add_seam(doc, seam: Seam):
     piece_a = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_a), None)
     piece_b = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_b), None)
     obj = doc.addObject("Part::FeaturePython", "Seam")
-    obj.Label = f"{seam.piece_a}:edge:{seam.edge_a} ↔ {seam.piece_b}:edge:{seam.edge_b}"
+    obj.Label = f"[{seam.id}] {seam.piece_a}:edge:{seam.edge_a} ↔ {seam.piece_b}:edge:{seam.edge_b}"
     obj.addProperty("App::PropertyString", "SeamId", "Seam").SeamId = seam.id
     obj.addProperty("App::PropertyString", "PieceA", "Seam").PieceA = seam.piece_a
     obj.addProperty("App::PropertyString", "EdgeAId", "Seam").EdgeAId = ""
