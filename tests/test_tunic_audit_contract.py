@@ -8,16 +8,19 @@ ROOT = Path(__file__).resolve().parents[1]
 # and side edges must be paired by semantic position, not cross-paired.
 
 
-def test_tunic_penetration_audit_prefers_native_mesh_and_batch_evidence():
+def test_tunic_penetration_audit_logs_topology_and_reuses_batch_evidence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "def _native_mesh_inside_states(points, vertices, triangles):" in source
-    inside_count = source.split("def _inside_target_count(", 1)[1].split(
+    assert "def _inside_target_states(points, target, collision_surface=None):" in source
+    inside_states = source.split("def _inside_target_states(", 1)[1].split(
         "def write_drape_metrics(", 1
     )[0]
-    assert "_native_mesh_inside_states(points, vertices, triangles)" in inside_count
-    assert "penetration-check=FreeCAD-Mesh.isInside" in inside_count
+    assert "penetration-target-topology watertight=%s" in inside_states
+    assert "penetration-trimesh-contains-fallback reason=target-not-watertight" in inside_states
+    assert "penetration-check=numpy-ray-parity points=%d triangles=%d" in inside_states
+    assert "def _native_mesh_inside_states(" not in source
     metrics = source.split("def write_drape_metrics(", 1)[1]
-    assert "_native_mesh_inside_states(" in metrics
+    assert "inside_flags = _inside_target_states(vertices, avatar, collision_surface)" in metrics
+    assert "for point, authoritative_inside in zip(vertices, inside_flags, strict=False):" in metrics
     assert "point_inside_closed_mesh(point_tuple" not in metrics
     assert "if len(inside_points) >= 12:" in metrics
 
