@@ -1,9 +1,11 @@
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
+from typing import Any
+
 _PREVIEW = None
 
 
-def _qt():
+def _qt() -> Any:
     try:
         from PySide import QtCore
     except ImportError:
@@ -11,7 +13,7 @@ def _qt():
     return QtCore
 
 
-def _scene():
+def _scene() -> Any | None:
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -28,7 +30,7 @@ def _scene():
     )
 
 
-def _prepare(scene):
+def _prepare(scene: Any) -> None:
     from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
     ensure_quality_properties(scene)
@@ -54,7 +56,7 @@ def _prepare(scene):
 class _Preview:
     """Own the interactive timer and restore the user's simulation quality settings."""
 
-    def __init__(self, scene):
+    def __init__(self, scene: Any) -> None:
         QtCore = _qt()
         self.scene = scene
         self.timer = QtCore.QTimer()
@@ -62,6 +64,7 @@ class _Preview:
         self.timer.setInterval(16)
         self.timer.timeout.connect(self.tick)
         self.running = False
+        self._overlay_refresh_ticks = 0
         self._saved = {
             name: getattr(scene, name)
             for name in (
@@ -108,6 +111,11 @@ class _Preview:
             if proxy is None or not hasattr(proxy, "advance_preview_frame"):
                 raise RuntimeError("Realtime Cloth Preview requires the recompute-free simulation path")
             proxy.advance_preview_frame(self.scene)
+            self._overlay_refresh_ticks += 1
+            if self._overlay_refresh_ticks % 2 == 0:
+                from freecad_cloth.sewing.SeamOverlay import schedule_seam_overlay_refresh
+
+                schedule_seam_overlay_refresh(doc)
             import FreeCADGui as Gui
 
             if Gui.activeDocument():
@@ -160,13 +168,13 @@ def register_gui_command() -> None:
         return
 
     class _Command:
-        def Activated(self):
+        def Activated(self) -> None:
             toggle_realtime_preview()
 
-        def IsActive(self):
+        def IsActive(self) -> bool:
             return _scene() is not None
 
-        def GetResources(self):
+        def GetResources(self) -> dict[str, str]:
             return {
                 "MenuText": "Realtime Cloth Preview",
                 "ToolTip": "Play/pause a coarse cloth simulation in the FreeCAD viewport",
