@@ -8,6 +8,20 @@ ROOT = Path(__file__).resolve().parents[1]
 # and side edges must be paired by semantic position, not cross-paired.
 
 
+def test_tunic_penetration_audit_prefers_native_mesh_and_batch_evidence():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "def _native_mesh_inside_states(points, vertices, triangles):" in source
+    inside_count = source.split("def _inside_target_count(", 1)[1].split(
+        "def write_drape_metrics(", 1
+    )[0]
+    assert "_native_mesh_inside_states(points, vertices, triangles)" in inside_count
+    assert "penetration-check=FreeCAD-Mesh.isInside" in inside_count
+    metrics = source.split("def write_drape_metrics(", 1)[1]
+    assert "_native_mesh_inside_states(" in metrics
+    assert "point_inside_closed_mesh(point_tuple" not in metrics
+    assert "if len(inside_points) >= 12:" in metrics
+
+
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert (
