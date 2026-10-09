@@ -149,7 +149,7 @@ def seam_color_snapshot(seams):
     return actual
 
 
-def assert_seam_overlay(document, expected_ids):
+def assert_seam_overlay(document, expected_ids, hovered_seam_id=None):
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
     controller = refresh_seam_overlay(document)
@@ -165,7 +165,10 @@ def assert_seam_overlay(document, expected_ids):
     )
     assert controller.root.getNumChildren() > 1, "viewport overlay contains no seam geometry"
 
-    target = sorted(expected_ids)[0]
+    target = str(hovered_seam_id or "").strip() or sorted(expected_ids)[0]
+    assert target in set(expected_ids), (
+        "requested hover label must belong to the visible semantic seam IDs"
+    )
     try:
         workbench_name = str(Gui.activeWorkbench().name()).lower()
     except (AttributeError, RuntimeError, TypeError):
@@ -200,9 +203,9 @@ def assert_seam_overlay(document, expected_ids):
     return controller
 
 
-def save_seam_overlay_evidence(document, expected_ids, filename):
+def save_seam_overlay_evidence(document, expected_ids, filename, hovered_seam_id=None):
     """Capture a view only after its transient Coin overlay passes semantic checks."""
-    controller = assert_seam_overlay(document, expected_ids)
+    controller = assert_seam_overlay(document, expected_ids, hovered_seam_id)
     active_document = Gui.activeDocument()
     view = active_document.activeView() if active_document is not None else None
     assert view is not None, "active FreeCAD view is unavailable for seam evidence"
@@ -851,11 +854,19 @@ try:
     record("seam-colors-3d-focus=passed")
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 3
+    focus_view = Gui.activeDocument().activeView()
+    focus_camera_height = float(focus_view.getCameraNode().height.getValue())
+    assert focus_camera_height >= 100.0, (
+        "Focus Seam in 3D cropped the paired pattern-edge context: "
+        f"camera_height={focus_camera_height:.3f}"
+    )
+    record(f"seam-focus-camera-framing=passed height={focus_camera_height:.3f}")
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
     overlay = save_seam_overlay_evidence(
         doc,
         [str(seam.SeamId) for seam in curved_network.Seams],
         "seam-overlay-sewing-3d.png",
+        hovered_seam_id=str(visual_seam.SeamId),
     )
     assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
     record("seam-viewport-overlay-sewing-3d=passed labels=paired-A-B")
