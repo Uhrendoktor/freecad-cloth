@@ -17,7 +17,6 @@ import FreeCADGui as Gui
 from tests.support.freecad_input import (
     UiGifRecorder,
     click_widget,
-    focus_main_window,
     type_text,
     wait_until,
 )
