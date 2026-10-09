@@ -606,8 +606,11 @@ try:
     )
     assert seam_color_snapshot(pattern_network.Seams) == baseline_seam_colors
     record("seam-colors-pattern-2d=passed")
-    Gui.activateWorkbench("ClothSewingWorkbench")
+    Gui.activateWorkbench("Cloth Sewing")
     process_events()
+    assert Gui.activeWorkbench() == "Cloth Sewing", (
+        "seam overlay acceptance requires the Cloth Sewing workbench to be active"
+    )
     endpoint_snapshot = tuple(
         sorted(
             (
