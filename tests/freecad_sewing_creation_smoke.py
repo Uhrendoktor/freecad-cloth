@@ -138,6 +138,21 @@ def seam_color_snapshot(seams):
     return actual
 
 
+def assert_seam_overlay(document, expected_ids):
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    controller = refresh_seam_overlay(document)
+    assert controller is not None, "semantic seam overlay was not attached to the active viewport"
+    assert controller.root is not None, "semantic seam overlay has no Coin root"
+    rendered = set(controller.rendered_seam_ids)
+    assert set(expected_ids) <= rendered, (
+        "visible valid semantic seams missing from viewport overlay: "
+        f"expected={sorted(expected_ids)!r} rendered={sorted(rendered)!r}"
+    )
+    assert controller.root.getNumChildren() > 1, "viewport overlay contains no seam geometry"
+    return controller
+
+
 def wait_for_task_close():
     try:
         from PySide import QtCore, QtWidgets
@@ -605,6 +620,9 @@ try:
     assert not visual_seam.Shape.isNull()
     assert len(visual_seam.Shape.Edges) >= 3
     record("seam-visual-3d=passed edges=%d" % len(visual_seam.Shape.Edges))
+    overlay = assert_seam_overlay(doc, [str(seam.SeamId) for seam in curved_network.Seams])
+    assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
+    record("seam-viewport-overlay-3d=passed labels=paired-A-B")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)
     Gui.runCommand("ClothSewing_Show2D", 0)
@@ -612,6 +630,8 @@ try:
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-sewing-2d=passed")
     record("seam-visual-2d=passed top-view=true")
+    assert_seam_overlay(doc, [str(seam.SeamId) for seam in curved_network.Seams])
+    record("seam-viewport-overlay-2d=passed")
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
