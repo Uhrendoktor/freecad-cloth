@@ -1,4 +1,5 @@
 from freecad_cloth.common.MeshValidation import (
+    _nearest_target_clearance_bruteforce,
     nearest_surface_clearance,
     nearest_target_clearance,
     validate_mesh,
@@ -61,6 +62,16 @@ def test_validation_rejects_bad_indices():
 
 def test_vertex_clearance_is_translation_sensitive():
     _approx(nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)), 2.0)
+
+
+def test_large_vertex_clearance_matches_scalar_reference():
+    """Large-input spatial queries preserve the scalar minimum-distance result."""
+    garment = tuple((float(index), 5.0, 0.0) for index in range(48))
+    target = tuple((float(index), 0.0, 0.0) for index in range(48))
+    actual = nearest_target_clearance(garment, target)
+    expected = _nearest_target_clearance_bruteforce(garment, target)
+    _approx(actual, 5.0)
+    _approx(actual, expected)
 
 
 def test_trimesh_surface_clearance_is_optional():
