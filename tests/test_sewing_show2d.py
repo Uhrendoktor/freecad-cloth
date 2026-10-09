@@ -5,7 +5,12 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SeamOverlay import _simulation_seam_geometry, _side_segments, seam_display_labels
+from freecad_cloth.sewing.SeamOverlay import (
+    _label_anchor,
+    _simulation_seam_geometry,
+    _side_segments,
+    seam_display_labels,
+)
 from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
     apply_seam_colors,
@@ -13,6 +18,14 @@ from freecad_cloth.sewing.SewingView import (
     seam_color_map,
     seam_visual_markers,
 )
+
+
+def test_seam_overlay_label_anchor_offsets_from_edge_without_changing_depth():
+    horizontal = ((0.0, 0.0, 2.0), (10.0, 0.0, 2.0), (20.0, 0.0, 2.0))
+    assert _label_anchor(horizontal, 1, offset=14.0) == (10.0, 14.0, 2.0)
+
+    vertical = ((0.0, 0.0, 2.0), (0.0, 10.0, 2.0), (0.0, 20.0, 2.0))
+    assert _label_anchor(vertical, 1, offset=14.0) == (-14.0, 10.0, 2.0)
 
 
 def test_2d_focus_includes_only_authoritative_pattern_pieces_in_document_order():

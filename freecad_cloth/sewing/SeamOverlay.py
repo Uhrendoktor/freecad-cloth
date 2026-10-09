@@ -81,6 +81,27 @@ def _xyz(point: object) -> tuple[float, float, float]:
     return float(value[0]), float(value[1]), float(value[2])
 
 
+def _label_anchor(
+    points: Iterable[object],
+    index: int,
+    offset: float = 14.0,
+) -> tuple[float, float, float]:
+    """Offset a label in the pattern plane so it does not sit on its seam edge."""
+    coordinates = [_xyz(point) for point in points]
+    if not coordinates:
+        raise ValueError("label anchor requires at least one point")
+    center_index = max(0, min(int(index), len(coordinates) - 1))
+    point = coordinates[center_index]
+    before = coordinates[max(0, center_index - 1)]
+    after = coordinates[min(len(coordinates) - 1, center_index + 1)]
+    dx = after[0] - before[0]
+    dy = after[1] - before[1]
+    length = (dx * dx + dy * dy) ** 0.5
+    if length <= 1e-9:
+        return point
+    return (point[0] - dy / length * float(offset), point[1] + dx / length * float(offset), point[2])
+
+
 def _subtract(
     a: tuple[float, float, float], b: tuple[float, float, float]
 ) -> tuple[float, float, float]:
@@ -216,9 +237,10 @@ def _add_label(
     color.rgb = tuple(float(channel) for channel in rgb)
     transform = coin.SoTransform()
     x, y, z = _xyz(point)
-    # Keep the label on the sampled point: a positive Z lift can push text\n    # through the top-view camera's near clip plane in the Pattern workbench.\n    transform.translation.setValue(coin.SbVec3f(x, y, z))
+    # Keep labels at the sampled depth to avoid top-view camera near clipping.
+    transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
-    font.size.setValue(12.0)
+    font.size.setValue(18.0)
     text = coin.SoText2()
     text.string.setValue(str(label))
     annotation.addChild(depth)
@@ -403,8 +425,8 @@ class SeamOverlayController:
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
                 _add_line_groups(side_group, coin, connectors, color, 1.25)
-                label_a = points_a[len(points_a) // 3]
-                label_b = points_b[(len(points_b) * 2) // 3]
+                label_a = _label_anchor(points_a, len(points_a) // 3)
+                label_b = _label_anchor(points_b, (len(points_b) * 2) // 3)
                 _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
                 _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
                 self.root.addChild(side_group)
@@ -442,8 +464,8 @@ class SeamOverlayController:
             side_group = coin.SoSeparator()
             _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
             _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
-            label_a = _xyz(points_a[len(points_a) // 3])
-            label_b = _xyz(points_b[(len(points_b) * 2) // 3])
+            label_a = _label_anchor(points_a, len(points_a) // 3)
+            label_b = _label_anchor(points_b, (len(points_b) * 2) // 3)
             _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
             _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
             self.root.addChild(side_group)
