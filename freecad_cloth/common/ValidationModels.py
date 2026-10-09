@@ -185,6 +185,85 @@ class CorrespondenceAnalysisInput(InputModel):
         return self
 
 
+class ParticleInput(InputModel):
+    """Finite solver particle state with a non-negative inverse mass."""
+
+    x: FiniteNumber
+    y: FiniteNumber
+    z: FiniteNumber
+    inv_mass: FiniteNumber = 1.0
+
+    @model_validator(mode="after")
+    def inverse_mass_is_nonnegative(self) -> ParticleInput:
+        """Reject a negative inverse mass."""
+        if self.inv_mass < 0.0:
+            raise ValueError("inverse mass must be non-negative")
+        return self
+
+
+class GridInput(InputModel):
+    """Validate finite rectangular solver dimensions and integer resolution."""
+
+    width: FiniteNumber
+    height: FiniteNumber
+    nx: StrictInt = Field(ge=2)
+    ny: StrictInt = Field(ge=2)
+    origin: Point3D = (0.0, 0.0, 0.0)
+
+    @model_validator(mode="after")
+    def dimensions_are_positive(self) -> GridInput:
+        """Require positive dimensions and a finite three-dimensional origin."""
+        if self.width <= 0.0 or self.height <= 0.0:
+            raise ValueError("grid dimensions must be positive and finite")
+        return self
+
+
+class DistanceConstraintInput(InputModel):
+    """Finite distance-constraint values and exact non-negative particle indices."""
+
+    a: StrictInt = Field(ge=0)
+    b: StrictInt = Field(ge=0)
+    rest: FiniteNumber
+    compliance: FiniteNumber = 0.0
+
+    @model_validator(mode="after")
+    def physical_parameters_are_nonnegative(self) -> DistanceConstraintInput:
+        """Reject negative rest lengths or compliance."""
+        if self.rest < 0.0:
+            raise ValueError("constraint rest length must be non-negative")
+        if self.compliance < 0.0:
+            raise ValueError("constraint compliance must be non-negative")
+        return self
+
+
+class ParticlePairInput(InputModel):
+    """Two strict non-negative particle indices."""
+
+    a: StrictInt = Field(ge=0)
+    b: StrictInt = Field(ge=0)
+
+
+class ParticleIndexInput(InputModel):
+    """One strict non-negative particle index."""
+
+    index: StrictInt = Field(ge=0)
+
+
+class TransformMatrixInput(InputModel):
+    """Finite row-major 4x4 transform with a non-zero homogeneous scale."""
+
+    matrix: tuple[FiniteNumber, ...]
+
+    @model_validator(mode="after")
+    def matrix_shape_and_scale_are_valid(self) -> TransformMatrixInput:
+        """Require sixteen finite entries and a usable homogeneous scale."""
+        if len(self.matrix) != 16:
+            raise ValueError("assembly transform must contain 16 values")
+        if abs(self.matrix[15]) < 1e-12:
+            raise ValueError("assembly transform has an invalid homogeneous scale")
+        return self
+
+
 Point2DAdapter = TypeAdapter(Point2D)
 Points2DAdapter = TypeAdapter(tuple[Point2D, ...])
 Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
