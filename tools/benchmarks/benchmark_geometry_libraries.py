@@ -13,17 +13,13 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 from importlib.util import find_spec
-from math import cos, isclose, sin, tau
+from math import cos, dist, isclose, sin, tau
 from random import Random
 from time import perf_counter
 
-from freecad_cloth.common.MeshValidation import (
-    Point3,
-    _nearest_target_clearance_bruteforce,
-    nearest_target_clearance,
-)
+from freecad_cloth.common.MeshValidation import Point3, nearest_target_clearance
 from freecad_cloth.pattern.PatternGeometry import Point
-from freecad_cloth.pattern.PatternMesh import _self_intersects, _self_intersects_python
+from freecad_cloth.pattern.PatternMesh import _self_intersects
 
 
 def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
@@ -47,6 +43,28 @@ def _simple_ring(count: int) -> tuple[Point, ...]:
     )
 
 
+def _reference_clearance(garment: Sequence[Point3], target: Sequence[Point3]) -> float:
+    """Former scalar nearest-point calculation, retained only as a benchmark oracle."""
+    return min(dist(source, candidate) for source in garment for candidate in target)
+
+
+def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
+    """Former tolerance-aware segment predicate, retained only as a benchmark oracle."""
+    def cross(a: Point, b: Point, c: Point) -> float:
+        return ((b[0] - a[0]) * (c[1] - a[1])) - ((b[1] - a[1]) * (c[0] - a[0]))
+
+    for i in range(len(points)):
+        a, b = points[i], points[(i + 1) % len(points)]
+        for j in range(i + 1, len(points)):
+            if j in (i, (i + 1) % len(points), (i - 1) % len(points)):
+                continue
+            c, d = points[j], points[(j + 1) % len(points)]
+            values = (cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b))
+            if values[0] * values[1] < -1e-10 and values[2] * values[3] < -1e-10:
+                return True
+    return False
+
+
 def _time_clearance(count: int) -> None:
     """Compare optimized nearest-point query time and scalar reference time."""
     garment = _point_cloud(count, 1729, 0.0)
@@ -57,7 +75,7 @@ def _time_clearance(count: int) -> None:
     accelerated_seconds = perf_counter() - started
 
     started = perf_counter()
-    reference = _nearest_target_clearance_bruteforce(garment, target)
+    reference = _reference_clearance(garment, target)
     reference_seconds = perf_counter() - started
 
     if not isclose(accelerated, reference, rel_tol=1e-9, abs_tol=1e-9):
@@ -82,7 +100,7 @@ def _time_outline(count: int) -> None:
     accelerated_seconds = perf_counter() - started
 
     started = perf_counter()
-    reference = _self_intersects_python(points)
+    reference = _python_self_intersects_reference(points)
     reference_seconds = perf_counter() - started
 
     if accelerated != reference:
