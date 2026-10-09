@@ -906,8 +906,11 @@ def simulation():
 
     # Match the sewn shoulder endpoints on both panels. Front/back neckline shape may diverge at the center,
     # but this planar fixture represents the shared shoulder-to-neck join with identical authored coordinates.
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)
+    # Keep the neckline close to, but below, the authored shoulder line. A 0.10H drop
+    # coincided with armhole height (0.68H), causing an unsupported deep scoop.
+    # A 0.03H drop raises the canonical neckline by 39.2 mm without adding pins.
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.03)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.03)
     # Resolve sewn edges by native semantic IDs; PatternIR boundary order is independent
     # of Sketcher insertion order. Side seams run in opposite authored directions on
     # the mirrored panels, so B is reversed only for the two side seams.
