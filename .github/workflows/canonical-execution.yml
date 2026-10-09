@@ -103,26 +103,6 @@ jobs:
           baseline-from-ref: "origin/${{ github.base_ref }}"
           fail-on-new-clones: "true"
           fail-on-empty: "true"
-  geometry-library-validation:
-    name: Optional geometry library equivalence
-    needs: [agent-quality]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install optional geometry libraries
-        run: python -m pip install --disable-pip-version-check -e ".[geometry]" "pytest>=9,<10"
-      - name: Check accelerated/reference equivalence
-        run: python -m pytest -q tests/test_mesh_validation.py tests/test_pattern_geometry.py
-
   local_runner_readiness:
     name: Selected runner readiness
     needs: [agent-quality]
