@@ -13,7 +13,11 @@ from hashlib import sha1
 from typing import Any
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
-from freecad_cloth.shared.seam_colors import register_seam_refresh_callback, seam_color_map
+from freecad_cloth.shared.seam_colors import (
+    register_seam_refresh_callback,
+    seam_color_map,
+    set_seam_color_highlighting_enabled,
+)
 
 _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False
@@ -43,6 +47,7 @@ def _write_preference(name: str, value: bool) -> None:
 
 _HIGHLIGHTS_ENABLED = _read_preference("ShowSeamColorHighlights", True)
 _RESPECT_DEPTH_OCCLUSION = _read_preference("SeamOverlayRespectDepth", True)
+set_seam_color_highlighting_enabled(_HIGHLIGHTS_ENABLED)
 
 
 def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
@@ -657,6 +662,16 @@ def set_seam_highlights_enabled(enabled: bool) -> bool:
     global _HIGHLIGHTS_ENABLED
     _HIGHLIGHTS_ENABLED = bool(enabled)
     _write_preference("ShowSeamColorHighlights", _HIGHLIGHTS_ENABLED)
+    set_seam_color_highlighting_enabled(_HIGHLIGHTS_ENABLED)
+    try:
+        import FreeCAD as App
+
+        if App.ActiveDocument is not None:
+            from freecad_cloth.sewing.SewingView import apply_seam_colors
+
+            apply_seam_colors(App.ActiveDocument.Objects)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
     if not _HIGHLIGHTS_ENABLED:
         _release_controller()
     elif _OVERLAY_ENABLED:
