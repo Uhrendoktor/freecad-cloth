@@ -1,9 +1,11 @@
 """Presentation helpers for the Sewing workbench."""
 
+from typing import Any, Iterable, Sequence
+
 from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
 
 
-def _normalized_xy_direction(dx, dy):
+def _normalized_xy_direction(dx: float, dy: float) -> tuple[float, float] | None:
     """Return a unit XY direction or None for a projected-degenerate edge."""
     dx, dy = float(dx), float(dy)
     length = (dx * dx + dy * dy) ** 0.5
@@ -12,7 +14,7 @@ def _normalized_xy_direction(dx, dy):
     return dx / length, dy / length
 
 
-def pattern_pieces_for_2d(objects):
+def pattern_pieces_for_2d(objects: Iterable[Any]) -> list[Any]:
     """Return pattern pieces participating in the sewing 2D focus.
 
     The sewing view is a presentation of the authoritative pattern geometry,
@@ -22,12 +24,14 @@ def pattern_pieces_for_2d(objects):
     return [obj for obj in objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
-def seam_visual_markers(points_a, points_b):
+def seam_visual_markers(
+    points_a: Sequence[Sequence[float]], points_b: Sequence[Sequence[float]]
+) -> dict[str, Any]:
     """Return deterministic direction/notch/correspondence marker geometry data."""
     if len(points_a) != len(points_b) or len(points_a) < 2:
         raise ValueError("seam marker inputs must have equal length >= 2")
 
-    def direction(start, end):
+    def direction(start: Sequence[float], end: Sequence[float]) -> tuple[float, float]:
         dx = float(end[0]) - float(start[0])
         dy = float(end[1]) - float(start[1])
         result = _normalized_xy_direction(dx, dy)
@@ -50,7 +54,13 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
-def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
+def build_seam_visual_shape(
+    piece_a: Any,
+    piece_b: Any,
+    seam: Any,
+    sample_count: int = 5,
+    world_space: bool = False,
+) -> Any:
     """Build native presentation geometry for one semantic seam."""
     import FreeCAD as App
     import Part
@@ -85,7 +95,7 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         if placement_b is not None:
             b = [placement_b.multVec(point) for point in b]
 
-    def distinct(points, tolerance=1e-9):
+    def distinct(points: Sequence[Any], tolerance: float = 1e-9) -> list[Any]:
         result = []
         for point in points:
             if not result:
