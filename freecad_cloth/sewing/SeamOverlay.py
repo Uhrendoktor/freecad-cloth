@@ -1,0 +1,392 @@
+"""Transient viewport overlays for semantic sewing relationships.
+
+Unlike view-property color assignment, this module draws an explicit, disposable
+Coin3D overlay: both sides share a stable identity color, each side carries the
+same short seam label plus an A/B suffix, and direction/notch marks expose
+correspondence. No overlay node is persisted in the FreeCAD document.
+"""
+
+from collections import Counter
+from collections.abc import Iterable
+from hashlib import sha1
+from typing import Any
+
+from freecad_cloth.shared.seam_colors import seam_color_map
+
+_ACTIVE_CONTROLLER = None
+_REFRESH_PENDING = False
+_PENDING_DOCUMENT = None
+
+
+def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
+    """Return stable, short, unique viewport labels for semantic seam IDs."""
+    identities = sorted({str(value).strip() for value in seam_ids})
+    if any(not identity for identity in identities):
+        raise ValueError("seam identity must not be empty")
+
+    bases: dict[str, str] = {}
+    for identity in identities:
+        if identity.startswith("seam-") and identity[5:].isdigit():
+            bases[identity] = "S" + identity[5:]
+        elif len(identity) <= 8:
+            bases[identity] = identity
+        else:
+            bases[identity] = identity[:6]
+
+    counts = Counter(bases.values())
+    labels: dict[str, str] = {}
+    used: set[str] = set()
+    for identity in identities:
+        base = bases[identity]
+        if counts[base] == 1 and base not in used:
+            candidate = base
+        else:
+            digest = sha1(identity.encode("utf-8")).hexdigest()
+            candidate = base
+            for width in range(4, len(digest) + 1, 2):
+                candidate = f"{base}-{digest[:width]}"
+                if candidate not in used and candidate not in {
+                    bases[other] for other in identities if other != identity
+                }:
+                    break
+            while candidate in used:
+                candidate += "x"
+        labels[identity] = candidate
+        used.add(candidate)
+    return labels
+
+
+def _coin_modules():
+    try:
+        from pivy import coin
+    except ImportError:
+        return None
+    return coin
+
+
+def _xyz(point: object) -> tuple[float, float, float]:
+    if hasattr(point, "x"):
+        return float(point.x), float(point.y), float(point.z)
+    value = tuple(point)  # type: ignore[arg-type]
+    if len(value) != 3:
+        raise ValueError("seam overlay points must contain three coordinates")
+    return float(value[0]), float(value[1]), float(value[2])
+
+
+def _subtract(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _add(a, b):
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def _scale(vector, factor):
+    return (vector[0] * factor, vector[1] * factor, vector[2] * factor)
+
+
+def _unit(vector):
+    length = sum(float(value) * float(value) for value in vector) ** 0.5
+    if length <= 1e-9:
+        return None
+    return _scale(vector, 1.0 / length)
+
+
+def _cross(a, b):
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _side_segments(points):
+    """Produce an edge polyline plus directional arrow and notch strokes."""
+    coords = [_xyz(point) for point in points]
+    if len(coords) < 2:
+        return []
+    segments = [coords]
+    middle = len(coords) // 2
+    tangent = _unit(_subtract(coords[min(middle + 1, len(coords) - 1)], coords[max(0, middle - 1)]))
+    if tangent is None:
+        return segments
+    perpendicular = _unit(_cross(tangent, (0.0, 0.0, 1.0)))
+    if perpendicular is None:
+        perpendicular = _unit(_cross(tangent, (0.0, 1.0, 0.0)))
+    if perpendicular is None:
+        return segments
+
+    span = sum(
+        sum(value * value for value in _subtract(right, left)) ** 0.5
+        for left, right in zip(coords, coords[1:])
+    )
+    notch_half = min(4.0, max(1.5, span * 0.045))
+    notch_center = coords[middle]
+    segments.append([
+        _add(notch_center, _scale(perpendicular, -notch_half)),
+        _add(notch_center, _scale(perpendicular, notch_half)),
+    ])
+
+    arrow_index = max(1, min(len(coords) - 2, round((len(coords) - 1) * 0.68)))
+    tip = coords[arrow_index]
+    arrow_tangent = _unit(_subtract(coords[arrow_index + 1], coords[arrow_index - 1]))
+    if arrow_tangent is not None:
+        arrow_perpendicular = _unit(_cross(arrow_tangent, (0.0, 0.0, 1.0)))
+        if arrow_perpendicular is None:
+            arrow_perpendicular = perpendicular
+        arrow_length = min(5.0, max(2.0, span * 0.10))
+        wing = arrow_length * 0.56
+        base = _add(tip, _scale(arrow_tangent, -arrow_length))
+        segments.append([tip, _add(base, _scale(arrow_perpendicular, wing))])
+        segments.append([tip, _add(base, _scale(arrow_perpendicular, -wing))])
+    return segments
+
+
+def _add_line_groups(parent, coin, groups, rgb, width):
+    line_groups = [group for group in groups if len(group) >= 2]
+    if not line_groups:
+        return
+    separator = coin.SoSeparator()
+    draw_style = coin.SoDrawStyle()
+    draw_style.lineWidth = float(width)
+    color = coin.SoBaseColor()
+    color.rgb = tuple(float(channel) for channel in rgb)
+    coordinates = [point for group in line_groups for point in group]
+    coord = coin.SoCoordinate3()
+    coord.point.setValues(
+        0,
+        len(coordinates),
+        [coin.SbVec3f(*_xyz(point)) for point in coordinates],
+    )
+    line_set = coin.SoLineSet()
+    line_set.numVertices.setValues(0, len(line_groups), [len(group) for group in line_groups])
+    separator.addChild(draw_style)
+    separator.addChild(color)
+    separator.addChild(coord)
+    separator.addChild(line_set)
+    parent.addChild(separator)
+
+
+def _add_label(parent, coin, point, label, rgb):
+    separator = coin.SoSeparator()
+    depth = coin.SoDepthBuffer()
+    depth.test = False
+    depth.write = False
+    color = coin.SoBaseColor()
+    color.rgb = tuple(float(channel) for channel in rgb)
+    transform = coin.SoTransform()
+    x, y, z = _xyz(point)
+    transform.translation.setValue(coin.SbVec3f(x, y, z + 1.2))
+    font = coin.SoFont()
+    font.size.setValue(14.0)
+    text = coin.SoText2()
+    text.string.setValue(str(label))
+    separator.addChild(depth)
+    separator.addChild(color)
+    separator.addChild(transform)
+    separator.addChild(font)
+    separator.addChild(text)
+    parent.addChild(separator)
+
+
+def _canonical_seams(document):
+    seams = []
+    for obj in getattr(document, "Objects", ()):
+        identity = str(getattr(obj, "SeamId", "")).strip()
+        if not identity:
+            continue
+        if getattr(obj, "PatternA", None) is None or getattr(obj, "PatternB", None) is None:
+            continue
+        if str(getattr(obj, "Status", "Valid")) != "Valid":
+            continue
+        view = getattr(obj, "ViewObject", None)
+        if view is not None and not bool(getattr(view, "Visibility", True)):
+            continue
+        seams.append(obj)
+    return seams
+
+
+class SeamOverlayController:
+    """Own one transient overlay tree for the active FreeCAD 3D view."""
+
+    def __init__(self, view: object, document: object):
+        self.view = view
+        self.document = document
+        self.scene_graph = None
+        self.root = None
+        self.rendered_seam_ids: tuple[str, ...] = ()
+        self.last_error = ""
+        self._attach()
+
+    def _attach(self):
+        coin = _coin_modules()
+        if coin is None:
+            self.last_error = "Pivy Coin is unavailable"
+            return
+        try:
+            self.scene_graph = self.view.getSceneGraph()
+            self.root = coin.SoSeparator()
+            self.root.setName("ClothSemanticSeamOverlay")
+            self.scene_graph.addChild(self.root)
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            self.scene_graph = None
+            self.root = None
+            self.last_error = str(exc)
+
+    def deactivate(self):
+        """Remove only this controller's transient Coin node."""
+        if self.scene_graph is not None and self.root is not None:
+            try:
+                self.scene_graph.removeChild(self.root)
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+        self.scene_graph = None
+        self.root = None
+        self.rendered_seam_ids = ()
+
+    def refresh(self, document=None, active_seam_id=""):
+        """Rebuild the overlay from current canonical seam geometry."""
+        if document is not None:
+            self.document = document
+        if self.root is None or self.scene_graph is None:
+            return
+        coin = _coin_modules()
+        if coin is None:
+            self.last_error = "Pivy Coin is unavailable"
+            return
+
+        while self.root.getNumChildren():
+            self.root.removeChild(0)
+        depth = coin.SoDepthBuffer()
+        depth.test = True
+        depth.write = False
+        self.root.addChild(depth)
+
+        seams = _canonical_seams(self.document)
+        ids = [str(seam.SeamId).strip() for seam in seams]
+        colors = seam_color_map(ids)
+        labels = seam_display_labels(ids)
+        self.rendered_seam_ids = tuple(sorted(set(ids)))
+        self.last_error = ""
+
+        if not seams:
+            return
+
+        from freecad_cloth.sewing.SewingObjects import _edge_samples, _resolved_edge
+
+        for seam in seams:
+            identity = str(seam.SeamId).strip()
+            piece_a = seam.PatternA
+            piece_b = seam.PatternB
+            try:
+                edge_a = _resolved_edge(piece_a, seam, "A")
+                edge_b = _resolved_edge(piece_b, seam, "B")
+                points_a = _edge_samples(
+                    piece_a, edge_a, float(seam.StartA), float(seam.EndA), 17,
+                    z=0.75, transform_to_world=True,
+                )
+                points_b = _edge_samples(
+                    piece_b, edge_b, float(seam.StartB), float(seam.EndB), 17,
+                    z=0.75, transform_to_world=True,
+                )
+                if bool(getattr(seam, "ReversedB", False)):
+                    points_b.reverse()
+            except (AttributeError, IndexError, KeyError, RuntimeError, TypeError, ValueError):
+                continue
+            color = colors[identity]
+            focused = identity == str(active_seam_id)
+            width = 5.5 if focused else 3.5
+            side_group = coin.SoSeparator()
+            _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
+            _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
+            label_a = _xyz(points_a[len(points_a) // 3])
+            label_b = _xyz(points_b[(len(points_b) * 2) // 3])
+            _add_label(side_group, coin, label_a, labels[identity] + "-A", color)
+            _add_label(side_group, coin, label_b, labels[identity] + "-B", color)
+            self.root.addChild(side_group)
+
+
+def _selected_seam_id(gui, document) -> str:
+    try:
+        for selected in gui.Selection.getSelection():
+            identity = str(getattr(selected, "SeamId", "")).strip()
+            if identity and selected in getattr(document, "Objects", ()):
+                return identity
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+    return ""
+
+
+def refresh_seam_overlay(document=None):
+    """Attach or refresh the current view's overlay; safe outside a GUI process."""
+    global _ACTIVE_CONTROLLER
+    try:
+        import FreeCADGui as Gui
+
+        active = Gui.activeDocument()
+        if active is None:
+            deactivate_seam_overlay()
+            return None
+        view = active.activeView()
+        active_document = getattr(active, "Document", None)
+        target_document = document or active_document
+        if view is None or target_document is None:
+            deactivate_seam_overlay()
+            return None
+        if active_document is not None and getattr(active_document, "Name", None) != getattr(
+            target_document, "Name", None
+        ):
+            return None
+        if (
+            _ACTIVE_CONTROLLER is None
+            or _ACTIVE_CONTROLLER.view is not view
+            or getattr(_ACTIVE_CONTROLLER.document, "Name", None)
+            != getattr(target_document, "Name", None)
+        ):
+            deactivate_seam_overlay()
+            _ACTIVE_CONTROLLER = SeamOverlayController(view, target_document)
+        _ACTIVE_CONTROLLER.refresh(
+            target_document,
+            active_seam_id=_selected_seam_id(Gui, target_document),
+        )
+        return _ACTIVE_CONTROLLER
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def get_active_seam_overlay():
+    """Return the active controller for focused GUI acceptance tests."""
+    return _ACTIVE_CONTROLLER
+
+
+def deactivate_seam_overlay():
+    """Discard the transient overlay when the user leaves a Cloth workbench."""
+    global _ACTIVE_CONTROLLER
+    if _ACTIVE_CONTROLLER is not None:
+        _ACTIVE_CONTROLLER.deactivate()
+    _ACTIVE_CONTROLLER = None
+
+
+def _run_scheduled_refresh():
+    global _REFRESH_PENDING, _PENDING_DOCUMENT
+    document = _PENDING_DOCUMENT
+    _PENDING_DOCUMENT = None
+    _REFRESH_PENDING = False
+    refresh_seam_overlay(document)
+
+
+def schedule_seam_overlay_refresh(document=None):
+    """Coalesce recompute/restore refreshes until FreeCAD has completed the event."""
+    global _REFRESH_PENDING, _PENDING_DOCUMENT
+    _PENDING_DOCUMENT = document or _PENDING_DOCUMENT
+    if _REFRESH_PENDING:
+        return
+    _REFRESH_PENDING = True
+    try:
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        QtCore.QTimer.singleShot(0, _run_scheduled_refresh)
+    except ImportError:
+        _run_scheduled_refresh()
