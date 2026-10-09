@@ -67,3 +67,8 @@ def test_avatar_ladder_screenshot_path_is_fail_closed():
     assert "time.sleep(0.05)" in SOURCE
     assert "png-capture=retry" in SOURCE
     assert "PNG capture contains no visible rendered content" in SOURCE
+
+
+def test_avatar_ladder_manifest_validator_accepts_seven_rungs():
+    validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
+    assert '("avatar", ROOT / "avatar-ladder-manifest.json", 7, 8.0, "simulation-avatar-ladder")' in validator
