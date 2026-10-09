@@ -64,9 +64,9 @@
       ]
     },
     "cloth-sewing.png": {
-      "artifact": "readme-turntables",
+      "artifact": "tunic-visual-audit",
       "producers": [
-        "tests/freecad_screenshot_source.py"
+        "tests/freecad_tunic_audit_production.py"
       ]
     },
     "cloth-simulation-arranged-turntable.gif": {
