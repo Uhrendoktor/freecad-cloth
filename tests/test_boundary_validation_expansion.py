@@ -10,7 +10,6 @@ from freecad_cloth.common.ValidationModels import (
     BoundaryIRInput,
     CollisionSurfaceInput,
     DrapeTargetInput,
-    PBDCollisionConfig,
     PBDStepInput,
     PatternPieceInput,
     SimulationMeshQualityInput,
@@ -29,6 +28,7 @@ from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_substeps,
 )
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from freecad_cloth.pattern.SurfacePen import FlattenedSurfacePatch, SurfaceAnchor, close_surface_stroke
 
 
 def test_collision_surface_rejects_nonfinite_vertices_thickness_and_fractional_indices():
@@ -155,3 +155,28 @@ def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
         SimulationMeshQualityInput(start_height=0.0, particle_distance=math.inf)
     with pytest.raises(ValidationError):
         quality_piece_mesh(SimpleNamespace(), math.nan, 5.0)
+
+
+
+def test_surface_pen_persisted_anchor_and_patch_reject_nonfinite_values():
+    with pytest.raises(ValueError):
+        SurfaceAnchor((0.0, math.nan, 0.0), (0.0, 0.0, 1.0))
+    with pytest.raises(ValueError):
+        SurfaceAnchor((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    patch = FlattenedSurfacePatch(
+        points=((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)),
+        centroid=(0.0, 0.0, math.inf),
+        normal=(0.0, 0.0, 1.0),
+        max_deviation_mm=0.0,
+    )
+    with pytest.raises(ValueError):
+        patch.validate(1.0)
+    anchors = (
+        SurfaceAnchor((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
+        SurfaceAnchor((1.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
+        SurfaceAnchor((1.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+        SurfaceAnchor((0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+        SurfaceAnchor((0.1, 0.1, 0.0), (0.0, 0.0, 1.0)),
+    )
+    with pytest.raises(ValueError):
+        close_surface_stroke(anchors, tolerance_mm=math.nan)

@@ -18,6 +18,8 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from freecad_cloth.common.ValidationModels import MeshArrays
+
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
     "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
@@ -365,9 +367,7 @@ def _profile_scale(z, profile):
 
 def _is_default_measurement_shape(parameters) -> bool:
     """Return whether the authoritative dimensions are the canonical defaults."""
-    from freecad_cloth.common.ValidationModels import MeshArrays
-
-from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     return all(
         math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)

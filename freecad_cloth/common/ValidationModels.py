@@ -6,7 +6,7 @@ models normalize finite coordinates once and reject silent type coercion.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from math import isfinite
+from math import hypot, isfinite
 from numbers import Real
 from typing import Annotated, Literal, TypeAlias
 
@@ -379,6 +379,40 @@ class BoundaryIRInput(InputModel):
             raise ValueError("boundary needs at least two samples")
         if not self.parameter_range[1] > self.parameter_range[0]:
             raise ValueError("boundary parameter range must have positive extent")
+        return self
+
+
+class SurfaceAnchorInput(InputModel):
+    """Finite point and nonzero normal persisted by Surface Pen."""
+
+    point: Point3D
+    normal: Point3D
+
+    @model_validator(mode="after")
+    def normal_is_usable(self) -> SurfaceAnchorInput:
+        """Reject a zero-length normal, which has no surface orientation."""
+        if hypot(*self.normal) <= 1e-12:
+            raise ValueError("surface anchor normal must be non-zero and finite")
+        return self
+
+
+class FlattenedSurfacePatchInput(InputModel):
+    """Finite geometric metadata for a flattened surface boundary."""
+
+    points: tuple[Point2D, ...]
+    centroid: Point3D
+    normal: Point3D
+    max_deviation_mm: FiniteNumber
+
+    @model_validator(mode="after")
+    def patch_metadata_is_valid(self) -> FlattenedSurfacePatchInput:
+        """Require enough points and non-negative deviation."""
+        if len(self.points) < 3:
+            raise ValueError("surface patch needs at least three points")
+        if self.max_deviation_mm < 0.0:
+            raise ValueError("surface patch deviation must be non-negative")
+        if hypot(*self.normal) <= 1e-12:
+            raise ValueError("surface patch normal must be non-zero and finite")
         return self
 
 
