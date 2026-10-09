@@ -34,6 +34,11 @@ SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"
         seam_records.append((seam_obj, front, back))"""
 replacements = {
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
+    # Measured side-edge penetrations occurred around |x|=175..214 mm, inside
+    # the torso's ±247.7 mm collision envelope. Add 70 mm of ease to each side
+    # of the front/back pattern without changing collision tolerances or solver steps.
+    "panel_width = max(420.0, shoulder_width + 100.0)": "panel_width = max(560.0, shoulder_width + 200.0)",
+    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(620.0, panel_width + 60.0)",
     'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
     SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
