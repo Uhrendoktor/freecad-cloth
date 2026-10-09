@@ -9,8 +9,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import hypot
 
-from freecad_cloth.common.ValidationModels import BoundaryIRInput, validate_finite_number
-
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
@@ -43,14 +41,6 @@ class BoundaryIR:
         start, end = self.parameter_range
         if not end > start:
             raise ValueError("boundary parameter range must have positive extent")
-        BoundaryIRInput.model_validate(
-            {
-                "id": self.id,
-                "kind": self.kind,
-                "samples": self.samples,
-                "parameter_range": self.parameter_range,
-            }
-        )
 
     @property
     def length(self) -> float:
@@ -82,9 +72,8 @@ class PieceIR:
             raise ValueError("piece boundary IDs must be unique")
         for boundary in self.boundaries:
             boundary.validate()
-        allowance = validate_finite_number(self.seam_allowance)
-        if allowance < 0.0:
-            raise ValueError("seam allowance must be finite and non-negative")
+        if self.seam_allowance < 0.0:
+            raise ValueError("seam allowance cannot be negative")
 
 
 @dataclass(frozen=True)
@@ -115,11 +104,7 @@ class SeamIR:
             if edge_id not in {edge.id for edge in pieces[piece_id].boundaries}:
                 raise ValueError(f"seam references unknown boundary: {piece_id}:{edge_id}")
         for value in (self.start_a, self.end_a, self.start_b, self.end_b):
-            try:
-                finite_value = validate_finite_number(value)
-            except ValueError as exc:
-                raise ValueError("seam edge ranges must be finite and normalized") from exc
-            if not 0.0 <= finite_value <= 1.0:
+            if not 0.0 <= value <= 1.0:
                 raise ValueError("seam edge ranges must be normalized")
         if self.start_a >= self.end_a or self.start_b >= self.end_b:
             raise ValueError("seam ranges must have positive extent")

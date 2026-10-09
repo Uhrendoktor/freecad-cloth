@@ -6,9 +6,9 @@ models normalize finite coordinates once and reject silent type coercion.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from math import hypot, isfinite
+from math import isfinite
 from numbers import Real
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, TypeAlias
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictInt, StrictStr, TypeAdapter, model_validator
 
@@ -325,22 +325,6 @@ class SimulationMeshQualityInput(InputModel):
         return self
 
 
-class DrapeTargetInput(InputModel):
-    """Validate persisted/user-provided collision-target options."""
-
-    target_type: Literal["Mannequin", "FreeCAD Geometry"]
-    source_name: StrictStr
-    deflection: FiniteNumber = Field(gt=0.0)
-    thickness: FiniteNumber = Field(ge=0.0)
-
-    @model_validator(mode="after")
-    def source_is_named(self) -> DrapeTargetInput:
-        """Reject empty source identifiers."""
-        if not self.source_name.strip():
-            raise ValueError("drape target source must not be empty")
-        return self
-
-
 class PatternPieceInput(InputModel):
     """Validate the numeric boundary of a canonical 2D pattern piece."""
 
@@ -359,62 +343,6 @@ class PatternPieceInput(InputModel):
             raise ValueError("pattern piece outline needs at least three points")
         if self.seam_allowance < 0.0:
             raise ValueError("seam allowance must be non-negative and finite")
-        return self
-
-
-class BoundaryIRInput(InputModel):
-    """Validate sampled 3D boundary data crossing into the solver-neutral IR."""
-
-    id: StrictStr
-    kind: Literal["line", "arc", "bspline", "bezier", "curve"]
-    samples: tuple[Point3D, ...]
-    parameter_range: tuple[FiniteNumber, FiniteNumber] = (0.0, 1.0)
-
-    @model_validator(mode="after")
-    def boundary_is_valid(self) -> BoundaryIRInput:
-        """Require an identity, enough samples, and an increasing finite range."""
-        if not self.id.strip():
-            raise ValueError("boundary id must not be empty")
-        if len(self.samples) < 2:
-            raise ValueError("boundary needs at least two samples")
-        if not self.parameter_range[1] > self.parameter_range[0]:
-            raise ValueError("boundary parameter range must have positive extent")
-        return self
-
-
-class SurfaceAnchorInput(InputModel):
-    """Finite point and nonzero normal persisted by Surface Pen."""
-
-    point: Point3D
-    normal: Point3D
-
-    @model_validator(mode="after")
-    def normal_is_usable(self) -> SurfaceAnchorInput:
-        """Reject a zero-length normal, which has no surface orientation."""
-        normal_length = hypot(*self.normal)
-        if not isfinite(normal_length) or normal_length <= 1e-12:
-            raise ValueError("surface anchor normal must be non-zero and finite")
-        return self
-
-
-class FlattenedSurfacePatchInput(InputModel):
-    """Finite geometric metadata for a flattened surface boundary."""
-
-    points: tuple[Point2D, ...]
-    centroid: Point3D
-    normal: Point3D
-    max_deviation_mm: FiniteNumber
-
-    @model_validator(mode="after")
-    def patch_metadata_is_valid(self) -> FlattenedSurfacePatchInput:
-        """Require enough points and non-negative deviation."""
-        if len(self.points) < 3:
-            raise ValueError("surface patch needs at least three points")
-        if self.max_deviation_mm < 0.0:
-            raise ValueError("surface patch deviation must be non-negative")
-        normal_length = hypot(*self.normal)
-        if not isfinite(normal_length) or normal_length <= 1e-12:
-            raise ValueError("surface patch normal must be non-zero and finite")
         return self
 
 

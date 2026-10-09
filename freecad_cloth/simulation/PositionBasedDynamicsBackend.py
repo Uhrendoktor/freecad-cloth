@@ -9,6 +9,7 @@ import os
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from math import isfinite
+from typing import Any
 
 import numpy as np
 
@@ -97,12 +98,12 @@ def _pbd_stitch_stiffness(compliance: float) -> float:
     return max(1.0, min(_PBD_STITCH_STIFFNESS_DEFAULT, 1.0 / value))
 
 
-def _to_pbd_position(position) -> tuple[float, float, float]:
+def _to_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:
     x, y, z = position
     return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
 
 
-def _from_pbd_position(position) -> tuple[float, float, float]:
+def _from_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:
     x, y, z = position
     return (float(x) * _MM, float(z) * _MM, float(y) * _MM)
 
@@ -111,7 +112,7 @@ _PBD_COLLISION_SDF_CACHE_KEY = None
 _PBD_COLLISION_SDF_CACHE = None
 
 
-def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]):
+def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
     digest = hashlib.sha256()
     digest.update(repr(surface.vertices).encode("utf-8"))
     digest.update(repr(surface.triangles).encode("utf-8"))
@@ -133,7 +134,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         stitches: Iterable[tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "mesh",
-    ):
+    ) -> None:
         try:
             import pypbd
         except ImportError as exc:
@@ -205,7 +206,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Return elapsed simulation time in seconds."""
         return self._time
 
-    def _new_simulation(self):
+    def _new_simulation(self) -> tuple[Any, Any]:
         sim = self._pbd.Simulation.getCurrent()
         if self._simulation_initialized:
             model = sim.getModel()
@@ -216,7 +217,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._simulation_initialized = True
         return sim, sim.getModel()
 
-    def _add_collision_body(self, sim, model) -> None:
+    def _add_collision_body(self, sim: Any, model: Any) -> None:
         if self._source_collision_surface is None:
             return
 
@@ -370,7 +371,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self,
         dt: float = 1.0 / 60.0,
         iterations: int = 8,
-        gravity=(0.0, 0.0, -9810.0),
+        gravity: Sequence[float] = (0.0, 0.0, -9810.0),
         surface: CollisionSurface | None = None,
     ) -> None:
         """Advance PositionBasedDynamics by one time step."""

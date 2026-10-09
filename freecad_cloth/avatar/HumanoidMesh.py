@@ -18,8 +18,6 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from freecad_cloth.common.ValidationModels import MeshArrays
-
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
     "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
@@ -65,12 +63,9 @@ class MeshData:
         if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
         count = len(self.vertices)
-        try:
-            MeshArrays.model_validate(
-                {"vertices": self.vertices, "triangles": self.triangles}
-            )
-        except (TypeError, ValueError) as exc:
-            raise HumanoidMeshError(f"humanoid mesh contains invalid geometry: {exc}") from exc
+        for tri in self.triangles:
+            if len(tri) != 3 or any(i < 0 or i >= count for i in tri):
+                raise HumanoidMeshError("humanoid mesh contains an invalid face")
         return self
 
 

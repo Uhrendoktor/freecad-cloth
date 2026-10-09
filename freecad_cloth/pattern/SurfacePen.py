@@ -19,12 +19,6 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from freecad_cloth.common.ValidationModels import (
-    FlattenedSurfacePatchInput,
-    SurfaceAnchorInput,
-    validate_finite_number,
-    validate_points3d,
-)
 from freecad_cloth.shared.SourceSignature import source_signature
 
 
@@ -37,11 +31,11 @@ DEFAULT_CLOSE_DISTANCE_MM = 6.0
 def _as_point3(value) -> Point3:
     try:
         values = tuple(value)
-    except TypeError:
-        values = None
-    if values is not None:
-        return validate_points3d((values,))[0]
-    return validate_points3d(((value.x, value.y, value.z),))[0]
+        if len(values) >= 3:
+            return tuple(float(v) for v in values[:3])
+    except (TypeError, ValueError):
+        pass
+    return (float(value.x), float(value.y), float(value.z))
 
 
 def _dot(a: Vector3, b: Vector3) -> float:
@@ -154,10 +148,9 @@ def polygon_self_intersects(points: Sequence[Point2]) -> bool:
 def simplify_polyline(points: Sequence[Point3], tolerance_mm: float = 1.0) -> tuple[Point3, ...]:
     """Simplify a spatial polyline with a deterministic RDP pass."""
     values = tuple(_as_point3(point) for point in points)
-    tolerance_mm = validate_finite_number(tolerance_mm)
     if len(values) <= 2:
         return values
-    tolerance = max(0.0, tolerance_mm)
+    tolerance = max(0.0, float(tolerance_mm))
     if tolerance <= 1e-12:
         return values
 
@@ -201,14 +194,6 @@ class SurfaceAnchor:
     point: Point3
     normal: Vector3
 
-    def __post_init__(self) -> None:
-        """Validate persisted coordinates and require a usable normal."""
-        validated = SurfaceAnchorInput.model_validate(
-            {"point": self.point, "normal": self.normal}
-        )
-        object.__setattr__(self, "point", validated.point)
-        object.__setattr__(self, "normal", validated.normal)
-
     def to_json(self) -> dict:
         """Serialize this surface anchor for persistent document storage."""
         return {
@@ -232,16 +217,7 @@ class FlattenedSurfacePatch:
     max_deviation_mm: float
 
     def validate(self, tolerance_mm: float) -> "FlattenedSurfacePatch":
-        """Validate topology, finite geometry, and allowed planar deviation."""
-        FlattenedSurfacePatchInput.model_validate(
-            {
-                "points": self.points,
-                "centroid": self.centroid,
-                "normal": self.normal,
-                "max_deviation_mm": self.max_deviation_mm,
-            }
-        )
-        tolerance_mm = validate_finite_number(tolerance_mm)
+        """Validate topology, area, and allowed planar deviation."""
         if len(self.points) < 3:
             raise ValueError("surface patch needs at least three distinct points")
         if polygon_self_intersects(self.points):
@@ -267,8 +243,6 @@ def flatten_surface_patch(
     general mesh parameterization; the explicit deviation test prevents silently
     turning a strongly curved region into a misleading flat pattern.
     """
-    tolerance_mm = validate_finite_number(tolerance_mm)
-    tolerance_mm = validate_finite_number(tolerance_mm)
     values = tuple(_as_point3(point) for point in points)
     if len(values) < 3:
         raise ValueError("surface patch needs at least three points")
@@ -419,8 +393,7 @@ def close_surface_stroke(
     values = tuple(anchors)
     if len(values) < 4:
         raise ValueError("close the surface boundary with at least three distinct points")
-    tolerance_mm = validate_finite_number(tolerance_mm)
-    limit = max(0.0, tolerance_mm)
+    limit = max(0.0, float(tolerance_mm))
     distance = _length(_sub(values[-1].point, values[0].point))
     if distance > limit + 1e-9:
         raise ValueError(

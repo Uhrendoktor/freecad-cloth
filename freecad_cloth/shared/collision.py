@@ -1,6 +1,8 @@
 """Neutral solver-facing collision-surface value objects."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from numbers import Real
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
@@ -40,7 +42,12 @@ class CollisionSurface:
         ).validate()
 
 
-def surface_from_triangles(vertices, triangles, region="body", thickness=0.0) -> CollisionSurface:
+def surface_from_triangles(
+    vertices: Iterable[Iterable[Real]],
+    triangles: Iterable[Iterable[int]],
+    region: str = "body",
+    thickness: float = 0.0,
+) -> CollisionSurface:
     """Build and validate a collision surface without a host dependency."""
     validated = CollisionSurfaceInput.model_validate(
         {

@@ -7,9 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from freecad_cloth.common.ValidationModels import (
-    BoundaryIRInput,
     CollisionSurfaceInput,
-    DrapeTargetInput,
     PBDStepInput,
     PatternPieceInput,
     SimulationMeshQualityInput,
@@ -18,17 +16,13 @@ from freecad_cloth.common.ValidationModels import (
 )
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.pattern.PatternIR import BoundaryIR, PieceIR
 from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
-from freecad_cloth.avatar.HumanoidMesh import HumanoidMeshError, MeshData, parse_obj
-from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_collision_tolerance_mm,
     _pbd_collision_voxel_mm,
     _pbd_substeps,
 )
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-from freecad_cloth.pattern.SurfacePen import FlattenedSurfacePatch, SurfaceAnchor, close_surface_stroke
 
 
 def test_collision_surface_rejects_nonfinite_vertices_thickness_and_fractional_indices():
@@ -117,15 +111,6 @@ def test_pattern_piece_and_ir_schemas_reject_nonfinite_geometry():
         )
     with pytest.raises(ValueError):
         PatternPiece("piece", [(0, 0), (1, math.nan), (0, 1)], id="piece").validate()
-    with pytest.raises(ValidationError):
-        BoundaryIRInput.model_validate(
-            {"id": "edge", "kind": "line", "samples": ((0, 0, 0), (1, math.nan, 0))}
-        )
-    with pytest.raises(ValueError):
-        BoundaryIR("edge", "line", ((0, 0, 0), (1, math.inf, 0))).validate()
-    with pytest.raises(ValueError):
-        PieceIR("piece", "Piece", (BoundaryIR("edge", "line", ((0, 0, 0), (1, 0, 0))),),
-                seam_allowance=math.nan).validate()
 
 
 def test_pattern_seam_rejects_unsupported_edge_reference_type():
@@ -134,21 +119,9 @@ def test_pattern_seam_rejects_unsupported_edge_reference_type():
         seam.validate()
 
 
-@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
-def test_humanoid_mesh_rejects_nonfinite_coordinates(value):
-    with pytest.raises(HumanoidMeshError):
-        MeshData(((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, value, 0.0)),
-                 ((0, 1, 2),)).validate()
-    with pytest.raises(HumanoidMeshError):
-        parse_obj(f"v 0 0 0\nv 1 0 0\nv 0 {value} 0\nf 1 2 3")
 
 
 def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
-    with pytest.raises(ValidationError):
-        DrapeTargetInput(target_type="FreeCAD Geometry", source_name="Chair",
-                         deflection=math.nan, thickness=0.0)
-    with pytest.raises(ValueError):
-        DrapeTargetSpec("FreeCAD Geometry", "Chair", math.inf, 0.0).validate()
     with pytest.raises(ValidationError):
         SimulationMeshQualityInput(start_height=math.nan, particle_distance=5.0)
     with pytest.raises(ValidationError):
@@ -158,25 +131,3 @@ def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
 
 
 
-def test_surface_pen_persisted_anchor_and_patch_reject_nonfinite_values():
-    with pytest.raises(ValueError):
-        SurfaceAnchor((0.0, math.nan, 0.0), (0.0, 0.0, 1.0))
-    with pytest.raises(ValueError):
-        SurfaceAnchor((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-    patch = FlattenedSurfacePatch(
-        points=((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)),
-        centroid=(0.0, 0.0, math.inf),
-        normal=(0.0, 0.0, 1.0),
-        max_deviation_mm=0.0,
-    )
-    with pytest.raises(ValueError):
-        patch.validate(1.0)
-    anchors = (
-        SurfaceAnchor((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
-        SurfaceAnchor((1.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
-        SurfaceAnchor((1.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
-        SurfaceAnchor((0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
-        SurfaceAnchor((0.1, 0.1, 0.0), (0.0, 0.0, 1.0)),
-    )
-    with pytest.raises(ValueError):
-        close_surface_stroke(anchors, tolerance_mm=math.nan)

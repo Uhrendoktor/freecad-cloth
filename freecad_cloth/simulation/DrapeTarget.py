@@ -4,7 +4,6 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from freecad_cloth.common.ValidationModels import DrapeTargetInput, validate_finite_number
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import CollisionSurface
 
@@ -22,23 +21,19 @@ class DrapeTargetSpec:
 
     def validate(self):
         """Validate this value and raise ValueError when its state is invalid."""
-        DrapeTargetInput.model_validate(
-            {
-                "target_type": self.target_type,
-                "source_name": self.source_name,
-                "deflection": self.deflection,
-                "thickness": self.thickness,
-            }
-        )
+        if self.target_type not in self.VALID_TYPES:
+            raise ValueError("unsupported drape target type")
+        if not self.source_name.strip():
+            raise ValueError("drape target source must not be empty")
+        if self.deflection <= 0:
+            raise ValueError("drape target deflection must be positive")
+        if self.thickness < 0:
+            raise ValueError("drape target thickness must not be negative")
 
 
 def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
     """Return a collision-ready surface representation."""
-    deflection = validate_finite_number(deflection)
-    thickness = validate_finite_number(thickness)
-    if deflection <= 0.0 or thickness < 0.0:
-        raise ValueError("collision deflection must be positive and thickness non-negative")
-    return surface_from_freecad(target, deflection, thickness)
+    return surface_from_freecad(target, float(deflection), float(thickness))
 
 
 def _point_coordinates(point):
@@ -145,11 +140,7 @@ def _geometry_signature(target):
 
 
 def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
-    """Return a stable source signature for validated collision settings."""
-    deflection = validate_finite_number(deflection)
-    thickness = validate_finite_number(thickness)
-    if deflection <= 0.0 or thickness < 0.0:
-        raise ValueError("collision deflection must be positive and thickness non-negative")
+    """Provide the public source signature operation."""
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None
@@ -260,18 +251,10 @@ def create_drape_target(
     doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0
 ):
     """Create and return the requested drape target object."""
-    DrapeTargetInput.model_validate(
-        {
-            "target_type": target_type,
-            "source_name": str(
-                getattr(source, "Name", getattr(source, "Label", "mannequin"))
-                if source is not None
-                else "mannequin"
-            ),
-            "deflection": deflection,
-            "thickness": thickness,
-        }
-    )
+    if target_type not in DrapeTargetSpec.VALID_TYPES:
+        raise ValueError("unsupported drape target type")
+    if deflection <= 0 or thickness < 0:
+        raise ValueError("invalid collision tessellation or thickness")
     if source is None and target_type != "Mannequin":
         raise ValueError("a FreeCAD Geometry target requires a source object")
     target = doc.addObject("App::FeaturePython", "DrapeTarget")
@@ -312,16 +295,8 @@ def assign_drape_target(target, source, target_type: str | None = None):
     kind = str(target_type or getattr(target, "TargetType", "FreeCAD Geometry"))
     if kind not in DrapeTargetSpec.VALID_TYPES:
         raise ValueError("unsupported drape target type")
-    deflection = validate_finite_number(getattr(target, "CollisionDeflection", 1.0))
-    thickness = validate_finite_number(getattr(target, "CollisionThickness", 0.0))
-    DrapeTargetInput.model_validate(
-        {
-            "target_type": kind,
-            "source_name": str(getattr(source, "Name", getattr(source, "Label", "target"))),
-            "deflection": deflection,
-            "thickness": thickness,
-        }
-    )
+    deflection = float(getattr(target, "CollisionDeflection", 1.0))
+    thickness = float(getattr(target, "CollisionThickness", 0.0))
     surface = collision_surface(source, deflection, thickness)
     target.TargetType = kind
     target.SourceObject = source
