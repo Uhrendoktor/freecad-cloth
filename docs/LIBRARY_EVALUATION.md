@@ -15,7 +15,8 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | ezdxf | DXF read/write, broad version support | Production DXF adapter | MIT; relatively low integration risk | **Candidate / P2** |
 | trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
 | libigl | Geometry processing, remeshing, parametrization, distances; NumPy Python bindings | Derived-mesh/analysis utilities where OCCT is insufficient | Mixed optional modules/licensing; C++ dependency | **Evaluate selectively** |
-| Shapely / GEOS | Robust 2D polygon predicates/buffer/overlay | Export/preflight/diagnostic preprocessing | Low integration risk; not authoritative geometry | **Evaluate selectively** |
+| SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on large meshes | NumPy-based dependency, installed with the main package | **Adopted / required** |
+| Shapely / GEOS | Robust 2D polygon simplicity predicate | Pattern boundary simplicity validation | GEOS-backed dependency, installed with the main package | **Adopted / required** |
 | svgpathtools | SVG paths, Bézier geometry, arc length, intersections | SVG interoperability and correspondence utilities | MIT; Python dependency | **Evaluate selectively** |
 | meshio | Broad mesh import/export | Developer fixtures, benchmark interoperability | MIT; useful but not core | **Developer tooling** |
 | pygalmesh / CGAL | Constrained/high-quality meshing | Derived simulation meshing experiments | GPL/CGAL dependency and packaging complexity | **Sandbox only** |
@@ -83,20 +84,20 @@ Research references:
 
 ## Implemented optional geometry accelerations
 
-The `geometry` extra installs **SciPy** and **Shapely** without making either library a default
-FreeCAD runtime dependency.
+SciPy and Shapely are required runtime dependencies declared in `pyproject.toml` and installed
+by the same package setup and pinned FreeCAD CI image. The production geometry paths do not branch
+between optimized and scalar fallback implementations.
 
 - `nearest_target_clearance` uses an exact `scipy.spatial.cKDTree` nearest-neighbour query for
   larger vertex sets. Small inputs keep the direct `math.dist` implementation to avoid tree-build
-  overhead. Missing SciPy and unsupported/extreme numeric cases use the checked scalar fallback.
+  overhead. Non-finite or unrepresentable results fail closed; there is no alternate production path.
 - `PatternMesh._self_intersects` asks GEOS/Shapely whether sufficiently large outlines are simple.
-  If GEOS reports any possible intersection, the pre-existing tolerance-aware segment predicate
-  remains authoritative. This uses Shapely as a conservative fast path, not as a new topology model.
+  GEOS is the authoritative simplicity predicate for the application-level polygon check.
 - Seam-allowance buffering was **not** replaced by Shapely `buffer`: its join styles, handling of
   collapsed concavities/self-intersections, and ring ordering can alter generated outline topology.
   FreeCAD Part/OCCT also remains authoritative for native editable geometry.
 - Run `python tools/benchmarks/benchmark_geometry_libraries.py --sizes 128 512 1024` after
-  `python -m pip install -e ".[geometry]"` to compare result equivalence and timings on the local
+  `python -m pip install -e .` to compare result equivalence and timings on the local
   machine. Timings are informative only; no hardware-sensitive threshold is used as a CI assertion.
 
 ## Python symbolic contract checking
