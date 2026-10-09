@@ -8,6 +8,8 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - Python **3.12** for repository development/CI and the PositionBasedDynamics-capable canonical environment.
 - `triangle==20250106` for constrained pattern meshing.
 - `pydantic>=2.11,<3` for validated geometry, mesh, and seam inputs.
+- `scipy>=1.14,<2` for exact spatial-index nearest-vertex clearance.
+- `shapely>=2,<3` for GEOS-backed polygon simplicity checks.
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
