@@ -343,6 +343,8 @@ def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
     obj.addProperty("App::PropertyString", "SeamId", "Sewing").SeamId = str(
         getattr(seam, "SeamId", "") or ""
     )
+    if str(getattr(seam, "SeamId", "")).strip():
+        obj.Label = f"{name} [{str(seam.SeamId).strip()}]"
     obj.addProperty("App::PropertyLink", "PieceA", "Sewing").PieceA = piece_a
     obj.addProperty("App::PropertyLink", "PieceB", "Sewing").PieceB = piece_b
     obj.addProperty("App::PropertyString", "StitchGroup", "Sewing").StitchGroup = str(
