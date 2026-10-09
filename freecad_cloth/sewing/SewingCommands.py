@@ -465,7 +465,8 @@ def _build_seam_overlay_options_dialog():
     highlights = QtWidgets.QCheckBox("Show seam color highlights")
     highlights.setChecked(seam_highlights_enabled())
     highlights.setToolTip(
-        "Use identity colors, direction marks, and hover labels; disable them to leave neutral seam linework."
+        "Use identity colors, direction marks, and hover labels; "
+        "disable them to leave neutral seam linework."
     )
     layout.addWidget(highlights)
 
