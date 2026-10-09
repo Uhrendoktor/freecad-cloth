@@ -38,6 +38,18 @@ def test_canonical_tunic_panel_width_matches_authoritative_shoulder_span():
     assert "panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)" in source
 
 
+def test_tunic_panel_placement_uses_shoulder_depth_not_global_avatar_extents():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "shoulder_y = (shoulder_left.y + shoulder_right.y) / 2.0" in source
+    placement = source.split("def target_relative_piece_placement(side):", 1)[1].split(
+        "def make_piece(", 1
+    )[0]
+    assert "shoulder_y - clearance" in placement
+    assert "shoulder_y + clearance" in placement
+    assert "min(target_ys)" not in placement
+    assert "max(target_ys)" not in placement
+
+
 def test_canonical_tunic_uses_avatar_surface_attachments_not_world_side_pins():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'scene.PinMode = "Avatar Attachment"' in source
