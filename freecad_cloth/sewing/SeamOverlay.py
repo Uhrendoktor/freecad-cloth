@@ -6,6 +6,8 @@ same short seam label plus an A/B suffix, and direction/notch marks expose
 correspondence. No overlay node is persisted in the FreeCAD document.
 """
 
+from __future__ import annotations
+
 from collections import Counter
 from collections.abc import Iterable
 from hashlib import sha1
@@ -56,7 +58,7 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     return labels
 
 
-def _coin_modules():
+def _coin_modules() -> Any | None:
     try:
         from pivy import coin
     except ImportError:
@@ -73,26 +75,36 @@ def _xyz(point: object) -> tuple[float, float, float]:
     return float(value[0]), float(value[1]), float(value[2])
 
 
-def _subtract(a, b):
+def _subtract(
+    a: tuple[float, float, float], b: tuple[float, float, float]
+) -> tuple[float, float, float]:
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
 
-def _add(a, b):
+def _add(
+    a: tuple[float, float, float], b: tuple[float, float, float]
+) -> tuple[float, float, float]:
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
-def _scale(vector, factor):
+def _scale(
+    vector: tuple[float, float, float], factor: float
+) -> tuple[float, float, float]:
     return (vector[0] * factor, vector[1] * factor, vector[2] * factor)
 
 
-def _unit(vector):
+def _unit(
+    vector: tuple[float, float, float]
+) -> tuple[float, float, float] | None:
     length = sum(float(value) * float(value) for value in vector) ** 0.5
     if length <= 1e-9:
         return None
     return _scale(vector, 1.0 / length)
 
 
-def _cross(a, b):
+def _cross(
+    a: tuple[float, float, float], b: tuple[float, float, float]
+) -> tuple[float, float, float]:
     return (
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -100,7 +112,9 @@ def _cross(a, b):
     )
 
 
-def _side_segments(points):
+def _side_segments(
+    points: Iterable[object],
+) -> list[list[tuple[float, float, float]]]:
     """Produce an edge polyline plus directional arrow and notch strokes."""
     coords = [_xyz(point) for point in points]
     if len(coords) < 2:
@@ -142,7 +156,13 @@ def _side_segments(points):
     return segments
 
 
-def _add_line_groups(parent, coin, groups, rgb, width):
+def _add_line_groups(
+    parent: Any,
+    coin: Any,
+    groups: list[list[tuple[float, float, float]]],
+    rgb: tuple[float, float, float],
+    width: float,
+) -> None:
     line_groups = [group for group in groups if len(group) >= 2]
     if not line_groups:
         return
@@ -167,7 +187,13 @@ def _add_line_groups(parent, coin, groups, rgb, width):
     parent.addChild(separator)
 
 
-def _add_label(parent, coin, point, label, rgb):
+def _add_label(
+    parent: Any,
+    coin: Any,
+    point: object,
+    label: str,
+    rgb: tuple[float, float, float],
+) -> None:
     separator = coin.SoSeparator()
     depth = coin.SoDepthBuffer()
     depth.test = False
@@ -189,7 +215,7 @@ def _add_label(parent, coin, point, label, rgb):
     parent.addChild(separator)
 
 
-def _canonical_seams(document):
+def _canonical_seams(document: Any) -> list[Any]:
     seams = []
     for obj in getattr(document, "Objects", ()):
         identity = str(getattr(obj, "SeamId", "")).strip()
@@ -209,7 +235,7 @@ def _canonical_seams(document):
 class SeamOverlayController:
     """Own one transient overlay tree for the active FreeCAD 3D view."""
 
-    def __init__(self, view: object, document: object):
+    def __init__(self, view: Any, document: Any) -> None:
         self.view = view
         self.document = document
         self.scene_graph = None
@@ -218,7 +244,7 @@ class SeamOverlayController:
         self.last_error = ""
         self._attach()
 
-    def _attach(self):
+    def _attach(self) -> None:
         coin = _coin_modules()
         if coin is None:
             self.last_error = "Pivy Coin is unavailable"
@@ -233,7 +259,7 @@ class SeamOverlayController:
             self.root = None
             self.last_error = str(exc)
 
-    def deactivate(self):
+    def deactivate(self) -> None:
         """Remove only this controller's transient Coin node."""
         if self.scene_graph is not None and self.root is not None:
             try:
@@ -244,7 +270,7 @@ class SeamOverlayController:
         self.root = None
         self.rendered_seam_ids = ()
 
-    def refresh(self, document=None, active_seam_id=""):
+    def refresh(self, document: Any | None = None, active_seam_id: str = "") -> None:
         """Rebuild the overlay from current canonical seam geometry."""
         if document is not None:
             self.document = document
@@ -306,7 +332,7 @@ class SeamOverlayController:
             self.root.addChild(side_group)
 
 
-def _selected_seam_id(gui, document) -> str:
+def _selected_seam_id(gui: Any, document: Any) -> str:
     try:
         for selected in gui.Selection.getSelection():
             identity = str(getattr(selected, "SeamId", "")).strip()
@@ -317,7 +343,7 @@ def _selected_seam_id(gui, document) -> str:
     return ""
 
 
-def refresh_seam_overlay(document=None):
+def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
     """Attach or refresh the current view's overlay; safe outside a GUI process."""
     global _ACTIVE_CONTROLLER
     try:
@@ -345,6 +371,10 @@ def refresh_seam_overlay(document=None):
         ):
             deactivate_seam_overlay()
             _ACTIVE_CONTROLLER = SeamOverlayController(view, target_document)
+        if _ACTIVE_CONTROLLER.root is None:
+            _ACTIVE_CONTROLLER.deactivate()
+            _ACTIVE_CONTROLLER = None
+            return None
         _ACTIVE_CONTROLLER.refresh(
             target_document,
             active_seam_id=_selected_seam_id(Gui, target_document),
@@ -354,12 +384,12 @@ def refresh_seam_overlay(document=None):
         return None
 
 
-def get_active_seam_overlay():
+def get_active_seam_overlay() -> SeamOverlayController | None:
     """Return the active controller for focused GUI acceptance tests."""
     return _ACTIVE_CONTROLLER
 
 
-def deactivate_seam_overlay():
+def deactivate_seam_overlay() -> None:
     """Discard the transient overlay when the user leaves a Cloth workbench."""
     global _ACTIVE_CONTROLLER
     if _ACTIVE_CONTROLLER is not None:
@@ -367,7 +397,7 @@ def deactivate_seam_overlay():
     _ACTIVE_CONTROLLER = None
 
 
-def _run_scheduled_refresh():
+def _run_scheduled_refresh() -> None:
     global _REFRESH_PENDING, _PENDING_DOCUMENT
     document = _PENDING_DOCUMENT
     _PENDING_DOCUMENT = None
@@ -375,7 +405,7 @@ def _run_scheduled_refresh():
     refresh_seam_overlay(document)
 
 
-def schedule_seam_overlay_refresh(document=None):
+def schedule_seam_overlay_refresh(document: Any | None = None) -> None:
     """Coalesce recompute/restore refreshes until FreeCAD has completed the event."""
     global _REFRESH_PENDING, _PENDING_DOCUMENT
     _PENDING_DOCUMENT = document or _PENDING_DOCUMENT
