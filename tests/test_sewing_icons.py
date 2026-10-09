@@ -15,6 +15,7 @@ COMMANDS = (
     "ClothSewing_EditSeamSideA",
     "ClothSewing_EditSeamSideB",
     "ClothSewing_Show2D",
+    "ClothSewing_SeamOverlayOptions",
 )
 
 
