@@ -28,6 +28,7 @@ simulation = [
   "pyPBD==2.2.2",
 ]
 dev = [
+  "ast-grep-cli==0.45.3",
   "import-linter==2.15",
   "pre-commit==4.6.2",
   "pyright==1.1.414",
