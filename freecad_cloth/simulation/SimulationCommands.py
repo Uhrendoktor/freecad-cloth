@@ -141,6 +141,9 @@ def reset_simulation():
 
     reset_scene(scene)
     scene.Document.recompute()
+    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+
+    refresh_seam_overlay(scene.Document)
     return scene
 
 
