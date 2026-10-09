@@ -148,7 +148,7 @@ def test_canonical_tunic_surface_mapping_uses_the_quality_mesh_and_authoritative
     assert "scene_signature = scene_proxy._signature(scene)" in source
     assert "scene_proxy._build(" in source
     assert "sync_seam_provenance(base_proxy_getter())" in source
-    assert "canonical tunic surface mapping leaves" in source
+    assert "failed final outside/clearance gate" in source
     assert "simulation_objects._piece_mesh = tunic_initial_surface_mesh" not in source
     assert "points_inside_closed_mesh(" in source
     assert '"clearance-correction"' in source
