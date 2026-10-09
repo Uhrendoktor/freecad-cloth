@@ -951,14 +951,17 @@ def simulation():
     scene.PinMode = "Avatar Attachment"
     scene.PinSelection = []
     scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
-    # Both panels attach to the same lateral skin points at each sewn shoulder.
-    # This supports the seam on both sides; initial gaps below diagnose whether the
-    # solver stitches pair pinned particles with their actual counterparts.
+    # Attach each panel at both shoulder endpoints and its neckline center.
+    # The front/back neck descriptors share the named neck landmark, while the
+    # resolver derives opposite depth-side rays from each panel's world placement.
+    # This supports the neckline without changing the solver or collision budget.
     scene.AvatarAttachmentAnchors = [
         "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
         "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[5]),
+        "%s|%s|neck" % (front.PieceId, front_edge_ids[4]),
         "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
         "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[5]),
+        "%s|%s|neck" % (back.PieceId, back_edge_ids[4]),
     ]
     refresh_drape_target(target)
     doc.recompute()
@@ -1031,7 +1034,17 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
-    log("pin-mode=Avatar Attachment shoulder-anchor-pins=%s offset-mm=%.2f" % (solver_pins, float(scene.AttachmentOffset)))
+    log("pin-mode=Avatar Attachment semantic-anchor-pins=%s offset-mm=%.2f" % (solver_pins, float(scene.AttachmentOffset)))
+    for projection in projections:
+        log(
+            "tunic-anchor-projection particle=%d distance-mm=%.2f surface=%s anchor=%s"
+            % (
+                int(projection.particle_index),
+                float(projection.source_distance_mm),
+                tuple(round(float(value), 3) for value in projection.surface_point),
+                tuple(round(float(value), 3) for value in projection.anchor_position),
+            )
+        )
     log("target-collision-mode=mesh")
     log(
         f"step0-target-vertex-clearance-mm={float(initial_clearance):.2f} required-mm={float(clearance):.2f}"
