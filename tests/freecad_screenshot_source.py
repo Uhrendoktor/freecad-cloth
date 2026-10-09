@@ -817,17 +817,19 @@ def simulation():
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    # Use target depths only beneath the actual pattern silhouette, plus a
-    # clearance-width boundary band. Whole-avatar extrema are dominated by limbs;
-    # shoulder-center offsets, meanwhile, can place the panels inside the torso.
+    # Select depth from the central torso column as well as the pattern
+    # silhouette. Arms/hands can sit inside a broad 2-D garment projection and
+    # otherwise inflate the front/back span despite being outside the torso.
     panel_origin_x = x_mid - hem_width / 2.0
+    torso_half_width = max(80.0, 0.30 * shoulder_width)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
     def target_relative_piece_placement(side, outline):
         projected_target_ys = [
             float(vertex[1])
             for vertex in target_surface.vertices
-            if _projected_point_within_outline_margin(
+            if abs(float(vertex[0]) - x_mid) <= torso_half_width
+            and _projected_point_within_outline_margin(
                 float(vertex[0]) - panel_origin_x,
                 float(vertex[2]) - hem_z,
                 outline,
@@ -835,7 +837,7 @@ def simulation():
             )
         ]
         if not projected_target_ys:
-            raise RuntimeError("canonical tunic silhouette does not overlap DrapeTarget projections")
+            raise RuntimeError("canonical tunic torso silhouette does not overlap DrapeTarget projections")
         target_front_y = min(projected_target_ys)
         target_back_y = max(projected_target_ys)
         if side == "front":
@@ -846,8 +848,11 @@ def simulation():
             raise ValueError("tunic target-relative side must be front or back")
         log(
             "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
-            "panel-y=%.2f clearance-mm=%.2f projected-vertices=%d"
-            % (side, target_front_y, target_back_y, y, clearance, len(projected_target_ys))
+            "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+            % (
+                side, target_front_y, target_back_y, y, clearance,
+                x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
+            )
         )
         return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
 
