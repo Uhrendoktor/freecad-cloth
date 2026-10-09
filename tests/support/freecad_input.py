@@ -415,6 +415,18 @@ def drag_viewport(
         mouse_release(widget, end)
 
 
+def _resolve_key(QtCore: Any, key: Any) -> Any:
+    """Resolve readable keyboard key names or pass through a Qt key enum."""
+    if not isinstance(key, str):
+        return key
+    normalized = key.strip().replace(" ", "_")
+    name = normalized if normalized.startswith("Key_") else "Key_" + normalized
+    try:
+        return getattr(QtCore.Qt, name)
+    except AttributeError as exc:
+        raise ValueError("unknown Qt keyboard key: " + key) from exc
+
+
 def key_press(
     widget: Any,
     key: Any,
