@@ -469,7 +469,9 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
             or getattr(_ACTIVE_CONTROLLER.document, "Name", None)
             != getattr(target_document, "Name", None)
         ):
-            deactivate_seam_overlay()
+            # Replacing a controller because the active view/document changed
+            # must not disable the workbench-level refresh lifecycle.
+            _release_controller()
             _ACTIVE_CONTROLLER = SeamOverlayController(view, target_document)
         if _ACTIVE_CONTROLLER.root is None:
             _ACTIVE_CONTROLLER.deactivate()
