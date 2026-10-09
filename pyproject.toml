@@ -34,6 +34,8 @@ dev = [
   "pyright==1.1.414",
   "pytest>=9,<10",
   "ruff==0.16.10",
+  "ast-grep-cli==0.45.3",
+  "ty==0.0.85",
   "hypothesis==6.168.3",
   "vulture==2.16",
   "crosshair-tool==0.0.111",
