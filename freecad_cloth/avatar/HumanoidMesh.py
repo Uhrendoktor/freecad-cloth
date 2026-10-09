@@ -703,9 +703,10 @@ def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm, source_weight=None):
 
 
 def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
-    """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
-    source = load_makehuman_mesh(str(source_path) if source_path is not None else None)
-    arm_weights = (
-        None if source_path is not None else load_makehuman_arm_weights(len(source.vertices))
-    )
-    return fit_makehuman_mesh(source, parameters, arm_weights=arm_weights)
+    """Load the mannequin through the shared FK path; custom source meshes remain a fit utility."""
+    if source_path is None:
+        from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
+
+        return build_hierarchical_avatar_mesh(parameters)
+    source = load_makehuman_mesh(str(source_path))
+    return fit_makehuman_mesh(source, parameters, arm_weights=None)

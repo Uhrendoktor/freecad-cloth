@@ -21,29 +21,10 @@ def _modules():
 
 
 def _pose_world_state(parameters):
-    """Return the posed MakeHuman skeleton, including every authored bone."""
-    from freecad_cloth.avatar.HierarchicalPose import _manual_pose_rotations
-    from freecad_cloth.avatar.HumanoidMesh import (
-        _joint_point,
-        _load_source_vertices,
-        _make_source_fitted_mapper,
-        load_makehuman_skeleton,
-    )
-    from freecad_cloth.avatar.SkeletonPose import build_bone_transforms
+    """Return the exact rig transforms used to deform the visible mannequin."""
+    from freecad_cloth.avatar.HierarchicalPose import pose_world_state
 
-    source_vertices = _load_source_vertices()
-    skeleton = load_makehuman_skeleton()
-    mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, float(parameters.skin_offset)
-    )
-    rotations = _manual_pose_rotations(parameters)
-    transforms = build_bone_transforms(
-        source_vertices,
-        skeleton,
-        mapper,
-        rotations,
-    )
-    return source_vertices, skeleton, mapper, transforms
+    return pose_world_state(parameters)
 
 
 def joint_world_positions(parameters):
@@ -138,7 +119,10 @@ class SkeletonPoseController:
         self._skeleton_segments = {}
         self._gizmo_dragging = False
         self.gizmo_mode = None
+        self.gizmo_style = None
+        self.gizmo_style_error = None
         self._native_dragger = None
+        self._active_gizmo_axis = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
 
@@ -354,6 +338,8 @@ class SkeletonPoseController:
         self._native_dragger = None
         self._gizmo_dragging = False
         self.gizmo_mode = None
+        self.gizmo_style = None
+        self.gizmo_style_error = None
         self._skeleton_segments = {}
         self.view = None
 
@@ -484,89 +470,139 @@ class SkeletonPoseController:
         self.gizmo_transform = None
         self.gizmo = None
         self.gizmo_mode = None
+        self.gizmo_style = None
+        self.gizmo_style_error = None
         self._native_dragger = None
         self._gizmo_dragging = False
 
-    def _create_native_gizmo(self, coin):
-        type_id = self._native_transform_type(coin)
-        if type_id is None:
+    def _configure_axis_rotation_dragger(self, coin, dragger, rgb, geometry_scale):
+        """Configure one native FreeCAD rotation ring with cone tips and a pivot sphere."""
+        rotator_type = coin.SoType.fromName("SoRotatorGeometry2")
+        if rotator_type.isBad():
+            self.gizmo_style_error = "SoRotatorGeometry2 is not registered"
             return False
-        dragger = None
-        try:
-            dragger = type_id.createInstance()
-            required = (
-                "rotation",
-                "rotationIncrement",
-                "rotationIncrementCountX",
-                "rotationIncrementCountY",
-                "rotationIncrementCountZ",
-                "draggerSize",
-            )
-            if dragger is None or any(not hasattr(dragger, field) for field in required):
-                return False
-            methods = (
-                "hideTranslationX",
-                "hideTranslationY",
-                "hideTranslationZ",
-                "hidePlanarTranslationXY",
-                "hidePlanarTranslationYZ",
-                "hidePlanarTranslationZX",
-                "showRotationX",
-                "showRotationY",
-                "showRotationZ",
-                "setAxisColors",
-                "setUpAutoScale",
-                "addStartCallback",
-                "addMotionCallback",
-                "addFinishCallback",
-            )
-            if any(not hasattr(dragger, method) for method in methods):
-                return False
-            for method in methods[:6]:
-                getattr(dragger, method)()
-            for method in methods[6:9]:
-                getattr(dragger, method)()
+        required = (
+            "setPart",
+            "geometryScale",
+            "rotationIncrement",
+            "rotation",
+            "color",
+            "activeColor",
+            "baseGeomVisible",
+        )
+        if any(not hasattr(dragger, item) for item in required):
+            self.gizmo_style_error = "SoRotationDragger proxy is missing its public API"
+            return False
 
-            view_params = self.App.ParamGet(
-                "User parameter:BaseApp/Preferences/View"
-            )
-            dragger.draggerSize.setValue(
-                view_params.GetFloat("DraggerScale", 0.03)
-            )
-            dragger.setAxisColors(
-                view_params.GetUnsigned("AxisXColor", 0xCC3333FF),
-                view_params.GetUnsigned("AxisYColor", 0x33CC33FF),
-                view_params.GetUnsigned("AxisZColor", 0x3333CCFF),
-            )
-            dragger.rotationIncrement.setValue(
-                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
-            )
-            dragger.rotation.setValue(
-                coin.SbVec3f(0.0, 0.0, 1.0),
-                0.0,
-            )
-            dragger.setName("ClothPoseNativeTransformGizmo")
-            self.gizmo_separator.addChild(dragger)
+        rotator = rotator_type.createInstance()
+        if rotator is None:
+            self.gizmo_style_error = "failed to instantiate SoRotatorGeometry2"
+            return False
+        if not dragger.setPart("rotator", rotator):
+            self.gizmo_style_error = "cannot replace SoRotationDragger rotator part"
+            return False
+
+        dragger.geometryScale.setValue(
+            geometry_scale,
+            geometry_scale,
+            geometry_scale,
+        )
+        dragger.rotationIncrement.setValue(
+            math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
+        )
+        dragger.rotation.setValue(
+            coin.SbVec3f(0.0, 0.0, 1.0),
+            0.0,
+        )
+
+        rotator.arcAngle.setValue(math.radians(300.0))
+        rotator.arcRadius.setValue(9.5)
+        rotator.arcThickness.setValue(2.8)
+        rotator.sphereRadius.setValue(0.9)
+        rotator.coneBottomRadius.setValue(1.35)
+        rotator.coneHeight.setValue(3.8)
+        rotator.leftArrowVisible.setValue(True)
+        rotator.rightArrowVisible.setValue(True)
+
+        dragger.color.setValue(*rgb)
+        dragger.activeColor.setValue(1.0, 0.78, 0.20)
+        dragger.baseGeomVisible.setValue(False)
+        return True
+
+    def _create_native_gizmo(self, coin):
+        # Use three direct axis draggers: this keeps the visual geometry and
+        # interaction semantics independent of SoTransformDragger child-kit exposure.
+        type_id = coin.SoType.fromName("SoRotationDragger")
+        if type_id.isBad():
+            return False
+
+        self.gizmo_style_error = None
+        axis_specs = (
+            ("X", (1.0, 0.0, 0.0), (0.86, 0.18, 0.16)),
+            ("Y", (0.0, 1.0, 0.0), (0.18, 0.70, 0.26)),
+            ("Z", (0.0, 0.0, 1.0), (0.18, 0.40, 0.88)),
+        )
+        geometry_scale = 7.0
+
+        try:
+            local_z = coin.SbVec3f(0.0, 0.0, 1.0)
+            draggers = []
+            for axis_name, world_axis, rgb in axis_specs:
+                dragger = type_id.createInstance()
+                if dragger is None:
+                    self.gizmo_style_error = "failed to instantiate SoRotationDragger"
+                    return False
+                required = (
+                    "rotation",
+                    "rotationIncrement",
+                    "geometryScale",
+                    "addStartCallback",
+                    "addMotionCallback",
+                    "addFinishCallback",
+                    "setName",
+                )
+                if any(not hasattr(dragger, item) for item in required):
+                    self.gizmo_style_error = "SoRotationDragger proxy is missing required fields or callbacks"
+                    return False
+
+                axis_transform = coin.SoTransform()
+                axis_transform.rotation.setValue(
+                    coin.SbRotation(
+                        local_z,
+                        coin.SbVec3f(*world_axis),
+                    )
+                )
+                self.gizmo_separator.addChild(axis_transform)
+
+                if not self._configure_axis_rotation_dragger(
+                    coin,
+                    dragger,
+                    rgb,
+                    geometry_scale,
+                ):
+                    return False
+
+                dragger.setName("ClothPoseRotation" + axis_name)
+                self.gizmo_separator.addChild(dragger)
+                draggers.append(dragger)
+                dragger.addStartCallback(self._gizmo_start)
+                dragger.addMotionCallback(self._gizmo_motion)
+                dragger.addFinishCallback(self._gizmo_finish)
+
             self.scene_graph.addChild(self.gizmo_separator)
-            dragger.setUpAutoScale(self.view.getCameraNode())
-            self._native_dragger = dragger
-            self.gizmo = _NativeGizmoHandle(dragger, self)
+            self._native_dragger = draggers
+            self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
-            dragger.addStartCallback(self._gizmo_start)
-            dragger.addMotionCallback(self._gizmo_motion)
-            dragger.addFinishCallback(self._gizmo_finish)
+            self.gizmo_style = "axis-rings-cones"
             return True
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.gizmo_style = None
+            self.gizmo_style_error = repr(exc)
             if self.gizmo_separator is not None:
                 try:
                     self.scene_graph.removeChild(self.gizmo_separator)
                 except (AttributeError, RuntimeError):
                     pass
-                if dragger is not None:
-                    try:
-                        self.gizmo_separator.removeChild(dragger)
-                    except (AttributeError, RuntimeError):
-                        pass
             return False
 
     def _create_trackball_gizmo(self, coin):
@@ -627,11 +663,22 @@ class SkeletonPoseController:
             self.selected_bone,
             JointRotation(self.selected_bone),
         )
+        name = ""
+        try:
+            name = str(dragger.getName().getString())
+        except (AttributeError, RuntimeError):
+            pass
+        self._active_gizmo_axis = {
+            "ClothPoseRotationX": (1.0, 0.0, 0.0),
+            "ClothPoseRotationY": (0.0, 1.0, 0.0),
+            "ClothPoseRotationZ": (0.0, 0.0, 1.0),
+        }.get(name)
+
         dragger.rotation.setValue(
             self._coin().SbVec3f(0.0, 0.0, 1.0),
             0.0,
         )
-        if self.gizmo_mode == "native":
+        if hasattr(dragger, "rotationIncrement"):
             dragger.rotationIncrement.setValue(
                 math.radians(
                     5.0 if self.panel.angle_snap.isChecked() else 1.0
@@ -653,7 +700,15 @@ class SkeletonPoseController:
             return
         try:
             quaternion = self._dragger_quaternion(dragger)
-            delta = self.App.Rotation(*quaternion)
+            angle = math.degrees(
+                2.0 * math.atan2(float(quaternion[2]), float(quaternion[3]))
+            )
+            if self._active_gizmo_axis is None:
+                return
+            delta = self.App.Rotation(
+                self.App.Vector(*self._active_gizmo_axis),
+                angle,
+            )
             base = self.App.Rotation()
             base.setEulerAngles(
                 self.App.Rotation.Extrinsic_XYZ,
@@ -677,6 +732,7 @@ class SkeletonPoseController:
     def _gizmo_finish(self, _data, _dragger):
         self._gizmo_dragging = False
         self.base_rotation = None
+        self._active_gizmo_axis = None
         if self.selected_bone:
             self.panel.status.setText(
                 "{} posed. Click Apply & Rebuild to keep the change.".format(
@@ -1118,16 +1174,25 @@ class AvatarPoseTaskPanel:
     def _staged_parameters(self):
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
-        measurements = {
-            key: float(getattr(self.avatar, property_name))
-            for key, property_name in self._measurement_map().items()
-        }
+        from freecad_cloth.avatar.AvatarCommands import _parameters
+
+        stored = _parameters(self.avatar)
+        measurements = dict(stored.measurements)
+        preset = str(getattr(self, "_staged_pose_preset", stored.pose.preset))
+        arm_angles = getattr(
+            self,
+            "_staged_arm_angles",
+            {
+                "left_arm_angle": float(stored.pose.left_arm_angle),
+                "right_arm_angle": float(stored.pose.right_arm_angle),
+            },
+        )
         current_pose = Pose(
-            str(getattr(self, "_staged_pose_preset", getattr(self.avatar, "PosePreset", "standing"))),
-            float(getattr(self.avatar, "LeftArmAngle", 12.0)),
-            float(getattr(self.avatar, "RightArmAngle", 12.0)),
-            float(getattr(self.avatar, "LeftElbowAngle", 0.0)),
-            float(getattr(self.avatar, "RightElbowAngle", 0.0)),
+            preset,
+            float(arm_angles["left_arm_angle"]),
+            float(arm_angles["right_arm_angle"]),
+            float(stored.pose.left_elbow_angle),
+            float(stored.pose.right_elbow_angle),
             tuple(self._staged_joint_rotations.values()),
         )
         return AvatarParameters(
@@ -1163,8 +1228,15 @@ class AvatarPoseTaskPanel:
     def _select_preset(self, preset):
         if self._loading:
             return
+        from freecad_cloth.avatar.AvatarModel import Pose
+
+        defaults = Pose(str(preset))
         self._staged_joint_rotations = {}
         self._staged_pose_preset = str(preset)
+        self._staged_arm_angles = {
+            "left_arm_angle": float(defaults.left_arm_angle),
+            "right_arm_angle": float(defaults.right_arm_angle),
+        }
         self._preview_rebuild()
         self._select_first_joint()
         self.status.setText(
@@ -1204,8 +1276,15 @@ class AvatarPoseTaskPanel:
             self.status.setText("Preview unavailable; the staged values remain editable.")
 
     def _reset_pose(self):
+        from freecad_cloth.avatar.AvatarModel import Pose
+
         self._staged_joint_rotations = {}
         self._staged_pose_preset = str(getattr(self.avatar, "PosePreset", "standing"))
+        defaults = Pose(self._staged_pose_preset)
+        self._staged_arm_angles = {
+            "left_arm_angle": float(defaults.left_arm_angle),
+            "right_arm_angle": float(defaults.right_arm_angle),
+        }
         self._preview_rebuild()
         self._select_first_joint()
         self.status.setText("Pose reset to the selected preset baseline.")

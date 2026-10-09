@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping
 
 CONTROLLABLE_JOINTS = (
     ("spine05", "Pelvis"),
@@ -251,8 +252,14 @@ def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
     return AffineTransform(rotation, tuple(point[i] - rotated[i] for i in range(3)))
 
 
-def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
-    """Build the FK transform for every authored skeleton bone."""
+def build_bone_transforms(
+    source_vertices: tuple[Vector, ...],
+    skeleton: dict,
+    fit_point: Callable[[Vector], Vector],
+    rotations: Iterable[JointRotation],
+    rotation_pivots: Mapping[str, Vector] | None = None,
+) -> dict[str, AffineTransform]:
+    """Build FK transforms, using optional rig-defined pivots for driven bones."""
     from freecad_cloth.avatar.HumanoidMesh import _joint_point
 
     rotation_map = joint_rotation_map(rotations)
@@ -272,8 +279,9 @@ def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
         if rotation is None:
             local = IDENTITY
         else:
+            pivot = (rotation_pivots or {}).get(bone_name, rest_head)
             local = _rotation_about_point(
-                rest_head,
+                pivot,
                 _rotation_matrix(rotation.x, rotation.y, rotation.z),
             )
         combined = _compose(parent_transform, local)
@@ -285,9 +293,19 @@ def build_bone_transforms(source_vertices, skeleton, fit_point, rotations):
     return cache
 
 
-def apply_weighted_fk(source_vertices, rest_vertices, skeleton, weights, fit_point, rotations):
-    """Apply weighted FK transforms to a fitted mesh using source skin weights."""
-    transforms = build_bone_transforms(source_vertices, skeleton, fit_point, rotations)
+def apply_weighted_fk(
+    source_vertices: tuple[Vector, ...],
+    rest_vertices: tuple[Vector, ...],
+    skeleton: dict,
+    weights: Mapping[str, tuple[tuple[int, float], ...]],
+    fit_point: Callable[[Vector], Vector],
+    rotations: Iterable[JointRotation],
+    rotation_pivots: Mapping[str, Vector] | None = None,
+) -> tuple[Vector, ...]:
+    """Apply shared weighted-FK deformation using the same rig pivots."""
+    transforms = build_bone_transforms(
+        source_vertices, skeleton, fit_point, rotations, rotation_pivots
+    )
     count = len(rest_vertices)
     accum = [[0.0, 0.0, 0.0] for _ in range(count)]
     weight_sum = [0.0] * count

@@ -42,3 +42,22 @@ def test_pose_mode_helpers_are_runtime_importable_without_freecad_gui():
     assert callable(pose_gui.joint_world_positions)
     assert callable(pose_gui.skeleton_world_segments)
     assert callable(pose_gui.show_avatar_pose_task)
+
+
+def test_pose_mode_uses_native_axis_rotation_gizmo():
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "avatar"
+        / "AvatarPoseGui.py"
+    ).read_text(encoding="utf-8")
+    assert 'coin.SoType.fromName("SoRotationDragger")' in source
+    assert 'coin.SoType.fromName("SoRotatorGeometry2")' in source
+    assert "_configure_axis_rotation_dragger" in source
+    assert '"axis-rings-cones"' in source
+    assert "ClothPoseRotationX" in source
+    assert "ClothPoseRotationY" in source
+    assert "ClothPoseRotationZ" in source
+    assert "coin.SoTrackballDragger()" in source

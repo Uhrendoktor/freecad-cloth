@@ -2,6 +2,8 @@
 
 import faulthandler
 import os
+from collections import defaultdict
+from itertools import product
 import sys
 import time
 import traceback
@@ -204,6 +206,84 @@ def _bounds(mesh):
     )
 
 
+def _point_bounds(points):
+    values = tuple(
+        (float(point[0]), float(point[1]), float(point[2]))
+        for point in points
+    )
+    if not values:
+        return None
+    return tuple(
+        (
+            min(point[axis] for point in values),
+            max(point[axis] for point in values),
+        )
+        for axis in range(3)
+    )
+
+
+def _point_records(points, precision=3):
+    """Return a stable, order-independent point multiset at native mesh precision."""
+    records = []
+    for point in points:
+        values = tuple(float(value) for value in point)
+        key = tuple(round(value, precision) for value in values)
+        records.append((key, values))
+    return sorted(records)
+
+
+def _match_native_points(expected_points, actual_points, tolerance=0.002):
+    """Match points one-to-one within native mesh precision, independent of ordering."""
+    buckets = defaultdict(list)
+    actual_values = tuple(
+        tuple(float(value) for value in point) for point in actual_points
+    )
+    for index, point in enumerate(actual_values):
+        key = tuple(int(value // tolerance) for value in point)
+        buckets[key].append((index, point))
+
+    matched = set()
+    max_error = 0.0
+    for expected_index, raw_expected in enumerate(expected_points):
+        expected = tuple(float(value) for value in raw_expected)
+        key = tuple(int(value // tolerance) for value in expected)
+        best_index = None
+        best_point = None
+        best_error = float("inf")
+        for delta in product((-1, 0, 1), repeat=3):
+            neighbor_key = tuple(key[axis] + delta[axis] for axis in range(3))
+            for actual_index, actual in buckets.get(neighbor_key, ()):
+                if actual_index in matched:
+                    continue
+                error = sum(
+                    (actual[axis] - expected[axis]) ** 2 for axis in range(3)
+                ) ** 0.5
+                if error < best_error:
+                    best_index, best_point, best_error = (
+                        actual_index,
+                        actual,
+                        error,
+                    )
+        if best_index is None or best_error > tolerance:
+            return max_error, (
+                expected_index,
+                expected,
+                best_point,
+                best_error,
+            )
+        matched.add(best_index)
+        max_error = max(max_error, best_error)
+
+    if len(matched) != len(actual_values):
+        return max_error, (
+            len(expected_points),
+            None,
+            None,
+            float("inf"),
+        )
+    return max_error, None
+
+
 def run():
     progress_path = Path("artifacts/avatar-pose-ui-progress.log")
     progress_path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,8 +313,100 @@ def run():
     progress("panel-created")
     runtime = _runtime_diagnostics()
     progress("runtime=" + repr(runtime))
+    progress("avatar-joint-pose=" + str(getattr(avatar, "JointPoseJSON", "")))
+    from freecad_cloth.avatar import AvatarCommands, AvatarModel, HierarchicalPose
+
+    progress(
+        "module-paths="
+        + repr(
+            {
+                "AvatarCommands": getattr(AvatarCommands, "__file__", None),
+                "AvatarModel": getattr(AvatarModel, "__file__", None),
+                "HierarchicalPose": getattr(HierarchicalPose, "__file__", None),
+            }
+        )
+    )
+    progress(
+        "fk-code-fingerprint="
+        + repr(
+            {
+                "AvatarCommands.generate_mesh": (
+                    getattr(AvatarCommands.generate_mesh, "__module__", None),
+                    getattr(AvatarCommands.generate_mesh.__code__, "co_firstlineno", None),
+                ),
+                "AvatarModel.generate_mesh": (
+                    getattr(AvatarModel.generate_mesh, "__module__", None),
+                    getattr(AvatarModel.generate_mesh.__code__, "co_firstlineno", None),
+                ),
+                "HierarchicalPose.generate_hierarchical_mesh": (
+                    getattr(HierarchicalPose.generate_hierarchical_mesh.__code__, "co_firstlineno", None),
+                ),
+            }
+        )
+    )
+    generated_vertices, _, _ = AvatarModel.generate_mesh(panel._staged_parameters())
+    progress(
+        "generated-mesh-bounds="
+        + repr(
+            _point_bounds(generated_vertices)
+        )
+    )
+    before_params = panel._staged_parameters()
+    progress(
+        "staged-params-before-dialog="
+        + repr(
+            {
+                "measurements": dict(before_params.measurements),
+                "skin_offset": float(before_params.skin_offset),
+                "pose": (
+                    before_params.pose.preset,
+                    float(before_params.pose.left_arm_angle),
+                    float(before_params.pose.right_arm_angle),
+                    float(before_params.pose.left_elbow_angle),
+                    float(before_params.pose.right_elbow_angle),
+                    repr(before_params.pose.joint_rotations),
+                ),
+            }
+        )
+    )
     Gui.Control.showDialog(panel)
+    after_params = panel._staged_parameters()
+    progress(
+        "staged-params-after-dialog="
+        + repr(
+            {
+                "measurements": dict(after_params.measurements),
+                "skin_offset": float(after_params.skin_offset),
+                "pose": (
+                    after_params.pose.preset,
+                    float(after_params.pose.left_arm_angle),
+                    float(after_params.pose.right_arm_angle),
+                    float(after_params.pose.left_elbow_angle),
+                    float(after_params.pose.right_elbow_angle),
+                    repr(after_params.pose.joint_rotations),
+                ),
+            }
+        )
+    )
     _events()
+    pumped_params = panel._staged_parameters()
+    progress(
+        "staged-params-after-events="
+        + repr(
+            {
+                "pose": (
+                    pumped_params.pose.preset,
+                    float(pumped_params.pose.left_arm_angle),
+                    float(pumped_params.pose.right_arm_angle),
+                    float(pumped_params.pose.left_elbow_angle),
+                    float(pumped_params.pose.right_elbow_angle),
+                    repr(pumped_params.pose.joint_rotations),
+                ),
+                "gizmo_dragging": bool(getattr(panel.controller, "_gizmo_dragging", False)),
+                "selected_bone": getattr(panel.controller, "selected_bone", None),
+            }
+        )
+    )
     progress("panel-shown")
     view = Gui.activeDocument().activeView()
     if not getattr(panel.form, "isVisible", lambda: False)():
@@ -251,8 +423,14 @@ def run():
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
     progress(
-        "viewport-capability gizmo_mode=%s fallback=%s runtime_error=%r"
-        % (getattr(panel.controller, "gizmo_mode", None), fallback, runtime_error)
+        "viewport-capability gizmo_mode=%s gizmo_style=%s gizmo_style_error=%r fallback=%s runtime_error=%r"
+        % (
+            getattr(panel.controller, "gizmo_mode", None),
+            getattr(panel.controller, "gizmo_style", None),
+            getattr(panel.controller, "gizmo_style_error", None),
+            fallback,
+            runtime_error,
+        )
     )
     if fallback:
         raise RuntimeError(
@@ -260,9 +438,11 @@ def run():
             + str(runtime_error)
         )
     gizmo_mode = panel.controller.gizmo_mode or "unknown"
-    if panel.controller.gizmo_mode not in {"native", "trackball-fallback"}:
+    if panel.controller.gizmo_mode != "native" or panel.controller.gizmo_style != "axis-rings-cones":
         raise RuntimeError(
-            "Pose Mode did not select a supported interactive gizmo mode"
+            "Pose Mode did not install the required native axis-ring/cone gizmo "
+            f"(mode={gizmo_mode!r}, style={getattr(panel.controller, 'gizmo_style', None)!r}, "
+            f"error={getattr(panel.controller, 'gizmo_style_error', None)!r})"
         )
     if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
         raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
@@ -276,6 +456,58 @@ def run():
         )
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
         raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    from freecad_cloth.avatar.HierarchicalPose import _manual_pose_state
+    from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
+
+    expected_mesh, _ = _manual_pose_state(
+        panel._staged_parameters(),
+        load_makehuman_mesh(),
+    )
+    actual_points = tuple(avatar.Mesh.Points)
+    progress("expected-mesh-bounds=" + repr(_point_bounds(expected_mesh.vertices)))
+    progress(
+        "actual-mesh-bounds="
+        + repr(_point_bounds((point.x, point.y, point.z) for point in actual_points))
+    )
+    if len(actual_points) != len(expected_mesh.vertices):
+        raise RuntimeError(
+            "Pose Mode mesh vertex count does not match the authored FK mesh"
+        )
+
+    # First prove the public generator and independent FK builder agree before
+    # crossing into FreeCAD's native Mesh representation.
+    generated_records = _point_records(generated_vertices, precision=7)
+    expected_records = _point_records(expected_mesh.vertices, precision=7)
+    if [item[0] for item in generated_records] != [item[0] for item in expected_records]:
+        raise RuntimeError(
+            "Public avatar mesh generator differs from the independent authored FK result"
+        )
+
+    actual_values = tuple(
+        (point.x, point.y, point.z) for point in actual_points
+    )
+    max_vertex_error, mismatch = _match_native_points(
+        expected_mesh.vertices,
+        actual_values,
+        tolerance=0.002,
+    )
+    progress(
+        "mesh-fk-consistency-max-error=%.9f mm (native point-match tolerance=0.002 mm)"
+        % max_vertex_error
+    )
+    if mismatch is not None:
+        mismatch_index, expected_point, nearest_point, nearest_error = mismatch
+        raise RuntimeError(
+            "Pose Mode native mesh differs from authored FK coordinates "
+            "(first unmatched expected point index=%s expected=%r nearest=%r "
+            "distance=%.9f mm, tolerance=0.002 mm)"
+            % (
+                mismatch_index,
+                expected_point,
+                nearest_point,
+                nearest_error,
+            )
+        )
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
         raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")

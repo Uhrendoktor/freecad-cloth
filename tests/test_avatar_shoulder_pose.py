@@ -25,8 +25,8 @@ class AvatarShoulderPoseTests(unittest.TestCase):
     def test_avatar_parameters_still_validate_with_pose_defaults(self):
         params = AvatarParameters()
         self.assertEqual(params.pose.preset, "standing")
-        self.assertEqual(float(params.pose.left_arm_angle), 12.0)
-        self.assertEqual(float(params.pose.right_arm_angle), 12.0)
+        self.assertEqual(float(params.pose.left_arm_angle), 70.0)
+        self.assertEqual(float(params.pose.right_arm_angle), 70.0)
 
 
 if __name__ == "__main__":
