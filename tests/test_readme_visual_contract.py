@@ -108,7 +108,14 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     )[0]
     assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
     assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
-    for name in ("cloth-pattern-design.png", "cloth-simulation-arranged.png"):
+    assert "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)" in screenshot_source
+    assert "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit" in screenshot_source
+    assert "def pattern_and_sewing(" not in screenshot_source
+    for name in (
+        "cloth-pattern-design.png",
+        "cloth-sewing.png",
+        "cloth-simulation-arranged.png",
+    ):
         assert manifest[name]["artifact"] == "tunic-visual-audit"
         assert manifest[name]["producers"] == ["tests/freecad_tunic_audit_production.py"]
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
