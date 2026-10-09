@@ -259,7 +259,7 @@ try:
     world_bounds = []
     for piece in (piece_a, piece_b, piece_c):
         box = piece.Shape.BoundBox
-        if box.isNull() or float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
+        if float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
             raise RuntimeError(
                 "seam-assignment GIF fixture has empty pattern geometry: " + piece.Label
             )
