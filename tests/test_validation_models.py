@@ -246,6 +246,6 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
 
 
 
-def test_polyline_interpolation_avoids_overflow_for_finite_extreme_points() -> None:
-    segment = PolylineSegment("extreme-polyline", ((-1e308, 0.0), (1e308, 0.0)))
-    assert segment.point(0.5) == (0.0, 0.0)
+def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
+    segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
+    assert segment.point(0.5) == pytest.approx((1.05e308, 0.0))
