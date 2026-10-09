@@ -5,6 +5,8 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
+from freecad_cloth.sewing.SeamOverlay import seam_display_labels
+from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
     apply_seam_colors,
     pattern_pieces_for_2d,
@@ -161,3 +163,43 @@ if __name__ == "__main__":
     test_apply_seam_colors_marks_each_seam_pair()
     test_show_2d_does_not_select_seams_over_their_colors()
     print("sewing Show 2D tests passed")
+
+def test_seam_overlay_labels_are_unique_stable_pair_identifiers():
+    initial_ids = ("seam-1", "seam-2", "custom-long-identity")
+    baseline = seam_display_labels(initial_ids)
+    extended = seam_display_labels((*initial_ids, "seam-3"))
+    assert baseline["seam-1"] == "S1"
+    assert len(set(extended.values())) == len(extended)
+    for seam_id in initial_ids:
+        assert extended[seam_id] == baseline[seam_id]
+
+
+def test_seam_overlay_labels_resolve_short_name_collisions_without_merging_pairs():
+    labels = seam_display_labels(("seam-1", "S1"))
+    assert len(set(labels.values())) == 2
+    assert all(labels[identity] for identity in ("seam-1", "S1"))
+
+
+def test_viewport_picker_accepts_only_pattern_piece_edges():
+    first = SimpleNamespace(Name="PatternA", Label="Front", PatternType="PatternPiece")
+    second = SimpleNamespace(Name="PatternB", Label="Back", PatternType="PatternPiece")
+    seam = SimpleNamespace(Name="Seam1", Label="Seam", SeamId="seam-1")
+    document = SimpleNamespace(Objects=[first, second, seam])
+
+    assert viewport_edge_candidate(
+        document, {"Object": "PatternA", "Component": "Edge3"}
+    ) == (first, "Edge3")
+    assert viewport_edge_candidate(
+        document, {"Object": "Back", "Component": "Edge2"}
+    ) == (second, "Edge2")
+    assert viewport_edge_candidate(
+        document, {"Object": "PatternA", "Component": "Face1"}
+    ) is None
+    assert viewport_edge_candidate(
+        document, {"Object": "Seam1", "Component": "Edge1"}
+    ) is None
+    assert viewport_edge_candidate(
+        document, {"Object": "Missing", "Component": "Edge1"}
+    ) is None
+
+
