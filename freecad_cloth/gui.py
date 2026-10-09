@@ -84,10 +84,32 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     def Deactivated(self):
         callback = _WORKBENCH_DEACTIVATION_CALLBACK
         if callback is not None:
+            def finish_deactivation() -> None:
+                # FreeCAD may deliver the new workbench's Activated() before
+                # the previous workbench's Deactivated(). Defer cleanup until
+                # the transition settles so a Cloth-to-Cloth switch does not
+                # disable the overlay that the incoming workbench just enabled.
+                if Gui is not None:
+                    try:
+                        active = Gui.activeWorkbench()
+                        active_name = str(active.name()).lower()
+                    except (AttributeError, RuntimeError, TypeError):
+                        active_name = ""
+                    if active_name.startswith("cloth"):
+                        return
+                try:
+                    callback()
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    pass
+
             try:
-                callback()
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+                try:
+                    from PySide import QtCore
+                except ImportError:
+                    from PySide2 import QtCore
+                QtCore.QTimer.singleShot(0, finish_deactivation)
+            except ImportError:
+                finish_deactivation()
         return None
 
     def ContextMenu(self, recipient):
