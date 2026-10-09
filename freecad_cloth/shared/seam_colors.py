@@ -38,4 +38,10 @@ def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float
         color = colors.get(str(getattr(obj, "SeamId", "")))
         if view is not None and color is not None:
             view.LineColor = color
+    if seam_objects:
+        document = getattr(seam_objects[0], "Document", None)
+        if document is not None:
+            from freecad_cloth.sewing.SeamOverlay import schedule_seam_overlay_refresh
+
+            schedule_seam_overlay_refresh(document)
     return colors
