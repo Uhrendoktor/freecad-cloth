@@ -1,0 +1,6 @@
+id: no-os-system
+language: Python
+severity: error
+message: Use subprocess APIs instead of os.system.
+rule:
+  pattern: os.system($COMMAND)
