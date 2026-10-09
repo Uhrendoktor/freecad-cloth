@@ -402,6 +402,10 @@ class SewingCreationTaskPanel:
             if not self.preview():
                 self._viewport_picks = []
                 self._refresh_selection()
+            else:
+                self.feedback.setText(
+                    "Seam preview shown. Review the matching color and A/B labels, then Commit or Cancel."
+                )
 
     def _show_error(self, exc):
 
