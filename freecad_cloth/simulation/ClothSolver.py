@@ -75,7 +75,7 @@ class ClothSystem:
         pins: Iterable[int] = (),
     ) -> None:
         raw_particles: list[object] = list(particles)
-        self.particles = []
+        self.particles: list[Particle] = []
         for particle in raw_particles:
             if not isinstance(particle, Particle):
                 raise TypeError("particles must be Particle instances")
@@ -86,7 +86,7 @@ class ClothSystem:
             self.particles.append(particle)
 
         raw_constraints: list[object] = list(constraints)
-        self.constraints = []
+        self.constraints: list[DistanceConstraint] = []
         for constraint in raw_constraints:
             if not isinstance(constraint, DistanceConstraint):
                 raise TypeError("constraints must be DistanceConstraint instances")
