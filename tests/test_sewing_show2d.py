@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
-from freecad_cloth.sewing.SeamOverlay import seam_display_labels
+from freecad_cloth.sewing.SeamOverlay import _simulation_seam_geometry, _side_segments, seam_display_labels
 from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
     apply_seam_colors,
@@ -202,5 +202,44 @@ def test_viewport_picker_accepts_only_pattern_piece_edges():
     assert viewport_edge_candidate(
         document, {"Object": "Missing", "Component": "Edge1"}
     ) is None
+
+
+def test_simulation_seam_geometry_uses_authoritative_particle_pair_provenance():
+    positions = (
+        (0.0, 0.0, 4.0),
+        (10.0, 0.0, 4.0),
+        (0.0, 2.0, 4.0),
+        (10.0, 2.0, 4.0),
+    )
+    backend = SimpleNamespace(positions=lambda: positions)
+    proxy = SimpleNamespace(
+        seam_stitch_pairs={"seam-7": ((0, 2), (1, 3))},
+        backend=backend,
+    )
+    panel = SimpleNamespace(ViewObject=SimpleNamespace(Visibility=True))
+    scene = SimpleNamespace(Proxy=proxy, DrapePanels=[panel])
+    document = SimpleNamespace(Objects=[scene])
+
+    geometry = _simulation_seam_geometry(document)
+    side_a, side_b, connectors = geometry["seam-7"]
+    assert side_a == [positions[0], positions[1]]
+    assert side_b == [positions[2], positions[3]]
+    assert connectors == [[positions[0], positions[2]], [positions[1], positions[3]]]
+
+
+def test_simulation_seam_geometry_fails_closed_for_missing_or_stale_indices():
+    backend = SimpleNamespace(positions=lambda: ((0.0, 0.0, 0.0),))
+    proxy = SimpleNamespace(seam_stitch_pairs={"seam-1": ((0, 4),)}, backend=backend)
+    panel = SimpleNamespace(ViewObject=SimpleNamespace(Visibility=True))
+    scene = SimpleNamespace(Proxy=proxy, DrapePanels=[panel])
+    assert _simulation_seam_geometry(SimpleNamespace(Objects=[scene])) == {}
+
+
+def test_seam_side_overlay_creates_edge_direction_and_notch_strokes():
+    points = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
+    segments = _side_segments(points)
+    assert segments[0] == list(points)
+    assert len(segments) >= 3
+    assert all(len(segment) >= 2 for segment in segments)
 
 
