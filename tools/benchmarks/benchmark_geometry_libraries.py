@@ -1,7 +1,7 @@
 """Optional benchmark for the SciPy/GEOS geometry accelerations.
 
 Run after installing the optional extra:
-    python -m pip install -e ".[geometry]"
+    python -m pip install -e .
     python tools/benchmarks/benchmark_geometry_libraries.py --sizes 128 512 1024
 
 The benchmark checks result equivalence before printing timings. It does not impose
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
-from importlib.util import find_spec
 from math import cos, dist, isclose, sin, tau
 from random import Random
 from time import perf_counter
@@ -121,14 +120,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=(128, 512, 1024))
     args = parser.parse_args(argv)
-
-    missing = [package for package in ("scipy", "shapely") if find_spec(package) is None]
-    if missing:
-        raise SystemExit(
-            "Missing optional geometry libraries: "
-            + ", ".join(missing)
-            + '; install with: python -m pip install -e ".[geometry]"'
-        )
 
     for count in args.sizes:
         if count < 32:
