@@ -278,6 +278,20 @@ try:
     cancel_panel = open_public("ClothSewing_CreateSeam")
     assert any(getattr(obj, "SeamId", "") for obj in cancel_panel.session.created)
     key_click(cancel_panel.cancel_button, "Space")
+    active_after_key = Gui.Control.activeDialog()
+    record(
+        "cancel-key-state="
+        + repr(
+            {
+                "closing": bool(cancel_panel._closing),
+                "committed": bool(cancel_panel.session.committed),
+                "previewed": bool(cancel_panel.session.previewed),
+                "active_dialog": active_after_key is not None and bool(active_after_key),
+                "form_visible": bool(cancel_panel.form.isVisible()),
+                "cancel_enabled": bool(cancel_panel.cancel_button.isEnabled()),
+            }
+        )
+    )
     wait_for_task_close()
     assert {obj.Name for obj in doc.Objects} == cancel_before, "keyboard cancellation persisted preview objects"
     record("cancel-1to1=passed keyboard=space")
