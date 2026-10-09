@@ -103,7 +103,7 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
 
     assert "capture_tunic_pattern_view(doc, front, back, hem_width)" in screenshot_source
     assert "same native Sketcher profiles used by the canonical 3D tunic audit" in screenshot_source
-    assert screenshot_source.index("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
+    assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
     for name in ("cloth-pattern-design.png", "cloth-simulation-arranged.png"):
         assert manifest[name]["artifact"] == "tunic-visual-audit"
         assert manifest[name]["producers"] == ["tests/freecad_tunic_audit_production.py"]
