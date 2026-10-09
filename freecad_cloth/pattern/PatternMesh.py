@@ -30,11 +30,17 @@ class TriangleMesh:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
         for tri in self.triangles:
-            if len(set(tri)) != 3 or any(i < 0 or i >= n for i in tri):
+            if (
+                len(set(tri)) != 3
+                or any(type(index) is not int or index < 0 or index >= n for index in tri)
+            ):
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
-        if any(index < 0 or index >= n for index in self.boundary_vertex_indices):
+        if any(
+            type(index) is not int or index < 0 or index >= n
+            for index in self.boundary_vertex_indices
+        ):
             raise ValueError("invalid boundary vertex index")
         if any(
             len(point) != 2 or not all(isfinite(coordinate) for coordinate in point)
@@ -49,10 +55,13 @@ class TriangleMesh:
     @property
     def area(self) -> float:
         """Provide the public area operation."""
-        return sum(
+        total = sum(
             abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
             for a, b, c in self.triangles
         )
+        if not isfinite(total):
+            raise ValueError("computed mesh area must be finite")
+        return total
 
     def boundary_edges(self) -> tuple[tuple[int, int], ...]:
         """Provide the public boundary edges operation."""
@@ -77,7 +86,10 @@ def triangulate(
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
-    if abs(_signed_area(points)) < 1e-9:
+    signed_area = _signed_area(points)
+    if not isfinite(signed_area):
+        raise ValueError("pattern area must be finite")
+    if abs(signed_area) < 1e-9:
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
@@ -87,7 +99,7 @@ def triangulate(
         edge_ids = [segment.id for segment in pattern.segments]
     else:
         edge_ids = _edge_segment_ids(pattern, points)
-    if _signed_area(points) < 0:
+    if signed_area < 0:
         points = list(reversed(points))
         # Recompute provenance from geometry after normalization. A refined
         # authored edge can contain several internal sub-segments, so a fixed
@@ -156,7 +168,10 @@ def triangulate(
     mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
     mesh.validate()
     expected_area = abs(_signed_area(points))
-    if abs(mesh.area - expected_area) > 1e-6 * max(1.0, expected_area):
+    actual_area = mesh.area
+    if not isfinite(expected_area) or not isfinite(actual_area):
+        raise ValueError("triangulation area must be finite")
+    if abs(actual_area - expected_area) > 1e-6 * max(1.0, expected_area):
         raise ValueError("triangulation area does not match pattern area")
     return mesh
 
