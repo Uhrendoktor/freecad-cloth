@@ -1,6 +1,7 @@
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -14,11 +15,13 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
 from tests.support.freecad_input import (
     UiGifRecorder,
+    _qt_modules,
     click_widget,
     focus_main_window,
 )
@@ -230,12 +233,98 @@ try:
     doc.recompute()
     record("fixtures=created pieces=3")
 
+    # Resize before reading the render area, then position the orthographic
+    # Coin camera explicitly. In this headless FreeCAD/Pivy build, fitAll()
+    # leaves the camera at its default ~4 mm field of view despite visible
+    # 100 mm pieces, so camera bounds are derived from the actual world shapes.
+    window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
+    for piece, color in (
+        (piece_a, (0.34, 0.65, 0.88)),
+        (piece_b, (0.94, 0.62, 0.30)),
+        (piece_c, (0.42, 0.72, 0.52)),
+    ):
+        view_object = piece.ViewObject
+        view_object.Visibility = True
+        view_object.ShapeColor = color
+        view_object.LineColor = (0.12, 0.16, 0.21)
+        view_object.LineWidth = 3.0
+    doc.recompute()
     view.setCameraType("Orthographic")
     view.viewTop()
-    view.fitAll()
-    window = focus_main_window(Gui, size=(1280, 720))
-    view.fitAll()
+    process_events()
+    _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
+    QtTest.QTest.qWait(200)
+
+    world_bounds = []
+    for piece in (piece_a, piece_b, piece_c):
+        box = piece.Shape.BoundBox
+        if float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
+            raise RuntimeError(
+                "seam-assignment GIF fixture has empty pattern geometry: " + piece.Label
+            )
+        if not bool(piece.ViewObject.Visibility):
+            raise RuntimeError(
+                "seam-assignment GIF fixture is not visible: " + piece.Label
+            )
+        # FreeCAD's Shape.BoundBox already includes the object's Placement.
+        # Adding Placement.Base a second time shifts and enlarges the camera box.
+        world_bounds.append((
+            float(box.XMin), float(box.YMin), float(box.ZMin),
+            float(box.XMax), float(box.YMax), float(box.ZMax),
+        ))
+    xmin = min(value[0] for value in world_bounds)
+    ymin = min(value[1] for value in world_bounds)
+    zmin = min(value[2] for value in world_bounds)
+    xmax = max(value[3] for value in world_bounds)
+    ymax = max(value[4] for value in world_bounds)
+    zmax = max(value[5] for value in world_bounds)
+    center = coin.SbVec3f(
+        (xmin + xmax) * 0.5,
+        (ymin + ymax) * 0.5,
+        (zmin + zmax) * 0.5,
+    )
+    view_size = view.getSize()
+    view_width, view_height = float(view_size[0]), float(view_size[1])
+    if view_width <= 0.0 or view_height <= 0.0:
+        raise RuntimeError("seam-assignment GIF has an invalid viewport size")
+    aspect = view_width / view_height
+    extent_x, extent_y = xmax - xmin, ymax - ymin
+    camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
+    camera = view.getCameraNode()
+    previous_position = coin.SbVec3f(camera.position.getValue())
+    # Preserve the distance used by FreeCAD's top view. Moving the camera far
+    # beyond the inherited clipping range can hide every piece even when its
+    # orthographic height is correct.
+    camera_distance = abs(float(previous_position[2]) - float(center[2]))
+    if camera_distance < 10.0:
+        camera_distance = max(100.0, 2.0 * max(extent_x, extent_y))
+    camera.position.setValue(
+        coin.SbVec3f(center[0], center[1], center[2] + camera_distance)
+    )
+    camera.height.setValue(float(camera_height))
+    camera.pointAt(center, coin.SbVec3f(0.0, 1.0, 0.0))
+    if hasattr(view, "redraw"):
+        view.redraw()
+    process_events()
+    QtTest.QTest.qWait(150)
+    camera_match = re.search(
+        r"\bheight\s+([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)",
+        view.getCamera(),
+    )
+    if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
+        raise RuntimeError(
+            "seam-assignment GIF camera did not apply the requested world-space framing: "
+            f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
+        )
+    record(
+        "seam-camera=passed center=(%.2f,%.2f,%.2f) bounds=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f) "
+        "height=%.2f distance=%.2f viewport=%dx%d"
+        % (
+            center[0], center[1], center[2], xmin, ymin, zmin, xmax, ymax, zmax,
+            float(camera_match.group(1)), camera_distance, int(view_width), int(view_height),
+        )
+    )
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
         gui=Gui,
