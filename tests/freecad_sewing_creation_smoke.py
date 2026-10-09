@@ -20,6 +20,7 @@ import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
 from tests.support.freecad_input import (
     UiGifRecorder,
+    _qt_modules,
     click_widget,
     focus_main_window,
 )
@@ -251,7 +252,6 @@ try:
     view.setCameraType("Orthographic")
     view.viewTop()
     process_events()
-    from tests.support.freecad_input import _qt_modules
     _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
     QtTest.QTest.qWait(200)
     view.fitAll()
