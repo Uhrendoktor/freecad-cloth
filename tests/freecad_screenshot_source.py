@@ -1194,8 +1194,19 @@ def simulation():
 
     try:
         simulation_objects._piece_mesh = tunic_initial_surface_mesh
+        # Existing recomputes may already have built the proxy before this fixture
+        # installs its mesh transform. Force one authoritative rebuild so the
+        # diagnostic hook is consumed by SimulationProxy._build_pattern_scene.
+        scene_proxy = scene.Proxy
+        scene_proxy.backend = None
+        scene_proxy.source_signature = None
+        scene_proxy.last_steps = 0
         refresh_drape_target(target)
         doc.recompute()
+        if not any(fit_counts.values()):
+            raise RuntimeError(
+                "canonical tunic surface fit did not intercept the initial mesh build"
+            )
     finally:
         simulation_objects._piece_mesh = original_piece_mesh
     log("tunic-initial-surface-map=%s fit-radius-mm=%.1f offset-mm=%.2f" % (
