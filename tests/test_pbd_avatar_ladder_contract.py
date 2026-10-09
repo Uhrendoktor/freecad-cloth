@@ -14,6 +14,8 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
         "rung-8-avatar-two-piece-no-seam",
         "rung-9-avatar-two-piece-small-seam",
         "rung-10-avatar-two-piece-large-seam",
+        "rung-11-avatar-front-back-no-seam",
+        "rung-12-avatar-front-back-depth-seam",
     ):
         assert case_id in SOURCE
 
@@ -49,6 +51,11 @@ def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs
     assert "reversed_b=True" in SOURCE
     assert '"right_offset": 0.5' in SOURCE
     assert '"right_offset": 80.0' in SOURCE
+    assert '"right_y_offset_mm": 237.96' in SOURCE
+    assert '"expected_initial_seam_gap_mm": 237.96' in SOURCE
+    assert '"seam_mode": "depth"' in SOURCE
+    assert 'scene.GravityZ = float(spec.get("gravity_z_mm_s2", 0.0))' in SOURCE
+    assert "expected_initial_seam_gap_mm" in SOURCE
     assert "max_span_mm" in SOURCE
     assert "min_span_mm" in SOURCE
 

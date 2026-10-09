@@ -328,10 +328,10 @@ def test_canonical_tunic_anchors_to_avatar_surface_by_semantic_shoulder_edges():
     assert '(front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False)' in source
     assert '(front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False)' in source
 
-def test_canonical_tunic_shoulder_endpoints_match_with_shallow_neckline():
+def test_canonical_tunic_shoulder_endpoints_match_between_front_and_back():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.03)' in source
-    assert 'back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.03)' in source
+    assert 'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)' in source
+    assert 'back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)' in source
 
 
 def test_tunic_attachment_selection_uses_semantic_shoulder_landmarks():

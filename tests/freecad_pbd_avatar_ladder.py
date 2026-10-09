@@ -421,6 +421,28 @@ def _case_spec(case_id):
             "seam_mode": "large",
             "right_offset": 80.0,
         },
+        "rung-11-avatar-front-back-no-seam": {
+            "rung": 11,
+            "piece_count": 2,
+            "pin_mode": "None",
+            "seam_mode": "none",
+            "right_offset": 0.5,
+            "right_y_offset_mm": 237.96,
+            "iterations": 8,
+            "gravity_z_mm_s2": 0.0,
+        },
+        "rung-12-avatar-front-back-depth-seam": {
+            "rung": 12,
+            "piece_count": 2,
+            "pin_mode": "None",
+            "seam_mode": "depth",
+            "right_offset": 0.5,
+            "right_y_offset_mm": 237.96,
+            "iterations": 8,
+            "gravity_z_mm_s2": 0.0,
+            "expected_initial_seam_gap_mm": 237.96,
+            "predecessor_case_id": "rung-11-avatar-front-back-no-seam",
+        },
     }
     return dict(table[case_id])
 
@@ -436,11 +458,14 @@ def _run_ladder_case(case_id):
         panel_height = 120.0
         rotation = App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0)
 
-        def make_piece(name, x_offset):
+        scene.SolverIterations = int(spec.get("iterations", 1))
+        scene.GravityZ = float(spec.get("gravity_z_mm_s2", 0.0))
+
+        def make_piece(name, x_offset, y_offset=0.0):
             placement = App.Placement(
                 App.Vector(
                     float(frame["x_mid"] + x_offset),
-                    float(frame["panel_y"] + 120.0),
+                    float(frame["panel_y"] + 120.0 + float(y_offset)),
                     float(frame["z_mid"] - panel_height / 2.0),
                 ),
                 rotation,
@@ -451,9 +476,13 @@ def _run_ladder_case(case_id):
         left = make_piece("AvatarLeft", -120.0)
         pieces = [left]
         if spec["piece_count"] == 2:
-            right = make_piece("AvatarRight", float(spec["right_offset"] or 0.0))
+            right = make_piece(
+                "AvatarRight",
+                float(spec["right_offset"] or 0.0),
+                float(spec.get("right_y_offset_mm", 0.0)),
+            )
             pieces.append(right)
-            if spec["seam_mode"] in {"small", "large"}:
+            if spec["seam_mode"] in {"small", "large", "depth"}:
                 _add_seam(doc, left, right)
         scene.ClothPieces = pieces
         scene.SeamSelection = []
@@ -579,7 +608,7 @@ def _run_ladder_case(case_id):
         seam_world_spans = [entry for entry in seam_pre]
         record = {
             "case_id": case_id,
-            "predecessor_case_id": None,
+            "predecessor_case_id": spec.get("predecessor_case_id"),
             "case": {
                 "rung": int(spec["rung"]),
                 "id": case_id,
@@ -587,6 +616,9 @@ def _run_ladder_case(case_id):
                 "piece_count": int(spec["piece_count"]),
                 "pin_mode": spec["pin_mode"],
                 "seam_mode": spec["seam_mode"],
+                "expected_iterations": int(spec.get("iterations", 1)),
+                "gravity_z_mm_s2": float(spec.get("gravity_z_mm_s2", 0.0)),
+                "right_y_offset_mm": float(spec.get("right_y_offset_mm", 0.0)),
             },
             "solver": {
                 "backend": "pbd",
@@ -646,6 +678,7 @@ def _run_ladder_case(case_id):
                 "placement_offsets_mm": {
                     "left_x": -120.0,
                     "right_x": spec["right_offset"],
+                    "right_y": float(spec.get("right_y_offset_mm", 0.0)),
                 },
                 "pre_step_seam_count": len(base.seam_stitch_pairs),
                 "pre_step_seam_pair_count": sum(
@@ -656,7 +689,10 @@ def _run_ladder_case(case_id):
             },
             "images": [images[step] for step in CHECKPOINTS],
             "notes": (
-                "progressive mannequin simulation ladder; exact production ClothAvatar/DrapeTarget; "
+                "bounded 237.96 mm front/back seam-span probe with gravity fixed at zero; "
+                "exact production ClothAvatar/DrapeTarget and PBD collision surface; release gates unchanged"
+                if int(spec["rung"]) >= 11
+                else "progressive mannequin simulation ladder; exact production ClothAvatar/DrapeTarget; "
                 "fixed PositionBasedDynamics backend; solver/collision budgets unchanged; release gate unaffected"
             ),
         }
@@ -678,6 +714,8 @@ def _structural_ladder_checks(records):
         ("rung-8-avatar-two-piece-no-seam", 8),
         ("rung-9-avatar-two-piece-small-seam", 9),
         ("rung-10-avatar-two-piece-large-seam", 10),
+        ("rung-11-avatar-front-back-no-seam", 11),
+        ("rung-12-avatar-front-back-depth-seam", 12),
     ]
     for case_id, rung in ordered:
         record = by_id[case_id]
@@ -685,25 +723,26 @@ def _structural_ladder_checks(records):
             bool(record["finite"])
             and record["case"]["rung"] == rung
             and record["solver"]["backend"] == "pbd"
-            and record["solver"]["iterations"] == 1
+            and record["solver"]["iterations"] == int(record["case"].get("expected_iterations", 1))
             and record["solver"]["substeps"] == 1
             and abs(float(record["solver"]["timestep_s"]) - (1.0 / 120.0)) < 1e-12
-            and float(record["solver"]["gravity_z_mm_s2"]) == 0.0
+            and float(record["solver"]["gravity_z_mm_s2"]) == float(record["case"].get("gravity_z_mm_s2", 0.0))
             and record["collision"]["solver_triangles"] > 0
             and len(record["checkpoints"]) == len(CHECKPOINTS)
             and [item["step"] for item in record["checkpoints"]] == list(CHECKPOINTS)
         )
         if rung <= 7:
-            ok = (
-                ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
-            )
-        elif rung == 8:
-            ok = (
-                ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
-            )
+            ok = ok and record["case"]["piece_count"] == 1
         else:
-            seam_count = len(record["pre_step"]["seam_world_spans_mm"])
-            ok = ok and record["case"]["piece_count"] == 2 and seam_count == 1
+            ok = ok and record["case"]["piece_count"] == 2
+        if record["case"]["seam_mode"] == "none":
+            ok = ok and record["pre_step"]["seam_pairs"] == []
+        else:
+            seam_spans = record["pre_step"]["seam_world_spans_mm"]
+            ok = ok and len(seam_spans) == 1
+            expected_span = record["case"].get("expected_initial_seam_gap_mm")
+            if expected_span is not None and seam_spans:
+                ok = ok and abs(float(seam_spans[0]["max_span_mm"]) - float(expected_span)) <= 1.0
         checks.append({"rung": rung, "case_id": case_id, "passed": bool(ok)})
         if not ok:
             break
@@ -728,6 +767,8 @@ def main():
         "rung-8-avatar-two-piece-no-seam",
         "rung-9-avatar-two-piece-small-seam",
         "rung-10-avatar-two-piece-large-seam",
+        "rung-11-avatar-front-back-no-seam",
+        "rung-12-avatar-front-back-depth-seam",
     ):
         records.append(_run_ladder_case(case_id))
     manifest = {
@@ -748,7 +789,17 @@ def main():
         "stop_rule": {
             "first_failing_rung": True,
             "human_visual_review_required": True,
-            "strongest_alternative": "avatar target/contact is causal; seam interaction is not",
+            "strongest_alternative": "avatar target/contact fails independently of large front/back seam constraints",
+        },
+        "diagnostic_case_overrides": {
+            "rung-11-avatar-front-back-no-seam": {
+                "iterations": 8, "substeps": 1, "timestep_s": 1.0 / 120.0,
+                "gravity_z_mm_s2": 0.0, "right_y_offset_mm": 237.96,
+            },
+            "rung-12-avatar-front-back-depth-seam": {
+                "iterations": 8, "substeps": 1, "timestep_s": 1.0 / 120.0,
+                "gravity_z_mm_s2": 0.0, "right_y_offset_mm": 237.96,
+            },
         },
         "cases": records,
         "structural_validation": _structural_ladder_checks(records),
