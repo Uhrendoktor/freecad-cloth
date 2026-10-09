@@ -14,6 +14,7 @@ Validation is deliberately not duplicated across every internal arithmetic opera
 | Mesh arrays | Every vertex is a finite 3D point; each face has exactly three integral, in-range indices | `tests/test_validation_models.py`, `tests/test_mesh_validation.py` |
 | Triangulation | Validate Triangle output before indexing; preserve authored-boundary mapping; reject non-finite area limits; compare measured mesh area with polygon area | `tests/test_mesh.py`, `tests/test_pattern_geometry.py` |
 | Seam correspondence | Positive finite lengths; tolerance in [0, 1); non-empty normalized ranges; mappings preserve or reverse endpoint order within the destination range | `tests/test_sewing_correspondence.py`, `tests/test_property_contracts.py` |
+| Point-to-segment distance | Non-negative distance, no greater than the nearer endpoint distance, and invariant under endpoint reversal | `tools/crosshair_contracts.py`, `tests/test_mesh.py` |
 | Arc-length sampling | Finite points of consistent dimension; finite positive total length; selected indices remain distinct and ordered | `tests/test_property_contracts.py` |
 | Solver input | Distance symmetry and non-negativity for representable inputs; finite solver state; pins preserve zero inverse mass | `tests/test_property_contracts.py` |
 

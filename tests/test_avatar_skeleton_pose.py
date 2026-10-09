@@ -15,6 +15,7 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotation_map,
     joint_rotations_from_json,
     joint_rotations_to_json,
+    _compose,
 )
 
 
@@ -69,6 +70,30 @@ def test_manual_pose_moves_fitting_landmark_from_baseline():
     )
     assert posed[0].position == pytest.approx((1.0, 1.0, 0.0))
     assert posed[1] == landmarks[1]
+
+
+def test_affine_transform_inverse_round_trips_rigid_points():
+    transform = AffineTransform(
+        (0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+        (4.0, -3.0, 2.0),
+    )
+    point = (1.25, -2.5, 9.0)
+    assert transform.inverse().apply(transform.apply(point)) == pytest.approx(point)
+
+
+def test_affine_transform_composition_matches_sequential_application():
+    first = AffineTransform(
+        (0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+        (4.0, -3.0, 2.0),
+    )
+    second = AffineTransform(
+        (1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0),
+        (-2.0, 5.0, 1.0),
+    )
+    point = (1.25, -2.5, 9.0)
+    assert _compose(first, second).apply(point) == pytest.approx(
+        first.apply(second.apply(point))
+    )
 
 
 def test_joint_map_rejects_unknown_bones():

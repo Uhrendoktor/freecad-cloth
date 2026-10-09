@@ -219,7 +219,7 @@ def seam_allowance_outline(
         raise ValueError("pattern needs at least three outline points")
     if allowance == 0.0:
         return list(points)
-    area = _signed_area(points)
+    area = signed_area(points)
     if abs(area) < 1e-12:
         raise ValueError("pattern outline must enclose a non-zero area")
 
@@ -248,7 +248,8 @@ def seam_allowance_outline(
     return list(validate_points2d(result))
 
 
-def _signed_area(points: Sequence[Point]) -> float:
+def signed_area(points: Sequence[Point]) -> float:
+    """Return the signed shoelace area of a closed 2D polygon."""
     area = 0.5 * sum(
         points[i][0] * points[(i + 1) % len(points)][1]
         - points[(i + 1) % len(points)][0] * points[i][1]

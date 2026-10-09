@@ -14,7 +14,7 @@ from math import ceil, hypot, isclose, isfinite
 from shapely.geometry import LineString
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
 
 
 @dataclass(frozen=True)
@@ -88,10 +88,8 @@ def triangulate(
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
         raise ValueError("pattern has too few distinct boundary points")
-    signed_area = _signed_area(points)
-    if not isfinite(signed_area):
-        raise ValueError("pattern area must be finite")
-    if abs(signed_area) < 1e-9:
+    outline_area = signed_area(points)
+    if abs(outline_area) < 1e-9:
         raise ValueError("pattern has zero area")
     if _self_intersects(points):
         raise ValueError("pattern boundary self-intersects")
@@ -169,7 +167,7 @@ def triangulate(
     vertices = tuple((float(v[0]), float(v[1])) for v in result_vertices.tolist())
     mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
     mesh.validate()
-    expected_area = abs(_signed_area(points))
+    expected_area = abs(signed_area(points))
     actual_area = mesh.area
     if not isfinite(expected_area) or not isfinite(actual_area):
         raise ValueError("triangulation area must be finite")
@@ -256,13 +254,6 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     t = max(0.0, min(1.0, t))
     closest = (start[0] + t * dx, start[1] + t * dy)
     return hypot(point[0] - closest[0], point[1] - closest[1])
-
-
-def _signed_area(points: Sequence[Point]) -> float:
-    return 0.5 * sum(
-        a[0] * b[1] - b[0] * a[1]
-        for a, b in zip(points, list(points[1:]) + [points[0]], strict=False)
-    )
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:

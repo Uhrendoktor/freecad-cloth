@@ -6,6 +6,7 @@ store the values returned by ``preset`` and the simulation backend can consume
 """
 
 from dataclasses import dataclass, replace
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ QUALITY_PRESETS = {
 }
 
 
-def normalize_color_rgb(value, default=(0.72, 0.34, 0.46)):
+def normalize_color_rgb(value):
     """Normalize FreeCAD/Python color representations to three RGB floats."""
     try:
         values = tuple(float(item) for item in value)
@@ -58,10 +59,10 @@ class FabricMaterial:
 
     def validate(self):
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.density_g_m2 <= 0:
-            raise ValueError("density must be positive")
-        if self.thickness_mm <= 0:
-            raise ValueError("thickness must be positive")
+        if not isfinite(self.density_g_m2) or self.density_g_m2 <= 0:
+            raise ValueError("density must be positive and finite")
+        if not isfinite(self.thickness_mm) or self.thickness_mm <= 0:
+            raise ValueError("thickness must be positive and finite")
         for name in ("stretch", "shear", "bend"):
             value = getattr(self, name)
             if not 0 <= value <= 1:

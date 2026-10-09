@@ -11,6 +11,7 @@ from freecad_cloth.pattern.PatternGeometry import (
     PolylineSegment,
     QuadraticBezier,
     Segment,
+    signed_area,
 )
 
 
@@ -95,7 +96,7 @@ def derive_cut_boundary(
         raise ValueError("seam allowance widths must be non-negative")
     sampled = _sample_segments(pattern.segments, curve_samples)
     outline = [point for points in sampled for point in points[:-1]]
-    orientation = _signed_area(outline)
+    orientation = signed_area(outline)
     if abs(orientation) < 1e-12 and width:
         raise ValueError("pattern outline must enclose a non-zero area")
     outward_sign = -1.0 if orientation > 0 else 1.0
@@ -219,7 +220,3 @@ def _offset_polyline(
     return result
 
 
-def _signed_area(points: list[Point]) -> float:
-    return 0.5 * sum(
-        a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1], strict=False)
-    )
