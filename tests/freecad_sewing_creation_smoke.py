@@ -15,6 +15,7 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
@@ -232,9 +233,10 @@ try:
     doc.recompute()
     record("fixtures=created pieces=3")
 
-    # Set the window size before acquiring/resetting the active view. On some
-    # FreeCAD/Pivy builds resizing after fitAll silently resets the camera to
-    # its default 8 mm field of view, leaving 100 mm workpieces off-screen.
+    # Resize before reading the render area, then position the orthographic
+    # Coin camera explicitly. In this headless FreeCAD/Pivy build, fitAll()
+    # leaves the camera at its default ~4 mm field of view despite visible
+    # 100 mm pieces, so camera bounds are derived from the actual world shapes.
     window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
     for piece, color in (
@@ -253,16 +255,52 @@ try:
     process_events()
     _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
     QtTest.QTest.qWait(200)
-    view.fitAll()
+
+    world_bounds = []
+    for piece in (piece_a, piece_b, piece_c):
+        box = piece.Shape.BoundBox
+        base = piece.Placement.Base
+        world_bounds.append((
+            float(box.XMin + base.x), float(box.YMin + base.y),
+            float(box.ZMin + base.z), float(box.XMax + base.x),
+            float(box.YMax + base.y), float(box.ZMax + base.z),
+        ))
+    xmin = min(value[0] for value in world_bounds)
+    ymin = min(value[1] for value in world_bounds)
+    zmin = min(value[2] for value in world_bounds)
+    xmax = max(value[3] for value in world_bounds)
+    ymax = max(value[4] for value in world_bounds)
+    zmax = max(value[5] for value in world_bounds)
+    center = coin.SbVec3f(
+        (xmin + xmax) * 0.5,
+        (ymin + ymax) * 0.5,
+        (zmin + zmax) * 0.5,
+    )
+    view_size = view.getSize()
+    view_width, view_height = float(view_size[0]), float(view_size[1])
+    if view_width <= 0.0 or view_height <= 0.0:
+        raise RuntimeError("seam-assignment GIF has an invalid viewport size")
+    aspect = view_width / view_height
+    extent_x, extent_y = xmax - xmin, ymax - ymin
+    camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
+    camera = view.getCameraNode()
+    camera.position.setValue(
+        coin.SbVec3f(center[0], center[1], center[2] + max(100.0, 2.0 * max(extent_x, extent_y)))
+    )
+    camera.height.setValue(float(camera_height))
+    camera.pointAt(center, coin.SbVec3f(0.0, 1.0, 0.0))
+    if hasattr(view, "redraw"):
+        view.redraw()
     process_events()
     QtTest.QTest.qWait(150)
-    view.fitAll()
-    process_events()
-    camera_match = re.search(r"\bheight\s+([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)", view.getCamera())
-    if camera_match is not None and float(camera_match.group(1)) < 150.0:
+    camera_match = re.search(
+        r"\bheight\s+([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)",
+        view.getCamera(),
+    )
+    if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
         raise RuntimeError(
-            "seam-assignment GIF camera did not frame the workpieces: "
-            f"orthographic_height={camera_match.group(1)}"
+            "seam-assignment GIF camera did not apply the requested world-space framing: "
+            f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
