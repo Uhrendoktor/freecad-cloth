@@ -1,7 +1,8 @@
 """Semantic avatar anchors backed by FreeCAD's native mesh queries.
 
 This module maps named garment edges and avatar landmarks to solver particles.
-Closest-facet and ray-intersection queries are delegated to FreeCAD's C++ Mesh API.
+Directional ray queries use FreeCAD's C++ Mesh API; when those rays are too distant,
+the fallback computes the nearest point on the validated target triangles.
 """
 from typing import Any
 
@@ -37,6 +38,19 @@ def _distance_squared(first: Any, second: Any) -> float:
     return sum((first[axis] - second[axis]) ** 2 for axis in range(3))
 
 
+def _nearest_point_on_segment(point: Any, start: Any, end: Any) -> Point3:
+    """Return the closest point to point on the finite segment start-end."""
+    delta = tuple(end[i] - start[i] for i in range(3))
+    length_squared = sum(value * value for value in delta)
+    if length_squared <= 1e-24:
+        return start
+    factor = sum(
+        (point[i] - start[i]) * delta[i] for i in range(3)
+    ) / length_squared
+    factor = max(0.0, min(1.0, factor))
+    return tuple(start[i] + factor * delta[i] for i in range(3))
+
+
 def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
     """Return the closest point on a triangle using its Voronoi regions."""
     ab = tuple(b[i] - a[i] for i in range(3))
@@ -45,6 +59,19 @@ def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
 
     def dot(first: Any, second: Any) -> float:
         return sum(first[i] * second[i] for i in range(3))
+
+    normal = (
+        ab[1] * ac[2] - ab[2] * ac[1],
+        ab[2] * ac[0] - ab[0] * ac[2],
+        ab[0] * ac[1] - ab[1] * ac[0],
+    )
+    if dot(normal, normal) <= 1e-24:
+        candidates = (
+            _nearest_point_on_segment(point, a, b),
+            _nearest_point_on_segment(point, b, c),
+            _nearest_point_on_segment(point, c, a),
+        )
+        return min(candidates, key=lambda candidate: _distance_squared(point, candidate))
 
     d1, d2 = dot(ab, ap), dot(ac, ap)
     if d1 <= 0.0 and d2 <= 0.0:
@@ -76,21 +103,6 @@ def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
         return tuple(b[i] + w * (c[i] - b[i]) for i in range(3))
 
     denominator = va + vb + vc
-    if abs(denominator) <= 1e-24:
-        # Degenerate face: its nearest point lies on one of its three segments.
-        candidates = []
-        for start, end in ((a, b), (b, c), (c, a)):
-            delta = tuple(end[i] - start[i] for i in range(3))
-            length_squared = dot(delta, delta)
-            factor = (
-                0.0
-                if length_squared <= 1e-24
-                else max(0.0, min(1.0, dot(tuple(point[i] - start[i] for i in range(3)), delta) / length_squared))
-            )
-            candidate = tuple(start[i] + factor * delta[i] for i in range(3))
-            candidates.append((_distance_squared(point, candidate), candidate))
-        return min(candidates, key=lambda item: item[0])[1]
-
     inverse = 1.0 / denominator
     v, w = vb * inverse, vc * inverse
     return tuple(a[i] + ab[i] * v + ac[i] * w for i in range(3))
@@ -112,7 +124,6 @@ def _nearest_surface_point(
     if best is None:
         raise ValueError("DrapeTarget surface has no triangles for nearest-point fallback")
     return sqrt(best[0]), best[1], best[2]
-
 
 @dataclass(frozen=True)
 class AttachmentProjection:
