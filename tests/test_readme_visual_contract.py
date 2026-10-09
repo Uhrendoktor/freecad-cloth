@@ -88,6 +88,18 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
 
 
 
+
+def test_turntable_job_has_no_orphaned_or_legacy_tunic_screenshot_step():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    block = workflow.split("  gui-turntables:", 1)[1].split(
+        "  gui-visual-examples:", 1
+    )[0]
+    action = "      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9"
+    assert "tests/freecad_screenshot_source.py" not in block
+    assert action + "\\n" + action not in block
+
 def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     import json
 
