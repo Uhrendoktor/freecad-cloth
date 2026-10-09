@@ -59,8 +59,8 @@ replacements = {
     initial_parameters = _parameters(avatar)
     near_t_pose = _replace_dataclass(
         initial_parameters.pose,
-        left_arm_angle=90.0,
-        right_arm_angle=90.0,
+        left_arm_angle=12.0,
+        right_arm_angle=12.0,
         left_elbow_angle=0.0,
         right_elbow_angle=0.0,
         joint_rotations=(),
@@ -71,7 +71,7 @@ replacements = {
     )
     refresh_drape_target(target)
     doc.recompute()
-    log("tunic-avatar-pose=near-t left_arm_angle=90 right_arm_angle=90 joint_overrides=cleared")
+    log("tunic-avatar-pose=near-horizontal left_arm_angle=12 right_arm_angle=12 joint_overrides=cleared")
     pre_status = target_status(target)""",
     LANDMARK_SOURCE: """    shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
