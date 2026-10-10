@@ -30,7 +30,7 @@ class _NativeEdge(Protocol):
 
     Vertexes: Sequence[_NativeVertex]
 
-    def discretize(self, Number: int) -> Sequence[_NativePoint]: ...
+    def discretize(self, _number: int) -> Sequence[_NativePoint]: ...
 
 
 class _NativePlacement(Protocol):
@@ -66,12 +66,12 @@ class _SewingFeature(Protocol):
     StitchPoints: list[str]
     Status: str
 
-    def addProperty(self, property_type: str, name: str, group: str) -> _SewingFeature: ...
-    def setEditorMode(self, name: str, mode: int) -> None: ...
+    def addProperty(self, _property_type: str, name: str, group: str) -> _SewingFeature: ...
+    def setEditorMode(self, name: str, _mode: int) -> None: ...
 
 
 class _FreeCADDocument(Protocol):
-    def addObject(self, type_id: str, name: str) -> _SewingFeature: ...
+    def addObject(self, _type_id: str, name: str) -> _SewingFeature: ...
 
 
 def _outline_points(piece: object) -> list[tuple[float, float]]:
@@ -182,7 +182,7 @@ def _edge_polyline(
     native = _native_edge(piece, edge)
     if native is not None:
         try:
-            values = native.discretize(Number=max(2, int(sample_count)))
+            values = native.discretize(max(2, int(sample_count)))
             points = [(float(p.x), float(p.y)) for p in values]
             if len(points) >= 2:
                 return points
