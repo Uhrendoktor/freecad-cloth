@@ -186,8 +186,10 @@ def _valid_skeleton_payload(payload: object) -> bool:
     if not isinstance(bones, dict) or not bones or not isinstance(joints, dict) or not joints:
         return False
     for joint_name, indices in joints.items():
-        if not isinstance(joint_name, str) or not isinstance(indices, list) or any(
-            type(index) is not int or index < 0 for index in indices
+        if (
+            not isinstance(joint_name, str)
+            or not isinstance(indices, list)
+            or any(type(index) is not int or index < 0 for index in indices)
         ):
             return False
     for bone_name, bone in bones.items():
