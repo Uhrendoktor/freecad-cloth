@@ -202,6 +202,8 @@ def _valid_skeleton_payload(payload: object) -> bool:
             or not isinstance(tail, str)
             or head not in joints
             or tail not in joints
+            or not joints[head]
+            or not joints[tail]
         ):
             return False
     return True
@@ -329,14 +331,19 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
     return destination
 
 
-def _load_source_vertices(path: str | None = None) -> tuple[tuple[float, float, float], ...]:
+def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
     source = ensure_makehuman_base(path)
     try:
-        vertices = []
+        vertices: list[Point] = []
         for raw in source.read_text(encoding="utf-8", errors="strict").splitlines():
             fields = raw.split()
             if fields and fields[0] == "v" and len(fields) >= 4:
-                vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
+                point = (float(fields[1]), float(fields[2]), float(fields[3]))
+                if not all(math.isfinite(value) for value in point):
+                    raise ValueError("source vertex coordinates must be finite")
+                vertices.append(point)
+        if len(vertices) < 3:
+            raise ValueError("source mesh contains fewer than three vertices")
         return tuple(vertices)
     except (OSError, UnicodeError, ValueError) as exc:
         raise HumanoidMeshError(
