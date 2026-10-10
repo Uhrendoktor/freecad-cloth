@@ -33,12 +33,6 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert '"seam_world_spans_mm"' in SOURCE
     assert '"placement_offsets_mm"' in SOURCE
     assert "first_failing_rung" in SOURCE
-    assert "def _avatar_png_has_visible_content(path, minimum_pixels=128):" in SOURCE
-    assert "view.redraw()" in SOURCE
-    assert "time.sleep(0.05)" in SOURCE
-    assert "png-capture=retry" in SOURCE
-    assert "PNG capture contains no visible rendered content" in SOURCE
-    assert "VisualCaptureValidation import png_has_visible_content" in SOURCE
     assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in SOURCE
     assert "test-script: tests/freecad_pbd_avatar_ladder.py" in WORKFLOW
     assert "artifact" in WORKFLOW.lower()

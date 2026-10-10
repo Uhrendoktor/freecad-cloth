@@ -1,5 +1,6 @@
 import unittest
 
+from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
 from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
@@ -9,7 +10,6 @@ from freecad_cloth.simulation.DrapeVisualSanity import (
     seam_correspondence_gap,
     summarize,
 )
-from freecad_cloth.common.MeshValidation import validate_mesh
 
 
 class DrapeVisualSanityTests(unittest.TestCase):

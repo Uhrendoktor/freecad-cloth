@@ -200,10 +200,10 @@ def _metrics(
 
 
 def run():
+    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     backend_requested = "pbd"
     log(
