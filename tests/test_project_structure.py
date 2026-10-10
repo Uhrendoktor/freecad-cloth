@@ -1,3 +1,4 @@
+import ast
 """Structural checks for the canonical Python package tree."""
 
 from pathlib import Path
@@ -290,3 +291,20 @@ def test_neutral_collision_contract_is_singleton():
         encoding="utf-8"
     )
     assert "class CollisionSurface" not in avatar
+
+
+def test_python_sources_do_not_import_removed_simulation_runtime_v2():
+    root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for directory in (root / "freecad_cloth", root / "tests", root / "tools"):
+        for path in directory.rglob("*.py"):
+            try:
+                module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except SyntaxError as exc:
+                raise AssertionError(f"invalid Python source {path}: {exc}") from exc
+            for node in ast.walk(module):
+                if isinstance(node, ast.ImportFrom) and node.module == (
+                    "freecad_cloth.simulation.SimulationQualityRuntimeV2"
+                ):
+                    offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+    assert not offenders, "stale SimulationQualityRuntimeV2 imports: " + ", ".join(offenders)

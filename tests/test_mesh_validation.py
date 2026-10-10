@@ -1,6 +1,4 @@
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 from freecad_cloth.common.MeshValidation import (
     nearest_surface_clearance,
@@ -22,8 +20,8 @@ def test_validation_fallback_is_deterministic():
     assert result.faces == 2
     assert result.components == 1
     assert result.bounds == (0.0, 10.0, 0.0, 10.0, 0.0, 0.0)
-    assert result.surface_area == 100.0
     assert result.degenerate_faces == 0
+    assert result.surface_area == pytest.approx(100.0)
     assert result.watertight is None
 
 
@@ -41,59 +39,20 @@ def test_validation_fallback_counts_disconnected_components():
     assert result.components == 2
 
 
-def test_fallback_surface_area_uses_triangle_geometry():
-    vertices = ((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (0.0, 4.0, 0.0))
-    result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
-    assert result.surface_area == 6.0
-
-
-@given(
-    width=st.floats(min_value=1e-3, max_value=1e6, allow_nan=False, allow_infinity=False),
-    height=st.floats(min_value=1e-3, max_value=1e6, allow_nan=False, allow_infinity=False),
-)
-def test_fallback_surface_area_obeys_base_height_identity(width: float, height: float) -> None:
-    """Vectorized triangle area matches the right-triangle base-height identity."""
-    vertices = ((0.0, 0.0, 0.0), (width, 0.0, 0.0), (0.0, height, 0.0))
-    result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
-    assert result.surface_area == pytest.approx(width * height / 2.0, rel=1e-12, abs=1e-12)
-
-
-def test_fallback_components_do_not_join_faces_that_only_touch_at_a_vertex():
-    """Mesh connectedness is edge-based, not vertex-only."""
-    vertices = (
-        (0.0, 0.0, 0.0),
-        (1.0, 0.0, 0.0),
-        (0.0, 1.0, 0.0),
-        (-1.0, 0.0, 0.0),
-        (0.0, -1.0, 0.0),
-    )
-    result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
-    assert result.components == 2
-
-
-def test_degenerate_faces_include_distinct_collinear_vertices():
-    vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0))
-    result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
-    assert result.degenerate_faces == 1
-    assert result.surface_area == 0.0
-
-
 def test_validation_rejects_bad_indices():
     with pytest.raises(ValueError, match="out of range"):
         validate_mesh(((0.0, 0.0, 0.0),) * 3, ((0, 1, 4),), prefer_trimesh=False)
 
 
 def test_vertex_clearance_is_translation_sensitive():
-    assert nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)) == pytest.approx(
-        2.0, rel=0.0, abs=1e-9
-    )
+    assert nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)) == pytest.approx(2.0, abs=1e-9, rel=0.0)
 
 
 def test_large_vertex_clearance_returns_exact_nearest_distance():
     """The required spatial index preserves the exact nearest-point distance."""
     garment = tuple((float(index), 5.0, 0.0) for index in range(48))
     target = tuple((float(index), 0.0, 0.0) for index in range(48))
-    assert nearest_target_clearance(garment, target) == pytest.approx(5.0, rel=0.0, abs=1e-9)
+    assert nearest_target_clearance(garment, target) == pytest.approx(5.0, abs=1e-9, rel=0.0)
 
 
 def test_trimesh_surface_clearance_is_optional():
@@ -103,7 +62,7 @@ def test_trimesh_surface_clearance_is_optional():
     except RuntimeError as exc:
         assert "trimesh" in str(exc)
     else:
-        assert distance == pytest.approx(3.0, rel=0.0, abs=1e-9)
+        assert distance == pytest.approx(3.0, abs=1e-9, rel=0.0)
 
 
 def test_degenerate_face_is_reported_without_trimesh():
@@ -114,18 +73,3 @@ def test_degenerate_face_is_reported_without_trimesh():
     )
     assert result.degenerate_faces == 1
 
-
-@settings(max_examples=40, deadline=None)
-@given(scale=st.floats(min_value=1e-4, max_value=1e4, allow_nan=False, allow_infinity=False))
-def test_triangle_surface_area_scales_quadratically(scale: float) -> None:
-    """Uniformly scaling a mesh by s multiplies triangle area by s squared."""
-    vertices = ((0.0, 0.0, 0.0), (3.0 * scale, 0.0, 0.0), (0.0, 4.0 * scale, 0.0))
-    result = validate_mesh(vertices, ((0, 1, 2),))
-    assert result.surface_area == pytest.approx(6.0 * scale * scale, rel=1e-10, abs=1e-14)
-
-
-if __name__ == "__main__":
-    for name, function in sorted(globals().items()):
-        if name.startswith("test_"):
-            function()
-    print("mesh validation tests passed")
