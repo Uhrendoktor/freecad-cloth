@@ -3,7 +3,7 @@ root = ["."]
 
 [terminal]
 output-format = "github"
-error-on-warning = false
+error-on-warning = true
 
 [rules]
 all = "warn"

@@ -7,8 +7,10 @@ import pytest
 from tools.ci.check_explicit_any_annotations import explicit_any_violations
 from tools.ci.validate_ci_structure import (
     TYPECHECK_COMMANDS,
+    TY_CONFIG,
     WORKFLOW,
     missing_typecheck_commands,
+    ty_warnings_are_blocking,
 )
 
 
@@ -64,3 +66,11 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
     assert missing_typecheck_commands(tampered) == (command,)
+
+
+def test_ty_warning_diagnostics_are_blocking() -> None:
+    """Reject a configuration that allows warning-only ty runs to pass."""
+    config_text = TY_CONFIG.read_text(encoding="utf-8")
+    assert ty_warnings_are_blocking(config_text)
+    tampered = config_text.replace("error-on-warning = true", "error-on-warning = false")
+    assert not ty_warnings_are_blocking(tampered)

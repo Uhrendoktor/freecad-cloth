@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
+TY_CONFIG = ROOT / "ty.toml"
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
     ROOT / ".github/actions/freecad-container/action.yml",
@@ -29,12 +31,23 @@ TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
     "pyright -p pyrightconfig.agent-strict.json",
+    "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
 )
 
 
 def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
     """Return required blocking type-gate commands missing from the canonical workflow."""
     return tuple(command for command in TYPECHECK_COMMANDS if command not in workflow_text)
+
+
+def ty_warnings_are_blocking(config_text: str) -> bool:
+    """Return whether ty is configured to fail when it emits warnings."""
+    try:
+        config = tomllib.loads(config_text)
+    except tomllib.TOMLDecodeError:
+        return False
+    terminal = config.get("terminal")
+    return isinstance(terminal, dict) and terminal.get("error-on-warning") is True
 
 
 def main() -> int:
@@ -54,6 +67,8 @@ def main() -> int:
             "canonical workflow is missing required type-check gates: "
             + ", ".join(missing_typecheck)
         )
+    if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
+        raise SystemExit("ty.toml must set [terminal].error-on-warning = true")
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
         raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
     if (
