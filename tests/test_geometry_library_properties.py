@@ -6,7 +6,10 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from freecad_cloth.common.MeshValidation import nearest_target_clearance
+from freecad_cloth.common.MeshValidation import (
+    nearest_surface_clearance,
+    nearest_target_clearance,
+)
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
 
@@ -74,4 +77,35 @@ def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float,
     )
     assert nearest_target_clearance(shifted_garment, shifted_target) == pytest.approx(
         distance, rel=1e-9, abs=1e-9
+    )
+
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    dx=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
+    dy=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
+    dz=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
+)
+def test_nearest_surface_clearance_is_translation_invariant(
+    dx: float, dy: float, dz: float
+) -> None:
+    """Translating a query point and target surface preserves their distance."""
+    point: tuple[tuple[float, float, float], ...] = ((5.0, 5.0, 3.0),)
+    vertices: tuple[tuple[float, float, float], ...] = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (10.0, 10.0, 0.0),
+        (0.0, 10.0, 0.0),
+    )
+    triangles: tuple[tuple[int, int, int], ...] = ((0, 1, 2), (0, 2, 3))
+    distance = nearest_surface_clearance(point, vertices, triangles)
+    translated_point: tuple[tuple[float, float, float], ...] = tuple(
+        (x + dx, y + dy, z + dz) for x, y, z in point
+    )
+    translated_vertices: tuple[tuple[float, float, float], ...] = tuple(
+        (x + dx, y + dy, z + dz) for x, y, z in vertices
+    )
+    assert nearest_surface_clearance(translated_point, translated_vertices, triangles) == pytest.approx(
+        distance, rel=1e-8, abs=1e-8
     )
