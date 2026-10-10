@@ -8,6 +8,26 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 
 import math
 
+from freecad_cloth.shared.viewport_gizmo_style import (
+    ACTIVE_COLOR,
+    JOINT_COLOR,
+    POSE_AXIS_COLORS,
+    RIG_ACTIVE_JOINT_POINT_SIZE,
+    RIG_ACTIVE_LINE_WIDTH,
+    RIG_EDITABLE_COLOR,
+    RIG_EDITABLE_LINE_WIDTH,
+    RIG_JOINT_POINT_SIZE,
+    RIG_PASSIVE_COLOR,
+    RIG_PASSIVE_LINE_WIDTH,
+    ROTATION_ARC_ANGLE_DEGREES,
+    ROTATION_ARROW_HEIGHT,
+    ROTATION_ARROW_RADIUS,
+    ROTATION_GIZMO_SCALE,
+    ROTATION_PIVOT_RADIUS,
+    ROTATION_RING_RADIUS,
+    ROTATION_RING_THICKNESS,
+)
+
 
 def _modules():
     import FreeCAD as App
@@ -391,16 +411,16 @@ class SkeletonPoseController:
 
         # Blender-style posing convention: the full rig remains visible, while
         # editable/active bones are visually stronger than structural bones.
-        add_lines(self.overlay, passive_segments, 1.4, (0.46, 0.48, 0.52))
-        add_lines(self.overlay, editable_segments, 2.4, (0.72, 0.75, 0.80))
-        add_lines(self.overlay, selected_segments, 4.0, (1.0, 0.82, 0.12))
+        add_lines(self.overlay, passive_segments, RIG_PASSIVE_LINE_WIDTH, RIG_PASSIVE_COLOR)
+        add_lines(self.overlay, editable_segments, RIG_EDITABLE_LINE_WIDTH, RIG_EDITABLE_COLOR)
+        add_lines(self.overlay, selected_segments, RIG_ACTIVE_LINE_WIDTH, ACTIVE_COLOR)
 
         point_list = list(joints.values())
         if point_list:
             point_draw = coin.SoDrawStyle()
-            point_draw.pointSize = 7.0
+            point_draw.pointSize = RIG_JOINT_POINT_SIZE
             joint_color = coin.SoBaseColor()
-            joint_color.rgb = (0.66, 0.68, 0.72)
+            joint_color.rgb = JOINT_COLOR
             points = coin.SoCoordinate3()
             points.point.setValues(0, len(point_list), point_list)
             point_set = coin.SoPointSet()
@@ -414,9 +434,9 @@ class SkeletonPoseController:
 
         if self.selected_bone in self._positions:
             selected_draw = coin.SoDrawStyle()
-            selected_draw.pointSize = 14.0
+            selected_draw.pointSize = RIG_ACTIVE_JOINT_POINT_SIZE
             selected_color = coin.SoBaseColor()
-            selected_color.rgb = (1.0, 0.82, 0.12)
+            selected_color.rgb = ACTIVE_COLOR
             selected_points = coin.SoCoordinate3()
             selected_points.point.setValues(
                 0,
@@ -515,17 +535,17 @@ class SkeletonPoseController:
             0.0,
         )
 
-        rotator.arcAngle.setValue(math.radians(300.0))
-        rotator.arcRadius.setValue(9.5)
-        rotator.arcThickness.setValue(2.8)
-        rotator.sphereRadius.setValue(0.9)
-        rotator.coneBottomRadius.setValue(1.35)
-        rotator.coneHeight.setValue(3.8)
+        rotator.arcAngle.setValue(math.radians(ROTATION_ARC_ANGLE_DEGREES))
+        rotator.arcRadius.setValue(ROTATION_RING_RADIUS)
+        rotator.arcThickness.setValue(ROTATION_RING_THICKNESS)
+        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS)
+        rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
+        rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
         rotator.leftArrowVisible.setValue(True)
         rotator.rightArrowVisible.setValue(True)
 
         dragger.color.setValue(*rgb)
-        dragger.activeColor.setValue(1.0, 0.78, 0.20)
+        dragger.activeColor.setValue(*ACTIVE_COLOR)
         dragger.baseGeomVisible.setValue(False)
         return True
 
@@ -538,11 +558,11 @@ class SkeletonPoseController:
 
         self.gizmo_style_error = None
         axis_specs = (
-            ("X", (1.0, 0.0, 0.0), (0.86, 0.18, 0.16)),
-            ("Y", (0.0, 1.0, 0.0), (0.18, 0.70, 0.26)),
-            ("Z", (0.0, 0.0, 1.0), (0.18, 0.40, 0.88)),
+            ("X", (1.0, 0.0, 0.0), POSE_AXIS_COLORS["X"]),
+            ("Y", (0.0, 1.0, 0.0), POSE_AXIS_COLORS["Y"]),
+            ("Z", (0.0, 0.0, 1.0), POSE_AXIS_COLORS["Z"]),
         )
-        geometry_scale = 7.0
+        geometry_scale = ROTATION_GIZMO_SCALE
 
         try:
             local_z = coin.SbVec3f(0.0, 0.0, 1.0)

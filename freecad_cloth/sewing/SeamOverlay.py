@@ -13,6 +13,12 @@ from hashlib import sha1
 from types import ModuleType
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
+from freecad_cloth.shared.viewport_gizmo_style import (
+    SEAM_CONNECTOR_LINE_WIDTH,
+    SEAM_FOCUSED_LINE_WIDTH,
+    SEAM_LABEL_FONT_SIZE,
+    SEAM_LINE_WIDTH,
+)
 from freecad_cloth.shared.seam_colors import (
     register_seam_refresh_callback,
     seam_color_map,
@@ -297,7 +303,7 @@ def _add_label(
     x, y, z = _xyz(point)
     transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
-    font.size.setValue(16.0)
+    font.size.setValue(SEAM_LABEL_FONT_SIZE)
     text = coin.SoText2()
     text.string.setValue(str(label))
     annotation.addChild(depth)
@@ -556,7 +562,7 @@ class SeamOverlayController:
             simulation_rendered_ids: list[str] = []
             for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(sorted(simulated.items())):
                 focused = identity == str(active_seam_id)
-                width = 5.5 if focused else 3.5
+                width = SEAM_FOCUSED_LINE_WIDTH if focused else SEAM_LINE_WIDTH
                 side_group = coin.SoSeparator()
                 # Respect occlusion by default; the UI can explicitly opt into
                 # always-on-top rendering for crowded editing/simulation views.
@@ -564,7 +570,7 @@ class SeamOverlayController:
                 color = colors[identity]
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
-                _add_line_groups(side_group, coin, connectors, color, 1.25)
+                _add_line_groups(side_group, coin, connectors, color, SEAM_CONNECTOR_LINE_WIDTH)
                 label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
                 label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
                 if should_show_seam_label(identity, hovered_seam_id):
@@ -611,7 +617,7 @@ class SeamOverlayController:
                 continue
             color = colors[identity]
             focused = identity == str(active_seam_id)
-            width = 5.5 if focused else 3.5
+            width = SEAM_FOCUSED_LINE_WIDTH if focused else SEAM_LINE_WIDTH
             side_group = coin.SoSeparator()
             _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
             _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
