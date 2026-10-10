@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from freecad_cloth.common.MeshValidation import (
@@ -113,7 +113,6 @@ def test_degenerate_face_is_reported_without_trimesh():
         prefer_trimesh=False,
     )
     assert result.degenerate_faces == 1
-
 
 
 @settings(max_examples=40, deadline=None)
