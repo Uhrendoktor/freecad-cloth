@@ -196,5 +196,3 @@ def _loop_edges(loop: Sequence[int]) -> Iterable[tuple[int, int]]:
 
 def _midpoint(a: Point, b: Point) -> Point:
     return ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
-
-
