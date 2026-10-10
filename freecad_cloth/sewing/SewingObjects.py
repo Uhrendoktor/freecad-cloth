@@ -158,13 +158,34 @@ def _edge_length(piece, edge):
 
 
 def _seam_edge_index(piece, seam, prefix):
-    """Resolve the semantic edge id, falling back to legacy ordinal data."""
+    """Resolve a semantic edge to the index space used by the native geometry reader."""
     edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
     if edge_id:
         from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
 
         signature = str(getattr(seam, "EdgeASignature" if prefix == "A" else "EdgeBSignature", ""))
         record = _resolve_document_edge(piece, edge_id, signature)
+        if str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher":
+            # PatternIR orders its boundary cycle by semantic identity/connectivity;
+            # record["ordinal"] is an IR boundary ordinal, not a Sketch.Geometry index.
+            # _edge_polyline/_native_edge consume the latter, so translate the stable
+            # identity back through Sketch.SemanticEdgeIds before reading geometry.
+            sketch = getattr(piece, "Sketch", None)
+            semantic_ids = tuple(
+                str(value).strip()
+                for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+            )
+            native_indices = [
+                index for index, identity in enumerate(semantic_ids) if identity == edge_id
+            ]
+            if len(native_indices) != 1:
+                from freecad_cloth.pattern.SeamReference import MissingEdgeReference
+
+                raise MissingEdgeReference(
+                    "semantic seam edge {} must resolve to exactly one native Sketcher edge; "
+                    "found {}".format(edge_id, len(native_indices))
+                )
+            return native_indices[0]
         return int(record["ordinal"])
     return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))
 
