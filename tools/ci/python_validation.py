@@ -105,6 +105,7 @@ GROUPS = {
         "tests/test_artifact_budget.py",
         "tests/test_agent_observation_bundle.py",
         "tests/test_ci_configuration.py",
+        "tests/test_explicit_any_annotations.py",
         "tests/test_garment_warning_contract.py",
         "tests/test_markdown_contract.py",
         "tests/test_runner_routing_contract.py",
