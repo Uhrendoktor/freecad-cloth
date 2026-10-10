@@ -1,7 +1,9 @@
-"""Optional non-authoritative mesh validation helpers.
+"""Non-authoritative mesh validation helpers backed by external libraries.
 
-This module deliberately does not make trimesh a runtime dependency.  The
-adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
+Trimesh is a required runtime dependency for nearest-surface clearance and
+accelerated diagnostics. A NumPy/SciPy fallback preserves basic mesh-health
+metrics for isolated tooling environments where Trimesh is unavailable.
+The adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
 for acceptance diagnostics, backend comparisons, and developer tooling.
 """
 
@@ -101,8 +103,8 @@ def validate_mesh(
 ) -> MeshValidationResult:
     """Return mesh-health metrics without mutating the source arrays.
 
-    ``trimesh`` is imported lazily and remains optional. A deterministic
-    Python fallback keeps the validator useful in the core test environment.
+    ``trimesh`` is imported lazily. The fallback keeps basic metrics available
+    in isolated tooling environments where the package is unavailable.
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
@@ -187,7 +189,7 @@ def nearest_surface_clearance(
     target_vertices: Sequence[Point3],
     target_triangles: Sequence[Triangle],
 ) -> float:
-    """Return minimum point-to-surface distance using trimesh when available."""
+    """Return minimum point-to-surface distance using Trimesh and Rtree."""
     validated = _validate_arrays(target_vertices, target_triangles)
     garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
