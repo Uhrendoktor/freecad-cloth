@@ -3,20 +3,25 @@
 This module owns the quality-aware runtime wrapper around the canonical simulation
 proxy. It is the only quality runtime implementation.
 """
-from typing import Any
 
 
+from collections.abc import Sequence
 import weakref
 from math import ceil, isfinite
 
 from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
-from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
+from freecad_cloth.simulation.SimulationQuality import (
+    QUALITY_PRESETS,
+    SimulationQuality,
+    normalize_color_rgb,
+    preset,
+)
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
-def ensure_quality_properties(scene: Any) -> Any:
+def ensure_quality_properties(scene: object) -> object:
     """Create and validate persistent simulation-quality properties on a scene."""
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
@@ -55,7 +60,7 @@ def ensure_quality_properties(scene: Any) -> Any:
     return scene
 
 
-def _validate_properties(scene: Any) -> None:
+def _validate_properties(scene: object) -> None:
     scene.ParticleDistance = max(0.25, float(scene.ParticleDistance))
     scene.SolverIterations = max(1, int(scene.SolverIterations))
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
@@ -79,7 +84,7 @@ def _validate_properties(scene: Any) -> None:
     scene.AttachmentOffset = attachment_offset
 
 
-def apply_quality_preset(scene: Any, name: Any=None) -> Any:
+def apply_quality_preset(scene: object, name: str | None = None) -> SimulationQuality:
     """Apply a named quality preset and return its normalized profile."""
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
@@ -93,7 +98,7 @@ def apply_quality_preset(scene: Any, name: Any=None) -> Any:
     return quality
 
 
-def quality_discretization(point_count: Any, perimeter: Any, particle_distance: Any) -> int:
+def quality_discretization(point_count: int, perimeter: float, particle_distance: float) -> int:
     """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
         raise ValueError("point_count must be at least three")
@@ -109,41 +114,41 @@ class QualitySimulationProxy:
         self._restore_base()
 
     @staticmethod
-    def _new_base() -> Any:
+    def _new_base() -> object:
         from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
         return SimulationProxy()
 
-    def _restore_base(self) -> Any:
+    def _restore_base(self) -> object:
         base = self._new_base()
         _RUNTIME_BASES[self] = base
         return base
 
-    def _base_or_restore(self) -> Any:
+    def _base_or_restore(self) -> object:
         base = _RUNTIME_BASES.get(self)
         if base is None:
             base = self._restore_base()
         return base
 
-    def __getattr__(self, name: Any) -> Any:
+    def __getattr__(self, name: str) -> object:
         if name == "_base":
             raise AttributeError(name)
         return getattr(self._base_or_restore(), name)
 
-    def _sync_seam_stitch_provenance(self, base: Any) -> None:
+    def _sync_seam_stitch_provenance(self, base: object) -> None:
         """Keep exact solver stitch-pair provenance on the authoritative document proxy."""
         self.seam_stitch_pairs = {
             str(seam_id): tuple(stitch_pairs)
             for seam_id, stitch_pairs in getattr(base, "seam_stitch_pairs", {}).items()
         }
 
-    def onDocumentRestored(self, obj: Any) -> None:
+    def onDocumentRestored(self, obj: object) -> None:
         """Recreate non-serializable solver state after FreeCAD reloads the proxy."""
         self._restore_base()
         self.seam_stitch_pairs = {}
 
     @staticmethod
-    def _signature(obj: Any) -> Any:
+    def _signature(obj: object) -> tuple[object, ...]:
         from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
         pieces = [
@@ -166,7 +171,7 @@ class QualitySimulationProxy:
             float(obj.AvatarSkinOffset),
         )
 
-    def _advance(self, obj: Any, base: Any, step_count: Any) -> None:
+    def _advance(self, obj: object, base: object, step_count: int) -> None:
         """Advance the persistent backend without entering FreeCAD recompute."""
         steps = max(0, int(step_count))
         if steps <= 0:
@@ -183,7 +188,7 @@ class QualitySimulationProxy:
                 )
             base.last_steps += 1
 
-    def _publish_state(self, obj: Any, base: Any) -> None:
+    def _publish_state(self, obj: object, base: object) -> None:
         """Write the already-solved particle state to the display objects."""
         positions = base.backend.positions()
         from freecad_cloth.simulation.SimulationObjects import _write_mesh
@@ -196,7 +201,7 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = base.backend.finite()
 
-    def execute(self, obj: Any) -> None:
+    def execute(self, obj: object) -> None:
         """Recompute the FreeCAD object from its current source properties."""
         ensure_quality_properties(obj)
         base = self._base_or_restore()
@@ -221,7 +226,7 @@ class QualitySimulationProxy:
             self._advance(obj, base, steps - base.last_steps)
         self._publish_state(obj, base)
 
-    def advance_preview_frame(self, obj: Any) -> None:
+    def advance_preview_frame(self, obj: object) -> None:
         """Advance one interactive frame without triggering a document recompute."""
         ensure_quality_properties(obj)
         base = self._base_or_restore()
@@ -231,7 +236,7 @@ class QualitySimulationProxy:
         self._advance(obj, base, 1)
         self._publish_state(obj, base)
 
-    def _build_pattern_scene(self, obj: Any, pieces: Any, signature: Any) -> Any:
+    def _build_pattern_scene(self, obj: object, pieces: Sequence[object], signature: tuple[object, ...]) -> object:
         """Use the authoritative base scene builder with quality tessellation."""
         from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
@@ -249,7 +254,7 @@ class QualitySimulationProxy:
             ),
         )
 
-    def _build_demo(self, obj: Any, signature: Any) -> None:
+    def _build_demo(self, obj: object, signature: tuple[object, ...]) -> None:
         from freecad_cloth.simulation.ClothSolver import ClothSystem
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
@@ -321,7 +326,7 @@ class QualitySimulationProxy:
         ):
             _write_grid_mesh(panel, positions, base.panel_indices[key], nx, ny)
 
-    def _apply_presentation(self, obj: Any) -> None:
+    def _apply_presentation(self, obj: object) -> None:
         color = tuple(float(value) for value in getattr(obj, "FabricColor", (0.72, 0.34, 0.46)))
         transparency = int(getattr(obj, "FabricTransparency", 0))
         for panel in getattr(obj, "DrapePanels", ()):
@@ -345,6 +350,6 @@ class QualitySimulationProxy:
             except (AttributeError, TypeError, ValueError):
                 pass
 
-    def reset(self, obj: Any) -> None:
+    def reset(self, obj: object) -> None:
         """Reset the runtime state to its initial values."""
         self._base_or_restore().reset(obj)

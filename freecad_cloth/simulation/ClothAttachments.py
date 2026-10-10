@@ -4,10 +4,10 @@ This module maps named garment edges and avatar landmarks to solver particles.
 Directional ray queries use FreeCAD's C++ Mesh API; when those rays are too distant,
 the fallback computes the nearest point on the validated target triangles.
 """
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from math import hypot, isfinite, sqrt
 from numbers import Integral
-from typing import Any
 
 from freecad_cloth.common.ValidationModels import (
     AvatarAttachmentProjectionInput,
@@ -19,7 +19,7 @@ from freecad_cloth.common.ValidationModels import (
 Point3 = tuple[float, float, float]
 
 
-def _point(value: Any, label: Any) -> tuple[float, float, float]:
+def _point(value: object, label: str) -> Point3:
     """Normalize one external point through the shared Pydantic geometry schema."""
     try:
         return validate_point3d(value)
@@ -27,7 +27,7 @@ def _point(value: Any, label: Any) -> tuple[float, float, float]:
         raise ValueError("{} must be a finite 3D point".format(label)) from exc
 
 
-def _indices(values: Any, label: Any) -> tuple[int, ...]:
+def _indices(values: Iterable[object], label: str) -> tuple[int, ...]:
     try:
         raw = tuple(values)
     except TypeError as exc:
@@ -37,7 +37,7 @@ def _indices(values: Any, label: Any) -> tuple[int, ...]:
     return tuple(dict.fromkeys(int(value) for value in raw))
 
 
-def _distance_squared(first: Any, second: Any) -> float:
+def _distance_squared(first: Point3, second: Point3) -> float:
     return sum((first[axis] - second[axis]) ** 2 for axis in range(3))
 
 
@@ -69,7 +69,7 @@ def _nearest_candidate_index(
     return best_index
 
 
-def _nearest_point_on_segment(point: Any, start: Any, end: Any) -> Point3:
+def _nearest_point_on_segment(point: Point3, start: Point3, end: Point3) -> Point3:
     """Return the closest point to point on the finite segment start-end."""
     delta = tuple(end[i] - start[i] for i in range(3))
     length_squared = sum(value * value for value in delta)
@@ -82,13 +82,13 @@ def _nearest_point_on_segment(point: Any, start: Any, end: Any) -> Point3:
     return tuple(start[i] + factor * delta[i] for i in range(3))
 
 
-def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
+def _closest_point_on_triangle(point: Point3, a: Point3, b: Point3, c: Point3) -> Point3:
     """Return the closest point on a triangle using its Voronoi regions."""
     ab = tuple(b[i] - a[i] for i in range(3))
     ac = tuple(c[i] - a[i] for i in range(3))
     ap = tuple(point[i] - a[i] for i in range(3))
 
-    def dot(first: Any, second: Any) -> float:
+    def dot(first: Point3, second: Point3) -> float:
         return sum(first[i] * second[i] for i in range(3))
 
     normal = (
@@ -140,7 +140,7 @@ def _closest_point_on_triangle(point: Any, a: Any, b: Any, c: Any) -> Point3:
 
 
 def _nearest_surface_point(
-    point: Any, vertices: Any, triangles: Any
+    point: Point3, vertices: Sequence[Point3], triangles: Sequence[tuple[int, int, int]]
 ) -> tuple[float, int, Point3]:
     """Find the globally closest point on a validated triangulated target."""
     best = None
@@ -183,12 +183,12 @@ class ResolvedAttachmentTarget:
 
 
 def select_attachment_particle_near_anchor(
-    chain: Any,
-    positions: Any,
-    anchor: Any,
-    max_distance_mm: Any=400.0,
-    tie_tolerance_mm: Any=1e-6,
-    excluded_indices: Any=(),
+    chain: object,
+    positions: object,
+    anchor: object,
+    max_distance_mm: float = 400.0,
+    tie_tolerance_mm: float = 1e-6,
+    excluded_indices: object=(),
 ) -> int:
     """Select the unique nearest unassigned vertex on a semantic boundary chain."""
     indices = _indices(chain, "attachment edge chain")
@@ -214,14 +214,14 @@ def select_attachment_particle_near_anchor(
 
 
 def project_avatar_attachments(
-    positions: Any,
-    particle_indices: Any,
-    surface: Any,
-    offset_mm: Any=3.0,
-    max_distance_mm: Any=100.0,
-    target_points: Any=None,
-    projection_directions: Any=None,
-) -> tuple[Any, Any]:
+    positions: object,
+    particle_indices: object,
+    surface: object,
+    offset_mm: float = 3.0,
+    max_distance_mm: float = 100.0,
+    target_points: object=None,
+    projection_directions: object=None,
+) -> tuple[tuple[Point3, ...], tuple[AttachmentProjection, ...]]:
     """Project selected particles using FreeCAD's native Mesh ray/facet query.
 
     A semantic anchor may supply its intended front/back direction. Otherwise the
@@ -505,11 +505,11 @@ def project_avatar_attachments(
 
 
 def resolve_avatar_attachment_targets(
-    descriptors: Any,
-    panel_data: Any,
-    positions: Any,
-    landmarks: Any,
-    selection_positions: Any = None,
+    descriptors: object,
+    panel_data: object,
+    positions: object,
+    landmarks: object,
+    selection_positions: object = None,
 ) -> tuple[ResolvedAttachmentTarget, ...]:
     """Resolve anchors against authored vertices while retaining current solver positions."""
     points = tuple(_point(position, "particle position") for position in positions)
@@ -604,7 +604,7 @@ def resolve_avatar_attachment_targets(
     return tuple(result)
 
 
-def resolve_avatar_attachment_indices(descriptors: Any, panel_data: Any, positions: Any, landmarks: Any) -> tuple[int, ...]:
+def resolve_avatar_attachment_indices(descriptors: Iterable[str] | None, panel_data: Mapping[str, Mapping[str, object]], positions: Sequence[object], landmarks: Mapping[str, object]) -> tuple[int, ...]:
     """Return solver indices for semantic descriptors."""
     return tuple(
         target.particle_index

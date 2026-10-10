@@ -1,11 +1,15 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
-from typing import Any
+
+from collections.abc import Callable, Iterable, Mapping, Sequence
+
+Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int]
 
 
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit", "Avatar Attachment")
 
 
-def _mesh_object(doc: Any, name: Any, label: Any) -> Any:
+def _mesh_object(doc: object, name: str, label: str) -> object:
     obj = doc.addObject("Mesh::Feature", name)
     obj.Label = label
     obj.addProperty(
@@ -14,7 +18,7 @@ def _mesh_object(doc: Any, name: Any, label: Any) -> Any:
     return obj
 
 
-def _write_mesh(obj: Any, positions: Any, triangles: Any) -> None:
+def _write_mesh(obj: object, positions: Sequence[Point3], triangles: Sequence[Triangle]) -> None:
     import Mesh
 
     native = Mesh.Mesh()
@@ -27,7 +31,7 @@ def _write_mesh(obj: Any, positions: Any, triangles: Any) -> None:
     obj.Mesh = native
 
 
-def _write_grid_mesh(obj: Any, positions: Any, indices: Any, nx: Any, ny: Any) -> None:
+def _write_grid_mesh(obj: object, positions: Sequence[Point3], indices: Sequence[int], nx: int, ny: int) -> None:
     triangles = []
     for j in range(ny - 1):
         for i in range(nx - 1):
@@ -39,7 +43,7 @@ def _write_grid_mesh(obj: Any, positions: Any, indices: Any, nx: Any, ny: Any) -
     _write_mesh(obj, positions, triangles)
 
 
-def _parse_pair_list(values: Any, particle_count: Any=None) -> tuple[tuple[int, int], ...]:
+def _parse_pair_list(values: Iterable[object] | None, particle_count: int | None = None) -> tuple[tuple[int, int], ...]:
     pairs = []
     for value in values or ():
         parts = [p.strip() for p in str(value).replace(",", "-").split("-") if p.strip()]
@@ -53,7 +57,7 @@ def _parse_pair_list(values: Any, particle_count: Any=None) -> tuple[tuple[int, 
     return tuple(dict.fromkeys(pairs))
 
 
-def _parse_int_list(values: Any, particle_count: Any=None) -> tuple[int, ...]:
+def _parse_int_list(values: Iterable[object] | None, particle_count: int | None = None) -> tuple[int, ...]:
     result = []
     for value in values or ():
         for part in str(value).replace(";", ",").split(","):
@@ -66,7 +70,7 @@ def _parse_int_list(values: Any, particle_count: Any=None) -> tuple[int, ...]:
     return tuple(dict.fromkeys(result))
 
 
-def avatar_arrangement_landmarks(scene: Any) -> dict[str, tuple[float, float, float]]:
+def avatar_arrangement_landmarks(scene: object) -> dict[str, Point3]:
     """Resolve the scene's DrapeTarget avatar arrangement points into world coordinates."""
     target = getattr(scene, "DrapeTarget", None)
     source = getattr(target, "SourceObject", None) if target is not None else None
@@ -123,7 +127,7 @@ def avatar_arrangement_landmarks(scene: Any) -> dict[str, tuple[float, float, fl
     return landmarks
 
 
-def seam_gap_diagnostics(positions: Any, stitch_pairs_by_seam: Any) -> dict[str, dict[str, Any]]:
+def seam_gap_diagnostics(positions: Sequence[Point3], stitch_pairs_by_seam: Mapping[str, Sequence[tuple[int, int]]]) -> dict[str, dict[str, float | int]]:
     """Measure exact solver stitch gaps, failing closed on incomplete provenance."""
     from math import isfinite, sqrt
 
@@ -164,13 +168,13 @@ def seam_gap_diagnostics(positions: Any, stitch_pairs_by_seam: Any) -> dict[str,
     return reports
 
 
-def normalize_pin_mode(value: Any) -> str:
+def normalize_pin_mode(value: object) -> str:
     """Return a supported persistent pinning mode, preserving legacy defaults."""
     mode = str(value or "Automatic").strip()
     return mode if mode in PIN_MODE_NAMES else "Automatic"
 
 
-def resolve_pin_indices(obj: Any, particle_count: Any, automatic_default: Any=()) -> tuple[int, ...]:
+def resolve_pin_indices(obj: object, particle_count: int, automatic_default: Iterable[int] = ()) -> tuple[int, ...]:
     """Resolve the solver pin indices from the persistent pinning mode."""
     mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
     explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
@@ -185,7 +189,7 @@ def resolve_pin_indices(obj: Any, particle_count: Any, automatic_default: Any=()
     return tuple(int(index) for index in automatic_default if 0 <= int(index) < int(particle_count))
 
 
-def _simulation_source_signature(obj: Any, pieces: Any) -> tuple[Any, ...]:
+def _simulation_source_signature(obj: object, pieces: Sequence[object]) -> tuple[object, ...]:
     """Return deterministic inputs that require rebuilding the cloth scene."""
     if pieces:
         from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
@@ -239,7 +243,7 @@ def _simulation_source_signature(obj: Any, pieces: Any) -> tuple[Any, ...]:
     )
 
 
-def _piece_mesh(piece: Any, start_height: Any, piece_ir: Any=None) -> tuple[Any, ...]:
+def _piece_mesh(piece: object, start_height: float, piece_ir: object | None = None) -> tuple[object, ...]:
     import FreeCAD as App
 
     from freecad_cloth.simulation.PatternSimulationAdapter import (
@@ -315,7 +319,7 @@ def _piece_mesh(piece: Any, start_height: Any, piece_ir: Any=None) -> tuple[Any,
     )
 
 
-def _polyline_parameter(point: Any, polyline: Any) -> float:
+def _polyline_parameter(point: Point3, polyline: Sequence[Point3]) -> float:
     if len(polyline) < 2:
         return 0.0
     total = 0.0
@@ -346,7 +350,7 @@ def _polyline_parameter(point: Any, polyline: Any) -> float:
     return best[1] / total if best else 0.0
 
 
-def _mesh_constraints(positions: Any, triangles: Any) -> tuple[Any, ...]:
+def _mesh_constraints(positions: Sequence[Point3], triangles: Sequence[Triangle]) -> tuple[object, ...]:
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
 
     particles = [Particle(*p) for p in positions]
@@ -362,7 +366,7 @@ def _mesh_constraints(positions: Any, triangles: Any) -> tuple[Any, ...]:
     return constraints
 
 
-def _sample_boundary(values: Any, start: Any, end: Any, count: Any, points: Any=None) -> tuple[Any, ...]:
+def _sample_boundary(values: Sequence[int], start: float, end: float, count: int, points: Sequence[Point3] | None = None) -> tuple[int, ...]:
     if len(values) < 2:
         raise ValueError("seam edge requires at least two boundary vertices")
     if points is not None:
@@ -381,7 +385,7 @@ def _sample_boundary(values: Any, start: Any, end: Any, count: Any, points: Any=
     return result
 
 
-def _seam_pair_records(pattern: Any, panel_data: Any, seam_samples: Any=8) -> tuple[Any, ...]:
+def _seam_pair_records(pattern: object, panel_data: object, seam_samples: object=8) -> tuple[object, ...]:
     """Return exact solver stitch pairs plus their semantic seam provenance."""
     pairs = []
     records = []
@@ -425,14 +429,14 @@ def _seam_pair_records(pattern: Any, panel_data: Any, seam_samples: Any=8) -> tu
     return tuple(dict.fromkeys(pairs)), tuple(records)
 
 
-def _boundary_vertices(piece_ir: Any, edge_id: Any, panel_data: Any) -> tuple[int, ...]:
+def _boundary_vertices(piece_ir: object, edge_id: object, panel_data: object) -> tuple[int, ...]:
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"], strict=False):
         if str(boundary.id) == str(edge_id):
             return tuple(values)
     raise ValueError(f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}")
 
 
-def _collision_for_scene(obj: Any) -> Any:
+def _collision_for_scene(obj: object) -> object:
     """Resolve collision strictly from the persistent DrapeTarget."""
     target = getattr(obj, "DrapeTarget", None)
     if target is not None:
@@ -459,7 +463,7 @@ def _collision_for_scene(obj: Any) -> Any:
     return None
 
 
-def _ensure_state_properties(obj: Any) -> None:
+def _ensure_state_properties(obj: object) -> None:
     """Ensure the persistent simulation lifecycle fields exist on old/new documents."""
     if not hasattr(obj, "SimulationState"):
         add_property = getattr(obj, "addProperty", None)
@@ -482,7 +486,7 @@ def _ensure_state_properties(obj: Any) -> None:
             setattr(obj, "InvalidationReason", "")
 
 
-def _set_simulation_state(obj: Any, state: Any, reason: Any="") -> None:
+def _set_simulation_state(obj: object, state: object, reason: str = "") -> None:
     """Persist the authoritative simulation lifecycle state and reason."""
     _ensure_state_properties(obj)
     obj.SimulationState = str(state)
@@ -507,11 +511,11 @@ class SimulationProxy:
         self.last_steps = 0
         self.collision_surface = None
 
-    def __getstate__(self) -> Any:
+    def __getstate__(self) -> object:
         """Persist only deterministic proxy metadata; runtime solver state is rebuildable."""
         return {"schema": 1}
 
-    def __setstate__(self, state: Any) -> None:
+    def __setstate__(self, state: object) -> None:
         """Restore an empty runtime cache; FreeCAD document properties remain authoritative."""
         self.backend = None
         self.panel_indices = {}
@@ -525,7 +529,7 @@ class SimulationProxy:
         self.last_steps = 0
         self.collision_surface = None
 
-    def execute(self, obj: Any) -> None:
+    def execute(self, obj: object) -> None:
         """Recompute the FreeCAD object from its current source properties."""
         _ensure_state_properties(obj)
         target = getattr(obj, "DrapeTarget", None)
@@ -574,7 +578,7 @@ class SimulationProxy:
         _set_simulation_state(obj, "READY_FOR_SIMULATION", "")
         return None
 
-    def _build(self, obj: Any, signature: Any=None, piece_mesh: Any=None) -> None:
+    def _build(self, obj: object, signature: object=None, piece_mesh: object=None) -> None:
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
@@ -585,7 +589,7 @@ class SimulationProxy:
         else:
             self._build_demo(obj)
 
-    def _build_pattern_scene(self, obj: Any, pieces: Any, signature: Any, piece_mesh: Any=None) -> Any:
+    def _build_pattern_scene(self, obj: object, pieces: object, signature: object, piece_mesh: object=None) -> object:
         from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
@@ -749,7 +753,7 @@ class SimulationProxy:
         for panel in panels:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
-    def _build_demo(self, obj: Any) -> None:
+    def _build_demo(self, obj: object) -> None:
         from freecad_cloth.simulation.ClothSolver import ClothSystem
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
@@ -822,13 +826,13 @@ class SimulationProxy:
         ):
             _write_grid_mesh(panel, positions, self.panel_indices[key], nx, ny)
 
-    def _ensure_panel(self, doc: Any, index: Any) -> Any:
+    def _ensure_panel(self, doc: object, index: object) -> object:
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
         return obj if obj is not None else _mesh_object(doc, name, name)
 
-    def reset(self, obj: Any) -> None:
+    def reset(self, obj: object) -> None:
         """Reset the runtime state to its initial values."""
         if self.backend is not None:
             self.backend.reset()
@@ -839,7 +843,7 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_avatar_collision(doc: Any, source_obj: Any=None, thickness: Any=2.0, deflection: Any=1.0) -> Any:
+def create_avatar_collision(doc: object, source_obj: object=None, thickness: object=2.0, deflection: object=1.0) -> object:
     """Create a target-neutral compatibility collision proxy."""
     avatar = doc.getObject("AvatarCollision")
     if avatar is None:
@@ -867,7 +871,7 @@ def create_avatar_collision(doc: Any, source_obj: Any=None, thickness: Any=2.0, 
     return avatar
 
 
-def set_avatar_collision_source(scene: Any, source_obj: Any, thickness: Any=2.0, deflection: Any=1.0) -> Any:
+def set_avatar_collision_source(scene: object, source_obj: object, thickness: object=2.0, deflection: object=1.0) -> object:
     """Set an avatar collision proxy without coupling Simulation to Avatar."""
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
@@ -894,7 +898,7 @@ def set_avatar_collision_source(scene: Any, source_obj: Any, thickness: Any=2.0,
     return proxy
 
 
-def create_simulation_scene(doc: Any, build: Any=True) -> Any:
+def create_simulation_scene(doc: object, build: bool = True) -> object:
     """Create and return the requested simulation scene object."""
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
@@ -939,14 +943,14 @@ def create_simulation_scene(doc: Any, build: Any=True) -> Any:
     return scene
 
 
-def step_scene(scene: Any, steps: Any=1) -> Any:
+def step_scene(scene: object, steps: int = 1) -> object:
     """Provide the public step scene operation."""
     scene.Steps = int(scene.Steps) + int(steps)
     scene.Document.recompute()
     return scene
 
 
-def reset_scene(scene: Any) -> Any:
+def reset_scene(scene: object) -> object:
     """Provide the public reset scene operation."""
     proxy = getattr(scene, "Proxy", None)
     if proxy is not None and hasattr(proxy, "reset"):
@@ -955,7 +959,7 @@ def reset_scene(scene: Any) -> Any:
     return scene
 
 
-def create_drape_scene(doc: Any) -> Any:
+def create_drape_scene(doc: object) -> object:
     """Create and return the requested drape scene object."""
     scene = create_simulation_scene(doc)
     step_scene(scene, 30)
