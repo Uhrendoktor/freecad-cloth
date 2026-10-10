@@ -64,9 +64,7 @@ class DrapeVisualSanityTests(unittest.TestCase):
             side_effect=AssertionError("Trimesh acceleration should be bypassed"),
         ):
             self.assertEqual(
-                points_inside_closed_mesh(
-                    points, vertices, triangles, prefer_trimesh=False
-                ),
+                points_inside_closed_mesh(points, vertices, triangles, prefer_trimesh=False),
                 (True, False),
             )
 
