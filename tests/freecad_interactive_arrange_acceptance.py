@@ -280,12 +280,26 @@ def run():
 
     # Changing local shape geometry without preserving the anchored surface contract
     # must still make the anchor stale and remove it from snap candidates.
-    changed_shape = target.Shape.copy()
-    changed_shape.translate(App.Vector(0.0, 0.0, 1.0))
+    # Add genuinely new topology. Translating a Shape from an already placed
+    # Part::Feature can be normalized by FreeCAD's Placement handling and is not
+    # a reliable geometry-edit probe. An additional solid must change the signature.
+    changed_shape = Part.makeCompound(
+        [target.Shape.copy(), Part.makeSphere(2.0, App.Vector(100.0, 0.0, 48.0))]
+    )
     target.Shape = changed_shape
     doc.recompute()
+    changed_signature = _target_signature(target)
     if arrangement_anchor_status(point_obj) != "stale":
-        raise RuntimeError("changing the source geometry did not invalidate its surface anchor")
+        raise RuntimeError(
+            "changing the source geometry did not invalidate its surface anchor: "
+            + repr(
+                {
+                    "status": arrangement_anchor_status(point_obj),
+                    "stored_signature": str(point_obj.AnchorGeometrySignature),
+                    "current_signature": changed_signature,
+                }
+            )
+        )
     if point_obj in controller._points():
         raise RuntimeError("a stale surface anchor remained available for snapping")
     if "Stale anchor:" not in str(point_obj.Label):
