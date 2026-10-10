@@ -230,9 +230,12 @@ def bounds(points):
     if not points:
         raise RuntimeError("cannot measure empty point set")
     return (
-        min(p[0] for p in points), max(p[0] for p in points),
-        min(p[1] for p in points), max(p[1] for p in points),
-        min(p[2] for p in points), max(p[2] for p in points),
+        min(p[0] for p in points),
+        max(p[0] for p in points),
+        min(p[1] for p in points),
+        max(p[1] for p in points),
+        min(p[2] for p in points),
+        max(p[2] for p in points),
     )
 
 
@@ -253,6 +256,7 @@ def nearest_surface_distance(garment_points, surface):
     if triangles:
         try:
             from freecad_cloth.common.MeshValidation import nearest_surface_clearance
+
             return float(nearest_surface_clearance(garment_points, vertices, triangles))
         except (ImportError, RuntimeError, ValueError):
             pass
@@ -276,10 +280,20 @@ def target_signature(target):
         "source_name": str(getattr(source, "Name", "")),
         "source_label": str(getattr(source, "Label", "")),
         "source_revision": int(getattr(source, "AvatarRevision", 0)),
-        "source_vertices": int(getattr(source, "MeshVertexCount",
-            getattr(mesh, "CountPoints", 0) if mesh is not None else 0)),
-        "source_triangles": int(getattr(source, "MeshTriangleCount",
-            getattr(mesh, "CountFacets", 0) if mesh is not None else 0)),
+        "source_vertices": int(
+            getattr(
+                source,
+                "MeshVertexCount",
+                getattr(mesh, "CountPoints", 0) if mesh is not None else 0,
+            )
+        ),
+        "source_triangles": int(
+            getattr(
+                source,
+                "MeshTriangleCount",
+                getattr(mesh, "CountFacets", 0) if mesh is not None else 0,
+            )
+        ),
         "collision_triangles_authored": int(getattr(target, "CollisionTriangleCount", 0)),
         "collision_vertices_authored": int(getattr(target, "CollisionVertexCount", 0)),
     }
@@ -301,8 +315,10 @@ def build_scene(doc, particle_distance=24.0):
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (
-        QualitySimulationProxy, ensure_quality_properties,
+        QualitySimulationProxy,
+        ensure_quality_properties,
     )
+
     scene = create_simulation_scene(doc, build=False)
     legacy = doc.getObject("HumanoidAvatar")
     if legacy is not None and hasattr(legacy, "ViewObject"):
@@ -353,27 +369,39 @@ def seam_geometry(backend, seam_stitch_pairs):
         measurements = []
         for left, right in pairs:
             a, b = positions[int(left)], positions[int(right)]
-            measurements.append({
-                "particle_a": int(left), "particle_b": int(right),
-                "a_world_mm": [round(value, 6) for value in a],
-                "b_world_mm": [round(value, 6) for value in b],
-                "distance_mm": round(math.dist(a, b), 6),
-            })
+            measurements.append(
+                {
+                    "particle_a": int(left),
+                    "particle_b": int(right),
+                    "a_world_mm": [round(value, 6) for value in a],
+                    "b_world_mm": [round(value, 6) for value in b],
+                    "distance_mm": round(math.dist(a, b), 6),
+                }
+            )
         distances = [item["distance_mm"] for item in measurements]
-        result.append({
-            "seam_id": str(seam_id),
-            "pair_count": len(measurements),
-            "min_span_mm": round(min(distances), 6) if distances else 0.0,
-            "max_span_mm": round(max(distances), 6) if distances else 0.0,
-            "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
-            "pairs": measurements,
-        })
+        result.append(
+            {
+                "seam_id": str(seam_id),
+                "pair_count": len(measurements),
+                "min_span_mm": round(min(distances), 6) if distances else 0.0,
+                "max_span_mm": round(max(distances), 6) if distances else 0.0,
+                "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
+                "pairs": measurements,
+            }
+        )
     return result
 
 
 def checkpoint_record(
-    step, image, positions, panel_triangles, signed_clearance, unsigned_clearance,
-    base, connected_components, contact_state,
+    step,
+    image,
+    positions,
+    panel_triangles,
+    signed_clearance,
+    unsigned_clearance,
+    base,
+    connected_components,
+    contact_state,
 ):
     """Build common checkpoint evidence for either cube or avatar ladder."""
     geometry = seam_geometry(base.backend, base.seam_stitch_pairs)
@@ -385,7 +413,9 @@ def checkpoint_record(
         "max_seam_gap_mm": round(max((entry["max_span_mm"] for entry in geometry), default=0.0), 6),
         "target_clearance_mm": signed_clearance,
         "target_unsigned_clearance_mm": unsigned_clearance,
-        "penetration_mm": round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None,
+        "penetration_mm": round(max(0.0, -float(signed_clearance)), 6)
+        if signed_clearance is not None
+        else None,
         "contact_state": contact_state,
         "seam_world_spans_mm": geometry,
     }
@@ -393,6 +423,7 @@ def checkpoint_record(
 
 def make_shutdown_gui(progress: Callable[[str], None]) -> Callable[[], None]:
     """Create a GUI shutdown callback with diagnostics routed to the given logger."""
+
     def shutdown_gui() -> None:
         try:
             try:
@@ -405,6 +436,7 @@ def make_shutdown_gui(progress: Callable[[str], None]) -> Callable[[], None]:
         except Exception as exc:
             progress(f"qt-quit-failed={exc!r}")
         progress("gui-shutdown-requested")
+
     return shutdown_gui
 
 

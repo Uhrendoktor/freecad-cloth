@@ -180,7 +180,6 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping():
     assert CountedCurve.calls == 1
 
 
-
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):

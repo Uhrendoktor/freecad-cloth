@@ -82,7 +82,6 @@ def test_degenerate_face_is_reported_without_trimesh():
     assert result.degenerate_faces == 1
 
 
-
 def test_nearest_target_observation_returns_the_matching_target_vertex():
     source = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
     target = ((3.0, 0.0, 0.0), (10.0, 1.0, 0.0))

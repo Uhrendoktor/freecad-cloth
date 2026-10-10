@@ -1,6 +1,6 @@
-import ast
 """Structural checks for the canonical Python package tree."""
 
+import ast
 from pathlib import Path
 
 
