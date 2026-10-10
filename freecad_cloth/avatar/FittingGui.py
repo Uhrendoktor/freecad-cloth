@@ -473,21 +473,48 @@ class ViewportAnchorPicker:
                 result[str(candidate.Name)] = candidate
         return result
 
-    def _world_point(self, object_name, x, y, z):
-        try:
-            return self.panel.App.Vector(float(x), float(y), float(z))
-        except (TypeError, ValueError):
-            for selection in self.Gui.Selection.getSelectionEx():
-                obj = getattr(selection, "Object", None)
-                if str(getattr(obj, "Name", "")) != str(object_name):
+    def _world_point(self, object_name, position):
+        """Normalize FreeCAD selection callback variants to a world-space Vector."""
+        candidates = ()
+        if len(position) == 3:
+            candidates = (position,)
+        elif len(position) == 1:
+            value = position[0]
+            if all(hasattr(value, name) for name in ("x", "y", "z")):
+                coordinates = tuple(getattr(value, name) for name in ("x", "y", "z"))
+                candidates = (coordinates,)
+            elif isinstance(value, str):
+                text = value.strip().strip("()[]")
+                candidates = (tuple(part.strip() for part in text.split(",")),)
+            else:
+                try:
+                    coordinates = tuple(value)
+                except TypeError:
+                    coordinates = ()
+                if len(coordinates) >= 3:
+                    candidates = (coordinates[:3],)
+        for coordinates in candidates:
+            try:
+                return self.panel.App.Vector(*(float(value) for value in coordinates))
+            except (TypeError, ValueError):
+                continue
+        for selection in self.Gui.Selection.getSelectionEx():
+            obj = getattr(selection, "Object", None)
+            if str(getattr(obj, "Name", "")) != str(object_name):
+                continue
+            points = tuple(getattr(selection, "PickedPoints", ()) or ())
+            if points:
+                picked = points[0]
+                try:
+                    return self.panel.App.Vector(
+                        float(picked.x), float(picked.y), float(picked.z)
+                    )
+                except (AttributeError, TypeError, ValueError):
                     continue
-                points = tuple(getattr(selection, "PickedPoints", ()) or ())
-                if points:
-                    return points[0]
         return None
 
-    def addSelection(self, doc_name, object_name, subelement_name, x, y, z):
-        """Consume FreeCAD's actual selected subelement and picked world coordinate."""
+    def addSelection(self, doc_name, object_name, subelement_name, *position):
+        """Consume FreeCAD's selected subelement across supported callback signatures."""
         if not self.armed:
             return
         sources = self._target_sources()
@@ -507,7 +534,7 @@ class ViewportAnchorPicker:
                 if names:
                     picked_sub_element = str(names[0])
                     break
-        world_point = self._world_point(object_name, x, y, z)
+        world_point = self._world_point(object_name, position)
         # Mesh::Feature selections may provide a picked world coordinate without a
         # TopoShape-style FaceN subelement name. Keep an explicit surface-kind label
         # so mannequin meshes can use the same viewport workflow as BRep targets.
