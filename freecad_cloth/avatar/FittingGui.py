@@ -334,6 +334,7 @@ class DirectArrangeController:
             return
         try:
             from pivy import coin
+
             from freecad_cloth.avatar.FittingCommands import (
                 _refresh_anchor_positions,
                 arrangement_anchor_status,
