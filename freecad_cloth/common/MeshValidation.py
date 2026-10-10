@@ -1,14 +1,15 @@
-"""Optional non-authoritative mesh validation helpers.
+"""Non-authoritative mesh validation helpers backed by external libraries.
 
-This module deliberately does not make trimesh a runtime dependency.  The
-adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
+Trimesh is a required runtime dependency for nearest-surface clearance and
+accelerated diagnostics. A NumPy/SciPy fallback preserves basic mesh-health
+metrics for isolated tooling environments where Trimesh is unavailable.
+The adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
 for acceptance diagnostics, backend comparisons, and developer tooling.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from math import isfinite
 from numbers import Real
 from typing import cast
@@ -19,24 +20,13 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
 
-from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
 
-@dataclass(frozen=True)
-class MeshValidationResult:
-    """Deterministic derived-mesh health metrics."""
-
-    vertices: int
-    faces: int
-    components: int
-    bounds: tuple[float, float, float, float, float, float]
-    surface_area: float
-    watertight: bool | None
-    finite: bool
-    degenerate_faces: int
+MeshValidationResult = MeshHealthMetrics
 
 
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
@@ -113,8 +103,8 @@ def validate_mesh(
 ) -> MeshValidationResult:
     """Return mesh-health metrics without mutating the source arrays.
 
-    ``trimesh`` is imported lazily and remains optional. A deterministic
-    Python fallback keeps the validator useful in the core test environment.
+    ``trimesh`` is imported lazily. The fallback keeps basic metrics available
+    in isolated tooling environments where the package is unavailable.
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
@@ -199,7 +189,7 @@ def nearest_surface_clearance(
     target_vertices: Sequence[Point3],
     target_triangles: Sequence[Triangle],
 ) -> float:
-    """Return minimum point-to-surface distance using trimesh when available."""
+    """Return minimum point-to-surface distance using Trimesh and Rtree."""
     validated = _validate_arrays(target_vertices, target_triangles)
     garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles

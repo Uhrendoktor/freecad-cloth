@@ -12,6 +12,7 @@ Validation is deliberately not duplicated across every internal arithmetic opera
 | --- | --- | --- |
 | Pattern geometry | Finite 2D control points; finite non-negative seam allowance; positive finite rectangle dimensions; integral sample counts | `tests/test_validation_models.py`, `tests/test_pattern_geometry.py` |
 | Mesh arrays | Every vertex is a finite 3D point; each face has exactly three integral, in-range indices | `tests/test_validation_models.py`, `tests/test_mesh_validation.py` |
+| PNG capture | Pillow verifies and decodes PNG data; NumPy derives pixel statistics; Pydantic validates policy and metric consistency | `tests/test_visual_capture_validation.py`, `tests/test_validation_models.py` |
 | Triangulation | Validate Triangle output before indexing; preserve authored-boundary mapping; reject non-finite area limits; compare measured mesh area with polygon area | `tests/test_mesh.py`, `tests/test_pattern_geometry.py` |
 | Seam correspondence | Positive finite lengths; tolerance in [0, 1); non-empty normalized ranges; mappings preserve or reverse endpoint order within the destination range | `tests/test_sewing_correspondence.py`, `tests/test_property_contracts.py` |
 | Point-to-segment distance | GEOS computes distance to sampled line geometry; generated tests check non-negativity, endpoint bounds, and orientation invariance | `tests/test_mesh.py` |
@@ -23,7 +24,8 @@ Hypothesis explores generated inputs and stateful mutation sequences, including 
 ## Geometry-library decisions
 
 - Use Python's `math.dist` for Euclidean point distances and Shapely/GEOS `LineString.distance` for point-to-segment queries; avoid custom projection and square/sum/square-root loops when a stable library primitive exists.
-- Use NumPy vectorized cross products/norms for fallback triangle-area metrics and SciPy sparse connected-components for edge-based mesh connectivity when optional `trimesh` is absent.
+- Trimesh and Rtree are required runtime dependencies for nearest-surface clearance and accelerated mesh diagnostics. The guarded NumPy/SciPy fallback remains for basic mesh-health metrics in isolated environments where Trimesh is unavailable; nearest-surface queries require Trimesh and its spatial-index backend.
+- Use Pillow to verify/decode screenshot PNGs, NumPy to compute alpha/visibility/color counts, and Pydantic schemas to validate capture policy and computed image/mesh metrics.
 - Use `trimesh.contains` for watertight point-in-mesh queries when its optional spatial-index backend is available; preserve the vectorized ray-parity fallback otherwise. Validate points and face indices with Pydantic before either backend.
 - Keep constrained triangulation and refinement in the existing Triangle binding, and validate its output before any index-based access.
 - Use the required SciPy `cKDTree` path for exact nearest-target-vertex clearance on large meshes.

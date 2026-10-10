@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from freecad_cloth.common.MeshValidation import (
@@ -113,6 +113,15 @@ def test_degenerate_face_is_reported_without_trimesh():
         prefer_trimesh=False,
     )
     assert result.degenerate_faces == 1
+
+
+@settings(max_examples=40, deadline=None)
+@given(scale=st.floats(min_value=1e-4, max_value=1e4, allow_nan=False, allow_infinity=False))
+def test_triangle_surface_area_scales_quadratically(scale: float) -> None:
+    """Uniformly scaling a mesh by s multiplies triangle area by s squared."""
+    vertices = ((0.0, 0.0, 0.0), (3.0 * scale, 0.0, 0.0), (0.0, 4.0 * scale, 0.0))
+    result = validate_mesh(vertices, ((0, 1, 2),))
+    assert result.surface_area == pytest.approx(6.0 * scale * scale, rel=1e-10, abs=1e-14)
 
 
 if __name__ == "__main__":

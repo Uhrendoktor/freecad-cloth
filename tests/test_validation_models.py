@@ -1,4 +1,5 @@
 """Regression tests for numerical and geometry input schemas."""
+
 from __future__ import annotations
 
 import math
@@ -7,13 +8,14 @@ import pytest
 from pydantic import ValidationError
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
-from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
-from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput,
     CorrespondenceAnalysisInput,
     MeshArrays,
+    MeshHealthMetrics,
     NormalizedRange,
+    PngCaptureMetrics,
+    PngCaptureOptions,
     RectangleDimensions,
     SeamAllowanceOptions,
     TriangulationOptions,
@@ -21,14 +23,20 @@ from freecad_cloth.common.ValidationModels import (
     validate_points3d,
 )
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment, PolylineSegment, QuadraticBezier, rectangle, seam_allowance_outline,
+    LineSegment,
+    PolylineSegment,
+    QuadraticBezier,
+    rectangle,
+    seam_allowance_outline,
 )
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
+from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     arc_length_vertex_indices,
     correspondence_samples,
 )
+from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 
 
 def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:
@@ -55,9 +63,7 @@ def test_mesh_schema_rejects_invalid_face_indices(face: list[object]) -> None:
 
 def test_mesh_api_rejects_fractional_indices_instead_of_truncating() -> None:
     with pytest.raises(ValueError):
-        validate_mesh(
-            [[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1.5, 2]], prefer_trimesh=False
-        )
+        validate_mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1.5, 2]], prefer_trimesh=False)
 
 
 def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
@@ -71,7 +77,9 @@ def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
 def test_arc_length_api_requires_an_exact_integer_count(count: object) -> None:
     with pytest.raises(ValueError):
         arc_length_vertex_indices(
-            (1, 2, 3), ((0, 0), (1, 0), (2, 0)), count  # type: ignore[arg-type]
+            (1, 2, 3),
+            ((0, 0), (1, 0), (2, 0)),
+            count,  # type: ignore[arg-type]
         )
     with pytest.raises(ValidationError):
         ArcLengthSamplingInput.model_validate(
@@ -136,7 +144,6 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
         nearest_target_clearance(((0.0, 0.0),), ((0.0, 0.0, 0.0),))
 
 
-
 def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() -> None:
     vertices = (
         (0.0, 0.0, 0.0),
@@ -159,13 +166,10 @@ def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
         mesh.validate()
 
 
-
 def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
     line = LineSegment("extreme-line", (-1e308, 0.0), (1e308, 0.0))
     assert line.point(0.5) == (0.0, 0.0)
-    curve = QuadraticBezier(
-        "extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0)
-    )
+    curve = QuadraticBezier("extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0))
     assert curve.point(0.5) == (0.0, 0.0)
 
 
@@ -245,7 +249,47 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
         transform.apply((1e308, 0.0, 0.0))
 
 
-
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
     assert segment.point(0.5) == pytest.approx((1.05e308, 0.0))
+
+
+def test_png_options_validate_dimensions_and_thresholds() -> None:
+    assert PngCaptureOptions(expected_width=800).expected_width == 800
+    assert PngCaptureOptions(expected_height=600).expected_height == 600
+    with pytest.raises(ValidationError):
+        PngCaptureOptions(pixel_threshold=257)
+    with pytest.raises(ValidationError):
+        PngCaptureOptions(minimum_pixels=-1)
+
+
+def test_png_metrics_schema_rejects_impossible_counts_and_dimensions() -> None:
+    with pytest.raises(ValidationError, match="opaque pixel count"):
+        PngCaptureMetrics(width=1, height=1, opaque_pixels=2, nonwhite_pixels=1, distinct_rgb=1)
+    with pytest.raises(ValidationError, match="visible pixel count"):
+        PngCaptureMetrics(width=2, height=2, opaque_pixels=2, nonwhite_pixels=3, distinct_rgb=1)
+
+
+def test_mesh_health_metrics_rejects_invalid_bounds_and_counts() -> None:
+    with pytest.raises(ValidationError, match="ordered"):
+        MeshHealthMetrics(
+            vertices=3,
+            faces=1,
+            components=1,
+            bounds=(1.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+            surface_area=0.5,
+            watertight=False,
+            finite=True,
+            degenerate_faces=0,
+        )
+    with pytest.raises(ValidationError, match="component count"):
+        MeshHealthMetrics(
+            vertices=3,
+            faces=1,
+            components=2,
+            bounds=(0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
+            surface_area=0.5,
+            watertight=False,
+            finite=True,
+            degenerate_faces=0,
+        )
