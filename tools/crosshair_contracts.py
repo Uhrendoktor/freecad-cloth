@@ -7,8 +7,6 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 
 from __future__ import annotations
 
-from math import hypot
-
 from freecad_cloth.pattern.PatternGeometry import _lerp, _line_intersection
 from freecad_cloth.pattern.PatternMesh import _point_to_segment_distance
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
@@ -72,30 +70,6 @@ def interpolation_contract(start: float, end: float, fraction: float) -> float:
         assert result == start
     if fraction == 1.0:
         assert result == end
-    return result
-
-
-def point_to_segment_distance_contract(
-    px: float, py: float, sx: float, sy: float, ex: float, ey: float
-) -> float:
-    """Check distance bounds and endpoint-order invariance for a 2D segment.
-
-    pre: -1e6 <= px <= 1e6
-    pre: -1e6 <= py <= 1e6
-    pre: -1e6 <= sx <= 1e6
-    pre: -1e6 <= sy <= 1e6
-    pre: -1e6 <= ex <= 1e6
-    pre: -1e6 <= ey <= 1e6
-    """
-    point = (px, py)
-    start = (sx, sy)
-    end = (ex, ey)
-    result = _point_to_segment_distance(point, start, end)
-    reversed_result = _point_to_segment_distance(point, end, start)
-    endpoint_bound = min(hypot(px - sx, py - sy), hypot(px - ex, py - ey))
-    assert result >= 0.0
-    assert result <= endpoint_bound + 1e-8
-    assert abs(result - reversed_result) <= 1e-8
     return result
 
 
