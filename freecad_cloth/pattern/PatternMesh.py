@@ -272,9 +272,7 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         return 0.0
 
     dx, dy, px, py = (value / scale for value in with_offset)
-    normalized_distance = LineString(((0.0, 0.0), (dx, dy))).distance(
-        ShapelyPoint((px, py))
-    )
+    normalized_distance = LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
     distance = scale * normalized_distance
     if not isfinite(distance):
         raise ValueError("computed point-to-segment distance must be finite")
