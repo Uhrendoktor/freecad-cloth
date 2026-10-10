@@ -172,8 +172,8 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    assert "ParticleDistance = 32.0" in source
-    assert "SolverIterations = 4" in source
+    assert "ParticleDistance = 24.0" in source
+    assert "SolverIterations = 8" in source
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
@@ -270,8 +270,8 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "required_indices = (1, 3, 5, 7)" in audit
     assert "TunicRightShoulder" in audit
     assert "TunicLeftShoulder" in audit
-    assert "ParticleDistance = 32.0" in audit
-    assert "SolverIterations = 4" in audit
+    assert "ParticleDistance = 24.0" in audit
+    assert "SolverIterations = 8" in audit
     assert "SolverSubsteps = 1" in audit
     assert "tunic-simulation-start" in audit
     assert "realtime-preview=passed backend=position-based-dynamics" in audit

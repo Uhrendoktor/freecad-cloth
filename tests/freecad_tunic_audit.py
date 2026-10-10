@@ -224,7 +224,7 @@ replacements = {
     SEAM_SOURCE: SEAM_SOURCE,
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
-    "scene.SolverIterations = 8": 'scene.ParticleDistance = 32.0; scene.SolverIterations = 4; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-4 substeps-env");',
+    "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-24 iterations-8 substeps-env");',
     """    def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
