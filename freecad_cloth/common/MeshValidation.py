@@ -7,15 +7,17 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import isfinite
+from numbers import Real
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
-from scipy.spatial import cKDTree
+from scipy.spatial import KDTree
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 
@@ -177,13 +179,13 @@ def nearest_target_clearance(
     SciPy's exact cKDTree query is the single production implementation. Coordinates
     are validated before indexing, and an unrepresentable result fails closed.
     """
-    garment = validate_points3d(garment_vertices)
-    target = validate_points3d(target_vertices)
+    garment = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
+    target = validate_points3d(cast(Iterable[Iterable[Real]], target_vertices))
     if not garment or not target:
         raise ValueError("garment and target vertices are required")
 
     try:
-        distances, _ = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
         clearance = min(float(value) for value in distances)
     except (OverflowError, ValueError, RuntimeError) as exc:
         raise ValueError("could not calculate finite nearest vertex clearance") from exc
@@ -199,7 +201,7 @@ def nearest_surface_clearance(
 ) -> float:
     """Return minimum point-to-surface distance using trimesh when available."""
     validated = _validate_arrays(target_vertices, target_triangles)
-    garment_vertices = validate_points3d(garment_vertices)
+    garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
         raise ValueError("garment vertices are required")
