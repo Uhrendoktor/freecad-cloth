@@ -1686,7 +1686,9 @@ def simulation():
         system = getattr(backend, "system", None)
         solver_pins = tuple(sorted(int(index) for index in getattr(system, "pins", {})))
     if solver_pins:
-        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+        raise RuntimeError(
+            "canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,)
+        )
     log("tunic-neckline-midpoints=%s" % (neckline_midpoints,))
     surface = collision_surface(
         target_source,
