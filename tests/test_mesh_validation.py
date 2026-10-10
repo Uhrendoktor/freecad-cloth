@@ -60,8 +60,11 @@ def test_fallback_surface_area_obeys_base_height_identity(width: float, height: 
 def test_fallback_components_do_not_join_faces_that_only_touch_at_a_vertex():
     """Mesh connectedness is edge-based, not vertex-only."""
     vertices = (
-        (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
-        (-1.0, 0.0, 0.0), (0.0, -1.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (-1.0, 0.0, 0.0),
+        (0.0, -1.0, 0.0),
     )
     result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
     assert result.components == 2
