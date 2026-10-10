@@ -131,6 +131,11 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
     assert _point_to_segment_distance((3.0, 0.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
     assert _point_to_segment_distance((3.0, 4.0), (0.0, 0.0), (0.0, 0.0)) == 5.0
     assert _point_to_segment_distance((1.0, 1.0), (2.0, 0.0), (0.0, 0.0)) == 1.0
+    assert (
+        _point_to_segment_distance((1e-291, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291))
+        == 1e-291
+    )
+    assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)) == 0.0
 
 
 @given(
