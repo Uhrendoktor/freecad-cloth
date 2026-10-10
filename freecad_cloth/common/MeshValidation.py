@@ -163,7 +163,7 @@ def validate_mesh(
         faces=len(triangles),
         components=_fallback_components(triangles),
         bounds=_fallback_bounds(vertices),
-        surface_area=_fallback_surface_area(vertices, triangles),
+        surface_area=_fallback_surface_area(triangle_areas),
         watertight=None,
         finite=True,
         degenerate_faces=degenerate,
