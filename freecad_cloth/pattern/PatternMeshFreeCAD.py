@@ -52,7 +52,11 @@ def mesh_from_pattern(
     return _canonical_triangle_mesh(pattern, vertices, triangles)
 
 
-def mesh_shape_from_outline(outline, linear_deflection=1.0, angular_deflection=0.5):
+def mesh_shape_from_outline(
+    outline: Sequence[Point],
+    linear_deflection: float = 1.0,
+    angular_deflection: float = 0.5,
+) -> object:
     """Compatibility helper returning the native FreeCAD mesh object."""
     if len(outline) < 3:
         raise ValueError("outline needs at least three points")
@@ -73,12 +77,12 @@ def mesh_shape_from_outline(outline, linear_deflection=1.0, angular_deflection=0
     )
 
 
-def boundary_provenance(outline):
+def boundary_provenance(outline: Sequence[Point]) -> tuple[tuple[int, str], ...]:
     """Return stable semantic boundary IDs independent of MeshPart face order."""
     return tuple((i, f"edge:{i}") for i in range(len(outline)))
 
 
-def _mesh_topology(native) -> tuple[list[Point], list[tuple[int, int, int]]]:
+def _mesh_topology(native: object) -> tuple[list[Point], list[tuple[int, int, int]]]:
     topology = getattr(native, "Topology", None)
     if topology is not None:
         points, facets = topology
