@@ -22,7 +22,7 @@ class DrapeVisualSanityTests(unittest.TestCase):
             (100.0, 50.0, 1750.0),
         )
 
-    def test_point_inside_closed_mesh_uses_ray_parity(self):
+    def test_point_inside_closed_mesh_classifies_inside_and_outside(self):
         vertices = (
             (0.0, 0.0, 0.0),
             (1.0, 0.0, 0.0),
