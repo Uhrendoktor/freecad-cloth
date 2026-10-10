@@ -423,17 +423,12 @@ def set_avatar_pose(pose):
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
     current = _parameters(obj)
+    # Choosing a named preset means starting from that pose's canonical baseline,
+    # just as the Pose Mode buttons do; do not carry unrelated manual rotations over.
     candidate = AvatarParameters(
         current.measurements,
         current.skin_offset,
-        Pose(
-            str(pose),
-            current.pose.left_arm_angle,
-            current.pose.right_arm_angle,
-            current.pose.left_elbow_angle,
-            current.pose.right_elbow_angle,
-            current.pose.joint_rotations,
-        ),
+        Pose(str(pose)),
     )
     return apply_avatar_parameters(obj, candidate)
 
