@@ -170,6 +170,7 @@ def points_inside_closed_mesh(
         results[start : start + len(chunk)] = np.count_nonzero(hits, axis=1) % 2 == 1
     return tuple(bool(value) for value in results)
 
+
 def seam_correspondence_gap(
     boundary_a: Sequence[Point3],
     boundary_b: Sequence[Point3],
