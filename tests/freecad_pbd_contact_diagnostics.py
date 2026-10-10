@@ -52,6 +52,7 @@ import FreeCADGui as Gui
 _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
 import Part
+_import_progress("Part complete")
 
 from pbd_contact_helpers import bounds as _bounds
 from pbd_contact_helpers import build_piece as _build_piece
@@ -73,8 +74,6 @@ from pbd_contact_helpers import (
 )
 from pbd_contact_helpers import screenshot as _screenshot
 from pbd_contact_helpers import target_signature as _target_signature
-
-_import_progress("Part complete")
 
 STEPS = (0, 1)
 PARTICLE_DISTANCE = 24.0
