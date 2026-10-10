@@ -79,8 +79,10 @@ def _mesh_surface_pick(target, x_fraction, z_fraction, side):
             + repr((float(x_fraction), float(z_fraction), side))
         )
 
-    side_y = min(row[2] for row in candidates) if side == "front" else max(
-        row[2] for row in candidates
+    side_y = (
+        min(row[2] for row in candidates)
+        if side == "front"
+        else max(row[2] for row in candidates)
     )
     chosen = min(
         candidates,
@@ -96,7 +98,15 @@ def _mesh_surface_pick(target, x_fraction, z_fraction, side):
 
 
 def _create_demo_tunic_piece(
-    doc, object_name, label, piece_id, placement, color, panel_width, panel_height, extrusion_sign=-1
+    doc,
+    object_name,
+    label,
+    piece_id,
+    placement,
+    color,
+    panel_width,
+    panel_height,
+    extrusion_sign=-1,
 ):
     """Create a recognizable tunic panel oriented vertically against the mannequin."""
     half_width = 0.5 * float(panel_width)
@@ -114,8 +124,7 @@ def _create_demo_tunic_piece(
         (-half_width, 0.0, half_height * 0.35),
     ]
     wire = Part.makePolygon(
-        [App.Vector(*point) for point in outline_points]
-        + [App.Vector(*outline_points[0])]
+        [App.Vector(*point) for point in outline_points] + [App.Vector(*outline_points[0])]
     )
     shape = Part.Face(wire).extrude(App.Vector(0.0, float(extrusion_sign) * 3.0, 0.0))
     piece = doc.addObject("Part::Feature", object_name)
@@ -254,7 +263,9 @@ def run():
         if point_obj.AnchorTarget.Name != target.Name:
             raise RuntimeError("surface anchor references the wrong mannequin: " + name)
         if point_obj.AnchorSubelement != subelement or not subelement.startswith("Facet"):
-            raise RuntimeError("surface anchor did not store its picked mannequin triangle: " + name)
+            raise RuntimeError(
+                "surface anchor did not store its picked mannequin triangle: " + name
+            )
         if arrangement_anchor_status(point_obj) != "valid":
             raise RuntimeError("new surface anchor is not current against the mannequin: " + name)
         if str(point_obj.WrapDirection) != wrap:
@@ -323,10 +334,7 @@ def run():
         base = piece.Placement.Base
         expected = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
         actual = (float(base.x), float(base.y), float(base.z))
-        if any(
-            abs(left - right) > 1e-6
-            for left, right in zip(actual, expected, strict=True)
-        ):
+        if any(abs(left - right) > 1e-6 for left, right in zip(actual, expected, strict=True)):
             raise RuntimeError(
                 piece.Label + " did not snap to its mannequin anchor: " + repr(actual)
             )
