@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from typing import cast
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import CollisionSurface
@@ -97,14 +98,14 @@ def _shape_content_signature(shape):
             if isinstance(payload, str):
                 payload = payload.encode("utf-8")
             else:
-                payload = bytes(payload)
+                payload = bytes(cast(bytes | bytearray | memoryview, payload))
             return ("BRepHash", hashlib.sha256(payload).hexdigest())
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
-            return ("ShapeHash", int(hash_code()))
+            return ("ShapeHash", int(cast(int, hash_code())))
         except (TypeError, ValueError, RuntimeError):
             pass
     return ("Unknown",)
