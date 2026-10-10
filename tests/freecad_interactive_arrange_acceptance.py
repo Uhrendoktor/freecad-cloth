@@ -235,8 +235,42 @@ def run():
     if len(matching) != 1 or matching[0].position != expected:
         raise RuntimeError("snapped placement was not persisted in the fitting scene")
 
-    # Geometry changes must make a saved surface anchor visibly stale and remove
-    # it from the controller's snap candidates rather than reusing old coordinates.
+    # Whole-object transforms must move the anchor with its target, not invalidate it
+    # or leave the marker at the old world coordinate.
+    original_anchor = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
+    target.Placement = App.Placement(
+        App.Vector(4.0, -3.0, 6.0), target.Placement.Rotation
+    )
+    doc.recompute()
+    controller._points()
+    transformed_world = target.Placement.multVec(point_obj.AnchorLocalPoint)
+    transformed_anchor = (
+        float(point_obj.X), float(point_obj.Y), float(point_obj.Offset)
+    )
+    expected_transform = (
+        original_anchor[0] + 4.0,
+        original_anchor[1] - 3.0,
+        original_anchor[2] + 6.0,
+    )
+    if any(
+        abs(actual_value - expected_value) > 1e-6
+        for actual_value, expected_value in zip(transformed_anchor, expected_transform)
+    ):
+        raise RuntimeError(
+            "surface anchor did not follow target Placement: "
+            + repr((transformed_anchor, expected_transform))
+        )
+    if any(
+        abs(actual_value - expected_value) > 1e-6
+        for actual_value, expected_value in zip(
+            (transformed_world.x, transformed_world.y, transformed_world.z),
+            transformed_anchor,
+        )
+    ):
+        raise RuntimeError("anchor marker is not coincident with the transformed target")
+
+    # Changing local shape geometry without preserving the anchored surface contract
+    # must still make the anchor stale and remove it from snap candidates.
     changed_shape = target.Shape.copy()
     changed_shape.translate(App.Vector(0.0, 0.0, 1.0))
     target.Shape = changed_shape
@@ -254,12 +288,12 @@ def run():
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/interactive-arrange.log").write_text(
-        "arrangement-anchor=passed target-linked=true persisted=true stale-detection=true\n"
+        "arrangement-anchor=passed target-linked=true persisted=true placement-follow=true stale-detection=true\n"
         "interactive-arrange=passed snapped=true persisted=true\n"
         "interactive-arrange-cleanup=passed callbacks-removed=true\n",
         encoding="utf-8",
     )
-    print("arrangement-anchor=passed target-linked=true persisted=true stale-detection=true", flush=True)
+    print("arrangement-anchor=passed target-linked=true persisted=true placement-follow=true stale-detection=true", flush=True)
     print("interactive-arrange=passed snapped=true persisted=true", flush=True)
     print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
     App.closeDocument(doc.Name)
