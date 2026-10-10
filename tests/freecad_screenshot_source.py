@@ -399,34 +399,19 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         if not vertices or not triangles:
             raise RuntimeError("authoritative collision surface has no inside/outside topology")
 
-        # Prefer trimesh's vectorized ray query for production-size mannequins.
-        # The deterministic pure-Python parity test remains the dependency-free fallback.
-        try:
-            import numpy as np
-            import trimesh
-
-            target_mesh = trimesh.Trimesh(
-                vertices=np.asarray(vertices, dtype=float),
-                faces=np.asarray(triangles, dtype=int),
-                process=False,
-            )
-            if target_mesh.is_watertight:
-                states = target_mesh.contains(np.asarray(points, dtype=float))
-                log(
-                    "penetration-check=trimesh contains points=%d triangles=%d"
-                    % (len(points), len(triangles))
-                )
-                return int(np.count_nonzero(states))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
-
+        # Avoid Trimesh/Rtree's native contains query in the embedded FreeCAD host.
+        # The vectorized NumPy ray-parity path preserves the strict vertex-inside gate.
         from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
         log(
             "penetration-check=numpy-ray-parity points=%d triangles=%d"
             % (len(points), len(triangles))
         )
-        return sum(points_inside_closed_mesh(points, vertices, triangles))
+        return sum(
+            points_inside_closed_mesh(
+                points, vertices, triangles, prefer_trimesh=False
+            )
+        )
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 
