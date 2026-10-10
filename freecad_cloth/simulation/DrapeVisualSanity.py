@@ -408,7 +408,7 @@ def mesh_shape_sanity(
             unique_edges.add(edge)
             p = vertices[left]
             q = vertices[right]
-            lengths.append(sqrt(sum((float(p[i]) - float(q[i])) ** 2 for i in range(3))))
+            lengths.append(dist(p, q))
 
     if not lengths:
         median_edge = 0.0
