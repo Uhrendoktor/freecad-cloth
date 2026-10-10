@@ -6,11 +6,11 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/arrangement-anchor.gif" alt="Interactive Arrange enters surface-pick mode, a selected target face becomes a named blue snap anchor, and the marker appears in the viewport" width="900"></p>
 
-The first animation shows how to create a surface-aware snap anchor. Name it, choose a wrap direction, select **Pick surface in viewport**, then click a face on the configured avatar or target geometry. The persistent marker records the picked world location, target object, selected subelement, and target geometry signature.
+The first animation shows how to create a surface-aware snap anchor. Name it, choose a wrap direction, select **Pick surface in viewport**, then click a face on the configured avatar or target geometry. The persistent marker records the target object, selected subelement, target-local location, and geometry reference. For mesh targets, it also stores a triangle index and barycentric coordinates so the marker follows the same surface region as avatar vertices move during posing.
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="A flat garment pattern piece moving toward a blue crosshair arrangement anchor; the preview snaps to it and release commits the placement" width="900"></p>
 
-A blue crosshair marks the pattern piece's placement-origin target. A picked surface anchor is linked to the target geometry so a changed or rebuilt target makes it stale; stale anchors are shown in red and excluded from snapping until they are picked again. The point controls piece placement—it is not a cloth pin or a surface constraint. Releasing the drag commits the snapped placement.
+A blue crosshair marks the pattern piece's placement-origin target. A picked surface anchor follows object translation/rotation through the target placement. On deforming mesh targets (including the built-in avatar), the stored triangle/barycentric reference follows vertex movement as long as triangle connectivity remains stable. Anchors turn red and are excluded from snapping if the target is replaced, its surface topology changes, or the underlying non-mesh shape geometry changes. The point controls piece placement—it is not a cloth pin or a surface constraint. Releasing the drag commits the snapped placement.
 
 The recordings show the live task panel and viewport. Headless acceptance exercises the task panel's selection and drag callbacks because native viewport injection is unstable in some FreeCAD/Pivy builds.
 
@@ -22,7 +22,7 @@ Start with valid PatternPieces and a selected, current **DrapeTarget**. The GIF 
 2. To create a target-aware snap point, enter a name, choose a wrap direction, select **Pick surface in viewport**, and click a face on the configured avatar/target.
 3. Drag a pattern piece in the viewport. With snapping enabled, approach the blue marker until the snap preview appears.
 4. Release to commit the placement as a FreeCAD transaction. Repeat for the remaining pieces.
-5. If the target geometry, revision, or placement changes, recreate any red stale anchor before using it. Review the garment-to-target relationship before simulation; reset and arrange again if a piece is accidentally placed or overlaps unexpectedly.
+5. Anchors follow target placement changes and mesh pose edits when the referenced surface topology remains compatible. If an anchor turns red after a topology change, shape edit, or target replacement, recreate it before using it. Review the garment-to-target relationship before simulation; reset and arrange again if a piece is accidentally placed or overlaps unexpectedly.
 
 **Verify the result:** placements remain after save/reopen, the target is the intended collision authority, and the garment is intentionally positioned before Run. Fitting does not repair invalid sewing relationships or define collision geometry.
 
