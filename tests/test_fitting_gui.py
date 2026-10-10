@@ -137,3 +137,98 @@ def test_shape_anchor_signature_canonicalizes_signed_zero():
     assert repr(_geometry_round(-0.0)) == repr(0.0)
     assert repr(_geometry_round(-1e-7)) == repr(0.0)
     assert _geometry_round(1.234567) == 1.23457
+
+
+def test_shape_anchor_signature_is_invariant_to_object_translation():
+    class Placement:
+        def __init__(self, translation):
+            self.translation = translation
+
+        def inverse(self):
+            return Placement(tuple(-value for value in self.translation))
+
+        def toMatrix(self):
+            return self
+
+    class Shape:
+        def __init__(self, offset):
+            self.offset = offset
+
+        def copy(self):
+            return Shape(self.offset)
+
+        def transformShape(self, matrix):
+            self.offset = tuple(
+                value + shift
+                for value, shift in zip(
+                    self.offset, matrix.translation, strict=True
+                )
+            )
+
+        def isNull(self):
+            return False
+
+        def _point(self, point):
+            return tuple(
+                value + shift
+                for value, shift in zip(point, self.offset, strict=True)
+            )
+
+        @property
+        def Vertexes(self):
+            return [
+                SimpleNamespace(Point=self._point(point))
+                for point in (
+                    (0.0, 0.0, 0.0),
+                    (1.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                )
+            ]
+
+        @property
+        def Edges(self):
+            return [
+                SimpleNamespace(Length=1.0, CenterOfMass=self._point((0.5, 0.0, 0.0))),
+                SimpleNamespace(Length=1.0, CenterOfMass=self._point((0.0, 0.5, 0.0))),
+                SimpleNamespace(
+                    Length=1.41421356237,
+                    CenterOfMass=self._point((0.5, 0.5, 0.0)),
+                ),
+            ]
+
+        @property
+        def Faces(self):
+            return [
+                SimpleNamespace(
+                    Surface=object(),
+                    Area=0.5,
+                    CenterOfMass=self._point((1.0 / 3.0, 1.0 / 3.0, 0.0)),
+                    Edges=(None, None, None),
+                )
+            ]
+
+        @property
+        def BoundBox(self):
+            x, y, z = self.offset
+            return SimpleNamespace(
+                XMin=x,
+                XMax=x + 1.0,
+                YMin=y,
+                YMax=y + 1.0,
+                ZMin=z,
+                ZMax=z,
+            )
+
+        @property
+        def Solids(self):
+            return (object(),)
+
+    origin = (0.0, 0.0, 0.0)
+    target = SimpleNamespace(Shape=Shape(origin), Placement=Placement(origin))
+    signature = _target_signature(target)
+
+    translation = (4.0, -3.0, 6.0)
+    target.Shape = Shape(translation)
+    target.Placement = Placement(translation)
+
+    assert _target_signature(target) == signature
