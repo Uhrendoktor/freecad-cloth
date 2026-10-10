@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternIR import PatternIR
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
@@ -18,6 +18,42 @@ class LineSegment:
     def __init__(self, start, end):
         self.StartPoint = Point(*start)
         self.EndPoint = Point(*end)
+
+
+def test_sketch_authority_outline_preserves_intermediate_curve_samples():
+    from freecad_cloth.pattern.SketchAuthority import _sampled_outline
+
+    piece_ir = type(
+        "PieceIR",
+        (),
+        {
+            "boundaries": (
+                BoundaryIR("front:hem", "line", ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))),
+                BoundaryIR(
+                    "front:armhole",
+                    "arc",
+                    (
+                        (10.0, 0.0, 0.0),
+                        (11.0, 2.0, 0.0),
+                        (11.5, 4.0, 0.0),
+                        (10.0, 6.0, 0.0),
+                    ),
+                    (0.0, 1.0),
+                ),
+                BoundaryIR("front:neckline", "line", ((10.0, 6.0, 0.0), (0.0, 6.0, 0.0))),
+                BoundaryIR("front:left-side", "line", ((0.0, 6.0, 0.0), (0.0, 0.0, 0.0))),
+            )
+        },
+    )()
+
+    assert _sampled_outline(piece_ir) == [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (11.0, 2.0),
+        (11.5, 4.0),
+        (10.0, 6.0),
+        (0.0, 6.0),
+    ]
 
 
 def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order():
@@ -88,6 +124,7 @@ def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary():
 
 
 if __name__ == "__main__":
+    test_sketch_authority_outline_preserves_intermediate_curve_samples()
     test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order()
     test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary()
     test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary()

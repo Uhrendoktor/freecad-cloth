@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
     ParametricPattern,
+    PolylineSegment,
     QuadraticBezier,
     rectangle,
 )
@@ -47,6 +48,32 @@ def test_concave_polygon_triangulates():
     assert len(mesh.triangles) == 3
     assert abs(mesh.area - 1200.0) < 1e-7
     assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
+
+
+def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints():
+    pattern = ParametricPattern(
+        [
+            LineSegment("bottom", (0, 0), (100, 0)),
+            LineSegment("right", (100, 0), (100, 100)),
+            PolylineSegment(
+                "scoop",
+                ((100, 100), (99, 90), (50, 80), (1, 90), (0, 100)),
+            ),
+            LineSegment("left", (0, 100), (0, 0)),
+        ]
+    )
+    mesh = triangulate(pattern)
+
+    # Endpoint-near curved spans belong to the sampled curve, not the adjacent sides.
+    assert mesh.boundary_edge_segment_ids == (
+        "bottom",
+        "right",
+        "scoop",
+        "scoop",
+        "scoop",
+        "scoop",
+        "left",
+    )
 
 
 def test_reversed_rectangle_retains_segment_provenance():
@@ -106,6 +133,7 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
     assert _point_to_segment_distance((3.0, 0.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
     assert _point_to_segment_distance((3.0, 4.0), (0.0, 0.0), (0.0, 0.0)) == 5.0
     assert _point_to_segment_distance((1.0, 1.0), (2.0, 0.0), (0.0, 0.0)) == 1.0
+    assert _point_to_segment_distance((0.0, 0.0), (1.0, 6.269632363395404e-257), (1.0, 0.0)) == 1.0
     assert (
         _point_to_segment_distance((1e-291, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291))
         == 1e-291
@@ -131,7 +159,7 @@ def test_point_to_segment_distance_handles_subnormal_segment_length():
 def test_point_to_segment_distance_obeys_metric_properties(
     px: float, py: float, sx: float, sy: float, ex: float, ey: float
 ) -> None:
-    """GEOS-backed distance is non-negative, endpoint-bounded, and orientation-invariant."""
+    """Distance is non-negative, endpoint-bounded, and orientation-invariant."""
     point, start, end = (px, py), (sx, sy), (ex, ey)
     distance = _point_to_segment_distance(point, start, end)
     reversed_distance = _point_to_segment_distance(point, end, start)

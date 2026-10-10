@@ -222,10 +222,11 @@ def _prepare_segment_geometries(
     """Sample authored curves once and construct GEOS line strings for distance queries."""
     prepared: list[tuple[str, LineString]] = []
     for segment in pattern.segments:
+        # Sketcher curves may be sampled polylines without a control attribute.
         points = (
-            segment.polyline(curve_samples)
-            if hasattr(segment, "control")
-            else (segment.start, segment.end)
+            (segment.start, segment.end)
+            if isinstance(segment, LineSegment)
+            else segment.polyline(curve_samples)
         )
         prepared.append((segment.id, LineString(points)))
     return tuple(prepared)
