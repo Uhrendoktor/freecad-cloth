@@ -176,7 +176,7 @@ def nearest_target_clearance(
 ) -> float:
     """Return the minimum Euclidean distance between two validated 3D vertex sets.
 
-    SciPy's exact cKDTree query is the single production implementation. Coordinates
+    SciPy's exact KDTree query is the single production implementation. Coordinates
     are validated before indexing, and an unrepresentable result fails closed.
     """
     garment = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
