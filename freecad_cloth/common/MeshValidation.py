@@ -1,36 +1,32 @@
-"""Optional non-authoritative mesh validation helpers.
+"""Non-authoritative mesh validation helpers backed by external libraries.
 
-This module deliberately does not make trimesh a runtime dependency.  The
-adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
+Trimesh is a required runtime dependency for nearest-surface clearance and
+accelerated diagnostics. A NumPy/SciPy fallback preserves basic mesh-health
+metrics for isolated tooling environments where Trimesh is unavailable.
+The adapter is downstream of PatternIR/ClothSystem/DrapeTarget and is intended
 for acceptance diagnostics, backend comparisons, and developer tooling.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
-from math import hypot, isfinite
+from collections.abc import Iterable, Sequence
+from math import isfinite
+from numbers import Real
+from typing import cast
 
-from scipy.spatial import cKDTree
+import numpy as np
+from numpy.typing import NDArray
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
+from scipy.spatial import KDTree
 
-from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
 
-@dataclass(frozen=True)
-class MeshValidationResult:
-    """Deterministic derived-mesh health metrics."""
-
-    vertices: int
-    faces: int
-    components: int
-    bounds: tuple[float, float, float, float, float, float]
-    surface_area: float
-    watertight: bool | None
-    finite: bool
-    degenerate_faces: int
+MeshValidationResult = MeshHealthMetrics
 
 
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
@@ -47,28 +43,39 @@ def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, f
     return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
 
 
+def _triangle_areas(
+    vertices: Sequence[Point3], triangles: Sequence[Triangle]
+) -> NDArray[np.float64]:
+    """Calculate triangle areas with NumPy's vectorized cross product and norm."""
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    faces = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    with np.errstate(over="ignore", invalid="ignore"):
+        cross_products = np.cross(
+            coordinates[faces[:, 1]] - coordinates[faces[:, 0]],
+            coordinates[faces[:, 2]] - coordinates[faces[:, 0]],
+        )
+        areas = np.asarray(0.5 * np.linalg.norm(cross_products, axis=1), dtype=np.float64)
+    if not bool(np.isfinite(areas).all()):
+        raise ValueError("computed mesh surface area must be finite")
+    return areas
+
+
+def _fallback_surface_area(areas: NDArray[np.float64]) -> float:
+    """Sum precomputed triangle areas without requiring the optional trimesh package."""
+    with np.errstate(over="ignore", invalid="ignore"):
+        total = float(np.sum(areas, dtype=np.float64))
+    if not isfinite(total):
+        raise ValueError("computed mesh surface area must be finite")
+    return total
+
+
 def _fallback_components(triangles: Sequence[Triangle]) -> int:
-    """Count face-connected components without optional dependencies."""
+    """Count edge-connected face components using SciPy's sparse graph algorithm."""
     if not triangles:
         return 0
-
-    parent = list(range(len(triangles)))
-
-    def find(index: int) -> int:
-        while parent[index] != index:
-            parent[index] = parent[parent[index]]
-            index = parent[index]
-        return index
-
-    def union(left: int, right: int) -> None:
-        left_root = find(left)
-        right_root = find(right)
-        if left_root != right_root:
-            parent[right_root] = left_root
-
-    # Mesh components are connected through shared edges, not just shared
-    # vertices. Vertex-only adjacency incorrectly merges shells touching at a point.
     first_face_by_edge: dict[tuple[int, int], int] = {}
+    rows: list[int] = []
+    columns: list[int] = []
     for face_index, (a, b, c) in enumerate(triangles):
         for left, right in ((a, b), (b, c), (c, a)):
             edge = (min(left, right), max(left, right))
@@ -76,30 +83,16 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
             if previous_face is None:
                 first_face_by_edge[edge] = face_index
             else:
-                union(face_index, previous_face)
-
-    return len({find(index) for index in range(len(triangles))})
-
-
-def _fallback_surface_area(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> float:
-    """Calculate triangle-surface area without optional mesh libraries."""
-    total = 0.0
-    for a, b, c in triangles:
-        pa, pb, pc = vertices[a], vertices[b], vertices[c]
-        ab = tuple(float(pb[axis]) - float(pa[axis]) for axis in range(3))
-        ac = tuple(float(pc[axis]) - float(pa[axis]) for axis in range(3))
-        cross = (
-            ab[1] * ac[2] - ab[2] * ac[1],
-            ab[2] * ac[0] - ab[0] * ac[2],
-            ab[0] * ac[1] - ab[1] * ac[0],
-        )
-        area = 0.5 * hypot(*cross)
-        if not isfinite(area):
-            raise ValueError("computed mesh surface area must be finite")
-        total += area
-        if not isfinite(total):
-            raise ValueError("computed mesh surface area must be finite")
-    return total
+                rows.extend((previous_face, face_index))
+                columns.extend((face_index, previous_face))
+    if not rows:
+        return len(triangles)
+    adjacency = coo_matrix(
+        (np.ones(len(rows), dtype=np.uint8), (rows, columns)),
+        shape=(len(triangles), len(triangles)),
+    ).tocsr()
+    count, _ = connected_components(adjacency, directed=False, return_labels=True)
+    return int(count)
 
 
 def validate_mesh(
@@ -110,16 +103,20 @@ def validate_mesh(
 ) -> MeshValidationResult:
     """Return mesh-health metrics without mutating the source arrays.
 
-    ``trimesh`` is imported lazily and remains optional. A deterministic
-    Python fallback keeps the validator useful in the core test environment.
+    ``trimesh`` is imported lazily. The fallback keeps basic metrics available
+    in isolated tooling environments where the package is unavailable.
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
-    degenerate = sum(1 for a, b, c in triangles if len({a, b, c}) < 3)
+    triangle_areas = _triangle_areas(vertices, triangles)
+    degenerate = sum(
+        1
+        for triangle, area in zip(triangles, triangle_areas, strict=True)
+        if len(set(triangle)) < 3 or area == 0.0
+    )
 
     if prefer_trimesh:
         try:
-            import numpy as np
             import trimesh
 
             mesh = trimesh.Trimesh(
@@ -156,44 +153,11 @@ def validate_mesh(
         faces=len(triangles),
         components=_fallback_components(triangles),
         bounds=_fallback_bounds(vertices),
-        surface_area=_fallback_surface_area(vertices, triangles),
+        surface_area=_fallback_surface_area(triangle_areas),
         watertight=None,
         finite=True,
         degenerate_faces=degenerate,
     )
-
-
-def _nearest_target_observation_validated(
-    garment: tuple[Point3, ...],
-    target: tuple[Point3, ...],
-) -> tuple[float, Point3]:
-    """Run one exact KD-tree query on already validated vertex sets."""
-    try:
-        distances, indices = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
-        source_index = min(range(len(distances)), key=lambda index: float(distances[index]))
-        clearance = float(distances[source_index])
-        target_index = int(indices[source_index])
-    except (IndexError, OverflowError, ValueError, RuntimeError) as exc:
-        raise ValueError("could not calculate finite nearest vertex clearance") from exc
-    if not isfinite(clearance) or not 0 <= target_index < len(target):
-        raise ValueError("computed vertex clearance must be finite")
-    return clearance, target[target_index]
-
-
-def nearest_target_observation(
-    garment_vertices: Sequence[Point3],
-    target_vertices: Sequence[Point3],
-) -> tuple[float, Point3] | None:
-    """Return exact minimum vertex distance and the corresponding target vertex.
-
-    Empty inputs return None so diagnostic callers can preserve optional
-    observation semantics; non-empty inputs are validated and fail closed.
-    """
-    garment = validate_points3d(garment_vertices)
-    target = validate_points3d(target_vertices)
-    if not garment or not target:
-        return None
-    return _nearest_target_observation_validated(garment, target)
 
 
 def nearest_target_clearance(
@@ -202,14 +166,21 @@ def nearest_target_clearance(
 ) -> float:
     """Return the minimum Euclidean distance between two validated 3D vertex sets.
 
-    SciPy's exact cKDTree query is the single production implementation. Coordinates
+    SciPy's exact KDTree query is the single production implementation. Coordinates
     are validated before indexing, and an unrepresentable result fails closed.
     """
-    garment = validate_points3d(garment_vertices)
-    target = validate_points3d(target_vertices)
+    garment = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
+    target = validate_points3d(cast(Iterable[Iterable[Real]], target_vertices))
     if not garment or not target:
         raise ValueError("garment and target vertices are required")
-    clearance, _ = _nearest_target_observation_validated(garment, target)
+
+    try:
+        distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        clearance = min(float(value) for value in distances)
+    except (OverflowError, ValueError, RuntimeError) as exc:
+        raise ValueError("could not calculate finite nearest vertex clearance") from exc
+    if not isfinite(clearance):
+        raise ValueError("computed vertex clearance must be finite")
     return clearance
 
 
@@ -218,9 +189,9 @@ def nearest_surface_clearance(
     target_vertices: Sequence[Point3],
     target_triangles: Sequence[Triangle],
 ) -> float:
-    """Return minimum point-to-surface distance using trimesh when available."""
+    """Return minimum point-to-surface distance using Trimesh and Rtree."""
     validated = _validate_arrays(target_vertices, target_triangles)
-    garment_vertices = validate_points3d(garment_vertices)
+    garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
         raise ValueError("garment vertices are required")

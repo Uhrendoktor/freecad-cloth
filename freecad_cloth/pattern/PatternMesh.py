@@ -249,27 +249,51 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    """Return GEOS distance, with a stable projection fallback for non-finite results."""
-    distance = float(LineString((start, end)).distance(ShapelyPoint(point)))
+    """Return a robust point-to-segment distance, including subnormal segments.
+
+    Normalize coordinate differences before asking GEOS to avoid overflow for
+    tiny coordinates. If GEOS still returns a non-finite distance because its
+    projection arithmetic underflows, use a unit-direction projection fallback.
+    """
+    if point in (start, end):
+        return 0.0
+
+    with_offset = (
+        end[0] - start[0],
+        end[1] - start[1],
+        point[0] - start[0],
+        point[1] - start[1],
+    )
+    if not all(isfinite(value) for value in with_offset):
+        raise ValueError("point-to-segment coordinate differences must be finite")
+    scale = max(abs(value) for value in with_offset)
+    if scale == 0.0:
+        return 0.0
+
+    dx, dy, px, py = (value / scale for value in with_offset)
+    normalized_distance = float(
+        LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
+    )
+    distance = scale * normalized_distance
     if isfinite(distance):
         return distance
 
-    # GEOS can report infinity for finite, extremely short segments. Normalize
-    # the segment direction before projecting so its squared length never
-    # underflows (the zero-length case still reduces to endpoint distance).
-    px, py = float(point[0]), float(point[1])
     sx, sy = float(start[0]), float(start[1])
+    px, py = float(point[0]), float(point[1])
     dx, dy = float(end[0]) - sx, float(end[1]) - sy
     length = hypot(dx, dy)
     if length == 0.0:
-        return hypot(px - sx, py - sy)
-
-    unit_x, unit_y = dx / length, dy / length
-    projection = (px - sx) * unit_x + (py - sy) * unit_y
-    clamped = max(0.0, min(length, projection))
-    closest_x = sx + clamped * unit_x
-    closest_y = sy + clamped * unit_y
-    return hypot(px - closest_x, py - closest_y)
+        distance = hypot(px - sx, py - sy)
+    else:
+        unit_x, unit_y = dx / length, dy / length
+        projection = (px - sx) * unit_x + (py - sy) * unit_y
+        clamped = max(0.0, min(length, projection))
+        closest_x = sx + clamped * unit_x
+        closest_y = sy + clamped * unit_y
+        distance = hypot(px - closest_x, py - closest_y)
+    if not isfinite(distance):
+        raise ValueError("computed point-to-segment distance must be finite")
+    return distance
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:

@@ -191,3 +191,19 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("mesh tests passed")
+
+
+def test_point_to_segment_distance_tiny_scaled_coordinates() -> None:
+    """Normalized GEOS input keeps tiny but representable distances accurate."""
+    assert (
+        _point_to_segment_distance(
+            (1e-291, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)
+        )
+        == 1e-291
+    )
+    assert (
+        _point_to_segment_distance(
+            (0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)
+        )
+        == 0.0
+    )

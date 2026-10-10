@@ -106,51 +106,6 @@ def png_has_visible_content(
     return metrics.nonwhite_pixels >= options.minimum_pixels
 
 
-def png_has_visible_content(
-    path: Path,
-    *,
-    minimum_pixels: int = 64,
-    channel_threshold: int = 250,
-    require_all_channels_below_threshold: bool = False,
-    expected_width: int | None = None,
-    expected_height: int | None = None,
-) -> bool:
-    """Return whether a PNG contains enough visible non-background pixels.
-
-    The helper shares the CRC-checked parser and PNG filter support with
-    validate_png_capture. Malformed or unsupported captures return False.
-    """
-    if minimum_pixels < 1:
-        raise ValueError("minimum_pixels must be positive")
-    if not 0 <= channel_threshold <= 256:
-        raise ValueError("channel_threshold must be in [0, 256]")
-    if (expected_width is None) != (expected_height is None):
-        raise ValueError("expected_width and expected_height must be supplied together")
-
-    try:
-        width, height, raw, bytes_per_pixel = _parse_png(Path(path))
-        if expected_width is not None and (width, height) != (expected_width, expected_height):
-            return False
-        visible = 0
-        for row in _unfilter_rows(raw, width, height, bytes_per_pixel):
-            for index in range(0, len(row), bytes_per_pixel):
-                if bytes_per_pixel == 4 and row[index + 3] <= 8:
-                    continue
-                rgb = row[index : index + 3]
-                is_visible = (
-                    all(value < channel_threshold for value in rgb)
-                    if require_all_channels_below_threshold
-                    else any(value < channel_threshold for value in rgb)
-                )
-                if is_visible:
-                    visible += 1
-                    if visible >= minimum_pixels:
-                        return True
-        return False
-    except (OSError, ValueError, struct.error, zlib.error):
-        return False
-
-
 def validate_png_capture(
     path: Path | str,
     *,
