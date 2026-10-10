@@ -62,9 +62,29 @@ class MeshData:
         """Validate this value and raise ValueError when its state is invalid."""
         if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
+
+        for vertex in self.vertices:
+            try:
+                valid_vertex = len(vertex) == 3 and all(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and math.isfinite(value)
+                    for value in vertex
+                )
+            except (TypeError, OverflowError):
+                valid_vertex = False
+            if not valid_vertex:
+                raise HumanoidMeshError("humanoid mesh contains invalid vertex coordinates")
+
         count = len(self.vertices)
         for tri in self.triangles:
-            if len(tri) != 3 or any(i < 0 or i >= count for i in tri):
+            try:
+                valid_triangle = len(tri) == 3 and all(
+                    type(index) is int and 0 <= index < count for index in tri
+                )
+            except TypeError:
+                valid_triangle = False
+            if not valid_triangle:
                 raise HumanoidMeshError("humanoid mesh contains an invalid face")
         return self
 
@@ -104,8 +124,32 @@ def _verified_weights(path: Path) -> bool:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
-        return isinstance(payload.get("weights"), dict)
-    except (OSError, UnicodeError, ValueError):
+        if not isinstance(payload, dict):
+            return False
+        weights = payload.get("weights")
+        if not isinstance(weights, dict) or not weights:
+            return False
+
+        has_entries = False
+        for bone_name, entries in weights.items():
+            if not isinstance(bone_name, str) or not isinstance(entries, list):
+                return False
+            for entry in entries:
+                if not isinstance(entry, list) or len(entry) != 2:
+                    return False
+                index, weight = entry
+                if type(index) is not int or index < 0:
+                    return False
+                if (
+                    isinstance(weight, bool)
+                    or not isinstance(weight, (int, float))
+                    or not math.isfinite(weight)
+                    or weight < 0.0
+                ):
+                    return False
+                has_entries = True
+        return has_entries
+    except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
 
 
@@ -114,8 +158,29 @@ def _verified_skeleton(path: Path) -> bool:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
-        return isinstance(payload.get("bones"), dict) and isinstance(payload.get("joints"), dict)
-    except (OSError, UnicodeError, ValueError):
+        if not isinstance(payload, dict):
+            return False
+        bones = payload.get("bones")
+        joints = payload.get("joints")
+        if not isinstance(bones, dict) or not bones or not isinstance(joints, dict) or not joints:
+            return False
+        for indices in joints.values():
+            if not isinstance(indices, list) or any(type(index) is not int or index < 0 for index in indices):
+                return False
+        for bone in bones.values():
+            if not isinstance(bone, dict):
+                return False
+            head = bone.get("head")
+            tail = bone.get("tail")
+            if (
+                not isinstance(head, str)
+                or not isinstance(tail, str)
+                or head not in joints
+                or tail not in joints
+            ):
+                return False
+        return True
+    except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
 
 
