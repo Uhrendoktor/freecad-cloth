@@ -58,8 +58,13 @@ def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float
     for obj in seam_objects:
         view = getattr(obj, "ViewObject", None)
         color = colors.get(str(getattr(obj, "SeamId", "")))
-        if view is not None and color is not None:
-            view.LineColor = color if _SEAM_COLOR_HIGHLIGHTS_ENABLED else _NEUTRAL_SEAM_COLOR
+        if view is None or color is None:
+            continue
+        view.LineColor = color if _SEAM_COLOR_HIGHLIGHTS_ENABLED else _NEUTRAL_SEAM_COLOR
+        if hasattr(view, "LineWidth"):
+            view.LineWidth = 4.0
+        if hasattr(view, "Visibility"):
+            view.Visibility = True
     if seam_objects and _SEAM_REFRESH_CALLBACK is not None:
         document = getattr(seam_objects[0], "Document", None)
         if document is not None:

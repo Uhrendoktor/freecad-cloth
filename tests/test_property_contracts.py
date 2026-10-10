@@ -155,3 +155,42 @@ def test_seam_parameter_mapping_rejects_invalid_intervals() -> None:
     """A reversed range is rejected rather than repaired silently."""
     with pytest.raises(ValueError, match="parameter ranges"):
         map_parameter(0.5, start_a=0.8, end_a=0.2)
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.floats(min_value=-20.0, max_value=20.0, allow_nan=False, allow_infinity=False, width=32),
+            st.floats(min_value=-20.0, max_value=20.0, allow_nan=False, allow_infinity=False, width=32),
+            st.floats(min_value=-20.0, max_value=20.0, allow_nan=False, allow_infinity=False, width=32),
+        ),
+        min_size=3,
+        max_size=8,
+        unique=True,
+    ),
+    st.tuples(
+        st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False, width=32),
+        st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False, width=32),
+        st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False, width=32),
+    ),
+)
+@settings(max_examples=80, deadline=None)
+def test_semantic_attachment_vertex_selection_is_order_independent(
+    positions: list[tuple[float, float, float]], anchor: tuple[float, float, float]
+) -> None:
+    """The nearest allowed semantic-edge vertex is independent of boundary ordering."""
+    from hypothesis import assume
+    from math import sqrt
+    from freecad_cloth.simulation.ClothAttachments import select_attachment_particle_near_anchor
+
+    distances = [
+        sqrt(sum((positions[index][axis] - anchor[axis]) ** 2 for axis in range(3)))
+        for index in range(len(positions))
+    ]
+    order = sorted(range(len(distances)), key=lambda index: (distances[index], index))
+    assume(distances[order[1]] - distances[order[0]] > 1e-3)
+    expected = order[0]
+    forward = select_attachment_particle_near_anchor(tuple(range(len(positions))), positions, anchor)
+    reverse = select_attachment_particle_near_anchor(tuple(reversed(range(len(positions)))), positions, anchor)
+    assert forward == expected
+    assert reverse == expected

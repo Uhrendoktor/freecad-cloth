@@ -89,6 +89,17 @@ def test_apply_seam_colors_marks_each_seam_pair():
     assert first.ViewObject.LineColor != second.ViewObject.LineColor
 
 
+def test_seam_colors_restore_visible_emphasized_presentation():
+    first = SimpleNamespace(
+        SeamId="seam-a",
+        ViewObject=SimpleNamespace(LineColor=None, LineWidth=1.0, Visibility=False),
+    )
+    apply_seam_colors([first])
+    assert first.ViewObject.LineColor is not None
+    assert first.ViewObject.LineWidth == 4.0
+    assert first.ViewObject.Visibility is True
+
+
 def test_show_2d_does_not_select_seams_over_their_colors():
     seam = SimpleNamespace(SeamId="seam-1", ViewObject=SimpleNamespace(LineColor=None))
     piece = SimpleNamespace(PatternType="PatternPiece")

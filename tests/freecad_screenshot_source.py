@@ -3,6 +3,7 @@
 import contextlib
 import importlib.util
 import json
+import math
 import os
 import sys
 import traceback
@@ -215,12 +216,30 @@ def run_canonical_acceptance():
         log(marker + "=passed")
 
 
+def _as_coordinates3(value, label):
+    """Normalize either a FreeCAD vector or a tuple-like 3D value."""
+    if all(hasattr(value, axis) for axis in ("x", "y", "z")):
+        raw = (value.x, value.y, value.z)
+    else:
+        try:
+            raw = tuple(value)
+        except TypeError as exc:
+            raise ValueError("%s must be a three-component coordinate" % label) from exc
+    try:
+        coordinates = tuple(float(component) for component in raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("%s must be a three-component coordinate" % label) from exc
+    if len(coordinates) != 3:
+        raise ValueError("%s must be a three-component coordinate" % label)
+    return coordinates
+
+
 def _mesh_geometry(mesh):
     topology = getattr(mesh, "Topology", None)
     if topology is None:
         return (), ()
     vertices, triangles = topology
-    points = tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
+    points = tuple(_as_coordinates3(point, "mesh vertex") for point in vertices)
     faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
     return points, faces
 
@@ -308,70 +327,100 @@ def _seam_coherence(panels, seam_records, proxy=None):
     }
 
 
-def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
-    """Count cloth vertices inside the authoritative FreeCAD mannequin target."""
+def _inside_target_states(points, target, collision_surface=None):
+    """Return inside/outside states and report the topology used by the audit."""
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     if callable(shape_is_inside):
-        count = 0
-        for point in points:
-            try:
-                if bool(shape_is_inside(App.Vector(*point), 1e-6, True)):
-                    count += 1
-            except (AttributeError, TypeError, ValueError):
-                count = None
-                break
-        if count is not None:
-            return count
-
-    mesh = getattr(target, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    if callable(mesh_is_inside):
-        count = 0
-        for point in points:
-            try:
-                if bool(mesh_is_inside(App.Vector(*point), 1e-6, True)):
-                    count += 1
-            except (AttributeError, TypeError, ValueError):
-                count = None
-                break
-        if count is not None:
-            return count
-
-    surface = collision_surface
-    if surface is not None:
-        vertices = tuple(getattr(surface, "vertices", ()) or ())
-        triangles = tuple(getattr(surface, "triangles", ()) or ())
-        if not vertices or not triangles:
-            raise RuntimeError("authoritative collision surface has no inside/outside topology")
-
-        # Prefer trimesh's vectorized ray query for production-size mannequins.
-        # The deterministic pure-Python parity test remains the dependency-free fallback.
+        states = []
         try:
-            import numpy as np
-            import trimesh
+            for point in points:
+                states.append(bool(shape_is_inside(App.Vector(*point), 1e-6, True)))
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            states = None
+        if states is not None:
+            log("penetration-check=FreeCAD-Shape.isInside points=%d" % len(points))
+            return tuple(states)
 
+    native_mesh = getattr(target, "Mesh", None)
+    mesh_is_inside = getattr(native_mesh, "isInside", None) if native_mesh is not None else None
+    if callable(mesh_is_inside):
+        states = []
+        try:
+            for point in points:
+                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            states = None
+        if states is not None:
+            log("penetration-check=FreeCAD-Mesh.isInside points=%d" % len(points))
+            return tuple(states)
+
+    if collision_surface is None:
+        raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    vertices = tuple(getattr(collision_surface, "vertices", ()) or ())
+    triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+    if not vertices or not triangles:
+        raise RuntimeError("authoritative collision surface has no inside/outside topology")
+
+    native_mesh_solid = None
+    native_is_solid = getattr(native_mesh, "isSolid", None) if native_mesh is not None else None
+    if callable(native_is_solid):
+        try:
+            native_mesh_solid = bool(native_is_solid())
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            native_mesh_solid = None
+
+    log("penetration-target-native-solid=%s" % native_mesh_solid)
+
+    # trimesh provides a robust vectorized point-containment query only for a
+    # watertight target. Log both topology and query fallback reasons so open
+    # target meshes cannot silently masquerade as a valid solid classification.
+    try:
+        import numpy as np
+        import trimesh
+    except ImportError as error:
+        log("penetration-trimesh-unavailable reason=%s:%s" % (
+            type(error).__name__, str(error)[:180]
+        ))
+    else:
+        try:
             target_mesh = trimesh.Trimesh(
                 vertices=np.asarray(vertices, dtype=float),
                 faces=np.asarray(triangles, dtype=int),
                 process=False,
             )
-            if target_mesh.is_watertight:
-                states = target_mesh.contains(np.asarray(points, dtype=float))
-                log("penetration-check=trimesh contains points=%d triangles=%d" % (
-                    len(points), len(triangles)
-                ))
-                return int(np.count_nonzero(states))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+            watertight = bool(target_mesh.is_watertight)
+            winding_consistent = bool(target_mesh.is_winding_consistent)
+            log(
+                "penetration-target-topology watertight=%s winding_consistent=%s native_mesh_solid=%s"
+                % (watertight, winding_consistent, native_mesh_solid)
+            )
+            if watertight:
+                try:
+                    states = target_mesh.contains(np.asarray(points, dtype=float))
+                except Exception as error:
+                    log("penetration-trimesh-contains-fallback reason=%s:%s" % (
+                        type(error).__name__, str(error)[:180]
+                    ))
+                else:
+                    log("penetration-check=trimesh-contains points=%d triangles=%d" % (
+                        len(points), len(triangles)
+                    ))
+                    return tuple(bool(state) for state in states)
+            else:
+                log("penetration-trimesh-contains-fallback reason=target-not-watertight")
+        except (RuntimeError, TypeError, ValueError, IndexError) as error:
+            log("penetration-trimesh-topology-fallback reason=%s:%s" % (
+                type(error).__name__, str(error)[:180]
+            ))
 
-        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+    from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-        log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
-            len(points), len(triangles)
-        ))
-        return sum(points_inside_closed_mesh(points, vertices, triangles))
-    raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
+        len(points), len(triangles)
+    ))
+    return points_inside_closed_mesh(points, vertices, triangles)
+
 
 def write_drape_metrics(
     panels,
@@ -441,12 +490,8 @@ def write_drape_metrics(
             if backend_for_collision is not None
             else None
         )
-        penetrating_vertices = _inside_target_count(
-            vertices,
-            avatar,
-            collision_surface,
-            solver_collision_surface,
-        )
+        inside_flags = _inside_target_states(vertices, avatar, collision_surface)
+        penetrating_vertices = sum(inside_flags)
         record["penetration_surface"] = (
             "solver" if solver_collision_surface is not None else "authoritative-target"
         )
@@ -455,7 +500,7 @@ def write_drape_metrics(
             if collision_surface is not None:
                 from math import dist
 
-                from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+                from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
                 target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
                 target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
@@ -476,39 +521,35 @@ def write_drape_metrics(
                     else ()
                 )
                 inside_points = []
+                inside_positions = []
                 if target_points and target_triangles:
-                    for point in vertices:
-                        point_tuple = tuple(float(value) for value in point)
-                        try:
-                            authoritative_inside = point_inside_closed_mesh(
-                                point_tuple, target_points, target_triangles
-                            )
-                        except (TypeError, ValueError, IndexError):
-                            break
+                    for point, authoritative_inside in zip(vertices, inside_flags, strict=False):
                         if not authoritative_inside:
                             continue
+                        point_tuple = tuple(float(value) for value in point)
                         nearest = min(
                             dist(point_tuple, tuple(float(value) for value in target))
                             for target in target_points
                         )
-                        solver_inside = None
-                        if solver_vertices and solver_triangles:
-                            try:
-                                solver_inside = point_inside_closed_mesh(
-                                    point_tuple, solver_vertices, solver_triangles
-                                )
-                            except (TypeError, ValueError, IndexError):
-                                solver_inside = None
+                        inside_positions.append(point_tuple)
                         inside_points.append(
                             {
                                 "point": tuple(round(value, 3) for value in point_tuple),
                                 "nearest_target_vertex_mm": round(float(nearest), 3),
-                                "solver_surface_inside": solver_inside,
+                                "solver_surface_inside": None,
                             }
                         )
+                        if len(inside_points) >= 12:
+                            break
+                if inside_positions and solver_vertices and solver_triangles:
+                    solver_inside_states = points_inside_closed_mesh(
+                        inside_positions, solver_vertices, solver_triangles
+                    )
+                    for sample, solver_inside in zip(inside_points, solver_inside_states, strict=False):
+                        sample["solver_surface_inside"] = bool(solver_inside)
                 log(
                     "penetration-evidence panel=%s count=%d samples=%s"
-                    % (record["panel"], penetrating_vertices, inside_points[:12])
+                    % (record["panel"], penetrating_vertices, inside_points)
                 )
             raise RuntimeError(
                 "draped panel {} has {} vertices inside the mannequin collision surface".format(
@@ -533,23 +574,61 @@ def write_drape_metrics(
 
 
 def _make_tunic_sketch(
-    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08
+    doc,
+    name,
+    panel_width,
+    garment_height,
+    hem_width,
+    neckline_ratio,
+    neckline_drop=0.08,
+    shoulder_height=None,
+    neckline_height=None,
+    armhole_height=None,
 ):
     import Part
     import Sketcher
 
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
-    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    # Normal pattern previews retain the authored ratios. The mannequin audit
+    # supplies heights from its named shoulder and neck landmarks so the source
+    # pattern, not only the solver's pinned vertices, matches the avatar.
+    shoulder_z = (
+        0.78 * garment_height
+        if shoulder_height is None
+        else float(shoulder_height)
+    )
+    neck_z = (
+        shoulder_z - float(neckline_drop) * garment_height
+        if neckline_height is None
+        else float(neckline_height)
+    )
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = (
+        0.68 * garment_height
+        if armhole_height is None
+        else float(armhole_height)
+    )
+    if armhole_height is not None and not (0.0 < armhole_z < shoulder_z < neck_z < garment_height):
+        raise RuntimeError(
+            "canonical tunic heights must satisfy hem < armhole < shoulder < neckline < top"
+        )
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (neckline_ratio * panel_width, neck_z),
-        ((1.0 - neckline_ratio) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.00, 0.82 * garment_height),
+        (x_offset + panel_width, armhole_z),
+        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + neckline_ratio * panel_width, neck_z),
+        (x_offset + 0.5 * panel_width, neck_z),
+        (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
+        (x_offset + 0.14 * panel_width, shoulder_z),
+        (x_offset, armhole_z),
     ]
+    center_x = 0.5 * float(hem_width)
+    for left, right in ((0, 1), (2, 8), (3, 7), (4, 6)):
+        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
+            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
+    if abs(points[5][0] - center_x) > 1e-9:
+        raise RuntimeError("canonical tunic neckline center is not on the panel centerline")
     geometry = [
         Part.LineSegment(
             App.Vector(points[i][0], points[i][1], 0),
@@ -567,7 +646,8 @@ def _make_tunic_sketch(
             Sketcher.Constraint("Coincident", 4, 2, 5, 1),
             Sketcher.Constraint("Coincident", 5, 2, 6, 1),
             Sketcher.Constraint("Coincident", 6, 2, 7, 1),
-            Sketcher.Constraint("Coincident", 7, 2, 0, 1),
+            Sketcher.Constraint("Coincident", 7, 2, 8, 1),
+            Sketcher.Constraint("Coincident", 8, 2, 0, 1),
         ]
     )
     doc.recompute()
@@ -604,6 +684,33 @@ def style_mesh(obj, label):
     except (AttributeError, TypeError, ValueError):
         pass
 
+
+def _projected_point_within_outline_margin(x, z, points, margin):
+    """Check whether a projected mesh vertex overlaps a pattern outline or its clearance band."""
+    px = float(x)
+    pz = float(z)
+    margin_sq = float(margin) * float(margin)
+    inside = False
+    near = False
+    for index, (ax_raw, az_raw) in enumerate(points):
+        bx_raw, bz_raw = points[(index + 1) % len(points)]
+        ax, az = float(ax_raw), float(az_raw)
+        bx, bz = float(bx_raw), float(bz_raw)
+        if (az > pz) != (bz > pz):
+            crossing_x = ax + (pz - az) * (bx - ax) / (bz - az)
+            if px < crossing_x:
+                inside = not inside
+        dx, dz = bx - ax, bz - az
+        length_sq = dx * dx + dz * dz
+        if length_sq > 0.0:
+            factor = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / length_sq))
+            closest_x = ax + factor * dx
+            closest_z = az + factor * dz
+        else:
+            closest_x, closest_z = ax, az
+        if (px - closest_x) ** 2 + (pz - closest_z) ** 2 <= margin_sq:
+            near = True
+    return inside or near
 
 
 def capture_tunic_pattern_view(doc, front, back, hem_width):
@@ -838,6 +945,8 @@ def simulation():
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     scene = create_quality_simulation_scene(doc)
+    # Set the fixture's local normal offset before computing panel placements.
+    scene.StartHeight = 0.0
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     target = scene.DrapeTarget
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
@@ -849,6 +958,7 @@ def simulation():
         raise RuntimeError(
             "visual fixture DrapeTarget does not reference the production ClothAvatar"
         )
+    refresh_drape_target(target)
     pre_status = target_status(target)
     if str(pre_status.get("state", "")) != "ready":
         raise RuntimeError(
@@ -882,27 +992,85 @@ def simulation():
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
+    neck_point = arrangement_world("neck")
     target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
     y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
-    panel_width = max(420.0, shoulder_width + 100.0)
+    # Match the panel's named landmarks to the body before solving. The outer
+    # shoulder endpoints sit at shoulder height; the neckline endpoints sit just
+    # below the named neck landmark. This avoids a low fixed-ratio neckline that
+    # lets the entire upper panel collapse toward the hips.
+    shoulder_span_ratio = 0.86 - 0.14
+    panel_width = max(420.0, shoulder_width / shoulder_span_ratio)
     hem_width = max(450.0, panel_width + 80.0)
-    garment_height = max(560.0, shoulder_z - hem_z)
+    garment_height = max(560.0, shoulder_z - hem_z, neck_point.z - hem_z)
+    authored_shoulder_height = shoulder_z - hem_z
+    authored_neckline_height = neck_point.z - 25.0 - hem_z
+    armhole_height = authored_shoulder_height - 0.12 * garment_height
+    if not (0.0 < armhole_height < authored_shoulder_height < authored_neckline_height < garment_height):
+        raise RuntimeError(
+            "avatar landmarks do not fit the tunic's hem/armhole/shoulder/neckline profile"
+        )
+    log(
+        "tunic-pattern-vertical hip-z=%.2f shoulder-z=%.2f neckline-z=%.2f "
+        "authored-shoulder-height=%.2f authored-neckline-height=%.2f"
+        % (
+            hem_z, shoulder_z, neck_point.z - 25.0,
+            authored_shoulder_height, authored_neckline_height,
+        )
+    )
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
+    # Select depth from the central torso column as well as the pattern
+    # silhouette. Arms/hands can sit inside a broad 2-D garment projection and
+    # otherwise inflate the front/back span despite being outside the torso.
+    panel_origin_x = x_mid - hem_width / 2.0
+    torso_half_width = max(80.0, 0.30 * shoulder_width)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(side):
+    tunic_torso_y_mid = None
+
+    def target_relative_piece_placement(side, outline):
+        projected_target_ys = [
+            float(vertex[1])
+            for vertex in target_surface.vertices
+            if abs(float(vertex[0]) - x_mid) <= torso_half_width
+            and _projected_point_within_outline_margin(
+                float(vertex[0]) - panel_origin_x,
+                float(vertex[2]) - hem_z,
+                outline,
+                clearance,
+            )
+        ]
+        if not projected_target_ys:
+            raise RuntimeError("canonical tunic torso silhouette does not overlap DrapeTarget projections")
+        target_front_y = min(projected_target_ys)
+        target_back_y = max(projected_target_ys)
+        nonlocal tunic_torso_y_mid
+        tunic_torso_y_mid = 0.5 * (target_front_y + target_back_y)
+        # The placement Y origin is already the solver mesh world-space panel plane
+        # because this fixture fixes StartHeight to zero before computing placement.
+        mesh_normal_offset = float(getattr(scene, "StartHeight", 0.0))
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = target_front_y - clearance + mesh_normal_offset
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = target_back_y + clearance + mesh_normal_offset
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        log(
+            "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
+            "panel-y=%.2f transformed-panel-y=%.2f mesh-normal-offset-mm=%.2f "
+            "clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+            % (
+                side, target_front_y, target_back_y, y, y - mesh_normal_offset,
+                mesh_normal_offset, clearance,
+                x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
+            )
+        )
+        return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
 
     def make_piece(name, side, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
@@ -913,34 +1081,60 @@ def simulation():
             hem_width,
             neckline_ratio,
             neckline_drop,
+            shoulder_height=authored_shoulder_height,
+            neckline_height=authored_neckline_height,
+            armhole_height=armhole_height,
         )
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0, 0.0)
         piece.Label = name
-        piece.Placement = target_relative_piece_placement(side)
+        piece.Placement = target_relative_piece_placement(side, outline)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    # Match the sewn shoulder endpoints on both panels. Front/back neckline shape may diverge at the center,
+    # but this planar fixture represents the shared shoulder-to-neck join with identical authored coordinates.
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.61, 0.10)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.61, 0.10)
     capture_tunic_pattern_view(doc, front, back, hem_width)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+    # Resolve sewn edges by native semantic IDs; PatternIR boundary order is independent
+    # of Sketcher insertion order. The mesher normalizes the front/back boundary traversal,
+    # so preserve B's order for side and shoulder correspondences alike.
+    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 9 or len(back_edge_ids) < 9:
+        raise RuntimeError("canonical tunic sketches have no complete semantic edge map")
+    required_indices = (1, 3, 6, 8)
+    if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
+        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False),
+        (front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder", False),
+        (front_edge_ids[8], back_edge_ids[8], "TunicLeftSide", False),
+    )
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
+    for edge_a_id, edge_b_id, seam_id, reversed_b in seam_specs:
         seam = Seam(
             str(front.PieceId),
-            edge_a,
+            edge_a_id,
             str(back.PieceId),
-            edge_b,
+            edge_b_id,
             id=seam_id,
+            reversed_b=reversed_b,
             alignment="uniform",
             stitch_group="TunicAssembly",
         )
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if (
+            str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id
+            or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id
+            or bool(getattr(seam_obj, "ReversedB", False)) != reversed_b
+        ):
+            raise RuntimeError("canonical tunic seam %s did not retain its authored correspondence" % seam_id)
         seam_records.append((seam_obj, front, back))
     capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)
-    scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 24.0
     scene.SolverIterations = 8
@@ -950,11 +1144,585 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.75
-    scene.PinMode = "None"
-    scene.PinSelection = []
+    # Semantic descriptors survive remeshing: piece ID + authored edge ID + avatar landmark.
     scene.ClothPieces = [front, back]
-    refresh_drape_target(target)
+    scene.PinMode = "Avatar Attachment"
+    scene.PinSelection = []
+    scene.AttachmentOffset = max(3.0, float(getattr(target, "CollisionThickness", 0.0)))
+    # Both panels attach to the same lateral skin points at each sewn shoulder.
+    # Initial seam gaps diagnose whether the solver stitches pair the pinned particles
+    # with their actual counterparts. Shoulder corners, neckline corners, and
+    # each neckline center are independently anchored so the top contour cannot
+    # collapse while still allowing the lower panels to drape.
+    scene.AvatarAttachmentAnchors = [
+        "%s|%s|shoulder_right" % (front.PieceId, front_edge_ids[3]),
+        "%s|%s|neck_right" % (front.PieceId, front_edge_ids[3]),
+        "%s|%s|shoulder_left" % (front.PieceId, front_edge_ids[6]),
+        "%s|%s|neck_left" % (front.PieceId, front_edge_ids[6]),
+        # The center landmark is the endpoint of the left neckline half-edge.
+        # Using the right half-edge can resolve to its outer endpoint after surface fitting.
+        "%s|%s|neck_center" % (front.PieceId, front_edge_ids[5]),
+        "%s|%s|shoulder_right" % (back.PieceId, back_edge_ids[3]),
+        "%s|%s|neck_right" % (back.PieceId, back_edge_ids[3]),
+        "%s|%s|shoulder_left" % (back.PieceId, back_edge_ids[6]),
+        "%s|%s|neck_left" % (back.PieceId, back_edge_ids[6]),
+        "%s|%s|neck_center" % (back.PieceId, back_edge_ids[5]),
+    ]
+    # Start the diagnostic cloth on an offset target surface instead of two
+    # parallel planes whose matching side seams are about 238 mm apart.
+    # Source Sketcher geometry and PatternIR topology are not modified.
+    import Mesh
+    from freecad_cloth.simulation import SimulationObjects as simulation_objects
+    from freecad_cloth.simulation.ClothAttachments import _nearest_surface_point
+    from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+    from scipy.spatial import cKDTree
+
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+
+    # Keep the fixture mesh topology identical to the production quality mesh.
+    # The custom builder maps its sewn vertices onto the target, but it must not
+    # silently fall back to the coarse two-vertex boundary chains from _piece_mesh.
+    def original_piece_mesh(piece, start_height, piece_ir=None):
+        return quality_piece_mesh(
+            piece,
+            start_height,
+            float(scene.ParticleDistance),
+            piece_ir=piece_ir,
+        )
+
+    native_avatar_mesh = Mesh.Mesh()
+    native_avatar_mesh.addFacets(
+        [
+            (target_surface.vertices[a], target_surface.vertices[b], target_surface.vertices[c])
+            for a, b, c in target_surface.triangles
+        ]
+    )
+    native_avatar_facets = tuple(native_avatar_mesh.Facets)
+    target_vertex_tree = cKDTree(target_surface.vertices)
+    if len(native_avatar_facets) != len(target_surface.triangles):
+        raise RuntimeError("tunic initialization lost DrapeTarget facet correspondence")
+    fit_radius = 3.0 * float(scene.ParticleDistance)
+    outward_offset = float(clearance) + 3.0
+    fit_zs = tuple(float(vertex[2]) for vertex in target_surface.vertices)
+    target_fit_center = (
+        float(x_mid),
+        float(tunic_torso_y_mid),
+        0.5 * (min(fit_zs) + max(fit_zs)),
+    )
+    seam_fit_cache = {}
+    ray_hit_cache = {}
+    fit_counts = {
+        "seam-surface": 0,
+        "seam-outside": 0,
+        "panel-surface": 0,
+        "panel-fallback": 0,
+        "clearance-correction": 0,
+        "inside-correction": 0,
+    }
+
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+        _pbd_collision_effective_tolerance_mm,
+    )
+    # Use the solver's existing SDF tolerance as a small initialization-only
+    # clearance buffer on free panel vertices. Sewn vertices keep their shared
+    # base offset so seam correspondence and the configured 23.80 mm gate do not
+    # change; the collision solver, voxel size, and all acceptance limits remain
+    # exactly as configured.
+    panel_collision_buffer_mm = float(
+        _pbd_collision_effective_tolerance_mm(target_surface)
+    )
+    if not math.isfinite(panel_collision_buffer_mm) or panel_collision_buffer_mm < 0.0:
+        raise RuntimeError("tunic collision clearance buffer must be finite and non-negative")
+    log(
+        "tunic-panel-collision-buffer-mm=%.2f base-offset-mm=%.2f"
+        % (panel_collision_buffer_mm, outward_offset)
+    )
+
+    def _fit_surface_point(point, triangle_index, extra_offset_mm=0.0):
+        facet_normal = native_avatar_facets[int(triangle_index)].Normal
+        try:
+            normal = _as_coordinates3(facet_normal, "DrapeTarget facet normal")
+        except ValueError as exc:
+            raise RuntimeError(
+                "tunic initialization received an invalid DrapeTarget facet normal"
+            ) from exc
+        length = sum(value * value for value in normal) ** 0.5
+        if length <= 1e-12:
+            raise RuntimeError("tunic initialization found a degenerate DrapeTarget facet")
+        normal = tuple(value / length for value in normal)
+        radial = tuple(float(point[i]) - target_fit_center[i] for i in range(3))
+        if sum(normal[i] * radial[i] for i in range(3)) < 0.0:
+            normal = tuple(-value for value in normal)
+        offset = float(outward_offset) + float(extra_offset_mm)
+        if not math.isfinite(offset) or offset < float(outward_offset):
+            raise RuntimeError("tunic surface-fit offset must be finite and no smaller than the base offset")
+        return tuple(float(point[i]) + offset * normal[i] for i in range(3))
+
+    def _seam_surface_vertex(x, z):
+        key = (round(float(x), 4), round(float(z), 4))
+        if key not in seam_fit_cache:
+            distance, triangle_index, closest = _nearest_surface_point(
+                (float(x), float(tunic_torso_y_mid), float(z)),
+                target_surface.vertices,
+                target_surface.triangles,
+            )
+            if float(distance) <= fit_radius:
+                seam_fit_cache[key] = _fit_surface_point(closest, triangle_index)
+                fit_counts["seam-surface"] += 1
+            else:
+                # Keep garment ease where the silhouette is well outside the avatar,
+                # while putting corresponding front/back seam vertices at one point.
+                seam_fit_cache[key] = (float(x), float(tunic_torso_y_mid), float(z))
+                fit_counts["seam-outside"] += 1
+        return seam_fit_cache[key]
+
+    def _ray_surface_hit(x, z, direction):
+        key = (round(float(x), 4), round(float(z), 4), int(direction))
+        if key not in ray_hit_cache:
+            origin = App.Vector(float(x), float(tunic_torso_y_mid), float(z))
+            vector = App.Vector(0.0, float(direction), 0.0)
+            raw_hits = native_avatar_mesh.nearestFacetOnRay(origin, vector)
+            candidates = []
+            for raw_index, hit in raw_hits.items():
+                triangle_index = int(raw_index)
+                point = _as_coordinates3(hit, "Mesh ray intersection")
+                delta_y = point[1] - float(tunic_torso_y_mid)
+                if direction < 0 and delta_y > 1e-6:
+                    continue
+                if direction > 0 and delta_y < -1e-6:
+                    continue
+                candidates.append((abs(delta_y), triangle_index, point))
+            ray_hit_cache[key] = (
+                min(candidates, key=lambda item: (item[0], item[1]))[1:]
+                if candidates else None
+            )
+        return ray_hit_cache[key]
+
+    def tunic_initial_surface_mesh(piece, start_height, piece_ir=None):
+        vertices, triangles, boundary_edges = original_piece_mesh(
+            piece, start_height, piece_ir=piece_ir
+        )
+        if piece_ir is None or str(getattr(piece, "PieceId", "")) not in {
+            str(front.PieceId), str(back.PieceId)
+        }:
+            return vertices, triangles, boundary_edges
+        piece_id = str(piece.PieceId)
+        if abs(float(start_height)) > 1e-9:
+            raise RuntimeError(
+                "canonical tunic fixture requires StartHeight=0 before target-relative placement"
+            )
+        is_front = piece_id == str(front.PieceId)
+        if tunic_torso_y_mid is None:
+            raise RuntimeError("canonical tunic placement did not establish a torso depth reference")
+        # StartHeight is zero, so the authored placement Y is already the solver
+        # world-space side. Fail closed if anchor-selection coordinates cross the
+        # mannequin's torso midplane.
+        normal_offset_y = -float(start_height)
+        selection_y_values = tuple(
+            float(vertex[1]) + normal_offset_y for vertex in vertices
+        )
+        selection_depths = tuple(
+            value - float(tunic_torso_y_mid) for value in selection_y_values
+        )
+        if (
+            (is_front and max(selection_depths) >= -1e-6)
+            or (not is_front and min(selection_depths) <= 1e-6)
+        ):
+            raise RuntimeError(
+                "canonical tunic panel selection depth is on the wrong side of the mannequin center plane: "
+                "piece=%s relative-y=[%.2f, %.2f]"
+                % (piece_id, min(selection_depths), max(selection_depths))
+            )
+        log(
+            "tunic-anchor-selection-depth piece=%s selection-y=[%.2f, %.2f] torso-mid-relative-y=[%.2f, %.2f] normal-offset-y=%.2f"
+            % (
+                piece_id,
+                min(selection_y_values),
+                max(selection_y_values),
+                min(selection_depths),
+                max(selection_depths),
+                normal_offset_y,
+            )
+        )
+        selection_vertices = tuple(
+            (
+                float(vertex[0]),
+                float(vertex[1]) + normal_offset_y,
+                float(vertex[2]),
+            )
+            for vertex in vertices
+        )
+        # Use the actual seam objects that feed SimulationProxy rather than a
+        # second, index-based reconstruction of which semantic boundaries are sewn.
+        sewn_ids = set()
+        for seam_obj, piece_a, piece_b in seam_records:
+            if str(piece_a.PieceId) == piece_id:
+                sewn_ids.add(str(getattr(seam_obj, "EdgeAId", "")).strip())
+            if str(piece_b.PieceId) == piece_id:
+                sewn_ids.add(str(getattr(seam_obj, "EdgeBId", "")).strip())
+        chain_by_id = {
+            str(boundary.id): tuple(int(index) for index in chain)
+            for boundary, chain in zip(piece_ir.boundaries, boundary_edges, strict=False)
+        }
+        missing_sewn_ids = sorted(sewn_ids - set(chain_by_id))
+        if missing_sewn_ids:
+            raise RuntimeError(
+                "canonical tunic sewn semantic edges are missing from the simulation mesh "
+                "for %s: %s (mesh edges=%s)"
+                % (piece_id, missing_sewn_ids, sorted(chain_by_id))
+            )
+        chain_sizes = {edge_id: len(chain_by_id[edge_id]) for edge_id in sorted(sewn_ids)}
+        if piece_id in {str(front.PieceId), str(back.PieceId)}:
+            for boundary_ir in piece_ir.boundaries:
+                edge_id = str(boundary_ir.id)
+                if edge_id in {
+                    str(front_edge_ids[3]), str(front_edge_ids[4]), str(front_edge_ids[5]),
+                    str(front_edge_ids[6]), str(back_edge_ids[3]), str(back_edge_ids[4]),
+                    str(back_edge_ids[5]), str(back_edge_ids[6]),
+                }:
+                    chain = chain_by_id[edge_id]
+                    log(
+                        "tunic-debug-boundary piece=%s edge=%s count=%d vertices=%s"
+                        % (
+                            piece_id,
+                            edge_id,
+                            len(chain),
+                            tuple(
+                                (
+                                    int(vertex_index),
+                                    tuple(round(float(component), 2) for component in vertices[int(vertex_index)]),
+                                )
+                                for vertex_index in chain
+                            ),
+                        )
+                    )
+        sewn_vertices = {
+            vertex_index
+            for edge_id in sewn_ids
+            for vertex_index in chain_by_id[edge_id]
+        }
+        # Sewn vertices keep the base offset to preserve shared seam positions.
+        # Unsewn vertices retain the extra collision-tolerance margin throughout
+        # every local clearance/containment repair below.
+        required_vertex_offsets = tuple(
+            float(outward_offset)
+            if index in sewn_vertices
+            else float(outward_offset) + panel_collision_buffer_mm
+            for index in range(len(vertices))
+        )
+        log(
+            "tunic-sewn-vertex-selection piece=%s ids=%s chain-sizes=%s vertices=%d"
+            % (piece_id, sorted(sewn_ids), chain_sizes, len(sewn_vertices))
+        )
+        direction = -1 if is_front else 1
+        mapped = []
+        for index, raw in enumerate(vertices):
+            x, y, z = (float(value) for value in raw)
+            if index in sewn_vertices:
+                point = _seam_surface_vertex(x, z)
+            else:
+                hit = _ray_surface_hit(x, z, direction)
+                if hit is None:
+                    fit_counts["panel-fallback"] += 1
+                    point = (x, y, z)
+                else:
+                    triangle_index, surface_point = hit
+                    point = _fit_surface_point(
+                        surface_point,
+                        triangle_index,
+                        extra_offset_mm=panel_collision_buffer_mm,
+                    )
+                    fit_counts["panel-surface"] += 1
+            mapped.append(tuple(float(value) for value in point))
+        # Enforce the configured vertex clearance with a local closest-point
+        # direction. A global-center test can orient a facet normal inward near
+        # concavities even when ray parity classifies the point as outside.
+        clearance_inside_flags = _inside_target_states(
+            tuple(mapped), avatar, target_surface
+        )
+        log(
+            "tunic-initial-clearance-direction inside=%d points=%d"
+            % (sum(1 for inside in clearance_inside_flags if inside), len(mapped))
+        )
+        for index, raw_point in enumerate(mapped):
+            point = tuple(float(value) for value in raw_point)
+            required_offset = required_vertex_offsets[index]
+            distance, _target_vertex_index = target_vertex_tree.query(
+                point, k=1, eps=0.0, workers=1
+            )
+            if float(distance) >= required_offset - 1e-6:
+                continue
+            fit_counts["clearance-correction"] += 1
+            corrected = point
+            inside = bool(clearance_inside_flags[index])
+            for _attempt in range(3):
+                distance, _target_vertex_index = target_vertex_tree.query(
+                    corrected, k=1, eps=0.0, workers=1
+                )
+                if float(distance) >= required_offset - 1e-3:
+                    break
+                _surface_distance, triangle_index, closest = _nearest_surface_point(
+                    corrected,
+                    target_surface.vertices,
+                    target_surface.triangles,
+                )
+                correction_vector = tuple(
+                    (
+                        float(closest[axis]) - float(corrected[axis])
+                        if inside
+                        else float(corrected[axis]) - float(closest[axis])
+                    )
+                    for axis in range(3)
+                )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    corrected = _fit_surface_point(
+                        closest,
+                        triangle_index,
+                        extra_offset_mm=required_offset - outward_offset,
+                    )
+                else:
+                    corrected = tuple(
+                        float(closest[axis])
+                        + required_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                # Reclassify only the rare point that needed another pass, since
+                # its first local offset may already have moved it to the outside.
+                if _attempt < 2:
+                    inside = _inside_target_states(
+                        (corrected,), avatar, target_surface
+                    )[0]
+            mapped[index] = tuple(float(value) for value in corrected)
+        # Compare the fast ray-parity predicate with the exact containment path
+        # used by the final penetration audit. A triangulated concave avatar must
+        # not be classified by a fixture-only approximation if native/watertight
+        # containment is available.
+        parity_flags = points_inside_closed_mesh(
+            tuple(mapped),
+            target_surface.vertices,
+            target_surface.triangles,
+        )
+        inside_flags = _inside_target_states(tuple(mapped), avatar, target_surface)
+        classifier_mismatches = sum(
+            1 for parity, authoritative in zip(parity_flags, inside_flags, strict=True)
+            if parity != authoritative
+        )
+        log(
+            "tunic-initial-inside-classifiers authoritative=%d parity=%d mismatches=%d points=%d"
+            % (
+                sum(1 for inside in inside_flags if inside),
+                sum(1 for inside in parity_flags if inside),
+                classifier_mismatches,
+                len(mapped),
+            )
+        )
+        for _attempt in range(3):
+            inside_indices = [index for index, inside in enumerate(inside_flags) if inside]
+            log(
+                "tunic-initial-inside-correction attempt=%d interior=%d"
+                % (_attempt + 1, len(inside_indices))
+            )
+            if not inside_indices:
+                break
+            for index in inside_indices:
+                required_offset = required_vertex_offsets[index]
+                _surface_distance, triangle_index, closest = _nearest_surface_point(
+                    mapped[index],
+                    target_surface.vertices,
+                    target_surface.triangles,
+                )
+                # For a genuinely interior point, the shortest vector to the
+                # closed boundary points from the interior toward the exterior.
+                # A global-center dot product can reverse the normal at concave
+                # anatomy (e.g. underarms); use this local exit direction instead.
+                correction_vector = tuple(
+                    float(closest[axis]) - float(mapped[index][axis])
+                    for axis in range(3)
+                )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    # Degenerate on-surface classification: use the same fitted
+                    # outward facet as a last resort and let containment verify it.
+                    corrected = _fit_surface_point(
+                        closest,
+                        triangle_index,
+                        extra_offset_mm=required_offset - outward_offset,
+                    )
+                else:
+                    corrected = tuple(
+                        float(closest[axis])
+                        + required_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                mapped[index] = tuple(float(value) for value in corrected)
+                fit_counts["inside-correction"] += 1
+            inside_flags = _inside_target_states(tuple(mapped), avatar, target_surface)
+        # The final inside correction follows the nearest triangle exit vector,
+        # but a neighboring shoulder/arm surface can still leave the point closer
+        # than the authoritative nearest-target-vertex margin. Repair that metric
+        # directly, and re-check containment after each bounded pass.
+        for _clearance_attempt in range(5):
+            repair_inside_flags = _inside_target_states(
+                tuple(mapped), avatar, target_surface
+            )
+            repair_distances, repair_target_indices = target_vertex_tree.query(
+                tuple(mapped), k=1, eps=0.0, workers=1
+            )
+            repair_indices = [
+                index
+                for index, (inside, distance) in enumerate(
+                    zip(repair_inside_flags, repair_distances, strict=True)
+                )
+                if inside or float(distance) < required_vertex_offsets[index] - 1e-3
+            ]
+            log(
+                "tunic-initial-clearance-repair attempt=%d inside=%d below-offset=%d"
+                % (
+                    _clearance_attempt + 1,
+                    sum(1 for inside in repair_inside_flags if inside),
+                    sum(
+                        1 for index, distance in enumerate(repair_distances)
+                        if float(distance) < required_vertex_offsets[index] - 1e-3
+                    ),
+                )
+            )
+            if not repair_indices:
+                break
+            for index in repair_indices:
+                point = tuple(float(value) for value in mapped[index])
+                required_offset = required_vertex_offsets[index]
+                target_vertex_index = int(repair_target_indices[index])
+                target_vertex = tuple(
+                    float(value)
+                    for value in target_surface.vertices[target_vertex_index]
+                )
+                if repair_inside_flags[index]:
+                    correction_vector = tuple(
+                        target_vertex[axis] - point[axis] for axis in range(3)
+                    )
+                else:
+                    correction_vector = tuple(
+                        point[axis] - target_vertex[axis] for axis in range(3)
+                    )
+                correction_length = sum(
+                    value * value for value in correction_vector
+                ) ** 0.5
+                if correction_length <= 1e-9:
+                    _surface_distance, triangle_index, closest = _nearest_surface_point(
+                        point,
+                        target_surface.vertices,
+                        target_surface.triangles,
+                    )
+                    correction_vector = tuple(
+                        (
+                            float(closest[axis]) - point[axis]
+                            if repair_inside_flags[index]
+                            else point[axis] - float(closest[axis])
+                        )
+                        for axis in range(3)
+                    )
+                    correction_length = sum(
+                        value * value for value in correction_vector
+                    ) ** 0.5
+                    if correction_length <= 1e-9:
+                        corrected = _fit_surface_point(
+                            closest,
+                            triangle_index,
+                            extra_offset_mm=required_offset - outward_offset,
+                        )
+                    else:
+                        corrected = tuple(
+                            float(closest[axis])
+                            + required_offset * correction_vector[axis] / correction_length
+                            for axis in range(3)
+                        )
+                else:
+                    corrected = tuple(
+                        target_vertex[axis]
+                        + required_offset * correction_vector[axis] / correction_length
+                        for axis in range(3)
+                    )
+                mapped[index] = tuple(float(value) for value in corrected)
+                fit_counts["clearance-correction"] += 1
+        remaining_inside = _inside_target_states(tuple(mapped), avatar, target_surface)
+        remaining_indices = [
+            index for index, inside in enumerate(remaining_inside) if inside
+        ]
+        if remaining_indices:
+            residual_sample = tuple(
+                (
+                    int(index),
+                    tuple(round(float(value), 2) for value in mapped[index]),
+                )
+                for index in remaining_indices[:12]
+            )
+            log("tunic-initial-inside-residual sample=%s" % (residual_sample,))
+            raise RuntimeError(
+                "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target"
+                % len(remaining_indices)
+            )
+        final_distances, final_target_indices = target_vertex_tree.query(
+            tuple(mapped), k=1, eps=0.0, workers=1
+        )
+        minimum_vertex_clearance = min(float(value) for value in final_distances)
+        log(
+            "tunic-initial-min-vertex-clearance-mm=%.2f required-offset-mm=%.2f points=%d"
+            % (minimum_vertex_clearance, outward_offset, len(mapped))
+        )
+        clearance_residuals = [
+            index for index, distance in enumerate(final_distances)
+            if float(distance) < required_vertex_offsets[index] - 1e-3
+        ]
+        if clearance_residuals:
+            residual_sample = tuple(
+                (
+                    int(index),
+                    round(float(final_distances[index]), 2),
+                    int(final_target_indices[index]),
+                    tuple(round(float(value), 2) for value in mapped[index]),
+                )
+                for index in clearance_residuals[:12]
+            )
+            log("tunic-initial-clearance-residual sample=%s" % (residual_sample,))
+            raise RuntimeError(
+                "canonical tunic surface mapping leaves %d cloth vertices below configured outward offset: "
+                "%.2f mm < %.2f mm"
+                % (len(clearance_residuals), minimum_vertex_clearance, outward_offset)
+            )
+        return tuple(mapped), triangles, boundary_edges, selection_vertices
+
+    # Refreshing DrapeTarget only rebuilds collision metadata; it does not
+    # rebuild cloth particles. Build the simulation scene explicitly with this
+    # fixture-specific surface mesh so the seam/skin mapping is actually applied.
+    scene_proxy = scene.Proxy
+    # Inject the fixture-only mapped mesh through the underlying builder while
+    # preserving the wrapper's authoritative source signature. Otherwise the
+    # next document recompute sees a signature mismatch and rebuilds an unmapped
+    # production scene over the just-mapped particles.
+    scene_signature = scene_proxy._signature(scene)
+    scene_proxy._build(
+        scene,
+        signature=scene_signature,
+        piece_mesh=tunic_initial_surface_mesh,
+    )
+    base_proxy_getter = getattr(scene_proxy, "_base_or_restore", None)
+    sync_seam_provenance = getattr(scene_proxy, "_sync_seam_stitch_provenance", None)
+    if not callable(base_proxy_getter) or not callable(sync_seam_provenance):
+        raise RuntimeError("canonical tunic fixture cannot synchronize authoritative seam provenance")
+    sync_seam_provenance(base_proxy_getter())
     doc.recompute()
+    if not any(fit_counts.values()):
+        raise RuntimeError(
+            "canonical tunic surface-mapped mesh builder was not used: %s" % fit_counts
+        )
+    log("tunic-initial-surface-map=%s fit-radius-mm=%.1f offset-mm=%.2f" % (
+        fit_counts, fit_radius, outward_offset
+    ))
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError(
@@ -963,17 +1731,87 @@ def simulation():
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
-        raise RuntimeError("canonical tunic did not build a simulation backend")
-    if list(getattr(scene, "PinSelection", ())) != []:
-        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
-    solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
-    if not solver_pins:
-        system = getattr(backend, "system", None)
-        solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {})))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
-    if solver_pins:
-        raise RuntimeError(f"canonical tunic PinMode=None still has solver pins: {solver_pins}")
+        raise RuntimeError("canonical tunic did not build an avatar-attached simulation backend")
+    solver_pins = tuple(sorted(int(index) for index in getattr(backend, "_pin_indices", ())))
+    projections = tuple(getattr(proxy, "attachment_projections", ()))
+    expected_pins = tuple(sorted(int(projection.particle_index) for projection in projections))
+    if not projections or solver_pins != expected_pins:
+        raise RuntimeError(
+            "canonical tunic semantic avatar anchors did not resolve to solver pins: {} != {}".format(
+                solver_pins, expected_pins
+            )
+        )
+    for descriptor, projection in zip(
+        tuple(str(value) for value in (getattr(scene, "AvatarAttachmentAnchors", ()) or ())),
+        projections,
+        strict=False,
+    ):
+        log(
+            "tunic-anchor-projection descriptor=%s particle=%d source=%s particle-before=%s "
+            "surface=%s anchor=%s triangle=%d source-distance=%.2f"
+            % (
+                descriptor,
+                int(projection.particle_index),
+                tuple(round(float(value), 2) for value in projection.source_position),
+                tuple(round(float(value), 2) for value in projection.particle_position),
+                tuple(round(float(value), 2) for value in projection.surface_point),
+                tuple(round(float(value), 2) for value in projection.anchor_position),
+                int(projection.triangle_index),
+                float(projection.source_distance_mm),
+            )
+        )
+    # Trace the exact solver stitch correspondence before stepping. Pinned-particle
+    # flags show whether the avatar anchors are members of stitched samples; XYZ
+    # deltas distinguish incorrect edge pairing from later solver dynamics.
+    initial_solver_positions = tuple(backend.positions())
+    pinned_indices = set(solver_pins)
+    from freecad_cloth.simulation.SimulationObjects import seam_gap_diagnostics
+    initial_seam_reports = seam_gap_diagnostics(
+        initial_solver_positions,
+        getattr(proxy, "seam_stitch_pairs", {}),
+    )
+    initial_max_seam_gap = max(
+        float(report["max_gap"]) for report in initial_seam_reports.values()
+    )
+    for seam_id, report in sorted(initial_seam_reports.items()):
+        log(
+            "tunic-seam-initial-report id=%s pairs=%d first=%.2f last=%.2f max=%.2f"
+            % (
+                seam_id,
+                int(report["pair_count"]),
+                float(report["first_gap"]),
+                float(report["last_gap"]),
+                float(report["max_gap"]),
+            )
+        )
+    log("tunic-seam-initial-max-gap-mm=%.2f" % initial_max_seam_gap)
+    stitch_pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    for seam, _piece_a, _piece_b in seam_records:
+        seam_id = str(getattr(seam, "SeamId", ""))
+        stitch_pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
+        if not stitch_pairs:
+            raise RuntimeError("canonical tunic seam has no solver stitch pairs: %s" % seam_id)
+        for sample_index, (index_a, index_b) in enumerate(stitch_pairs):
+            point_a = initial_solver_positions[int(index_a)]
+            point_b = initial_solver_positions[int(index_b)]
+            dx = float(point_a[0]) - float(point_b[0])
+            dy = float(point_a[1]) - float(point_b[1])
+            dz = float(point_a[2]) - float(point_b[2])
+            gap = (dx * dx + dy * dy + dz * dz) ** 0.5
+            log(
+                "tunic-seam-initial-pair id=%s sample=%d vertices=%d,%d pins=%s,%s "
+                "dx=%.2f dy=%.2f dz=%.2f gap=%.2f"
+                % (
+                    seam_id, sample_index, int(index_a), int(index_b),
+                    int(index_a) in pinned_indices, int(index_b) in pinned_indices,
+                    dx, dy, dz, gap,
+                )
+            )
+    if initial_max_seam_gap > 35.0:
+        raise RuntimeError(
+            "canonical tunic initial seam span exceeds the 35 mm convergence gate: "
+            "%.2f mm" % initial_max_seam_gap
+        )
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
@@ -983,8 +1821,13 @@ def simulation():
     try:
         from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
+        current_positions = tuple(backend.positions())
+        pinned_set = set(solver_pins)
+        unanchored_positions = tuple(
+            position for index, position in enumerate(current_positions) if index not in pinned_set
+        )
         initial_clearance = nearest_target_clearance(
-            tuple(backend.positions()), tuple(surface.vertices)
+            unanchored_positions, tuple(surface.vertices)
         )
     except (ImportError, ValueError):
         initial_clearance = None
@@ -993,7 +1836,17 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
-    log("pin-mode=None solver-pins=0")
+    log("pin-mode=Avatar Attachment semantic-anchor-pins=%s offset-mm=%.2f" % (solver_pins, float(scene.AttachmentOffset)))
+    for projection in projections:
+        log(
+            "tunic-anchor-projection particle=%d distance-mm=%.2f surface=%s anchor=%s"
+            % (
+                int(projection.particle_index),
+                float(projection.source_distance_mm),
+                tuple(round(float(value), 3) for value in projection.surface_point),
+                tuple(round(float(value), 3) for value in projection.anchor_position),
+            )
+        )
     log("target-collision-mode=mesh")
     log(
         f"step0-target-vertex-clearance-mm={float(initial_clearance):.2f} required-mm={float(clearance):.2f}"
@@ -1087,17 +1940,90 @@ def simulation():
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
-    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
-
-    overlay = refresh_seam_overlay(doc)
-    expected_seam_ids = {str(seam.SeamId) for seam, _piece_a, _piece_b in seam_records}
-    rendered_seam_ids = set(getattr(overlay, "rendered_seam_ids", ()))
-    if overlay is None or not expected_seam_ids or not expected_seam_ids <= rendered_seam_ids:
+    # A tunic that begins at the shoulders must remain supported by the upper
+    # body after gravity; a skirt-like result is a simulation failure even
+    # when the solver remains finite and non-penetrating.
+    final_positions = tuple(backend.positions())
+    from freecad_cloth.simulation.SimulationObjects import seam_gap_diagnostics
+    seam_reports = seam_gap_diagnostics(
+        final_positions,
+        getattr(proxy, "seam_stitch_pairs", {}),
+    )
+    expected_seam_ids = tuple(str(seam.SeamId) for seam, _piece_a, _piece_b in seam_records)
+    if set(seam_reports) != set(expected_seam_ids):
         raise RuntimeError(
-            "simulation seam overlay is not rendering exact solver stitch pairs: "
-            f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
+            "authoritative tunic seam set mismatch: expected=%s actual=%s"
+            % (expected_seam_ids, tuple(sorted(seam_reports)))
         )
-    log("simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs" % sorted(rendered_seam_ids))
+    for seam, _piece_a, _piece_b in seam_records:
+        report = seam_reports[str(seam.SeamId)]
+        log(
+            "authoritative-seam-detail id=%s reversed_b=%s pairs=%d first_gap=%.2f last_gap=%.2f max_gap=%.2f"
+            % (
+                str(seam.SeamId),
+                bool(getattr(seam, "ReversedB", False)),
+                int(report["pair_count"]),
+                float(report["first_gap"]),
+                float(report["last_gap"]),
+                float(report["max_gap"]),
+            )
+        )
+    max_seam_gap = max(float(report["max_gap"]) for report in seam_reports.values())
+    if max_seam_gap > 35.0:
+        raise RuntimeError(
+            "authoritative tunic seams did not converge: max endpoint gap %.1f mm"
+            % max_seam_gap
+        )
+    log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, expected_seam_ids))
+
+    # Check the whole authored neckline support, not just the single highest
+    # pinned vertex (which previously allowed a skirt-like drape to pass).
+    neckline_support = []
+    neckline_min_z = float(neck_point.z) - 80.0
+    for descriptor, projection in zip(
+        tuple(str(value) for value in scene.AvatarAttachmentAnchors),
+        tuple(projections),
+        strict=True,
+    ):
+        landmark_name = descriptor.rsplit("|", 1)[-1]
+        if landmark_name not in {"neck_left", "neck_right", "neck_center"}:
+            continue
+        particle_index = int(projection.particle_index)
+        point = tuple(float(value) for value in final_positions[particle_index])
+        anchor = tuple(float(value) for value in projection.anchor_position)
+        drift = sum((point[axis] - anchor[axis]) ** 2 for axis in range(3)) ** 0.5
+        log(
+            "tunic-neckline-support landmark=%s particle=%d z=%.2f minimum-z=%.2f drift-mm=%.4f"
+            % (landmark_name, particle_index, point[2], neckline_min_z, drift)
+        )
+        if drift > 1e-3:
+            raise RuntimeError(
+                "tunic neckline support drifted away from its named avatar surface anchor: "
+                "%s (%.3f mm)" % (landmark_name, drift)
+            )
+        if point[2] < neckline_min_z:
+            raise RuntimeError(
+                "tunic neckline fell below the neck/shoulder band: "
+                "%s z=%.2f mm < required %.2f mm" % (landmark_name, point[2], neckline_min_z)
+            )
+        neckline_support.append((descriptor, particle_index, point[2]))
+    if len(neckline_support) != 6:
+        raise RuntimeError(
+            "tunic needs six independently supported neckline endpoints/centers, got %d"
+            % len(neckline_support)
+        )
+    minimum_top_z = float(shoulder_z) - 30.0
+    for panel in scene.DrapePanels:
+        panel_indices = tuple(getattr(proxy, "panel_indices", {}).get(panel.Name, ()))
+        if not panel_indices:
+            raise RuntimeError(f"missing solver indices for drape panel {panel.Name}")
+        top_z = max(float(final_positions[index][2]) for index in panel_indices)
+        log(f"tunic-upper-support={panel.Name} top-z={top_z:.2f} shoulder-z={float(shoulder_z):.2f} minimum-top-z={minimum_top_z:.2f}")
+        if top_z < minimum_top_z:
+            raise RuntimeError(
+                "simulated tunic slipped below the shoulder line: "
+                f"{panel.Name} top z={top_z:.2f} mm < required {minimum_top_z:.2f} mm"
+            )
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
     from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
@@ -1150,6 +2076,7 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
+        collision_surface=target_surface,
     )
     bounds = []
     for panel in scene.DrapePanels:

@@ -11,6 +11,7 @@ from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint
 from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput,
+    AvatarAttachmentProjectionInput,
     CorrespondenceAnalysisInput,
     MeshArrays,
     NormalizedRange,
@@ -18,6 +19,7 @@ from freecad_cloth.common.ValidationModels import (
     SeamAllowanceOptions,
     TriangulationOptions,
     validate_point2d,
+    validate_point3d,
     validate_points3d,
 )
 from freecad_cloth.pattern.PatternGeometry import (
@@ -249,3 +251,92 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
     assert segment.point(0.5) == pytest.approx((1.05e308, 0.0))
+
+
+
+def test_avatar_attachment_projection_schema_normalizes_valid_inputs() -> None:
+    request = AvatarAttachmentProjectionInput.model_validate(
+        {
+            "positions": [[0, 0, 0], [10, 0, 0]],
+            "particle_indices": [1],
+            "target_points": {1: [9, 1, 0]},
+            "projection_directions": {1: [0, 1, 0]},
+        }
+    )
+    assert request.positions == ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
+    assert request.particle_indices == (1,)
+    assert request.target_points == {1: (9.0, 1.0, 0.0)}
+    assert request.projection_directions == {1: (0.0, 1.0, 0.0)}
+    assert request.offset_mm == 3.0
+    assert request.max_distance_mm == 100.0
+    assert validate_point3d([1, 2, 3]) == (1.0, 2.0, 3.0)
+
+
+@pytest.mark.parametrize(
+    "point",
+    [
+        [0.0, 1.0],
+        [0.0, 1.0, math.nan],
+        [0.0, 1.0, math.inf],
+        [True, 1.0, 2.0],
+        ["0", 1.0, 2.0],
+    ],
+)
+def test_avatar_attachment_projection_schema_rejects_invalid_landmark_coordinates(
+    point: list[object],
+) -> None:
+    with pytest.raises(ValidationError):
+        AvatarAttachmentProjectionInput.model_validate(
+            {
+                "positions": [[0.0, 0.0, 0.0]],
+                "particle_indices": [0],
+                "target_points": {0: point},
+            }
+        )
+
+
+@pytest.mark.parametrize("indices", [[], [True], [0.5], [-1], [1]])
+def test_avatar_attachment_projection_schema_rejects_invalid_particle_selection(
+    indices: list[object],
+) -> None:
+    with pytest.raises(ValidationError):
+        AvatarAttachmentProjectionInput.model_validate(
+            {
+                "positions": [[0.0, 0.0, 0.0]],
+                "particle_indices": indices,
+            }
+        )
+
+
+@pytest.mark.parametrize("offset", [math.nan, math.inf, -1.0, 100.1, True, "3"])
+def test_avatar_attachment_projection_schema_rejects_invalid_offsets(offset: object) -> None:
+    with pytest.raises(ValidationError, match="between 0 and 100"):
+        AvatarAttachmentProjectionInput.model_validate(
+            {"positions": [[0.0, 0.0, 0.0]], "particle_indices": [0], "offset_mm": offset}
+        )
+
+
+@pytest.mark.parametrize("distance", [math.nan, math.inf, -1.0, 0.0, True, "10"])
+def test_avatar_attachment_projection_schema_rejects_invalid_search_distances(
+    distance: object,
+) -> None:
+    with pytest.raises(ValidationError, match="positive and finite"):
+        AvatarAttachmentProjectionInput.model_validate(
+            {
+                "positions": [[0.0, 0.0, 0.0]],
+                "particle_indices": [0],
+                "max_distance_mm": distance,
+            }
+        )
+
+
+def test_avatar_attachment_projection_schema_rejects_bad_mapping_references_and_directions() -> None:
+    base = {"positions": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], "particle_indices": [0]}
+    with pytest.raises(ValidationError, match="selected attachment particles"):
+        AvatarAttachmentProjectionInput.model_validate({**base, "target_points": {1: [0, 0, 0]}})
+    with pytest.raises(ValidationError, match="projection direction must be non-zero"):
+        AvatarAttachmentProjectionInput.model_validate(
+            {**base, "projection_directions": {0: [0.0, 0.0, 0.0]}}
+        )
+    with pytest.raises(ValidationError, match="extra"):
+        AvatarAttachmentProjectionInput.model_validate({**base, "unknown": True})

@@ -12,6 +12,7 @@ from math import hypot
 from freecad_cloth.pattern.PatternGeometry import _lerp, _line_intersection
 from freecad_cloth.pattern.PatternMesh import _point_to_segment_distance
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
+from freecad_cloth.simulation.ClothAttachments import _nearest_candidate_index
 from freecad_cloth.simulation.ClothSolver import Particle, distance
 
 
@@ -118,4 +119,23 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     assert result is not None
     assert abs(result[0] - x) <= 1e-9
     assert abs(result[1] - y) <= 1e-9
+    return result
+
+
+
+def semantic_attachment_selection_contract(x: float, y: float, z: float) -> int:
+    """Symbolically check the production semantic-attachment nearest-particle selector.
+
+    pre: 0.0 <= x <= 4.0
+    pre: -2.0 <= y <= 2.0
+    pre: -2.0 <= z <= 2.0
+    """
+    result = _nearest_candidate_index(
+        ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0)),
+        (0, 1, 2),
+        (x, y, z),
+        100.0,
+        0.0,
+    )
+    assert result == 0
     return result

@@ -20,6 +20,8 @@ def test_quality_preset_updates_solver_controls():
         QualityPreset="Balanced",
         ParticleDistance=4.0,
         PinMode="Automatic",
+        AttachmentOffset=3.0,
+        AvatarAttachmentAnchors=[],
         SolverIterations=8,
         SolverSubsteps=1,
         FabricDensity=150.0,
@@ -74,6 +76,8 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     scene = SimpleNamespace(
         QualityPreset="Fast",
         PinMode="Automatic",
+        AttachmentOffset=3.0,
+        AvatarAttachmentAnchors=[],
         ParticleDistance=40.0,
         SolverIterations=1,
         SolverSubsteps=1,
@@ -129,3 +133,39 @@ def test_quality_proxy_keeps_solver_stitch_provenance():
     assert proxy.seam_stitch_pairs == {"seam-2": ((2, 3), (4, 5))}
 
 
+def test_attachment_offset_property_is_present_and_bounded():
+    import pytest
+
+    from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
+
+    class Scene(SimpleNamespace):
+        def addProperty(self, _property_type, name, _group):
+            defaults = {
+                "QualityPreset": "Balanced",
+                "ParticleDistance": 4.0,
+                "SolverIterations": 8,
+                "SolverSubsteps": 1,
+                "PinMode": "Automatic",
+                "AttachmentOffset": 3.0,
+                "FabricDensity": 150.0,
+                "FabricThickness": 0.5,
+                "FabricStretch": 0.02,
+                "FabricShear": 0.02,
+                "FabricBend": 0.01,
+                "FabricFriction": 0.5,
+                "FabricColor": (0.72, 0.34, 0.46),
+                "FabricSpecular": 0.25,
+                "FabricRoughness": 0.65,
+                "FabricTransparency": 0,
+                "AvatarSkinOffset": 0.0,
+            }
+            if not hasattr(self, name):
+                setattr(self, name, defaults.get(name))
+
+    scene = Scene()
+    ensure_quality_properties(scene)
+    assert scene.AttachmentOffset == 3.0
+
+    scene.AttachmentOffset = 101.0
+    with pytest.raises(ValueError, match="attachment offset"):
+        ensure_quality_properties(scene)
