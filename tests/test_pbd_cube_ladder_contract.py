@@ -25,9 +25,10 @@ def test_cube_ladder_contract_is_gate_and_frozen():
     assert "seam_world_spans_mm" in source
     assert "first_failing_rung" in source
     assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE" in workflow
-    assert "runpy.run_path(" in source
-    assert "before-shared-helper-runpath" in source
-    assert "after-shared-helper-runpath" in source
+    assert "runpy.run_path(" not in source
+    assert "from tests.support.pbd_contact_helpers import" in source
+    assert "before-support-helper-import" in source
+    assert "after-support-helper-import" in source
     assert '"right_x": 20.0' in source
     # The canonical job owns the full ladder gate and uploads the frozen evidence.
     assert "simulation-ladder:" in workflow
