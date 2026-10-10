@@ -5,9 +5,27 @@ from pathlib import Path
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
 
+_ICON_ALIASES = {
+    # Reuse generic, context-independent glyphs instead of copying identical SVG files.
+    "ClothSewing_Show2D": "ClothPattern_Show2D",
+    "ClothDrape_EditTarget": "ClothPattern_EditPiece",
+    "ClothFitting_EditAvatar": "ClothPattern_EditPiece",
+    "ClothSewing_EditOperation": "ClothPattern_EditPiece",
+    "ClothSewingNetwork_EditNetwork": "ClothPattern_EditPiece",
+    "ClothSimulation_Edit": "ClothPattern_EditPiece",
+    "ClothPattern_CreatePieceTask": "ClothPattern_CreatePiece",
+    "ClothSewing_CreateSeam": "ClothPattern_AddSeam",
+    "ClothDrape_RefreshTarget": "ClothSimulation_Reset",
+    "ClothFitting_CreateSimulation": "ClothSimulation_Create",
+    "ClothSewing_CreateMNSewing": "ClothSewingNetwork_CreateNetwork",
+    "ClothFitting_SetAvatarMeasurements": "ClothFitting_SetMeasurements",
+}
+
+
 def icon_for_command(command):
-    """Return the installed SVG path for a command icon."""
-    return str(_ICON_DIR / (str(command) + ".svg"))
+    """Return the canonical installed SVG path for a command icon."""
+    name = str(command)
+    return str(_ICON_DIR / (_ICON_ALIASES.get(name, name) + ".svg"))
 
 
 class FunctionCommand:
