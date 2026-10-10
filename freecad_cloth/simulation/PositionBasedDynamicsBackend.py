@@ -80,7 +80,7 @@ class _NativePBDModel(Protocol):
     def addDistanceConstraint_XPBD(self, a: int, b: int, _stiffness: float) -> bool: ...
     def addRigidBody(
         self,
-        mass: float,
+        _mass: float,
         vertex_data: object,
         mesh: object,
         _testMesh: bool,
