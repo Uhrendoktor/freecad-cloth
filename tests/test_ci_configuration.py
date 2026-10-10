@@ -5,7 +5,6 @@ from pathlib import Path
 
 from tools.ci.run_freecad import configured_timeout_seconds
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
