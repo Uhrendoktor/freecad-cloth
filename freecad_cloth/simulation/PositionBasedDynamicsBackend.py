@@ -69,8 +69,10 @@ class _NativePBDTimeStep(Protocol):
 class _NativePBDModel(Protocol):
     def cleanup(self) -> None: ...
     def addTriangleModel(
-        self, points: Sequence[Sequence[float]], indices: Sequence[int], _testMesh: bool
-    ) -> object: ...
+        self, points: Sequence[Sequence[float]], indices: Sequence[int], *, testMesh: bool
+    ) -> object:
+        _ = testMesh
+        ...
     def getParticles(self) -> _NativePBDParticles: ...
     def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None: ...
     def addBendingConstraints(
@@ -83,9 +85,12 @@ class _NativePBDModel(Protocol):
         _mass: float,
         vertex_data: object,
         mesh: object,
-        _testMesh: bool,
-        _sdf: object,
-    ) -> _NativePBDRigidBody: ...
+        *,
+        testMesh: bool,
+        sdf: object,
+    ) -> _NativePBDRigidBody:
+        _ = testMesh, sdf
+        ...
 
 
 class _NativePBDSimulation(Protocol):
@@ -385,8 +390,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             1.0,
             vertex_data,
             mesh,
-            True,
-            self._collision_sdf,
+            testMesh=True,
+            sdf=self._collision_sdf,
         )
         rigid_body.setMass(0.0)
         rigid_body.setFrictionCoeff(0.5)
@@ -403,7 +408,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         tri_model = self._model.addTriangleModel(
             points,
             indices,
-            self._collision_surface is not None,
+            testMesh=self._collision_surface is not None,
         )
         self._tri_model = tri_model
 
