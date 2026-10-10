@@ -9,6 +9,7 @@ from freecad_cloth.sewing.SewingObjects import (
     _native_edge,
     _outline_points,
     _seam_correspondence,
+    _seam_edge_index,
     _seam_length,
 )
 from freecad_cloth.simulation.SimulationObjects import _sample_boundary
@@ -114,6 +115,44 @@ def test_sketcher_authority_matches_semantic_edge_endpoints():
         assert _native_edge(piece, 2) is right
     finally:
         PatternObjects._native_edge_record_for_sketch_index = original
+
+
+def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal():
+    from freecad_cloth.pattern import PatternObjects
+
+    # PatternIR's cycle ordering can place native edge 7 at IR ordinal 1.
+    # The drawing adapter must translate the semantic ID back to Sketch.Geometry[7].
+    semantic_ids = tuple(f"native-edge-{index}" for index in range(8))
+    piece = SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
+    )
+    seam = SimpleNamespace(EdgeAId="native-edge-7", EdgeASignature="signature", EdgeA=1)
+    original = PatternObjects._resolve_document_edge
+    PatternObjects._resolve_document_edge = lambda obj, edge_id, signature: {
+        "id": edge_id,
+        "ordinal": 1,
+    }
+    try:
+        assert _seam_edge_index(piece, seam, "A") == 7
+    finally:
+        PatternObjects._resolve_document_edge = original
+
+
+def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
+    from freecad_cloth.pattern import PatternObjects
+
+    piece = SimpleNamespace(GeometryAuthority="Legacy")
+    seam = SimpleNamespace(EdgeAId="legacy-edge-3", EdgeASignature="signature", EdgeA=3)
+    original = PatternObjects._resolve_document_edge
+    PatternObjects._resolve_document_edge = lambda obj, edge_id, signature: {
+        "id": edge_id,
+        "ordinal": 3,
+    }
+    try:
+        assert _seam_edge_index(piece, seam, "A") == 3
+    finally:
+        PatternObjects._resolve_document_edge = original
 
 
 def test_sketcher_authority_falls_back_to_sketch_shape_edges():
