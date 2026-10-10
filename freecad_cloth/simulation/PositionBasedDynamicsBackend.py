@@ -4,14 +4,17 @@ This adapter translates the headless FreeCAD cloth model and persistent
 DrapeTarget collision surface into the native pyPBD runtime.
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from copy import deepcopy
 from math import isfinite
-from typing import Any
+from typing import Protocol, TypeAlias, cast
 
 import numpy as np
+import numpy.typing as npt
 
 from freecad_cloth.common.ValidationModels import (
     CollisionSurfaceInput,
@@ -33,6 +36,119 @@ _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
+
+
+FloatArray: TypeAlias = npt.NDArray[np.float64]
+
+
+class _NativePBDParticles(Protocol):
+    def getNumberOfParticles(self) -> int: ...
+    def setMass(self, index: int, mass: float) -> None: ...
+    def getMass(self, index: int) -> float: ...
+    def getVelocity(self, index: int) -> Sequence[float]: ...
+    def setVelocity(self, index: int, velocity: FloatArray) -> None: ...
+    def getVertices(self) -> object: ...
+
+
+class _NativePBDRigidBody(Protocol):
+    def setMass(self, mass: float) -> None: ...
+    def setFrictionCoeff(self, friction: float) -> None: ...
+
+
+class _NativePBDCollisionDetection(Protocol):
+    def cleanup(self) -> None: ...
+    def setTolerance(self, tolerance: float) -> None: ...
+
+
+class _NativePBDTimeStep(Protocol):
+    def getCollisionDetection(self) -> _NativePBDCollisionDetection: ...
+    def setValueUInt(self, parameter: int, value: int) -> None: ...
+    def step(self, model: _NativePBDModel) -> None: ...
+
+
+class _NativePBDModel(Protocol):
+    def cleanup(self) -> None: ...
+    def addTriangleModel(
+        self, points: Sequence[Sequence[float]], indices: Sequence[int], *, testMesh: bool
+    ) -> object: ...
+    def getParticles(self) -> _NativePBDParticles: ...
+    def addClothConstraints(self, triangle_model: object, *args: float | bool) -> None: ...
+    def addBendingConstraints(
+        self, triangle_model: object, iterations: int, stiffness: float
+    ) -> None: ...
+    def getConstraints(self) -> Sequence[object]: ...
+    def addDistanceConstraint_XPBD(self, a: int, b: int, stiffness: float) -> bool: ...
+    def addRigidBody(
+        self,
+        mass: float,
+        vertex_data: object,
+        mesh: object,
+        *,
+        testMesh: bool,
+        sdf: object,
+    ) -> _NativePBDRigidBody: ...
+
+
+class _NativePBDSimulation(Protocol):
+    def getModel(self) -> _NativePBDModel: ...
+    def reset(self) -> None: ...
+    def initDefault(self) -> None: ...
+    def getTimeStep(self) -> _NativePBDTimeStep: ...
+
+
+class _NativePBDClock(Protocol):
+    def setTime(self, time: float) -> None: ...
+    def setTimeStepSize(self, step: float) -> None: ...
+
+
+class _NativePBDSimulationRegistry(Protocol):
+    @classmethod
+    def getCurrent(cls) -> _NativePBDSimulation: ...
+
+
+class _NativePBDClockRegistry(Protocol):
+    @classmethod
+    def getCurrent(cls) -> _NativePBDClock: ...
+
+
+class _NativePBDVertexData(Protocol):
+    def addVertex(self, vertex: tuple[float, float, float]) -> None: ...
+
+
+class _NativePBDIndexedFaceMesh(Protocol):
+    def initMesh(self, vertex_count: int, edge_count: int, face_count: int) -> None: ...
+    def addFace(self, face: Sequence[int]) -> None: ...
+    def buildNeighbors(self) -> None: ...
+
+
+class _NativePBDSDFFactory(Protocol):
+    @classmethod
+    def generateSDF(
+        cls,
+        vertex_data: _NativePBDVertexData,
+        mesh: _NativePBDIndexedFaceMesh,
+        resolution: Sequence[int],
+    ) -> object | None: ...
+
+
+class _NativePBDStitchConstraint(Protocol):
+    restLength: float
+
+
+class _NativePBDStepConstants(Protocol):
+    NUM_SUB_STEPS: int
+    MAX_ITERATIONS: int
+    MAX_ITERATIONS_V: int
+
+
+class _NativePBDAPI(Protocol):
+    Simulation: _NativePBDSimulationRegistry
+    TimeManager: _NativePBDClockRegistry
+    VertexData: Callable[[], _NativePBDVertexData]
+    IndexedFaceMesh: Callable[[], _NativePBDIndexedFaceMesh]
+    CubicSDFCollisionDetection: _NativePBDSDFFactory
+    DistanceConstraint_XPBD: type[_NativePBDStitchConstraint]
+    TimeStepController: _NativePBDStepConstants
 
 
 def _pbd_collision_config() -> PBDCollisionConfig:
@@ -108,8 +224,8 @@ def _from_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:
     return (float(x) * _MM, float(z) * _MM, float(y) * _MM)
 
 
-_PBD_COLLISION_SDF_CACHE_KEY = None
-_PBD_COLLISION_SDF_CACHE = None
+_PBD_COLLISION_SDF_CACHE_KEY: bytes | None = None
+_PBD_COLLISION_SDF_CACHE: object | None = None
 
 
 def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
@@ -146,7 +262,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if collision_mode != "mesh":
             raise ValueError("PositionBasedDynamics supports only mesh collision mode")
 
-        self._pbd = pypbd
+        self._pbd = cast(_NativePBDAPI, pypbd)
         self._initial = deepcopy(system)
         validated_mesh = MeshArrays.model_validate(
             {
@@ -189,7 +305,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 flush=True,
             )
         self._collision_mode = collision_mode
-        self._collision_sdf = None
+        self._collision_sdf: object | None = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -206,7 +322,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Return elapsed simulation time in seconds."""
         return self._time
 
-    def _new_simulation(self) -> tuple[Any, Any]:
+    def _new_simulation(self) -> tuple[_NativePBDSimulation, _NativePBDModel]:
         sim = self._pbd.Simulation.getCurrent()
         if self._simulation_initialized:
             model = sim.getModel()
@@ -217,11 +333,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._simulation_initialized = True
         return sim, sim.getModel()
 
-    def _add_collision_body(self, sim: Any, model: Any) -> None:
-        if self._source_collision_surface is None:
-            return
-
+    def _add_collision_body(self, sim: _NativePBDSimulation, model: _NativePBDModel) -> None:
         collision_surface = self._collision_surface
+        if self._source_collision_surface is None or collision_surface is None:
+            return
         vertex_data = self._pbd.VertexData()
         for vertex in collision_surface.vertices:
             vertex_data.addVertex(_to_pbd_position(vertex))
@@ -266,6 +381,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 flush=True,
             )
 
+        if self._collision_sdf is None:
+            raise RuntimeError("PositionBasedDynamics collision SDF is unavailable")
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
