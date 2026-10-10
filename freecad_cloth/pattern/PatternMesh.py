@@ -227,7 +227,11 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
     # it once rather than resampling every curve for every boundary midpoint.
     segment_lines = []
     for segment in pattern.segments:
-        samples = (\n            segment.polyline(32)\n            if hasattr(segment, "control")\n            else (segment.start, segment.end)\n        )
+        samples = (
+            segment.polyline(32)
+            if hasattr(segment, "control")
+            else (segment.start, segment.end)
+        )
         segment_lines.append((segment.id, tuple(zip(samples, samples[1:], strict=False))))
 
     result: list[str] = []
