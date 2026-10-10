@@ -120,7 +120,9 @@ def test_cube_ladder_caches_collision_proximity_mesh():
 def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     assert "runpy.run_path(" not in source
-    assert "from tests.support.pbd_contact_helpers import" in source
+    assert "from pbd_contact_helpers import" in source
+    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in source
+    assert "sys.path.insert(0, str(_HELPER_DIR))" in source
     assert "before-support-helper-import" in source
     assert "_TRACE_HANDLE = _BOOT_LOG.open(" in source
     assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
@@ -154,8 +156,12 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
     cube = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     avatar = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
     assert "runpy.run_path(" not in cube + avatar
-    assert "from tests.support.pbd_contact_helpers import" in cube
-    assert "from tests.support.pbd_contact_helpers import" in avatar
+    assert "from pbd_contact_helpers import" in cube
+    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in cube
+    assert "sys.path.insert(0, str(_HELPER_DIR))" in cube
+    assert "from pbd_contact_helpers import" in avatar
+    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in avatar
+    assert "sys.path.insert(0, str(_HELPER_DIR))" in avatar
     assert 'if __name__ == "__main__"' not in HELPERS
     assert "def build_scene(" in HELPERS
     assert "def checkpoint_record(" in HELPERS
