@@ -18,6 +18,7 @@ from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+    _pbd_collision_resolution,
     _pbd_collision_tolerance_mm,
     _pbd_collision_voxel_mm,
     _pbd_substeps,
@@ -130,4 +131,24 @@ def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
         quality_piece_mesh(SimpleNamespace(), math.nan, 5.0)
 
 
+def test_collision_sdf_resolution_follows_pbd_coordinate_axis_order(monkeypatch):
+    # PBD coordinates swap FreeCAD Y/Z, so a tall FreeCAD Z axis must receive
+    # the large grid dimension after it becomes PBD Y.
+    monkeypatch.setenv("CLOTH_PBD_COLLISION_VOXEL_MM", "8")
+    surface = CollisionSurface(
+        vertices=(
+            (0.0, 0.0, 0.0),
+            (100.0, 0.0, 0.0),
+            (100.0, 200.0, 0.0),
+            (0.0, 200.0, 0.0),
+            (0.0, 0.0, 1000.0),
+            (100.0, 0.0, 1000.0),
+            (100.0, 200.0, 1000.0),
+            (0.0, 200.0, 1000.0),
+        ),
+        triangles=((0, 1, 2),),
+    )
+
+    # ceil((span + 200 mm) / 8 mm), ordered as PBD X, Z, Y.
+    assert _pbd_collision_resolution(surface) == [38, 150, 50]
 
