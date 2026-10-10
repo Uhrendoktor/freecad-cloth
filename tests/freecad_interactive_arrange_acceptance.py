@@ -270,6 +270,40 @@ def run():
             raise RuntimeError("surface anchor did not persist wrap direction: " + name)
         anchor_objects[name] = point_obj
 
+    overlay = controller._anchor_overlay
+    if overlay is None:
+        raise RuntimeError("Interactive Arrange did not create an attachment-point overlay")
+    if overlay.getNumChildren() != len(anchor_objects) + 1:
+        raise RuntimeError(
+            "attachment-point overlay does not contain every marker: "
+            + repr((overlay.getNumChildren(), len(anchor_objects)))
+        )
+    depth_state = overlay.getChild(0)
+    if bool(depth_state.getField("test").getValue()) or bool(
+        depth_state.getField("write").getValue()
+    ):
+        raise RuntimeError("attachment-point overlay is still depth-tested or writes depth")
+    for index, point_obj in enumerate(anchor_objects.values(), start=1):
+        marker = overlay.getChild(index)
+        if marker.getNumChildren() != 2:
+            raise RuntimeError(
+                "attachment-point marker has an unexpected scene-graph structure: "
+                + str(point_obj.PointName)
+            )
+        glyph = marker.getChild(1)
+        # draw style + color, three ring polylines (six nodes), center sphere,
+        # and three crosshair polylines (six nodes) make a full tri-plane glyph.
+        if glyph.getNumChildren() < 15:
+            raise RuntimeError(
+                "attachment-point marker lacks its three orthogonal rings: "
+                + str(point_obj.PointName)
+            )
+        if bool(point_obj.ViewObject.Visibility):
+            raise RuntimeError(
+                "depth-tested document marker remained visible alongside its overlay: "
+                + str(point_obj.PointName)
+            )
+
     anchor_records = [json.loads(value) for value in scene.ArrangementAnchorData]
     by_anchor_name = {str(record.get("name", "")): record for record in anchor_records}
     for name, _wrap, _world, _subelement in pick_specs:
@@ -569,6 +603,10 @@ def run():
     panel.reject()
     if controller._mouse_callback is not None or controller._location_callback is not None:
         raise RuntimeError("Interactive Arrange callbacks were not removed")
+    if controller._anchor_overlay is not None or controller._anchor_visibility:
+        raise RuntimeError("Interactive Arrange did not remove/restore its anchor overlay state")
+    if any(not bool(obj.ViewObject.Visibility) for obj in anchor_objects.values()):
+        raise RuntimeError("persistent anchor marker visibility was not restored after Arrange")
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/interactive-arrange.log").write_text(

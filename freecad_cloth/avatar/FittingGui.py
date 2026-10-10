@@ -15,6 +15,7 @@ from freecad_cloth.shared.viewport_gizmo_style import (
     SNAP_LINE_WIDTH,
     SNAP_RING_RADIUS,
     SNAP_RING_SEGMENTS,
+    SNAP_STALE_COLOR,
     SNAP_TARGET_COLOR,
 )
 
@@ -76,6 +77,71 @@ def arrangement_rotation(point):
     }.get(str(getattr(point, "WrapDirection", "front")), base)
 
 
+def _xray_overlay(coin, name):
+    """Create a Coin overlay that is not occluded by model geometry."""
+    overlay = coin.SoSeparator()
+    overlay.setName(name)
+    depth = coin.SoDepthBuffer()
+    depth.getField("test").setValue(False)
+    depth.getField("write").setValue(False)
+    overlay.addChild(depth)
+    return overlay
+
+
+def _xray_marker(coin, position, color_rgb):
+    """Create a depth-independent tri-plane ring centered at a world-space point.
+
+    Three orthogonal rings ensure at least one ring retains a clear projected
+    shape from any camera direction. Avoid dynamic Coin billboard nodes here:
+    FreeCAD's selection traversal can enter those nodes without a usable view
+    volume on some Coin builds.
+    """
+    marker = coin.SoSeparator()
+    transform = coin.SoTransform()
+    transform.translation.setValue(
+        coin.SbVec3f(float(position[0]), float(position[1]), float(position[2]))
+    )
+    marker.addChild(transform)
+
+    glyph = coin.SoSeparator()
+    draw_style = coin.SoDrawStyle()
+    draw_style.lineWidth = SNAP_LINE_WIDTH
+    color = coin.SoBaseColor()
+    color.rgb = color_rgb
+    glyph.addChild(draw_style)
+    glyph.addChild(color)
+
+    def add_polyline(points):
+        coordinates = coin.SoCoordinate3()
+        coordinates.point.setValues(0, len(points), points)
+        line = coin.SoLineSet()
+        line.numVertices.setValue(len(points))
+        glyph.addChild(coordinates)
+        glyph.addChild(line)
+
+    radius = SNAP_RING_RADIUS
+    ring_samples = tuple(
+        (
+            radius * math.cos(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
+            radius * math.sin(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
+        )
+        for index in range(SNAP_RING_SEGMENTS + 1)
+    )
+    add_polyline([coin.SbVec3f(x, y, 0.0) for x, y in ring_samples])
+    add_polyline([coin.SbVec3f(x, 0.0, y) for x, y in ring_samples])
+    add_polyline([coin.SbVec3f(0.0, x, y) for x, y in ring_samples])
+
+    center = coin.SoSphere()
+    center.radius = SNAP_CENTER_RADIUS
+    glyph.addChild(center)
+    arm = SNAP_CROSSHAIR_HALF_LENGTH
+    add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
+    add_polyline([coin.SbVec3f(0.0, -arm, 0.0), coin.SbVec3f(0.0, arm, 0.0)])
+    add_polyline([coin.SbVec3f(0.0, 0.0, -arm), coin.SbVec3f(0.0, 0.0, arm)])
+    marker.addChild(glyph)
+    return marker
+
+
 class DirectArrangeController:
     """Manage temporary FreeCAD viewport dragging and arrangement-point snapping."""
 
@@ -101,6 +167,12 @@ class DirectArrangeController:
         self._pending_snap_point = None
         self._snap_indicator_update_pending = False
         self._snap_indicator_generation = 0
+        self._anchor_overlay = None
+        self._anchor_overlay_signature = None
+        self._anchor_visibility = {}
+        self._anchor_overlay_update_pending = False
+        self._anchor_overlay_refresh_generation = 0
+        self._anchor_overlay_positions_refreshed = False
 
     def _status(self, message):
         self.status_callback(str(message))
@@ -118,6 +190,7 @@ class DirectArrangeController:
         )
 
         _refresh_anchor_positions(self.scene, update_visuals=True)
+        self._queue_anchor_overlay_refresh(positions_refreshed=True)
         for name in tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ()):
             obj = document.getObject(str(name))
             if obj is None or getattr(obj, "FittingType", "") != "ArrangementPoint":
@@ -204,48 +277,153 @@ class DirectArrangeController:
             from pivy import coin
 
             self._clear_snap_indicator()
-            separator = coin.SoSeparator()
-            transform = coin.SoTransform()
-            transform.translation.setValue(
-                coin.SbVec3f(float(point.X), float(point.Y), float(point.Offset))
-            )
-            color = coin.SoBaseColor()
-            color.rgb = SNAP_TARGET_COLOR
-            draw_style = coin.SoDrawStyle()
-            draw_style.lineWidth = SNAP_LINE_WIDTH
-            separator.addChild(transform)
-            separator.addChild(color)
-            separator.addChild(draw_style)
-
-            def add_polyline(points):
-                coordinates = coin.SoCoordinate3()
-                coordinates.point.setValues(0, len(points), points)
-                line = coin.SoLineSet()
-                line.numVertices.setValue(len(points))
-                separator.addChild(coordinates)
-                separator.addChild(line)
-
-            radius = SNAP_RING_RADIUS
-            ring = [
-                coin.SbVec3f(
-                    radius * math.cos(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
-                    radius * math.sin(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
-                    0.0,
+            separator = _xray_overlay(coin, "ClothArrangeSnapIndicator")
+            separator.addChild(
+                _xray_marker(
+                    coin,
+                    (float(point.X), float(point.Y), float(point.Offset)),
+                    SNAP_TARGET_COLOR,
                 )
-                for index in range(SNAP_RING_SEGMENTS + 1)
-            ]
-            add_polyline(ring)
-
-            center = coin.SoSphere()
-            center.radius = SNAP_CENTER_RADIUS
-            separator.addChild(center)
-            arm = SNAP_CROSSHAIR_HALF_LENGTH
-            add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
-            add_polyline([coin.SbVec3f(0.0, -arm, 0.0), coin.SbVec3f(0.0, arm, 0.0)])
+            )
             self.view.getSceneGraph().addChild(separator)
             self._snap_indicator = separator
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             self._snap_indicator = None
+
+    def _clear_anchor_overlay(self):
+        """Remove the transient camera-facing anchor marker scene graph."""
+        overlay = self._anchor_overlay
+        self._anchor_overlay = None
+        self._anchor_overlay_signature = None
+        if overlay is None or self.view is None:
+            return
+        with contextlib.suppress(AttributeError, RuntimeError):
+            self.view.getSceneGraph().removeChild(overlay)
+
+    def _hide_anchor_feature_objects(self, objects):
+        """Hide model-space marker features while their viewport overlays are active."""
+        for obj in objects:
+            name = str(getattr(obj, "Name", "") or "")
+            view_object = getattr(obj, "ViewObject", None)
+            if not name or view_object is None:
+                continue
+            if name not in self._anchor_visibility:
+                try:
+                    self._anchor_visibility[name] = bool(view_object.Visibility)
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    continue
+            try:
+                if bool(view_object.Visibility):
+                    view_object.Visibility = False
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+
+    def _restore_anchor_feature_visibility(self):
+        """Restore each persistent point object's visibility when Arrange closes."""
+        document = getattr(self.scene, "Document", None)
+        for name, visible in tuple(self._anchor_visibility.items()):
+            if document is None:
+                break
+            obj = document.getObject(str(name))
+            view_object = getattr(obj, "ViewObject", None) if obj is not None else None
+            if view_object is None:
+                continue
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError, ValueError):
+                view_object.Visibility = bool(visible)
+        self._anchor_visibility.clear()
+
+    def _queue_anchor_overlay_refresh(self, positions_refreshed=False):
+        """Defer anchor scene-graph updates until Coin finishes event traversal."""
+        if self.view is None:
+            return
+        if self._anchor_overlay_update_pending:
+            self._anchor_overlay_positions_refreshed = (
+                self._anchor_overlay_positions_refreshed and bool(positions_refreshed)
+            )
+            return
+        self._anchor_overlay_update_pending = True
+        self._anchor_overlay_positions_refreshed = bool(positions_refreshed)
+        generation = self._anchor_overlay_refresh_generation
+
+        def apply_pending():
+            if generation != self._anchor_overlay_refresh_generation:
+                return
+            self._anchor_overlay_update_pending = False
+            refreshed = self._anchor_overlay_positions_refreshed
+            self._anchor_overlay_positions_refreshed = False
+            if self.view is None:
+                return
+            self._refresh_anchor_overlay(positions_refreshed=refreshed)
+
+        self.QtCore.QTimer.singleShot(0, apply_pending)
+
+    def _refresh_anchor_overlay(self, positions_refreshed=False):
+        """Render every arrangement anchor as a visible, camera-facing viewport glyph."""
+        if self.view is None:
+            return
+        document = getattr(self.scene, "Document", None)
+        if document is None:
+            self._clear_anchor_overlay()
+            return
+        try:
+            from pivy import coin
+
+            from freecad_cloth.avatar.FittingCommands import (
+                _refresh_anchor_positions,
+                arrangement_anchor_status,
+            )
+
+            if not positions_refreshed:
+                _refresh_anchor_positions(self.scene, update_visuals=True)
+            names = tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ())
+            objects = tuple(
+                obj
+                for obj in (document.getObject(str(name)) for name in names)
+                if obj is not None and getattr(obj, "FittingType", "") == "ArrangementPoint"
+            )
+            stale_states = {
+                "stale",
+                "missing target",
+                "invalid",
+                "wrong target",
+                "unconfigured target",
+            }
+            records = []
+            for obj in objects:
+                status = arrangement_anchor_status(obj)
+                obj.AnchorStatus = status
+                stale = status in stale_states
+                if stale:
+                    obj.Label = "Stale anchor: " + str(getattr(obj, "PointName", obj.Name))
+                    obj.ViewObject.ShapeColor = SNAP_STALE_COLOR
+                    obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
+                else:
+                    obj.Label = "Snap target: " + str(getattr(obj, "PointName", obj.Name))
+                    obj.ViewObject.ShapeColor = SNAP_TARGET_COLOR
+                    obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
+                position = (
+                    float(obj.X),
+                    float(obj.Y),
+                    float(obj.Offset),
+                )
+                records.append((str(obj.Name), position, status))
+            self._hide_anchor_feature_objects(objects)
+            signature = tuple(records)
+            if self._anchor_overlay is not None and signature == self._anchor_overlay_signature:
+                return
+
+            self._clear_anchor_overlay()
+            overlay = _xray_overlay(coin, "ClothInteractiveArrangeAnchorOverlay")
+            for _name, position, status in records:
+                color = SNAP_STALE_COLOR if status in stale_states else SNAP_TARGET_COLOR
+                overlay.addChild(_xray_marker(coin, position, color))
+            self.view.getSceneGraph().addChild(overlay)
+            self._anchor_overlay = overlay
+            self._anchor_overlay_signature = signature
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._clear_anchor_overlay()
+            self._restore_anchor_feature_visibility()
+            self._status("Attachment-point overlay unavailable — {}".format(exc))
 
     def _queue_snap_indicator(self, point):
         """Defer scene-graph mutation until Coin finishes the active event traversal."""
@@ -298,6 +476,7 @@ class DirectArrangeController:
             raise RuntimeError("an active FreeCAD 3D view is required for Interactive Arrange")
         if self._mouse_callback is not None:
             return
+        self._refresh_anchor_overlay()
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
@@ -321,6 +500,11 @@ class DirectArrangeController:
         self._pending_snap_point = None
         self._snap_indicator_update_pending = False
         self._clear_snap_indicator()
+        self._anchor_overlay_refresh_generation += 1
+        self._anchor_overlay_update_pending = False
+        self._anchor_overlay_positions_refreshed = False
+        self._clear_anchor_overlay()
+        self._restore_anchor_feature_visibility()
         self._abort_transaction()
         if self.view is not None:
             if self._mouse_callback is not None:
@@ -579,6 +763,7 @@ class ViewportAnchorPicker:
             return
         self._finish()
         self.Gui.Selection.clearSelection()
+        self.panel.controller._queue_anchor_overlay_refresh()
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
         self.panel.status.setText(

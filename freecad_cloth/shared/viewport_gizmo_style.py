@@ -20,6 +20,7 @@ JOINT_COLOR = (0.66, 0.68, 0.72)
 
 # Task-specific cue: cyan for live snap feedback.
 SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
+SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
 # Pose rig emphasis levels.
 RIG_PASSIVE_LINE_WIDTH = 1.4

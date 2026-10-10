@@ -23,6 +23,7 @@ from freecad_cloth.shared.viewport_gizmo_style import (
     SNAP_LINE_WIDTH,
     SNAP_RING_RADIUS,
     SNAP_RING_SEGMENTS,
+    SNAP_STALE_COLOR,
     SNAP_TARGET_COLOR,
 )
 
@@ -52,6 +53,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         ACTIVE_COLOR,
         JOINT_COLOR,
         SNAP_TARGET_COLOR,
+        SNAP_STALE_COLOR,
     )
     for rgb in colors:
         _assert_rgb(rgb)
@@ -86,6 +88,7 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
         },
         "freecad_cloth/avatar/FittingGui.py": {
             "SNAP_TARGET_COLOR",
+            "SNAP_STALE_COLOR",
             "SNAP_RING_RADIUS",
             "SNAP_RING_SEGMENTS",
             "SNAP_CROSSHAIR_HALF_LENGTH",
