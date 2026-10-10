@@ -111,7 +111,7 @@ class DirectArrangeController:
                 continue
             status = arrangement_anchor_status(obj)
             obj.AnchorStatus = status
-            if status in {"stale", "missing target", "invalid"}:
+            if status in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}:
                 obj.Label = "Stale anchor: " + str(getattr(obj, "PointName", name))
                 obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
                 obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
@@ -462,16 +462,16 @@ class ViewportAnchorPicker:
         self.panel.cancel_pick_button.setVisible(False)
 
     def _target_sources(self):
+        """Return the target currently authoritative for this fitting scene."""
         scene = self.panel.scene
         doc = getattr(scene, "Document", None)
-        candidates = [getattr(scene, "AvatarProxy", None)]
-        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
-        candidates.append(getattr(drape_target, "SourceObject", None))
-        result = {}
-        for candidate in candidates:
-            if candidate is not None and getattr(candidate, "Name", ""):
-                result[str(candidate.Name)] = candidate
-        return result
+        candidate = getattr(scene, "AvatarProxy", None)
+        if candidate is None and doc is not None:
+            drape_target = doc.getObject("DrapeTarget")
+            candidate = getattr(drape_target, "SourceObject", None)
+        if candidate is None or not getattr(candidate, "Name", ""):
+            return {}
+        return {str(candidate.Name): candidate}
 
     def _world_point(self, object_name, position):
         """Normalize FreeCAD selection callback variants to a world-space Vector."""
@@ -713,12 +713,13 @@ class FittingTaskPanel:
             for obj in (doc.getObject(str(name)) for name in names)
             if obj is not None
         ) if doc is not None else ()
-        target = getattr(self.scene, "AvatarProxy", None) or getattr(
-            self.scene, "DrapeTarget", None
-        )
+        target = getattr(self.scene, "AvatarProxy", None)
+        if target is None and doc is not None:
+            drape_target = doc.getObject("DrapeTarget")
+            target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
         stale = sum(
-            arrangement_anchor_status(point) in {"stale", "missing target", "invalid"}
+            arrangement_anchor_status(point) in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}
             for point in point_objects
         )
         suffix = " | {} stale anchor(s) excluded".format(stale) if stale else ""
