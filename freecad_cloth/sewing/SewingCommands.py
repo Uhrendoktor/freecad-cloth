@@ -1,9 +1,8 @@
 """Commands for the Cloth Sewing workbench."""
 
 import contextlib
-from pathlib import Path
 
-_ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _seams(doc):
@@ -686,9 +685,7 @@ try:
     import FreeCADGui as Gui
 
     for name, function in _COMMAND_HANDLERS.items():
-        icon_path = _ICON_DIR / (name + ".svg")
-        if not icon_path.is_file() and name == "ClothSewing_RepairSeam":
-            icon_path = _ICON_DIR / "ClothSewing_Validate.svg"
+        icon_path = icon_for_command(name)
         Gui.addCommand(
             name,
             _SewingCommand(
