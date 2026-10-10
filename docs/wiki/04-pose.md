@@ -45,7 +45,7 @@ The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one pe
 | Rotation gizmo | Three color-coded rotation rings with cone tips and a spherical pivot afford direct manipulation |
 | Symmetry | Left/right edits can be mirrored across the sagittal plane |
 | 5° snap | Rotation feedback visibly changes in quantized increments |
-| Presets | Standing, Sewing and Sitting provide recognizable starting poses |
+| Presets | T-pose, Standing, Sewing and Sitting provide recognizable starting poses; T-pose keeps the arms near horizontal for proportion and placement review |
 | Precision | Exact X/Y/Z rotation controls are available without cluttering the default view |
 | Apply & Rebuild | A staged pose can be committed explicitly |
 | Cancel | Staged edits can be discarded without replacing the saved pose |
