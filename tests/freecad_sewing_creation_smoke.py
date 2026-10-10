@@ -15,6 +15,7 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
@@ -447,7 +448,7 @@ try:
     doc.recompute()
     # Keep the outlines separate so the recorded viewport workflow shows two
     # distinct workpieces and unambiguous source/counterpart edge selection.
-    piece_b.Placement = App.Placement(App.Vector(145.0, 0.0, 0.0), App.Rotation())
+    piece_b.Placement = App.Placement(App.Vector(130.0, 0.0, 0.0), App.Rotation())
     piece_c.Placement = App.Placement(App.Vector(290.0, 0.0, 0.0), App.Rotation())
     doc.recompute()
     record("fixtures=created pieces=3")
@@ -509,9 +510,26 @@ try:
         raise RuntimeError("seam-assignment GIF has an invalid viewport size")
     aspect = view_width / view_height
     extent_x, extent_y = xmax - xmin, ymax - ymin
-    camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
+    # Reserve a clear strip on the right for FreeCAD's staged sewing task panel.
+    # FitAll first preserves valid clip planes; the small in-plane camera shift
+    # moves the two mating pieces left without moving them out of the clip range.
+    camera_height = max(210.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
     camera = view.getCameraNode()
     camera.height.setValue(float(camera_height))
+    previous_position = coin.SbVec3f(camera.position.getValue())
+    camera_center = coin.SbVec3f(
+        (xmin + xmax) * 0.5 + 75.0,
+        (ymin + ymax) * 0.5,
+        0.0,
+    )
+    camera.position.setValue(
+        coin.SbVec3f(
+            float(previous_position[0]) + 75.0,
+            float(previous_position[1]),
+            float(previous_position[2]),
+        )
+    )
+    camera.pointAt(camera_center, coin.SbVec3f(0.0, 1.0, 0.0))
     if hasattr(view, "redraw"):
         view.redraw()
     process_events()
