@@ -11,6 +11,7 @@ try:
     import FreeCADGui as Gui
 except ImportError:
     Gui = None
+from freecad_cloth.avatar import AvatarCommands as _AvatarCommands
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
