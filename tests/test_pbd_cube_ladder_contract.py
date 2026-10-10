@@ -26,7 +26,9 @@ def test_cube_ladder_contract_is_gate_and_frozen():
     assert "first_failing_rung" in source
     assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE" in workflow
     assert "runpy.run_path(" not in source
-    assert "from tests.support.pbd_contact_helpers import" in source
+    assert "from pbd_contact_helpers import" in source
+    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in source
+    assert "sys.path.insert(0, str(_HELPER_DIR))" in source
     assert "before-support-helper-import" in source
     assert "after-support-helper-import" in source
     assert '"right_x": 20.0' in source
