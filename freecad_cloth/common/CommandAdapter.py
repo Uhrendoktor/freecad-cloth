@@ -1,6 +1,16 @@
 """Small headless-safe adapter for FreeCAD GUI command registration."""
 
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Protocol, TypeAlias
+
+CommandCallable: TypeAlias = Callable[[], object]
+
+
+class GuiCommandRegistrar(Protocol):
+    """Minimal FreeCAD GUI command-registration interface."""
+
+    def addCommand(self, name: str, command: "FunctionCommand") -> None: ...
 
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
@@ -22,7 +32,7 @@ _ICON_ALIASES = {
 }
 
 
-def icon_for_command(command):
+def icon_for_command(command: str) -> str:
     """Return the canonical installed SVG path for a command icon."""
     name = str(command)
     return str(_ICON_DIR / (_ICON_ALIASES.get(name, name) + ".svg"))
@@ -31,16 +41,21 @@ def icon_for_command(command):
 class FunctionCommand:
     """Expose a Python callable through FreeCAD's command protocol."""
 
-    def __init__(self, function, tooltip=None, command_name=None):
+    def __init__(
+        self,
+        function: CommandCallable,
+        tooltip: str | None = None,
+        command_name: str | None = None,
+    ) -> None:
         self.function = function
         self.tooltip = tooltip
         self.command_name = command_name or function.__name__
 
-    def Activated(self):
+    def Activated(self) -> object:
         """Provide the public Activated operation."""
         return self.function()
 
-    def GetResources(self):
+    def GetResources(self) -> dict[str, str]:
         """Provide the public GetResources operation."""
         return {
             "MenuText": self.function.__name__.replace("_", " ").title(),
@@ -49,7 +64,10 @@ class FunctionCommand:
         }
 
 
-def register_commands(gui, commands):
+def register_commands(
+    gui: GuiCommandRegistrar,
+    commands: Mapping[str, CommandCallable],
+) -> None:
     """Register ``name -> callable`` pairs with FreeCAD's command protocol."""
     if not hasattr(gui, "addCommand"):
         return
