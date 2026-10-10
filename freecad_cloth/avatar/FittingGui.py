@@ -82,8 +82,8 @@ def _xray_overlay(coin, name):
     overlay = coin.SoSeparator()
     overlay.setName(name)
     depth = coin.SoDepthBuffer()
-    depth.test = False
-    depth.write = False
+    depth.getField("test").setValue(False)
+    depth.getField("write").setValue(False)
     overlay.addChild(depth)
     return overlay
 
