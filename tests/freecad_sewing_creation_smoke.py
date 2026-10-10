@@ -92,7 +92,9 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
     return obj
 
 
-def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0):
+def add_rectangular_piece(
+    doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0
+):
     """Create a standard Part feature carrying the sewing workflow's piece contract."""
     obj = doc.addObject("Part::Feature", name)
     obj.Label = name
@@ -100,11 +102,12 @@ def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0):
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
     obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+    x_offset = float(x_offset)
     outline = [
-        (0.0, 0.0),
-        (float(width), 0.0),
-        (float(width), float(height)),
-        (0.0, float(height)),
+        (x_offset, 0.0),
+        (x_offset + float(width), 0.0),
+        (x_offset + float(width), float(height)),
+        (x_offset, float(height)),
     ]
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
         outline
@@ -452,14 +455,12 @@ try:
     record("commands=registered")
 
     doc = App.newDocument("SewingCreationSmoke")
-    piece_a = add_rectangular_piece(doc, "SmokeA", "smoke-a")
-    piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b")
-    piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c")
-    doc.recompute()
-    # Keep the outlines separate so the recorded viewport workflow shows two
-    # distinct workpieces and unambiguous source/counterpart edge selection.
-    piece_b.Placement = App.Placement(App.Vector(130.0, 0.0, 0.0), App.Rotation())
-    piece_c.Placement = App.Placement(App.Vector(290.0, 0.0, 0.0), App.Rotation())
+    # Store the fixture offsets in both shape and semantic outline coordinates.
+    # Identity placements avoid applying a separate placement to already placed
+    # Shape.Edges when the sewing preview builds its world-space seam markers.
+    piece_a = add_rectangular_piece(doc, "SmokeA", "smoke-a", x_offset=0.0)
+    piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b", x_offset=130.0)
+    piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c", x_offset=260.0)
     doc.recompute()
     record("fixtures=created pieces=3")
 
