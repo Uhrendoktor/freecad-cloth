@@ -208,7 +208,7 @@ class DirectArrangeController:
             add_polyline(ring)
 
             center = coin.SoSphere()
-            center.radius = 2.0
+            center.radius = 0.8
             separator.addChild(center)
             arm = 11.0
             add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
