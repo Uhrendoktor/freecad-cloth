@@ -80,9 +80,7 @@ def _mesh_surface_pick(target, x_fraction, z_fraction, side):
         )
 
     side_y = (
-        min(row[2] for row in candidates)
-        if side == "front"
-        else max(row[2] for row in candidates)
+        min(row[2] for row in candidates) if side == "front" else max(row[2] for row in candidates)
     )
     chosen = min(
         candidates,
