@@ -42,7 +42,7 @@ Open **Cloth Sewing** and define how the pieces connect. A seam is tied to persi
 
 In **Cloth Simulation**, create or select a valid **DrapeTarget**. The target can be the native mannequin or supported FreeCAD geometry such as a Shape, Body, or mesh.
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging a garment piece toward an arrangement snap point; releasing commits its new placement" width="820"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging the tunic front and back panels onto their mannequin snap points and releasing to commit both placements" width="820"></p>
 
 1. Confirm that the intended PatternPieces and seam relationships are present.
 2. Create or select the target that the cloth will collide against.
