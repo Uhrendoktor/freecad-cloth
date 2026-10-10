@@ -20,11 +20,10 @@ def test_workbench_icons_are_valid_scalable_assets():
 
 def test_all_workbench_tool_commands_have_svg_icons():
     from freecad_cloth.avatar import AvatarCommands, FittingCommands
+    from freecad_cloth.common.CommandAdapter import icon_for_command
     from freecad_cloth.pattern import PatternCommands, PatternMarks
     from freecad_cloth.sewing import SewingCommands
     from freecad_cloth.simulation import DrapeCommands, SimulationCommands
-
-    from freecad_cloth.common.CommandAdapter import icon_for_command
 
     modules = (
         PatternCommands,
