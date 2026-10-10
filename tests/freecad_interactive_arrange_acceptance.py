@@ -42,13 +42,29 @@ def run():
     from freecad_cloth.avatar.FittingGui import FittingTaskPanel
 
     doc = App.newDocument("InteractiveArrangeAcceptance")
-    piece = doc.addObject("Part::Feature", "AcceptancePiece")
-    piece.Label = "Acceptance Piece"
+    piece = doc.addObject("Part::Feature", "FrontPatternPiece")
+    piece.Label = "Front Pattern Piece"
     piece.addProperty("App::PropertyString", "PatternType", "Pattern")
     piece.PatternType = "PatternPiece"
     piece.addProperty("App::PropertyString", "PieceId", "Pattern")
-    piece.PieceId = "acceptance-piece"
-    piece.Shape = Part.makeBox(50.0, 30.0, 1.0)
+    piece.PieceId = "front-pattern-piece"
+    outline = Part.makePolygon(
+        [
+            App.Vector(-20.0, 0.0, 0.0),
+            App.Vector(0.0, 2.0, 0.0),
+            App.Vector(20.0, 0.0, 0.0),
+            App.Vector(20.0, 10.0, 0.0),
+            App.Vector(14.0, 20.0, 0.0),
+            App.Vector(14.0, 60.0, 0.0),
+            App.Vector(-14.0, 60.0, 0.0),
+            App.Vector(-14.0, 20.0, 0.0),
+            App.Vector(-20.0, 10.0, 0.0),
+            App.Vector(-20.0, 0.0, 0.0),
+        ]
+    )
+    piece.Shape = Part.Face(outline).extrude(App.Vector(0.0, 0.0, 1.0))
+    piece.ViewObject.ShapeColor = (0.82, 0.69, 0.51)
+    piece.ViewObject.LineColor = (0.25, 0.20, 0.15)
 
     scene = create_fitting_scene()
     Gui.Selection.clearSelection()
@@ -56,9 +72,9 @@ def run():
     add_selected_pattern_pieces()
 
     point = create_arrangement_point(
-        "acceptance_snap",
-        120.0,
+        "front_panel_snap",
         80.0,
+        52.0,
         offset=3.0,
         wrap_direction="front",
     )
@@ -89,7 +105,7 @@ def run():
         gui=Gui,
         window=Gui.getMainWindow(),
         fps=12,
-        scale=0.5,
+        scale=0.65,
         max_frames=100,
         show_cursor=False,
     )
@@ -143,9 +159,9 @@ def run():
     doc.recompute()
 
     base = piece.Placement.Base
-    if abs(float(base.x) - 120.0) > 1e-6:
+    if abs(float(base.x) - 80.0) > 1e-6:
         raise RuntimeError("piece did not snap to arrangement-point X")
-    if abs(float(base.y) - 80.0) > 1e-6:
+    if abs(float(base.y) - 52.0) > 1e-6:
         raise RuntimeError("piece did not snap to arrangement-point Y")
     if abs(float(base.z) - 3.0) > 1e-6:
         raise RuntimeError("piece did not adopt arrangement-point offset")
@@ -155,10 +171,10 @@ def run():
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
 
     persisted = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
-    matching = [value for value in persisted if value.piece_id == "acceptance-piece"]
+    matching = [value for value in persisted if value.piece_id == "front-pattern-piece"]
     if len(matching) != 1:
         raise RuntimeError("snapped placement was not persisted for the acceptance piece")
-    if matching[0].position != (120.0, 80.0, 3.0):
+    if matching[0].position != (80.0, 52.0, 3.0):
         raise RuntimeError(
             "persisted placement does not match the snapped arrangement-point position: "
             + str(matching[0].position)
