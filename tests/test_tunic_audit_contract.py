@@ -271,9 +271,12 @@ def test_tunic_initial_projection_preserves_panel_topology_and_limits_arm_mappin
     assert "maximum_projection_delta_mm = 2.0 * projection_fade_mm" in mapping
     assert "lateral_distance = abs(x - float(x_mid))" in mapping
     assert "float(torso_half_width) + projection_fade_mm - lateral_distance" in mapping
-    assert "projected_y = float(surface_point[1]) + direction * (" in mapping
-    assert "point = (x, blended_y, z)" in mapping
-    assert "triangle_index, surface_point = hit\n                    point = _fit_surface_point(" not in mapping
+    assert "target_point = _fit_surface_point(" in mapping
+    assert "extra_offset_mm=panel_collision_buffer_mm" in mapping
+    assert "displacement_length > maximum_projection_delta_mm" in mapping
+    assert "point = tuple(" in mapping
+    assert "projection_weight * displacement[axis]" in mapping
+    assert "triangle_index, surface_point = hit\n                    projected_y =" not in mapping
 
 
 def test_pbd_collision_body_uses_coarsened_solver_surface():
@@ -514,7 +517,7 @@ def test_canonical_tunic_maps_seams_to_shared_surface_positions_before_build():
     assert "panel_collision_buffer_mm = float(" in source
     assert "required_vertex_offsets[index]" in source
     assert "_pbd_collision_effective_tolerance_mm(target_surface)" in source
-    assert "float(outward_offset) + panel_collision_buffer_mm" in source
+    assert "extra_offset_mm=panel_collision_buffer_mm" in source
     assert "outward_offset = float(clearance) + 3.0" in source
     assert '"tunic-initial-inside-residual sample=%s"' in source
     assert "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target" in source
