@@ -6,6 +6,19 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-right.png" alt="Right" width="260"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-top.png" alt="Top" width="260"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-bottom.png" alt="Bottom" width="260"></p>
 
+## Inspect a draped garment
+
+Use diagnostics only after the current simulation and target have passed validity checks. The images on this page come from the same generated evidence set and show why a single view is not enough.
+
+1. Inspect the garment from **front, rear, left, right, top, and bottom**.
+2. In every view, check collision penetration, seam continuity, detached panels, self-intersection/inversion, and hem/opening shape.
+3. Review stress or drape diagnostics only when the result is current. Read any stale/invalid reason and rebuild the affected state before interpreting a map.
+4. If an issue appears, stop at the first visibly failing state and use the simple-collision ladder or [simulation review guide](../SIMULATION_REVIEW.md) to isolate the cause.
+5. Save or export only after the inspected result and its diagnostics describe the same document state.
+
+**Verify the result:** all views come from one current simulation result, the garment reads as one coherent object, and diagnostic interpretation does not depend on color alone or on a single flattering camera angle.
+
+
 ## What the feature is
 
 Diagnostics turn technically valid solver output into human-reviewable evidence.

@@ -248,6 +248,53 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
+def _camera_snapshot(view):
+    """Return the actual world-space camera axes used for screenshot projection."""
+    rotation = view.getCameraOrientation()
+    right = rotation.multVec(App.Vector(1.0, 0.0, 0.0))
+    up = rotation.multVec(App.Vector(0.0, 1.0, 0.0))
+    forward = rotation.multVec(App.Vector(0.0, 0.0, -1.0))
+    return {
+        "quaternion": [round(float(value), 9) for value in rotation.Q],
+        "screen_right_world": [round(float(right.x), 6), round(float(right.y), 6), round(float(right.z), 6)],
+        "screen_up_world": [round(float(up.x), 6), round(float(up.y), 6), round(float(up.z), 6)],
+        "view_forward_world": [round(float(forward.x), 6), round(float(forward.y), 6), round(float(forward.z), 6)],
+    }
+
+
+def _seam_lateral_snapshot(proxy, center_x):
+    """Measure world-X placement of every semantic seam from its exact solver pairs."""
+    backend = getattr(proxy, "backend", None)
+    reader = getattr(backend, "positions", None)
+    pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    if not callable(reader) or not pairs_by_seam:
+        raise RuntimeError("seam lateral diagnostic requires solver position and pair provenance")
+    positions = tuple(reader())
+
+    def x_value(point):
+        return float(point.x) if hasattr(point, "x") else float(point[0])
+
+    snapshot = {}
+    for seam_id, pairs in sorted(pairs_by_seam.items()):
+        offsets = []
+        for index_a, index_b in pairs:
+            a, b = int(index_a), int(index_b)
+            if not (0 <= a < len(positions) and 0 <= b < len(positions)):
+                raise RuntimeError("seam lateral diagnostic found an invalid solver particle index")
+            offsets.append(0.5 * (x_value(positions[a]) + x_value(positions[b])) - float(center_x))
+        if not offsets:
+            raise RuntimeError("seam lateral diagnostic found a seam without samples: " + str(seam_id))
+        snapshot[str(seam_id)] = {
+            "mean_x_offset_mm": round(sum(offsets) / len(offsets), 3),
+            "min_x_offset_mm": round(min(offsets), 3),
+            "max_x_offset_mm": round(max(offsets), 3),
+            "positive_samples": sum(value > 0.0 for value in offsets),
+            "negative_samples": sum(value < 0.0 for value in offsets),
+            "sample_count": len(offsets),
+        }
+    return snapshot
+
+
 def _post_drape_seam_gap(stitch_pairs, positions):
     """Measure the gap on the exact particle pairs passed to the solver."""
     if not stitch_pairs:
@@ -1893,6 +1940,7 @@ def simulation():
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
     log("pin-mode=Avatar Attachment semantic-anchor-pins=%s offset-mm=%.2f" % (solver_pins, float(scene.AttachmentOffset)))
+    log("seam-world-x-step0=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
     for projection in projections:
         log(
             "tunic-anchor-projection particle=%d distance-mm=%.2f surface=%s anchor=%s"
@@ -1953,12 +2001,20 @@ def simulation():
         ),
     )
     view = Gui.activeDocument().activeView()
+    # FreeCAD animates viewFront/viewRear transitions by default. Capturing while
+    # that transition is in progress records different camera rotations depending
+    # on the preceding view, which can mirror left/right seam colors between frames.
+    # Disable animation before setting either screenshot view so both captures use
+    # the same canonical orthographic projection.
+    view.setAnimationEnabled(False)
     view.setCameraType("Orthographic")
     view.viewFront()
     view.fitAll()
     events()
     task_dock.hide()
     events()
+    arranged_front_orientation = view.getCameraOrientation()
+    log("camera-arranged=" + json.dumps(_camera_snapshot(view), sort_keys=True))
     save(
         "cloth-simulation-arranged.png",
         "Simulation Workbench arranged",
@@ -1996,6 +2052,7 @@ def simulation():
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
+    log("seam-world-x-step90=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
     # A tunic that begins at the shoulders must remain supported by the upper
     # body after gravity; a skirt-like result is a simulation failure even
     # when the solver remains finite and non-penetrating.
@@ -2152,6 +2209,19 @@ def simulation():
         getattr(view, method_name)()
         view.fitAll()
         events()
+        if direction == "front":
+            # With animation disabled, viewFront must resolve to exactly the same
+            # orientation as the arranged capture, independently of prior views.
+            restored_orientation = view.getCameraOrientation()
+            expected_q = tuple(float(value) for value in arranged_front_orientation.Q)
+            actual_q = tuple(float(value) for value in restored_orientation.Q)
+            rotation_agreement = abs(sum(a * b for a, b in zip(expected_q, actual_q, strict=True)))
+            if rotation_agreement < 1.0 - 1e-8:
+                raise RuntimeError(
+                    "draped front camera rotation does not match arranged screenshot "
+                    f"(quaternion agreement={rotation_agreement:.12f})"
+                )
+            log("camera-draped-front=" + json.dumps(_camera_snapshot(view), sort_keys=True))
         save(
             f"cloth-simulation-draped-{direction}.png",
             f"Simulation Workbench draped {direction}",

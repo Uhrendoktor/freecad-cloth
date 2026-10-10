@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from hashlib import sha1
-from typing import Any
+from types import ModuleType
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
 from freecad_cloth.shared.seam_colors import (
@@ -100,7 +100,7 @@ def should_show_seam_label(seam_id: object, hovered_seam_id: object) -> bool:
     return bool(hovered) and identity == hovered
 
 
-def _coin_modules() -> Any | None:
+def _coin_modules() -> ModuleType | None:
     try:
         from pivy import coin
     except ImportError:
@@ -231,8 +231,8 @@ def _side_segments(
 
 
 def _add_line_groups(
-    parent: Any,
-    coin: Any,
+    parent: object,
+    coin: ModuleType,
     groups: list[list[tuple[float, float, float]]],
     rgb: tuple[float, float, float],
     width: float,
@@ -261,7 +261,7 @@ def _add_line_groups(
     parent.addChild(separator)
 
 
-def _depth_buffer(coin: Any, respect_depth: bool) -> Any:
+def _depth_buffer(coin: ModuleType, respect_depth: bool) -> object:
     """Configure depth testing without losing coplanar seam lines to z-fighting."""
     depth = coin.SoDepthBuffer()
     depth.test = bool(respect_depth)
@@ -276,8 +276,8 @@ def _depth_buffer(coin: Any, respect_depth: bool) -> Any:
 
 
 def _add_label(
-    parent: Any,
-    coin: Any,
+    parent: object,
+    coin: ModuleType,
     point: object,
     label: str,
     rgb: tuple[float, float, float],
@@ -308,7 +308,7 @@ def _add_label(
     parent.addChild(annotation)
 
 
-def _canonical_seams(document: Any) -> list[Any]:
+def _canonical_seams(document: object) -> list[object]:
     seams = []
     for obj in getattr(document, "Objects", ()):
         identity = str(getattr(obj, "SeamId", "")).strip()
@@ -326,7 +326,7 @@ def _canonical_seams(document: Any) -> list[Any]:
 
 
 def _simulation_seam_geometry(
-    document: Any,
+    document: object,
 ) -> dict[
     str,
     tuple[
@@ -394,14 +394,14 @@ def _simulation_seam_geometry(
     return {}
 
 
-def _seam_id_at_position(document: Any, view: Any, position: object) -> str:
+def _seam_id_at_position(document: object, view: object, position: object) -> str:
     """Map a viewport hover to the seam using the underlying pattern edge hit."""
     try:
         x, y = int(position[0]), int(position[1])  # type: ignore[index]
     except (IndexError, TypeError, ValueError):
         return ""
 
-    hits: list[dict[str, Any]] = []
+    hits: list[dict[str, object]] = []
     for getter_name in ("getObjectsInfo", "getObjectInfo"):
         getter = getattr(view, getter_name, None)
         if not callable(getter):
@@ -454,7 +454,7 @@ def _seam_id_at_position(document: Any, view: Any, position: object) -> str:
 class SeamOverlayController:
     """Own one transient overlay tree for the active FreeCAD 3D view."""
 
-    def __init__(self, view: Any, document: Any) -> None:
+    def __init__(self, view: object, document: object) -> None:
         self.view = view
         self.document = document
         self.scene_graph = None
@@ -487,7 +487,7 @@ class SeamOverlayController:
             self.root = None
             self.last_error = str(exc)
 
-    def _location_event(self, event_info: Any) -> None:
+    def _location_event(self, event_info: object) -> None:
         """Refresh the transient label when the hovered semantic seam changes."""
         if not _OVERLAY_ENABLED or not _HIGHLIGHTS_ENABLED:
             return
@@ -519,7 +519,7 @@ class SeamOverlayController:
 
     def refresh(
         self,
-        document: Any | None = None,
+        document: object | None = None,
         active_seam_id: str = "",
         prefer_simulation: bool = False,
         hovered_seam_id: str = "",
@@ -633,7 +633,7 @@ class SeamOverlayController:
         self.rendered_label_seam_ids = tuple(sorted(set(rendered_label_ids)))
 
 
-def _selected_seam_id(gui: Any, document: Any) -> str:
+def _selected_seam_id(gui: object, document: object) -> str:
     try:
         for selected in gui.Selection.getSelection():
             identity = str(getattr(selected, "SeamId", "")).strip()
@@ -694,7 +694,7 @@ def set_seam_overlay_respect_depth(enabled: bool) -> bool:
     return _RESPECT_DEPTH_OCCLUSION
 
 
-def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
+def refresh_seam_overlay(document: object | None = None) -> SeamOverlayController | None:
     """Attach or refresh the current view's overlay; safe outside a GUI process."""
     global _ACTIVE_CONTROLLER
     if not _OVERLAY_ENABLED:
@@ -749,7 +749,7 @@ def refresh_seam_overlay(document: Any | None = None) -> SeamOverlayController |
         return None
 
 
-def activate_seam_overlay(document: Any | None = None) -> SeamOverlayController | None:
+def activate_seam_overlay(document: object | None = None) -> SeamOverlayController | None:
     """Enable view overlays and register shared presentation refresh dispatch."""
     global _OVERLAY_ENABLED
     _OVERLAY_ENABLED = True
@@ -782,7 +782,7 @@ def _run_scheduled_refresh() -> None:
     refresh_seam_overlay(document)
 
 
-def schedule_seam_overlay_refresh(document: Any | None = None) -> None:
+def schedule_seam_overlay_refresh(document: object | None = None) -> None:
     """Coalesce recompute/restore refreshes until FreeCAD has completed the event."""
     global _REFRESH_PENDING, _PENDING_DOCUMENT
     if not _OVERLAY_ENABLED:

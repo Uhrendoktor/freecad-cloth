@@ -1,53 +1,57 @@
-# FreeCAD Cloth visual wiki
+# FreeCAD Cloth documentation
 
-This is the feature manual and audit index for FreeCAD Cloth.
+This wiki-style manual is organised around reader tasks. Start with setup if you are new, use the user guide to follow the full garment workflow, and open a feature page when you need a particular interaction or its visual acceptance criteria.
 
-The goal is not to repeat every engineering note. The goal is to let a human answer, feature by feature:
+## Start here
 
-- What is this?
-- What would I see in FreeCAD?
-- What persistent state should exist afterward?
-- What does failure look like?
-- Where is the implementation?
-- Which automated test or acceptance fixture supports the claim?
-- Which generated image or animation should I inspect?
+| I want to… | Read |
+| --- | --- |
+| Install Cloth and understand its runtime requirements | [Installation](../INSTALLATION.md) |
+| Complete the pattern-to-drape workflow once | [End-to-end user guide](../USER_GUIDE.md) |
+| Understand the simple and full-garment examples | [Examples](../EXAMPLES.md) |
+| Fix a missing workbench, invalid seam, wrong arrangement, or stale simulation | [Troubleshooting](../TROUBLESHOOTING.md) |
+| Find user-facing command behavior | [Workbench guide](../WORKBENCH_GUIDE.md) |
 
-## Feature index
+The recommended learning sequence is **Sketcher pattern → semantic seams → fitting arrangement → optional mannequin pose → simulation → multi-view diagnosis**. Start with a simple collision target before adding a complete garment or mannequin.
 
-| Page | Feature | Primary visual proof |
+## Follow the workflow
+
+The overview shows the complete sequence and the resulting visual states. Each stage links to a focused feature guide.
+
+| Stage | Guide | Visual evidence |
 | --- | --- | --- |
-| [00 · Overview](00-overview.md) | Complete garment workflow | Pattern → sewn → arranged → posed → draped |
-| [01 · Pattern](01-pattern.md) | Native 2D pattern authoring | <code>cloth-pattern-design.png</code> |
-| [02 · Sewing](02-sewing.md) | Semantic sewing and correspondence | <code>cloth-sewing.png</code> |
-| [03 · Fitting](03-fitting.md) | Direct 3D arrangement and snapping | <code>interactive-arrange.png</code> + arranged garment |
-| [04 · Pose](04-pose.md) | Human mannequin Pose Mode | <code>avatar-pose-mode.png</code> + avatar views |
-| [05 · Simulation](05-simulation.md) | Cloth physics and draping | arranged/draped turntables + motion GIF |
-| [06 · Diagnostics](06-diagnostics.md) | Visual diagnosis and six-side review | diagnostic map + six views |
-| [07 · Data model](07-data-model.md) | Persistence and authority model | architecture diagram + inspectable state |
-| [08 · Validation](08-validation.md) | CI, acceptance and visual evidence | generated evidence matrix |
+| 1. Pattern | [Author a pattern piece](01-pattern.md) | Native Sketcher-backed geometry |
+| 2. Sewing | [Create and inspect seams](02-sewing.md) | Seam assignment and A/B identity |
+| 3. Fitting | [Arrange and snap pieces](03-fitting.md) | Drag preview and committed placement |
+| 4. Pose | [Pose the mannequin](04-pose.md) | Joint selection and rotation gizmo |
+| 5. Simulation | [Run a cloth simulation](05-simulation.md) | Arranged garment, motion, and final drape |
+| 6. Diagnosis | [Inspect the result](06-diagnostics.md) | Diagnostic map and six-side audit |
 
-## Visual evidence convention
+## Understand and audit the result
 
-Images in these pages use the generated evidence published by the canonical workflow:
+- [End-to-end overview](00-overview.md) — workflow map, stage outputs, and common failure points.
+- [Data model, persistence, and architecture](07-data-model.md) — what is saved, what is rebuilt, and why the boundaries matter.
+- [Validation and visual evidence](08-validation.md) — automated acceptance, screenshot provenance, and human-review order.
 
-<code>https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/</code>
+## How these pages are written
 
-That branch is a publication target. The current source code and canonical workflow remain authoritative.
+Feature pages begin with a practical workflow, then explain the feature, the result to verify, known limitations, and links to evidence or implementation details. Use [Troubleshooting](../TROUBLESHOOTING.md) for recovery instructions so error handling is not copied inconsistently across multiple pages.
 
-## Audit vocabulary
+Screenshots should show the current UI or geometry that the text discusses. GIFs demonstrate changing state—such as selecting a seam, snapping a piece, or rotating a joint—but are optional visual aids: all required actions and expected results are also described in text. Color is never the only identifier for a seam.
 
-<strong>Authoritative</strong> means the data a user can edit and save in the FreeCAD document.
+For the contributor rules behind the page structure, alt text, screenshots, provenance, and review checklist, see the [Documentation guide](../DOCUMENTATION_GUIDE.md).
 
-<strong>Derived</strong> means data rebuilt from authoritative inputs, such as simulation particles or generated collision surfaces.
+## Visual evidence source and terminology
 
-<strong>Transient</strong> means viewport-only interaction state, such as a drag preview or temporary selection.
+Images use the assets generated by the canonical workflow and published at:
 
-<strong>Fail closed</strong> means an invalid or stale input is surfaced as invalid instead of being silently guessed or substituted.
+https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/
 
-## Reading order
+This branch is a publication target, not a source of product truth. The current code, saved FreeCAD document contract, acceptance fixtures, and canonical workflow remain authoritative. Do not hand-edit a generated screenshot to make a behavior look correct.
 
-Start with [00 · Overview](00-overview.md), then inspect the individual feature pages. Finish with [07 · Data model](07-data-model.md) and [08 · Validation](08-validation.md) when you want to audit how the visuals connect back to persistent state and automated checks.
+- **Authoritative:** data a user edits and saves in the FCStd document.
+- **Derived:** data rebuilt from authoritative inputs, such as simulation particles or collision surfaces.
+- **Transient:** viewport-only state, such as hover labels, selection highlights, or drag previews.
+- **Stale/invalid:** state that no longer matches an upstream input and must be refreshed or rebuilt before it is used.
 
-## Human acceptance rule
-
-A page is visually demonstrated when a reader can identify the expected UI or geometry in the supplied evidence without relying on narration alone.
+A feature is visually demonstrated only when the reader can identify the relevant state from the image and the written explanation without relying on narration alone.
