@@ -25,8 +25,6 @@ from tests.support.freecad_input import (
     click_widget,
     focus_main_window,
 )
-from freecad_cloth.pattern.PatternModel import PatternPiece
-from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
@@ -94,6 +92,34 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
     return obj
 
 
+def add_rectangular_piece(
+    doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0
+):
+    """Create a standard Part feature carrying the sewing workflow's piece contract."""
+    obj = doc.addObject("Part::Feature", name)
+    obj.Label = name
+    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
+    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
+    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+    x_offset = float(x_offset)
+    outline = [
+        (x_offset, 0.0),
+        (x_offset + float(width), 0.0),
+        (x_offset + float(width), float(height)),
+        (x_offset, float(height)),
+    ]
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
+        outline
+    )
+    # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
+    # returns a face whose native Edge1..Edge4 order does not match this boundary.
+    vertices = [App.Vector(x, y, 0.0) for x, y in outline]
+    wire = Part.makePolygon(vertices + [vertices[0]])
+    obj.Shape = Part.Face(wire)
+    return obj
+
+
 def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
     first, last = float(edge.FirstParameter), float(edge.LastParameter)
     points = [edge.valueAt(first + (last - first) * float(parameter)) for parameter in parameters]
@@ -111,6 +137,28 @@ def process_events():
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
+
+
+def pattern_piece_color_counts(frame):
+    """Count distinctive fixture colors in a captured main-window frame."""
+    counts = {"blue": 0, "orange": 0, "green": 0}
+    for red, green, blue in frame.convert("RGB").getdata():
+        if blue >= 120 and blue - red >= 25 and green - red >= 15:
+            counts["blue"] += 1
+        if red >= 140 and red - green >= 25 and green - blue >= 20:
+            counts["orange"] += 1
+        if green >= 110 and green - red >= 20 and green - blue >= 10:
+            counts["green"] += 1
+    return counts
+
+
+def assert_pattern_piece_colors_visible(frame):
+    """Reject a seam GIF unless both mating piece faces are visibly rendered."""
+    counts = pattern_piece_color_counts(frame)
+    assert counts["blue"] >= 500 and counts["orange"] >= 500, (
+        "seam-assignment GIF must visibly render both mating pattern pieces; "
+        f"detected pixel counts={counts!r}"
+    )
 
 
 def record(message):
@@ -407,51 +455,48 @@ try:
     record("commands=registered")
 
     doc = App.newDocument("SewingCreationSmoke")
-    piece_a = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeA", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-a"),
-    )
-    piece_b = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeB", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-b"),
-    )
-    piece_c = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-c"),
-    )
-    doc.recompute()
-    # Keep the outlines separate so the recorded viewport workflow shows two
-    # distinct workpieces and unambiguous source/counterpart edge selection.
-    piece_b.Placement = App.Placement(App.Vector(145.0, 0.0, 0.0), App.Rotation())
-    piece_c.Placement = App.Placement(App.Vector(290.0, 0.0, 0.0), App.Rotation())
+    # Store the fixture offsets in both shape and semantic outline coordinates.
+    # Identity placements avoid applying a separate placement to already placed
+    # Shape.Edges when the sewing preview builds its world-space seam markers.
+    piece_a = add_rectangular_piece(doc, "SmokeA", "smoke-a", x_offset=0.0)
+    piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b", x_offset=130.0)
+    piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c", x_offset=260.0)
     doc.recompute()
     record("fixtures=created pieces=3")
 
-    # Resize before reading the render area, then position the orthographic
-    # Coin camera explicitly. In this headless FreeCAD/Pivy build, fitAll()
-    # leaves the camera at its default ~4 mm field of view despite visible
-    # 100 mm pieces, so camera bounds are derived from the actual world shapes.
+    # Record from the real sewing workbench and let Fit All establish a valid
+    # camera center and clipping range. Then set only the orthographic height;
+    # moving the camera manually can put all geometry outside FreeCAD's clip range.
+    Gui.activateWorkbench("ClothSewingWorkbench")
+    process_events()
     window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
-    for piece, color in (
+    # The first recording is specifically about a seam between two pieces.
+    # Keep the third fixture hidden during capture; it is restored for the later
+    # M:N/network acceptance cases in this same smoke test.
+    recording_pieces = (
         (piece_a, (0.34, 0.65, 0.88)),
         (piece_b, (0.94, 0.62, 0.30)),
-        (piece_c, (0.42, 0.72, 0.52)),
-    ):
+    )
+    piece_c.ViewObject.Visibility = False
+    for piece, color in recording_pieces:
         view_object = piece.ViewObject
         view_object.Visibility = True
         view_object.ShapeColor = color
-        view_object.LineColor = (0.12, 0.16, 0.21)
-        view_object.LineWidth = 3.0
+        # Standard Part view providers render stable colored face and edge cues.
+        view_object.LineColor = color
+        view_object.LineWidth = 4.0
+        view_object.Transparency = 0
     doc.recompute()
     view.setCameraType("Orthographic")
     view.viewTop()
+    view.fitAll()
     process_events()
     _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
     QtTest.QTest.qWait(200)
 
     world_bounds = []
-    for piece in (piece_a, piece_b, piece_c):
+    for piece, _color in recording_pieces:
         box = piece.Shape.BoundBox
         if float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
             raise RuntimeError(
@@ -461,43 +506,41 @@ try:
             raise RuntimeError(
                 "seam-assignment GIF fixture is not visible: " + piece.Label
             )
-        # FreeCAD's Shape.BoundBox already includes the object's Placement.
-        # Adding Placement.Base a second time shifts and enlarges the camera box.
+        # Shape.BoundBox is already in the placed/world coordinate system here.
         world_bounds.append((
             float(box.XMin), float(box.YMin), float(box.ZMin),
             float(box.XMax), float(box.YMax), float(box.ZMax),
         ))
     xmin = min(value[0] for value in world_bounds)
     ymin = min(value[1] for value in world_bounds)
-    zmin = min(value[2] for value in world_bounds)
     xmax = max(value[3] for value in world_bounds)
     ymax = max(value[4] for value in world_bounds)
-    zmax = max(value[5] for value in world_bounds)
-    center = coin.SbVec3f(
-        (xmin + xmax) * 0.5,
-        (ymin + ymax) * 0.5,
-        (zmin + zmax) * 0.5,
-    )
     view_size = view.getSize()
     view_width, view_height = float(view_size[0]), float(view_size[1])
     if view_width <= 0.0 or view_height <= 0.0:
         raise RuntimeError("seam-assignment GIF has an invalid viewport size")
     aspect = view_width / view_height
     extent_x, extent_y = xmax - xmin, ymax - ymin
-    camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
+    # Reserve a clear strip on the right for FreeCAD's staged sewing task panel.
+    # FitAll first preserves valid clip planes; the small in-plane camera shift
+    # moves the two mating pieces left without moving them out of the clip range.
+    camera_height = max(210.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
     camera = view.getCameraNode()
-    previous_position = coin.SbVec3f(camera.position.getValue())
-    # Preserve the distance used by FreeCAD's top view. Moving the camera far
-    # beyond the inherited clipping range can hide every piece even when its
-    # orthographic height is correct.
-    camera_distance = abs(float(previous_position[2]) - float(center[2]))
-    if camera_distance < 10.0:
-        camera_distance = max(100.0, 2.0 * max(extent_x, extent_y))
-    camera.position.setValue(
-        coin.SbVec3f(center[0], center[1], center[2] + camera_distance)
-    )
     camera.height.setValue(float(camera_height))
-    camera.pointAt(center, coin.SbVec3f(0.0, 1.0, 0.0))
+    previous_position = coin.SbVec3f(camera.position.getValue())
+    camera_center = coin.SbVec3f(
+        (xmin + xmax) * 0.5 + 75.0,
+        (ymin + ymax) * 0.5,
+        0.0,
+    )
+    camera.position.setValue(
+        coin.SbVec3f(
+            float(previous_position[0]) + 75.0,
+            float(previous_position[1]),
+            float(previous_position[2]),
+        )
+    )
+    camera.pointAt(camera_center, coin.SbVec3f(0.0, 1.0, 0.0))
     if hasattr(view, "redraw"):
         view.redraw()
     process_events()
@@ -512,13 +555,14 @@ try:
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
     record(
-        "seam-camera=passed center=(%.2f,%.2f,%.2f) bounds=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f) "
-        "height=%.2f distance=%.2f viewport=%dx%d"
+        "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
+        "height=%.2f viewport=%dx%d"
         % (
-            center[0], center[1], center[2], xmin, ymin, zmin, xmax, ymax, zmax,
-            float(camera_match.group(1)), camera_distance, int(view_width), int(view_height),
+            xmin, ymin, xmax, ymax, float(camera_match.group(1)),
+            int(view_width), int(view_height),
         )
     )
+
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
         gui=Gui,
@@ -526,16 +570,29 @@ try:
         fps=12,
         scale=0.5,
         max_frames=120,
+        show_cursor=False,
     )
     recorder.start()
     recorder.hold(700)
+    initial_frame = recorder.frames[-1]
+    initial_frame_path = LOG_PATH.parent / "seam-assignment-initial-frame.png"
+    initial_frame.save(str(initial_frame_path), format="PNG")
+    record(
+        "seam-initial-frame=passed "
+        f"color-pixels={pattern_piece_color_counts(initial_frame)!r} "
+        f"path={initial_frame_path.name}"
+    )
+    assert_pattern_piece_colors_visible(initial_frame)
 
     before = {obj.Name for obj in doc.Objects}
-    # Activate semantic edge subelements through FreeCAD's selection API. The
-    # viewport highlights and task-panel selection are real; screen-coordinate
-    # edge hit-testing is unreliable in this headless FreeCAD/Pivy build.
+    # Stage the selection so the recording distinguishes side A from the
+    # selected counterpart on side B before opening the real sewing task panel.
+    # FreeCAD's selection API produces the same viewport selection state
+    # without relying on fragile screen-coordinate hit testing in Xvfb.
+    select_edges((piece_a, 0))
+    recorder.hold(800)
     select_edges((piece_a, 0), (piece_b, 0))
-    recorder.hold(700)
+    recorder.hold(800)
     panel = open_public("ClothSewing_CreateSeam")
     recorder.hold(1100)
     assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
@@ -550,6 +607,10 @@ try:
     wait_for_task_close()
     recorder.hold(800)
     recorder.stop()
+    piece_c.ViewObject.Visibility = True
+    doc.recompute()
+    view.fitAll()
+    process_events()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
         "1:1 commit lost seam"
     )
