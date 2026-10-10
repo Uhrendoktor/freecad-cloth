@@ -298,7 +298,6 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
     assert "np.einsum" in sanity
 
 
-
 def test_penetration_evidence_stays_on_numpy_path_in_freecad_host():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit = source.split("def write_drape_metrics(", 1)[1].split("\ndef _arc_through_midpoint(", 1)[
@@ -315,6 +314,7 @@ def test_penetration_evidence_stays_on_numpy_path_in_freecad_host():
     assert evidence.count("prefer_trimesh=False") == 2
     assert "points_inside_closed_mesh(" in evidence
     assert "point_inside_closed_mesh(" not in evidence
+
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
