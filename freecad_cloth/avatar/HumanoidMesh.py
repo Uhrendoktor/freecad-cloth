@@ -808,7 +808,7 @@ def fit_makehuman_mesh(
         x = x + weight * (rotated_x - x)
         z = z + weight * (rotated_z - z)
         posed.append((x, y, z))
-    return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles))
+    return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles)).validate()
 
 
 def _arm_pose_weight(
