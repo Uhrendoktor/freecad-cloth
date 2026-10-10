@@ -178,6 +178,16 @@ class HumanoidMeshTests(unittest.TestCase):
         )
         self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
 
+    def test_fit_rejects_non_finite_results_from_extreme_finite_vertices(self):
+        source = parse_obj("""
+        v -1e308 -1e308 0
+        v 1e308 1e308 0
+        v 0 0 1
+        f 1 2 3
+        """)
+        with self.assertRaisesRegex(HumanoidMeshError, "invalid vertex coordinates"):
+            fit_makehuman_mesh(source, AvatarParameters(skin_offset=0))
+
     def test_fit_preserves_topology_and_applies_height_and_skin_offset(self):
         source = parse_obj("""
         v -1 -1 -1
