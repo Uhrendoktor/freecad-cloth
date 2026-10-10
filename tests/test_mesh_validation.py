@@ -1,5 +1,5 @@
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given, strategies as st
 
 from freecad_cloth.common.MeshValidation import (
     nearest_surface_clearance,
