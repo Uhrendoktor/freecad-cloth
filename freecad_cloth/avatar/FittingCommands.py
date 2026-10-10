@@ -91,9 +91,25 @@ def _target_signature(target):
         ).encode("ascii")
         return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
 
+    from types import SimpleNamespace
+
     from freecad_cloth.simulation.DrapeTarget import _geometry_signature
 
-    signature = _geometry_signature(target)
+    shape = getattr(target, "Shape", None)
+    if shape is None:
+        raise ValueError("the selected target does not expose supported geometry")
+    # In FreeCAD, a Shape's returned geometry can include the owning object's
+    # Placement. Signature the geometry in object-local coordinates; otherwise
+    # moving the whole object changes its BBox/BRep hash and falsely invalidates
+    # a perfectly good surface anchor.
+    try:
+        normalized_shape = shape.copy()
+        placement = getattr(target, "Placement", None)
+        if placement is not None:
+            normalized_shape.transformShape(placement.inverse().toMatrix())
+        signature = _geometry_signature(SimpleNamespace(Shape=normalized_shape))
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        raise ValueError("could not normalize the selected target shape") from exc
     if signature == ("Unknown",) or signature == ("ShapeContent", ("Unknown",)):
         raise ValueError("the selected target does not expose supported geometry")
     return repr(("shape-geometry", signature))
