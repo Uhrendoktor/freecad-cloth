@@ -12,7 +12,10 @@ import os
 import sys
 from pathlib import Path
 
-# Resolve the shared harness helpers without importing the generic `tests` package.
+# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 _HELPER_DIR = Path(__file__).resolve().parent / "support"
 if str(_HELPER_DIR) not in sys.path:
     sys.path.insert(0, str(_HELPER_DIR))
