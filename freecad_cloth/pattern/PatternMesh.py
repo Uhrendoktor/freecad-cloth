@@ -199,12 +199,6 @@ def _quantize(value: float) -> float:
     return round(float(value), 9)
 
 
-def _nearest_point_index(points: Sequence[Point], point: Point) -> int:
-    return min(
-        range(len(points)), key=lambda i: hypot(points[i][0] - point[0], points[i][1] - point[1])
-    )
-
-
 def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
     result: list[Point] = []
     for point in points:
@@ -223,25 +217,31 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
 
 
 def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
+    """Map sampled boundary edges to authored segments while sampling each curve once."""
+    prepared_segments: list[tuple[str, tuple[tuple[Point, Point], ...]]] = []
+    for segment in pattern.segments:
+        if hasattr(segment, "control"):
+            samples = segment.polyline(32)
+            line_segments = tuple(zip(samples, samples[1:], strict=False))
+        else:
+            line_segments = ((segment.start, segment.end),)
+        prepared_segments.append((segment.id, line_segments))
+
     result: list[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
         midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
-        best_index = 0
+        best_segment_id = pattern.segments[0].id
         best_distance = float("inf")
-        for segment_index, segment in enumerate(pattern.segments):
-            if hasattr(segment, "control"):
-                samples = segment.polyline(32)
-                distance = min(
-                    _point_to_segment_distance(midpoint, a, b)
-                    for a, b in zip(samples, samples[1:], strict=False)
-                )
-            else:
-                distance = _point_to_segment_distance(midpoint, segment.start, segment.end)
+        for segment_id, line_segments in prepared_segments:
+            distance = min(
+                _point_to_segment_distance(midpoint, left, right)
+                for left, right in line_segments
+            )
             if distance < best_distance:
-                best_index = segment_index
+                best_segment_id = segment_id
                 best_distance = distance
-        result.append(pattern.segments[best_index].id)
+        result.append(best_segment_id)
     return result
 
 

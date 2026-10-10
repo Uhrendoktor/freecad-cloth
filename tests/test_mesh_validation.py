@@ -33,6 +33,7 @@ def test_validation_fallback_is_deterministic():
     assert result.faces == 2
     assert result.components == 1
     assert result.bounds == (0.0, 10.0, 0.0, 10.0, 0.0, 0.0)
+    assert result.surface_area == 100.0
     assert result.degenerate_faces == 0
     assert result.watertight is None
 
@@ -49,6 +50,12 @@ def test_validation_fallback_counts_disconnected_components():
     triangles = ((0, 1, 2), (3, 4, 5))
     result = validate_mesh(vertices, triangles, prefer_trimesh=False)
     assert result.components == 2
+
+
+def test_fallback_surface_area_uses_triangle_geometry():
+    vertices = ((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (0.0, 4.0, 0.0))
+    result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
+    assert result.surface_area == 6.0
 
 
 def test_validation_rejects_bad_indices():

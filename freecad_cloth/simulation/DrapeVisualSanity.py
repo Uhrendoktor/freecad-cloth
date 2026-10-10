@@ -71,29 +71,16 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
 def minimum_vertex_distance(
     source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
 ) -> float | None:
-    """Return the minimum point-to-target-vertex distance without a Python cross-product loop."""
+    """Return exact nearest vertex distance using the canonical SciPy KD-tree query."""
     if not source or not target:
         return None
-    try:
-        import numpy as np
-    except ImportError:
-        best = float("inf")
-        for a in source:
-            for b in target:
-                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-                if d2 < best:
-                    best = d2
-        return sqrt(best) if isfinite(best) else None
 
-    source_data = np.asarray(source, dtype=np.float64)
-    target_data = np.asarray(target, dtype=np.float64)
-    best = float("inf")
-    step = max(1, int(chunk_size))
-    for start in range(0, len(source_data), step):
-        chunk = source_data[start : start + step]
-        delta = chunk[:, None, :] - target_data[None, :, :]
-        best = min(best, float(np.min(np.sum(delta * delta, axis=2))))
-    return sqrt(best) if isfinite(best) else None
+    # Keep the legacy keyword accepted; the exact KD-tree query no longer allocates
+    # source-by-target pairwise distance matrices, so chunk_size is not needed.
+    del chunk_size
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
+    return nearest_target_clearance(source, target)
 
 
 def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
