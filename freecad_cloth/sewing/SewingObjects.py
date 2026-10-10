@@ -1,7 +1,9 @@
 """FreeCAD document objects for sewing operations."""
 
 import ast
+from collections.abc import Sequence
 from math import atan2, degrees, hypot
+from typing import Any
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
@@ -9,7 +11,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
 )
 
 
-def _outline_points(piece):
+def _outline_points(piece: Any) -> list[tuple[float, float]]:
     """Return the ordered sewing boundary as 2D points."""
     for attr in ("SewingOutline", "DraftingBoundary"):
         raw = getattr(piece, attr, "")
@@ -25,7 +27,9 @@ def _outline_points(piece):
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
-def _edge_endpoint_pair(native_edge):
+def _edge_endpoint_pair(
+    native_edge: Any,
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """Return the 2D endpoints of a native shape edge, when available."""
     vertices = tuple(getattr(native_edge, "Vertexes", ()) or ())
     if len(vertices) < 2:
@@ -40,7 +44,7 @@ def _edge_endpoint_pair(native_edge):
     )
 
 
-def _native_edge(piece, edge):
+def _native_edge(piece: Any, edge: int) -> Any | None:
     """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
@@ -67,7 +71,7 @@ def _native_edge(piece, edge):
                     if expected is not None and len(expected) == 2:
                         tolerance = 1e-7
 
-                        def matches(candidate):
+                        def matches(candidate: Any) -> bool:
                             endpoints = _edge_endpoint_pair(candidate)
                             if endpoints is None:
                                 return False
@@ -107,7 +111,9 @@ def _native_edge(piece, edge):
     return None
 
 
-def _edge_polyline(piece, edge, sample_count=64):
+def _edge_polyline(
+    piece: Any, edge: int, sample_count: int = 64
+) -> list[tuple[float, float]]:
     """Return a local 2D polyline suitable for arc-length operations."""
     edge = int(edge)
     native = _native_edge(piece, edge)
@@ -125,11 +131,13 @@ def _edge_polyline(piece, edge, sample_count=64):
     return [points[edge], points[(edge + 1) % len(points)]]
 
 
-def _polyline_length(points):
+def _polyline_length(points: Sequence[tuple[float, float]]) -> float:
     return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
 
 
-def _sample_polyline(points, fraction):
+def _sample_polyline(
+    points: Sequence[tuple[float, float]], fraction: float
+) -> tuple[float, float]:
     """Sample a polyline at normalized arc length."""
     if not points:
         raise ValueError("cannot sample an empty edge")
@@ -152,12 +160,12 @@ def _sample_polyline(points, fraction):
     return points[-1]
 
 
-def _edge_length(piece, edge):
+def _edge_length(piece: Any, edge: int) -> float:
     points = _edge_polyline(piece, edge)
     return _polyline_length(points)
 
 
-def _seam_edge_index(piece, seam, prefix):
+def _seam_edge_index(piece: Any, seam: Any, prefix: str) -> int:
     """Resolve a semantic edge to the index space used by the native geometry reader."""
     edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
     if edge_id:
@@ -190,7 +198,7 @@ def _seam_edge_index(piece, seam, prefix):
     return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))
 
 
-def _seam_length(piece, seam, prefix):
+def _seam_length(piece: Any, seam: Any, prefix: str) -> float:
     start = float(getattr(seam, "StartA" if prefix == "A" else "StartB"))
     end = float(getattr(seam, "EndA" if prefix == "A" else "EndB"))
     if not 0 <= start <= 1 or not 0 <= end <= 1 or start >= end:
@@ -199,7 +207,9 @@ def _seam_length(piece, seam, prefix):
     return _edge_length(piece, edge) * (end - start)
 
 
-def _edge_points(piece, edge, start=0.0, end=1.0, z=0.2):
+def _edge_points(
+    piece: Any, edge: int, start: float = 0.0, end: float = 1.0, z: float = 0.2
+) -> tuple[Any, Any]:
     """Return seam-range endpoints after the piece Placement is applied."""
     import FreeCAD as App
 
@@ -214,11 +224,19 @@ def _edge_points(piece, edge, start=0.0, end=1.0, z=0.2):
     return local0, local1
 
 
-def _resolved_edge(piece, seam, prefix):
+def _resolved_edge(piece: Any, seam: Any, prefix: str) -> int:
     return _seam_edge_index(piece, seam, prefix)
 
 
-def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True):
+def _edge_samples(
+    piece: Any,
+    edge: int,
+    start: float,
+    end: float,
+    count: int,
+    z: float = 0.2,
+    transform_to_world: bool = True,
+) -> list[Any]:
     """Return evenly arc-length-spaced points over a normalized edge range."""
     import FreeCAD as App
 
@@ -237,7 +255,7 @@ def _edge_samples(piece, edge, start, end, count, z=0.2, transform_to_world=True
     return values
 
 
-def _alignment_placement(piece_a, piece_b, seam):
+def _alignment_placement(piece_a: Any, piece_b: Any, seam: Any) -> Any:
     """Return a Placement that moves B's seam onto A's seam endpoints."""
     import FreeCAD as App
 
@@ -259,7 +277,9 @@ def _alignment_placement(piece_a, piece_b, seam):
     return App.Placement(translation, App.Rotation(App.Vector(0, 0, 1), angle))
 
 
-def _seam_correspondence(piece_a, piece_b, seam, count, alignment="endpoints"):
+def _seam_correspondence(
+    piece_a: Any, piece_b: Any, seam: Any, count: int, alignment: str = "endpoints"
+) -> list[tuple[Any, Any]]:
     """Build deterministic A/B stitch points from the same semantic seam."""
     if count < 2:
         raise ValueError("correspondence requires at least two samples")
@@ -280,7 +300,7 @@ class SewingOperationProxy:
 
     Type = "ClothSewingOperation"
 
-    def execute(self, obj):
+    def execute(self, obj: Any) -> None:
         """Recompute the FreeCAD object from its current source properties."""
         import Part
 
@@ -355,7 +375,9 @@ class SewingOperationProxy:
         )
 
 
-def add_sewing_operation(doc, seam, piece_a, piece_b, name="SewingOperation"):
+def add_sewing_operation(
+    doc: Any, seam: Any, piece_a: Any, piece_b: Any, name: str = "SewingOperation"
+) -> Any:
     """Add the requested sewing operation data."""
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
