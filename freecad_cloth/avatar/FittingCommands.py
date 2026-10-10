@@ -91,26 +91,65 @@ def _target_signature(target):
         ).encode("ascii")
         return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
 
-    from types import SimpleNamespace
-
-    from freecad_cloth.simulation.DrapeTarget import _geometry_signature
-
     shape = getattr(target, "Shape", None)
     if shape is None:
         raise ValueError("the selected target does not expose supported geometry")
     # In FreeCAD, a Shape's returned geometry can include the owning object's
-    # Placement. Signature the geometry in object-local coordinates; otherwise
-    # moving the whole object changes its BBox/BRep hash and falsely invalidates
-    # a perfectly good surface anchor.
+    # Placement. Normalize a copy into object-local coordinates before signing it.
+    # A BRep serialization hash is not stable across an inverse rigid transform,
+    # so use rounded local vertex positions and intrinsic edge/face measures.
     try:
         normalized_shape = shape.copy()
         placement = getattr(target, "Placement", None)
         if placement is not None:
             normalized_shape.transformShape(placement.inverse().toMatrix())
-        signature = _geometry_signature(SimpleNamespace(Shape=normalized_shape))
+        if bool(normalized_shape.isNull()):
+            raise ValueError("the selected target shape is null")
+
+        vertices = tuple(
+            sorted(
+                tuple(round(value, 5) for value in _point_xyz(vertex.Point))
+                for vertex in tuple(normalized_shape.Vertexes)
+            )
+        )
+        edges = tuple(
+            sorted(
+                (
+                    round(float(edge.Length), 5),
+                    tuple(round(value, 5) for value in _point_xyz(edge.CenterOfMass)),
+                )
+                for edge in tuple(normalized_shape.Edges)
+            )
+        )
+        faces = tuple(
+            sorted(
+                (
+                    str(type(face.Surface).__name__),
+                    round(float(face.Area), 5),
+                    tuple(round(value, 5) for value in _point_xyz(face.CenterOfMass)),
+                    len(tuple(face.Edges)),
+                )
+                for face in tuple(normalized_shape.Faces)
+            )
+        )
+        box = normalized_shape.BoundBox
+        signature = (
+            "ShapeLocal",
+            int(len(tuple(normalized_shape.Solids))),
+            len(vertices),
+            vertices,
+            edges,
+            faces,
+            round(float(box.XMin), 5),
+            round(float(box.XMax), 5),
+            round(float(box.YMin), 5),
+            round(float(box.YMax), 5),
+            round(float(box.ZMin), 5),
+            round(float(box.ZMax), 5),
+        )
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         raise ValueError("could not normalize the selected target shape") from exc
-    if signature == ("Unknown",) or signature == ("ShapeContent", ("Unknown",)):
+    if not vertices and not edges and not faces:
         raise ValueError("the selected target does not expose supported geometry")
     return repr(("shape-geometry", signature))
 
