@@ -194,10 +194,11 @@ def _mesh_anchor_coordinates(target, local_point):
     return best
 
 
-def _anchor_record_status(scene, target, anchor):
+def _anchor_record_status(scene, target, anchor, document=None):
     if target is None:
         return "missing target"
-    document = getattr(scene, "Document", None) if scene is not None else None
+    if document is None:
+        document = getattr(scene, "Document", None) if scene is not None else None
     if document is not None:
         drape_target = document.getObject("DrapeTarget")
         configured_target = getattr(scene, "AvatarProxy", None)
@@ -318,7 +319,7 @@ def arrangement_anchor_status(point):
     document = getattr(point, "Document", None)
     scene = _scene(document) if document is not None else None
     return _anchor_record_status(
-        scene, target, {"geometry_signature": expected}
+        scene, target, {"geometry_signature": expected}, document=document
     )
 
 
