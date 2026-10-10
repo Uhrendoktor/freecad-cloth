@@ -62,6 +62,13 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check -e ".[dev]"
+      - name: Temporary audit formatter diff
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'audit/geometry-ci-simplification-20261010' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          git diff --name-only --diff-filter=ACMRT "origin/${{ github.base_ref }}"...HEAD -- '*.py' |
+            xargs -r python -m ruff format --diff || true
       - name: Python and architecture checks
         env:
           BASE_REF: ${{ github.base_ref }}
