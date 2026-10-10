@@ -6,6 +6,7 @@ runtime without changing physics, solver budgets, canonical fixtures, or release
 
 from __future__ import annotations
 
+import contextlib
 import faulthandler
 import json
 import math
@@ -45,8 +46,6 @@ import FreeCADGui as Gui
 
 _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
-import contextlib
-
 import Part
 
 from tests.support.pbd_contact_helpers import bounds as _bounds
