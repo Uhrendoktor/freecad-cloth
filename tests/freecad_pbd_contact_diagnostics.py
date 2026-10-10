@@ -30,7 +30,7 @@ _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 
 
-def _import_progress(label):
+def _import_progress(label: str) -> None:
     line = "import: " + str(label)
     with PROGRESS.open("a", encoding="utf-8") as handle:
         handle.write(line + "\n")
