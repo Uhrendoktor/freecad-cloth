@@ -253,6 +253,7 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     """Return point-to-segment distance through GEOS rather than custom projection math."""
     return LineString((start, end)).distance(ShapelyPoint(point))
 
+
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
     return _cross(a, b, c) / 2.0
 
