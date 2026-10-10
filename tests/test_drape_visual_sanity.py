@@ -7,6 +7,7 @@ from freecad_cloth.simulation.DrapeVisualSanity import (
     mesh_shape_sanity,
     minimum_vertex_distance,
     point_inside_closed_mesh,
+    points_inside_closed_mesh,
     seam_correspondence_gap,
     summarize,
 )
@@ -21,7 +22,7 @@ class DrapeVisualSanityTests(unittest.TestCase):
             (100.0, 50.0, 1750.0),
         )
 
-    def test_point_inside_closed_mesh_uses_ray_parity(self):
+    def test_point_inside_closed_mesh_classifies_inside_and_outside(self):
         vertices = (
             (0.0, 0.0, 0.0),
             (1.0, 0.0, 0.0),
@@ -31,11 +32,29 @@ class DrapeVisualSanityTests(unittest.TestCase):
         triangles = (
             (0, 2, 1),
             (0, 1, 3),
-            (0, 1, 2),
-            (2, 3, 1),
+            (0, 3, 2),
+            (1, 2, 3),
         )
         self.assertTrue(point_inside_closed_mesh((0.1, 0.1, 0.1), vertices, triangles))
         self.assertFalse(point_inside_closed_mesh((1.1, 0.1, 0.1), vertices, triangles))
+
+    def test_bulk_point_containment_matches_single_point_api(self):
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        )
+        triangles = ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3))
+        points = ((0.1, 0.1, 0.1), (1.1, 0.1, 0.1))
+        self.assertEqual(points_inside_closed_mesh(points, vertices, triangles), (True, False))
+
+    def test_point_containment_rejects_invalid_indices_and_nonfinite_coordinates(self):
+        vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+        with self.assertRaises(ValueError):
+            point_inside_closed_mesh((0.1, 0.1, 0.0), vertices, ((0, 1, 3),))
+        with self.assertRaises(ValueError):
+            point_inside_closed_mesh((float("nan"), 0.1, 0.1), vertices, ((0, 1, 2),))
 
     def test_minimum_vertex_distance_uses_exact_nearest_query(self):
         source = ((0.0, 0.0, 0.0), (1000.0, 0.0, 0.0))

@@ -9,9 +9,10 @@ workbench's semantic boundary/provenance contract.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import ceil, hypot, isclose, isfinite
+from math import ceil, isclose, isfinite
 
 from shapely.geometry import LineString
+from shapely.geometry import Point as ShapelyPoint
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
@@ -215,43 +216,41 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
     return result
 
 
-def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
-    """Map sampled boundary edges to authored segments while sampling each curve once."""
-    prepared_segments: list[tuple[str, tuple[tuple[Point, Point], ...]]] = []
+def _prepare_segment_geometries(
+    pattern: ParametricPattern, curve_samples: int
+) -> tuple[tuple[str, LineString], ...]:
+    """Sample authored curves once and construct GEOS line strings for distance queries."""
+    prepared: list[tuple[str, LineString]] = []
     for segment in pattern.segments:
-        if hasattr(segment, "control"):
-            samples = segment.polyline(32)
-            line_segments = tuple(zip(samples, samples[1:], strict=False))
-        else:
-            line_segments = ((segment.start, segment.end),)
-        prepared_segments.append((segment.id, line_segments))
+        points = (
+            segment.polyline(curve_samples)
+            if hasattr(segment, "control")
+            else (segment.start, segment.end)
+        )
+        prepared.append((segment.id, LineString(points)))
+    return tuple(prepared)
 
+
+def _nearest_segment_id(prepared_segments: Sequence[tuple[str, LineString]], point: Point) -> str:
+    """Return the authored segment closest to a query point using GEOS distance."""
+    query = ShapelyPoint(point)
+    return min(prepared_segments, key=lambda item: item[1].distance(query))[0]
+
+
+def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
+    """Map sampled boundary edges to authored segments with one GEOS query per edge."""
+    prepared_segments = _prepare_segment_geometries(pattern, 32)
     result: list[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
         midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
-        best_segment_id = pattern.segments[0].id
-        best_distance = float("inf")
-        for segment_id, line_segments in prepared_segments:
-            distance = min(
-                _point_to_segment_distance(midpoint, left, right) for left, right in line_segments
-            )
-            if distance < best_distance:
-                best_segment_id = segment_id
-                best_distance = distance
-        result.append(best_segment_id)
+        result.append(_nearest_segment_id(prepared_segments, midpoint))
     return result
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    dx, dy = end[0] - start[0], end[1] - start[1]
-    length_squared = dx * dx + dy * dy
-    if length_squared <= 1e-24:
-        return hypot(point[0] - start[0], point[1] - start[1])
-    t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared
-    t = max(0.0, min(1.0, t))
-    closest = (start[0] + t * dx, start[1] + t * dy)
-    return hypot(point[0] - closest[0], point[1] - closest[1])
+    """Return point-to-segment distance through GEOS rather than custom projection math."""
+    return LineString((start, end)).distance(ShapelyPoint(point))
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
