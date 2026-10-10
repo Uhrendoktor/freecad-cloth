@@ -7,10 +7,13 @@ while retaining stable pattern-segment provenance.
 """
 
 from collections.abc import Iterable, Sequence
-from math import hypot
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
-from freecad_cloth.pattern.PatternMesh import TriangleMesh
+from freecad_cloth.pattern.PatternMesh import (
+    TriangleMesh,
+    _nearest_segment_id as _nearest_prepared_segment_id,
+    _prepare_segment_geometries,
+)
 
 
 def mesh_from_pattern(
@@ -119,8 +122,11 @@ def _canonical_triangle_mesh(
     boundary_loop = _canonical_boundary_loop(
         _boundary_edges(canonical_triangles), canonical_vertices
     )
+    prepared_segments = _prepare_segment_geometries(pattern, 64)
     edge_ids = tuple(
-        _nearest_segment_id(pattern, _midpoint(canonical_vertices[a], canonical_vertices[b]))
+        _nearest_prepared_segment_id(
+            prepared_segments, _midpoint(canonical_vertices[a], canonical_vertices[b])
+        )
         for a, b in _loop_edges(boundary_loop)
     )
     mesh = TriangleMesh(canonical_vertices, canonical_triangles, tuple(boundary_loop), edge_ids)
@@ -188,30 +194,3 @@ def _midpoint(a: Point, b: Point) -> Point:
     return ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
 
 
-def _nearest_segment_id(pattern: ParametricPattern, point: Point) -> str:
-    best_id = pattern.segments[0].id
-    best_distance = float("inf")
-    for segment in pattern.segments:
-        if hasattr(segment, "control"):
-            samples = segment.polyline(64)
-            distance = min(
-                _point_to_segment_distance(point, a, b)
-                for a, b in zip(samples, samples[1:], strict=False)
-            )
-        else:
-            distance = _point_to_segment_distance(point, segment.start, segment.end)
-        if distance < best_distance:
-            best_id = segment.id
-            best_distance = distance
-    return best_id
-
-
-def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    dx, dy = end[0] - start[0], end[1] - start[1]
-    length_squared = dx * dx + dy * dy
-    if length_squared <= 1e-24:
-        return hypot(point[0] - start[0], point[1] - start[1])
-    t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared
-    t = max(0.0, min(1.0, t))
-    closest = (start[0] + t * dx, start[1] + t * dy)
-    return hypot(point[0] - closest[0], point[1] - closest[1])
