@@ -164,7 +164,9 @@ def test_pbd_collision_sdf_is_cached_outside_backend_instance():
 
 def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive():
     from freecad_cloth.shared.collision import CollisionSurface
-    from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+        _pbd_collision_sdf_cache_key,
+    )
 
     surface = CollisionSurface(
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
