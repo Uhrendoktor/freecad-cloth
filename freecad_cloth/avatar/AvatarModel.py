@@ -87,11 +87,13 @@ class Pose:
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
         object.__setattr__(
-            self, "left_arm_angle",
+            self,
+            "left_arm_angle",
             default_angle if self.left_arm_angle is None else float(self.left_arm_angle),
         )
         object.__setattr__(
-            self, "right_arm_angle",
+            self,
+            "right_arm_angle",
             default_angle if self.right_arm_angle is None else float(self.right_arm_angle),
         )
         object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
