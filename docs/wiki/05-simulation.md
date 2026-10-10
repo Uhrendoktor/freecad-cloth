@@ -6,6 +6,19 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-turntable.gif" alt="Final draped garment turntable" width="900"></p>
 
+## Run a first simulation
+
+Before running the solver, make sure the target is valid/current and the garment is intentionally arranged. Use the simple cube case before investigating a complete tunic.
+
+1. In **Cloth Simulation**, confirm the selected **DrapeTarget** and its validity.
+2. Choose the mesh quality/resolution and material settings appropriate to the case.
+3. Review the pinning mode: **Automatic**, **Explicit**, or **None**. Check the pin selection and expected sewing constraints.
+4. Use **Run** for normal simulation. Use **Step** to inspect controlled progression and **Reset** to recover from an invalid run.
+5. Watch actual garment state change: initial arrangement, contact, fold development, and settling. A rotating camera by itself is not simulated motion.
+
+**Verify the result:** motion is finite and connected, seams remain coherent, and the final geometry has no severe penetration, explosion, collapse, or rigid-sheet behavior. After pattern, seam, pose, fitting, or target edits, refresh/rebuild invalidated derived state before running again.
+
+
 ## What the feature is
 
 The simulation stage turns authored garment semantics plus fitting state plus a collision target into derived cloth state.

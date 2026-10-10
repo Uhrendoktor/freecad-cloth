@@ -14,6 +14,19 @@ The image above is the dedicated Pose Mode interaction fixture. It is captured f
 
 This recording shows joint selection and a keyboard-edited Exact angles value in the live Pose Mode panel. This path works in headless CI builds where native Pivy viewport callbacks cannot be registered safely.
 
+## Pose the mannequin
+
+Pose Mode is optional when a generic FreeCAD shape is the target or the default mannequin position is suitable. The short recording illustrates a joint edit; the complete text path is:
+
+1. Select the mannequin and open **Pose Mode**.
+2. Choose a starting pose preset when useful.
+3. Select the anatomical joint in the viewport and drag its rotation gizmo. Use **Mirror** and **5° Snap** only when those behaviors are intended.
+4. Expand **Joint list** or **Exact angles** if the view is crowded or the rotation needs a precise numeric value.
+5. Apply and rebuild the staged pose. Use Cancel to discard staged edits; then confirm the pose and its target-dependent geometry before simulating.
+
+**Verify the result:** the selected joint is unambiguous, parent rotations affect descendants, and the saved pose survives a document round trip. For geometry review, use the multi-side audit images separately from the Pose Mode interaction capture.
+
+
 ## What the feature is
 
 Pose Mode is a dedicated human-facing editor for the mannequin skeleton and pose.

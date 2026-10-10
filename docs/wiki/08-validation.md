@@ -16,6 +16,17 @@ It covers the main non-GUI checks, real FreeCAD/Xvfb acceptance, garment visual 
 
 The wiki intentionally does not invent a second documentation-only workflow.
 
+
+## Review a change in order
+
+1. Confirm the capture or recording represents the intended current FreeCAD state.
+2. Compare the arranged and final geometry; do not mistake a camera-only turntable for solver motion.
+3. Inspect the garment from six sides and read the current diagnostic or stale-state indication.
+4. Follow the linked acceptance fixture for persistent-state and regression evidence.
+5. Treat any mismatch between screenshot, saved document, and automated result as an unresolved question—not as proof that one source should be ignored.
+
+Visual evidence supports human judgment, while automated checks make repeated claims testable. Neither replaces the other.
+
 ## Evidence matrix
 
 | Feature | Human evidence | Executable evidence |

@@ -8,6 +8,19 @@
 
 The animation records the snap preview and release-to-commit state changes in the live task panel. Headless acceptance drives the task panel's registered controller callbacks directly because native viewport injection is unstable in some FreeCAD/Pivy builds.
 
+## Arrange pieces before simulation
+
+Start with valid PatternPieces and a selected, current **DrapeTarget**. The GIF shows the viewport snap interaction; the expected result is the saved placement, not the temporary drag preview.
+
+1. Open **Cloth Simulation** and enter **Interactive Arrange**.
+2. Select the piece to move and drag it in the viewport.
+3. If snapping is enabled, approach an arrangement point and wait for the snap marker.
+4. Release to commit the placement as a FreeCAD transaction. Repeat for the remaining pieces.
+5. Review the entire garment-to-target relationship before opening the simulation controls. Reset and arrange again if a piece is accidentally placed or overlaps unexpectedly.
+
+**Verify the result:** placements remain after save/reopen, the target is the intended collision authority, and the garment is intentionally positioned before Run. Fitting does not repair invalid sewing relationships or define collision geometry.
+
+
 ## What the feature is
 
 Interactive Arrange is the direct-manipulation fitting stage. The viewport is the primary surface for moving garment pieces.

@@ -2,6 +2,21 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Cloth Pattern workbench showing native Sketcher-backed garment geometry" width="900"></p>
 
+## Create a Sketcher-backed pattern piece
+
+Before starting, open a FreeCAD document and create or open the Sketcher sketch that defines the garment piece.
+
+1. In Sketcher, make the outline closed and editable. Add dimensions and constraints where they should govern later edits.
+2. Switch to **Cloth Pattern**, select the sketch, and create a PatternPiece from it.
+3. Add any required grainline, notches, internal marks, or seam-allowance metadata.
+4. Recompute and inspect the result before creating sewing relationships.
+5. Save the document so the source sketch and pattern semantics can be checked after reopening.
+
+**Verify the result:** the outline is visible, the source sketch remains the editing authority, and the PatternPiece retains its identity after save/reload. If the piece is invalid, repair the source sketch before trying to sew it.
+
+The 3D Pattern Pen is an optional alternative starting point for bounded near-planar surface patches; it does not replace Sketcher as the editable source. See the [end-to-end user guide](../USER_GUIDE.md) for the complete first-run path.
+
+
 ## What the feature is
 
 Cloth Pattern is the 2D garment-authoring stage. Editable geometry remains native FreeCAD Sketcher geometry; Cloth adds garment meaning around it instead of introducing a second polygon editor.

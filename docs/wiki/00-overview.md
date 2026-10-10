@@ -2,6 +2,15 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Final draped garment" width="900"></p>
 
+
+## Choose your starting point
+
+- **New to Cloth:** begin with [installation](../INSTALLATION.md), then follow the [end-to-end user guide](../USER_GUIDE.md).
+- **Checking an installation:** start with the simple [Blanket over Cube example](../EXAMPLES.md#1-blanket-over-cube) before a complete garment.
+- **Solving a particular problem:** open the [feature guide index](README.md) or [troubleshooting](../TROUBLESHOOTING.md).
+
+This page is a visual map of the workflow; the user guide contains the step-by-step procedure and recovery notes.
+
 The intended workflow is a continuous garment-authoring loop:
 
 <strong>Pattern → Sewing → Fitting → Pose → Simulation → Diagnose → Edit → Rebuild</strong>
