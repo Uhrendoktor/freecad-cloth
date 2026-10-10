@@ -258,7 +258,11 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
         _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
         _set_prop(
-            obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting", "t_pose"]
+            obj,
+            "App::PropertyEnumeration",
+            "PosePreset",
+            "Pose",
+            ["standing", "sewing", "sitting", "t_pose"],
         )
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
