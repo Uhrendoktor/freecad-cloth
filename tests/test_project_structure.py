@@ -188,9 +188,7 @@ def test_workflow_actions_use_immutable_release_pins():
 
 def test_avatar_commands_do_not_depend_on_simulation_package():
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(
-        encoding="utf-8"
-    )
+    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
     assert "freecad_cloth.simulation.SimulationObjects" not in source
 
 
@@ -198,8 +196,11 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
     assert 'command = ["/opt/freecad/AppRun"]' in source
-    assert 'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])' in source
-    assert 'command.append(str(args.test_script))' in source
+    assert (
+        'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])'
+        in source
+    )
+    assert "command.append(str(args.test_script))" in source
     assert "runpy.run_path" not in source
     assert "init_gui.read_text" not in source
 
@@ -210,7 +211,7 @@ def test_freecad_runner_preserves_script_owned_logs():
     assert "stdout=subprocess.PIPE" in source
     assert "process.communicate(timeout=timeout_seconds)" in source
     assert "args.log_file.is_file()" in source
-    assert 'args.log_file.read_text(' in source
+    assert "args.log_file.read_text(" in source
     assert "if not existing_log.strip():" in source
     assert 'args.log_file.write_text(output, encoding="utf-8")' in source
     assert "sys.stdout.write(output)" in source
@@ -287,9 +288,7 @@ def test_neutral_collision_contract_is_singleton():
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "shared" / "collision.py").read_text(encoding="utf-8")
     assert "class CollisionSurface" in source
-    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(
-        encoding="utf-8"
-    )
+    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(encoding="utf-8")
     assert "class CollisionSurface" not in avatar
 
 

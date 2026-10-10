@@ -116,6 +116,7 @@ def _avatar_png_has_visible_content(path, minimum_pixels=128):
         channel_threshold=250,
     )
 
+
 def _avatar_screenshot(view, path):
     view.setCameraType("Orthographic")
     view.fitAll()

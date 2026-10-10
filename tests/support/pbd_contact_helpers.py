@@ -3,6 +3,7 @@
 The module provides callable infrastructure only. It does not launch tests,
 create documents, start timers, or open output files during import.
 """
+
 from __future__ import annotations
 
 import math
@@ -14,17 +15,20 @@ def make_progress_logger(path: str | Path) -> Callable[[str], None]:
     """Create a progress logger that appends to one file and mirrors stdout."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
+
     def progress(message: str) -> None:
         line = str(message)
         with output.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
         print(line, flush=True)
+
     return progress
 
 
 def events() -> None:
     """Process pending FreeCAD GUI events without owning the application loop."""
     import FreeCADGui as Gui
+
     try:
         from PySide import QtWidgets
     except ImportError:
@@ -39,6 +43,7 @@ def events() -> None:
 def ensure_gui_ready() -> None:
     """Fail when the FreeCAD window is not visible and process one GUI event pass."""
     import FreeCADGui as Gui
+
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         raise RuntimeError("FreeCAD GUI did not launch")
@@ -50,6 +55,7 @@ def add_rectangle_sketch(doc, name, width, height):
     """Create a native rectangular Sketcher profile for diagnostic cloth panels."""
     import FreeCAD as App
     import Part
+
     sketch = doc.addObject("Sketcher::SketchObject", name)
     points = (
         (0.0, 0.0),
@@ -71,6 +77,7 @@ def adopt_sketch(sketch, name):
     """Adopt a diagnostic Sketcher profile through the production pattern command."""
     import FreeCADGui as Gui
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
     piece = create_pattern_piece_from_selected_sketch(name=name, allowance=0.0, grainline=0.0)
@@ -93,7 +100,9 @@ def mesh_geometry(obj):
             )
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
-        raise RuntimeError("missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object")))
+        raise RuntimeError(
+            "missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object"))
+        )
     vertices, triangles = shape.tessellate(1.0)
     return (
         tuple((float(v.x), float(v.y), float(v.z)) for v in vertices),
@@ -111,16 +120,19 @@ def connected_components(vertices, triangles):
     if not vertices:
         return 0
     parent = list(range(len(vertices)))
+
     def find(index):
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
         return index
+
     def union(left, right):
         left_root = find(left)
         right_root = find(right)
         if left_root != right_root:
             parent[right_root] = left_root
+
     for triangle in triangles:
         if len(triangle) != 3:
             continue
@@ -139,12 +151,14 @@ def nearest_surface_observation(garment_points, surface):
     if not vertices:
         return None, None
     from freecad_cloth.common.MeshValidation import nearest_target_observation
+
     return nearest_target_observation(garment_points, vertices)
 
 
 def inside_outside(points, source):
     """Classify sampled points against a native shape or its closed triangle mesh."""
     import FreeCAD as App
+
     shape = getattr(source, "Shape", None)
     if shape is not None and not getattr(shape, "isNull", lambda: True)():
         states = []
@@ -155,8 +169,10 @@ def inside_outside(points, source):
                 states = []
                 break
         if states:
-            if all(states): return "inside"
-            if not any(states): return "outside"
+            if all(states):
+                return "inside"
+            if not any(states):
+                return "outside"
             return "mixed"
     mesh = getattr(source, "Mesh", None)
     mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
@@ -169,8 +185,10 @@ def inside_outside(points, source):
                 states = []
                 break
         if states:
-            if all(states): return "inside"
-            if not any(states): return "outside"
+            if all(states):
+                return "inside"
+            if not any(states):
+                return "outside"
             return "mixed"
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is None:
@@ -183,6 +201,7 @@ def inside_outside(points, source):
     try:
         import numpy as np
         import trimesh
+
         target_mesh = trimesh.Trimesh(
             vertices=np.asarray(vertices, dtype=float),
             faces=np.asarray(triangles, dtype=int),
@@ -190,13 +209,19 @@ def inside_outside(points, source):
         )
         if not target_mesh.is_watertight:
             raise RuntimeError("target mesh is not watertight")
-        states = [bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))]
+        states = [
+            bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
+        ]
     except (ImportError, RuntimeError, TypeError, ValueError):
         from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
         states = [point_inside_closed_mesh(point, vertices, triangles) for point in points[:64]]
-    if not states: return "unknown"
-    if all(states): return "inside"
-    if not any(states): return "outside"
+    if not states:
+        return "unknown"
+    if all(states):
+        return "inside"
+    if not any(states):
+        return "outside"
     return "mixed"
 
 

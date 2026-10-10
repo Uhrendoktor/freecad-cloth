@@ -76,6 +76,7 @@ def _png_has_visible_content(path):
         require_all_channels_below_threshold=True,
     )
 
+
 def wait_for_gui_ready(timeout_seconds=15.0):
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:

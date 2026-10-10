@@ -10,7 +10,9 @@ from dataclasses import dataclass, field, replace
 from math import isfinite
 
 from freecad_cloth.common.ValidationModels import (
-    TransformMatrixInput, validate_finite_number, validate_points3d,
+    TransformMatrixInput,
+    validate_finite_number,
+    validate_points3d,
 )
 from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
@@ -53,7 +55,9 @@ class Transform3D:
         """Provide the public translation operation."""
         values = list(cls().matrix)
         values[3], values[7], values[11] = (
-            validate_finite_number(x), validate_finite_number(y), validate_finite_number(z)
+            validate_finite_number(x),
+            validate_finite_number(y),
+            validate_finite_number(z),
         )
         return cls(tuple(values))
 
@@ -279,7 +283,10 @@ class SeamGraph:
         if key not in edge_vertices:
             raise ValueError(f"missing mesh edge vertices for {piece_id}:{edge_index}")
         raw_values = tuple(edge_vertices[key])
-        if any(not isinstance(index, int) or isinstance(index, bool) or index < 0 for index in raw_values):
+        if any(
+            not isinstance(index, int) or isinstance(index, bool) or index < 0
+            for index in raw_values
+        ):
             raise ValueError(f"mesh edge {piece_id}:{edge_index} contains invalid vertex indices")
         values = tuple(raw_values)
         if len(values) < 2:
@@ -287,9 +294,7 @@ class SeamGraph:
         return values
 
 
-def _sample_indices(
-    values: Sequence[int], start: float, end: float, count: int
-) -> list[int]:
+def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
     span = end - start
     if count < 2 or span <= 0.0:
         raise ValueError("seam range must contain at least two samples")

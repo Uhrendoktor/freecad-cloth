@@ -145,14 +145,13 @@ def points_inside_closed_mesh(
     except ImportError:
         return tuple(point_inside_closed_mesh(point, vertices, triangles) for point in points)
 
-    face_data = [tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3]
+    face_data = [
+        tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3
+    ]
     if not face_data or not points:
         return tuple(False for _ in points)
     faces = np.asarray(face_data, dtype=np.int64)
-    valid = (
-        (faces >= 0).all(axis=1)
-        & (faces < len(vertices)).all(axis=1)
-    )
+    valid = (faces >= 0).all(axis=1) & (faces < len(vertices)).all(axis=1)
     faces = faces[valid]
     if len(faces) == 0:
         return tuple(False for _ in points)

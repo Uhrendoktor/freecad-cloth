@@ -7,7 +7,12 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    QuadraticBezier,
+    rectangle,
+)
 from freecad_cloth.pattern.PatternMesh import (
     _edge_segment_ids,
     _point_to_segment_distance,

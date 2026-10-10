@@ -287,17 +287,18 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         system_pins = tuple(
             i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0
         )
-        self._pin_indices = tuple(
-            dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins)
-        ) or system_pins
+        self._pin_indices = (
+            tuple(
+                dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins)
+            )
+            or system_pins
+        )
         self._stitches = tuple(
             (
                 pair.a,
                 pair.b,
             )
-            for pair in (
-                ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in stitches
-            )
+            for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in stitches)
         )
         self._stitch_compliance = 0.0
         if collision_surface is not None:
@@ -567,9 +568,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             raise ValueError("compliance must be finite and non-negative")
         self._stitches = tuple(
             (pair.a, pair.b)
-            for pair in (
-                ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs
-            )
+            for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs)
         )
         self._stitch_compliance = compliance
         self._time = 0.0

@@ -32,9 +32,8 @@ class TriangleMesh:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
         for tri in self.triangles:
-            if (
-                len(set(tri)) != 3
-                or any(type(index) is not int or index < 0 or index >= n for index in tri)
+            if len(set(tri)) != 3 or any(
+                type(index) is not int or index < 0 or index >= n for index in tri
             ):
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
@@ -228,9 +227,7 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
     segment_lines = []
     for segment in pattern.segments:
         samples = (
-            segment.polyline(32)
-            if hasattr(segment, "control")
-            else (segment.start, segment.end)
+            segment.polyline(32) if hasattr(segment, "control") else (segment.start, segment.end)
         )
         segment_lines.append((segment.id, tuple(zip(samples, samples[1:], strict=False))))
 
@@ -241,10 +238,7 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
         best_id = pattern.segments[0].id
         best_distance = float("inf")
         for segment_id, lines in segment_lines:
-            distance = min(
-                _point_to_segment_distance(midpoint, a, b)
-                for a, b in lines
-            )
+            distance = min(_point_to_segment_distance(midpoint, a, b) for a, b in lines)
             if distance < best_distance:
                 best_id = segment_id
                 best_distance = distance

@@ -214,7 +214,6 @@ class DrapeVisualSanityTests(unittest.TestCase):
         self.assertEqual(data["state"], "structurally-plausible")
         self.assertIsInstance(data["reasons"], list)
 
-
     def test_mesh_shape_sanity_treats_zero_width_footprint_as_degenerate(self):
         vertices = (
             (0.0, 0.0, 0.0),

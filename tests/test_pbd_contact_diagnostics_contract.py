@@ -62,16 +62,16 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
     assert "point_inside_closed_mesh" in HELPERS
-    assert "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in HELPERS
+    assert (
+        "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in HELPERS
+    )
     assert "make_shutdown_gui(_progress)" in SOURCE
     assert "app.quit()" in HELPERS
     assert "App.exit()" not in SOURCE
     assert "gui-shutdown-requested" in HELPERS
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
-    assert (
-        "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
-    )
+    assert "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
     assert "ArrangementPoint.from_string" in SOURCE
     assert "state = _inside_outside(" in SOURCE
     assert "float(candidate.x)" in SOURCE
@@ -85,7 +85,9 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "pbd-env: collision_mode=" in SOURCE
     assert "diagnostic-pbd-contact:" in WORKFLOW
     assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
-    diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[0]
+    diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[
+        0
+    ]
     assert "artifact-name: pbd-contact-diagnostics" in diagnostic
     assert "artifact-path: artifacts/pbd-contact-diagnostics/**" in diagnostic
 
@@ -162,15 +164,26 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
 def test_shared_checkpoint_builder_preserves_case_specific_contact_labels():
     from types import SimpleNamespace
 
-    from tests.support.pbd_contact_helpers import checkpoint_record, connected_components, seam_geometry
+    from tests.support.pbd_contact_helpers import (
+        checkpoint_record,
+        connected_components,
+        seam_geometry,
+    )
 
     backend = SimpleNamespace(positions=lambda: ((0.0, 0.0, 0.0), (0.0, 0.0, 2.0)))
     base = SimpleNamespace(backend=backend, seam_stitch_pairs={"side": ((0, 1),)})
     geometry = seam_geometry(backend, base.seam_stitch_pairs)
     assert geometry[0]["max_span_mm"] == 2.0
     record = checkpoint_record(
-        1, "step-001.png", backend.positions(), ((0, 1, 1),), 2.0, 2.0, base,
-        connected_components, "diagnostic-only-cube",
+        1,
+        "step-001.png",
+        backend.positions(),
+        ((0, 1, 1),),
+        2.0,
+        2.0,
+        base,
+        connected_components,
+        "diagnostic-only-cube",
     )
     assert record["contact_state"] == "diagnostic-only-cube"
     assert record["components"] == 1

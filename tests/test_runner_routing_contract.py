@@ -109,10 +109,13 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha():
 def test_collection_contract_passes_when_every_requested_module_collects():
     from tools.ci.pytest_collection_contract import missing_requested_modules
 
-    assert missing_requested_modules(
-        ("tests/test_one.py", "tests/test_two.py"),
-        ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
-    ) == ()
+    assert (
+        missing_requested_modules(
+            ("tests/test_one.py", "tests/test_two.py"),
+            ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
+        )
+        == ()
+    )
 
 
 def test_collection_contract_rejects_a_requested_module_with_zero_items():

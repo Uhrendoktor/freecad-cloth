@@ -80,6 +80,7 @@ PARTICLE_DISTANCE = 24.0
 _progress = make_progress_logger(PROGRESS)
 _shutdown_gui = make_shutdown_gui(_progress)
 
+
 def _case_record(
     case_id,
     rung,

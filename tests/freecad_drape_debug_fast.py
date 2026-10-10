@@ -97,6 +97,7 @@ def sampled_min_distance(source, target, source_limit=256, target_limit=1024):
 
     return nearest_target_clearance(src, tgt)
 
+
 def update_debug_geometry(doc, seam_obj, pin_obj, backend, pins):
     positions = backend.positions()
     lines = []

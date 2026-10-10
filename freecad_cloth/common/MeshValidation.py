@@ -33,9 +33,7 @@ class MeshValidationResult:
     degenerate_faces: int
 
 
-def _validate_arrays(
-    vertices: Sequence[Point3], triangles: Sequence[Triangle]
-) -> MeshArrays:
+def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
     """Validate mesh coordinates and connectivity with one schema boundary."""
     return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
@@ -83,9 +81,7 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
     return len({find(index) for index in range(len(triangles))})
 
 
-def _fallback_surface_area(
-    vertices: Sequence[Point3], triangles: Sequence[Triangle]
-) -> float:
+def _fallback_surface_area(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> float:
     """Calculate triangle-surface area without optional mesh libraries."""
     total = 0.0
     for a, b, c in triangles:
@@ -215,6 +211,7 @@ def nearest_target_clearance(
         raise ValueError("garment and target vertices are required")
     clearance, _ = _nearest_target_observation_validated(garment, target)
     return clearance
+
 
 def nearest_surface_clearance(
     garment_vertices: Sequence[Point3],
