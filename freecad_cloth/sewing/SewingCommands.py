@@ -545,6 +545,7 @@ def show_seam_overlay_options():
     set_seam_overlay_respect_depth(respect_depth.isChecked())
     return True
 
+
 COMMANDS = [
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateMNSewing",
