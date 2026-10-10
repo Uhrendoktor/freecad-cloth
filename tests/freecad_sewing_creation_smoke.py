@@ -11,7 +11,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import contextlib
-import io
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -133,33 +132,6 @@ def assert_pattern_piece_colors_visible(frame):
         "seam-assignment GIF must visibly render all three colored pattern pieces; "
         f"detected pixel counts={counts!r}"
     )
-
-
-def capture_main_window_frame(window):
-    """Capture the full FreeCAD window with the same native method as the GIF recorder."""
-    from PIL import Image
-
-    QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
-    app = QtWidgets.QApplication.instance()
-    screen = None if app is None else app.primaryScreen()
-    if screen is None:
-        raise RuntimeError("Qt screen capture is unavailable for seam display-mode probing")
-    pixmap = screen.grabWindow(int(window.winId()))
-    if pixmap.isNull():
-        raise RuntimeError("Qt returned an empty seam display-mode probe frame")
-    buffer = QtCore.QBuffer()
-    buffer.open(QtCore.QIODevice.WriteOnly)
-    if not pixmap.save(buffer, "PNG"):
-        buffer.close()
-        raise RuntimeError("could not encode the seam display-mode probe frame")
-    payload = bytes(buffer.data())
-    buffer.close()
-    frame = Image.open(io.BytesIO(payload)).convert("RGB")
-    # Match the recorder's 0.5 scale so this probe uses the same pixel budget
-    # as the final GIF's fail-fast visibility assertion.
-    resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
-    size = (max(1, int(frame.width * 0.5)), max(1, int(frame.height * 0.5)))
-    return frame.resize(size, resampling)
 
 
 def record(message):
@@ -491,8 +463,10 @@ try:
         view_object = piece.ViewObject
         view_object.Visibility = True
         view_object.ShapeColor = color
-        view_object.LineColor = (0.12, 0.16, 0.21)
-        view_object.LineWidth = 3.0
+        # Distinctive piece-colored linework stays visible even when the active
+        # Part::FeaturePython provider only renders outlines, not shaded faces.
+        view_object.LineColor = color
+        view_object.LineWidth = 4.0
         view_object.Transparency = 0
     doc.recompute()
     view.setCameraType("Orthographic")
@@ -552,65 +526,6 @@ try:
             int(view_width), int(view_height),
         )
     )
-
-    # Inspect the property enum first: listDisplayModes() can expose generic
-    # modes that this Python feature's DisplayMode property does not accept.
-    first_view = piece_a.ViewObject
-    property_modes = []
-    enum_modes = getattr(first_view, "getEnumerationsOfProperty", None)
-    if callable(enum_modes):
-        try:
-            property_modes = [str(mode) for mode in enum_modes("DisplayMode")]
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            record(f"seam-display-enum-query-failed={type(exc).__name__}: {exc}")
-    listed_modes = []
-    list_modes = getattr(first_view, "listDisplayModes", None)
-    if callable(list_modes):
-        try:
-            listed_modes = [str(mode) for mode in list_modes()]
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            record(f"seam-display-list-query-failed={type(exc).__name__}: {exc}")
-    display_modes = list(dict.fromkeys(
-        mode for mode in (property_modes or listed_modes) if mode.strip()
-    ))
-    record(
-        f"seam-display-modes property-enum={property_modes!r} "
-        f"generic-list={listed_modes!r} current={str(first_view.DisplayMode)!r}"
-    )
-    if not display_modes:
-        raise RuntimeError(
-            "could not discover any display modes for the seam-assignment fixture"
-        )
-
-    chosen_display_mode = None
-    last_probe_counts = {}
-    rejected_modes = []
-    for mode in display_modes:
-        try:
-            for piece in (piece_a, piece_b, piece_c):
-                piece.ViewObject.DisplayMode = mode
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            rejected_modes.append((mode, f"{type(exc).__name__}: {exc}"))
-            record(f"seam-display-mode-rejected={mode!r} reason={type(exc).__name__}: {exc}")
-            continue
-        process_events()
-        view.redraw()
-        process_events()
-        probe_frame = capture_main_window_frame(window)
-        last_probe_counts = pattern_piece_color_counts(probe_frame)
-        record(
-            f"seam-display-mode-probe={mode!r} color-pixels={last_probe_counts!r}"
-        )
-        if all(value >= 500 for value in last_probe_counts.values()):
-            chosen_display_mode = mode
-            break
-    if chosen_display_mode is None:
-        raise RuntimeError(
-            "none of the supported pattern-piece display modes visibly rendered all colors; "
-            f"modes={display_modes!r}, rejected={rejected_modes!r}, "
-            f"last_pixel_counts={last_probe_counts!r}"
-        )
-    record(f"seam-display-mode=selected mode={chosen_display_mode!r}")
 
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/seam-assignment.gif",
