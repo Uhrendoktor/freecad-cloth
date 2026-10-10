@@ -388,7 +388,10 @@ def _run_ladder_case(case_id):
             "z_max": max(point[2] for point in positions),
         }
         _progress(
-            "%s: pieces=%d pin=%s seam=%s source_triangles=%d solver_triangles=%d pre_clearance=%.6f max_seam=%.6f"
+            (
+                "%s: pieces=%d pin=%s seam=%s source_triangles=%d "
+                "solver_triangles=%d pre_clearance=%.6f min_seam=%.6f max_seam=%.6f"
+            )
             % (
                 case_id,
                 spec["piece_count"],
@@ -397,6 +400,7 @@ def _run_ladder_case(case_id):
                 target_sig["source_triangles"],
                 solver_triangles,
                 float(signed_before if signed_before is not None else float("nan")),
+                min((item["min_span_mm"] for item in seam_pre), default=0.0),
                 max((item["max_span_mm"] for item in seam_pre), default=0.0),
             )
         )
