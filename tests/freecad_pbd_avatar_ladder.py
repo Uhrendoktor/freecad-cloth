@@ -12,6 +12,14 @@ import os
 import sys
 from pathlib import Path
 
+# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+_HELPER_DIR = Path(__file__).resolve().parent / "support"
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 _BOOT_LOG = OUT / "avatar-ladder-bootstrap.log"
@@ -23,10 +31,9 @@ def _boot(message):
     _TRACE_HANDLE.flush()
 
 
+import contextlib
 import faulthandler
 import json
-import math
-import runpy
 import time
 
 _boot("script-start")
@@ -34,9 +41,8 @@ _boot("before-import-FreeCAD")
 import FreeCAD as App
 
 _boot("import-FreeCAD-complete")
-import contextlib
-
-import FreeCADGui as Gui
+# Keep this import after the checkpoint so slow GUI startup remains diagnosable.
+import FreeCADGui as Gui  # noqa: I001
 
 _boot("import-FreeCADGui-complete")
 _boot("import-Part-complete")
@@ -47,68 +53,41 @@ try:
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
-_boot("before-shared-helper-runpath")
-_shared = runpy.run_path(
-    str(Path(__file__).with_name("freecad_pbd_contact_diagnostics.py")),
-    run_name="freecad_pbd_contact_diagnostics",
+_boot("before-support-helper-import")
+from pbd_contact_helpers import build_piece as _build_piece
+from pbd_contact_helpers import build_scene as _build_scene
+from pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
+from pbd_contact_helpers import connected_components as _connected_components
+from pbd_contact_helpers import events as _events
+from pbd_contact_helpers import (
+    make_progress_logger,
+    make_shutdown_gui,
+    schedule_freecad_main,
 )
-_boot("after-shared-helper-runpath")
-_build_piece = _shared["_build_piece"]
-_build_scene = _shared["_build_scene"]
-_connected_components = _shared["_connected_components"]
-_events = _shared["_events"]
-_mesh_geometry = _shared["_mesh_geometry"]
-_nearest_surface_distance = _shared["_nearest_surface_distance"]
-_progress = _shared["_progress"]
-_screenshot = _shared["_screenshot"]
-_shutdown_gui = _shared["_shutdown_gui"]
-_target_signature = _shared["_target_signature"]
+from pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
+from pbd_contact_helpers import positions_tuple as _positions_tuple
+from pbd_contact_helpers import screenshot as _screenshot
+from pbd_contact_helpers import seam_geometry as _seam_geometry
+from pbd_contact_helpers import target_signature as _target_signature
 
+_progress = make_progress_logger(OUT / "progress.log")
+_shutdown_gui = make_shutdown_gui(_progress)
+_boot("after-support-helper-import")
 
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
-def _vector_tuple(value):
-    return [round(float(value.x), 6), round(float(value.y), 6), round(float(value.z), 6)]
+def _surface_signed_clearance(
+    points, source_shape, collision_surface, proximity_mesh=None, trace_context=""
+):
+    """Measure target clearance and leave stage markers around native geometry calls."""
+    trace_enabled = trace_context == "rung-10-avatar-two-piece-large-seam step=45"
 
+    def trace(message):
+        if trace_enabled:
+            _boot(f"{trace_context}:clearance:{message}")
 
-def _positions_tuple(backend):
-    return tuple(tuple(float(c) for c in point) for point in backend.positions())
-
-
-def _seam_geometry(backend, seam_stitch_pairs):
-    positions = _positions_tuple(backend)
-    result = []
-    for seam_id, pairs in sorted(seam_stitch_pairs.items()):
-        measurements = []
-        for left, right in pairs:
-            a = positions[int(left)]
-            b = positions[int(right)]
-            distance = math.dist(a, b)
-            measurements.append(
-                {
-                    "particle_a": int(left),
-                    "particle_b": int(right),
-                    "a_world_mm": [round(value, 6) for value in a],
-                    "b_world_mm": [round(value, 6) for value in b],
-                    "distance_mm": round(distance, 6),
-                }
-            )
-        distances = [item["distance_mm"] for item in measurements]
-        result.append(
-            {
-                "seam_id": str(seam_id),
-                "pair_count": len(measurements),
-                "min_span_mm": round(min(distances), 6) if distances else 0.0,
-                "max_span_mm": round(max(distances), 6) if distances else 0.0,
-                "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
-                "pairs": measurements,
-            }
-        )
-    return result
-
-
-def _surface_signed_clearance(points, source_shape, collision_surface, proximity_mesh=None):
+    trace(f"start points={len(points)} source_shape={source_shape is not None}")
     unsigned = None
     if proximity_mesh is not None:
         try:
@@ -116,31 +95,46 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
             import trimesh  # noqa: F401
 
             if points:
+                trace("before-trimesh-nearest")
                 _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))
+                trace("after-trimesh-nearest")
                 unsigned = float(np.min(distances)) if len(distances) else float("inf")
-        except (ImportError, RuntimeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            trace(f"trimesh-nearest-fallback exception={exc!r}")
             unsigned = None
     if unsigned is None:
+        trace("before-shared-nearest-surface-fallback")
         unsigned = _nearest_surface_distance(points, collision_surface)
+        trace(f"after-shared-nearest-surface-fallback unsigned={unsigned!r}")
     if unsigned is None:
+        trace("clearance-unavailable")
         return None, None
     inside = False
     if source_shape is not None:
-        for point in points:
+        for index, point in enumerate(points):
             try:
-                if bool(source_shape.isInside(App.Vector(*point), 1e-6, True)):
+                trace(f"before-shape-isInside index={index}")
+                point_inside = bool(source_shape.isInside(App.Vector(*point), 1e-6, True))
+                trace(f"after-shape-isInside index={index} result={point_inside}")
+                if point_inside:
                     inside = True
                     break
-            except (AttributeError, TypeError, ValueError):
+            except (AttributeError, TypeError, ValueError) as exc:
+                trace(f"shape-isInside-fallback exception={exc!r}")
                 break
     if not inside and proximity_mesh is not None and points:
         try:
             import numpy as np
 
+            trace("before-trimesh-contains")
             inside = bool(np.any(proximity_mesh.contains(np.asarray(points, dtype=float))))
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            trace(f"after-trimesh-contains result={inside}")
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            trace(f"trimesh-contains-fallback exception={exc!r}")
             pass
-    return float(-unsigned if inside else unsigned), float(unsigned)
+    result = (float(-unsigned if inside else unsigned), float(unsigned))
+    trace(f"complete signed={result[0]} unsigned={result[1]}")
+    return result
 
 
 def _avatar_png_has_visible_content(path, minimum_pixels=128):
@@ -170,32 +164,37 @@ def _avatar_screenshot(view, path):
 
 
 def _checkpoint_record(
-    step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh
+    step,
+    image,
+    positions,
+    panel_triangles,
+    source_shape,
+    collision_surface,
+    base,
+    proximity_mesh,
+    case_id="",
 ):
-    finite = all(math.isfinite(float(c)) for point in positions for c in point)
+    """Add avatar-specific clearance observations to the shared checkpoint record."""
+    context = f"{case_id} step={step}"
+    _boot(f"checkpoint-record-start {context}")
     signed_clearance, unsigned_clearance = _surface_signed_clearance(
-        positions,
-        source_shape,
-        collision_surface,
-        proximity_mesh,
+        positions, source_shape, collision_surface, proximity_mesh, trace_context=context
     )
-    seam_geometry = _seam_geometry(base.backend, base.seam_stitch_pairs)
-    return {
-        "step": int(step),
-        "image": image,
-        "finite": bool(finite),
-        "components": _connected_components(positions, panel_triangles),
-        "max_seam_gap_mm": round(
-            max((entry["max_span_mm"] for entry in seam_geometry), default=0.0), 6
-        ),
-        "target_clearance_mm": signed_clearance,
-        "target_unsigned_clearance_mm": unsigned_clearance,
-        "penetration_mm": (
-            round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None
-        ),
-        "contact_state": "diagnostic-only-avatar",
-        "seam_world_spans_mm": seam_geometry,
-    }
+    _boot(f"checkpoint-record-after-clearance {context}")
+    _boot(f"checkpoint-record-before-common {context}")
+    record = _checkpoint_record_common(
+        step,
+        image,
+        positions,
+        panel_triangles,
+        signed_clearance,
+        unsigned_clearance,
+        base,
+        _connected_components,
+        "diagnostic-only-avatar",
+    )
+    _boot(f"checkpoint-record-after-common {context}")
+    return record
 
 
 def _build_avatar_scene(doc):
@@ -436,7 +435,10 @@ def _run_ladder_case(case_id):
             "z_max": max(point[2] for point in positions),
         }
         _progress(
-            "%s: pieces=%d pin=%s seam=%s source_triangles=%d solver_triangles=%d pre_clearance=%.6f max_seam=%.6f"
+            (
+                "%s: pieces=%d pin=%s seam=%s source_triangles=%d "
+                "solver_triangles=%d pre_clearance=%.6f min_seam=%.6f max_seam=%.6f"
+            )
             % (
                 case_id,
                 spec["piece_count"],
@@ -445,6 +447,7 @@ def _run_ladder_case(case_id):
                 target_sig["source_triangles"],
                 solver_triangles,
                 float(signed_before if signed_before is not None else float("nan")),
+                min((item["min_span_mm"] for item in seam_pre), default=0.0),
                 max((item["max_span_mm"] for item in seam_pre), default=0.0),
             )
         )
@@ -481,6 +484,7 @@ def _run_ladder_case(case_id):
                     collision_surface,
                     base,
                     proximity_mesh,
+                    case_id=case_id,
                 )
             )
             images[int(step)] = str(image.relative_to(OUT))
@@ -700,13 +704,10 @@ _freecad_gui_hosted = bool(getattr(App, "GuiUp", False))
 
 
 def _schedule_freecad_main():
-    try:
-        from PySide import QtCore
-    except ImportError:
-        from PySide2 import QtCore
+    """Schedule the ladder outside FreeCAD's delayed-startup import callback."""
     _boot("freecad-hosted-entrypoint")
     _boot("entrypoint:schedule-main")
-    QtCore.QTimer.singleShot(0, _run_and_shutdown)
+    schedule_freecad_main(_run_and_shutdown)
 
 
 if __name__ == "__main__":

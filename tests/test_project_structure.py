@@ -1,5 +1,6 @@
 """Structural checks for the canonical Python package tree."""
 
+import ast
 from pathlib import Path
 
 
@@ -185,11 +186,10 @@ def test_workflow_actions_use_immutable_release_pins():
     assert references
     assert all(len(sha) == 40 for sha in references)
 
+
 def test_avatar_commands_do_not_depend_on_simulation_package():
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(
-        encoding="utf-8"
-    )
+    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
     assert "freecad_cloth.simulation.SimulationObjects" not in source
 
 
@@ -197,8 +197,11 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
     assert 'command = ["/opt/freecad/AppRun"]' in source
-    assert 'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])' in source
-    assert 'command.append(str(args.test_script))' in source
+    assert (
+        'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])'
+        in source
+    )
+    assert "command.append(str(args.test_script))" in source
     assert "runpy.run_path" not in source
     assert "init_gui.read_text" not in source
 
@@ -209,7 +212,7 @@ def test_freecad_runner_preserves_script_owned_logs():
     assert "stdout=subprocess.PIPE" in source
     assert "process.communicate(timeout=timeout_seconds)" in source
     assert "args.log_file.is_file()" in source
-    assert 'args.log_file.read_text(' in source
+    assert "args.log_file.read_text(" in source
     assert "if not existing_log.strip():" in source
     assert 'args.log_file.write_text(output, encoding="utf-8")' in source
     assert "sys.stdout.write(output)" in source
@@ -286,7 +289,44 @@ def test_neutral_collision_contract_is_singleton():
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "shared" / "collision.py").read_text(encoding="utf-8")
     assert "class CollisionSurface" in source
-    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(
-        encoding="utf-8"
-    )
+    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(encoding="utf-8")
     assert "class CollisionSurface" not in avatar
+
+
+def test_python_sources_do_not_import_removed_architecture_modules():
+    root = Path(__file__).resolve().parents[1]
+    forbidden_modules = {
+        "freecad_cloth.pattern.PatternSchema",
+        "freecad_cloth.pattern.PatternSync",
+        "freecad_cloth.sewing.SewingAssembly",
+        "freecad_cloth.sewing.SewingPlan",
+        "freecad_cloth.sewing.SewingSemantics",
+        "freecad_cloth.sewing.SeamReference",
+        "freecad_cloth.simulation.SimulationStaleGuard",
+        "freecad_cloth.simulation.SimulationQualityRuntimeV2",
+        "freecad_cloth.common.PatternSimulationAdapter",
+        "freecad_cloth.common.SketchAuthority",
+        "freecad_cloth.common.DrapeFailureClassifier",
+        "freecad_cloth.common.DrapeVisualSanity",
+        "freecad_cloth.common.ClothDiagnostics",
+        "freecad_cloth.common.ClothDiagnosticsGui",
+    }
+    offenders = []
+    for directory in (root / "freecad_cloth", root / "tests", root / "tools"):
+        for path in directory.rglob("*.py"):
+            try:
+                module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except SyntaxError as exc:
+                raise AssertionError(f"invalid Python source {path}: {exc}") from exc
+            for node in ast.walk(module):
+                imported = set()
+                if isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imported.add(node.module)
+                    for alias in node.names:
+                        imported.add(f"{node.module}.{alias.name}" if node.module else alias.name)
+                elif isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                for name in imported & forbidden_modules:
+                    offenders.append(f"{path.relative_to(root)}:{node.lineno}: {name}")
+    assert not offenders, "stale architecture imports: " + ", ".join(offenders)

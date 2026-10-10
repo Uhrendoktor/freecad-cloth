@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_collection_plugin_accepts_all_expected_modules(monkeypatch):
-    from tools.ci.check_test_collection import pytest_collection_modifyitems
+    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
 
     monkeypatch.setenv(
         "CLOTH_EXPECTED_TEST_MODULES",
@@ -23,7 +23,7 @@ def test_collection_plugin_accepts_all_expected_modules(monkeypatch):
 
 
 def test_collection_plugin_fails_when_a_module_collects_no_items(monkeypatch):
-    from tools.ci.check_test_collection import pytest_collection_modifyitems
+    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
 
     monkeypatch.setenv(
         "CLOTH_EXPECTED_TEST_MODULES",
@@ -44,7 +44,7 @@ def test_canonical_python_job_executes_pytest_contract_modules():
     assert "group: [core, pattern, sewing, gui, pytest]" in block
     assert "python_validation.py" in block
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
-    assert '"-p", "tools.ci.check_test_collection"' in runner
+    assert '"tools.ci.pytest_collection_contract"' in runner
     assert "CLOTH_EXPECTED_TEST_MODULES" in runner
     assert "check_test_collection.py" not in runner
     assert "matrix.group != 'gui'" in block
@@ -74,3 +74,16 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
 
 # Exact-head validation recut marker; behavior unchanged.
 # Final exact-head cube diagnostic trigger marker; behavior unchanged.
+
+
+def test_group_collection_is_checked_during_the_execution_run():
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+    plugin = ROOT / "tools" / "ci" / "pytest_collection_contract.py"
+    old_checker = ROOT / "tools" / "ci" / "check_test_collection.py"
+
+    assert plugin.is_file()
+    assert not old_checker.exists()
+    assert '"-p"' in runner
+    assert '"tools.ci.pytest_collection_contract"' in runner
+    assert "CLOTH_EXPECTED_TEST_MODULES" in runner
+    assert "collection_command" not in runner

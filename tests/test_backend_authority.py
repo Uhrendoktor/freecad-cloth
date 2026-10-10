@@ -1,9 +1,11 @@
 from pathlib import Path
 
+from freecad_cloth.shared.collision import surface_from_triangles
 from freecad_cloth.simulation.ClothBackend import (
     ClothSimulationBackend,
     validate_pinned_stitch_pairs,
 )
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -58,3 +60,22 @@ def test_simulation_workbench_does_not_force_a_backend_selector():
 
     assert "CLOTH_SIMULATION_BACKEND" not in source
     assert "preferred_backend_name" not in source
+
+
+def test_pbd_collision_sdf_key_is_deterministic_and_covers_all_inputs():
+    surface = surface_from_triangles(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 1, 2),),
+        thickness=0.5,
+    )
+    key = _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
+    assert key == _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
+    assert key != _pbd_collision_sdf_cache_key(surface, [16, 16, 17])
+    assert key != _pbd_collision_sdf_cache_key(surface.with_thickness(1.0), [16, 16, 16])
+
+    moved = surface_from_triangles(
+        ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 1, 2),),
+        thickness=0.5,
+    )
+    assert key != _pbd_collision_sdf_cache_key(moved, [16, 16, 16])

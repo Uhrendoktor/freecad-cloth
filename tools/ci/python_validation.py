@@ -16,6 +16,7 @@ GROUPS = {
         "tests/test_mesh.py",
         "tests/test_meshpart_adapter.py",
         "tests/test_mesh_validation.py",
+        "tests/test_pbd_contact_helpers.py",
         "tests/test_avatar_visual_sanity.py",
         "tests/test_drape_visual_sanity.py",
         "tests/test_cloth_solver.py",
@@ -160,10 +161,19 @@ def main() -> int:
     missing = [test for test in tests if not Path(test).is_file()]
     if missing:
         raise SystemExit("missing tests: " + ", ".join(missing))
-    os.environ["CLOTH_EXPECTED_TEST_MODULES"] = "\n".join(tests)
-    command = ["python3", "-m", "pytest", "-q", "-p", "tools.ci.check_test_collection", *tests]
+    env = os.environ.copy()
+    env["CLOTH_EXPECTED_TEST_MODULES"] = os.pathsep.join(tests)
+    command = [
+        "python3",
+        "-m",
+        "pytest",
+        "-p",
+        "tools.ci.pytest_collection_contract",
+        "-q",
+        *tests,
+    ]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
-    subprocess.run(command, check=True, timeout=110)
+    subprocess.run(command, check=True, timeout=110, env=env)
     print(f"python-validation={args.group} passed", flush=True)
     return 0
 

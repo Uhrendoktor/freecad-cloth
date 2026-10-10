@@ -9,7 +9,7 @@ workbench's semantic boundary/provenance contract.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import ceil, isclose, isfinite
+from math import ceil, hypot, isclose, isfinite
 
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
@@ -249,12 +249,11 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    """Return GEOS point-to-segment distance with coordinates scaled for tiny geometry.
+    """Return a robust point-to-segment distance, including subnormal segments.
 
-    GEOS may overflow its internal projection arithmetic for subnormal-length
-    segments. Translate to the segment origin and scale the coordinate
-    differences into a numerically useful range before delegating the distance
-    calculation to GEOS.
+    Normalize coordinate differences before asking GEOS to avoid overflow for
+    tiny coordinates. If GEOS still returns a non-finite distance because its
+    projection arithmetic underflows, use a unit-direction projection fallback.
     """
     if point in (start, end):
         return 0.0
@@ -272,8 +271,24 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         return 0.0
 
     dx, dy, px, py = (value / scale for value in with_offset)
-    normalized_distance = LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
+    normalized_distance = float(LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py))))
     distance = scale * normalized_distance
+    if isfinite(distance):
+        return distance
+
+    sx, sy = float(start[0]), float(start[1])
+    px, py = float(point[0]), float(point[1])
+    dx, dy = float(end[0]) - sx, float(end[1]) - sy
+    length = hypot(dx, dy)
+    if length == 0.0:
+        distance = hypot(px - sx, py - sy)
+    else:
+        unit_x, unit_y = dx / length, dy / length
+        projection = (px - sx) * unit_x + (py - sy) * unit_y
+        clamped = max(0.0, min(length, projection))
+        closest_x = sx + clamped * unit_x
+        closest_y = sy + clamped * unit_y
+        distance = hypot(px - closest_x, py - closest_y)
     if not isfinite(distance):
         raise ValueError("computed point-to-segment distance must be finite")
     return distance

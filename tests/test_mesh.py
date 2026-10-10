@@ -7,8 +7,14 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    QuadraticBezier,
+    rectangle,
+)
 from freecad_cloth.pattern.PatternMesh import (
+    _edge_segment_ids,
     _point_to_segment_distance,
     refine_linear_boundary,
     triangulate,
@@ -107,6 +113,13 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
     assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)) == 0.0
 
 
+def test_point_to_segment_distance_handles_subnormal_segment_length():
+    endpoint = 1.6724306261326825e-169
+    assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, endpoint)) == 0.0
+    distance = _point_to_segment_distance((1.0, 0.0), (0.0, 0.0), (0.0, endpoint))
+    assert distance == 1.0
+
+
 @given(
     px=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
     py=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
@@ -150,8 +163,41 @@ def test_triangulation_rejects_nonfinite_area_limits() -> None:
             raise AssertionError("non-finite max_area was accepted")
 
 
+def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> None:
+    class CountedCurve(QuadraticBezier):
+        calls = 0
+
+        def polyline(self, samples=32):
+            type(self).calls += 1
+            return super().polyline(samples)
+
+    curve = CountedCurve("curve", (0.0, 0.0), (5.0, 10.0), (10.0, 0.0))
+    outline = ((0.0, 0.0), (10.0, 0.0), (10.0, -10.0), (0.0, -10.0))
+    pattern = ParametricPattern(
+        [
+            curve,
+            LineSegment("right", (10.0, 0.0), (10.0, -10.0)),
+            LineSegment("bottom", (10.0, -10.0), (0.0, -10.0)),
+            LineSegment("left", (0.0, -10.0), (0.0, 0.0)),
+        ]
+    )
+    CountedCurve.calls = 0
+    result = _edge_segment_ids(pattern, outline)
+    assert len(result) == len(outline)
+    assert CountedCurve.calls == 1
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
             fn()
     print("mesh tests passed")
+
+
+def test_point_to_segment_distance_tiny_scaled_coordinates() -> None:
+    """Normalized GEOS input keeps tiny but representable distances accurate."""
+    assert (
+        _point_to_segment_distance((1e-291, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291))
+        == 1e-291
+    )
+    assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)) == 0.0

@@ -102,8 +102,8 @@ Relevant fixtures:
 Source:
 
 - <code>freecad_cloth/simulation/</code>
-- <code>freecad_cloth/common/PatternSimulationAdapter.py</code>
-- <code>freecad_cloth/common/DrapeVisualSanity.py</code>
+- <code>freecad_cloth/simulation/PatternSimulationAdapter.py</code>
+- <code>freecad_cloth/simulation/DrapeVisualSanity.py</code>
 - <code>freecad_cloth/common/MeshValidation.py</code>
 
 The generated turntables and motion frames are the primary human-review artifacts; logs are supporting evidence.

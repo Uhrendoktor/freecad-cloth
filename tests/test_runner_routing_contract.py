@@ -104,3 +104,30 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "github.event.pull_request.head.sha" in source
     assert "persist-credentials: false" in source
+
+
+def test_collection_contract_passes_when_every_requested_module_collects():
+    from tools.ci.pytest_collection_contract import missing_requested_modules
+
+    assert (
+        missing_requested_modules(
+            ("tests/test_one.py", "tests/test_two.py"),
+            ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
+        )
+        == ()
+    )
+
+
+def test_collection_contract_rejects_a_requested_module_with_zero_items(monkeypatch):
+    import os
+    from types import SimpleNamespace
+
+    import pytest
+
+    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
+
+    expected = (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
+    monkeypatch.setenv("CLOTH_EXPECTED_TEST_MODULES", os.pathsep.join(map(str, expected)))
+    collected = SimpleNamespace(path=expected[0])
+    with pytest.raises(pytest.UsageError, match="tests/test_empty.py"):
+        pytest_collection_modifyitems([collected])

@@ -405,12 +405,10 @@ def mesh_shape_sanity(
     ys = [float(vertex[1]) for vertex in vertices]
     span_x = max(xs) - min(xs)
     span_y = max(ys) - min(ys)
-    small = (
-        min(value for value in (span_x, span_y) if value > 1e-12)
-        if max(span_x, span_y) > 1e-12
-        else 0.0
-    )
-    aspect = max(span_x, span_y) / small if small > 0.0 else float("inf")
+    if span_x <= 1e-12 or span_y <= 1e-12:
+        aspect = float("inf")
+    else:
+        aspect = max(span_x, span_y) / min(span_x, span_y)
 
     return {
         "finite": True,

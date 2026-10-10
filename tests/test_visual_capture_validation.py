@@ -165,3 +165,40 @@ def test_visible_pixel_count_matches_decoded_rgb_predicate(
             expected_height=4,
             pixel_threshold=threshold,
         ) is (expected >= minimum)
+
+
+def test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds(tmp_path: Path):
+    path = tmp_path / "colored.png"
+    _write_png(
+        path,
+        2,
+        2,
+        [(255, 0, 0), (255, 255, 255), (255, 255, 255), (255, 255, 255)],
+    )
+    assert png_has_visible_content(
+        path,
+        expected_width=2,
+        expected_height=2,
+        minimum_pixels=1,
+        pixel_threshold=250,
+    )
+    assert not png_has_visible_content(
+        path,
+        expected_width=2,
+        expected_height=2,
+        minimum_pixels=1,
+        pixel_threshold=245,
+        require_all_channels_below=True,
+    )
+    assert not png_has_visible_content(path, expected_width=3, expected_height=2)
+
+
+def test_png_visible_content_rejects_bad_crc_and_uniform_white(tmp_path: Path):
+    path = tmp_path / "white.png"
+    _write_png(path, 2, 2, [(255, 255, 255)] * 4)
+    assert not png_has_visible_content(path, minimum_pixels=1)
+    data = bytearray(path.read_bytes())
+    data[-13] ^= 1
+    corrupt_path = tmp_path / "corrupt.png"
+    corrupt_path.write_bytes(data)
+    assert not png_has_visible_content(corrupt_path, minimum_pixels=1)

@@ -6,6 +6,7 @@ runtime without changing physics, solver budgets, canonical fixtures, or release
 
 from __future__ import annotations
 
+import contextlib
 import faulthandler
 import json
 import math
@@ -18,6 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Resolve the shared harness helpers without importing the generic `tests` package.
+_HELPER_DIR = Path(__file__).resolve().parent / "support"
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS = OUT / "progress.log"
@@ -29,7 +35,7 @@ _PROGRESS_HANDLE.flush()
 faulthandler.dump_traceback_later(30.0, repeat=True, file=_PROGRESS_HANDLE)
 
 
-def _import_progress(label):
+def _import_progress(label: str) -> None:
     line = "import: " + str(label)
     with PROGRESS.open("a", encoding="utf-8") as handle:
         handle.write(line + "\n")
@@ -45,294 +51,37 @@ import FreeCADGui as Gui
 
 _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
-import contextlib
-
 import Part
 
-from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
-
 _import_progress("Part complete")
+
+from pbd_contact_helpers import bounds as _bounds
+from pbd_contact_helpers import build_piece as _build_piece
+from pbd_contact_helpers import build_scene as _build_scene
+from pbd_contact_helpers import centroid as _centroid
+from pbd_contact_helpers import connected_components as _connected_components
+from pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
+from pbd_contact_helpers import events as _events
+from pbd_contact_helpers import inside_outside as _inside_outside
+from pbd_contact_helpers import (
+    make_progress_logger,
+    make_shutdown_gui,
+    schedule_freecad_main,
+)
+from pbd_contact_helpers import mesh_geometry as _mesh_geometry
+from pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
+from pbd_contact_helpers import (
+    nearest_surface_observation as _nearest_surface_observation,
+)
+from pbd_contact_helpers import screenshot as _screenshot
+from pbd_contact_helpers import target_signature as _target_signature
 
 STEPS = (0, 1)
 PARTICLE_DISTANCE = 24.0
 
 
-def _progress(message):
-    line = str(message)
-    with PROGRESS.open("a", encoding="utf-8") as handle:
-        handle.write(line + "\n")
-    print(line, flush=True)
-
-
-def _events():
-    Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.processEvents()
-    Gui.updateGui()
-
-
-def _ensure_gui_ready():
-    window = Gui.getMainWindow()
-    if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
-    window.show()
-    _events()
-
-
-def _add_rectangle_sketch(doc, name, width, height):
-
-    sketch = doc.addObject("Sketcher::SketchObject", name)
-    pts = (
-        (0.0, 0.0),
-        (float(width), 0.0),
-        (float(width), float(height)),
-        (0.0, float(height)),
-    )
-    for index, start in enumerate(pts):
-        end = pts[(index + 1) % 4]
-        sketch.addGeometry(
-            Part.LineSegment(
-                App.Vector(start[0], start[1], 0.0),
-                App.Vector(end[0], end[1], 0.0),
-            ),
-            False,
-        )
-    doc.recompute()
-    return sketch
-
-
-def _adopt_sketch(sketch, name):
-    import FreeCADGui as Gui
-
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-
-    Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(sketch)
-    piece = create_pattern_piece_from_selected_sketch(name=name, allowance=0.0, grainline=0.0)
-    Gui.Selection.clearSelection()
-    doc = sketch.Document
-    doc.recompute()
-    return piece
-
-
-def _mesh_geometry(obj):
-    mesh = getattr(obj, "Mesh", None)
-    if mesh is not None:
-        topology = getattr(mesh, "Topology", None)
-        if topology is not None:
-            vertices, triangles = topology
-            points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
-            tris = tuple(tuple(int(i) for i in tri) for tri in triangles)
-            return points, tris
-    shape = getattr(obj, "Shape", None)
-    if shape is None or shape.isNull():
-        raise RuntimeError(
-            "missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object"))
-        )
-    vertices, triangles = shape.tessellate(1.0)
-    points = tuple((float(v.x), float(v.y), float(v.z)) for v in vertices)
-    tris = tuple(tuple(int(i) for i in tri) for tri in triangles)
-    return points, tris
-
-
-def _mesh_points(obj):
-    return _mesh_geometry(obj)[0]
-
-
-def _connected_components(vertices, triangles):
-    if not vertices:
-        return 0
-    parent = list(range(len(vertices)))
-
-    def find(index):
-        while parent[index] != index:
-            parent[index] = parent[parent[index]]
-            index = parent[index]
-        return index
-
-    def union(left, right):
-        a = find(left)
-        b = find(right)
-        if a != b:
-            parent[b] = a
-
-    for triangle in triangles:
-        if len(triangle) != 3:
-            continue
-        a, b, c = (int(i) for i in triangle)
-        if all(0 <= i < len(vertices) for i in (a, b, c)):
-            union(a, b)
-            union(b, c)
-    return len({find(i) for i in range(len(vertices))})
-
-
-def _nearest_surface_observation(garment_points, surface):
-    if not garment_points or surface is None:
-        return None, None
-    vertices = tuple(getattr(surface, "vertices", ()) or ())
-    if not vertices:
-        return None, None
-    best = float("inf")
-    point = None
-    for source in garment_points:
-        for target in vertices:
-            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
-            if d2 < best:
-                best = d2
-                point = tuple(float(c) for c in target)
-    return (math.sqrt(best) if math.isfinite(best) else None), point
-
-
-def _inside_outside(points, source):
-    shape = getattr(source, "Shape", None)
-    if shape is not None and not getattr(shape, "isNull", lambda: True)():
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-
-    mesh = getattr(source, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    if callable(mesh_is_inside):
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is None:
-        return "unknown"
-    raw_vertices, raw_faces = topology
-    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
-    if not vertices or not triangles:
-        return "unknown"
-    try:
-        import numpy as np
-        import trimesh
-
-        target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(triangles, dtype=int),
-            process=False,
-        )
-        if not target_mesh.is_watertight:
-            raise RuntimeError("target mesh is not watertight")
-        states = [
-            bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
-        ]
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        states = [point_inside_closed_mesh(point, vertices, triangles) for point in points[:64]]
-    if not states:
-        return "unknown"
-    if all(states):
-        return "inside"
-    if not any(states):
-        return "outside"
-    return "mixed"
-
-
-def _bounds(points):
-    if not points:
-        raise RuntimeError("cannot measure empty point set")
-    return (
-        min(p[0] for p in points),
-        max(p[0] for p in points),
-        min(p[1] for p in points),
-        max(p[1] for p in points),
-        min(p[2] for p in points),
-        max(p[2] for p in points),
-    )
-
-
-def _centroid(points):
-    n = float(len(points))
-    return tuple(sum(p[i] for p in points) / n for i in range(3))
-
-
-def _nearest_surface_distance(garment_points, surface):
-    if not garment_points or surface is None:
-        return None
-    vertices = tuple(getattr(surface, "vertices", ()) or ())
-    triangles = tuple(getattr(surface, "triangles", ()) or ())
-    if not vertices:
-        return None
-    if triangles:
-        try:
-            from freecad_cloth.common.MeshValidation import nearest_surface_clearance
-
-            return float(nearest_surface_clearance(garment_points, vertices, triangles))
-        except (ImportError, RuntimeError, ValueError):
-            pass
-    sample = vertices[:: max(1, len(vertices) // 4096)]
-    best = float("inf")
-    for source in garment_points:
-        for target in sample:
-            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
-            if d2 < best:
-                best = d2
-    return math.sqrt(best) if math.isfinite(best) else None
-
-
-def _target_signature(target):
-    source = getattr(target, "SourceObject", None)
-    if source is None:
-        raise RuntimeError("diagnostic target has no source")
-    mesh = getattr(source, "Mesh", None)
-    return {
-        "target_type": str(getattr(target, "TargetType", "")),
-        "source_name": str(getattr(source, "Name", "")),
-        "source_label": str(getattr(source, "Label", "")),
-        "source_revision": int(getattr(source, "AvatarRevision", 0)),
-        "source_vertices": int(
-            getattr(
-                source,
-                "MeshVertexCount",
-                getattr(mesh, "CountPoints", 0) if mesh is not None else 0,
-            )
-        ),
-        "source_triangles": int(
-            getattr(
-                source,
-                "MeshTriangleCount",
-                getattr(mesh, "CountFacets", 0) if mesh is not None else 0,
-            )
-        ),
-        "collision_triangles_authored": int(getattr(target, "CollisionTriangleCount", 0)),
-        "collision_vertices_authored": int(getattr(target, "CollisionVertexCount", 0)),
-    }
-
-
-def _screenshot(view, path):
-    view.setCameraType("Orthographic")
-    view.fitAll()
-    _events()
-    view.saveImage(str(path), 640, 360, "White")
-    if not path.is_file() or path.stat().st_size <= 0:
-        raise RuntimeError(f"screenshot missing: {path}")
+_progress = make_progress_logger(PROGRESS)
+_shutdown_gui = make_shutdown_gui(_progress)
 
 
 def _case_record(
@@ -476,56 +225,10 @@ def _case_record(
     }
 
 
-def _build_scene(doc):
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
-    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
-    from freecad_cloth.simulation.SimulationQualityRuntime import (
-        QualitySimulationProxy,
-        ensure_quality_properties,
-    )
-
-    scene = create_simulation_scene(doc, build=False)
-    legacy = doc.getObject("HumanoidAvatar")
-    if legacy is not None and hasattr(legacy, "ViewObject"):
-        legacy.ViewObject.Visibility = False
-    avatar = create_avatar(attach_collision=False, doc=doc)
-    avatar.Label = "Cloth Human Avatar (MakeHuman)"
-    avatar.ViewObject.Visibility = True
-    set_drape_target_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
-    scene.AvatarProxy.SourceObject = avatar
-    scene.DrapeTarget = doc.getObject("DrapeTarget")
-    ensure_quality_properties(scene)
-    scene.Proxy = QualitySimulationProxy()
-    scene.QualityPreset = "Fast"
-    scene.ParticleDistance = PARTICLE_DISTANCE
-    scene.SolverIterations = 1
-    scene.SolverSubsteps = 1
-    scene.TimeStep = 1.0 / 120.0
-    scene.GravityX = 0.0
-    scene.GravityY = 0.0
-    scene.GravityZ = 0.0
-    scene.FabricFriction = 0.5
-    scene.PinMode = "None"
-    scene.PinSelection = []
-    scene.FabricTransparency = 0
-    return scene
-
-
-def _build_piece(doc, name, placement, width=120.0, height=120.0):
-    sketch = _add_rectangle_sketch(doc, name + "Source", width, height)
-    piece = _adopt_sketch(sketch, name)
-    piece.Placement = placement
-    piece.Sketch.Placement = placement
-    sketch.ViewObject.Visibility = False
-    piece.ViewObject.Visibility = False
-    doc.recompute()
-    return piece
-
-
 def _run_case(case_id, rung, scene, piece, camera):
     started = time.perf_counter()
     _progress(f"{case_id}: assign-piece")
+    scene.GravityZ = 0.0
     scene.ClothPieces = [piece]
     scene.Steps = 0
     scene.touch()
@@ -749,24 +452,6 @@ def _run_control_avatar():
         App.closeDocument(doc.Name)
 
 
-def close_gui():
-    try:
-        import FreeCADGui as Gui
-
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-    except ImportError:
-        return
-    window = Gui.getMainWindow()
-    if window is not None:
-        window.close()
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.quit()
-
-
 def main():
     _progress("main: start")
     _ensure_gui_ready()
@@ -799,20 +484,6 @@ def main():
     return 0
 
 
-def _shutdown_gui():
-    try:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-        app = QtWidgets.QApplication.instance()
-        if app is not None:
-            app.quit()
-    except Exception as exc:
-        _progress(f"qt-quit-failed={exc!r}")
-    _progress("gui-shutdown-requested")
-
-
 def _scheduled_main():
     status = 1
     try:
@@ -832,12 +503,8 @@ def _schedule_main_once():
         _progress("entrypoint:duplicate-schedule-suppressed")
         return
     os.environ["CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED"] = "1"
-    try:
-        from PySide import QtCore
-    except ImportError:
-        from PySide2 import QtCore
     _progress("entrypoint:schedule-main")
-    QtCore.QTimer.singleShot(0, _scheduled_main)
+    schedule_freecad_main(_scheduled_main)
 
 
 if __name__ == "__main__" or os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1":
