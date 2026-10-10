@@ -126,8 +126,7 @@ def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
 
         def multVec(self, point):
             return tuple(
-                float(value) + shift
-                for value, shift in zip(point, self.translation, strict=True)
+                float(value) + shift for value, shift in zip(point, self.translation, strict=True)
             )
 
     local_vertices = (

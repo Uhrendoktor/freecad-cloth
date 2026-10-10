@@ -79,11 +79,12 @@ def _mesh_topology(target):
 
                 inverse_placement = placement.inverse()
                 points = tuple(
-                    _point_xyz(inverse_placement.multVec(App.Vector(*point)))
-                    for point in points
+                    _point_xyz(inverse_placement.multVec(App.Vector(*point))) for point in points
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-                raise ValueError("could not normalize target mesh vertices to object-local coordinates") from exc
+                raise ValueError(
+                    "could not normalize target mesh vertices to object-local coordinates"
+                ) from exc
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
         if (
             not points
