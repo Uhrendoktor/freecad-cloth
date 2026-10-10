@@ -118,17 +118,16 @@ def test_collection_contract_passes_when_every_requested_module_collects():
     )
 
 
-def test_collection_contract_rejects_a_requested_module_with_zero_items():
+def test_collection_contract_rejects_a_requested_module_with_zero_items(monkeypatch):
+    import os
     from types import SimpleNamespace
 
     import pytest
 
-    from tools.ci.pytest_collection_contract import RequestedModuleCollection
+    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
 
-    collected = SimpleNamespace(path=ROOT / "tests" / "test_one.py")
-    session = SimpleNamespace(items=[collected], exitstatus=pytest.ExitCode.OK)
-    contract = RequestedModuleCollection(
-        (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
-    )
-    contract.pytest_sessionfinish(session, pytest.ExitCode.OK)
-    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
+    expected = (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
+    monkeypatch.setenv("CLOTH_EXPECTED_TEST_MODULES", os.pathsep.join(map(str, expected)))
+    collected = SimpleNamespace(path=expected[0])
+    with pytest.raises(pytest.UsageError, match="tests/test_empty.py"):
+        pytest_collection_modifyitems([collected])
