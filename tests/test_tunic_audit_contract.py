@@ -301,9 +301,9 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
 
 def test_penetration_evidence_stays_on_numpy_path_in_freecad_host():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    audit = source.split("def write_drape_metrics(", 1)[1].split(
-        "\ndef _arc_through_midpoint(", 1
-    )[0]
+    audit = source.split("def write_drape_metrics(", 1)[1].split("\ndef _arc_through_midpoint(", 1)[
+        0
+    ]
     evidence = audit.split("inside_points = []", 1)[1].split(
         'log(\n                    "penetration-evidence', 1
     )[0]
