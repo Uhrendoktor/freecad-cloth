@@ -70,6 +70,7 @@ def test_avatar_ladder_snapshots_solver_positions_before_rendering():
         "_avatar_screenshot(view, image)"
     )
     assert "_seam_geometry(positions, base.seam_stitch_pairs)" in SOURCE
+    assert "seam_pre = _seam_geometry(positions, base.seam_stitch_pairs)" in SOURCE
 
     checkpoint_record = SOURCE.split("def _checkpoint_record(", 1)[1].split(
         "def _build_avatar_scene(", 1
