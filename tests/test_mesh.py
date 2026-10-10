@@ -112,6 +112,13 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
     )
     assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)) == 0.0
 
+def test_point_to_segment_distance_handles_subnormal_segment_length():
+    endpoint = 1.6724306261326825e-169
+    assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, endpoint)) == 0.0
+    distance = _point_to_segment_distance((1.0, 0.0), (0.0, 0.0), (0.0, endpoint))
+    assert distance == 1.0
+
+
 
 @given(
     px=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
