@@ -5,9 +5,9 @@ models normalize finite coordinates once and reject silent type coercion.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from math import hypot, isfinite
-from numbers import Integral, Real
+from numbers import Real
 from typing import Annotated, TypeAlias
 
 from pydantic import (
@@ -19,7 +19,6 @@ from pydantic import (
     StrictInt,
     StrictStr,
     TypeAdapter,
-    field_validator,
     model_validator,
 )
 
@@ -343,84 +342,8 @@ class AvatarAttachmentProjectionInput(InputModel):
     particle_indices: tuple[StrictInt, ...]
     target_points: dict[StrictInt, Point3D] = Field(default_factory=dict)
     projection_directions: dict[StrictInt, Point3D] = Field(default_factory=dict)
-    offset_mm: float = 3.0
-    max_distance_mm: float = 100.0
-
-    @field_validator("particle_indices", mode="before")
-    @classmethod
-    def particle_indices_are_strict_integers(cls, value: object) -> tuple[int, ...]:
-        """Keep exact integer indices while normalizing Integral implementations."""
-        try:
-            raw = tuple(value)  # type: ignore[arg-type]
-        except TypeError as exc:
-            raise ValueError("attachment selection must contain only integer indices") from exc
-        if any(isinstance(index, bool) or not isinstance(index, Integral) for index in raw):
-            raise ValueError("attachment selection must contain only integer indices")
-        return tuple(dict.fromkeys(int(index) for index in raw))
-
-    @field_validator("target_points", mode="before")
-    @classmethod
-    def target_point_keys_are_strict_integers(cls, value: object) -> dict[int, object]:
-        """Reject non-integer particle keys before Pydantic can coerce them."""
-        if value is None:
-            return {}
-        if not isinstance(value, Mapping):
-            raise ValueError("avatar target points must be a mapping of particle indices")
-        normalized: dict[int, object] = {}
-        for index, point in value.items():
-            if isinstance(index, bool) or not isinstance(index, Integral):
-                raise ValueError("avatar target-point keys must be integer particle indices")
-            normalized[int(index)] = point
-        return normalized
-
-    @field_validator("projection_directions", mode="before")
-    @classmethod
-    def projection_direction_keys_are_strict_integers(
-        cls, value: object
-    ) -> dict[int, object]:
-        """Reject non-integer particle keys before Pydantic can coerce them."""
-        if value is None:
-            return {}
-        if not isinstance(value, Mapping):
-            raise ValueError("avatar projection directions must be a mapping of particle indices")
-        normalized: dict[int, object] = {}
-        for index, direction in value.items():
-            if isinstance(index, bool) or not isinstance(index, Integral):
-                raise ValueError(
-                    "avatar projection-direction keys must be integer particle indices"
-                )
-            normalized[int(index)] = direction
-        return normalized
-
-    @field_validator("offset_mm", mode="before")
-    @classmethod
-    def offset_is_supported(cls, value: object) -> float:
-        """Reject coercion, non-finite offsets, and values outside the public range."""
-        try:
-            result = _finite_real(value)
-        except ValueError as exc:
-            raise ValueError(
-                "avatar attachment offset must be finite and between 0 and 100 mm"
-            ) from exc
-        if not 0.0 <= result <= 100.0:
-            raise ValueError(
-                "avatar attachment offset must be finite and between 0 and 100 mm"
-            )
-        return result
-
-    @field_validator("max_distance_mm", mode="before")
-    @classmethod
-    def distance_is_supported(cls, value: object) -> float:
-        """Require a positive finite search radius without implicit coercion."""
-        try:
-            result = _finite_real(value)
-        except ValueError as exc:
-            raise ValueError(
-                "maximum attachment distance must be positive and finite"
-            ) from exc
-        if result <= 0.0:
-            raise ValueError("maximum attachment distance must be positive and finite")
-        return result
+    offset_mm: FiniteNumber = Field(default=3.0, ge=0.0, le=100.0)
+    max_distance_mm: FiniteNumber = Field(default=100.0, gt=0.0)
 
     @model_validator(mode="after")
     def selected_particles_and_maps_are_valid(self) -> AvatarAttachmentProjectionInput:
@@ -437,7 +360,6 @@ class AvatarAttachmentProjectionInput(InputModel):
         if any(hypot(*direction) <= 1e-9 for direction in self.projection_directions.values()):
             raise ValueError("avatar projection direction must be non-zero")
         return self
-
 
 class PatternPieceInput(InputModel):
     """Validate the numeric boundary of a canonical 2D pattern piece."""
