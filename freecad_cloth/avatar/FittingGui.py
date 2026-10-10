@@ -165,6 +165,9 @@ class DirectArrangeController:
         self._anchor_overlay = None
         self._anchor_overlay_signature = None
         self._anchor_visibility = {}
+        self._anchor_overlay_update_pending = False
+        self._anchor_overlay_refresh_generation = 0
+        self._anchor_overlay_positions_refreshed = False
 
     def _status(self, message):
         self.status_callback(str(message))
@@ -182,7 +185,7 @@ class DirectArrangeController:
         )
 
         _refresh_anchor_positions(self.scene, update_visuals=True)
-        self._refresh_anchor_overlay(positions_refreshed=True)
+        self._queue_anchor_overlay_refresh(positions_refreshed=True)
         for name in tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ()):
             obj = document.getObject(str(name))
             if obj is None or getattr(obj, "FittingType", "") != "ArrangementPoint":
@@ -323,6 +326,31 @@ class DirectArrangeController:
             with contextlib.suppress(AttributeError, RuntimeError, TypeError, ValueError):
                 view_object.Visibility = bool(visible)
         self._anchor_visibility.clear()
+
+    def _queue_anchor_overlay_refresh(self, positions_refreshed=False):
+        """Defer anchor scene-graph updates until Coin finishes event traversal."""
+        if self.view is None:
+            return
+        if self._anchor_overlay_update_pending:
+            self._anchor_overlay_positions_refreshed = (
+                self._anchor_overlay_positions_refreshed and bool(positions_refreshed)
+            )
+            return
+        self._anchor_overlay_update_pending = True
+        self._anchor_overlay_positions_refreshed = bool(positions_refreshed)
+        generation = self._anchor_overlay_refresh_generation
+
+        def apply_pending():
+            if generation != self._anchor_overlay_refresh_generation:
+                return
+            self._anchor_overlay_update_pending = False
+            refreshed = self._anchor_overlay_positions_refreshed
+            self._anchor_overlay_positions_refreshed = False
+            if self.view is None:
+                return
+            self._refresh_anchor_overlay(positions_refreshed=refreshed)
+
+        self.QtCore.QTimer.singleShot(0, apply_pending)
 
     def _refresh_anchor_overlay(self, positions_refreshed=False):
         """Render every arrangement anchor as a visible, camera-facing viewport glyph."""
@@ -467,6 +495,9 @@ class DirectArrangeController:
         self._pending_snap_point = None
         self._snap_indicator_update_pending = False
         self._clear_snap_indicator()
+        self._anchor_overlay_refresh_generation += 1
+        self._anchor_overlay_update_pending = False
+        self._anchor_overlay_positions_refreshed = False
         self._clear_anchor_overlay()
         self._restore_anchor_feature_visibility()
         self._abort_transaction()
@@ -727,7 +758,7 @@ class ViewportAnchorPicker:
             return
         self._finish()
         self.Gui.Selection.clearSelection()
-        self.panel.controller._refresh_anchor_overlay()
+        self.panel.controller._queue_anchor_overlay_refresh()
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
         self.panel.status.setText(
