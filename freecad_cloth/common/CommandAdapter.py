@@ -59,7 +59,7 @@ class FunctionCommand:
     def GetResources(self) -> dict[str, str]:
         """Provide the public GetResources operation."""
         return {
-            "MenuText": self.function.__name__.replace("_", " ").title(),
+            "MenuText": str(getattr(self.function, "__name__", "command")).replace("_", " ").title(),
             "ToolTip": self.tooltip or getattr(self.function, "__doc__", None) or "Cloth command",
             "Pixmap": icon_for_command(self.command_name),
         }
