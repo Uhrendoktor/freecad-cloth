@@ -258,7 +258,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
         _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
         _set_prop(
-            obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting"]
+            obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting", "t_pose"]
         )
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
@@ -285,6 +285,10 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
         _set_prop(obj, "App::PropertyLink", "DrapeTarget", "Collision", None)
     else:
+        current_pose_preset = str(getattr(obj, "PosePreset", "standing"))
+        pose_presets = ["standing", "sewing", "sitting", "t_pose"]
+        _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", pose_presets)
+        obj.PosePreset = current_pose_preset if current_pose_preset in pose_presets else "standing"
         _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
         if not str(getattr(obj, "AvatarProviderId", "")):
             obj.AvatarProviderId = "makehuman-hm08"
