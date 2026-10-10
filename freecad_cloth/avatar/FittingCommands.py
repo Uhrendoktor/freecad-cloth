@@ -888,9 +888,10 @@ def create_arrangement_anchor(
 ):
     """Create a named snap point from a pick on persistent target geometry.
 
-    The anchor records both the picked target and its source signature. A changed
-    or rebuilt target invalidates the anchor instead of silently snapping to stale
-    world coordinates.
+    The anchor keeps a target-local location. Mesh surfaces use triangle indices and
+    barycentric weights so stable-topology deformations follow the same surface region;
+    non-mesh surfaces follow their object's Placement. Incompatible geometry is marked
+    stale instead of silently snapping to old world coordinates.
     """
     import FreeCAD as App
 
