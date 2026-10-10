@@ -17,7 +17,6 @@ from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_CO
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench, _validate_sewing_command_groups
 from freecad_cloth.simulation import SimulationCommands
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
