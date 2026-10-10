@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+
+
 COMMANDS = (
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateMNSewing",
