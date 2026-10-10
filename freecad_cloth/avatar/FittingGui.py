@@ -103,8 +103,12 @@ class DirectArrangeController:
         document = getattr(self.scene, "Document", None)
         if document is None:
             return ()
-        from freecad_cloth.avatar.FittingCommands import arrangement_anchor_status
+        from freecad_cloth.avatar.FittingCommands import (
+            _refresh_anchor_positions,
+            arrangement_anchor_status,
+        )
 
+        _refresh_anchor_positions(self.scene, update_visuals=True)
         for name in tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ()):
             obj = document.getObject(str(name))
             if obj is None or getattr(obj, "FittingType", "") != "ArrangementPoint":
