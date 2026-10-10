@@ -1,88 +1,124 @@
-# User guide
+# User guide: build and inspect a garment
 
-This is the shortest path from an installed workbench to a complete garment workflow.
+This guide follows one garment from editable 2D source to a draped 3D result. It assumes FreeCAD Cloth is installed and a FreeCAD document is open. For the manual-install directory and Python-runtime requirements, see [Installation](INSTALLATION.md).
 
-## Start with a known-good first result
+If this is your first run, start with the [Blanket over Cube example](EXAMPLES.md#1-blanket-over-cube) before adding sewing and a mannequin. It is easier to diagnose a simple target than a complete garment.
 
-Before testing a full garment, run the [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) example.
+## The complete workflow
 
-It deliberately uses one pattern, one generic FreeCAD collision target and explicit pins. When the blanket reaches the cube without exploding, detaching or penetrating badly, the installation and basic simulation path are working.
+**Pattern → Sewing → Fitting → Pose (optional) → Simulation → Diagnosis → Edit → Rebuild**
 
-Use the [Tunic](EXAMPLES.md#2-tunic) only after the basic example succeeds.
+The screenshots and recordings are optional visual aids. Each procedure below describes the required action and the result to verify without relying on animation.
 
-## The normal garment loop
+## 1. Create the 2D pattern source
 
-**Pattern → Sewing → Fitting → Pose → Simulation → Diagnosis → Edit → Rebuild**
+In the **Cloth Pattern** workbench, author the outline in native Sketcher geometry or open an existing Sketcher sketch. Create a PatternPiece from that sketch; add garment metadata such as grainline, notches, internal marks, or seam allowance when needed.
 
-### 1. Pattern — create the authoritative 2D source
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Cloth Pattern workbench showing an editable Sketcher-backed garment pattern and construction marks" width="820"></p>
 
-Open **Cloth Pattern**.
+1. Create or open a FreeCAD document.
+2. Create a Sketcher sketch with the intended closed garment outline. Use Sketcher dimensions and constraints for edits.
+3. In **Cloth Pattern**, use the command that creates a PatternPiece from the selected sketch.
+4. Add the construction metadata needed for your piece, then recompute the document.
+5. Save the document before moving to sewing.
 
-Create or open a native Sketcher sketch and turn it into a PatternPiece. Use Sketcher for dimensions, constraints and curves. Cloth adds garment meaning such as semantic piece identity, seam references, seam allowance, grainline, notches and internal marks.
+**Verify the result:** the piece has a clear outline, the source remains editable in Sketcher, and recompute does not leave it invalid. Use the [Pattern guide](wiki/01-pattern.md) for 3D Pattern Pen limits and export details.
 
-A pattern can also start with **Cloth Pattern → 3D Pattern Pen** for the bounded planar-extraction workflow. The resulting PatternPiece is still a normal Sketcher-backed object.
+## 2. Create semantic seams
 
-**Done when:** the pieces are visible in the document, editable in Sketcher and valid after recompute.
+Open **Cloth Sewing** and define how the pieces connect. A seam is tied to persistent piece/edge identity, not to generated mesh-edge numbering.
 
-### 2. Sewing — describe how pieces belong together
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Choosing a first pattern edge, selecting its counterpart, reviewing the seam preview, and committing the relationship" width="820"></p>
 
-Open **Cloth Sewing**.
+1. Make sure the intended PatternPieces exist and their mating edges are visible.
+2. Start **Create Seam** and choose **Pick edges in viewport**; native edge selection remains available as an alternative.
+3. Select the first edge (side A), then select the mating edge on a different PatternPiece (side B).
+4. Review the seam preview, direction marks, A/B labels, and any length or correspondence warning.
+5. Commit only when both sides match the intended construction. Cancel and reselect when the preview is wrong.
 
-Select compatible semantic edges or ranges, review direction/reversal and correspondence, then commit the seam. The seam relationship is persistent; generated mesh topology is not.
+**Verify the result:** the intended sides carry the same seam identity and direction is correct. If an edit invalidates a reference, recompute and repair or recreate it explicitly; do not select a replacement edge based only on screen position. See [Sewing](wiki/02-sewing.md).
 
-**Done when:** the intended edges highlight consistently and the sewing view reports no unresolved reference or correspondence error.
+## 3. Arrange the garment around a target
 
-### 3. Fitting — put pieces around the target
+In **Cloth Simulation**, create or select a valid **DrapeTarget**. The target can be the native mannequin or supported FreeCAD geometry such as a Shape, Body, or mesh.
 
-Create or select a **DrapeTarget**.
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging a garment piece toward an arrangement snap point; releasing commits its new placement" width="820"></p>
 
-Targets can come from the native mannequin or supported FreeCAD geometry. Arrange pieces in the 3D view using the available placement/arrangement interactions. Persistent fitting state belongs to the document.
+1. Confirm that the intended PatternPieces and seam relationships are present.
+2. Create or select the target that the cloth will collide against.
+3. Open **Interactive Arrange** and select the piece to move.
+4. Drag the piece in the viewport. When snapping is enabled, approach an arrangement point and wait for the snap marker before releasing.
+5. Inspect the placement and use the arrangement reset/recovery action before simulation if pieces overlap unexpectedly.
 
-**Done when:** the pieces are arranged where you expect them before simulation begins.
+**Verify the result:** every piece is placed intentionally around or near the target, and its placement is saved rather than existing only as a drag preview. See [Fitting](wiki/03-fitting.md).
 
-### 4. Pose — change the mannequin when needed
+## 4. Pose the mannequin (optional)
 
-Use mannequin Pose Mode for joint rotations and symmetry. Treat the pose as document state; the displayed deformed body is derived from it.
+Use Pose Mode when the garment needs a different body position. You can skip this step when working with a generic FreeCAD target or when the default mannequin pose is suitable.
 
-**Done when:** the mannequin has the intended persistent pose and its downstream target state is current.
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin joint and editing its rotation in Pose Mode" width="820"></p>
 
-### 5. Simulate — create derived cloth state
+1. Open Pose Mode for the mannequin.
+2. Choose a starting preset if one is appropriate.
+3. Select the joint in the viewport and drag its rotation gizmo. Enable **Mirror** or **5° Snap** only when those constraints match the intended pose.
+4. Use **Joint list** or **Exact angles** for crowded views or precise values.
+5. Apply and rebuild the pose; use Cancel when the staged edit should be discarded.
 
-Open **Cloth Simulation** and confirm the target is valid/current, quality and material settings are appropriate, pins/stitches are intentional, and there is no stale derived state.
+**Verify the result:** the mannequin shows the intended pose after the edit is applied and remains correct after saving/reopening the FCStd document. Rebuild target-dependent state before simulation. See [Pose Mode](wiki/04-pose.md).
 
-Use **Run** for the normal workflow, **Step** for controlled investigation and **Reset** for recovery.
+## 5. Run the cloth simulation
 
-**Done when:** the simulation reaches a stable cloth state and the garment remains coherent from more than one view.
+Before running the solver, confirm that the fitting target is valid/current and that pinning, sewing constraints, material, and quality settings are intentional.
 
-### 6. Diagnose — inspect before exporting
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-tunic-mannequin-motion.gif" alt="Tunic motion and draping sequence as the cloth settles on the mannequin" width="820"></p>
 
-Inspect the final garment from multiple sides and use the diagnostic view when available.
+1. Open **Cloth Simulation** and confirm the displayed target identity and validity.
+2. Choose the simulation quality/resolution and fabric material settings.
+3. Review the pinning mode: **Automatic**, **Explicit**, or **None**. Confirm that the selected pins and seam constraints match the intended setup.
+4. Use **Run** for the normal simulation. Use **Step** only when investigating a particular state; use **Reset** to recover.
+5. Watch for contact, fold development, unstable motion, and stale-state warnings. Rebuild when an upstream pattern, seam, fitting, pose, or target change invalidates the scene.
 
-Look for penetration, detached seams, implausible rigid-sheet behavior, collapsed geometry and unexpected topology changes.
+**Verify the result:** simulation state advances beyond the initial arrangement, the garment remains connected, and the result does not show severe penetration, explosion, collapse, or implausible rigid-sheet behavior. A camera rotation alone is not evidence of simulated motion. See [Simulation](wiki/05-simulation.md).
 
-**Done when:** the result is visually plausible and the relevant diagnostics are current.
+## 6. Inspect before exporting
 
-## What persists and what does not
+A single attractive camera angle can hide collision penetration, a detached panel, or inverted geometry. Use multiple views and current diagnostics before deciding that a result is acceptable.
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-diagnostics.png" alt="Draped garment with diagnostic visualization for inspecting cloth behavior" width="820"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-front.png" alt="Front view of the draped garment for a six-side geometry review" width="260"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-rear.png" alt="Rear view of the draped garment for a six-side geometry review" width="260"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped-left.png" alt="Left-side view of the draped garment for a six-side geometry review" width="260"></p>
+
+1. Inspect the front, rear, left, right, top, and bottom views from the same saved result.
+2. Check for penetration, detached seams or panels, collapsed geometry, unexpected topology changes, and implausible hems or openings.
+3. Inspect stress or other diagnostic overlays only when the simulation and target are current.
+4. Save the document and export from authoritative pattern geometry when needed.
+
+**Verify the result:** the garment remains a coherent object from multiple angles and all diagnostic views describe the same current state. See [Diagnostics](wiki/06-diagnostics.md) and the [simulation review guide](SIMULATION_REVIEW.md).
+
+## What is saved
 
 The saved FreeCAD document is authoritative.
 
-**Persistent:** Sketcher geometry, PatternPiece semantics, semantic seam records, fitting state, pose, target identity, material/quality inputs and other documented object properties.
+- **Persistent:** Sketcher geometry, PatternPiece identity and metadata, semantic seam records, arrangement/fitting state, mannequin pose, target identity, and documented material/quality/pinning inputs.
+- **Derived:** generated simulation mesh, solver particles and constraints, and collision acceleration data.
+- **Transient:** selection highlights, hover labels, and in-progress drag previews.
 
-**Derived:** simulation meshes, particles, constraints, collision acceleration data and solver runtime state.
+A change to an authoritative input can invalidate dependent derived state. Refresh or rebuild that state rather than bypassing a stale guard. See the [data model](wiki/07-data-model.md).
 
-**Transient:** selection highlights, drag previews and other viewport-only interaction state.
-
-Changing an upstream authoritative input should invalidate affected derived state rather than silently reusing it.
-
-## Recovery first
+## Recovery guide
 
 | Symptom | First action |
 | --- | --- |
-| Workbench or command is missing | Use [Troubleshooting](TROUBLESHOOTING.md) and verify the installation path |
-| Seam becomes invalid after a sketch edit | Recompute, inspect the reported reference and repair/recreate the seam explicitly |
-| Arrangement looks wrong | Reset/rearrange before running the solver |
-| Simulation is stale | Refresh/rebuild the target or derived scene, then Run again |
-| Simulation collapses or penetrates | Stop at the first failing visual state and inspect [simulation review](SIMULATION_REVIEW.md) |
-| Local CI differs from canonical evidence | Compare the exact FreeCAD/solver environment recorded by the canonical workflow |
+| Workbench or command is missing | Verify the Mod installation and restart FreeCAD; see [Troubleshooting](TROUBLESHOOTING.md). |
+| A seam becomes invalid after editing a sketch | Recompute, inspect the reported reference, then repair or recreate the seam explicitly. |
+| Pieces are badly arranged | Reset/rearrange before attempting to tune simulation settings. |
+| The target or simulation is stale | Refresh/rebuild the affected target or derived scene, then run again. |
+| Simulation explodes, collapses, or penetrates | Stop at the first invalid state and follow [Simulation review](SIMULATION_REVIEW.md). |
+| Local visuals disagree with published evidence | Compare the source commit and the canonical FreeCAD/solver environment; do not hand-edit screenshots. |
 
-For detailed command behavior, use the [Workbench guide](WORKBENCH_GUIDE.md). For feature-by-feature visual evidence, use the [visual wiki](wiki/README.md).
+## Next steps
+
+- [Feature-by-feature visual wiki](wiki/README.md)
+- [Examples](EXAMPLES.md)
+- [Workbench command guide](WORKBENCH_GUIDE.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
