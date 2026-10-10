@@ -60,3 +60,18 @@ def test_avatar_ladder_screenshot_path_is_fail_closed():
     assert "time.sleep(0.05)" in SOURCE
     assert "png-capture=retry" in SOURCE
     assert "PNG capture contains no visible rendered content" in SOURCE
+
+
+def test_avatar_ladder_snapshots_solver_positions_before_rendering():
+    checkpoint_loop = SOURCE.split("for step in CHECKPOINTS:", 1)[1].split(
+        'final = checkpoints[-1]', 1
+    )[0]
+    assert checkpoint_loop.index("positions = _positions_tuple(base.backend)") < checkpoint_loop.index(
+        "_avatar_screenshot(view, image)"
+    )
+    assert "_seam_geometry(positions, base.seam_stitch_pairs)" in checkpoint_loop
+
+    checkpoint_record = SOURCE.split("def _checkpoint_record(", 1)[1].split(
+        "def _build_avatar_scene(", 1
+    )[0]
+    assert "_seam_geometry(positions, seam_stitch_pairs)" in checkpoint_record
