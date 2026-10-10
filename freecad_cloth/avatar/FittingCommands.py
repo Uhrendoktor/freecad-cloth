@@ -54,6 +54,12 @@ def _point_xyz(point):
         return (float(point.x), float(point.y), float(point.z))
 
 
+def _geometry_round(value, digits=5):
+    """Round geometry values and canonicalize negative zero for stable signatures."""
+    rounded = round(float(value), digits)
+    return 0.0 if rounded == 0.0 else rounded
+
+
 def _mesh_topology(target):
     """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
     mesh = getattr(target, "Mesh", None)
@@ -108,15 +114,15 @@ def _target_signature(target):
 
         vertices = tuple(
             sorted(
-                tuple(round(value, 5) for value in _point_xyz(vertex.Point))
+                tuple(_geometry_round(value) for value in _point_xyz(vertex.Point))
                 for vertex in tuple(normalized_shape.Vertexes)
             )
         )
         edges = tuple(
             sorted(
                 (
-                    round(float(edge.Length), 5),
-                    tuple(round(value, 5) for value in _point_xyz(edge.CenterOfMass)),
+                    _geometry_round(edge.Length),
+                    tuple(_geometry_round(value) for value in _point_xyz(edge.CenterOfMass)),
                 )
                 for edge in tuple(normalized_shape.Edges)
             )
@@ -125,8 +131,8 @@ def _target_signature(target):
             sorted(
                 (
                     str(type(face.Surface).__name__),
-                    round(float(face.Area), 5),
-                    tuple(round(value, 5) for value in _point_xyz(face.CenterOfMass)),
+                    _geometry_round(face.Area),
+                    tuple(_geometry_round(value) for value in _point_xyz(face.CenterOfMass)),
                     len(tuple(face.Edges)),
                 )
                 for face in tuple(normalized_shape.Faces)
@@ -140,12 +146,12 @@ def _target_signature(target):
             vertices,
             edges,
             faces,
-            round(float(box.XMin), 5),
-            round(float(box.XMax), 5),
-            round(float(box.YMin), 5),
-            round(float(box.YMax), 5),
-            round(float(box.ZMin), 5),
-            round(float(box.ZMax), 5),
+            _geometry_round(box.XMin),
+            _geometry_round(box.XMax),
+            _geometry_round(box.YMin),
+            _geometry_round(box.YMax),
+            _geometry_round(box.ZMin),
+            _geometry_round(box.ZMax),
         )
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         raise ValueError("could not normalize the selected target shape") from exc
