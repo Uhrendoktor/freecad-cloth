@@ -19,7 +19,7 @@ FreeCAD Cloth adds a native garment workflow to FreeCAD. Use the **Cloth Pattern
 
 ## See the interactions
 
-These recordings are generated from the current FreeCAD UI acceptance fixtures. Each feature guide explains the same interaction in text, including what to check when the result differs.
+These recordings are generated from real FreeCAD UI acceptance fixtures and are ordered as a workflow reference: sewing, fitting anchors, panel arrangement, and mannequin posing. They are task-focused captures rather than one continuous recording from a single saved document; the production tunic audit validates the integrated garment path separately. Each feature guide explains the interaction and what to check when the result differs.
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Selecting two pattern edges, reviewing a seam preview, and committing the seam" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/arrangement-anchor.gif" alt="Naming and creating front and back surface snap points on the FreeCAD mannequin" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging the tunic front and back panels onto their mannequin snap points and releasing to commit both placements" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin joint and changing its rotation in Pose Mode" width="235"></p>
 
@@ -51,8 +51,8 @@ For the complete route, start with the [workflow overview](docs/wiki/00-overview
 ## First-run recommendation
 
 1. Check supported versions and install the workbench using [Installation](docs/INSTALLATION.md).
-2. Start with the simple **Blanket over Cube** path described in [Examples](docs/EXAMPLES.md). It isolates pattern, target, pinning, and collision behavior from garment complexity.
-3. Continue with the [User guide](docs/USER_GUIDE.md), then use the [Tunic example](docs/EXAMPLES.md#2-tunic) for the full pattern-to-drape path.
+2. Follow the [end-to-end user guide](docs/USER_GUIDE.md) with the **Tunic** example as the main pattern-to-drape journey.
+3. Use [Blanket over Cube](docs/EXAMPLES.md#1-blanket-over-cube) when you specifically need to isolate pattern, target, pinning, or collision behavior from garment complexity.
 
 The exact manual-install directory, embedded-Python dependencies, and replacement procedure are documented in Installation. Do not assume that the Python interpreter used by your system shell is the same interpreter embedded in FreeCAD.
 

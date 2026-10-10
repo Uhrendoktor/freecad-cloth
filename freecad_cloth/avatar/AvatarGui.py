@@ -74,7 +74,10 @@ class AvatarTaskPanel:
     )
     PROVIDERS = (
         ("makehuman-hm08", "MakeHuman HM08 humanoid mesh"),
-        ("freecad-geometry", "FreeCAD body / imported geometry"),
+        (
+            "freecad-geometry",
+            "Imported surface only; no skeleton, skin weights, or animation are imported",
+        ),
     )
 
     def __init__(self, avatar=None):
@@ -115,23 +118,20 @@ class AvatarTaskPanel:
         provider_row = QtWidgets.QHBoxLayout()
         for key, label in self.PROVIDERS:
             button = QtWidgets.QToolButton()
-            button.setText(
-                "MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry"
-            )
+            button.setText("MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry")
             button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolTip(label)
             self.provider_group.addButton(button)
             self.provider_buttons[key] = button
             provider_row.addWidget(button)
-            button.clicked.connect(
-                lambda checked=False, value=key: self._provider_changed(value)
-            )
+            button.clicked.connect(lambda checked=False, value=key: self._provider_changed(value))
         provider_row.addStretch(1)
         provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
         self.provider_source.setToolTip(
-            "Select a body or mesh in the 3D view, then stage it as the FreeCAD geometry provider."
+            "Select an imported body or mesh in the 3D view. This uses its surface only; "
+            "the source skeleton, skin weights, and animation are not imported."
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
@@ -142,7 +142,7 @@ class AvatarTaskPanel:
         pose = QtWidgets.QGroupBox("Pose")
         pose_layout = QtWidgets.QFormLayout(pose)
         self.pose = QtWidgets.QComboBox()
-        self.pose.addItems(("standing", "sewing", "sitting"))
+        self.pose.addItems(("standing", "sewing", "sitting", "t_pose"))
         self.pose.setToolTip("Choose the saved fitting pose.")
         pose_layout.addRow("Preset", self.pose)
         for key, label in self.POSE_FIELDS:
@@ -399,9 +399,7 @@ class AvatarTaskPanel:
                 getattr(source, "Label", getattr(source, "Name", "FreeCAD object"))
             )
         self.provider_source_label.setText(text)
-        self.provider_source.setEnabled(
-            self._provider_id() == "freecad-geometry"
-        )
+        self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
     def _preset_changed(self, preset):
         if self._loading:

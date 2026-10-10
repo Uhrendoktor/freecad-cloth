@@ -8,6 +8,12 @@ from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
+AVATAR_ENTRY_COMMANDS = (
+    "ClothFitting_CreateAvatar",
+    "ClothFitting_EditAvatar",
+    "ClothFitting_PoseAvatar",
+)
+
 
 class ClothSimulationWorkbench(ClothWorkbenchBase):
     MenuText = "Cloth Simulation"
@@ -23,8 +29,8 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         import FreeCAD as App
 
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
-        from freecad_cloth.sewing.SewingView import apply_seam_colors
         from freecad_cloth.sewing.SeamOverlay import activate_seam_overlay
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
 
         DrapeCommands.register_gui_commands()
         if App.ActiveDocument is not None:
@@ -40,6 +46,7 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         DrapeCommands.register_gui_commands()
         self.register(
             (
+                ("Avatar & Fitting", AVATAR_ENTRY_COMMANDS),
                 (
                     "Simulation",
                     SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS,
