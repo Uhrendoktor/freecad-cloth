@@ -39,9 +39,7 @@ class RequestedModuleCollection:
             (item.path for item in session.items),
         )
         if missing:
-            sys.stderr.write(
-                "pytest modules collected no test items: " + ", ".join(missing) + "\n"
-            )
+            sys.stderr.write("pytest modules collected no test items: " + ", ".join(missing) + "\n")
             session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
