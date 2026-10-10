@@ -24,8 +24,6 @@ from tests.support.freecad_input import (
     click_widget,
     focus_main_window,
 )
-from freecad_cloth.pattern.PatternModel import PatternPiece
-from freecad_cloth.pattern.PatternObjects import add_pattern_piece
 from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
@@ -90,6 +88,21 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
         ]
     )
     obj.Shape = _curved_shape(line_length, curve_span, curve_height)
+    return obj
+
+
+def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0):
+    """Create a standard Part feature carrying the sewing workflow's piece contract."""
+    obj = doc.addObject("Part::Feature", name)
+    obj.Label = name
+    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
+    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
+    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
+    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
+        [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height))]
+    )
+    obj.Shape = Part.makePlane(float(width), float(height))
     return obj
 
 
@@ -428,18 +441,9 @@ try:
     record("commands=registered")
 
     doc = App.newDocument("SewingCreationSmoke")
-    piece_a = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeA", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-a"),
-    )
-    piece_b = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeB", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-b"),
-    )
-    piece_c = add_pattern_piece(
-        doc,
-        PatternPiece("SmokeC", [(0, 0), (100, 0), (100, 100), (0, 100)], id="smoke-c"),
-    )
+    piece_a = add_rectangular_piece(doc, "SmokeA", "smoke-a")
+    piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b")
+    piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c")
     doc.recompute()
     # Keep the outlines separate so the recorded viewport workflow shows two
     # distinct workpieces and unambiguous source/counterpart edge selection.
@@ -463,8 +467,7 @@ try:
         view_object = piece.ViewObject
         view_object.Visibility = True
         view_object.ShapeColor = color
-        # Distinctive piece-colored linework stays visible even when the active
-        # Part::FeaturePython provider only renders outlines, not shaded faces.
+        # Standard Part view providers render stable colored face and edge cues.
         view_object.LineColor = color
         view_object.LineWidth = 4.0
         view_object.Transparency = 0
@@ -538,7 +541,15 @@ try:
     )
     recorder.start()
     recorder.hold(700)
-    assert_pattern_piece_colors_visible(recorder.frames[-1])
+    initial_frame = recorder.frames[-1]
+    initial_frame_path = LOG_PATH.parent / "seam-assignment-initial-frame.png"
+    initial_frame.save(str(initial_frame_path), format="PNG")
+    record(
+        "seam-initial-frame=passed "
+        f"color-pixels={pattern_piece_color_counts(initial_frame)!r} "
+        f"path={initial_frame_path.name}"
+    )
+    assert_pattern_piece_colors_visible(initial_frame)
 
     before = {obj.Name for obj in doc.Objects}
     # Stage the selection so the recording distinguishes side A from the
