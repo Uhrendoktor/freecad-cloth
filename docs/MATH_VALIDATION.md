@@ -14,15 +14,17 @@ Validation is deliberately not duplicated across every internal arithmetic opera
 | Mesh arrays | Every vertex is a finite 3D point; each face has exactly three integral, in-range indices | `tests/test_validation_models.py`, `tests/test_mesh_validation.py` |
 | Triangulation | Validate Triangle output before indexing; preserve authored-boundary mapping; reject non-finite area limits; compare measured mesh area with polygon area | `tests/test_mesh.py`, `tests/test_pattern_geometry.py` |
 | Seam correspondence | Positive finite lengths; tolerance in [0, 1); non-empty normalized ranges; mappings preserve or reverse endpoint order within the destination range | `tests/test_sewing_correspondence.py`, `tests/test_property_contracts.py` |
-| Point-to-segment distance | Non-negative distance, no greater than the nearer endpoint distance, and invariant under endpoint reversal | `tools/crosshair_contracts.py`, `tests/test_mesh.py` |
+| Point-to-segment distance | GEOS computes distance to sampled line geometry; generated tests check non-negativity, endpoint bounds, and orientation invariance | `tests/test_mesh.py` |
 | Arc-length sampling | Finite points of consistent dimension; finite positive total length; selected indices remain distinct and ordered | `tests/test_property_contracts.py` |
 | Solver input | Distance symmetry and non-negativity for representable inputs; finite solver state; pins preserve zero inverse mass | `tests/test_property_contracts.py` |
 
-Hypothesis explores generated inputs and stateful mutation sequences. CrossHair symbolically checks a deliberately small pure-math contract surface. These tools detect counterexamples but do not prove the entire FreeCAD/OCCT/native application correct.
+Hypothesis explores generated inputs and stateful mutation sequences, including GEOS-backed geometry properties. CrossHair symbolically checks the pure-Python contract surface; external-library geometry is deliberately validated with property tests rather than treated as symbolically executable. These tools find counterexamples but do not prove the entire FreeCAD/OCCT/native application correct.
 
 ## Geometry-library decisions
 
-- Use Python's `math.dist` and `math.hypot` for Euclidean norms rather than hand-written square/sum/square-root formulas.
+- Use Python's `math.dist` for Euclidean point distances and Shapely/GEOS `LineString.distance` for point-to-segment queries; avoid custom projection and square/sum/square-root loops when a stable library primitive exists.
+- Use NumPy vectorized cross products/norms for fallback triangle-area metrics and SciPy sparse connected-components for edge-based mesh connectivity when optional `trimesh` is absent.
+- Use `trimesh.contains` for watertight point-in-mesh queries when its optional spatial-index backend is available; preserve the vectorized ray-parity fallback otherwise. Validate points and face indices with Pydantic before either backend.
 - Keep constrained triangulation and refinement in the existing Triangle binding, and validate its output before any index-based access.
 - Use the required SciPy `cKDTree` path for exact nearest-target-vertex clearance on large meshes.
 - Use Shapely/GEOS for the polygon simplicity predicate; do not use its buffer operation as a drop-in seam-allowance implementation because join styles, collapsed concavities, and ring ordering can alter authored topology.
