@@ -69,7 +69,7 @@ class _NativePBDTimeStep(Protocol):
 class _NativePBDModel(Protocol):
     def cleanup(self) -> None: ...
     def addTriangleModel(
-        self, points: Sequence[Sequence[float]], indices: Sequence[int], *, _testMesh: bool
+        self, points: Sequence[Sequence[float]], indices: Sequence[int], _testMesh: bool
     ) -> object: ...
     def getParticles(self) -> _NativePBDParticles: ...
     def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None: ...
@@ -83,7 +83,6 @@ class _NativePBDModel(Protocol):
         mass: float,
         vertex_data: object,
         mesh: object,
-        *,
         _testMesh: bool,
         _sdf: object,
     ) -> _NativePBDRigidBody: ...
