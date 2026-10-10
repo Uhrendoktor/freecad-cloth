@@ -6,10 +6,12 @@ import json
 import os
 import sys
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import TypeAlias, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+JSONValue: TypeAlias = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
 
 API_VERSION = "2022-11-28"
 MAX_ARTIFACT_BYTES = 10_000_000
@@ -43,18 +45,23 @@ def fetch_artifact_page(
     )
     try:
         with urlopen(request, timeout=20) as response:
-            payload: Any = json.load(response)
+            payload = cast(JSONValue, json.load(response))
     except (HTTPError, URLError) as exc:
         raise RuntimeError(f"GitHub artifact API request failed: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise RuntimeError("GitHub artifact API returned invalid JSON") from exc
 
-    artifacts = payload.get("artifacts") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub artifact API response must be an object")
+    artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
         raise RuntimeError("GitHub artifact API response has no artifact list")
-    if not all(isinstance(item, Mapping) for item in artifacts):
-        raise RuntimeError("GitHub artifact API returned a malformed artifact list")
-    return artifacts
+    normalized: list[Mapping[str, object]] = []
+    for item in artifacts:
+        if not isinstance(item, dict):
+            raise RuntimeError("GitHub artifact API returned a malformed artifact list")
+        normalized.append(item)
+    return normalized
 
 
 def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, object]]:
