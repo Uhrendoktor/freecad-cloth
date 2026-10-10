@@ -2,6 +2,7 @@
 
 import tomllib
 from pathlib import Path
+
 from tools.ci.run_freecad import configured_timeout_seconds
 
 
