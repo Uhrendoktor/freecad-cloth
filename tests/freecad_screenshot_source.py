@@ -229,6 +229,26 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
+def _camera_snapshot(view):
+    """Return the actual world-space camera axes used for screenshot projection."""
+    rotation = view.getCameraOrientation()
+    right = rotation.multVec(App.Vector(1.0, 0.0, 0.0))
+    up = rotation.multVec(App.Vector(0.0, 1.0, 0.0))
+    forward = rotation.multVec(App.Vector(0.0, 0.0, -1.0))
+    return {
+        "quaternion": [round(float(value), 9) for value in rotation.Q],
+        "screen_right_world": [
+            round(float(right.x), 6), round(float(right.y), 6), round(float(right.z), 6)
+        ],
+        "screen_up_world": [
+            round(float(up.x), 6), round(float(up.y), 6), round(float(up.z), 6)
+        ],
+        "view_forward_world": [
+            round(float(forward.x), 6), round(float(forward.y), 6), round(float(forward.z), 6)
+        ],
+    }
+
+
 def _seam_lateral_snapshot(proxy, center_x):
     """Measure world-X placement of every semantic seam from its exact solver pairs."""
     backend = getattr(proxy, "backend", None)
@@ -1082,6 +1102,11 @@ def simulation():
     view.viewFront()
     view.fitAll()
     events()
+    # Store the *actual* FreeCAD camera rotation used for this baseline image.
+    # viewFront() can still be animating when events() returns, so calling it
+    # later does not guarantee the identical projection for the draped alias.
+    arranged_front_orientation = view.getCameraOrientation()
+    log("camera-arranged=" + json.dumps(_camera_snapshot(view), sort_keys=True))
     task_dock.hide()
     events()
     save(
@@ -1205,6 +1230,12 @@ def simulation():
         getattr(view, method_name)()
         view.fitAll()
         events()
+        if direction == "front":
+            # Reuse the arranged frame's exact camera rotation rather than
+            # relying on a second animated viewFront() transition.
+            view.setCameraOrientation(arranged_front_orientation)
+            events()
+            log("camera-draped-front=" + json.dumps(_camera_snapshot(view), sort_keys=True))
         save(
             f"cloth-simulation-draped-{direction}.png",
             f"Simulation Workbench draped {direction}",
