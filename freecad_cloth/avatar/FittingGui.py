@@ -9,6 +9,15 @@ available through FreeCAD's property editor for precision work.
 import contextlib
 import math
 
+from freecad_cloth.shared.viewport_gizmo_style import (
+    SNAP_CENTER_RADIUS,
+    SNAP_CROSSHAIR_HALF_LENGTH,
+    SNAP_LINE_WIDTH,
+    SNAP_RING_RADIUS,
+    SNAP_RING_SEGMENTS,
+    SNAP_TARGET_COLOR,
+)
+
 
 def _modules():
     import FreeCAD as App
@@ -181,9 +190,9 @@ class DirectArrangeController:
                 coin.SbVec3f(float(point.X), float(point.Y), float(point.Offset))
             )
             color = coin.SoBaseColor()
-            color.rgb = (0.15, 0.75, 1.0)
+            color.rgb = SNAP_TARGET_COLOR
             draw_style = coin.SoDrawStyle()
-            draw_style.lineWidth = 2.0
+            draw_style.lineWidth = SNAP_LINE_WIDTH
             separator.addChild(transform)
             separator.addChild(color)
             separator.addChild(draw_style)
@@ -196,21 +205,21 @@ class DirectArrangeController:
                 separator.addChild(coordinates)
                 separator.addChild(line)
 
-            radius = 8.0
+            radius = SNAP_RING_RADIUS
             ring = [
                 coin.SbVec3f(
-                    radius * math.cos(index * 2.0 * math.pi / 32.0),
-                    radius * math.sin(index * 2.0 * math.pi / 32.0),
+                    radius * math.cos(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
+                    radius * math.sin(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
                     0.0,
                 )
-                for index in range(33)
+                for index in range(SNAP_RING_SEGMENTS + 1)
             ]
             add_polyline(ring)
 
             center = coin.SoSphere()
-            center.radius = 0.8
+            center.radius = SNAP_CENTER_RADIUS
             separator.addChild(center)
-            arm = 11.0
+            arm = SNAP_CROSSHAIR_HALF_LENGTH
             add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
             add_polyline([coin.SbVec3f(0.0, -arm, 0.0), coin.SbVec3f(0.0, arm, 0.0)])
             self.view.getSceneGraph().addChild(separator)
@@ -270,7 +279,9 @@ class DirectArrangeController:
         if self._mouse_callback is not None:
             return
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
-        self._location_callback = self.view.addEventCallback("SoLocation2Event", self._location_event)
+        self._location_callback = self.view.addEventCallback(
+            "SoLocation2Event", self._location_event
+        )
         self._status(
             "Drag a pattern piece in the 3D view. Blue crosshairs mark arrangement snap targets."
         )
@@ -278,14 +289,12 @@ class DirectArrangeController:
     def deactivate(self):
         """Remove viewport callbacks and cancel any uncommitted drag."""
         if self.drag_piece is not None and self.drag_start_base is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError, ValueError):
                 self._set_piece_placement(
                     self.drag_piece,
                     self.drag_start_base,
                     self.drag_start_rotation,
                 )
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
         self.drag_piece = None
         self.snap_point = None
         self._snap_indicator_generation += 1
@@ -330,9 +339,7 @@ class DirectArrangeController:
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
-            self._status(
-                "Dragging {} — release near a blue crosshair to snap.".format(piece.Label)
-            )
+            self._status("Dragging {} — release near a blue crosshair to snap.".format(piece.Label))
         elif state == "UP" and self.drag_piece is not None:
             piece = self.drag_piece
             snap = self.snap_point

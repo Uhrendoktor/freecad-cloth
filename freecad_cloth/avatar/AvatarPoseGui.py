@@ -5,8 +5,28 @@ task panel keeps only essential posing aids visible while the viewport carries
 the primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
-
+import contextlib
 import math
+
+from freecad_cloth.shared.viewport_gizmo_style import (
+    ACTIVE_COLOR,
+    JOINT_COLOR,
+    POSE_AXIS_COLORS,
+    RIG_ACTIVE_JOINT_POINT_SIZE,
+    RIG_ACTIVE_LINE_WIDTH,
+    RIG_EDITABLE_COLOR,
+    RIG_EDITABLE_LINE_WIDTH,
+    RIG_JOINT_POINT_SIZE,
+    RIG_PASSIVE_COLOR,
+    RIG_PASSIVE_LINE_WIDTH,
+    ROTATION_ARC_ANGLE_DEGREES,
+    ROTATION_ARROW_HEIGHT,
+    ROTATION_ARROW_RADIUS,
+    ROTATION_GIZMO_SCALE,
+    ROTATION_PIVOT_RADIUS,
+    ROTATION_RING_RADIUS,
+    ROTATION_RING_THICKNESS,
+)
 
 
 def _modules():
@@ -39,9 +59,7 @@ def joint_world_positions(parameters):
         if data is None or bone not in transforms:
             continue
         fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
-        result[bone] = tuple(
-            float(value) for value in transforms[bone].apply(fitted_head)
-        )
+        result[bone] = tuple(float(value) for value in transforms[bone].apply(fitted_head))
     return result
 
 
@@ -159,9 +177,7 @@ class SkeletonPoseController:
     def _build_skeleton(self):
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
 
-        self._skeleton_segments, joints = skeleton_world_segments(
-            self.panel._staged_parameters()
-        )
+        self._skeleton_segments, joints = skeleton_world_segments(self.panel._staged_parameters())
         self._positions = {
             bone: self._skeleton_segments[bone][0]
             for bone, _label in CONTROLLABLE_JOINTS
@@ -181,7 +197,10 @@ class SkeletonPoseController:
             return
         if self.panel.avatar is None:
             raise RuntimeError("create a Cloth Human Mannequin first")
-        if str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08")) != "makehuman-hm08":
+        if (
+            str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
+            != "makehuman-hm08"
+        ):
             self.panel.status.setText(
                 "Pose Mode is available for the MakeHuman HM08 avatar provider."
             )
@@ -262,9 +281,7 @@ class SkeletonPoseController:
             bone = str(getattr(self.panel, "skeleton_joint_index", "") or "")
         if bone:
             self.select_joint(bone)
-        self.panel.status.setText(
-            "Click a bone to select · drag a rotation ring to pose."
-        )
+        self.panel.status.setText("Click a bone to select · drag a rotation ring to pose.")
 
     def _clear_fallback_gizmo(self):
         obj = self.fallback_gizmo_object
@@ -391,16 +408,16 @@ class SkeletonPoseController:
 
         # Blender-style posing convention: the full rig remains visible, while
         # editable/active bones are visually stronger than structural bones.
-        add_lines(self.overlay, passive_segments, 1.4, (0.46, 0.48, 0.52))
-        add_lines(self.overlay, editable_segments, 2.4, (0.72, 0.75, 0.80))
-        add_lines(self.overlay, selected_segments, 4.0, (1.0, 0.82, 0.12))
+        add_lines(self.overlay, passive_segments, RIG_PASSIVE_LINE_WIDTH, RIG_PASSIVE_COLOR)
+        add_lines(self.overlay, editable_segments, RIG_EDITABLE_LINE_WIDTH, RIG_EDITABLE_COLOR)
+        add_lines(self.overlay, selected_segments, RIG_ACTIVE_LINE_WIDTH, ACTIVE_COLOR)
 
         point_list = list(joints.values())
         if point_list:
             point_draw = coin.SoDrawStyle()
-            point_draw.pointSize = 7.0
+            point_draw.pointSize = RIG_JOINT_POINT_SIZE
             joint_color = coin.SoBaseColor()
-            joint_color.rgb = (0.66, 0.68, 0.72)
+            joint_color.rgb = JOINT_COLOR
             points = coin.SoCoordinate3()
             points.point.setValues(0, len(point_list), point_list)
             point_set = coin.SoPointSet()
@@ -414,9 +431,9 @@ class SkeletonPoseController:
 
         if self.selected_bone in self._positions:
             selected_draw = coin.SoDrawStyle()
-            selected_draw.pointSize = 14.0
+            selected_draw.pointSize = RIG_ACTIVE_JOINT_POINT_SIZE
             selected_color = coin.SoBaseColor()
-            selected_color.rgb = (1.0, 0.82, 0.12)
+            selected_color.rgb = ACTIVE_COLOR
             selected_points = coin.SoCoordinate3()
             selected_points.point.setValues(
                 0,
@@ -456,16 +473,12 @@ class SkeletonPoseController:
         elif self.selected_bone and self.gizmo_transform is not None:
             point = self._positions.get(self.selected_bone)
             if point is not None:
-                self.gizmo_transform.translation.setValue(
-                    self._coin().SbVec3f(*point)
-                )
+                self.gizmo_transform.translation.setValue(self._coin().SbVec3f(*point))
 
     def _remove_gizmo(self):
         if self.scene_graph is not None and self.gizmo_separator is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 self.scene_graph.removeChild(self.gizmo_separator)
-            except (AttributeError, RuntimeError):
-                pass
         self.gizmo_separator = None
         self.gizmo_transform = None
         self.gizmo = None
@@ -515,17 +528,17 @@ class SkeletonPoseController:
             0.0,
         )
 
-        rotator.arcAngle.setValue(math.radians(300.0))
-        rotator.arcRadius.setValue(9.5)
-        rotator.arcThickness.setValue(2.8)
-        rotator.sphereRadius.setValue(0.9)
-        rotator.coneBottomRadius.setValue(1.35)
-        rotator.coneHeight.setValue(3.8)
+        rotator.arcAngle.setValue(math.radians(ROTATION_ARC_ANGLE_DEGREES))
+        rotator.arcRadius.setValue(ROTATION_RING_RADIUS)
+        rotator.arcThickness.setValue(ROTATION_RING_THICKNESS)
+        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS)
+        rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
+        rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
         rotator.leftArrowVisible.setValue(True)
         rotator.rightArrowVisible.setValue(True)
 
         dragger.color.setValue(*rgb)
-        dragger.activeColor.setValue(1.0, 0.78, 0.20)
+        dragger.activeColor.setValue(*ACTIVE_COLOR)
         dragger.baseGeomVisible.setValue(False)
         return True
 
@@ -538,11 +551,11 @@ class SkeletonPoseController:
 
         self.gizmo_style_error = None
         axis_specs = (
-            ("X", (1.0, 0.0, 0.0), (0.86, 0.18, 0.16)),
-            ("Y", (0.0, 1.0, 0.0), (0.18, 0.70, 0.26)),
-            ("Z", (0.0, 0.0, 1.0), (0.18, 0.40, 0.88)),
+            ("X", (1.0, 0.0, 0.0), POSE_AXIS_COLORS["X"]),
+            ("Y", (0.0, 1.0, 0.0), POSE_AXIS_COLORS["Y"]),
+            ("Z", (0.0, 0.0, 1.0), POSE_AXIS_COLORS["Z"]),
         )
-        geometry_scale = 7.0
+        geometry_scale = ROTATION_GIZMO_SCALE
 
         try:
             local_z = coin.SbVec3f(0.0, 0.0, 1.0)
@@ -562,7 +575,9 @@ class SkeletonPoseController:
                     "setName",
                 )
                 if any(not hasattr(dragger, item) for item in required):
-                    self.gizmo_style_error = "SoRotationDragger proxy is missing required fields or callbacks"
+                    self.gizmo_style_error = (
+                        "SoRotationDragger proxy is missing required fields or callbacks"
+                    )
                     return False
 
                 axis_transform = coin.SoTransform()
@@ -599,10 +614,8 @@ class SkeletonPoseController:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
             if self.gizmo_separator is not None:
-                try:
+                with contextlib.suppress(AttributeError, RuntimeError):
                     self.scene_graph.removeChild(self.gizmo_separator)
-                except (AttributeError, RuntimeError):
-                    pass
             return False
 
     def _create_trackball_gizmo(self, coin):
@@ -638,9 +651,7 @@ class SkeletonPoseController:
         self.gizmo_transform = coin.SoTransform()
         point = self._positions.get(bone)
         if point is not None:
-            self.gizmo_transform.translation.setValue(
-                coin.SbVec3f(*point)
-            )
+            self.gizmo_transform.translation.setValue(coin.SbVec3f(*point))
         self.gizmo_separator.addChild(self.gizmo_transform)
         if self._create_native_gizmo(coin):
             return
@@ -664,10 +675,8 @@ class SkeletonPoseController:
             JointRotation(self.selected_bone),
         )
         name = ""
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             name = str(dragger.getName().getString())
-        except (AttributeError, RuntimeError):
-            pass
         self._active_gizmo_axis = {
             "ClothPoseRotationX": (1.0, 0.0, 0.0),
             "ClothPoseRotationY": (0.0, 1.0, 0.0),
@@ -680,9 +689,7 @@ class SkeletonPoseController:
         )
         if hasattr(dragger, "rotationIncrement"):
             dragger.rotationIncrement.setValue(
-                math.radians(
-                    5.0 if self.panel.angle_snap.isChecked() else 1.0
-                )
+                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
             )
         self.panel.status.setText(
             "Rotating {} — release to keep the staged pose; Cancel restores it.".format(
@@ -700,9 +707,7 @@ class SkeletonPoseController:
             return
         try:
             quaternion = self._dragger_quaternion(dragger)
-            angle = math.degrees(
-                2.0 * math.atan2(float(quaternion[2]), float(quaternion[3]))
-            )
+            angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
             if self._active_gizmo_axis is None:
                 return
             delta = self.App.Rotation(
@@ -746,10 +751,8 @@ class SkeletonPoseController:
             self._hover_separator = None
             self._hover_bone = None
             return
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             self.scene_graph.removeChild(self._hover_separator)
-        except (AttributeError, RuntimeError):
-            pass
         self._hover_separator = None
         self._hover_bone = None
 
@@ -820,12 +823,9 @@ class SkeletonPoseController:
 
         if best is None and include_joint_fallback:
             for bone, point in {
-                name: self._screen_position(value)
-                for name, value in self._positions.items()
+                name: self._screen_position(value) for name, value in self._positions.items()
             }.items():
-                distance = (
-                    (point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2
-                ) ** 0.5
+                distance = ((point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2) ** 0.5
                 if distance < best_distance:
                     best = bone
                     best_distance = distance
@@ -834,7 +834,6 @@ class SkeletonPoseController:
     def _location_event(self, event_callback):
         if self._gizmo_dragging:
             return
-        coin = self._coin()
         event = event_callback.getEvent()
         position = event.getPosition()
         size = self.view.getSize()
@@ -900,7 +899,9 @@ class AvatarPoseTaskPanel:
         self.symmetry.setCheckable(True)
         self.symmetry.setChecked(False)
         self.symmetry.setAutoRaise(True)
-        self.symmetry.setToolTip("Mirror left/right joint rotations across the mannequin center line.")
+        self.symmetry.setToolTip(
+            "Mirror left/right joint rotations across the mannequin center line."
+        )
         self.angle_snap = QtWidgets.QToolButton()
         self.angle_snap.setText("5° Snap")
         self.angle_snap.setCheckable(True)
@@ -953,9 +954,7 @@ class AvatarPoseTaskPanel:
             box.setPrefix("{} ".format(axis.upper()))
             self.precision_fields[axis] = box
             precision_layout.addWidget(box)
-            box.valueChanged.connect(
-                lambda value, axis=axis: self._precision_changed(axis, value)
-            )
+            box.valueChanged.connect(lambda value, axis=axis: self._precision_changed(axis, value))
         selected_layout.addWidget(precision_widget)
         self.precision_widget = precision_widget
         self.precision_widget.setVisible(False)
@@ -989,7 +988,9 @@ class AvatarPoseTaskPanel:
 
         action_row = QtWidgets.QHBoxLayout()
         self.reset_button = QtWidgets.QPushButton("Reset pose")
-        self.reset_button.setToolTip("Clear manual joint rotations and return to the active preset baseline.")
+        self.reset_button.setToolTip(
+            "Clear manual joint rotations and return to the active preset baseline."
+        )
         action_row.addWidget(self.reset_button)
         action_row.addStretch(1)
         root.addLayout(action_row)
@@ -1030,12 +1031,16 @@ class AvatarPoseTaskPanel:
             "Right leg": [],
         }
         for bone, label in CONTROLLABLE_JOINTS:
-            if bone.endswith(".L") and "leg" not in bone and any(
-                token in bone for token in ("clavicle", "arm", "wrist")
+            if (
+                bone.endswith(".L")
+                and "leg" not in bone
+                and any(token in bone for token in ("clavicle", "arm", "wrist"))
             ):
                 groups["Left arm"].append((bone, label))
-            elif bone.endswith(".R") and "leg" not in bone and any(
-                token in bone for token in ("clavicle", "arm", "wrist")
+            elif (
+                bone.endswith(".R")
+                and "leg" not in bone
+                and any(token in bone for token in ("clavicle", "arm", "wrist"))
             ):
                 groups["Right arm"].append((bone, label))
             elif bone.endswith(".L") and any(
@@ -1099,10 +1104,14 @@ class AvatarPoseTaskPanel:
         label = self._joint_label(str(bone))
         self.selected_label.setText(label)
         rotation = self._staged_joint_rotations.get(str(bone))
-        values = (0.0, 0.0, 0.0) if rotation is None else (
-            float(rotation.x),
-            float(rotation.y),
-            float(rotation.z),
+        values = (
+            (0.0, 0.0, 0.0)
+            if rotation is None
+            else (
+                float(rotation.x),
+                float(rotation.y),
+                float(rotation.z),
+            )
         )
         for axis, value in zip(("x", "y", "z"), values, strict=False):
             self._set_axis_value(axis, value)
@@ -1127,9 +1136,7 @@ class AvatarPoseTaskPanel:
             return
         values = {}
         for key in ("x", "y", "z"):
-            values[key] = (
-                float(value) if key == axis else float(self.precision_fields[key].value())
-            )
+            values[key] = float(value) if key == axis else float(self.precision_fields[key].value())
         self._stage_joint_rotation(
             self.skeleton_joint_index,
             values["x"],
@@ -1172,9 +1179,8 @@ class AvatarPoseTaskPanel:
         )
 
     def _staged_parameters(self):
-        from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
-
         from freecad_cloth.avatar.AvatarCommands import _parameters
+        from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
         stored = _parameters(self.avatar)
         measurements = dict(stored.measurements)
@@ -1271,7 +1277,11 @@ class AvatarPoseTaskPanel:
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
             self.avatar.Document.recompute()
-            self.controller.refresh_overlay(keep_gizmo=bool(self.controller.gizmo is not None and self.controller.gizmo.isActive))
+            self.controller.refresh_overlay(
+                keep_gizmo=bool(
+                    self.controller.gizmo is not None and self.controller.gizmo.isActive
+                )
+            )
         except (AttributeError, RuntimeError, TypeError, ValueError):
             self.status.setText("Preview unavailable; the staged values remain editable.")
 

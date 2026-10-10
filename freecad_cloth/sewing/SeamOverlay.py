@@ -9,6 +9,7 @@ correspondence. No overlay node is persisted in the FreeCAD document.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from contextlib import suppress
 from hashlib import sha1
 from types import ModuleType
 
@@ -17,6 +18,12 @@ from freecad_cloth.shared.seam_colors import (
     register_seam_refresh_callback,
     seam_color_map,
     set_seam_color_highlighting_enabled,
+)
+from freecad_cloth.shared.viewport_gizmo_style import (
+    SEAM_CONNECTOR_LINE_WIDTH,
+    SEAM_FOCUSED_LINE_WIDTH,
+    SEAM_LABEL_FONT_SIZE,
+    SEAM_LINE_WIDTH,
 )
 
 _ACTIVE_CONTROLLER = None
@@ -68,10 +75,7 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     }
     widths = {identity: 6 for identity in hashed}
     while True:
-        candidates = {
-            identity: "S" + hashed[identity][:widths[identity]]
-            for identity in hashed
-        }
+        candidates = {identity: "S" + hashed[identity][: widths[identity]] for identity in hashed}
         by_label: dict[str, list[str]] = {}
         for identity, label in candidates.items():
             by_label.setdefault(label, []).append(identity)
@@ -84,7 +88,9 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
                 widths[identity] = min(widths[identity] + 2, len(hashed[identity]))
         # SHA-1 is long enough that the terminal collision path is only a defensive
         # guard; retain unique labels even if all digest characters collide.
-        if any(widths[identity] >= len(hashed[identity]) for group in collisions for identity in group):
+        if any(
+            widths[identity] >= len(hashed[identity]) for group in collisions for identity in group
+        ):
             labels.update(candidates)
             for identity in identities:
                 if labels[identity] in {labels[other] for other in labels if other != identity}:
@@ -157,15 +163,11 @@ def _add(
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
-def _scale(
-    vector: tuple[float, float, float], factor: float
-) -> tuple[float, float, float]:
+def _scale(vector: tuple[float, float, float], factor: float) -> tuple[float, float, float]:
     return (vector[0] * factor, vector[1] * factor, vector[2] * factor)
 
 
-def _unit(
-    vector: tuple[float, float, float]
-) -> tuple[float, float, float] | None:
+def _unit(vector: tuple[float, float, float]) -> tuple[float, float, float] | None:
     length = sum(float(value) * float(value) for value in vector) ** 0.5
     if length <= 1e-9:
         return None
@@ -202,14 +204,16 @@ def _side_segments(
 
     span = sum(
         sum(value * value for value in _subtract(right, left)) ** 0.5
-        for left, right in zip(coords, coords[1:])
+        for left, right in zip(coords, coords[1:], strict=False)
     )
     notch_half = min(4.0, max(1.5, span * 0.045))
     notch_center = coords[middle]
-    segments.append([
-        _add(notch_center, _scale(perpendicular, -notch_half)),
-        _add(notch_center, _scale(perpendicular, notch_half)),
-    ])
+    segments.append(
+        [
+            _add(notch_center, _scale(perpendicular, -notch_half)),
+            _add(notch_center, _scale(perpendicular, notch_half)),
+        ]
+    )
 
     if len(coords) >= 3:
         arrow_index = max(1, min(len(coords) - 2, round((len(coords) - 1) * 0.68)))
@@ -285,9 +289,7 @@ def _add_label(
 ) -> None:
     """Add a label that either obeys scene occlusion or is explicitly foregrounded."""
     annotation_type = (
-        coin.SoSeparator
-        if respect_depth
-        else getattr(coin, "SoAnnotation", coin.SoSeparator)
+        coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
     )
     annotation = annotation_type()
     depth = _depth_buffer(coin, respect_depth)
@@ -297,7 +299,7 @@ def _add_label(
     x, y, z = _xyz(point)
     transform.translation.setValue(coin.SbVec3f(x, y, z))
     font = coin.SoFont()
-    font.size.setValue(16.0)
+    font.size.setValue(SEAM_LABEL_FONT_SIZE)
     text = coin.SoText2()
     text.string.setValue(str(label))
     annotation.addChild(depth)
@@ -376,10 +378,7 @@ def _simulation_seam_geometry(
                     if len(raw_pair) != 2:
                         continue
                     index_a, index_b = int(raw_pair[0]), int(raw_pair[1])
-                    if not (
-                        0 <= index_a < len(positions)
-                        and 0 <= index_b < len(positions)
-                    ):
+                    if not (0 <= index_a < len(positions) and 0 <= index_b < len(positions)):
                         continue
                     point_a, point_b = _xyz(positions[index_a]), _xyz(positions[index_b])
                 except (IndexError, TypeError, ValueError):
@@ -503,16 +502,12 @@ class SeamOverlayController:
     def deactivate(self) -> None:
         """Remove only this controller's transient Coin node and hover callback."""
         if self._location_callback is not None:
-            try:
+            with suppress(AttributeError, RuntimeError, TypeError):
                 self.view.removeEventCallback("SoLocation2Event", self._location_callback)
-            except (AttributeError, RuntimeError, TypeError):
-                pass
         self._location_callback = None
         if self.scene_graph is not None and self.root is not None:
-            try:
+            with suppress(AttributeError, RuntimeError, TypeError):
                 self.scene_graph.removeChild(self.root)
-            except (AttributeError, RuntimeError, TypeError):
-                pass
         self.scene_graph = None
         self.root = None
         self.rendered_seam_ids = ()
@@ -554,9 +549,11 @@ class SeamOverlayController:
             colors = seam_color_map(simulated.keys())
             labels = seam_display_labels(simulated.keys())
             simulation_rendered_ids: list[str] = []
-            for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(sorted(simulated.items())):
+            for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(
+                sorted(simulated.items())
+            ):
                 focused = identity == str(active_seam_id)
-                width = 5.5 if focused else 3.5
+                width = SEAM_FOCUSED_LINE_WIDTH if focused else SEAM_LINE_WIDTH
                 side_group = coin.SoSeparator()
                 # Respect occlusion by default; the UI can explicitly opt into
                 # always-on-top rendering for crowded editing/simulation views.
@@ -564,16 +561,24 @@ class SeamOverlayController:
                 color = colors[identity]
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
-                _add_line_groups(side_group, coin, connectors, color, 1.25)
+                _add_line_groups(side_group, coin, connectors, color, SEAM_CONNECTOR_LINE_WIDTH)
                 label_a = _label_anchor(points_a, len(points_a) // 3, lane=label_lane)
                 label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
                 if should_show_seam_label(identity, hovered_seam_id):
                     _add_label(
-                        side_group, coin, label_a, labels[identity] + "-A", color,
+                        side_group,
+                        coin,
+                        label_a,
+                        labels[identity] + "-A",
+                        color,
                         respect_depth=_RESPECT_DEPTH_OCCLUSION,
                     )
                     _add_label(
-                        side_group, coin, label_b, labels[identity] + "-B", color,
+                        side_group,
+                        coin,
+                        label_b,
+                        labels[identity] + "-B",
+                        color,
                         respect_depth=_RESPECT_DEPTH_OCCLUSION,
                     )
                     rendered_label_ids.append(identity)
@@ -598,12 +603,22 @@ class SeamOverlayController:
                 edge_a = _resolved_edge(piece_a, seam, "A")
                 edge_b = _resolved_edge(piece_b, seam, "B")
                 points_a = _edge_samples(
-                    piece_a, edge_a, float(seam.StartA), float(seam.EndA), 17,
-                    z=0.75, transform_to_world=True,
+                    piece_a,
+                    edge_a,
+                    float(seam.StartA),
+                    float(seam.EndA),
+                    17,
+                    z=0.75,
+                    transform_to_world=True,
                 )
                 points_b = _edge_samples(
-                    piece_b, edge_b, float(seam.StartB), float(seam.EndB), 17,
-                    z=0.75, transform_to_world=True,
+                    piece_b,
+                    edge_b,
+                    float(seam.StartB),
+                    float(seam.EndB),
+                    17,
+                    z=0.75,
+                    transform_to_world=True,
                 )
                 if bool(getattr(seam, "ReversedB", False)):
                     points_b.reverse()
@@ -611,7 +626,7 @@ class SeamOverlayController:
                 continue
             color = colors[identity]
             focused = identity == str(active_seam_id)
-            width = 5.5 if focused else 3.5
+            width = SEAM_FOCUSED_LINE_WIDTH if focused else SEAM_LINE_WIDTH
             side_group = coin.SoSeparator()
             _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
             _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
@@ -619,11 +634,19 @@ class SeamOverlayController:
             label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
             if should_show_seam_label(identity, hovered_seam_id):
                 _add_label(
-                    side_group, coin, label_a, labels[identity] + "-A", color,
+                    side_group,
+                    coin,
+                    label_a,
+                    labels[identity] + "-A",
+                    color,
                     respect_depth=_RESPECT_DEPTH_OCCLUSION,
                 )
                 _add_label(
-                    side_group, coin, label_b, labels[identity] + "-B", color,
+                    side_group,
+                    coin,
+                    label_b,
+                    labels[identity] + "-B",
+                    color,
                     respect_depth=_RESPECT_DEPTH_OCCLUSION,
                 )
                 rendered_label_ids.append(identity)

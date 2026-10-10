@@ -324,3 +324,42 @@ The overlay path now creates a non-persistent Coin3D subtree in the active viewp
 ### Limits
 
 This is a FreeCAD-native workflow informed by documented public behavior, not a claim of CLO/Blender feature parity. The viewport picker is a two-edge shortcut for 1:1 seams; M:N/free relationships use the same direct edge-picking control but still require an explicit Preview. Snapping blue guide points to arc-length correspondence and selected-seam isolation remain candidates for a later bounded change.
+
+
+## Viewport gizmo visual system audit (2026-10-10)
+
+This pass audits four transient viewport presentations: Pose Mode's skeleton/rotation
+control, Interactive Arrange's snap marker, the 3D Pattern Pen stroke, and the semantic
+Seam Overlay. Shared style tokens now live in `freecad_cloth/shared/viewport_gizmo_style.py`
+for Pose Mode, Interactive Arrange, and Seam Overlay; they are presentation only and do
+not define document or solver state. The Surface Pen was reviewed but kept unchanged until
+a new closure marker can be checked in real FreeCAD viewport captures.
+
+### Findings and design decisions
+
+| Surface | Audit finding | Change |
+| --- | --- | --- |
+| Pose rig and rotation gizmo | The XYZ axis convention was already recognizable, but selected rig lines, selected-joint point, and native dragger active color used slightly different amber values. Ring geometry and rig weights were embedded as literals. | Keep conventional XYZ hues; centralize dimensions and line/point weights; use one amber active color for selected bone/joint and dragged ring. Structural bones remain subdued and editable bones remain stronger. |
+| Arrangement snap target | The cyan ring/crosshair has a clear meaning, but its palette, dimensions and tessellation were local literals. A low-segment ring can look faceted when zoomed in. | Keep the recognizable cyan snap cue, centralize dimensions, and use a 48-segment ring. The target remains transient and appears only during a live snap preview. |
+| 3D Pattern Pen | The orange stroke is intentionally the dominant cue because it represents the user's active tracing input, not a secondary target. Start/closure markers may help but can clutter distant or small strokes. | Keep the existing orange path and sampling semantics unchanged in this pass; point markers need inspection against real FreeCAD mannequin views at multiple zoom levels before changing the closure cue. |
+| Semantic seams | Default seam lines were comparatively heavy (3.5) and focused lines heavier still (5.5), which can dominate a crowded garment view. Stable seam identity colors and A/B labels already provide redundant identity. | Reduce ordinary lines to 2.4 and focused lines to 4.0 while retaining thinner correspondence connectors and hover-only labels. Semantic Seam IDs keep their deterministic identity colors. |
+
+### Visual contract
+
+- **Color has a job.** Red/green/blue are axis identity; amber is the active joint/control; cyan is a live snap target; orange is a surface stroke. Semantic seam hues remain identity-specific, and red remains available for invalid/stale geometry rather than ordinary selection.
+- **Use more than color.** Pose selection changes line/point weight; the snap marker has a ring, center and crosshair; seam pairs have matching identity colors, A/B labels and directional marks. The pen keeps its existing high-contrast path while a dedicated start marker awaits rendered-view validation.
+- **Keep the model first.** Secondary skeleton segments are muted, seam labels appear only on hover, and the snap marker is transient. The Surface Pen remains a deliberate exception: its stroke must be prominent enough to trace on a mannequin. The viewport remains the main work surface rather than turning overlays into a second panel.
+- **Keep overlays disposable.** Geometry is regenerated from current data and removed on controller teardown. No gizmo, hover state, active marker or pen sample becomes persistent document data.
+- **Keep fallbacks.** Exact-angle pose entry, native selection, task-panel context and non-viewport controls remain available when direct manipulation is difficult or Coin/Pivy is unavailable.
+- **Preserve geometry and meaning.** These changes alter only Coin3D presentation. They do not change pose transforms, snapping thresholds, arrangement placements, seam correspondence, mesh topology, pattern extraction tolerances or simulation inputs.
+
+### References checked on 2026-10-10
+
+- FreeCAD Developers Handbook — [Design Guide](https://freecad.github.io/DevelopersHandbook/designguide/) and [Primary Elements / Task Panels](https://freecad.github.io/DevelopersHandbook/designguide/elements.html): recommends restrained viewport overlays, consistent controls, compact default task panels and progressive disclosure.
+- FreeCAD Developers Handbook — [UI Zones](https://freecad.github.io/DevelopersHandbook/designguide/zones): reserves the main view for the work and says overlays should be minimal and used sparingly.
+- FreeCAD documentation — [Artwork Guidelines](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Artwork_Guidelines.md): a limited palette improves cohesive iconography. Shared viewport roles follow the same principle without assuming icon colors prescribe every 3D overlay.
+- Blender Manual — [Viewport Gizmos](https://docs.blender.org/manual/en/latest/editors/3dview/display/gizmo.html): uses RGB axes and exposes gizmo operations separately. Blender's [Gizmo API](https://docs.blender.org/api/4.5/bpy.types.Gizmo.html) distinguishes normal and highlighted colors.
+- CLO — [Arrange Pattern with Arrangement Points](https://support.clo3d.com/hc/en-us/articles/115001999287-Arrange-Pattern-with-Arrangement-Points-Flip-Wrap-Direction): shows targets around the avatar, placement feedback and precision alternatives.
+- CLO — [3D preferences](https://support.clo3d.com/hc/en-us/articles/360001547168-3D): documents unified versus divided move/rotate gizmos and configurable arrangement-point size.
+
+These references describe observed software behavior and recommendations; the concrete colors and dimensions above are Cloth-specific choices, not claims of exact Blender or CLO parity.
