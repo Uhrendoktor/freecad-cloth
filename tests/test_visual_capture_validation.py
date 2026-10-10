@@ -100,8 +100,21 @@ def test_png_has_visible_content_supports_threshold_semantics(tmp_path: Path):
     pixels = [(255, 255, 255)] * 9
     pixels[0] = (10, 255, 255)
     _write_png(path, 3, 3, pixels)
-    assert png_has_visible_content(path, minimum_pixels=1, expected_width=3, expected_height=3, pixel_threshold=245)
-    assert not png_has_visible_content(path, minimum_pixels=1, expected_width=3, expected_height=3, pixel_threshold=245, require_all_channels_below=True)
+    assert png_has_visible_content(
+        path,
+        minimum_pixels=1,
+        expected_width=3,
+        expected_height=3,
+        pixel_threshold=245,
+    )
+    assert not png_has_visible_content(
+        path,
+        minimum_pixels=1,
+        expected_width=3,
+        expected_height=3,
+        pixel_threshold=245,
+        require_all_channels_below=True,
+    )
 
 
 def test_png_has_visible_content_rejects_malformed_input(tmp_path: Path):

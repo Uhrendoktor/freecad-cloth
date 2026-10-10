@@ -221,7 +221,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
 
     # Keep the diagnostic A/B garment aligned to current production geometry/scene APIs.
-    assert "from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene" in debug
+    assert (
+        "from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene"
+        in debug
+    )
     assert "SimulationQualityRuntimeV2" not in debug
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
