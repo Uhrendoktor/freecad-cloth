@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tests" / "freecad_pbd_contact_diagnostics.py").read_text(encoding="utf-8")
+HELPERS = (ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
 
 
@@ -55,16 +56,17 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1" in WORKFLOW
     assert 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"' in SOURCE
     assert "CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED" in SOURCE
-    assert "QtCore.QTimer.singleShot(0, _scheduled_main)" in SOURCE
+    assert "schedule_freecad_main(_scheduled_main)" in SOURCE
+    assert "QtCore.QTimer.singleShot(0, callback)" in HELPERS
     assert "os._exit(status)" in SOURCE
     assert "Gui.activeDocument().activeView()" in SOURCE
     assert "solver_collision_surface" in SOURCE
-    assert "point_inside_closed_mesh" in SOURCE
-    assert "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in SOURCE
-    assert "def _shutdown_gui():" in SOURCE
-    assert "app.quit()" in SOURCE
+    assert "point_inside_closed_mesh" in HELPERS
+    assert "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in HELPERS
+    assert "make_shutdown_gui(_progress)" in SOURCE
+    assert "app.quit()" in HELPERS
     assert "App.exit()" not in SOURCE
-    assert "gui-shutdown-requested" in SOURCE
+    assert "gui-shutdown-requested" in HELPERS
     assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
     assert "diagnostic contact controls start" in SOURCE
     assert (
@@ -78,7 +80,7 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
     assert "interior_seed_source" in SOURCE
     assert "float(center.y) + 120.0" in SOURCE
     assert "width=72.0" in SOURCE
-    assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in SOURCE
+    assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in HELPERS
     assert "did not create a true interior pre-step state" in SOURCE
     assert "pbd-env: collision_mode=" in SOURCE
     assert "diagnostic-pbd-contact:" in WORKFLOW
@@ -143,3 +145,33 @@ def test_progressive_collision_ladder_is_a_normal_gate():
     assert "artifact-name: simulation-collision-ladder" in block
     assert "artifact-name: simulation-collision-ladder" in block
     assert "artifact-path: artifacts/simulation-ladder/**" in block
+
+
+def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit():
+    cube = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
+    avatar = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
+    assert "runpy.run_path(" not in cube + avatar
+    assert "from tests.support.pbd_contact_helpers import" in cube
+    assert "from tests.support.pbd_contact_helpers import" in avatar
+    assert 'if __name__ == "__main__"' not in HELPERS
+    assert "def build_scene(" in HELPERS
+    assert "def checkpoint_record(" in HELPERS
+
+
+def test_shared_checkpoint_builder_preserves_case_specific_contact_labels():
+    from types import SimpleNamespace
+
+    from tests.support.pbd_contact_helpers import checkpoint_record, connected_components, seam_geometry
+
+    backend = SimpleNamespace(positions=lambda: ((0.0, 0.0, 0.0), (0.0, 0.0, 2.0)))
+    base = SimpleNamespace(backend=backend, seam_stitch_pairs={"side": ((0, 1),)})
+    geometry = seam_geometry(backend, base.seam_stitch_pairs)
+    assert geometry[0]["max_span_mm"] == 2.0
+    record = checkpoint_record(
+        1, "step-001.png", backend.positions(), ((0, 1, 1),), 2.0, 2.0, base,
+        connected_components, "diagnostic-only-cube",
+    )
+    assert record["contact_state"] == "diagnostic-only-cube"
+    assert record["components"] == 1
+    assert record["penetration_mm"] == 0.0
+    assert record["seam_world_spans_mm"] == geometry
