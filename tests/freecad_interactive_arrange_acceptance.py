@@ -238,15 +238,11 @@ def run():
     # Whole-object transforms must move the anchor with its target, not invalidate it
     # or leave the marker at the old world coordinate.
     original_anchor = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
-    target.Placement = App.Placement(
-        App.Vector(4.0, -3.0, 6.0), target.Placement.Rotation
-    )
+    target.Placement = App.Placement(App.Vector(4.0, -3.0, 6.0), target.Placement.Rotation)
     doc.recompute()
     controller._points()
     transformed_world = target.Placement.multVec(point_obj.AnchorLocalPoint)
-    transformed_anchor = (
-        float(point_obj.X), float(point_obj.Y), float(point_obj.Offset)
-    )
+    transformed_anchor = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
     expected_transform = (
         original_anchor[0] + 4.0,
         original_anchor[1] - 3.0,
@@ -267,9 +263,7 @@ def run():
                     "status": arrangement_anchor_status(point_obj),
                     "stored_signature": str(point_obj.AnchorGeometrySignature),
                     "current_signature": _target_signature(target),
-                    "local_point": tuple(
-                        float(value) for value in point_obj.AnchorLocalPoint
-                    ),
+                    "local_point": tuple(float(value) for value in point_obj.AnchorLocalPoint),
                     "target_placement": repr(target.Placement),
                 }
             )
@@ -334,10 +328,7 @@ def run():
     )
     moved_triangle = rest_triangles[moved_triangle_index]
     movement_score = sum(
-        sum(
-            (posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2
-            for axis in range(3)
-        )
+        sum((posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2 for axis in range(3))
         for vertex in moved_triangle
     )
     if movement_score <= 1e-4:
@@ -370,7 +361,9 @@ def run():
         raise RuntimeError("surface picker did not persist the selected avatar triangle")
     mesh_anchor_obj = doc.getObject("ArrangementPoint_SkeletonSurfaceAnchor")
     rest_anchor = (
-        float(mesh_anchor_obj.X), float(mesh_anchor_obj.Y), float(mesh_anchor_obj.Offset)
+        float(mesh_anchor_obj.X),
+        float(mesh_anchor_obj.Y),
+        float(mesh_anchor_obj.Offset),
     )
 
     # This calls the production avatar rebuild and its fitting-anchor refresh hook.
@@ -380,10 +373,14 @@ def run():
     expected_local = _mesh_anchor_local_position(avatar, mesh_anchor_record)
     expected_world = avatar.Placement.multVec(App.Vector(*expected_local))
     posed_anchor = (
-        float(mesh_anchor_obj.X), float(mesh_anchor_obj.Y), float(mesh_anchor_obj.Offset)
+        float(mesh_anchor_obj.X),
+        float(mesh_anchor_obj.Y),
+        float(mesh_anchor_obj.Offset),
     )
     expected_pose_point = (
-        float(expected_world.x), float(expected_world.y), float(expected_world.z)
+        float(expected_world.x),
+        float(expected_world.y),
+        float(expected_world.z),
     )
     if any(
         abs(actual_value - expected_value) > 1e-5
@@ -393,9 +390,7 @@ def run():
             "surface anchor did not follow the deformed avatar triangle: "
             + repr((posed_anchor, expected_pose_point))
         )
-    if sum(
-        (posed_anchor[index] - rest_anchor[index]) ** 2 for index in range(3)
-    ) <= 1e-4:
+    if sum((posed_anchor[index] - rest_anchor[index]) ** 2 for index in range(3)) <= 1e-4:
         raise RuntimeError("avatar skeleton edit left the surface anchor at its old position")
     if mesh_anchor_obj not in controller._points():
         raise RuntimeError("a valid posed-avatar anchor was excluded from snapping")
@@ -411,7 +406,10 @@ def run():
         "interactive-arrange-cleanup=passed callbacks-removed=true\n",
         encoding="utf-8",
     )
-    print("arrangement-anchor=passed target-linked=true persisted=true placement-follow=true skeleton-follow=true stale-detection=true", flush=True)
+    print(
+        "arrangement-anchor=passed target-linked=true persisted=true placement-follow=true skeleton-follow=true stale-detection=true",
+        flush=True,
+    )
     print("interactive-arrange=passed snapped=true persisted=true", flush=True)
     print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
     App.closeDocument(doc.Name)

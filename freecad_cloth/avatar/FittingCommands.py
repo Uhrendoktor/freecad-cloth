@@ -41,8 +41,7 @@ def _store_anchor_records(scene, records):
     """Persist a stable, sorted representation of surface-anchor references."""
     _ensure_anchor_property(scene)
     scene.ArrangementAnchorData = [
-        json.dumps(records[name], sort_keys=True, separators=(",", ":"))
-        for name in sorted(records)
+        json.dumps(records[name], sort_keys=True, separators=(",", ":")) for name in sorted(records)
     ]
 
 
@@ -70,9 +69,10 @@ def _mesh_topology(target):
         vertices, triangles = topology
         points = tuple(_point_xyz(point) for point in vertices)
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
-        if not points or not faces or any(
-            len(face) != 3 or min(face) < 0 or max(face) >= len(points)
-            for face in faces
+        if (
+            not points
+            or not faces
+            or any(len(face) != 3 or min(face) < 0 or max(face) >= len(points) for face in faces)
         ):
             raise ValueError("mesh topology must contain valid triangles")
         return points, faces
@@ -162,6 +162,7 @@ def _target_signature(target):
 
 def _closest_triangle_weights(point, a, b, c):
     """Return barycentric coordinates of the closest point on triangle ABC."""
+
     def subtract(left, right):
         return tuple(left[i] - right[i] for i in range(3))
 
@@ -214,8 +215,7 @@ def _closest_triangle_weights(point, a, b, c):
 def _weighted_triangle_point(vertices, triangle, weights):
     """Interpolate the current mesh position associated with saved triangle weights."""
     return tuple(
-        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3))
-        for axis in range(3)
+        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3)) for axis in range(3)
     )
 
 
@@ -267,9 +267,7 @@ def _anchor_record_status(scene, target, anchor, document=None):
             configured_target = getattr(drape_target, "SourceObject", None)
         if configured_target is None:
             return "unconfigured target"
-        if str(getattr(configured_target, "Name", "")) != str(
-            getattr(target, "Name", "")
-        ):
+        if str(getattr(configured_target, "Name", "")) != str(getattr(target, "Name", "")):
             return "wrong target"
     try:
         return (
@@ -349,7 +347,10 @@ def _refresh_anchor_positions(scene, update_visuals=False):
             if obj is None:
                 continue
             obj.X, obj.Y, obj.Offset, obj.RotationZ = (
-                point.x, point.y, point.offset, point.rotation_z
+                point.x,
+                point.y,
+                point.offset,
+                point.rotation_z,
             )
             center = App.Vector(point.x, point.y, point.offset)
             obj.Shape = Part.makeCompound(
@@ -379,9 +380,7 @@ def arrangement_anchor_status(point):
         return "missing target"
     document = getattr(point, "Document", None)
     scene = _scene(document) if document is not None else None
-    return _anchor_record_status(
-        scene, target, {"geometry_signature": expected}, document=document
-    )
+    return _anchor_record_status(scene, target, {"geometry_signature": expected}, document=document)
 
 
 def _sync_visuals(scene):
@@ -441,7 +440,13 @@ def _sync_visuals(scene):
             obj.AnchorGeometrySignature = ""
             obj.AnchorLocalPoint = App.Vector(0.0, 0.0, 0.0)
             obj.AnchorStatus = "unanchored"
-        if obj.AnchorStatus in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}:
+        if obj.AnchorStatus in {
+            "stale",
+            "missing target",
+            "invalid",
+            "wrong target",
+            "unconfigured target",
+        }:
             obj.Label = "Stale anchor: " + point.name
             obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
             obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
@@ -1008,10 +1013,7 @@ def create_arrangement_anchor(
     anchors[point.name] = anchor
     values = {
         item.name: item
-        for item in (
-            ArrangementPoint.from_string(value)
-            for value in scene.ArrangementPoints
-        )
+        for item in (ArrangementPoint.from_string(value) for value in scene.ArrangementPoints)
     }
     values[point.name] = point
     scene.ArrangementPoints = [values[key].to_string() for key in sorted(values)]

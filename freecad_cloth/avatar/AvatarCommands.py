@@ -68,8 +68,7 @@ def _parameters(obj):
         "right_elbow_angle": float(preset_defaults.right_elbow_angle),
     }
     angles = {
-        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name]))
-        for name in fallback
+        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name])) for name in fallback
     }
 
     # Migrate the stored schema once at the document boundary. New pose code uses
@@ -139,9 +138,7 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
         return vertices, triangles, landmarks, provider_id, source, "CC0"
     if provider_id == "freecad-geometry":
         source_obj = (
-            getattr(obj, "ProviderSource", None)
-            if provider_source is _MISSING
-            else provider_source
+            getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
         )
         if source_obj is None or source_obj is obj:
             raise ValueError("select a FreeCAD body as the avatar provider source")
@@ -361,7 +358,6 @@ def rebuild_avatar():
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-
 def edit_avatar():
     import FreeCAD as App
 
@@ -495,7 +491,6 @@ def set_avatar_skin_offset(offset):
         current.pose,
     )
     return apply_avatar_parameters(obj, candidate)
-
 
 
 def avatar_measurement(name):

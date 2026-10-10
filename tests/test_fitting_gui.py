@@ -159,20 +159,14 @@ def test_shape_anchor_signature_is_invariant_to_object_translation():
 
         def transformShape(self, matrix):
             self.offset = tuple(
-                value + shift
-                for value, shift in zip(
-                    self.offset, matrix.translation, strict=True
-                )
+                value + shift for value, shift in zip(self.offset, matrix.translation, strict=True)
             )
 
         def isNull(self):
             return False
 
         def _point(self, point):
-            return tuple(
-                value + shift
-                for value, shift in zip(point, self.offset, strict=True)
-            )
+            return tuple(value + shift for value, shift in zip(point, self.offset, strict=True))
 
         @property
         def Vertexes(self):

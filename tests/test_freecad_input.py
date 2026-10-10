@@ -43,6 +43,7 @@ def test_write_gif_rejects_empty_frames(tmp_path):
     with pytest.raises(ValueError, match="at least one frame"):
         write_gif([], tmp_path / "empty.gif")
 
+
 def test_resolve_key_maps_names_and_preserves_qt_enums():
     from types import SimpleNamespace
 
@@ -54,6 +55,7 @@ def test_resolve_key_maps_names_and_preserves_qt_enums():
     assert _resolve_key(core, 27) == 27
     with pytest.raises(ValueError, match="unknown Qt keyboard key"):
         _resolve_key(core, "NotARealKey")
+
 
 def test_visual_asset_inventory_has_live_ci_producers():
     import os

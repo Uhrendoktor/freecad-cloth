@@ -115,7 +115,13 @@ class DirectArrangeController:
                 continue
             status = arrangement_anchor_status(obj)
             obj.AnchorStatus = status
-            if status in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}:
+            if status in {
+                "stale",
+                "missing target",
+                "invalid",
+                "wrong target",
+                "unconfigured target",
+            }:
                 obj.Label = "Stale anchor: " + str(getattr(obj, "PointName", name))
                 obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
                 obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
@@ -284,7 +290,9 @@ class DirectArrangeController:
         if self._mouse_callback is not None:
             return
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
-        self._location_callback = self.view.addEventCallback("SoLocation2Event", self._location_event)
+        self._location_callback = self.view.addEventCallback(
+            "SoLocation2Event", self._location_event
+        )
         self._status(
             "Drag a pattern piece in the 3D view. Blue crosshairs mark arrangement snap targets."
         )
@@ -344,9 +352,7 @@ class DirectArrangeController:
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
-            self._status(
-                "Dragging {} — release near a blue crosshair to snap.".format(piece.Label)
-            )
+            self._status("Dragging {} — release near a blue crosshair to snap.".format(piece.Label))
         elif state == "UP" and self.drag_piece is not None:
             piece = self.drag_piece
             snap = self.snap_point
@@ -510,9 +516,7 @@ class ViewportAnchorPicker:
             if points:
                 picked = points[0]
                 try:
-                    return self.panel.App.Vector(
-                        float(picked.x), float(picked.y), float(picked.z)
-                    )
+                    return self.panel.App.Vector(float(picked.x), float(picked.y), float(picked.z))
                 except (AttributeError, TypeError, ValueError):
                     continue
         return None
@@ -649,7 +653,9 @@ class FittingTaskPanel:
         self.wrap_direction = QtWidgets.QComboBox()
         for direction in ("front", "back", "left", "right"):
             self.wrap_direction.addItem(direction)
-        self.wrap_direction.setToolTip("Orientation applied when a pattern piece snaps to this anchor.")
+        self.wrap_direction.setToolTip(
+            "Orientation applied when a pattern piece snaps to this anchor."
+        )
         direction_row.addWidget(self.wrap_direction)
         anchor_layout.addLayout(direction_row)
         pick_buttons = QtWidgets.QHBoxLayout()
@@ -712,18 +718,19 @@ class FittingTaskPanel:
         pieces = tuple(getattr(self.scene, "PatternPieces", ()) or ())
         names = tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ())
         doc = getattr(self.scene, "Document", None)
-        point_objects = tuple(
-            obj
-            for obj in (doc.getObject(str(name)) for name in names)
-            if obj is not None
-        ) if doc is not None else ()
+        point_objects = (
+            tuple(obj for obj in (doc.getObject(str(name)) for name in names) if obj is not None)
+            if doc is not None
+            else ()
+        )
         target = getattr(self.scene, "AvatarProxy", None)
         if target is None and doc is not None:
             drape_target = doc.getObject("DrapeTarget")
             target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
         stale = sum(
-            arrangement_anchor_status(point) in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}
+            arrangement_anchor_status(point)
+            in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}
             for point in point_objects
         )
         suffix = " | {} stale anchor(s) excluded".format(stale) if stale else ""
