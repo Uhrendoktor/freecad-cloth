@@ -19,6 +19,8 @@ from freecad_cloth.avatar import AvatarCommands as _AvatarCommands
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
+
+if Gui is not None:
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         Gui.addWorkbench(ClothPatternWorkbench())
     if "ClothSimulationWorkbench" not in Gui.listWorkbenches():
