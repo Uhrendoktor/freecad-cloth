@@ -11,8 +11,10 @@ from collections.abc import Iterable, Sequence
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 from freecad_cloth.pattern.PatternMesh import (
     TriangleMesh,
-    _nearest_segment_id as _nearest_prepared_segment_id,
     _prepare_segment_geometries,
+)
+from freecad_cloth.pattern.PatternMesh import (
+    _nearest_segment_id as _nearest_prepared_segment_id,
 )
 
 
