@@ -508,6 +508,12 @@ class ViewportAnchorPicker:
                     picked_sub_element = str(names[0])
                     break
         world_point = self._world_point(object_name, x, y, z)
+        # Mesh::Feature selections may provide a picked world coordinate without a
+        # TopoShape-style FaceN subelement name. Keep an explicit surface-kind label
+        # so mannequin meshes can use the same viewport workflow as BRep targets.
+        mesh = getattr(target, "Mesh", None)
+        if not picked_sub_element and mesh is not None:
+            picked_sub_element = "MeshSurface"
         if world_point is None or not picked_sub_element:
             self.panel.status.setText(
                 "Pick an actual face/triangle on the configured target, not empty viewport space."
