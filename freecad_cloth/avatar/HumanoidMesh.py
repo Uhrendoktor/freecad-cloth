@@ -177,40 +177,40 @@ def _verified_weights(path: Path) -> bool:
         return False
 
 
+def _valid_skeleton_payload(payload: object) -> bool:
+    """Return whether a decoded skeleton has usable bone and joint references."""
+    if not isinstance(payload, dict):
+        return False
+    bones = payload.get("bones")
+    joints = payload.get("joints")
+    if not isinstance(bones, dict) or not bones or not isinstance(joints, dict) or not joints:
+        return False
+    for joint_name, indices in joints.items():
+        if not isinstance(joint_name, str) or not isinstance(indices, list) or any(
+            type(index) is not int or index < 0 for index in indices
+        ):
+            return False
+    for bone_name, bone in bones.items():
+        if not isinstance(bone_name, str) or not isinstance(bone, dict):
+            return False
+        head = bone.get("head")
+        tail = bone.get("tail")
+        if (
+            not isinstance(head, str)
+            or not isinstance(tail, str)
+            or head not in joints
+            or tail not in joints
+        ):
+            return False
+    return True
+
+
 def _verified_skeleton(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size != MAKEHUMAN_SKELETON_SIZE:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
-        if not isinstance(payload, dict):
-            return False
-        bones = payload.get("bones")
-        joints = payload.get("joints")
-        if (
-            not isinstance(bones, dict)
-            or not bones
-            or not isinstance(joints, dict)
-            or not joints
-        ):
-            return False
-        for indices in joints.values():
-            if not isinstance(indices, list) or any(
-                type(index) is not int or index < 0 for index in indices
-            ):
-                return False
-        for bone in bones.values():
-            if not isinstance(bone, dict):
-                return False
-            head = bone.get("head")
-            tail = bone.get("tail")
-            if (
-                not isinstance(head, str)
-                or not isinstance(tail, str)
-                or head not in joints
-                or tail not in joints
-            ):
-                return False
-        return True
+        return _valid_skeleton_payload(payload)
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
 
@@ -348,13 +348,11 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     source = ensure_makehuman_skeleton(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
-        if not isinstance(payload.get("bones"), dict) or not isinstance(
-            payload.get("joints"), dict
-        ):
-            raise HumanoidMeshError("MakeHuman skeleton is missing bones or joints")
-        return cast(SkeletonData, payload)
     except (OSError, UnicodeError, ValueError) as exc:
         raise HumanoidMeshError(f"unable to parse MakeHuman skeleton {source}: {exc}") from exc
+    if not _valid_skeleton_payload(payload):
+        raise HumanoidMeshError(f"MakeHuman skeleton has invalid bones or joints: {source}")
+    return cast(SkeletonData, payload)
 
 
 def _joint_point(source_vertices: Sequence[Point], indices: Iterable[int]) -> Point:
@@ -620,9 +618,7 @@ def load_makehuman_weights(
         ) from exc
 
 
-def _normalize_fit_axes(
-    vertices: Sequence[Point], parameters: AvatarParameters
-) -> Sequence[Point]:
+def _normalize_fit_axes(vertices: Sequence[Point], parameters: AvatarParameters) -> Sequence[Point]:
     """Normalize horizontal source scale to authoritative body measurements.
 
     The pinned HM08 source can carry a source-specific aspect ratio unrelated to
