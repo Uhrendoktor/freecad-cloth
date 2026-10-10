@@ -57,3 +57,22 @@ def test_surface_anchor_without_its_target_is_not_current():
 
     point = SimpleNamespace(AnchorGeometrySignature="saved-signature", AnchorTarget=None)
     assert arrangement_anchor_status(point) == "missing target"
+
+
+def test_surface_anchor_is_invalidated_when_fitting_target_changes():
+    from types import SimpleNamespace
+
+    old_target = SimpleNamespace(Name="OldMannequin")
+    new_target = SimpleNamespace(Name="ReplacementMannequin")
+    scene = SimpleNamespace(FittingType="FittingScene", AvatarProxy=new_target)
+    document = SimpleNamespace(
+        Objects=[scene],
+        getObject=lambda name: None,
+    )
+    point = SimpleNamespace(
+        AnchorGeometrySignature="previous-geometry-signature",
+        AnchorTarget=old_target,
+        Document=document,
+    )
+
+    assert arrangement_anchor_status(point) == "wrong target"
