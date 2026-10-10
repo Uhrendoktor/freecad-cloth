@@ -12,7 +12,6 @@ from freecad_cloth.common.MeshValidation import (
 )
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-
 @settings(max_examples=40, deadline=None)
 @given(
     dx=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
@@ -106,6 +105,6 @@ def test_nearest_surface_clearance_is_translation_invariant(
     translated_vertices: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in vertices
     )
-    assert nearest_surface_clearance(translated_point, translated_vertices, triangles) == pytest.approx(
-        distance, rel=1e-8, abs=1e-8
-    )
+    assert nearest_surface_clearance(
+        translated_point, translated_vertices, triangles
+    ) == pytest.approx(distance, rel=1e-8, abs=1e-8)
