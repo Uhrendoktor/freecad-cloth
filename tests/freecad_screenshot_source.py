@@ -615,13 +615,13 @@ def _make_tunic_sketch(
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + panel_width, armhole_z),
+        (x_offset + 0.95 * panel_width, armhole_z),
         (x_offset + 0.86 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + 0.5 * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
         (x_offset + 0.14 * panel_width, shoulder_z),
-        (x_offset, armhole_z),
+        (x_offset + 0.05 * panel_width, armhole_z),
     ]
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 8), (3, 7), (4, 6)):
@@ -629,13 +629,25 @@ def _make_tunic_sketch(
             raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
     if abs(points[5][0] - center_x) > 1e-9:
         raise RuntimeError("canonical tunic neckline center is not on the panel centerline")
-    geometry = [
-        Part.LineSegment(
-            App.Vector(points[i][0], points[i][1], 0),
-            App.Vector(points[(i + 1) % len(points)][0], points[(i + 1) % len(points)][1], 0),
-        )
-        for i in range(len(points))
-    ]
+    geometry = []
+    armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
+    for index, (start, end) in enumerate(
+        zip(points, points[1:] + points[:1], strict=True)
+    ):
+        start_vector = App.Vector(start[0], start[1], 0)
+        end_vector = App.Vector(end[0], end[1], 0)
+        if index in (2, 7):
+            # Give each free side opening a genuine inward scoop instead of the
+            # straight shoulder-to-underarm chord that drapes over the arms.
+            scoop_ratio = 0.83 if index == 2 else 0.17
+            midpoint = App.Vector(
+                x_offset + scoop_ratio * panel_width,
+                armhole_mid_z,
+                0,
+            )
+            geometry.append(Part.Arc(start_vector, midpoint, end_vector))
+        else:
+            geometry.append(Part.LineSegment(start_vector, end_vector))
     sketch.addGeometry(geometry, False)
     sketch.addConstraint(
         [
@@ -1107,6 +1119,32 @@ def simulation():
     required_indices = (1, 3, 6, 8)
     if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
         raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+
+    # Exercise the generic Sketcher -> PatternIR -> sampled-boundary adapter too:
+    # an armhole must remain a curved, concave open edge when the solver mesh is built.
+    from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+    for piece, edge_ids in ((front, front_edge_ids), (back, back_edge_ids)):
+        piece_ir = resolve_piece_ir(piece)
+        boundary_by_id = {str(boundary.id): boundary for boundary in piece_ir.boundaries}
+        for edge_index, inward in ((2, -1.0), (7, 1.0)):
+            boundary = boundary_by_id.get(edge_ids[edge_index])
+            if boundary is None or boundary.kind != "arc" or len(boundary.samples) < 8:
+                raise RuntimeError(
+                    "canonical garment armhole was not preserved as a sampled native curve: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            sample_midpoint = boundary.samples[len(boundary.samples) // 2]
+            chord_mid_x = 0.5 * (
+                float(boundary.samples[0][0]) + float(boundary.samples[-1][0])
+            )
+            scoop_depth = inward * (float(sample_midpoint[0]) - chord_mid_x)
+            if scoop_depth <= 0.02 * float(panel_width):
+                raise RuntimeError(
+                    "canonical garment armhole curve has insufficient inward clearance: "
+                    "piece=%s edge=%s scoop-mm=%.2f"
+                    % (piece.Name, edge_ids[edge_index], scoop_depth)
+                )
     seam_specs = (
         (front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False),
         (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False),
