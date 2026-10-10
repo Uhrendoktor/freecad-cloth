@@ -86,6 +86,7 @@ def _create_demo_piece(doc):
 
 def run():
     from freecad_cloth.avatar.FittingCommands import (
+        _target_signature,
         add_selected_pattern_pieces,
         arrangement_anchor_status,
         create_fitting_scene,
@@ -252,8 +253,6 @@ def run():
         abs(actual_value - expected_value) > 1e-6
         for actual_value, expected_value in zip(transformed_anchor, expected_transform, strict=True)
     ):
-        from freecad_cloth.avatar.FittingCommands import _target_signature
-
         raise RuntimeError(
             "surface anchor did not follow target Placement: "
             + repr(
