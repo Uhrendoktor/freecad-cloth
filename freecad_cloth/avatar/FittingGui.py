@@ -344,8 +344,7 @@ class DirectArrangeController:
             objects = tuple(
                 obj
                 for obj in (document.getObject(str(name)) for name in names)
-                if obj is not None
-                and getattr(obj, "FittingType", "") == "ArrangementPoint"
+                if obj is not None and getattr(obj, "FittingType", "") == "ArrangementPoint"
             )
             stale_states = {
                 "stale",
@@ -375,10 +374,7 @@ class DirectArrangeController:
                 records.append((str(obj.Name), position, status))
             self._hide_anchor_feature_objects(objects)
             signature = tuple(records)
-            if (
-                self._anchor_overlay is not None
-                and signature == self._anchor_overlay_signature
-            ):
+            if self._anchor_overlay is not None and signature == self._anchor_overlay_signature:
                 return
 
             self._clear_anchor_overlay()
