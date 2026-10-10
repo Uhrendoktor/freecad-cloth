@@ -308,10 +308,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, 0.78, 0.18)' in debug
-    assert 'make_piece("DebugTunicBack", back_y, 0.76, 0.12)' in debug
-    assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in audit
-    assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+    assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.10)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.10)' in debug
+    assert 'make_piece("VisualTunicFront", "back", 0.64, 0.10)' in audit
+    assert 'make_piece("VisualTunicBack", "front", 0.64, 0.10)' in audit
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():

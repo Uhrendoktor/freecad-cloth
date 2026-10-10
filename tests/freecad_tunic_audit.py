@@ -217,7 +217,10 @@ replacements = {
         (x_offset + 0.16 * panel_width, armhole_z),
     ]
 """,
-    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
+    # Keep this armhole PR on the canonical upper edge. The source-rewrite harness
+    # must not inject incompatible neckline variants from the separate #2664 experiment:
+    # those diagonals cross the open armhole arcs.
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.64, 0.10); back, back_outline = make_piece("VisualTunicBack", "front", 0.64, 0.10)',
     SEAM_SOURCE: SEAM_SOURCE,
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
