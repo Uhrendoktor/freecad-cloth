@@ -8,12 +8,12 @@ cached locally, then fitted into the Cloth millimetre coordinate system.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Iterable, Sequence
 import hashlib
 import json
 import math
 import os
 import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
