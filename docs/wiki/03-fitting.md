@@ -1,6 +1,6 @@
 # 03 · Direct fitting and arrangement
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange task panel and viewport" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="FreeCAD mannequin with tunic front and back panels snapped to their saved surface anchors" width="900"></p>
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900"></p>
 
