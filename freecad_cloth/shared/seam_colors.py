@@ -38,8 +38,8 @@ def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
         raise ValueError("seam identity must not be empty")
     digest = sha512(identity.encode("utf-8")).digest()
     hue = int.from_bytes(digest[44:52], "big") / _SEAM_COLOR_HASH_SCALE
-    rgb = hsv_to_rgb(hue, _SEAM_COLOR_SATURATION, _SEAM_COLOR_VALUE)
-    return tuple(round(channel, 6) for channel in rgb)
+    red, green, blue = hsv_to_rgb(hue, _SEAM_COLOR_SATURATION, _SEAM_COLOR_VALUE)
+    return round(red, 6), round(green, 6), round(blue, 6)
 
 
 def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, float]]:
