@@ -121,7 +121,7 @@ class _NativePBDVertexData(Protocol):
 
 class _NativePBDIndexedFaceMesh(Protocol):
     def initMesh(self, _vertex_count: int, _edge_count: int, _face_count: int) -> None: ...
-    def addFace(self, face: Sequence[int]) -> None: ...
+    def addFace(self, _face: Sequence[int]) -> None: ...
     def buildNeighbors(self) -> None: ...
 
 
@@ -232,21 +232,22 @@ _PBD_COLLISION_SDF_CACHE: object | None = None
 
 
 def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
-    """Hash canonical numeric buffers without constructing huge tuple repr strings."""
+    """Hash binary mesh arrays without allocating their large textual representations."""
     digest = hashlib.sha256()
-    vertices = np.asarray(surface.vertices, dtype="<f8")
-    triangles = np.asarray(surface.triangles, dtype="<i8")
-    resolution_data = np.asarray(tuple(int(value) for value in resolution), dtype="<i8")
-    digest.update(b"vertices-f64le\0")
-    digest.update(np.asarray(vertices.shape, dtype="<u8").tobytes())
+    digest.update(b"cloth-pbd-collision-sdf-key-v2\0")
+
+    vertices = np.ascontiguousarray(surface.vertices, dtype=np.dtype("<f8"))
+    triangles = np.ascontiguousarray(surface.triangles, dtype=np.dtype("<i8")).reshape((-1, 3))
+    voxel_resolution = np.ascontiguousarray(resolution, dtype=np.dtype("<i8"))
+    thickness = np.asarray((surface.thickness,), dtype=np.dtype("<f8"))
+
+    digest.update(len(surface.vertices).to_bytes(8, "little"))
     digest.update(memoryview(vertices).cast("B"))
-    digest.update(b"triangles-i64le\0")
-    digest.update(np.asarray(triangles.shape, dtype="<u8").tobytes())
+    digest.update(len(surface.triangles).to_bytes(8, "little"))
     digest.update(memoryview(triangles).cast("B"))
-    digest.update(b"thickness-f64le\0")
-    digest.update(np.asarray((float(surface.thickness),), dtype="<f8").tobytes())
-    digest.update(b"resolution-i64le\0")
-    digest.update(resolution_data.tobytes(order="C"))
+    digest.update(memoryview(thickness).cast("B"))
+    digest.update(len(resolution).to_bytes(8, "little"))
+    digest.update(memoryview(voxel_resolution).cast("B"))
     return digest.digest()
 
 

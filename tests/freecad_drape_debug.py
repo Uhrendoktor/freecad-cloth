@@ -159,16 +159,11 @@ def _triangle_degeneracy(positions, triangles):
     }
 
 
-def _minimum_vertex_distance(source, target):
-    """Use the shared exact nearest-neighbour implementation for diagnostics."""
-    from freecad_cloth.simulation.DrapeVisualSanity import minimum_vertex_distance
-
-    return minimum_vertex_distance(source, target)
-
-
 def _metrics(
     backend, stitches, pin_indices, initial_pins, target_vertices, triangles, requested_step
 ):
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
     positions = backend.positions()
     seam_gaps = []
     for a, b in stitches:
@@ -190,7 +185,11 @@ def _metrics(
         "maximum_seam_gap_mm": max(seam_gaps) if seam_gaps else 0.0,
         "seam_gaps_mm": seam_gaps,
         "maximum_pin_drift_mm": max(pin_drifts) if pin_drifts else 0.0,
-        "minimum_vertex_to_target_mm": _minimum_vertex_distance(positions, target_vertices),
+        "minimum_vertex_to_target_mm": (
+            nearest_target_clearance(positions, target_vertices)
+            if positions and target_vertices
+            else None
+        ),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
         "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
         if getattr(backend, "name", "") == "position-based-dynamics"

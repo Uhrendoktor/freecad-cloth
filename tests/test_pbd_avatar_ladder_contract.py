@@ -52,7 +52,7 @@ def test_avatar_ladder_screenshot_path_is_fail_closed():
     assert (
         "from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content" in SOURCE
     )
-    assert "channel_threshold=250" in SOURCE
+    assert "png_has_visible_content(path, minimum_pixels=int(minimum_pixels))" in SOURCE
     assert "def _avatar_screenshot(view, path):" in SOURCE
     assert "view.redraw()" in SOURCE
     assert "time.sleep(0.05)" in SOURCE

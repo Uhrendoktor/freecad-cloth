@@ -24,6 +24,7 @@ if ROOT not in sys.path:
 import contextlib
 
 from freecad_cloth.common.MeshValidation import validate_mesh
+from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
 from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     maximum_box_penetration,
@@ -63,16 +64,14 @@ def events():
 
 
 def _png_has_visible_content(path):
-    """Use the common CRC-checked PNG parser for turntable captures."""
-    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
-
+    """Validate turntable frames through the shared PNG decoder."""
     return png_has_visible_content(
-        Path(path),
+        path,
         expected_width=640,
         expected_height=480,
         minimum_pixels=1000,
-        channel_threshold=245,
-        require_all_channels_below_threshold=True,
+        pixel_threshold=245,
+        require_all_channels_below=True,
     )
 
 
