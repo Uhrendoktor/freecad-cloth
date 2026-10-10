@@ -23,6 +23,7 @@ def _boot(message):
     _TRACE_HANDLE.flush()
 
 
+import contextlib
 import faulthandler
 import json
 import time
@@ -32,8 +33,6 @@ _boot("before-import-FreeCAD")
 import FreeCAD as App
 
 _boot("import-FreeCAD-complete")
-import contextlib
-
 import FreeCADGui as Gui
 
 from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
@@ -60,8 +59,8 @@ from tests.support.pbd_contact_helpers import (
 )
 from tests.support.pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
 from tests.support.pbd_contact_helpers import positions_tuple as _positions_tuple
-from tests.support.pbd_contact_helpers import seam_geometry as _seam_geometry
 from tests.support.pbd_contact_helpers import screenshot as _screenshot
+from tests.support.pbd_contact_helpers import seam_geometry as _seam_geometry
 from tests.support.pbd_contact_helpers import target_signature as _target_signature
 
 _progress = make_progress_logger(OUT / "progress.log")
