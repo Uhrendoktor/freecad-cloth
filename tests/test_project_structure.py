@@ -186,6 +186,7 @@ def test_workflow_actions_use_immutable_release_pins():
     assert references
     assert all(len(sha) == 40 for sha in references)
 
+
 def test_avatar_commands_do_not_depend_on_simulation_package():
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
