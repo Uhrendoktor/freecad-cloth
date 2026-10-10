@@ -63,7 +63,7 @@ def classify_drape(
     if vertical_ratio <= 0.15 and lateral_ratio < 0.35:
         reasons.append("vertical and lateral spans are both too small for the target")
         return DrapeClassification("edge-on-candidate", tuple(reasons))
-    if clearance is not None and target_width and target_width > 0:
+    if clearance is not None and target_width is not None and target_width > 0:
         clearance_ratio = float(clearance) / float(target_width)
         if clearance_ratio > 0.30:
             reasons.append("garment-to-target vertex clearance exceeds 30% of target width")
