@@ -144,8 +144,8 @@ class SeamGraph:
         self.assembly_transforms.setdefault(piece.id, Transform3D.identity())
 
     def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "endpoints") -> None:
-        # Compatibility adapters such as SewingSemantics.SeamConstraint can
-        # hand us their canonical Seam without making the graph depend on them.
+        # Legacy seam adapters may expose the canonical Seam through to_seam();
+        # the graph stays independent of their concrete adapter modules.
         """Add a seam relationship to this collection."""
         if not isinstance(seam, Seam):
             to_seam = getattr(seam, "to_seam", None)

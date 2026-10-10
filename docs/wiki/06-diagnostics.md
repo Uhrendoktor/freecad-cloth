@@ -74,9 +74,9 @@ A diagnostic implementation is suspect when:
 
 Relevant implementation/tests include:
 
-- <code>freecad_cloth/common/ClothDiagnostics.py</code>
-- <code>freecad_cloth/common/ClothDiagnosticsGui.py</code>
-- <code>freecad_cloth/common/DrapeVisualSanity.py</code>
+- <code>freecad_cloth/simulation/ClothDiagnostics.py</code>
+- <code>freecad_cloth/simulation/ClothDiagnosticsGui.py</code>
+- <code>freecad_cloth/simulation/DrapeVisualSanity.py</code>
 - <code>freecad_cloth/common/VisualCaptureValidation.py</code>
 - <code>tests/freecad_pbd_contact_diagnostics.py</code>
 - <code>tests/freecad_screenshot_source.py</code>
