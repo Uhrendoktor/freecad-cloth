@@ -256,7 +256,7 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     differences into a numerically useful range before delegating the distance
     calculation to GEOS.
     """
-    if point == start or point == end:
+    if point in (start, end):
         return 0.0
 
     with_offset = (
