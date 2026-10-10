@@ -35,52 +35,105 @@ def _screen(view, vector):
 
 
 def _create_demo_avatar(doc):
-    target = doc.addObject("Part::Feature", "AnchorAvatarSurface")
-    target.Label = "Mannequin / Fitting Target"
-    parts = [
-        Part.makeSphere(18.0, App.Vector(0.0, 0.0, 48.0)),
-        Part.makeSphere(9.0, App.Vector(0.0, 0.0, 72.0)),
-        Part.makeSphere(14.0, App.Vector(0.0, 0.0, 25.0)),
-        Part.makeCylinder(5.0, 9.0, App.Vector(0.0, 0.0, 59.0)),
-        Part.makeCylinder(3.5, 26.0, App.Vector(-12.0, 0.0, 55.0), App.Vector(-1.0, 0.0, 0.0)),
-        Part.makeCylinder(3.5, 26.0, App.Vector(12.0, 0.0, 55.0), App.Vector(1.0, 0.0, 0.0)),
-        Part.makeCylinder(5.5, 25.0, App.Vector(-7.0, 0.0, 22.0), App.Vector(0.0, 0.0, -1.0)),
-        Part.makeCylinder(5.5, 25.0, App.Vector(7.0, 0.0, 22.0), App.Vector(0.0, 0.0, -1.0)),
-    ]
-    target.Shape = Part.makeCompound(parts)
-    target.ViewObject.ShapeColor = (0.76, 0.75, 0.71)
-    target.ViewObject.LineColor = (0.28, 0.28, 0.27)
+    """Create the same production mannequin used by fitting and simulation."""
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
+
+    target = create_avatar(attach_collision=False, doc=doc, object_name="TunicArrangeMannequin")
+    target.Label = "Mannequin / Tunic Fitting Target"
+    target.ViewObject.Visibility = True
+    doc.recompute()
     return target
 
 
-def _create_demo_piece(doc):
-    piece = doc.addObject("Part::Feature", "FrontPatternPiece")
-    piece.Label = "Front Pattern Piece"
+def _mesh_surface_pick(target, x_fraction, z_fraction, side):
+    """Return a real triangle centroid on the mannequin's front or back torso."""
+    if side not in {"front", "back"}:
+        raise ValueError("side must be 'front' or 'back'")
+    vertices, triangles = target.Mesh.Topology
+    if not vertices or not triangles:
+        raise RuntimeError("the mannequin has no mesh triangles for a surface snap")
+
+    bounds = target.Mesh.BoundBox
+    width = float(bounds.XMax - bounds.XMin)
+    height = float(bounds.ZMax - bounds.ZMin)
+    depth = float(bounds.YMax - bounds.YMin)
+    if min(width, height, depth) <= 0.0:
+        raise RuntimeError("the mannequin mesh has invalid bounds")
+
+    center_x = float(bounds.XMin) + float(x_fraction) * width
+    center_z = float(bounds.ZMin) + float(z_fraction) * height
+    band_x = max(45.0, width * 0.12)
+    band_z = max(70.0, height * 0.075)
+    candidates = []
+    for index, triangle in enumerate(triangles):
+        points = [vertices[int(vertex)] for vertex in triangle]
+        x = sum(float(point.x) for point in points) / 3.0
+        y = sum(float(point.y) for point in points) / 3.0
+        z = sum(float(point.z) for point in points) / 3.0
+        if abs(x - center_x) > band_x or abs(z - center_z) > band_z:
+            continue
+        candidates.append((index, x, y, z))
+    if not candidates:
+        raise RuntimeError(
+            "no mannequin surface triangle near x/z fractions "
+            + repr((float(x_fraction), float(z_fraction), side))
+        )
+
+    side_y = min(row[2] for row in candidates) if side == "front" else max(
+        row[2] for row in candidates
+    )
+    chosen = min(
+        candidates,
+        key=lambda row: (
+            ((row[1] - center_x) / band_x) ** 2
+            + ((row[3] - center_z) / band_z) ** 2
+            + 0.35 * ((row[2] - side_y) / max(depth, 1.0)) ** 2
+        ),
+    )
+    triangle_index, x, y, z = chosen
+    world = target.Placement.multVec(App.Vector(x, y, z))
+    return world, "Facet{}".format(int(triangle_index) + 1)
+
+
+def _create_demo_tunic_piece(
+    doc, object_name, label, piece_id, placement, color, extrusion_sign=-1
+):
+    """Create a recognizable tunic panel oriented vertically against the mannequin."""
+    half_width = 220.0
+    half_height = 330.0
+    outline_points = [
+        (-half_width, 0.0, -half_height),
+        (half_width, 0.0, -half_height),
+        (half_width, 0.0, 115.0),
+        (175.0, 0.0, 300.0),
+        (65.0, 0.0, 285.0),
+        (38.0, 0.0, 205.0),
+        (-38.0, 0.0, 205.0),
+        (-65.0, 0.0, 285.0),
+        (-175.0, 0.0, 300.0),
+        (-half_width, 0.0, 115.0),
+    ]
+    wire = Part.makePolygon(
+        [App.Vector(*point) for point in outline_points]
+        + [App.Vector(*outline_points[0])]
+    )
+    shape = Part.Face(wire).extrude(App.Vector(0.0, float(extrusion_sign) * 3.0, 0.0))
+    piece = doc.addObject("Part::Feature", object_name)
+    piece.Label = label
+    piece.Shape = shape
     piece.addProperty("App::PropertyString", "PatternType", "Pattern")
     piece.PatternType = "PatternPiece"
     piece.addProperty("App::PropertyString", "PieceId", "Pattern")
-    piece.PieceId = "front-pattern-piece"
-    outline = Part.makePolygon(
-        [
-            App.Vector(-20.0, 0.0, 0.0),
-            App.Vector(0.0, 2.0, 0.0),
-            App.Vector(20.0, 0.0, 0.0),
-            App.Vector(20.0, 10.0, 0.0),
-            App.Vector(14.0, 20.0, 0.0),
-            App.Vector(14.0, 60.0, 0.0),
-            App.Vector(-14.0, 60.0, 0.0),
-            App.Vector(-14.0, 20.0, 0.0),
-            App.Vector(-20.0, 10.0, 0.0),
-            App.Vector(-20.0, 0.0, 0.0),
-        ]
-    )
-    piece.Shape = Part.Face(outline).extrude(App.Vector(0.0, 0.0, 1.0))
+    piece.PieceId = piece_id
     piece.Placement = App.Placement(
-        App.Vector(-60.0, -22.0, 48.0),
-        App.Rotation(App.Vector(0.0, 0.0, 1.0), 0.0),
+        App.Vector(float(placement[0]), float(placement[1]), float(placement[2])),
+        App.Rotation(),
     )
-    piece.ViewObject.ShapeColor = (0.82, 0.69, 0.51)
-    piece.ViewObject.LineColor = (0.25, 0.20, 0.15)
+    piece.ViewObject.DisplayMode = "Flat Lines"
+    piece.ViewObject.ShapeColor = color
+    piece.ViewObject.LineColor = (0.18, 0.16, 0.14)
+    piece.ViewObject.LineWidth = 1.4
+    piece.ViewObject.Visibility = True
     return piece
 
 
@@ -95,11 +148,40 @@ def run():
 
     doc = App.newDocument("InteractiveArrangeAcceptance")
     target = _create_demo_avatar(doc)
-    piece = _create_demo_piece(doc)
+    bounds = target.Mesh.BoundBox
+    body_width = float(bounds.XMax - bounds.XMin)
+    body_height = float(bounds.ZMax - bounds.ZMin)
+    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
+    front_pick, front_subelement = _mesh_surface_pick(
+        target, x_fraction=0.43, z_fraction=0.67, side="front"
+    )
+    back_pick, back_subelement = _mesh_surface_pick(
+        target, x_fraction=0.57, z_fraction=0.67, side="back"
+    )
+    panel_height = max(560.0, min(700.0, 0.40 * body_height))
+    panel_width = max(360.0, min(440.0, 0.58 * body_width))
+    panel_offset = panel_width + 0.16 * body_width + 50.0
+    front_piece = _create_demo_tunic_piece(
+        doc,
+        "TunicFrontPanel",
+        "Tunic Front Panel",
+        "tunic-front-panel",
+        (center_x - panel_offset, float(front_pick.y) - 35.0, float(front_pick.z)),
+        (0.82, 0.57, 0.31),
+    )
+    back_piece = _create_demo_tunic_piece(
+        doc,
+        "TunicBackPanel",
+        "Tunic Back Panel",
+        "tunic-back-panel",
+        (center_x + panel_offset, float(back_pick.y) + 35.0, float(back_pick.z)),
+        (0.33, 0.56, 0.78),
+    )
     scene = create_fitting_scene()
     scene.AvatarProxy = target
     Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(piece)
+    Gui.Selection.addSelection(front_piece)
+    Gui.Selection.addSelection(back_piece)
     add_selected_pattern_pieces()
     doc.recompute()
 
@@ -113,72 +195,89 @@ def run():
     Gui.updateGui()
     controller = panel.controller
 
-    # Capture the creation step independently from the drag-and-snap animation.
-    # The selection observer receives the same object/subelement/world-point tuple
-    # that FreeCAD emits for a viewport face pick.
-    anchor_world = App.Vector(-18.0, 0.0, 48.0)
+    # Capture the real surface-pick workflow twice so readers see named anchors
+    # being created on the front and back of a production mannequin.
+    pick_specs = (
+        ("TunicFrontAnchor", "front", front_pick, front_subelement),
+        ("TunicBackAnchor", "back", back_pick, back_subelement),
+    )
     anchor_recorder = UiGifRecorder(
         "artifacts/ui-gifs/arrangement-anchor.gif",
         gui=Gui,
         window=Gui.getMainWindow(),
         fps=10,
         scale=0.65,
-        max_frames=80,
+        max_frames=120,
         show_cursor=False,
     )
     anchor_recorder.start()
     try:
-        anchor_recorder.hold(500)
-        panel.start_anchor_pick()
         anchor_recorder.hold(700)
-        panel.anchor_picker.addSelection(
-            doc.Name,
-            target.Name,
-            "Face1",
-            anchor_world.x,
-            anchor_world.y,
-            anchor_world.z,
-        )
-        Gui.updateGui()
-        anchor_recorder.hold(1100)
+        for name, wrap, world, subelement in pick_specs:
+            panel.anchor_name.setText(name)
+            panel.wrap_direction.setCurrentIndex(("front", "back", "left", "right").index(wrap))
+            panel.start_anchor_pick()
+            Gui.updateGui()
+            anchor_recorder.hold(650)
+            panel.anchor_picker.addSelection(
+                doc.Name,
+                target.Name,
+                subelement,
+                world.x,
+                world.y,
+                world.z,
+            )
+            Gui.updateGui()
+            anchor_recorder.hold(850)
     finally:
         if anchor_recorder._started:
             anchor_recorder.stop()
 
-    if len(scene.ArrangementPointObjects) != 1:
-        raise RuntimeError("viewport surface pick did not create exactly one arrangement anchor")
-    point_obj = doc.getObject(scene.ArrangementPointObjects[0])
-    if point_obj is None or point_obj.AnchorTarget is None:
-        raise RuntimeError("surface anchor did not persist its target-object reference")
-    if point_obj.AnchorTarget.Name != target.Name:
-        raise RuntimeError("surface anchor references the wrong target")
-    if point_obj.AnchorSubelement != "Face1":
-        raise RuntimeError("surface anchor did not persist its selected subelement")
-    if arrangement_anchor_status(point_obj) != "valid":
-        raise RuntimeError("new surface anchor is not current against its target geometry")
+    if len(scene.ArrangementPointObjects) != 2:
+        raise RuntimeError("surface picking did not create exactly two tunic snap anchors")
+    anchor_objects = {}
+    for name, wrap, _world, subelement in pick_specs:
+        point_obj = next(
+            (
+                doc.getObject(str(obj_name))
+                for obj_name in scene.ArrangementPointObjects
+                if getattr(doc.getObject(str(obj_name)), "PointName", "") == name
+            ),
+            None,
+        )
+        if point_obj is None or point_obj.AnchorTarget is None:
+            raise RuntimeError("surface anchor did not persist target for " + name)
+        if point_obj.AnchorTarget.Name != target.Name:
+            raise RuntimeError("surface anchor references the wrong mannequin: " + name)
+        if point_obj.AnchorSubelement != subelement or not subelement.startswith("Facet"):
+            raise RuntimeError("surface anchor did not store its picked mannequin triangle: " + name)
+        if arrangement_anchor_status(point_obj) != "valid":
+            raise RuntimeError("new surface anchor is not current against the mannequin: " + name)
+        if str(point_obj.WrapDirection) != wrap:
+            raise RuntimeError("surface anchor did not persist wrap direction: " + name)
+        anchor_objects[name] = point_obj
+
     anchor_records = [json.loads(value) for value in scene.ArrangementAnchorData]
-    if len(anchor_records) != 1 or anchor_records[0]["target"] != target.Name:
-        raise RuntimeError("surface-anchor metadata was not persisted in the fitting scene")
+    by_anchor_name = {str(record.get("name", "")): record for record in anchor_records}
+    for name, _wrap, _world, _subelement in pick_specs:
+        record = by_anchor_name.get(name)
+        if record is None or record.get("target") != target.Name:
+            raise RuntimeError("surface-anchor metadata was not persisted for " + name)
 
     viewport_height = float(view.getSize()[1])
-    start_top = _screen(view, piece.Placement.Base)
-    start = (start_top[0], int(round(viewport_height - start_top[1])))
-    snap_screen = controller._screen_position(point_obj)
-    # Coin mouse/location events use a bottom-left origin; projected snap points
-    # returned by the controller are converted to top-left screen coordinates.
-    snap = (snap_screen[0], viewport_height - snap_screen[1])
-    recorder = UiGifRecorder(
-        "artifacts/ui-gifs/interactive-arrange.gif",
-        gui=Gui,
-        window=Gui.getMainWindow(),
-        fps=12,
-        scale=0.65,
-        max_frames=100,
-        show_cursor=False,
-    )
-    recorder.start()
-    try:
-        recorder.hold(500)
+    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
+
+    def drag_piece_to_anchor(piece, point_obj, recorder):
+        start_top = _screen(view, piece.Placement.Base)
+        start = (
+            start_top[0],
+            int(round(viewport_height - start_top[1])),
+        )
+        snap_screen = controller._screen_position(point_obj)
+        # Coin mouse/location events use a bottom-left origin, unlike the projected
+        # coordinates exposed by the controller.
+        snap = (snap_screen[0], viewport_height - snap_screen[1])
+        recorder.hold(450)
         controller._mouse_event(
             {
                 "State": "DOWN",
@@ -187,9 +286,9 @@ def run():
                 "Object": piece.Label,
             }
         )
-        recorder.hold(250)
-        for index in range(1, 21):
-            fraction = index / 20.0
+        recorder.hold(300)
+        for index in range(1, 25):
+            fraction = index / 24.0
             position = (
                 start[0] + (snap[0] - start[0]) * fraction,
                 start[1] + (snap[1] - start[1]) * fraction,
@@ -202,12 +301,12 @@ def run():
             )
             if index % 4 == 0:
                 recorder.hold(100)
-        if controller.snap_point is None or controller._snap_indicator is None:
+        if controller.snap_point is not point_obj or controller._snap_indicator is None:
             raise RuntimeError(
-                "callback-driven viewport drag did not expose snap preview and marker"
+                "tunic panel did not preview the intended surface anchor: "
+                + str(getattr(point_obj, "PointName", point_obj.Label))
             )
-        recorder.hold(900)
-        _capture_screen("artifacts/interactive-arrange.png")
+        recorder.hold(650)
         controller._mouse_event(
             {
                 "State": "UP",
@@ -215,26 +314,48 @@ def run():
                 "Position": (int(round(snap[0])), int(round(snap[1]))),
             }
         )
+        recorder.hold(650)
+        doc.recompute()
+        base = piece.Placement.Base
+        expected = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
+        actual = (float(base.x), float(base.y), float(base.z))
+        if any(
+            abs(left - right) > 1e-6
+            for left, right in zip(actual, expected, strict=True)
+        ):
+            raise RuntimeError(
+                piece.Label + " did not snap to its mannequin anchor: " + repr(actual)
+            )
+        if controller._snap_indicator is not None:
+            raise RuntimeError("snap marker remained after placement commit")
+        saved = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
+        matching = [value for value in saved if value.piece_id == str(piece.PieceId)]
+        if len(matching) != 1 or matching[0].position != expected:
+            raise RuntimeError(piece.Label + " placement was not persisted by the fitting scene")
+
+    recorder = UiGifRecorder(
+        "artifacts/ui-gifs/interactive-arrange.gif",
+        gui=Gui,
+        window=Gui.getMainWindow(),
+        fps=12,
+        scale=0.65,
+        max_frames=160,
+        show_cursor=False,
+    )
+    recorder.start()
+    try:
+        recorder.hold(700)
+        drag_piece_to_anchor(front_piece, anchor_objects["TunicFrontAnchor"], recorder)
+        drag_piece_to_anchor(back_piece, anchor_objects["TunicBackAnchor"], recorder)
+        _capture_screen("artifacts/interactive-arrange.png")
         recorder.hold(700)
     finally:
         if recorder._started:
             recorder.stop()
-    doc.recompute()
 
-    base = piece.Placement.Base
-    expected = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
-    actual = (float(base.x), float(base.y), float(base.z))
-    if any(abs(left - right) > 1e-6 for left, right in zip(actual, expected, strict=True)):
-        raise RuntimeError("piece did not snap to the picked surface anchor: " + repr(actual))
-    if controller._snap_indicator is not None:
-        raise RuntimeError("snap marker remained after placement commit")
-
-    from freecad_cloth.avatar.AvatarFitting import PiecePlacement
-
-    persisted = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
-    matching = [value for value in persisted if value.piece_id == "front-pattern-piece"]
-    if len(matching) != 1 or matching[0].position != expected:
-        raise RuntimeError("snapped placement was not persisted in the fitting scene")
+    if len(tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)) != 2:
+        raise RuntimeError("fitting scene did not persist both tunic panel placements")
+    point_obj = anchor_objects["TunicFrontAnchor"]
 
     # Whole-object transforms must move the anchor with its target, not invalidate it
     # or leave the marker at the old world coordinate.
@@ -277,43 +398,69 @@ def run():
     ):
         raise RuntimeError("anchor marker is not coincident with the transformed target")
 
-    # Changing local shape geometry without preserving the anchored surface contract
-    # must still make the anchor stale and remove it from snap candidates.
-    # Add genuinely new topology. Translating a Shape from an already placed
-    # Part::Feature can be normalized by FreeCAD's Placement handling and is not
-    # a reliable geometry-edit probe. An additional solid must change the signature.
-    changed_shape = Part.makeCompound(
-        [target.Shape.copy(), Part.makeSphere(2.0, App.Vector(100.0, 0.0, 48.0))]
+    # Keep geometry-invalidation coverage on a separate B-rep target; the public
+    # demonstration above deliberately uses the real mesh mannequin.
+    shape_probe = doc.addObject("Part::Feature", "ShapeAnchorStaleProbe")
+    shape_probe.Label = "Hidden shape-anchor validation target"
+    shape_probe.Shape = Part.makeSphere(20.0, App.Vector(0.0, 0.0, 0.0))
+    shape_probe.Placement = App.Placement(
+        App.Vector(5000.0, 0.0, 900.0),
+        App.Rotation(),
     )
-    target.Shape = changed_shape
+    shape_probe.ViewObject.Visibility = False
+    scene.AvatarProxy = shape_probe
     doc.recompute()
-    changed_signature = _target_signature(target)
-    if arrangement_anchor_status(point_obj) != "stale":
+    from freecad_cloth.avatar.FittingCommands import create_arrangement_anchor
+
+    probe_world = shape_probe.Placement.multVec(App.Vector(20.0, 0.0, 0.0))
+    create_arrangement_anchor(
+        "ShapeGeometryProbe",
+        shape_probe,
+        probe_world,
+        subelement="Face1",
+    )
+    probe_obj = next(
+        (
+            doc.getObject(str(obj_name))
+            for obj_name in scene.ArrangementPointObjects
+            if getattr(doc.getObject(str(obj_name)), "PointName", "") == "ShapeGeometryProbe"
+        ),
+        None,
+    )
+    if probe_obj is None or arrangement_anchor_status(probe_obj) != "valid":
+        raise RuntimeError("B-rep geometry-staleness probe could not establish a valid anchor")
+    changed_shape = Part.makeCompound(
+        [shape_probe.Shape.copy(), Part.makeSphere(2.0, App.Vector(100.0, 0.0, 0.0))]
+    )
+    shape_probe.Shape = changed_shape
+    doc.recompute()
+    changed_signature = _target_signature(shape_probe)
+    if arrangement_anchor_status(probe_obj) != "stale":
         raise RuntimeError(
-            "changing the source geometry did not invalidate its surface anchor: "
+            "changing the B-rep source geometry did not invalidate its surface anchor: "
             + repr(
                 {
-                    "status": arrangement_anchor_status(point_obj),
-                    "stored_signature": str(point_obj.AnchorGeometrySignature),
+                    "status": arrangement_anchor_status(probe_obj),
+                    "stored_signature": str(probe_obj.AnchorGeometrySignature),
                     "current_signature": changed_signature,
                 }
             )
         )
-    if point_obj in controller._points():
-        raise RuntimeError("a stale surface anchor remained available for snapping")
-    if "Stale anchor:" not in str(point_obj.Label):
-        raise RuntimeError("stale surface anchor was not marked visibly in the viewport")
+    if probe_obj in controller._points():
+        raise RuntimeError("a stale B-rep surface anchor remained available for snapping")
+    if "Stale anchor:" not in str(probe_obj.Label):
+        raise RuntimeError("stale B-rep anchor was not marked visibly in the viewport")
+    scene.AvatarProxy = target
+    doc.recompute()
+    controller._points()
 
     # Exercise the actual avatar skeleton rebuild path. Select a triangle that
     # moves strongly under a manual joint rotation, then prove the saved barycentric
     # anchor follows that same triangle when the avatar mesh is rebuilt.
-    from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_joint
-    from freecad_cloth.avatar.FittingCommands import (
-        _mesh_anchor_local_position,
-        create_arrangement_anchor,
-    )
+    from freecad_cloth.avatar.AvatarCommands import set_avatar_joint
+    from freecad_cloth.avatar.FittingCommands import _mesh_anchor_local_position
 
-    avatar = create_avatar(attach_collision=False, doc=doc, object_name="PoseAnchorAvatar")
+    avatar = target
     scene.AvatarProxy = avatar
     doc.recompute()
 
