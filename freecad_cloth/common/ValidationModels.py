@@ -3,14 +3,25 @@
 Validate at API boundaries rather than inside numerical inner loops. These
 models normalize finite coordinates once and reject silent type coercion.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
 from math import isfinite
 from numbers import Real
-from typing import Annotated, TypeAlias
+from typing import Annotated, TypeAlias, cast
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictInt, StrictStr, TypeAdapter, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    TypeAdapter,
+    model_validator,
+)
 
 
 def _finite_real(value: object) -> float:
@@ -264,7 +275,6 @@ class TransformMatrixInput(InputModel):
         return self
 
 
-
 class CollisionSurfaceInput(InputModel):
     """Validate the finite geometry and topology passed to a collision solver."""
 
@@ -411,6 +421,7 @@ class MeshHealthMetrics(InputModel):
             raise ValueError("degenerate face count cannot exceed face count")
         return self
 
+
 Point2DAdapter = TypeAdapter(Point2D)
 Points2DAdapter = TypeAdapter(tuple[Point2D, ...])
 Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
@@ -418,7 +429,7 @@ Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
 
 def validate_finite_number(value: object) -> float:
     """Return a finite real input as float, rejecting bool/string coercion."""
-    return FiniteScalar(value=value).value
+    return FiniteScalar(value=cast(FiniteNumber, value)).value
 
 
 def validate_point2d(value: Iterable[Real]) -> Point2D:

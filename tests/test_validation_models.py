@@ -1,4 +1,5 @@
 """Regression tests for numerical and geometry input schemas."""
+
 from __future__ import annotations
 
 import math
@@ -62,9 +63,7 @@ def test_mesh_schema_rejects_invalid_face_indices(face: list[object]) -> None:
 
 def test_mesh_api_rejects_fractional_indices_instead_of_truncating() -> None:
     with pytest.raises(ValueError):
-        validate_mesh(
-            [[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1.5, 2]], prefer_trimesh=False
-        )
+        validate_mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1.5, 2]], prefer_trimesh=False)
 
 
 def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
@@ -78,7 +77,9 @@ def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
 def test_arc_length_api_requires_an_exact_integer_count(count: object) -> None:
     with pytest.raises(ValueError):
         arc_length_vertex_indices(
-            (1, 2, 3), ((0, 0), (1, 0), (2, 0)), count  # type: ignore[arg-type]
+            (1, 2, 3),
+            ((0, 0), (1, 0), (2, 0)),
+            count,  # type: ignore[arg-type]
         )
     with pytest.raises(ValidationError):
         ArcLengthSamplingInput.model_validate(
@@ -143,7 +144,6 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
         nearest_target_clearance(((0.0, 0.0),), ((0.0, 0.0, 0.0),))
 
 
-
 def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() -> None:
     vertices = (
         (0.0, 0.0, 0.0),
@@ -166,13 +166,10 @@ def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
         mesh.validate()
 
 
-
 def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
     line = LineSegment("extreme-line", (-1e308, 0.0), (1e308, 0.0))
     assert line.point(0.5) == (0.0, 0.0)
-    curve = QuadraticBezier(
-        "extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0)
-    )
+    curve = QuadraticBezier("extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0))
     assert curve.point(0.5) == (0.0, 0.0)
 
 
@@ -252,14 +249,12 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
         transform.apply((1e308, 0.0, 0.0))
 
 
-
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
     assert segment.point(0.5) == pytest.approx((1.05e308, 0.0))
 
 
-
-def test_png_capture_schema_preserves_independent_dimensions_and_rejects_invalid_thresholds() -> None:
+def test_png_options_validate_dimensions_and_thresholds() -> None:
     assert PngCaptureOptions(expected_width=800).expected_width == 800
     assert PngCaptureOptions(expected_height=600).expected_height == 600
     with pytest.raises(ValidationError):

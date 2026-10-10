@@ -13,7 +13,8 @@ The project-wide supported Python baseline is **3.12 or newer**. This is reflect
 | PositionBasedDynamics | XPBD cloth, stitches, mesh/kinematic collision, self-collision, Python API | Production runtime solver | Apache-2.0; native dependency kept in the simulation extra | **Adopted** |
 | PositionBasedDynamics | PBD/XPBD constraints, arbitrary-mesh collision, SDF collision, Python bindings, substeps | Research comparator only | C++ dependency + ABI/build burden | **Research only** |
 | ezdxf | DXF read/write, broad version support | Production DXF adapter | MIT; relatively low integration risk | **Candidate / P2** |
-| trimesh | Mesh processing, topology/proximity/closest-point queries | Non-authoritative diagnostics and benchmark metrics | Python dependency; keep optional | **Candidate / P2** |
+| trimesh | Mesh processing, topology/proximity/closest-point queries | Runtime nearest-surface clearance and accelerated diagnostics | Python dependency with Rtree spatial index | **Adopted / required** |
+| Pillow | PNG decoding and image inspection | Screenshot/acceptance capture validation | Python dependency, installed with main package | **Adopted / required** |
 | libigl | Geometry processing, remeshing, parametrization, distances; NumPy Python bindings | Derived-mesh/analysis utilities where OCCT is insufficient | Mixed optional modules/licensing; C++ dependency | **Evaluate selectively** |
 | SciPy | Exact KD-tree nearest-neighbour queries | Garment-to-target vertex clearance on large meshes | NumPy-based dependency, installed with the main package | **Adopted / required** |
 | Shapely / GEOS | Robust 2D polygon simplicity predicate | Pattern boundary simplicity validation | GEOS-backed dependency, installed with the main package | **Adopted / required** |
@@ -72,7 +73,7 @@ Pydantic is not used for each arithmetic operation or inside per-particle solver
 ### Delegation choices
 
 - **Triangle** remains responsible for constrained Delaunay triangulation and mesh refinement. The adapter retains checks needed for authored-boundary provenance, face orientation, and area preservation. Boundary-vertex reconciliation now builds one quantized-coordinate index instead of rescanning all output vertices for every boundary point.
-- **trimesh** remains optional for point-to-triangle-surface queries, mesh metrics, and watertight point-containment queries. When it or its spatial-index backend is absent, NumPy vectorized triangle-area and ray-parity calculations plus SciPy sparse connected-components preserve the non-trimesh diagnostics path.
+- **Trimesh** is installed as a runtime dependency for nearest-surface clearance and accelerated point-containment queries. NumPy/SciPy continue to provide mesh arrays and edge-based component counts; the guarded ray-parity implementation remains a compatibility path for environments without the Trimesh spatial index.
 - **`math.dist`** replaces hand-rolled Euclidean norm loops for vertex clearance. It prevents non-strict `zip` from silently ignoring mismatched dimensions and delegates norm arithmetic to the standard library.
 - **Shapely/GEOS** handles point-to-segment distance and authored-segment provenance queries, with each curve sampled into a line geometry once per mapping operation. Hypothesis checks the distance invariants because GEOS operations are outside CrossHair's symbolic model.
 - **FreeCAD Part/OCCT** remains authoritative for native editable geometry and offsets. Shapely is required for the polygon simplicity predicate, but is not used as a drop-in seam-allowance buffer: buffer join styles, collapsed concavities and ring ordering can alter authored topology.

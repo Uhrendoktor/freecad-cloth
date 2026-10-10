@@ -32,12 +32,18 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
         (0.0, 1.0, 1.0),
     )
     triangles: tuple[tuple[int, int, int], ...] = (
-        (0, 2, 1), (0, 3, 2),
-        (4, 5, 6), (4, 6, 7),
-        (0, 1, 5), (0, 5, 4),
-        (1, 2, 6), (1, 6, 5),
-        (2, 3, 7), (2, 7, 6),
-        (3, 0, 4), (3, 4, 7),
+        (0, 2, 1),
+        (0, 3, 2),
+        (4, 5, 6),
+        (4, 6, 7),
+        (0, 1, 5),
+        (0, 5, 4),
+        (1, 2, 6),
+        (1, 6, 5),
+        (2, 3, 7),
+        (2, 7, 6),
+        (3, 0, 4),
+        (3, 4, 7),
     )
     points: tuple[tuple[float, float, float], ...] = (
         (0.5, 0.5, 0.5),
@@ -54,7 +60,6 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
     assert points_inside_closed_mesh(translated_points, translated_vertices, triangles) == expected
 
 
-
 @settings(max_examples=40, deadline=None)
 @given(
     dx=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
@@ -64,10 +69,14 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
 def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float, dz: float) -> None:
     """Translating both vertex sets preserves their nearest distance."""
     garment: tuple[tuple[float, float, float], ...] = (
-        (0.0, 0.0, 2.0), (4.0, 0.0, 2.0), (4.0, 3.0, 2.0)
+        (0.0, 0.0, 2.0),
+        (4.0, 0.0, 2.0),
+        (4.0, 3.0, 2.0),
     )
     target: tuple[tuple[float, float, float], ...] = (
-        (0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (4.0, 3.0, 0.0)
+        (0.0, 0.0, 0.0),
+        (4.0, 0.0, 0.0),
+        (4.0, 3.0, 0.0),
     )
     distance = nearest_target_clearance(garment, target)
     shifted_garment: tuple[tuple[float, float, float], ...] = tuple(
@@ -79,8 +88,6 @@ def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float,
     assert nearest_target_clearance(shifted_garment, shifted_target) == pytest.approx(
         distance, rel=1e-9, abs=1e-9
     )
-
-
 
 
 @settings(max_examples=40, deadline=None)
