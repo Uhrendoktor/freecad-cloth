@@ -4,8 +4,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 # The native-Sketcher fixture keeps explicit semantic edge IDs on each piece.
-# The front/back pieces share the same authored topology, so corresponding shoulder
-# and side edges must be paired by semantic position, not cross-paired.
+# Keep front/back edge correspondences at the same semantic indices, but map left/right
+# seam identities for the rear-view screenshots so displayed colors match visible sides.
 
 
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
@@ -18,10 +18,10 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
         'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())'
         in source
     )
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicLeftSide"' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicRightSide"' in source
 
 
 def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
@@ -46,11 +46,11 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 def test_canonical_tunic_uses_matching_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert "required_indices = (1, 2, 6, 7)" in audit
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicLeftSide"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicRightSide"' in audit
+    assert 'front_edge_ids[2], back_edge_ids[6], "TunicLeftShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
