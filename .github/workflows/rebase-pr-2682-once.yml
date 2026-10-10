@@ -76,6 +76,9 @@ jobs:
               if [ "$continuation_status" -ne 0 ]; then
                 if printf '%s' "$continuation" | grep -Eqi 'previous cherry-pick is now empty|nothing to commit|No changes'; then
                   git rebase --skip
+                elif [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+                  echo "next replayed commit has conflicts; resolving on the next loop iteration"
+                  continue
                 else
                   git status --short
                   exit "$continuation_status"
