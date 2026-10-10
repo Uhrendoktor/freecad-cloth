@@ -1,5 +1,6 @@
-"""FreeCAD/Xvfb acceptance for Interactive Arrange using controller callback activation."""
+"""FreeCAD/Xvfb acceptance and visual evidence for viewport-picked anchors and Arrange."""
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -33,15 +34,26 @@ def _screen(view, vector):
     return int(round(float(point[0]))), int(round(float(size[1] - point[1])))
 
 
-def run():
-    from freecad_cloth.avatar.FittingCommands import (
-        add_selected_pattern_pieces,
-        create_arrangement_point,
-        create_fitting_scene,
-    )
-    from freecad_cloth.avatar.FittingGui import FittingTaskPanel
+def _create_demo_avatar(doc):
+    target = doc.addObject("Part::Feature", "AnchorAvatarSurface")
+    target.Label = "Mannequin / Fitting Target"
+    parts = [
+        Part.makeSphere(18.0, App.Vector(0.0, 0.0, 48.0)),
+        Part.makeSphere(9.0, App.Vector(0.0, 0.0, 72.0)),
+        Part.makeSphere(14.0, App.Vector(0.0, 0.0, 25.0)),
+        Part.makeCylinder(5.0, 9.0, App.Vector(0.0, 0.0, 59.0)),
+        Part.makeCylinder(3.5, 26.0, App.Vector(-12.0, 0.0, 55.0), App.Vector(-1.0, 0.0, 0.0)),
+        Part.makeCylinder(3.5, 26.0, App.Vector(12.0, 0.0, 55.0), App.Vector(1.0, 0.0, 0.0)),
+        Part.makeCylinder(5.5, 25.0, App.Vector(-7.0, 0.0, 22.0), App.Vector(0.0, 0.0, -1.0)),
+        Part.makeCylinder(5.5, 25.0, App.Vector(7.0, 0.0, 22.0), App.Vector(0.0, 0.0, -1.0)),
+    ]
+    target.Shape = Part.makeCompound(parts)
+    target.ViewObject.ShapeColor = (0.76, 0.75, 0.71)
+    target.ViewObject.LineColor = (0.28, 0.28, 0.27)
+    return target
 
-    doc = App.newDocument("InteractiveArrangeAcceptance")
+
+def _create_demo_piece(doc):
     piece = doc.addObject("Part::Feature", "FrontPatternPiece")
     piece.Label = "Front Pattern Piece"
     piece.addProperty("App::PropertyString", "PatternType", "Pattern")
@@ -63,42 +75,96 @@ def run():
         ]
     )
     piece.Shape = Part.Face(outline).extrude(App.Vector(0.0, 0.0, 1.0))
+    piece.Placement = App.Placement(
+        App.Vector(-60.0, -22.0, 48.0),
+        App.Rotation(App.Vector(0.0, 0.0, 1.0), 0.0),
+    )
     piece.ViewObject.ShapeColor = (0.82, 0.69, 0.51)
     piece.ViewObject.LineColor = (0.25, 0.20, 0.15)
+    return piece
 
+
+def run():
+    from freecad_cloth.avatar.FittingCommands import (
+        add_selected_pattern_pieces,
+        arrangement_anchor_status,
+        create_fitting_scene,
+    )
+    from freecad_cloth.avatar.FittingGui import FittingTaskPanel
+
+    doc = App.newDocument("InteractiveArrangeAcceptance")
+    target = _create_demo_avatar(doc)
+    piece = _create_demo_piece(doc)
     scene = create_fitting_scene()
+    scene.AvatarProxy = target
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(piece)
     add_selected_pattern_pieces()
-
-    point = create_arrangement_point(
-        "front_panel_snap",
-        -30.0,
-        0.0,
-        offset=3.0,
-        wrap_direction="front",
-    )
     doc.recompute()
 
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
-    view.viewTop()
+    view.viewAxonometric()
     view.fitAll()
-
     panel = FittingTaskPanel(scene)
     Gui.Control.showDialog(panel)
     view.fitAll()
     Gui.updateGui()
     controller = panel.controller
 
-    viewport_height = float(view.getSize()[1])
-    start_screen = _screen(view, App.Vector(0.0, 0.0, 0.0))
-    start = (start_screen[0], int(round(viewport_height - start_screen[1])))
-    snap_screen = controller._screen_position(
-        doc.getObject(scene.ArrangementPointObjects[0])
+    # Capture the creation step independently from the drag-and-snap animation.
+    # The selection observer receives the same object/subelement/world-point tuple
+    # that FreeCAD emits for a viewport face pick.
+    anchor_world = App.Vector(-18.0, 0.0, 48.0)
+    anchor_recorder = UiGifRecorder(
+        "artifacts/ui-gifs/arrangement-anchor.gif",
+        gui=Gui,
+        window=Gui.getMainWindow(),
+        fps=10,
+        scale=0.65,
+        max_frames=80,
+        show_cursor=False,
     )
-    # Coin mouse/location events use a bottom-left origin; the controller's
-    # projected snap points are top-left screen coordinates.
+    anchor_recorder.start()
+    try:
+        anchor_recorder.hold(500)
+        panel.start_anchor_pick()
+        anchor_recorder.hold(700)
+        panel.anchor_picker.addSelection(
+            doc.Name,
+            target.Name,
+            "Face1",
+            anchor_world.x,
+            anchor_world.y,
+            anchor_world.z,
+        )
+        Gui.updateGui()
+        anchor_recorder.hold(1100)
+    finally:
+        if anchor_recorder._started:
+            anchor_recorder.stop()
+
+    if len(scene.ArrangementPointObjects) != 1:
+        raise RuntimeError("viewport surface pick did not create exactly one arrangement anchor")
+    point_obj = doc.getObject(scene.ArrangementPointObjects[0])
+    if point_obj is None or point_obj.AnchorTarget is None:
+        raise RuntimeError("surface anchor did not persist its target-object reference")
+    if point_obj.AnchorTarget.Name != target.Name:
+        raise RuntimeError("surface anchor references the wrong target")
+    if point_obj.AnchorSubelement != "Face1":
+        raise RuntimeError("surface anchor did not persist its selected subelement")
+    if arrangement_anchor_status(point_obj) != "valid":
+        raise RuntimeError("new surface anchor is not current against its target geometry")
+    anchor_records = [json.loads(value) for value in scene.ArrangementAnchorData]
+    if len(anchor_records) != 1 or anchor_records[0]["target"] != target.Name:
+        raise RuntimeError("surface-anchor metadata was not persisted in the fitting scene")
+
+    viewport_height = float(view.getSize()[1])
+    start_top = _screen(view, piece.Placement.Base)
+    start = (start_top[0], int(round(viewport_height - start_top[1])))
+    snap_screen = controller._screen_position(point_obj)
+    # Coin mouse/location events use a bottom-left origin; projected snap points
+    # returned by the controller are converted to top-left screen coordinates.
     snap = (snap_screen[0], viewport_height - snap_screen[1])
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/interactive-arrange.gif",
@@ -112,10 +178,6 @@ def run():
     recorder.start()
     try:
         recorder.hold(500)
-        # Drive the same Coin callback boundary that the viewport task panel
-        # registers. Native pointer injection into unsupported Pivy builds is
-        # unstable, so the acceptance uses deterministic callback activation
-        # while recording the full live 3D view and task panel.
         controller._mouse_event(
             {
                 "State": "DOWN",
@@ -159,12 +221,10 @@ def run():
     doc.recompute()
 
     base = piece.Placement.Base
-    if abs(float(base.x) + 30.0) > 1e-6:
-        raise RuntimeError("piece did not snap to arrangement-point X")
-    if abs(float(base.y) - 0.0) > 1e-6:
-        raise RuntimeError("piece did not snap to arrangement-point Y")
-    if abs(float(base.z) - 3.0) > 1e-6:
-        raise RuntimeError("piece did not adopt arrangement-point offset")
+    expected = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
+    actual = (float(base.x), float(base.y), float(base.z))
+    if any(abs(left - right) > 1e-6 for left, right in zip(actual, expected)):
+        raise RuntimeError("piece did not snap to the picked surface anchor: " + repr(actual))
     if controller._snap_indicator is not None:
         raise RuntimeError("snap marker remained after placement commit")
 
@@ -172,13 +232,20 @@ def run():
 
     persisted = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
     matching = [value for value in persisted if value.piece_id == "front-pattern-piece"]
-    if len(matching) != 1:
-        raise RuntimeError("snapped placement was not persisted for the acceptance piece")
-    if matching[0].position != (-30.0, 0.0, 3.0):
-        raise RuntimeError(
-            "persisted placement does not match the snapped arrangement-point position: "
-            + str(matching[0].position)
-        )
+    if len(matching) != 1 or matching[0].position != expected:
+        raise RuntimeError("snapped placement was not persisted in the fitting scene")
+
+    # Geometry changes must make a saved surface anchor visibly stale and remove
+    # it from the controller's snap candidates rather than reusing old coordinates.
+    target.Shape = target.Shape.copy()
+    target.Shape.translate(App.Vector(0.0, 0.0, 1.0))
+    doc.recompute()
+    if arrangement_anchor_status(point_obj) != "stale":
+        raise RuntimeError("changing the source geometry did not invalidate its surface anchor")
+    if point_obj in controller._points():
+        raise RuntimeError("a stale surface anchor remained available for snapping")
+    if "Stale anchor:" not in str(point_obj.Label):
+        raise RuntimeError("stale surface anchor was not marked visibly in the viewport")
 
     panel.reject()
     if controller._mouse_callback is not None or controller._location_callback is not None:
@@ -186,10 +253,12 @@ def run():
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/interactive-arrange.log").write_text(
+        "arrangement-anchor=passed target-linked=true persisted=true stale-detection=true\n"
         "interactive-arrange=passed snapped=true persisted=true\n"
         "interactive-arrange-cleanup=passed callbacks-removed=true\n",
         encoding="utf-8",
     )
+    print("arrangement-anchor=passed target-linked=true persisted=true stale-detection=true", flush=True)
     print("interactive-arrange=passed snapped=true persisted=true", flush=True)
     print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
     App.closeDocument(doc.Name)
