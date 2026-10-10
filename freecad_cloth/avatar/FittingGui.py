@@ -88,8 +88,14 @@ def _xray_overlay(coin, name):
     return overlay
 
 
-def _billboard_marker(coin, position, color_rgb):
-    """Create a camera-facing ring/crosshair centered at a world-space point."""
+def _xray_marker(coin, position, color_rgb):
+    """Create a depth-independent tri-plane ring centered at a world-space point.
+
+    Three orthogonal rings ensure at least one ring retains a clear projected
+    shape from any camera direction. Avoid dynamic Coin billboard nodes here:
+    FreeCAD's selection traversal can enter those nodes without a usable view
+    volume on some Coin builds.
+    """
     marker = coin.SoSeparator()
     transform = coin.SoTransform()
     transform.translation.setValue(
@@ -97,9 +103,6 @@ def _billboard_marker(coin, position, color_rgb):
     )
     marker.addChild(transform)
 
-    billboard = coin.SoVRMLBillboard()
-    billboard.axisOfRotation.setValue(coin.SbVec3f(0.0, 0.0, 0.0))
-    marker.addChild(billboard)
     glyph = coin.SoSeparator()
     draw_style = coin.SoDrawStyle()
     draw_style.lineWidth = SNAP_LINE_WIDTH
@@ -117,15 +120,16 @@ def _billboard_marker(coin, position, color_rgb):
         glyph.addChild(line)
 
     radius = SNAP_RING_RADIUS
-    ring = [
-        coin.SbVec3f(
+    ring_samples = tuple(
+        (
             radius * math.cos(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
             radius * math.sin(index * 2.0 * math.pi / SNAP_RING_SEGMENTS),
-            0.0,
         )
         for index in range(SNAP_RING_SEGMENTS + 1)
-    ]
-    add_polyline(ring)
+    )
+    add_polyline([coin.SbVec3f(x, y, 0.0) for x, y in ring_samples])
+    add_polyline([coin.SbVec3f(x, 0.0, y) for x, y in ring_samples])
+    add_polyline([coin.SbVec3f(0.0, x, y) for x, y in ring_samples])
 
     center = coin.SoSphere()
     center.radius = SNAP_CENTER_RADIUS
@@ -133,7 +137,8 @@ def _billboard_marker(coin, position, color_rgb):
     arm = SNAP_CROSSHAIR_HALF_LENGTH
     add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
     add_polyline([coin.SbVec3f(0.0, -arm, 0.0), coin.SbVec3f(0.0, arm, 0.0)])
-    billboard.addChild(glyph)
+    add_polyline([coin.SbVec3f(0.0, 0.0, -arm), coin.SbVec3f(0.0, 0.0, arm)])
+    marker.addChild(glyph)
     return marker
 
 
@@ -274,7 +279,7 @@ class DirectArrangeController:
             self._clear_snap_indicator()
             separator = _xray_overlay(coin, "ClothArrangeSnapIndicator")
             separator.addChild(
-                _billboard_marker(
+                _xray_marker(
                     coin,
                     (float(point.X), float(point.Y), float(point.Offset)),
                     SNAP_TARGET_COLOR,
@@ -411,7 +416,7 @@ class DirectArrangeController:
             overlay = _xray_overlay(coin, "ClothInteractiveArrangeAnchorOverlay")
             for _name, position, status in records:
                 color = SNAP_STALE_COLOR if status in stale_states else SNAP_TARGET_COLOR
-                overlay.addChild(_billboard_marker(coin, position, color))
+                overlay.addChild(_xray_marker(coin, position, color))
             self.view.getSceneGraph().addChild(overlay)
             self._anchor_overlay = overlay
             self._anchor_overlay_signature = signature
