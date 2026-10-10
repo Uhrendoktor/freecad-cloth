@@ -100,10 +100,20 @@ def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0):
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
     obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+    outline = [
+        (0.0, 0.0),
+        (float(width), 0.0),
+        (float(width), float(height)),
+        (0.0, float(height)),
+    ]
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
-        [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height))]
+        outline
     )
-    obj.Shape = Part.makePlane(float(width), float(height))
+    # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
+    # returns a face whose native Edge1..Edge4 order does not match this boundary.
+    vertices = [App.Vector(x, y, 0.0) for x, y in outline]
+    wire = Part.makePolygon(vertices + [vertices[0]])
+    obj.Shape = Part.Face(wire)
     return obj
 
 
