@@ -140,7 +140,7 @@ def _sync_visuals(scene):
             obj.AnchorGeometrySignature = ""
             obj.AnchorLocalPoint = App.Vector(0.0, 0.0, 0.0)
             obj.AnchorStatus = "unanchored"
-        if obj.AnchorStatus in {"stale", "missing target", "invalid"}:
+        if obj.AnchorStatus in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}:
             obj.Label = "Stale anchor: " + point.name
             obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
             obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
