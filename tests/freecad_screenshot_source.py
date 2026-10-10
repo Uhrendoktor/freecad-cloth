@@ -1295,9 +1295,7 @@ def simulation():
             boundary_summary = []
             for boundary in piece_ir.boundaries:
                 count = len(boundary.samples) - 1
-                ranges.append(
-                    (cursor, cursor + count, str(boundary.id), str(boundary.kind))
-                )
+                ranges.append((cursor, cursor + count, str(boundary.id), str(boundary.kind)))
                 cursor += count
                 boundary_summary.append(
                     (
