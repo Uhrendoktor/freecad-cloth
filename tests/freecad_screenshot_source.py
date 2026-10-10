@@ -1518,12 +1518,12 @@ def simulation():
             % (piece_id, sorted(sewn_ids), chain_sizes, len(sewn_vertices))
         )
         direction = -1 if is_front else 1
-        # Keep the panel's authored X/Z parameterization during surface fitting.
-        # Offsetting each ray hit along its individual triangle normal perturbs
-        # neighboring vertices sideways at high-curvature hips/shoulders and can
-        # fold the cloth mesh. The ray itself supplies a consistent front/back
-        # outward direction; the existing clearance and inside gates still verify
-        # every mapped vertex against the authoritative target surface.
+        # Fade full 3D surface fitting across the torso footprint. Applying
+        # different facet-normal offsets to boundary and interior vertices can
+        # collapse the first ring of triangles during native solver construction;
+        # applying only a Y offset leaves a discontinuity against the fitted sewn
+        # contour. Blending the complete displacement keeps adjacent mesh rings
+        # coherent while preventing the T-pose arms from attracting panel vertices.
         projection_fade_mm = max(1.0, float(scene.ParticleDistance))
         maximum_projection_delta_mm = 2.0 * projection_fade_mm
         mapped = []
@@ -1533,9 +1533,6 @@ def simulation():
                 # Sewn boundaries intentionally share one 3D fitted contour.
                 point = _seam_surface_vertex(x, z)
             else:
-                # The mannequin's extended T-pose arms are inside the broad
-                # garment's 2D projection but outside its torso footprint. Fade
-                # mapping back to each panel's source plane before reaching them.
                 lateral_distance = abs(x - float(x_mid))
                 projection_weight = max(
                     0.0,
@@ -1554,21 +1551,28 @@ def simulation():
                     fit_counts["panel-fallback"] += 1
                     point = (x, y, z)
                 else:
-                    _triangle_index, surface_point = hit
-                    projected_y = float(surface_point[1]) + direction * (
-                        float(outward_offset) + panel_collision_buffer_mm
+                    triangle_index, surface_point = hit
+                    target_point = _fit_surface_point(
+                        surface_point,
+                        triangle_index,
+                        extra_offset_mm=panel_collision_buffer_mm,
                     )
-                    displacement = abs(projected_y - y)
-                    if displacement > maximum_projection_delta_mm:
+                    displacement = tuple(
+                        float(target_point[axis]) - float(raw[axis])
+                        for axis in range(3)
+                    )
+                    displacement_length = sum(
+                        value * value for value in displacement
+                    ) ** 0.5
+                    if displacement_length > maximum_projection_delta_mm:
                         projection_weight = min(
                             projection_weight,
-                            maximum_projection_delta_mm / displacement,
+                            maximum_projection_delta_mm / displacement_length,
                         )
-                    # Blend only along the projection axis. This bounds abrupt
-                    # changes where the body silhouette/ray hit starts or ends,
-                    # while preserving the mesh's authored X/Z vertex ordering.
-                    blended_y = y + projection_weight * (projected_y - y)
-                    point = (x, blended_y, z)
+                    point = tuple(
+                        float(raw[axis]) + projection_weight * displacement[axis]
+                        for axis in range(3)
+                    )
                     fit_counts["panel-surface"] += 1
             mapped.append(tuple(float(value) for value in point))
         # Enforce the configured vertex clearance with a local closest-point
