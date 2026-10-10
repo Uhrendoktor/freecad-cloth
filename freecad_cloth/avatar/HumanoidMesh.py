@@ -162,10 +162,17 @@ def _verified_skeleton(path: Path) -> bool:
             return False
         bones = payload.get("bones")
         joints = payload.get("joints")
-        if not isinstance(bones, dict) or not bones or not isinstance(joints, dict) or not joints:
+        if (
+            not isinstance(bones, dict)
+            or not bones
+            or not isinstance(joints, dict)
+            or not joints
+        ):
             return False
         for indices in joints.values():
-            if not isinstance(indices, list) or any(type(index) is not int or index < 0 for index in indices):
+            if not isinstance(indices, list) or any(
+                type(index) is not int or index < 0 for index in indices
+            ):
                 return False
         for bone in bones.values():
             if not isinstance(bone, dict):
