@@ -29,7 +29,9 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     raw_paths = os.environ.get("CLOTH_EXPECTED_TEST_MODULES", "")
     if not raw_paths:
         raise pytest.UsageError("CLOTH_EXPECTED_TEST_MODULES must be set by python_validation.py")
-    expected_paths = tuple(path for line in raw_paths.splitlines() for path in line.split(os.pathsep) if path)
+    expected_paths: list[str] = []
+    for line in raw_paths.splitlines():
+        expected_paths.extend(path for path in line.split(os.pathsep) if path)
     if not expected_paths:
         raise pytest.UsageError("CLOTH_EXPECTED_TEST_MODULES must contain at least one path")
     missing = missing_requested_modules(expected_paths, (item.path for item in items))
