@@ -18,6 +18,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     _verified_weights,
     fit_makehuman_mesh,
     load_makehuman_mesh,
+    load_makehuman_skeleton,
     parse_obj,
 )
 
@@ -81,6 +82,13 @@ class HumanoidMeshTests(unittest.TestCase):
                 with self.subTest(payload_type=type(payload).__name__):
                     self._write_sized_json(path, payload, MAKEHUMAN_WEIGHTS_SIZE)
                     self.assertFalse(_verified_weights(path))
+
+    def test_skeleton_loader_rejects_malformed_explicit_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "skeleton.mhskel"
+            path.write_text("[]", encoding="utf-8")
+            with self.assertRaisesRegex(HumanoidMeshError, "invalid bones or joints"):
+                load_makehuman_skeleton(str(path))
 
     def test_skeleton_cache_verifier_rejects_malformed_or_empty_payloads(self):
         with tempfile.TemporaryDirectory() as directory:
