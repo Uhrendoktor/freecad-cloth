@@ -514,7 +514,7 @@ def test_canonical_tunic_maps_seams_to_shared_surface_positions_before_build():
     assert "panel_collision_buffer_mm = float(" in source
     assert "required_vertex_offsets[index]" in source
     assert "_pbd_collision_effective_tolerance_mm(target_surface)" in source
-    assert "extra_offset_mm=panel_collision_buffer_mm" in source
+    assert "float(outward_offset) + panel_collision_buffer_mm" in source
     assert "outward_offset = float(clearance) + 3.0" in source
     assert '"tunic-initial-inside-residual sample=%s"' in source
     assert "canonical tunic surface mapping leaves %d cloth vertices inside the mannequin target" in source
