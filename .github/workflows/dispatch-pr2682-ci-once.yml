@@ -1,0 +1,29 @@
+name: Dispatch corrected PR 2682 CI
+
+on:
+  push:
+    branches:
+      - automation/rebase-pr-2682-20261010
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch native CI for the corrected rebased head
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Dispatch canonical execution on the PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET_BRANCH: audit/geometry-ci-simplification-20261010
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha="$(gh api "repos/$REPOSITORY/branches/$TARGET_BRANCH" --jq '.commit.sha')"
+          echo "dispatching-head=$target_sha"
+          gh workflow run canonical-execution.yml --repo "$REPOSITORY" --ref "$TARGET_BRANCH" -f runner_mode=hosted
+          echo "dispatched canonical-execution.yml for $target_sha"
