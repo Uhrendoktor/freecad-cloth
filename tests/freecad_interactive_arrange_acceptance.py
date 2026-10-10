@@ -96,22 +96,22 @@ def _mesh_surface_pick(target, x_fraction, z_fraction, side):
 
 
 def _create_demo_tunic_piece(
-    doc, object_name, label, piece_id, placement, color, extrusion_sign=-1
+    doc, object_name, label, piece_id, placement, color, panel_width, panel_height, extrusion_sign=-1
 ):
     """Create a recognizable tunic panel oriented vertically against the mannequin."""
-    half_width = 220.0
-    half_height = 330.0
+    half_width = 0.5 * float(panel_width)
+    half_height = 0.5 * float(panel_height)
     outline_points = [
         (-half_width, 0.0, -half_height),
         (half_width, 0.0, -half_height),
-        (half_width, 0.0, 115.0),
-        (175.0, 0.0, 300.0),
-        (65.0, 0.0, 285.0),
-        (38.0, 0.0, 205.0),
-        (-38.0, 0.0, 205.0),
-        (-65.0, 0.0, 285.0),
-        (-175.0, 0.0, 300.0),
-        (-half_width, 0.0, 115.0),
+        (half_width, 0.0, half_height * 0.35),
+        (half_width * 0.80, 0.0, half_height * 0.91),
+        (half_width * 0.30, 0.0, half_height * 0.86),
+        (half_width * 0.17, 0.0, half_height * 0.62),
+        (-half_width * 0.17, 0.0, half_height * 0.62),
+        (-half_width * 0.30, 0.0, half_height * 0.86),
+        (-half_width * 0.80, 0.0, half_height * 0.91),
+        (-half_width, 0.0, half_height * 0.35),
     ]
     wire = Part.makePolygon(
         [App.Vector(*point) for point in outline_points]
@@ -168,6 +168,8 @@ def run():
         "tunic-front-panel",
         (center_x - panel_offset, float(front_pick.y) - 35.0, float(front_pick.z)),
         (0.82, 0.57, 0.31),
+        panel_width,
+        panel_height,
     )
     back_piece = _create_demo_tunic_piece(
         doc,
@@ -176,6 +178,8 @@ def run():
         "tunic-back-panel",
         (center_x + panel_offset, float(back_pick.y) + 35.0, float(back_pick.z)),
         (0.33, 0.56, 0.78),
+        panel_width,
+        panel_height,
     )
     scene = create_fitting_scene()
     scene.AvatarProxy = target
