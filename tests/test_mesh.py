@@ -7,8 +7,9 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier, rectangle
 from freecad_cloth.pattern.PatternMesh import (
+    _edge_segment_ids,
     _point_to_segment_distance,
     refine_linear_boundary,
     triangulate,
@@ -155,3 +156,27 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("mesh tests passed")
+
+
+def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping():
+    class CountedCurve(QuadraticBezier):
+        calls = 0
+
+        def polyline(self, samples=32):
+            type(self).calls += 1
+            return super().polyline(samples)
+
+    curve = CountedCurve("curve", (0.0, 0.0), (5.0, 10.0), (10.0, 0.0))
+    outline = ((0.0, 0.0), (10.0, 0.0), (10.0, -10.0), (0.0, -10.0))
+    pattern = ParametricPattern(
+        [
+            curve,
+            LineSegment("right", (10.0, 0.0), (10.0, -10.0)),
+            LineSegment("bottom", (10.0, -10.0), (0.0, -10.0)),
+            LineSegment("left", (0.0, -10.0), (0.0, 0.0)),
+        ]
+    )
+    CountedCurve.calls = 0
+    result = _edge_segment_ids(pattern, outline)
+    assert len(result) == len(outline)
+    assert CountedCurve.calls == 1
