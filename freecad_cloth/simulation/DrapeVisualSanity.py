@@ -91,6 +91,8 @@ def point_inside_closed_mesh(
 ) -> bool:
     """Return whether one validated point is inside a closed triangle mesh."""
     return points_inside_closed_mesh((point,), vertices, triangles)[0]
+
+
 def points_inside_closed_mesh(
     points: Sequence[Point3],
     vertices: Sequence[Point3],
