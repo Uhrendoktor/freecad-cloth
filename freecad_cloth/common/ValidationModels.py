@@ -346,6 +346,71 @@ class PatternPieceInput(InputModel):
         return self
 
 
+class PngCaptureOptions(InputModel):
+    """Validate screenshot dimensions and the pixel-content acceptance policy."""
+
+    expected_width: StrictInt | None = Field(default=None, ge=1)
+    expected_height: StrictInt | None = Field(default=None, ge=1)
+    minimum_pixels: StrictInt = Field(default=64, ge=0)
+    min_opaque_pixels: StrictInt = Field(default=64, ge=0)
+    min_distinct_rgb: StrictInt = Field(default=8, ge=0)
+    pixel_threshold: StrictInt = Field(default=250, ge=0, le=256)
+    require_all_channels_below: StrictBool = False
+
+
+class PngCaptureMetrics(InputModel):
+    """Pydantic-validated statistics extracted from a decoded PNG capture."""
+
+    width: StrictInt = Field(ge=1)
+    height: StrictInt = Field(ge=1)
+    opaque_pixels: StrictInt = Field(ge=0)
+    nonwhite_pixels: StrictInt = Field(ge=0)
+    distinct_rgb: StrictInt = Field(ge=0)
+
+    @model_validator(mode="after")
+    def pixel_counts_are_consistent(self) -> PngCaptureMetrics:
+        """Reject impossible image metrics before returning them to acceptance tests."""
+        total_pixels = self.width * self.height
+        if self.opaque_pixels > total_pixels:
+            raise ValueError("opaque pixel count exceeds image dimensions")
+        if self.nonwhite_pixels > self.opaque_pixels:
+            raise ValueError("visible pixel count exceeds opaque pixel count")
+        if self.distinct_rgb > self.opaque_pixels:
+            raise ValueError("distinct color count exceeds opaque pixel count")
+        return self
+
+
+class MeshHealthMetrics(InputModel):
+    """Validated diagnostics emitted by the canonical triangle-mesh library."""
+
+    vertices: StrictInt = Field(ge=0)
+    faces: StrictInt = Field(ge=0)
+    components: StrictInt = Field(ge=0)
+    bounds: tuple[
+        FiniteNumber,
+        FiniteNumber,
+        FiniteNumber,
+        FiniteNumber,
+        FiniteNumber,
+        FiniteNumber,
+    ]
+    surface_area: FiniteNumber = Field(ge=0.0)
+    watertight: StrictBool | None
+    finite: StrictBool
+    degenerate_faces: StrictInt = Field(ge=0)
+
+    @model_validator(mode="after")
+    def mesh_metrics_are_consistent(self) -> MeshHealthMetrics:
+        """Enforce topology/count/bounds invariants on library-produced metrics."""
+        xmin, xmax, ymin, ymax, zmin, zmax = self.bounds
+        if xmin > xmax or ymin > ymax or zmin > zmax:
+            raise ValueError("mesh bounds must be ordered minimum/maximum pairs")
+        if self.components > self.faces:
+            raise ValueError("mesh component count cannot exceed face count")
+        if self.degenerate_faces > self.faces:
+            raise ValueError("degenerate face count cannot exceed face count")
+        return self
+
 Point2DAdapter = TypeAdapter(Point2D)
 Points2DAdapter = TypeAdapter(tuple[Point2D, ...])
 Points3DAdapter = TypeAdapter(tuple[Point3D, ...])

@@ -45,6 +45,10 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         pypbd==2.2.2 \
         triangle==20250106 \
         "pydantic>=2.11,<3" \
+        "pillow>=11,<13" \
+        "networkx>=3,<4" \
+        "rtree>=1,<2" \
+        "trimesh>=4,<6" \
         "scipy>=1.14,<2" \
         "shapely>=2,<3" \
         pytest \

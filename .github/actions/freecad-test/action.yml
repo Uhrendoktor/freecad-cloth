@@ -91,6 +91,24 @@ runs:
           --test-script /workspace/${{ inputs.test-script }}
           --test-args "${{ inputs.test-args }}"
 
+    - name: Set up Python for evidence validators
+      if: inputs.validate-command != ''
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: pyproject.toml
+
+    - name: Install project dependencies for evidence validators
+      if: inputs.validate-command != ''
+      shell: bash
+      run: timeout --signal=TERM --kill-after=5s 120s python -m pip install --disable-pip-version-check -e .
+
+    - name: Verify evidence validator dependencies
+      if: inputs.validate-command != ''
+      shell: bash
+      run: python -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
+
     - name: Validate test evidence
       if: inputs.validate-command != ''
       shell: bash

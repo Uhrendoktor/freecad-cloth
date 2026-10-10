@@ -13,6 +13,9 @@ from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput,
     CorrespondenceAnalysisInput,
     MeshArrays,
+    MeshHealthMetrics,
+    PngCaptureMetrics,
+    PngCaptureOptions,
     NormalizedRange,
     RectangleDimensions,
     SeamAllowanceOptions,
@@ -249,3 +252,45 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
     assert segment.point(0.5) == pytest.approx((1.05e308, 0.0))
+
+
+
+def test_png_capture_schema_preserves_independent_dimensions_and_rejects_invalid_thresholds() -> None:
+    assert PngCaptureOptions(expected_width=800).expected_width == 800
+    assert PngCaptureOptions(expected_height=600).expected_height == 600
+    with pytest.raises(ValidationError):
+        PngCaptureOptions(pixel_threshold=257)
+    with pytest.raises(ValidationError):
+        PngCaptureOptions(minimum_pixels=-1)
+
+
+def test_png_metrics_schema_rejects_impossible_counts_and_dimensions() -> None:
+    with pytest.raises(ValidationError, match="opaque pixel count"):
+        PngCaptureMetrics(width=1, height=1, opaque_pixels=2, nonwhite_pixels=1, distinct_rgb=1)
+    with pytest.raises(ValidationError, match="visible pixel count"):
+        PngCaptureMetrics(width=2, height=2, opaque_pixels=2, nonwhite_pixels=3, distinct_rgb=1)
+
+
+def test_mesh_health_metrics_rejects_invalid_bounds_and_counts() -> None:
+    with pytest.raises(ValidationError, match="ordered"):
+        MeshHealthMetrics(
+            vertices=3,
+            faces=1,
+            components=1,
+            bounds=(1.0, 0.0, 0.0, 1.0, 0.0, 1.0),
+            surface_area=0.5,
+            watertight=False,
+            finite=True,
+            degenerate_faces=0,
+        )
+    with pytest.raises(ValidationError, match="component count"):
+        MeshHealthMetrics(
+            vertices=3,
+            faces=1,
+            components=2,
+            bounds=(0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
+            surface_area=0.5,
+            watertight=False,
+            finite=True,
+            degenerate_faces=0,
+        )

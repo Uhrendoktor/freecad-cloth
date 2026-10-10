@@ -8,7 +8,6 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from math import isfinite
 from numbers import Real
 from typing import cast
@@ -19,25 +18,13 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
 
-from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
 
-@dataclass(frozen=True)
-class MeshValidationResult:
-    """Deterministic derived-mesh health metrics."""
-
-    vertices: int
-    faces: int
-    components: int
-    bounds: tuple[float, float, float, float, float, float]
-    surface_area: float
-    watertight: bool | None
-    finite: bool
-    degenerate_faces: int
-
+MeshValidationResult = MeshHealthMetrics
 
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
     """Validate mesh coordinates and connectivity with one schema boundary."""
