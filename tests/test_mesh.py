@@ -2,7 +2,8 @@ import sys
 from math import dist
 from pathlib import Path
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
