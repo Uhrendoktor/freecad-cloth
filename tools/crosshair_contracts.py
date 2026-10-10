@@ -8,7 +8,6 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 from __future__ import annotations
 
 from freecad_cloth.pattern.PatternGeometry import _lerp, _line_intersection
-from freecad_cloth.pattern.PatternMesh import _point_to_segment_distance
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
 
