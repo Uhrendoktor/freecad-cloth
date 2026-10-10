@@ -52,6 +52,7 @@ import FreeCADGui as Gui
 _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
 import Part
+
 _import_progress("Part complete")
 
 from pbd_contact_helpers import bounds as _bounds
