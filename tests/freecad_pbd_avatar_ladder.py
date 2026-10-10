@@ -164,7 +164,14 @@ def _avatar_screenshot(view, path):
 
 
 def _checkpoint_record(
-    step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh,
+    step,
+    image,
+    positions,
+    panel_triangles,
+    source_shape,
+    collision_surface,
+    base,
+    proximity_mesh,
     case_id="",
 ):
     """Add avatar-specific clearance observations to the shared checkpoint record."""
