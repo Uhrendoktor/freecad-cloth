@@ -424,8 +424,8 @@ def run():
     def pin_indices(piece, outline, positions):
         x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (x_offset + 0.10 * panel_width, 0.98 * garment_height),
-            (x_offset + 0.90 * panel_width, 0.98 * garment_height),
+            (x_offset + 0.06 * panel_width, 0.86 * garment_height),
+            (x_offset + 0.94 * panel_width, 0.86 * garment_height),
         )
         result = []
         available = list(range(len(positions)))
