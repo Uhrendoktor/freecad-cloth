@@ -1486,9 +1486,8 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.75
-    # Build once to resolve each authored neckline center to a stable boundary particle.
-    # Explicit neckline anchors stop the unsupported tunic from dropping toward the hips.
-    scene.PinMode = "Automatic"
+    # Keep this free-drape audit unpinned; fixed front/back neckline centers prevent the shoulder seams from converging.
+    scene.PinMode = "None"
     scene.PinSelection = []
     scene.ClothPieces = [front, back]
     link_records = tuple(
@@ -1534,7 +1533,7 @@ def simulation():
     panel_objects = tuple(getattr(scene, "DrapePanels", ()))
     if len(panel_objects) < 2:
         raise RuntimeError("canonical tunic did not create one drape mesh per panel")
-    anchor_indices = []
+    neckline_midpoints = []
     panel_boundary_edges = getattr(proxy, "panel_boundary_edges", {})
     panel_piece_names = getattr(proxy, "panel_piece_names", {})
     panel_map_summary = tuple(
@@ -1659,7 +1658,7 @@ def simulation():
                 "piece=%s edge=%s midpoint-offset-mm=%.2f"
                 % (piece.Name, neckline_edge_id, snap_distance)
             )
-        anchor_indices.append(particle_index)
+        neckline_midpoints.append(particle_index)
         log(
             "tunic-neckline-boundary piece=%s edge=%s vertices=%d length-mm=%.2f"
             % (piece.Name, neckline_edge_id, len(neckline_particles), total_length)
@@ -1667,43 +1666,27 @@ def simulation():
         # Keep the established contract log token; snap-mm is measured along the
         # authored neckline chain, not from an unrelated world-space mesh vertex.
         log(
-            "tunic-neckline-anchor piece=%s particle=%d snap-mm=%.2f"
+            "tunic-neckline-midpoint piece=%s particle=%d snap-mm=%.2f"
             % (piece.Name, particle_index, snap_distance)
         )
-    expected_pins = tuple(sorted(set(anchor_indices)))
-    if len(expected_pins) != 2:
+    neckline_midpoints = tuple(sorted(set(neckline_midpoints)))
+    if len(neckline_midpoints) != 2:
         raise RuntimeError(
-            "canonical tunic requires one distinct neckline anchor per panel: %s" % (expected_pins,)
+            "canonical tunic requires one distinct neckline midpoint per panel: %s"
+            % (neckline_midpoints,)
         )
 
-    scene.PinMode = "Explicit"
-    scene.PinSelection = [str(index) for index in expected_pins]
-    proxy = scene.Proxy
-    base_proxy_getter = getattr(proxy, "_base_or_restore", None)
-    if not callable(base_proxy_getter):
-        raise RuntimeError("canonical tunic simulation cannot invalidate its cached scene")
-    # Rebuild against the explicit anchors instead of retaining automatic corner pins.
-    base_proxy_getter().source_signature = None
-    doc.recompute()
-    status = target_status(target)
-    if str(status.get("state", "")) != "ready":
-        raise RuntimeError(
-            "canonical tunic DrapeTarget is not current: {}".format(status.get("message", status))
-        )
-    proxy = scene.Proxy
-    backend = getattr(proxy, "backend", None)
-    if backend is None:
-        raise RuntimeError("canonical tunic did not build an anchored simulation backend")
+    if str(getattr(scene, "PinMode", "")) != "None":
+        raise RuntimeError("canonical tunic must use PinMode=None for seam convergence")
+    if list(getattr(scene, "PinSelection", ())) != []:
+        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
     solver_pins = tuple(sorted(int(index) for index in getattr(backend, "_pin_indices", ())))
-    persisted_pins = tuple(sorted(int(index) for index in getattr(scene, "PinSelection", ())))
-    if str(getattr(scene, "PinMode", "")) != "Explicit":
-        raise RuntimeError("canonical tunic requires Explicit neckline anchoring")
-    if solver_pins != expected_pins or persisted_pins != expected_pins:
-        raise RuntimeError(
-            "canonical tunic neckline anchors differ from solver pins: "
-            "solver=%s expected=%s persisted=%s" % (solver_pins, expected_pins, persisted_pins)
-        )
-    log("pin-mode=Explicit neckline-anchor-pins=%s" % (solver_pins,))
+    if not solver_pins:
+        system = getattr(backend, "system", None)
+        solver_pins = tuple(sorted(int(index) for index in getattr(system, "pins", {})))
+    if solver_pins:
+        raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
+    log("pin-mode=None solver-pins=0 neckline-midpoints=%s" % (neckline_midpoints,))
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
