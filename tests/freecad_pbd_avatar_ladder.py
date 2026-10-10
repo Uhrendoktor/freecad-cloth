@@ -538,6 +538,7 @@ def _run_ladder_case(case_id):
             scene.Steps = int(step)
             doc.recompute()
             _boot(f"checkpoint-after-recompute case={case_id} step={step}")
+            # Reuse this solver snapshot after rendering instead of re-entering PBD.
             positions = _positions_tuple(base.backend)
             _events()
             image = OUT / "avatar-ladder" / case_id / ("step-%03d.png" % int(step))
