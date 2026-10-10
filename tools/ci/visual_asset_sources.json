@@ -1,6 +1,12 @@
 {
   "schema_version": 1,
   "assets": {
+    "arrangement-anchor.gif": {
+      "artifact": "interactive-arrange",
+      "producers": [
+        "tests/freecad_interactive_arrange_acceptance.py"
+      ]
+    },
     "avatar-pose-mode.png": {
       "artifact": "avatar-pose-ui",
       "producers": [
