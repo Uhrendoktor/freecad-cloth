@@ -1316,7 +1316,7 @@ def simulation():
                 return "<unknown>"
 
             crossing_match = re.search(
-                r"\\[([+-]?[0-9.eE+-]+)\\s+([+-]?[0-9.eE+-]+)\\]",
+                r"\[([+-]?[0-9.eE+-]+)\s+([+-]?[0-9.eE+-]+)\]",
                 reason,
             )
             nearby = ()
