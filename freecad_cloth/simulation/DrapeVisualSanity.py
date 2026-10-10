@@ -10,6 +10,7 @@ from statistics import median
 from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
 Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int]
 
 
 def maximum_box_penetration(
@@ -84,21 +85,23 @@ def minimum_vertex_distance(
     return nearest_target_clearance(source, target)
 
 
-def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
+def point_inside_closed_mesh(
+    point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle]
+) -> bool:
     """Return whether a point is inside a closed triangle mesh by ray parity."""
     ray = (1.0, 0.3713906763541037, 0.1932424973120743)
     origin = (float(point[0]), float(point[1]), float(point[2]))
     hits = 0
     epsilon = 1e-9
 
-    def cross(left, right):
+    def cross(left: Point3, right: Point3) -> Point3:
         return (
             left[1] * right[2] - left[2] * right[1],
             left[2] * right[0] - left[0] * right[2],
             left[0] * right[1] - left[1] * right[0],
         )
 
-    def dot(left, right):
+    def dot(left: Point3, right: Point3) -> float:
         return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
 
     for triangle in triangles:
@@ -129,7 +132,13 @@ def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
     return bool(hits % 2)
 
 
-def points_inside_closed_mesh(points, vertices, triangles, *, chunk_size: int = 32) -> tuple[bool, ...]:
+def points_inside_closed_mesh(
+    points: Sequence[Point3],
+    vertices: Sequence[Point3],
+    triangles: Sequence[Triangle],
+    *,
+    chunk_size: int = 32,
+) -> tuple[bool, ...]:
     """Return ray-parity results for many points without a Python point×triangle loop."""
     try:
         import numpy as np
@@ -353,7 +362,9 @@ def assert_drape_diagnostics(
         raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
 
 
-def mesh_shape_sanity(vertices, triangles):
+def mesh_shape_sanity(
+    vertices: Sequence[Point3], triangles: Sequence[Triangle]
+) -> dict[str, bool | int | float]:
     """Return deterministic mesh-shape health metrics for visual regression.
 
     The metrics intentionally describe geometry rather than deciding whether a
