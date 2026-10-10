@@ -300,14 +300,12 @@ class DirectArrangeController:
     def deactivate(self):
         """Remove viewport callbacks and cancel any uncommitted drag."""
         if self.drag_piece is not None and self.drag_start_base is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError, ValueError):
                 self._set_piece_placement(
                     self.drag_piece,
                     self.drag_start_base,
                     self.drag_start_rotation,
                 )
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
         self.drag_piece = None
         self.snap_point = None
         self._snap_indicator_generation += 1
@@ -584,10 +582,8 @@ class ViewportAnchorPicker:
     def dispose(self):
         """Disarm picking and unregister the FreeCAD selection observer."""
         self.armed = False
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Selection.removeObserver(self)
-        except (AttributeError, RuntimeError):
-            pass
 
 
 class FittingTaskPanel:

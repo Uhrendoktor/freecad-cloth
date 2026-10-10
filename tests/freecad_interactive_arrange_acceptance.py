@@ -223,7 +223,7 @@ def run():
     base = piece.Placement.Base
     expected = (float(point_obj.X), float(point_obj.Y), float(point_obj.Offset))
     actual = (float(base.x), float(base.y), float(base.z))
-    if any(abs(left - right) > 1e-6 for left, right in zip(actual, expected)):
+    if any(abs(left - right) > 1e-6 for left, right in zip(actual, expected, strict=True)):
         raise RuntimeError("piece did not snap to the picked surface anchor: " + repr(actual))
     if controller._snap_indicator is not None:
         raise RuntimeError("snap marker remained after placement commit")
@@ -250,7 +250,7 @@ def run():
     )
     if any(
         abs(actual_value - expected_value) > 1e-6
-        for actual_value, expected_value in zip(transformed_anchor, expected_transform)
+        for actual_value, expected_value in zip(transformed_anchor, expected_transform, strict=True)
     ):
         from freecad_cloth.avatar.FittingCommands import _target_signature
 
@@ -273,6 +273,7 @@ def run():
         for actual_value, expected_value in zip(
             (transformed_world.x, transformed_world.y, transformed_world.z),
             transformed_anchor,
+            strict=True,
         )
     ):
         raise RuntimeError("anchor marker is not coincident with the transformed target")
@@ -384,7 +385,7 @@ def run():
     )
     if any(
         abs(actual_value - expected_value) > 1e-5
-        for actual_value, expected_value in zip(posed_anchor, expected_pose_point)
+        for actual_value, expected_value in zip(posed_anchor, expected_pose_point, strict=True)
     ):
         raise RuntimeError(
             "surface anchor did not follow the deformed avatar triangle: "
