@@ -185,6 +185,7 @@ def validate_tunic_production() -> None:
     """Validate the production tunic evidence without canonical garment E2E artifacts."""
     _validate_tunic(require_canonical_e2e=False)
 
+
 def validate_blanket() -> None:
     """Validate the canonical blanket visual evidence."""
     root = Path("docs/images/generated/blanket-example")

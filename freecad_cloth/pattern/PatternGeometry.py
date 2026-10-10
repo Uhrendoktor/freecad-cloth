@@ -4,9 +4,16 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import hypot, isfinite
 
+from shapely.errors import GEOSException
+from shapely.geometry import Polygon
+
 from freecad_cloth.common.ValidationModels import (
-    RectangleDimensions, SampleCount, SeamAllowanceOptions,
-    validate_finite_number, validate_point2d, validate_points2d,
+    RectangleDimensions,
+    SampleCount,
+    SeamAllowanceOptions,
+    validate_finite_number,
+    validate_point2d,
+    validate_points2d,
 )
 
 Point = tuple[float, float]
@@ -65,9 +72,7 @@ class QuadraticBezier:
             _lerp(self.control[0], self.end[0], t),
             _lerp(self.control[1], self.end[1], t),
         )
-        return _require_finite_point(
-            (_lerp(first[0], second[0], t), _lerp(first[1], second[1], t))
-        )
+        return _require_finite_point((_lerp(first[0], second[0], t), _lerp(first[1], second[1], t)))
 
     def polyline(self, samples: int = 32) -> list[Point]:
         """Return sampled polyline points for this geometry."""
@@ -149,7 +154,10 @@ class ParametricPattern:
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
-        if any(not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment)) for segment in self.segments):
+        if any(
+            not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment))
+            for segment in self.segments
+        ):
             raise TypeError("pattern segments must be supported segment types")
         # Recheck coordinates in case a caller bypassed frozen dataclasses.
         for segment in self.segments:
@@ -204,48 +212,51 @@ class ParametricPattern:
 def seam_allowance_outline(
     pattern: ParametricPattern, allowance: float, curve_samples: int = 32
 ) -> list[Point]:
-    """Return a deterministic cut-line outline offset from a sewing boundary.
+    """Return a valid cut-line offset using GEOS polygon buffering.
 
-    The pattern boundary remains the source of truth; this function only
-    generates display/export geometry. Curves are sampled before offsetting.
-    Positive allowance offsets outward from the closed polygon. The helper
-    supports ordinary simple convex/concave outlines and deliberately leaves
-    self-intersection resolution to a later geometry layer.
+    The sewing boundary remains authoritative. GEOS resolves concave offset
+    topology (including narrow notches) rather than joining infinite offset
+    lines into a potentially self-intersecting ring.
     """
     options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
     allowance, curve_samples = options.allowance, options.curve_samples
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
         raise ValueError("pattern needs at least three outline points")
-    if allowance == 0.0:
-        return list(points)
     area = signed_area(points)
     if abs(area) < 1e-12:
         raise ValueError("pattern outline must enclose a non-zero area")
+    if allowance == 0.0:
+        return list(points)
 
-    ccw = area > 0.0
-    edges = []
-    for index, start in enumerate(points):
-        end = points[(index + 1) % len(points)]
-        dx, dy = end[0] - start[0], end[1] - start[1]
-        length = hypot(dx, dy)
-        if length < 1e-12:
-            raise ValueError("pattern outline contains a zero-length edge")
-        normal = (dy / length, -dx / length) if ccw else (-dy / length, dx / length)
-        offset = (normal[0] * allowance, normal[1] * allowance)
-        edges.append(
-            ((start[0] + offset[0], start[1] + offset[1]), (end[0] + offset[0], end[1] + offset[1]))
-        )
+    source = Polygon(points)
+    if source.is_empty or not source.is_valid or source.area <= 0.0:
+        raise ValueError("pattern outline must be a valid simple polygon")
+    try:
+        offset = source.buffer(allowance, join_style="mitre", mitre_limit=5.0)
+    except GEOSException as exc:
+        raise ValueError("seam allowance offset failed") from exc
+    if offset.is_empty or not offset.is_valid or offset.geom_type != "Polygon" or offset.interiors:
+        raise ValueError("seam allowance produced invalid or unsupported polygon topology")
 
-    result = []
-    for index in range(len(edges)):
-        previous = edges[(index - 1) % len(edges)]
-        current = edges[index]
-        point = _line_intersection(previous[0], previous[1], current[0], current[1])
-        if point is None:
-            point = current[0]
-        result.append(point)
-    return list(validate_points2d(result))
+    outline = list(
+        validate_points2d([(float(x), float(y)) for x, y in offset.exterior.coords[:-1]])
+    )
+    if len(outline) < 3:
+        raise ValueError("seam allowance produced fewer than three boundary points")
+
+    # Keep deterministic edge ordering and the input winding for legacy callers.
+    start_index = min(
+        range(len(outline)),
+        key=lambda index: (
+            hypot(outline[index][0] - points[0][0], outline[index][1] - points[0][1]),
+            index,
+        ),
+    )
+    outline = outline[start_index:] + outline[:start_index]
+    if (signed_area(outline) > 0.0) != (area > 0.0):
+        outline = [outline[0], *reversed(outline[1:])]
+    return outline
 
 
 def signed_area(points: Sequence[Point]) -> float:

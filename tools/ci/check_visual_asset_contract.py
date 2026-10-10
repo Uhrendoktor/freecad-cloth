@@ -59,7 +59,9 @@ def contract_errors() -> list[str]:
             continue
         artifact = entry.get("artifact")
         if not isinstance(artifact, str) or not artifact or artifact not in production_config:
-            errors.append(f"{name}: artifact is not produced/uploaded by canonical CI: {artifact!r}")
+            errors.append(
+                f"{name}: artifact is not produced/uploaded by canonical CI: {artifact!r}"
+            )
         producers = entry.get("producers")
         if not isinstance(producers, list) or not producers:
             errors.append(f"{name}: at least one producer path is required")

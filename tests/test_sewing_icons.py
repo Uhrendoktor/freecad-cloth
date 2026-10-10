@@ -1,7 +1,7 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-ICON_DIR = ROOT / "resources" / "icons"
+from freecad_cloth.common.CommandAdapter import icon_for_command
+
 COMMANDS = (
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateMNSewing",
@@ -21,7 +21,7 @@ COMMANDS = (
 
 def test_sewing_commands_have_svg_icons():
     for command in COMMANDS:
-        icon = ICON_DIR / f"{command}.svg"
+        icon = Path(icon_for_command(command))
         assert icon.is_file(), command
         text = icon.read_text(encoding="utf-8")
         assert "<svg" in text
@@ -38,7 +38,7 @@ def test_sewing_command_resources_reference_command_icons():
     for command in COMMANDS:
         handler = SewingCommands._COMMAND_HANDLERS[command]
         active = SewingCommands._ACTIVATION[command]
-        icon = str(ICON_DIR / f"{command}.svg")
+        icon = icon_for_command(command)
         wrapper = SewingCommands._SewingCommand(
             handler,
             active,

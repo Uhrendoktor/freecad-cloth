@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
 import pytest
 
