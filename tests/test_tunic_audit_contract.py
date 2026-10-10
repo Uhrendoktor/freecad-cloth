@@ -52,7 +52,7 @@ def test_canonical_garment_pattern_has_scooped_open_armholes():
     assert "(x_offset + 0.95 * panel_width, armhole_z)" in source
     assert "(x_offset + 0.05 * panel_width, armhole_z)" in source
     assert "scoop_ratio = 0.83 if index == 2 else 0.17" in source
-    assert "geometry.append(Part.Arc(start_vector, midpoint, end_vector))" in source
+    assert "geometry.append(Part.Arc(start_vector, end_vector, midpoint))" in source
     assert "boundary.kind != \"arc\" or len(boundary.samples) < 8" in source
     assert "armhole curve has insufficient inward clearance" in source
     assert "shoulder_height=authored_shoulder_height" in source
