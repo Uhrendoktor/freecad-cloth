@@ -119,7 +119,6 @@ def test_point_to_segment_distance_handles_subnormal_segment_length():
     assert distance == 1.0
 
 
-
 @given(
     px=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
     py=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
