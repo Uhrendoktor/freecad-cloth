@@ -16,9 +16,7 @@ def test_sketcher_acceptance_prepares_gui_before_workbench_assertion():
 
 
 def test_pose_acceptance_waits_for_paint_before_screen_capture():
-    source = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(encoding="utf-8")
     run = source.split("def run():", 1)[1]
     capture = source.split("def _capture_pose_screen", 1)[1].split("def _bounds", 1)[0]
     assert run.index("Gui.Control.showDialog(panel)") < run.index("_events()")
@@ -165,7 +163,9 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     )
     assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert "python -m ruff format tools/ci" in quality
+    assert "python -m ruff format --check tools/ci" in quality
+    assert "python -m ruff format tools/ci\n" not in quality
+    assert "python -m ruff check --fix tools/ci" not in quality
     for job in (
         "local_runner_readiness:",
         "runner_watchdog:",
@@ -214,7 +214,7 @@ def test_readme_turntable_scripts_import_freecad_gui_before_repository_path_inje
 if __name__ == "__main__":
     test_sketcher_acceptance_prepares_gui_before_workbench_assertion()
     test_visual_example_prepares_gui_and_explicit_workbench_registration()
-    test_sketcher_acceptance_uses_explicit_initgui_startup()
+    test_sketcher_acceptance_uses_freecad_startup_registration()
     test_canonical_gui_jobs_use_shared_freecad_test_boundaries()
     test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget()
     test_canonical_readme_turntable_uses_shared_freecad_test_action()

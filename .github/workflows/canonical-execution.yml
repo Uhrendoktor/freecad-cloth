@@ -68,11 +68,9 @@ jobs:
         run: |
           set -euo pipefail
           python -m compileall -q tests tools/ci
-          python -m ruff format tools/ci
-          python -m ruff check --fix tools/ci
+          python -m ruff format --check tools/ci
           python -m ruff check tools/ci
           python -m ruff check --select ANN401 .
-          python -m ruff format --check tools/ci
           python tools/check_documentation_contract.py
           python tools/check_markdown_contract.py
           python tools/ci/timeout_contract.py
@@ -83,8 +81,12 @@ jobs:
           ast-grep scan --min-severity error --color never freecad_cloth
           ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
           python tools/ci/check_changed_python_types.py
-          git diff --name-only origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
-          if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"; fi
+          git diff --name-only --diff-filter=ACMRT origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
+          if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then
+            xargs -r python -m ruff format --check < "$RUNNER_TEMP/changed-python.txt"
+            xargs -r python -m ruff check < "$RUNNER_TEMP/changed-python.txt"
+            xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"
+          fi
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py
           crosshair check --analysis_kind asserts tools/crosshair_contracts.py
       - name: Workflow linters
@@ -97,7 +99,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         uses: kucherenko/jscpd@b6f832c62cf02b574ea9cf24e013cfeb17366a35 # v5.4.0
         with:
-          path: "freecad_cloth tools/ci"
+          path: "freecad_cloth tests tools/ci"
           format: "python"
           min-lines: "8"
           min-tokens: "70"
@@ -441,7 +443,7 @@ jobs:
     needs: [agent-quality]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 4
     permissions:
       actions: write
       contents: write
@@ -451,7 +453,7 @@ jobs:
       - name: Retention cleanup
         env:
           REPO: ${{ github.repository }}
-        run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/maintenance_cleanup.py
+        run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   artifact-budget:
     name: Accumulated artifact budget
     if: ${{ always() }}

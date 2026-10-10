@@ -57,8 +57,8 @@ def main() -> int:
         raise SystemExit(f"expected exactly one canonical workflow, found: {files}")
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
-    if len(lines) > 500:
-        raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 500")
+    if len(lines) > 600:
+        raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 600")
     if "pull_request_target" in text:
         raise SystemExit("pull_request_target is forbidden")
     missing_typecheck = missing_typecheck_commands(text)

@@ -1,9 +1,13 @@
 ## Tabler Icons
 
-The SVG artwork used by the Cloth workbench toolbar commands is sourced from Tabler Icons, an open-source icon set by Paweł Kuna.
+The reusable generic toolbar glyphs retained in the Cloth workbench include artwork sourced from Tabler Icons, an open-source icon set by Paweł Kuna. Their source and license are listed below.
 
 Source: https://github.com/tabler/tabler-icons
 License: MIT
+
+## Project-specific icons
+
+Command-specific icons for sewing repair, geometry diagnostics, topology repair, avatar fitting and arrangement are original SVG artwork created for this project. They were drawn to use FreeCAD's current-color icon convention and do not introduce additional third-party icon dependencies.
 
 MIT License
 

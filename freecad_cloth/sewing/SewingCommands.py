@@ -1,9 +1,8 @@
 """Commands for the Cloth Sewing workbench."""
 
 import contextlib
-from pathlib import Path
 
-_ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
+from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _seams(doc):
@@ -392,15 +391,9 @@ def focus_selected_seam_3d():
                 continue
             boxes.append(shape.BoundBox)
         if boxes:
-            extent_x = max(float(box.XMax) for box in boxes) - min(
-                float(box.XMin) for box in boxes
-            )
-            extent_y = max(float(box.YMax) for box in boxes) - min(
-                float(box.YMin) for box in boxes
-            )
-            extent_z = max(float(box.ZMax) for box in boxes) - min(
-                float(box.ZMin) for box in boxes
-            )
+            extent_x = max(float(box.XMax) for box in boxes) - min(float(box.XMin) for box in boxes)
+            extent_y = max(float(box.YMax) for box in boxes) - min(float(box.YMin) for box in boxes)
+            extent_z = max(float(box.ZMax) for box in boxes) - min(float(box.ZMin) for box in boxes)
             projected_span = extent_x + extent_y + extent_z
             if projected_span > 0.0:
                 size = view.getSize()
@@ -552,6 +545,7 @@ def show_seam_overlay_options():
     set_seam_overlay_respect_depth(respect_depth.isChecked())
     return True
 
+
 COMMANDS = [
     "ClothSewing_CreateSeam",
     "ClothSewing_CreateMNSewing",
@@ -686,9 +680,7 @@ try:
     import FreeCADGui as Gui
 
     for name, function in _COMMAND_HANDLERS.items():
-        icon_path = _ICON_DIR / (name + ".svg")
-        if not icon_path.is_file() and name == "ClothSewing_RepairSeam":
-            icon_path = _ICON_DIR / "ClothSewing_Validate.svg"
+        icon_path = icon_for_command(name)
         Gui.addCommand(
             name,
             _SewingCommand(
