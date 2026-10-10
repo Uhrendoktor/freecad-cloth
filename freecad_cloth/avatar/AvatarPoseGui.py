@@ -860,7 +860,12 @@ class SkeletonPoseController:
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
-    PRESETS = (("t_pose", "T-pose"), ("standing", "Standing"), ("sewing", "Sewing"), ("sitting", "Sitting"))
+    PRESETS = (
+        ("t_pose", "T-pose"),
+        ("standing", "Standing"),
+        ("sewing", "Sewing"),
+        ("sitting", "Sitting"),
+    )
 
     def __init__(self, avatar=None):
         App, Gui, QtCore, QtWidgets = _modules()
