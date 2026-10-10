@@ -158,9 +158,13 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
     assert "runpy.run_path(" not in cube + avatar
     assert "from pbd_contact_helpers import" in cube
     assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in cube
+    assert '_REPO_ROOT = Path(__file__).resolve().parents[1]' in cube
+    assert "sys.path.insert(0, str(_REPO_ROOT))" in cube
     assert "sys.path.insert(0, str(_HELPER_DIR))" in cube
     assert "from pbd_contact_helpers import" in avatar
     assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in avatar
+    assert '_REPO_ROOT = Path(__file__).resolve().parents[1]' in avatar
+    assert "sys.path.insert(0, str(_REPO_ROOT))" in avatar
     assert "sys.path.insert(0, str(_HELPER_DIR))" in avatar
     assert 'if __name__ == "__main__"' not in HELPERS
     assert "def build_scene(" in HELPERS
