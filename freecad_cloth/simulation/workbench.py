@@ -9,6 +9,13 @@ from pathlib import Path
 from freecad_cloth.gui import ClothWorkbenchBase
 
 
+AVATAR_ENTRY_COMMANDS = (
+    "ClothFitting_CreateAvatar",
+    "ClothFitting_EditAvatar",
+    "ClothFitting_PoseAvatar",
+)
+
+
 class ClothSimulationWorkbench(ClothWorkbenchBase):
     MenuText = "Cloth Simulation"
     ToolTip = "3D cloth assembly and simulation"
@@ -34,14 +41,13 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
 
         DrapeCommands.register_gui_commands()
         self.register(
             (
-                ("Avatar & Fitting", AvatarCommands.COMMANDS[:3]),
+                ("Avatar & Fitting", AVATAR_ENTRY_COMMANDS),
                 (
                     "Simulation",
                     SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS,
