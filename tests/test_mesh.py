@@ -90,13 +90,7 @@ def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spac
     )
     assert any(identifier.startswith("side::sub::") for identifier in ids)
     points = mesh.vertices
-    assert (
-        max(
-            dist(points[a], points[b])
-            for a, b in mesh.boundary_edges()
-        )
-        <= 20.000001
-    )
+    assert max(dist(points[a], points[b]) for a, b in mesh.boundary_edges()) <= 20.000001
 
 
 def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
