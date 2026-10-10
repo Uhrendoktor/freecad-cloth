@@ -287,6 +287,12 @@ def run():
             raise RuntimeError(
                 "attachment-point marker is not camera-facing: " + str(point_obj.PointName)
             )
+        billboard_axis = marker.getChild(1).axisOfRotation.getValue()
+        if any(abs(float(billboard_axis[axis])) > 1e-9 for axis in range(3)):
+            raise RuntimeError(
+                "attachment-point billboard is constrained to one rotation axis: "
+                + str(point_obj.PointName)
+            )
         if bool(point_obj.ViewObject.Visibility):
             raise RuntimeError(
                 "depth-tested document marker remained visible alongside its overlay: "
