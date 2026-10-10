@@ -645,7 +645,8 @@ def _make_tunic_sketch(
                 armhole_mid_z,
                 0,
             )
-            geometry.append(Part.Arc(start_vector, midpoint, end_vector))
+            # FreeCAD's three-point Arc constructor takes start, end, then a point on the arc.
+            geometry.append(Part.Arc(start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
     sketch.addGeometry(geometry, False)
@@ -1134,11 +1135,27 @@ def simulation():
                     "canonical garment armhole was not preserved as a sampled native curve: "
                     "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
                 )
-            sample_midpoint = boundary.samples[len(boundary.samples) // 2]
-            chord_mid_x = 0.5 * (
-                float(boundary.samples[0][0]) + float(boundary.samples[-1][0])
+            start_point = boundary.samples[0]
+            end_point = boundary.samples[-1]
+            z_span = float(end_point[2]) - float(start_point[2])
+            if abs(z_span) <= 1e-9:
+                raise RuntimeError(
+                    "canonical garment armhole endpoints do not define a vertical chord: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            scoop_depth = max(
+                inward
+                * (
+                    float(sample[0])
+                    - (
+                        float(start_point[0])
+                        + (float(sample[2]) - float(start_point[2]))
+                        / z_span
+                        * (float(end_point[0]) - float(start_point[0]))
+                    )
+                )
+                for sample in boundary.samples[1:-1]
             )
-            scoop_depth = inward * (float(sample_midpoint[0]) - chord_mid_x)
             if scoop_depth <= 0.02 * float(panel_width):
                 raise RuntimeError(
                     "canonical garment armhole curve has insufficient inward clearance: "
