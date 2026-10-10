@@ -553,25 +553,30 @@ try:
         )
     )
 
-    # Pattern pieces use a view-provider-specific display-mode enumeration.
-    # Probe the actual supported modes and keep the first that visibly paints
-    # all three face colors; never assume a generic Part feature's mode names.
+    # Inspect the property enum first: listDisplayModes() can expose generic
+    # modes that this Python feature's DisplayMode property does not accept.
     first_view = piece_a.ViewObject
-    display_modes = []
+    property_modes = []
+    enum_modes = getattr(first_view, "getEnumerationsOfProperty", None)
+    if callable(enum_modes):
+        try:
+            property_modes = [str(mode) for mode in enum_modes("DisplayMode")]
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record(f"seam-display-enum-query-failed={type(exc).__name__}: {exc}")
+    listed_modes = []
     list_modes = getattr(first_view, "listDisplayModes", None)
     if callable(list_modes):
         try:
-            display_modes = [str(mode) for mode in list_modes()]
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            display_modes = []
-    if not display_modes:
-        enum_modes = getattr(first_view, "getEnumerationsOfProperty", None)
-        if callable(enum_modes):
-            try:
-                display_modes = [str(mode) for mode in enum_modes("DisplayMode")]
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                display_modes = []
-    display_modes = list(dict.fromkeys(mode for mode in display_modes if mode.strip()))
+            listed_modes = [str(mode) for mode in list_modes()]
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record(f"seam-display-list-query-failed={type(exc).__name__}: {exc}")
+    display_modes = list(dict.fromkeys(
+        mode for mode in (property_modes or listed_modes) if mode.strip()
+    ))
+    record(
+        f"seam-display-modes property-enum={property_modes!r} "
+        f"generic-list={listed_modes!r} current={str(first_view.DisplayMode)!r}"
+    )
     if not display_modes:
         raise RuntimeError(
             "could not discover any display modes for the seam-assignment fixture"
@@ -579,9 +584,15 @@ try:
 
     chosen_display_mode = None
     last_probe_counts = {}
+    rejected_modes = []
     for mode in display_modes:
-        for piece in (piece_a, piece_b, piece_c):
-            piece.ViewObject.DisplayMode = mode
+        try:
+            for piece in (piece_a, piece_b, piece_c):
+                piece.ViewObject.DisplayMode = mode
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            rejected_modes.append((mode, f"{type(exc).__name__}: {exc}"))
+            record(f"seam-display-mode-rejected={mode!r} reason={type(exc).__name__}: {exc}")
+            continue
         process_events()
         view.redraw()
         process_events()
@@ -596,7 +607,8 @@ try:
     if chosen_display_mode is None:
         raise RuntimeError(
             "none of the supported pattern-piece display modes visibly rendered all colors; "
-            f"modes={display_modes!r}, last_pixel_counts={last_probe_counts!r}"
+            f"modes={display_modes!r}, rejected={rejected_modes!r}, "
+            f"last_pixel_counts={last_probe_counts!r}"
         )
     record(f"seam-display-mode=selected mode={chosen_display_mode!r}")
 
