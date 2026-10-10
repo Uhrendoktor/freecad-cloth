@@ -19,6 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Resolve the shared harness helpers without importing the generic `tests` package.
+_HELPER_DIR = Path(__file__).resolve().parent / "support"
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
 OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
 OUT.mkdir(parents=True, exist_ok=True)
 PROGRESS = OUT / "progress.log"
@@ -48,26 +53,26 @@ _import_progress("FreeCADGui complete")
 _import_progress("Part begin")
 import Part
 
-from tests.support.pbd_contact_helpers import bounds as _bounds
-from tests.support.pbd_contact_helpers import build_piece as _build_piece
-from tests.support.pbd_contact_helpers import build_scene as _build_scene
-from tests.support.pbd_contact_helpers import centroid as _centroid
-from tests.support.pbd_contact_helpers import connected_components as _connected_components
-from tests.support.pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
-from tests.support.pbd_contact_helpers import events as _events
-from tests.support.pbd_contact_helpers import inside_outside as _inside_outside
-from tests.support.pbd_contact_helpers import (
+from pbd_contact_helpers import bounds as _bounds
+from pbd_contact_helpers import build_piece as _build_piece
+from pbd_contact_helpers import build_scene as _build_scene
+from pbd_contact_helpers import centroid as _centroid
+from pbd_contact_helpers import connected_components as _connected_components
+from pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
+from pbd_contact_helpers import events as _events
+from pbd_contact_helpers import inside_outside as _inside_outside
+from pbd_contact_helpers import (
     make_progress_logger,
     make_shutdown_gui,
     schedule_freecad_main,
 )
-from tests.support.pbd_contact_helpers import mesh_geometry as _mesh_geometry
-from tests.support.pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
-from tests.support.pbd_contact_helpers import (
+from pbd_contact_helpers import mesh_geometry as _mesh_geometry
+from pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
+from pbd_contact_helpers import (
     nearest_surface_observation as _nearest_surface_observation,
 )
-from tests.support.pbd_contact_helpers import screenshot as _screenshot
-from tests.support.pbd_contact_helpers import target_signature as _target_signature
+from pbd_contact_helpers import screenshot as _screenshot
+from pbd_contact_helpers import target_signature as _target_signature
 
 _import_progress("Part complete")
 
