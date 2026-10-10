@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from math import ceil, hypot, isclose, isfinite
 
 from shapely.geometry import LineString
+from shapely.geometry import Point as ShapelyPoint
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
@@ -198,12 +199,6 @@ def _quantize(value: float) -> float:
     return round(float(value), 9)
 
 
-def _nearest_point_index(points: Sequence[Point], point: Point) -> int:
-    return min(
-        range(len(points)), key=lambda i: hypot(points[i][0] - point[0], points[i][1] - point[1])
-    )
-
-
 def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
     result: list[Point] = []
     for point in points:
@@ -221,40 +216,60 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
     return result
 
 
-def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
-    # A curve's sampled polyline is invariant during this provenance pass. Build
-    # it once rather than resampling every curve for every boundary midpoint.
-    segment_lines = []
+def _prepare_segment_geometries(
+    pattern: ParametricPattern, curve_samples: int
+) -> tuple[tuple[str, LineString], ...]:
+    """Sample authored curves once and construct GEOS line strings for distance queries."""
+    prepared: list[tuple[str, LineString]] = []
     for segment in pattern.segments:
-        samples = (
-            segment.polyline(32) if hasattr(segment, "control") else (segment.start, segment.end)
+        points = (
+            segment.polyline(curve_samples)
+            if hasattr(segment, "control")
+            else (segment.start, segment.end)
         )
-        segment_lines.append((segment.id, tuple(zip(samples, samples[1:], strict=False))))
+        prepared.append((segment.id, LineString(points)))
+    return tuple(prepared)
 
+
+def _nearest_segment_id(prepared_segments: Sequence[tuple[str, LineString]], point: Point) -> str:
+    """Return the authored segment closest to a query point using GEOS distance."""
+    query = ShapelyPoint(point)
+    return min(prepared_segments, key=lambda item: item[1].distance(query))[0]
+
+
+def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
+    """Map sampled boundary edges to authored segments with one GEOS query per edge."""
+    prepared_segments = _prepare_segment_geometries(pattern, 32)
     result: list[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
         midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
-        best_id = pattern.segments[0].id
-        best_distance = float("inf")
-        for segment_id, lines in segment_lines:
-            distance = min(_point_to_segment_distance(midpoint, a, b) for a, b in lines)
-            if distance < best_distance:
-                best_id = segment_id
-                best_distance = distance
-        result.append(best_id)
+        result.append(_nearest_segment_id(prepared_segments, midpoint))
     return result
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    dx, dy = end[0] - start[0], end[1] - start[1]
-    length_squared = dx * dx + dy * dy
-    if length_squared <= 1e-24:
-        return hypot(point[0] - start[0], point[1] - start[1])
-    t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared
-    t = max(0.0, min(1.0, t))
-    closest = (start[0] + t * dx, start[1] + t * dy)
-    return hypot(point[0] - closest[0], point[1] - closest[1])
+    """Return GEOS distance, with a stable projection fallback for non-finite results."""
+    distance = float(LineString((start, end)).distance(ShapelyPoint(point)))
+    if isfinite(distance):
+        return distance
+
+    # GEOS can report infinity for finite, extremely short segments. Normalize
+    # the segment direction before projecting so its squared length never
+    # underflows (the zero-length case still reduces to endpoint distance).
+    px, py = float(point[0]), float(point[1])
+    sx, sy = float(start[0]), float(start[1])
+    dx, dy = float(end[0]) - sx, float(end[1]) - sy
+    length = hypot(dx, dy)
+    if length == 0.0:
+        return hypot(px - sx, py - sy)
+
+    unit_x, unit_y = dx / length, dy / length
+    projection = (px - sx) * unit_x + (py - sy) * unit_y
+    clamped = max(0.0, min(length, projection))
+    closest_x = sx + clamped * unit_x
+    closest_y = sy + clamped * unit_y
+    return hypot(px - closest_x, py - closest_y)
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
