@@ -256,9 +256,23 @@ def run():
         abs(actual_value - expected_value) > 1e-6
         for actual_value, expected_value in zip(transformed_anchor, expected_transform)
     ):
+        from freecad_cloth.avatar.FittingCommands import _target_signature
+
         raise RuntimeError(
             "surface anchor did not follow target Placement: "
-            + repr((transformed_anchor, expected_transform))
+            + repr(
+                {
+                    "actual": transformed_anchor,
+                    "expected": expected_transform,
+                    "status": arrangement_anchor_status(point_obj),
+                    "stored_signature": str(point_obj.AnchorGeometrySignature),
+                    "current_signature": _target_signature(target),
+                    "local_point": tuple(
+                        float(value) for value in point_obj.AnchorLocalPoint
+                    ),
+                    "target_placement": repr(target.Placement),
+                }
+            )
         )
     if any(
         abs(actual_value - expected_value) > 1e-6
