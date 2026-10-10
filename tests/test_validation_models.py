@@ -7,16 +7,14 @@ import pytest
 from pydantic import ValidationError
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
-from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
-from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput,
     CorrespondenceAnalysisInput,
     MeshArrays,
     MeshHealthMetrics,
+    NormalizedRange,
     PngCaptureMetrics,
     PngCaptureOptions,
-    NormalizedRange,
     RectangleDimensions,
     SeamAllowanceOptions,
     TriangulationOptions,
@@ -24,14 +22,20 @@ from freecad_cloth.common.ValidationModels import (
     validate_points3d,
 )
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment, PolylineSegment, QuadraticBezier, rectangle, seam_allowance_outline,
+    LineSegment,
+    PolylineSegment,
+    QuadraticBezier,
+    rectangle,
+    seam_allowance_outline,
 )
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
+from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     arc_length_vertex_indices,
     correspondence_samples,
 )
+from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 
 
 def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:

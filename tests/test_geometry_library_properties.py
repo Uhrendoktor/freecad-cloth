@@ -12,6 +12,7 @@ from freecad_cloth.common.MeshValidation import (
 )
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
+
 @settings(max_examples=40, deadline=None)
 @given(
     dx=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
@@ -53,6 +54,7 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
     assert points_inside_closed_mesh(translated_points, translated_vertices, triangles) == expected
 
 
+
 @settings(max_examples=40, deadline=None)
 @given(
     dx=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
@@ -77,6 +79,7 @@ def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float,
     assert nearest_target_clearance(shifted_garment, shifted_target) == pytest.approx(
         distance, rel=1e-9, abs=1e-9
     )
+
 
 
 
