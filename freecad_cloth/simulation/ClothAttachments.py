@@ -325,7 +325,7 @@ def project_avatar_attachments(
             tuple(-component for component in preferred_direction),
         )
 
-        def _is_on_semantic_side(candidate_point):
+        def _is_on_semantic_side(candidate_point: Point3) -> bool:
             if particle_index not in supplied_directions:
                 return True
             signed_distance = sum(
