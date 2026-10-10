@@ -19,7 +19,7 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_neckline_anchors():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_unpinned_neckline_diagnostics():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "ArrangementPoint.from_string" in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
@@ -27,13 +27,13 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_neckline_a
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
     assert "status = target_status(target)" in source
-    assert 'scene.PinMode = "Automatic"' in source
-    assert 'scene.PinMode = "Explicit"' in source
+    assert 'scene.PinMode = "None"' in source
+    assert 'scene.PinMode = "Explicit"' not in source
     assert "scene.PinSelection = []" in source
-    assert "scene.PinSelection = [str(index) for index in expected_pins]" in source
-    assert "if solver_pins != expected_pins or persisted_pins != expected_pins:" in source
+    assert "scene.PinSelection = [str(index) for index in expected_pins]" not in source
+    assert "if solver_pins:" in source
     assert "base_proxy_getter().source_signature = None" in source
-    assert "tunic-neckline-anchor piece=%s particle=%d snap-mm=%.2f" in source
+    assert "tunic-neckline-midpoint piece=%s particle=%d snap-mm=%.2f" in source
     assert "panel_indices.get(panel.Name, ())" in source
     assert 'panel_objects = tuple(getattr(scene, "DrapePanels", ()))' in source
     assert "scene.touch()" in source
