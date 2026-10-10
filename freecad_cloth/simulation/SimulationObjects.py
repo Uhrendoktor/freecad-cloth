@@ -428,28 +428,32 @@ class SimulationProxy:
         ]
         signature = _simulation_source_signature(obj, pieces)
         try:
+            backend = self.backend
             if (
-                getattr(self, "backend", None) is None
+                backend is None
                 or signature != getattr(self, "source_signature", None)
                 or int(obj.Steps) < int(getattr(self, "last_steps", 0))
             ):
                 self._build(obj, signature)
+                backend = self.backend
+            if backend is None:
+                raise RuntimeError("simulation backend was not initialized")
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):
-                    self.backend.step(
+                    backend.step(
                         float(obj.TimeStep),
                         int(obj.Iterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         self.collision_surface,
                     )
                 self.last_steps = steps
-            positions = self.backend.positions()
+            positions = backend.positions()
             for panel in getattr(obj, "DrapePanels", ()):
                 _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
-            obj.SimulatedTime = self.backend.time
+            obj.SimulatedTime = backend.time
             obj.ParticleCount = len(positions)
-            obj.FiniteState = self.backend.finite()
+            obj.FiniteState = backend.finite()
         except ValueError as exc:
             message = str(exc)
             if message.startswith("cannot simulate invalid seam "):
