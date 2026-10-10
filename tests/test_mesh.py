@@ -68,6 +68,8 @@ def test_sampled_curve_provenance_uses_curve_not_endpoint_chord():
         "curve",
         "curve",
         "curve",
+        "curve",
+        "curve",
         "top",
         "left",
         "bottom",
