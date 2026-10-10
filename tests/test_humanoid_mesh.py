@@ -12,6 +12,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_WEIGHTS_SIZE,
     HumanoidMeshError,
     MeshData,
+    _load_source_vertices,
     _map_makehuman_axes,
     _reoriented_triangles,
     _verified_skeleton,
@@ -60,6 +61,16 @@ class HumanoidMeshTests(unittest.TestCase):
                 with self.assertRaisesRegex(HumanoidMeshError, "invalid vertex coordinates"):
                     mesh.validate()
 
+    def test_source_vertex_loader_rejects_non_finite_coordinates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "malformed.obj"
+            path.write_text(
+                "v 0 0 0\\nv 1 0 0\\nv nan 1 0\\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(HumanoidMeshError, "finite"):
+                _load_source_vertices(str(path))
+
     def test_obj_parser_rejects_non_finite_vertex_coordinates(self):
         for value in ("nan", "inf", "-inf"):
             with self.subTest(value=value):
@@ -97,6 +108,10 @@ class HumanoidMeshTests(unittest.TestCase):
                 [],
                 {"bones": {}, "joints": {}},
                 {"bones": {"spine": {"head": "missing", "tail": "missing"}}, "joints": {}},
+                {
+                    "bones": {"spine": {"head": "head", "tail": "tail"}},
+                    "joints": {"head": [], "tail": [0]},
+                },
             )
             for payload in payloads:
                 with self.subTest(payload_type=type(payload).__name__, size=len(str(payload))):
