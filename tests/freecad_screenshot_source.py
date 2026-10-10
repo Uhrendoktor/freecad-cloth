@@ -1098,15 +1098,15 @@ def simulation():
         ),
     )
     view = Gui.activeDocument().activeView()
+    # FreeCAD animates viewFront/viewRear transitions by default. Capturing while
+    # that transition is in progress records different camera rotations depending
+    # on the preceding view, which can mirror left/right seam colors between frames.
+    # Disable animation before setting either screenshot view so both captures use
+    # the same canonical orthographic projection.
+    view.setAnimationEnabled(False)
     view.setCameraType("Orthographic")
     view.viewFront()
     view.fitAll()
-    events()
-    # Stop any animated viewFront() transition, then store the orientation
-    # after the task dock has been hidden. save() pumps GUI events, so a
-    # pending camera animation here would otherwise change the captured frame.
-    requested_front_orientation = view.getCameraOrientation()
-    view.setCameraOrientation(requested_front_orientation)
     events()
     task_dock.hide()
     events()
@@ -1234,14 +1234,8 @@ def simulation():
         view.fitAll()
         events()
         if direction == "front":
-            # Reuse the arranged frame's exact camera rotation rather than
-            # relying on a second animated viewFront() transition.
-            view.setCameraOrientation(arranged_front_orientation)
-            view.fitAll()
-            # fitAll may update the camera position; restore the rotation once
-            # more so both its view axis and framing are deterministic.
-            view.setCameraOrientation(arranged_front_orientation)
-            events()
+            # With animation disabled, viewFront must resolve to exactly the same
+            # orientation as the arranged capture, independently of prior views.
             restored_orientation = view.getCameraOrientation()
             expected_q = tuple(float(value) for value in arranged_front_orientation.Q)
             actual_q = tuple(float(value) for value in restored_orientation.Q)
