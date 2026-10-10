@@ -1,8 +1,13 @@
 """Behavioral checks for simulation quality task-panel state management."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
+from freecad_cloth.simulation.SimulationQualityRuntime import (
+    PHYSICAL_MATERIAL_CONTROLS_SUPPORTED,
+    PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE,
+)
 
 
 def _scene():
@@ -79,3 +84,41 @@ def test_reject_restores_snapshot_before_closing_dialog():
     )
     assert panel.reject() is True
     assert calls == ["restore", "close"]
+
+
+
+def test_physical_material_controls_are_explicitly_unsupported_without_a_solver_mapping():
+    assert PHYSICAL_MATERIAL_CONTROLS_SUPPORTED is False
+    assert "PositionBasedDynamics solver" in PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE
+    assert "not consumed" in PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "freecad_cloth"
+        / "simulation"
+        / "SimulationQualityGui.py"
+    ).read_text(encoding="utf-8")
+    assert "_set_physical_material_controls_enabled(" in source
+    assert "PHYSICAL_MATERIAL_CONTROLS_SUPPORTED" in source
+
+
+def test_disabling_physical_material_controls_also_disables_form_labels():
+    class Control:
+        def __init__(self):
+            self.enabled = True
+
+        def setEnabled(self, enabled):
+            self.enabled = enabled
+
+    density = Control()
+    stretch = Control()
+    labels = {density: Control(), stretch: Control()}
+    form = SimpleNamespace(labelForField=lambda widget: labels[widget])
+
+    SimulationQualityTaskPanel._set_physical_material_controls_enabled(
+        form, (density, stretch), False
+    )
+
+    assert density.enabled is False
+    assert stretch.enabled is False
+    assert labels[density].enabled is False
+    assert labels[stretch].enabled is False

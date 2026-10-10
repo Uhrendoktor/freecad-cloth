@@ -11,7 +11,7 @@
 Before running the solver, make sure the target is valid/current and the garment is intentionally arranged. Use the simple cube case before investigating a complete tunic.
 
 1. In **Cloth Simulation**, confirm the selected **DrapeTarget** and its validity.
-2. Choose the mesh quality/resolution and material settings appropriate to the case.
+2. Choose mesh quality/resolution. In the Fabric panel, color, specular, roughness and transparency are active presentation controls. Physical density, thickness, stretch, shear, bend and friction controls are disabled until a documented mapping to the current PositionBasedDynamics solver exists.
 3. Review the pinning mode: **Automatic**, **Explicit**, or **None**. Check the pin selection and expected sewing constraints.
 4. Use **Run** for normal simulation. Use **Step** to inspect controlled progression and **Reset** to recover from an invalid run.
 5. Watch actual garment state change: initial arrangement, contact, fold development, and settling. A rotating camera by itself is not simulated motion.
@@ -32,16 +32,18 @@ The production runtime is PositionBasedDynamics behind a small <code>ClothBacken
 | Target identity | The user can tell what the cloth is colliding against |
 | Target validity | Stale or invalid target state is shown before Run/Step |
 | Quality | Common simulation choices are understandable without solver jargon |
-| Material | Fabric density and physical parameters are separate from target selection |
+| Material | Presentation controls are active; unsupported physical controls are explicitly disabled rather than implying solver behavior |
 | Pin mode / pin selection | Constraints are explicit and persistent |
 | Run / Step / Reset | The user can advance, inspect or recover deterministically |
 | Stale reason | Invalid derived state has an actionable explanation |
 
 ## Material and resolution
 
-Simulation inputs include quality/resolution and material state. Presentation properties such as cloth color, roughness, specular response and transparency are persisted with the simulation/material state.
+The current PositionBasedDynamics backend does not consume the persisted physical fabric fields (density, thickness, stretch, shear, bend or friction). They remain in saved documents for compatibility, but the task panel disables them until a documented solver mapping and acceptance tests exist. No numeric mapping is inferred from the normalized UI values.
 
-Changing persistent simulation inputs invalidates derived runtime state instead of silently reusing old particles or constraints.
+Presentation properties—cloth color, roughness, specular response and transparency—are persisted and applied to the displayed cloth. These are appearance controls, not physical solver parameters.
+
+Changing supported persistent simulation inputs invalidates derived runtime state instead of silently reusing old particles or constraints.
 
 ## Pins and sewing
 

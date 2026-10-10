@@ -41,6 +41,8 @@ class SimulationQualityTaskPanel:
         from freecad_cloth.simulation.SimulationQualityRuntime import (
             apply_quality_preset,
             ensure_quality_properties,
+            PHYSICAL_MATERIAL_CONTROLS_SUPPORTED,
+            PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE,
         )
 
         self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
@@ -142,6 +144,12 @@ class SimulationQualityTaskPanel:
         self.specular = self._double(0.0, 1.0, 0.25, 3)
         self.roughness = self._double(0.0, 1.0, 0.65, 3)
         self.transparency = self._spin(0, 100, 0)
+        self.material_runtime_note = QtWidgets.QLabel(
+            PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE
+        )
+        self.material_runtime_note.setObjectName("ClothPhysicalMaterialSupportNote")
+        self.material_runtime_note.setWordWrap(True)
+        self.material_runtime_note.setVisible(not PHYSICAL_MATERIAL_CONTROLS_SUPPORTED)
         for label, widget in (
             ("Density (g/m²)", self.density),
             ("Thickness (mm)", self.thickness),
@@ -155,6 +163,19 @@ class SimulationQualityTaskPanel:
             ("Transparency (%)", self.transparency),
         ):
             fform.addRow(label, widget)
+        fform.addRow("", self.material_runtime_note)
+        self._set_physical_material_controls_enabled(
+            fform,
+            (
+                self.density,
+                self.thickness,
+                self.stretch,
+                self.shear,
+                self.bend,
+                self.friction,
+            ),
+            PHYSICAL_MATERIAL_CONTROLS_SUPPORTED,
+        )
         root.addWidget(fabric)
         for widget in (
             self.density,
@@ -228,6 +249,16 @@ class SimulationQualityTaskPanel:
         self.advanced_toggle.toggled.connect(self._set_expert_visibility)
         self._set_expert_visibility(False)
         self._load()
+
+    @staticmethod
+    def _set_physical_material_controls_enabled(form, widgets, enabled):
+        """Enable or disable physical-material controls and their form labels."""
+        enabled = bool(enabled)
+        for widget in widgets:
+            widget.setEnabled(enabled)
+            label = form.labelForField(widget)
+            if label is not None:
+                label.setEnabled(enabled)
 
     @staticmethod
     def _double(low, high, value, decimals):
