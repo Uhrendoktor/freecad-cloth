@@ -147,7 +147,8 @@ replacements = {
     '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
     "    required_indices = (1, 2, 6, 7)\n"
     '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-    '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
+    '    # The audit screenshots show the mannequin from behind; seam color identities follow the visible sides.\n'
+    '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicLeftSide"),(front_edge_ids[2], back_edge_ids[2], "TunicLeftShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicRightShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicRightSide"))\n'
     "    for edge_a_id, edge_b_id, seam_id in seam_specs:\n"
     '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
     "        add_seam(doc, seam)\n"
