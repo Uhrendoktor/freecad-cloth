@@ -41,7 +41,7 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     assert '(front_edge_ids[8], back_edge_ids[8], "TunicLeftSide", False)' in source
 
 
-def test_canonical_tunic_pattern_is_centered_and_shallow_at_the_armholes():
+def test_canonical_garment_pattern_has_scooped_open_armholes():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in source
     assert "(x_offset + 0.5 * panel_width, neck_z)" in source
@@ -49,6 +49,12 @@ def test_canonical_tunic_pattern_is_centered_and_shallow_at_the_armholes():
     assert 'Sketcher.Constraint("Coincident", 8, 2, 0, 1)' in source
     assert "0.68 * garment_height" in source
     assert "0.78 * garment_height" in source
+    assert "(x_offset + 0.95 * panel_width, armhole_z)" in source
+    assert "(x_offset + 0.05 * panel_width, armhole_z)" in source
+    assert "scoop_ratio = 0.83 if index == 2 else 0.17" in source
+    assert "geometry.append(Part.Arc(start_vector, midpoint, end_vector))" in source
+    assert "boundary.kind != \"arc\" or len(boundary.samples) < 8" in source
+    assert "armhole curve has insufficient inward clearance" in source
     assert "shoulder_height=authored_shoulder_height" in source
     assert "neckline_height=authored_neckline_height" in source
     assert "armhole_height=armhole_height" in source
