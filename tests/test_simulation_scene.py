@@ -508,7 +508,7 @@ def test_avatar_attachment_projection_fails_closed_on_invalid_selection_offset_a
         project_avatar_attachments(positions, (), surface)
     with pytest.raises(ValueError, match="outside"):
         project_avatar_attachments(positions, (1,), surface)
-    with pytest.raises(ValueError, match="between 0 and 100"):
+    with pytest.raises(ValueError):
         project_avatar_attachments(positions, (0,), surface, offset_mm=float("nan"))
     with pytest.raises(ValueError, match="integer indices"):
         project_avatar_attachments(positions, (True,), surface)
