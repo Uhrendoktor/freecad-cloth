@@ -804,25 +804,25 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.58 * float(garment_height)
+    armhole_z = 0.66 * float(garment_height)
     shoulder_z = 0.86 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + 0.76 * panel_width, armhole_z),
+        (x_offset + 0.82 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.24 * panel_width, armhole_z),
+        (x_offset + 0.18 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError(
             "canonical tunic shoulders must slope downward from neckline to shoulder tip"
         )
-    if points[3][0] - points[2][0] < 0.15 * float(panel_width):
+    if points[3][0] - points[2][0] < 0.10 * float(panel_width):
         raise RuntimeError("canonical tunic armhole opening is too narrow")
-    if shoulder_z - armhole_z < 0.20 * float(garment_height):
+    if shoulder_z - armhole_z < 0.15 * float(garment_height):
         raise RuntimeError("canonical tunic armhole opening is too shallow")
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
@@ -836,11 +836,11 @@ def _make_tunic_sketch(
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
         if index == 2:
-            # Drop the underarm and deepen the inward scoop to clear the avatar axilla.
-            midpoint = App.Vector(x_offset + 0.77 * panel_width, armhole_mid_z, 0)
+            # Shape the open armhole as a smooth inward scoop.
+            midpoint = App.Vector(x_offset + 0.83 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.23 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.17 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
