@@ -645,21 +645,22 @@ def _make_tunic_sketch(
                 armhole_mid_z,
                 0,
             )
-            # FreeCAD's three-point Arc constructor takes start, a point on the arc, then end.
-            geometry.append(Part.Arc(start_vector, midpoint, end_vector))
+            # Keep the native arc parameter sweep counterclockwise by reversing its endpoints;
+            # boundary connectivity restores garment traversal order when resolving PatternIR.
+            geometry.append(Part.Arc(end_vector, midpoint, start_vector))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
     sketch.addGeometry(geometry, False)
     sketch.addConstraint(
         [
             Sketcher.Constraint("Coincident", 0, 2, 1, 1),
-            Sketcher.Constraint("Coincident", 1, 2, 2, 1),
-            Sketcher.Constraint("Coincident", 2, 2, 3, 1),
+            Sketcher.Constraint("Coincident", 1, 2, 2, 2),
+            Sketcher.Constraint("Coincident", 2, 1, 3, 1),
             Sketcher.Constraint("Coincident", 3, 2, 4, 1),
             Sketcher.Constraint("Coincident", 4, 2, 5, 1),
             Sketcher.Constraint("Coincident", 5, 2, 6, 1),
-            Sketcher.Constraint("Coincident", 6, 2, 7, 1),
-            Sketcher.Constraint("Coincident", 7, 2, 8, 1),
+            Sketcher.Constraint("Coincident", 6, 2, 7, 2),
+            Sketcher.Constraint("Coincident", 7, 1, 8, 1),
             Sketcher.Constraint("Coincident", 8, 2, 0, 1),
         ]
     )
