@@ -6,7 +6,6 @@ import sys
 import time
 import traceback
 from math import pi
-from pathlib import Path
 
 ROOT = "/workspace"
 
