@@ -401,6 +401,7 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
+    seam_gap_records = []
     for seam, piece_a, piece_b in seam_records:
         expected_a = f"{piece_a.PieceId}:edge:"
         expected_b = f"{piece_b.PieceId}:edge:"
@@ -408,14 +409,22 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
         edge_b_id = str(getattr(seam, "EdgeBId", ""))
         if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
             raise RuntimeError("authoritative tunic seam lost semantic edge identity")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        seam_id = str(seam.SeamId)
+        pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
         if not pairs:
             raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        pair_gaps = []
         for ga, gb in pairs:
             a = simulated_positions[int(ga)]
             b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+            gap = ((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5
+            seam_gaps.append(gap)
+            pair_gaps.append((gap, int(ga), int(gb)))
+        worst_gap, worst_a, worst_b = max(pair_gaps, key=lambda item: item[0])
+        mean_gap = sum(item[0] for item in pair_gaps) / len(pair_gaps)
+        seam_gap_records.append((seam_id, worst_gap))
+        log("authoritative-seam-gap seam=%s count=%d max-mm=%.2f mean-mm=%.2f worst-pair=(%d,%d)" % (seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b))
+    max_seam_gap = max((gap for _seam_id, gap in seam_gap_records), default=0.0)
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
 """
