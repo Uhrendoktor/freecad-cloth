@@ -125,9 +125,8 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
 
 def semantic_attachment_selection_contract(x: float, y: float, z: float) -> int:
     """Symbolically check the production semantic-attachment nearest-particle selector."""
-    assert 0.0 <= x <= 4.0
-    assert -2.0 <= y <= 2.0
-    assert -2.0 <= z <= 2.0
+    if not (0.0 <= x <= 4.0 and -2.0 <= y <= 2.0 and -2.0 <= z <= 2.0):
+        return -1
 
     result = _nearest_candidate_index(
         ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0)),
