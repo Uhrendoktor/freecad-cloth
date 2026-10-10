@@ -40,7 +40,8 @@ class RequestedModuleCollection:
         )
         if missing:
             sys.stderr.write("pytest modules collected no test items: " + ", ".join(missing) + "\n")
-            session.exitstatus = pytest.ExitCode.TESTS_FAILED
+            if exitstatus == pytest.ExitCode.OK:
+                session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 def pytest_configure(config: pytest.Config) -> None:
