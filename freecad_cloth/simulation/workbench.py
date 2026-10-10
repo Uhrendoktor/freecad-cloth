@@ -34,12 +34,14 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
+        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
         import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         import freecad_cloth.simulation.SimulationCommands as SimulationCommands
 
         DrapeCommands.register_gui_commands()
         self.register(
             (
+                ("Avatar & Fitting", AvatarCommands.COMMANDS[:3]),
                 (
                     "Simulation",
                     SimulationCommands.COMMANDS + ["ClothRealtimePreview"] + DrapeCommands.COMMANDS,
