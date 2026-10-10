@@ -328,11 +328,12 @@ This is a FreeCAD-native workflow informed by documented public behavior, not a 
 
 ## Viewport gizmo visual system audit (2026-10-10)
 
-This pass covers the four transient viewport presentations in the current main
-branch: Pose Mode's skeleton/rotation control, Interactive Arrange's snap marker,
-the 3D Pattern Pen stroke, and the semantic Seam Overlay. Shared style tokens now
-live in `freecad_cloth/shared/viewport_gizmo_style.py`; they are presentation
-only and do not define document or solver state.
+This pass audits four transient viewport presentations: Pose Mode's skeleton/rotation
+control, Interactive Arrange's snap marker, the 3D Pattern Pen stroke, and the semantic
+Seam Overlay. Shared style tokens now live in `freecad_cloth/shared/viewport_gizmo_style.py`
+for Pose Mode, Interactive Arrange, and Seam Overlay; they are presentation only and do
+not define document or solver state. The Surface Pen was reviewed but kept unchanged until
+a new closure marker can be checked in real FreeCAD viewport captures.
 
 ### Findings and design decisions
 

@@ -287,7 +287,9 @@ def _add_label(
     respect_depth: bool = True,
 ) -> None:
     """Add a label that either obeys scene occlusion or is explicitly foregrounded."""
-    annotation_type = coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
+    annotation_type = (
+        coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
+    )
     annotation = annotation_type()
     depth = _depth_buffer(coin, respect_depth)
     color = coin.SoBaseColor()

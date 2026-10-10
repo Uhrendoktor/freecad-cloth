@@ -1,8 +1,8 @@
 """Shared visual tokens for transient Cloth viewport gizmos.
 
-The palette is semantic rather than a full application theme: axis values retain
-the familiar XYZ convention; amber is an active control, cyan a live snap target,
-and amber active controls, cyan live snap targets. Seam identity colors stay in seam_colors.
+The palette is semantic rather than a full application theme. Axis colors retain
+the familiar XYZ convention; amber denotes active controls and cyan denotes live snap
+targets. Semantic seam identity colors remain owned by seam_colors.
 """
 
 # Standard world-axis convention (RGB) used by the rotation gizmo.
