@@ -25,6 +25,16 @@ These recordings are generated from the current FreeCAD UI acceptance fixtures. 
 
 <p align="center"><a href="docs/wiki/02-sewing.md">Create a seam</a> · <a href="docs/wiki/03-fitting.md">Arrange pieces</a> · <a href="docs/wiki/04-pose.md">Pose the mannequin</a></p>
 
+## The workflow in six views
+
+This gallery gives a static overview of each major stage; the recordings above show how selected interactions change over time.
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Pattern authoring stage with native Sketcher-backed garment pieces" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Sewing stage showing authored pattern pieces and semantic seam relationships" width="430"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange task panel and garment placement in the viewport" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode with visible mannequin joint overlay and selected rotation gizmo" width="430"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Final garment draped over the mannequin after simulation" width="430"></p>
+
 ## Feature guide
 
 | Stage | What you can do | Guide |
