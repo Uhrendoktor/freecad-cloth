@@ -247,7 +247,7 @@ def centroid(points):
 
 
 def nearest_surface_distance(garment_points, surface):
-    """Return exact point-to-surface distance, with bounded vertex fallback."""
+    """Return exact surface distance when available, otherwise a bounded vertex estimate."""
     if not garment_points or surface is None:
         return None
     vertices = tuple(getattr(surface, "vertices", ()) or ())
@@ -261,13 +261,25 @@ def nearest_surface_distance(garment_points, surface):
             return float(nearest_surface_clearance(garment_points, vertices, triangles))
         except (ImportError, RuntimeError, ValueError):
             pass
+
     sample = vertices[:: max(1, len(vertices) // 4096)]
-    best = float("inf")
-    for source in garment_points:
-        for target in sample:
-            d2 = sum((float(a) - float(b)) ** 2 for a, b in zip(source, target, strict=False))
-            best = min(best, d2)
-    return math.sqrt(best) if math.isfinite(best) else None
+    try:
+        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
+        return float(nearest_target_clearance(garment_points, sample))
+    except ImportError:
+        # SciPy is optional in some embedded FreeCAD builds. Keep the same sampled-vertex
+        # estimate without the quadratic Python loop used by the emergency fallback.
+        import numpy as np
+
+        sources = np.asarray(garment_points, dtype=float).reshape((-1, 3))
+        targets = np.asarray(sample, dtype=float).reshape((-1, 3))
+        best_squared = float("inf")
+        for offset in range(0, len(sources), 256):
+            delta = sources[offset : offset + 256, None, :] - targets[None, :, :]
+            distances_squared = np.einsum("ijk,ijk->ij", delta, delta)
+            best_squared = min(best_squared, float(np.min(distances_squared)))
+        return math.sqrt(best_squared) if math.isfinite(best_squared) else None
 
 
 def target_signature(target):
