@@ -645,8 +645,8 @@ def _make_tunic_sketch(
                 armhole_mid_z,
                 0,
             )
-            # FreeCAD's three-point Arc constructor takes start, end, then a point on the arc.
-            geometry.append(Part.Arc(start_vector, end_vector, midpoint))
+            # FreeCAD's three-point Arc constructor takes start, a point on the arc, then end.
+            geometry.append(Part.Arc(start_vector, midpoint, end_vector))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
     sketch.addGeometry(geometry, False)
