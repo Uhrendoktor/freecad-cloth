@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from freecad_cloth.avatar.FittingCommands import arrangement_anchor_status
 from freecad_cloth.avatar.FittingGui import (
     arrangement_rotation,
     coin_position_to_screen,
@@ -42,3 +43,17 @@ def test_coin_event_coordinates_are_converted_before_snap_matching():
 
     target = SimpleNamespace(X=710.0, Y=129.0)
     assert nearest_arrangement_point(screen_position, (target,), 36.0) is target
+
+
+def test_coordinate_based_arrangement_point_has_no_surface_anchor_requirement():
+    from types import SimpleNamespace
+
+    point = SimpleNamespace(AnchorGeometrySignature="", AnchorTarget=None)
+    assert arrangement_anchor_status(point) == "unanchored"
+
+
+def test_surface_anchor_without_its_target_is_not_current():
+    from types import SimpleNamespace
+
+    point = SimpleNamespace(AnchorGeometrySignature="saved-signature", AnchorTarget=None)
+    assert arrangement_anchor_status(point) == "missing target"
