@@ -30,9 +30,7 @@ def test_collection_plugin_fails_when_a_module_collects_no_items(monkeypatch):
         "tests/test_core.py\ntests/test_mesh.py",
     )
     with pytest.raises(pytest.UsageError, match="tests/test_mesh.py"):
-        pytest_collection_modifyitems(
-            [SimpleNamespace(path=ROOT / "tests" / "test_core.py")]
-        )
+        pytest_collection_modifyitems([SimpleNamespace(path=ROOT / "tests" / "test_core.py")])
 
 
 def test_canonical_python_job_executes_pytest_contract_modules():
