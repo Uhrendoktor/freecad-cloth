@@ -39,7 +39,7 @@ DEFAULT_MEASUREMENTS = {
 }
 
 
-DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0}
+DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0, "t_pose": 12.0}
 
 
 LIMITS = {
@@ -75,7 +75,7 @@ class Pose:
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
     joint_rotations: tuple[JointRotation, ...] = ()
-    VALID_PRESETS = ("standing", "sewing", "sitting")
+    VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
