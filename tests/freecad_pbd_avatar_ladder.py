@@ -78,8 +78,7 @@ def _positions_tuple(backend):
     return tuple(tuple(float(c) for c in point) for point in backend.positions())
 
 
-def _seam_geometry(backend, seam_stitch_pairs):
-    positions = _positions_tuple(backend)
+def _seam_geometry(positions, seam_stitch_pairs):
     result = []
     for seam_id, pairs in sorted(seam_stitch_pairs.items()):
         measurements = []
@@ -259,7 +258,7 @@ def _checkpoint_record(
         collision_surface,
         proximity_mesh,
     )
-    seam_geometry = _seam_geometry(base.backend, base.seam_stitch_pairs)
+    seam_geometry = _seam_geometry(positions, base.seam_stitch_pairs)
     return {
         "step": int(step),
         "image": image,
@@ -539,6 +538,7 @@ def _run_ladder_case(case_id):
             scene.Steps = int(step)
             doc.recompute()
             _boot(f"checkpoint-after-recompute case={case_id} step={step}")
+            positions = _positions_tuple(base.backend)
             _events()
             image = OUT / "avatar-ladder" / case_id / ("step-%03d.png" % int(step))
             image.parent.mkdir(parents=True, exist_ok=True)
@@ -550,7 +550,6 @@ def _run_ladder_case(case_id):
             _boot(f"checkpoint-before-screenshot case={case_id} step={step}")
             _avatar_screenshot(view, image)
             _boot(f"checkpoint-after-screenshot case={case_id} step={step}")
-            positions = _positions_tuple(base.backend)
             checkpoints.append(
                 _checkpoint_record(
                     step,
