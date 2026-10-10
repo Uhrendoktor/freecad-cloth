@@ -52,7 +52,11 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
 
 def test_avatar_panel_keeps_legacy_pose_and_skeleton_paths_secondary():
     # These are runtime defaults/configuration, not source-text requirements.
+    assert "t_pose" in AvatarCommands.Pose.VALID_PRESETS
     assert "standing" in AvatarCommands.Pose.VALID_PRESETS
     assert "sewing" in AvatarCommands.Pose.VALID_PRESETS
     assert "sitting" in AvatarCommands.Pose.VALID_PRESETS
+    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+
+    assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
     assert AvatarTaskPanel.POSE_FIELDS
