@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import dist, isfinite
+from math import isfinite, sqrt
 from statistics import median
 
-from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
 Point3 = tuple[float, float, float]
-Triangle3 = tuple[int, int, int]
 
 
 def maximum_box_penetration(
@@ -74,67 +73,83 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
 def minimum_vertex_distance(
     source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
 ) -> float | None:
-    """Return exact nearest vertex distance using the canonical SciPy KD-tree query."""
+    """Return exact nearest-vertex distance using the shared SciPy spatial index.
+
+    The chunk_size keyword is retained for call compatibility; the KD-tree no
+    longer materializes a source-by-target distance matrix.
+    """
+    _ = chunk_size
     if not source or not target:
         return None
-
-    # Keep the legacy keyword accepted; the exact KD-tree query no longer allocates
-    # source-by-target pairwise distance matrices, so chunk_size is not needed.
-    del chunk_size
-    from freecad_cloth.common.MeshValidation import nearest_target_clearance
-
     return nearest_target_clearance(source, target)
 
 
-def point_inside_closed_mesh(
-    point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle3]
-) -> bool:
-    """Return whether one validated point is inside a closed triangle mesh."""
-    return points_inside_closed_mesh((point,), vertices, triangles)[0]
+def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
+    """Return whether a point is inside a closed triangle mesh by ray parity."""
+    ray = (1.0, 0.3713906763541037, 0.1932424973120743)
+    origin = (float(point[0]), float(point[1]), float(point[2]))
+    hits = 0
+    epsilon = 1e-9
+
+    def cross(left, right):
+        return (
+            left[1] * right[2] - left[2] * right[1],
+            left[2] * right[0] - left[0] * right[2],
+            left[0] * right[1] - left[1] * right[0],
+        )
+
+    def dot(left, right):
+        return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+    for triangle in triangles:
+        if len(triangle) != 3:
+            continue
+        ia, ib, ic = (int(index) for index in triangle)
+        if any(index < 0 or index >= len(vertices) for index in (ia, ib, ic)):
+            continue
+        a, b, c = vertices[ia], vertices[ib], vertices[ic]
+        edge_one = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        edge_two = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+        pvec = cross(ray, edge_two)
+        determinant = dot(edge_one, pvec)
+        if abs(determinant) <= epsilon:
+            continue
+        inv_det = 1.0 / determinant
+        tvec = (origin[0] - a[0], origin[1] - a[1], origin[2] - a[2])
+        u = dot(tvec, pvec) * inv_det
+        if u < -epsilon or u > 1.0 + epsilon:
+            continue
+        qvec = cross(tvec, edge_one)
+        v = dot(ray, qvec) * inv_det
+        if v < -epsilon or u + v > 1.0 + epsilon:
+            continue
+        distance = dot(edge_two, qvec) * inv_det
+        if distance > epsilon:
+            hits += 1
+    return bool(hits % 2)
 
 
-def points_inside_closed_mesh(
-    points: Sequence[Point3],
-    vertices: Sequence[Point3],
-    triangles: Sequence[Triangle3],
-    *,
-    chunk_size: int = 32,
-) -> tuple[bool, ...]:
-    """Classify points with trimesh where available and a vectorized ray fallback.
-
-    Pydantic validates finite coordinates and strict, in-range triangle indices once at
-    the boundary. The optional trimesh spatial-query backend is used only for watertight
-    meshes; missing acceleration dependencies fall back to the NumPy implementation.
-    """
-    validated_mesh = MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
-    validated_points = validate_points3d(points)
-    if not validated_points:
-        return ()
-    if not validated_mesh.triangles:
-        return tuple(False for _ in validated_points)
-
-    import numpy as np
-
-    vertex_data = np.asarray(validated_mesh.vertices, dtype=np.float64)
-    faces = np.asarray(validated_mesh.triangles, dtype=np.int64).reshape((-1, 3))
-    point_data = np.asarray(validated_points, dtype=np.float64)
+def points_inside_closed_mesh(points, vertices, triangles, *, chunk_size: int = 32) -> tuple[bool, ...]:
+    """Return ray-parity results for many points without a Python point×triangle loop."""
     try:
-        import trimesh
-
-        mesh = trimesh.Trimesh(vertices=vertex_data, faces=faces, process=False)
-        if mesh.is_watertight:
-            try:
-                contained = mesh.contains(point_data)
-            except (ImportError, RuntimeError, ValueError):
-                # Trimesh's spatial-index backend is optional for diagnostics.
-                pass
-            else:
-                if len(contained) == len(validated_points):
-                    return tuple(bool(value) for value in contained)
+        import numpy as np
     except ImportError:
-        pass
+        return tuple(point_inside_closed_mesh(point, vertices, triangles) for point in points)
 
-    # Compatibility path for installations without trimesh/rtree or for open meshes.
+    face_data = [tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3]
+    if not face_data or not points:
+        return tuple(False for _ in points)
+    faces = np.asarray(face_data, dtype=np.int64)
+    valid = (
+        (faces >= 0).all(axis=1)
+        & (faces < len(vertices)).all(axis=1)
+    )
+    faces = faces[valid]
+    if len(faces) == 0:
+        return tuple(False for _ in points)
+
+    vertex_data = np.asarray(vertices, dtype=np.float64)
+    point_data = np.asarray(points, dtype=np.float64)
     a = vertex_data[faces[:, 0]]
     b = vertex_data[faces[:, 1]]
     c = vertex_data[faces[:, 2]]
@@ -144,19 +159,19 @@ def points_inside_closed_mesh(
     pvec = np.cross(ray, edge_two)
     determinant = np.einsum("ij,ij->i", edge_one, pvec)
     usable = np.abs(determinant) > 1e-9
-    if not bool(np.any(usable)):
-        return tuple(False for _ in validated_points)
     a = a[usable]
     edge_one = edge_one[usable]
     edge_two = edge_two[usable]
-    pvec = pvec[usable]
     determinant = determinant[usable]
+    if len(a) == 0:
+        return tuple(False for _ in points)
+
     results = np.zeros(len(point_data), dtype=bool)
     step = max(1, int(chunk_size))
     for start in range(0, len(point_data), step):
         chunk = point_data[start : start + step]
         tvec = chunk[:, None, :] - a[None, :, :]
-        u = np.einsum("ctd,td->ct", tvec, pvec) / determinant[None, :]
+        u = np.einsum("ctd,td->ct", tvec, pvec[usable]) / determinant[None, :]
         qvec = np.cross(tvec, edge_one[None, :, :])
         v = np.einsum("d,ctd->ct", ray, qvec) / determinant[None, :]
         distance = np.einsum("td,ctd->ct", edge_two, qvec) / determinant[None, :]
@@ -211,7 +226,7 @@ def seam_correspondence_gap(
         fraction = sample / float(samples - 1)
         point_a = interpolate(a0, a1, float(start_a) + (float(end_a) - float(start_a)) * fraction)
         point_b = interpolate(b0, b1, float(start_b) + (float(end_b) - float(start_b)) * fraction)
-        gap = dist(point_a, point_b)
+        gap = sqrt(sum((point_a[i] - point_b[i]) ** 2 for i in range(3)))
         maximum = max(maximum, gap)
     return maximum
 
@@ -338,9 +353,7 @@ def assert_drape_diagnostics(
         raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
 
 
-def mesh_shape_sanity(
-    vertices: Sequence[Point3], triangles: Sequence[Triangle3]
-) -> dict[str, bool | int | float]:
+def mesh_shape_sanity(vertices, triangles):
     """Return deterministic mesh-shape health metrics for visual regression.
 
     The metrics intentionally describe geometry rather than deciding whether a
@@ -386,7 +399,7 @@ def mesh_shape_sanity(
             unique_edges.add(edge)
             p = vertices[left]
             q = vertices[right]
-            lengths.append(dist(p, q))
+            lengths.append(sqrt(sum((float(p[i]) - float(q[i])) ** 2 for i in range(3))))
 
     if not lengths:
         median_edge = 0.0
