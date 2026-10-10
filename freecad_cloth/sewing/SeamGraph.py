@@ -194,7 +194,8 @@ class SeamGraph:
         edge_points: Mapping[tuple[str, EdgeRef], Sequence[Sequence[float]]] | None = None,
     ) -> tuple[tuple[int, int], ...]:
         """Return deterministic particle-index stitch pairs for selected seams."""
-        selected = tuple(seam_ids) if seam_ids else tuple(self.seams)
+        requested_seams = tuple(seam_ids)
+        selected = requested_seams or tuple(self.seams)
         pairs = []
         for seam_id in selected:
             if seam_id not in self.seams:

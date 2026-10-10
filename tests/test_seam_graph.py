@@ -135,3 +135,9 @@ def test_missing_mesh_edge_vertices_is_rejected():
     value = graph()
     with pytest.raises(ValueError, match="missing mesh edge"):
         value.stitch_pairs({("left", 1): (1, 2, 3)})
+
+
+def test_empty_seam_id_iterator_matches_default_all_seams():
+    value = graph()
+    edges = {("left", 1): (10, 11, 12, 13, 14), ("right", 3): (20, 21, 22, 23, 24)}
+    assert value.stitch_pairs(edges, seam_ids=iter(())) == value.stitch_pairs(edges)
