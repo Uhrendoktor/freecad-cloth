@@ -509,7 +509,7 @@ def resolve_avatar_attachment_targets(
     panel_data: object,
     positions: object,
     landmarks: object,
-    selection_positions: object = None,
+    selection_positions: Sequence[object] | None = None,
 ) -> tuple[ResolvedAttachmentTarget, ...]:
     """Resolve anchors against authored vertices while retaining current solver positions."""
     points = tuple(_point(position, "particle position") for position in positions)

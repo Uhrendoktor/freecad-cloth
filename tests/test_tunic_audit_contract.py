@@ -582,4 +582,4 @@ def test_tunic_attachment_selection_uses_authored_mesh_vertices():
     assert "return tuple(mapped), triangles, boundary_edges, selection_vertices" in source
     assert "selection_positions.extend(mesh_selection_vertices)" in simulation
     assert "selection_positions=selection_positions" in simulation
-    assert "selection_positions: Any = None" in attachments
+    assert "selection_positions: Sequence[object] | None = None" in attachments
