@@ -16,6 +16,7 @@ GROUPS = {
         "tests/test_mesh.py",
         "tests/test_meshpart_adapter.py",
         "tests/test_mesh_validation.py",
+        "tests/test_pbd_contact_helpers.py",
         "tests/test_avatar_visual_sanity.py",
         "tests/test_drape_visual_sanity.py",
         "tests/test_cloth_solver.py",
