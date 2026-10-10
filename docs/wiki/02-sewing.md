@@ -22,6 +22,19 @@ Labels are intentionally sparse: only the seam under the pointer displays its pa
 
 The overlay is view-only: it is regenerated from the same semantic seam records after recompute, restore and workbench activation. It does not create a second seam identity or persist its Coin3D scene nodes in the document.
 
+## Create and verify a seam
+
+Start with two valid PatternPieces and make both intended mating edges visible. The animated example above shows the viewport-first path; the task can also use native FreeCAD edge selection.
+
+1. In **Cloth Sewing**, start **Create Seam**.
+2. Choose **Pick edges in viewport**, then select the first edge (side A) and its counterpart on a different PatternPiece (side B).
+3. Review the preview before committing. Check the paired A/B labels, traversal direction, notch/arrows, and any length or correspondence warnings.
+4. Commit only when the highlighted edges match the intended construction. Cancel the preview if the pairing or direction is wrong.
+5. Recompute after later source-sketch edits. If a semantic reference becomes invalid, repair or recreate it explicitly rather than choosing a new edge based only on its screen location.
+
+**Verify the result:** the relationship refers to the intended authored edges, remains inspectable after switching views, and is not dependent on generated mesh-edge numbering.
+
+
 ## What the feature is
 
 Cloth Sewing turns authored pattern edges into semantic garment assembly relationships.
