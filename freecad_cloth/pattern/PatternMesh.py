@@ -32,7 +32,9 @@ class TriangleMesh:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
         for tri in self.triangles:
-            if len(set(tri)) != 3 or any(type(index) is not int or index < 0 or index >= n for index in tri):
+            if len(set(tri)) != 3 or any(
+                type(index) is not int or index < 0 or index >= n for index in tri
+            ):
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")
@@ -232,8 +234,7 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
         best_distance = float("inf")
         for segment_id, line_segments in prepared_segments:
             distance = min(
-                _point_to_segment_distance(midpoint, left, right)
-                for left, right in line_segments
+                _point_to_segment_distance(midpoint, left, right) for left, right in line_segments
             )
             if distance < best_distance:
                 best_segment_id = segment_id

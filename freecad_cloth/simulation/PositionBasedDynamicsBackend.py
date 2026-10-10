@@ -290,7 +290,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0
         )
         self._pin_indices = (
-            tuple(dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins))
+            tuple(
+                dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins)
+            )
             or system_pins
         )
         self._stitches = tuple(

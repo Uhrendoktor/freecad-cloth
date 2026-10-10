@@ -184,6 +184,7 @@ def nearest_target_clearance(
         raise ValueError("computed vertex clearance must be finite")
     return clearance
 
+
 def nearest_surface_clearance(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],

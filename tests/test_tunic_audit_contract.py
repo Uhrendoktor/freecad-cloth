@@ -184,6 +184,7 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive():
     assert key != _pbd_collision_sdf_cache_key(moved, [16, 16, 16])
     assert key != _pbd_collision_sdf_cache_key(surface, [17, 16, 16])
 
+
 def test_pbd_ci_image_is_pinned_and_preinstalled():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
@@ -256,6 +257,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert 'make_piece("DebugTunicBack", back_y, 0.76, 0.12)' in debug
     assert 'make_piece("VisualTunicFront", "back", 0.78, 0.18)' in audit
     assert 'make_piece("VisualTunicBack", "front", 0.76, 0.12)' in audit
+
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
