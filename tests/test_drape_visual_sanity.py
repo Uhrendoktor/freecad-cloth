@@ -217,3 +217,14 @@ class DrapeVisualSanityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_mesh_shape_sanity_treats_zero_width_footprint_as_degenerate(self):
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (0.0, 10.0, 0.0),
+            (0.0, 20.0, 0.0),
+        )
+        result = mesh_shape_sanity(vertices, ((0, 1, 2),))
+        self.assertTrue(result["finite"])
+        self.assertEqual(result["footprint_aspect_ratio"], float("inf"))

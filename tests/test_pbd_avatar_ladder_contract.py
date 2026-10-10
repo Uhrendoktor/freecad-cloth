@@ -34,8 +34,6 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert '"placement_offsets_mm"' in SOURCE
     assert "first_failing_rung" in SOURCE
     assert "def _avatar_png_has_visible_content(path, minimum_pixels=128):" in SOURCE
-    assert "from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content" in SOURCE
-    assert "channel_threshold=250" in SOURCE
     assert "view.redraw()" in SOURCE
     assert "time.sleep(0.05)" in SOURCE
     assert "png-capture=retry" in SOURCE
@@ -56,6 +54,11 @@ def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs
 
 def test_avatar_ladder_screenshot_path_is_fail_closed():
     assert "def _avatar_png_has_visible_content(path, minimum_pixels=128):" in SOURCE
+    assert (
+        "from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content"
+        in SOURCE
+    )
+    assert "channel_threshold=250" in SOURCE
     assert "def _avatar_screenshot(view, path):" in SOURCE
     assert "view.redraw()" in SOURCE
     assert "time.sleep(0.05)" in SOURCE

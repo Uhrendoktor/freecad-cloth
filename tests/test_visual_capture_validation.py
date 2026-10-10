@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content, validate_png_capture
+from freecad_cloth.common.VisualCaptureValidation import (
+    png_has_visible_content,
+    validate_png_capture,
+)
 
 
 def _chunk(kind: bytes, payload: bytes) -> bytes:
@@ -125,7 +128,7 @@ def test_png_visible_content_rejects_bad_crc_and_uniform_white(tmp_path: Path):
     _write_png(path, 2, 2, [(255, 255, 255)] * 4)
     assert not png_has_visible_content(path, minimum_pixels=1)
     data = bytearray(path.read_bytes())
-    data[-9] ^= 1
+    data[-13] ^= 1
     corrupt_path = tmp_path / "corrupt.png"
     corrupt_path.write_bytes(data)
     assert not png_has_visible_content(corrupt_path, minimum_pixels=1)
