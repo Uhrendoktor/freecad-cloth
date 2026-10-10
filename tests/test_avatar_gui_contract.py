@@ -28,8 +28,7 @@ def test_avatar_panel_pose_fields_match_command_pose_schema():
         "right_elbow_angle",
     )
     assert {
-        key: AvatarTaskPanel._pose_property(key)
-        for key, _label in AvatarTaskPanel.POSE_FIELDS
+        key: AvatarTaskPanel._pose_property(key) for key, _label in AvatarTaskPanel.POSE_FIELDS
     } == AvatarCommands.POSE_PROPERTY_MAP
 
 
