@@ -1,5 +1,8 @@
 # 07 · Data model, persistence and architecture
 
+
+Use this page when you need to decide whether a value should be edited, saved, rebuilt, or invalidated. For the user-facing sequence, begin with the [user guide](../USER_GUIDE.md); for recovery steps, use [troubleshooting](../TROUBLESHOOTING.md).
+
 ## The authority rule
 
 FreeCAD Cloth uses one saved FreeCAD document as the persistence authority.
