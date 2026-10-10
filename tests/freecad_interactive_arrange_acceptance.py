@@ -237,8 +237,9 @@ def run():
 
     # Geometry changes must make a saved surface anchor visibly stale and remove
     # it from the controller's snap candidates rather than reusing old coordinates.
-    target.Shape = target.Shape.copy()
-    target.Shape.translate(App.Vector(0.0, 0.0, 1.0))
+    changed_shape = target.Shape.copy()
+    changed_shape.translate(App.Vector(0.0, 0.0, 1.0))
+    target.Shape = changed_shape
     doc.recompute()
     if arrangement_anchor_status(point_obj) != "stale":
         raise RuntimeError("changing the source geometry did not invalidate its surface anchor")
