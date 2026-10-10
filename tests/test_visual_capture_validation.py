@@ -104,7 +104,12 @@ def test_validate_png_capture_rejects_wrong_dimensions(tmp_path: Path):
 
 def test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds(tmp_path: Path):
     path = tmp_path / "colored.png"
-    _write_png(path, 2, 2, [(255, 0, 0), (255, 255, 255), (255, 255, 255), (255, 255, 255)])
+    _write_png(
+        path,
+        2,
+        2,
+        [(255, 0, 0), (255, 255, 255), (255, 255, 255), (255, 255, 255)],
+    )
     assert png_has_visible_content(
         path,
         expected_width=2,

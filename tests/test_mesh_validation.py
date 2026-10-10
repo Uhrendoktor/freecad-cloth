@@ -8,7 +8,12 @@ from freecad_cloth.common.MeshValidation import (
 
 
 def square_mesh():
-    vertices = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0), (0.0, 10.0, 0.0))
+    vertices = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (10.0, 10.0, 0.0),
+        (0.0, 10.0, 0.0),
+    )
     triangles = ((0, 1, 2), (0, 2, 3))
     return vertices, triangles
 
@@ -45,7 +50,9 @@ def test_validation_rejects_bad_indices():
 
 
 def test_vertex_clearance_is_translation_sensitive():
-    assert nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)) == pytest.approx(2.0, abs=1e-9, rel=0.0)
+    assert nearest_target_clearance(
+        ((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)
+    ) == pytest.approx(2.0, abs=1e-9, rel=0.0)
 
 
 def test_large_vertex_clearance_returns_exact_nearest_distance():
