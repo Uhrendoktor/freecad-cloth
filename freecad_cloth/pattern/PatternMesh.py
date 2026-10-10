@@ -249,8 +249,34 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    """Return point-to-segment distance through GEOS rather than custom projection math."""
-    return LineString((start, end)).distance(ShapelyPoint(point))
+    """Return GEOS point-to-segment distance with coordinates scaled for tiny geometry.
+
+    GEOS may overflow its internal projection arithmetic for subnormal-length
+    segments. Translate to the segment origin and scale the coordinate
+    differences into a numerically useful range before delegating the distance
+    calculation to GEOS.
+    """
+    if point in (start, end):
+        return 0.0
+
+    with_offset = (
+        end[0] - start[0],
+        end[1] - start[1],
+        point[0] - start[0],
+        point[1] - start[1],
+    )
+    if not all(isfinite(value) for value in with_offset):
+        raise ValueError("point-to-segment coordinate differences must be finite")
+    scale = max(abs(value) for value in with_offset)
+    if scale == 0.0:
+        return 0.0
+
+    dx, dy, px, py = (value / scale for value in with_offset)
+    normalized_distance = LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
+    distance = scale * normalized_distance
+    if not isfinite(distance):
+        raise ValueError("computed point-to-segment distance must be finite")
+    return distance
 
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
