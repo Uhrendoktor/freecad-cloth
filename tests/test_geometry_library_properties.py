@@ -99,6 +99,7 @@ def test_nearest_surface_clearance_is_translation_invariant(
     )
     triangles: tuple[tuple[int, int, int], ...] = ((0, 1, 2), (0, 2, 3))
     distance = nearest_surface_clearance(point, vertices, triangles)
+    assert distance == pytest.approx(3.0, rel=0.0, abs=1e-9)
     translated_point: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in point
     )
