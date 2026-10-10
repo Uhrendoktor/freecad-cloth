@@ -122,8 +122,8 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "(x_offset + 0.90 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.10 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.16 * panel_width, armhole_z)" in sketch_builder
-    assert "x_offset + 0.82 * panel_width, armhole_mid_z" in sketch_builder
-    assert "x_offset + 0.18 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.847 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.153 * panel_width, armhole_mid_z" in sketch_builder
     assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
     assert 'boundary.kind != "arc" or len(boundary.samples) < 8' in source
     assert "armhole curve has insufficient inward clearance" in source

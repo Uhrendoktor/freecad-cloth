@@ -193,10 +193,12 @@ def _make_tunic_sketch(
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
         if idx == 2:
-            midpoint = App.Vector(x_offset + 0.82 * panel_width, armhole_mid_z, 0)
+            # Match the canonical fixture's inward curve without crossing the
+            # adjacent shoulder-to-neckline segment.
+            midpoint = App.Vector(x_offset + 0.847 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.18 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.153 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
