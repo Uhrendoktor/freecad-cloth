@@ -78,7 +78,11 @@ def _pbd_collision_effective_tolerance_mm(
 def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
     voxel_mm = _pbd_collision_voxel_mm()
     spans = []
-    for axis in range(3):
+    # Collision vertices are transformed to PBD coordinates as (x, z, y).
+    # Keep the SDF grid dimensions in that same axis order; using FreeCAD's
+    # original (x, y, z) spans gives the tall vertical axis the shallow depth
+    # resolution and can let cloth penetrate the mannequin during draping.
+    for axis in (0, 2, 1):
         values = [float(vertex[axis]) for vertex in surface.vertices]
         if not values:
             spans.append(16)
