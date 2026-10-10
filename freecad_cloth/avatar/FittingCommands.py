@@ -63,6 +63,21 @@ def arrangement_anchor_status(point):
     target = getattr(point, "AnchorTarget", None)
     if target is None:
         return "missing target"
+
+    document = getattr(point, "Document", None)
+    if document is not None:
+        scene = _scene(document)
+        drape_target = document.getObject("DrapeTarget")
+        configured_target = getattr(scene, "AvatarProxy", None) if scene is not None else None
+        if configured_target is None:
+            configured_target = getattr(drape_target, "SourceObject", None)
+        if configured_target is None:
+            return "unconfigured target"
+        if str(getattr(configured_target, "Name", "")) != str(
+            getattr(target, "Name", "")
+        ):
+            return "wrong target"
+
     try:
         return "valid" if _target_signature(target) == expected else "stale"
     except (AttributeError, TypeError, ValueError, RuntimeError):
