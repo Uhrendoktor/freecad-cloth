@@ -285,14 +285,17 @@ def run():
         raise RuntimeError("attachment-point overlay is still depth-tested or writes depth")
     for index, point_obj in enumerate(anchor_objects.values(), start=1):
         marker = overlay.getChild(index)
-        if marker.getNumChildren() < 2 or not hasattr(marker.getChild(1), "axisOfRotation"):
+        if marker.getNumChildren() != 2:
             raise RuntimeError(
-                "attachment-point marker is not camera-facing: " + str(point_obj.PointName)
+                "attachment-point marker has an unexpected scene-graph structure: "
+                + str(point_obj.PointName)
             )
-        billboard_axis = marker.getChild(1).getField("axisOfRotation").getValue()
-        if any(abs(float(billboard_axis[axis])) > 1e-9 for axis in range(3)):
+        glyph = marker.getChild(1)
+        # draw style + color, three ring polylines (six nodes), center sphere,
+        # and three crosshair polylines (six nodes) make a full tri-plane glyph.
+        if glyph.getNumChildren() < 15:
             raise RuntimeError(
-                "attachment-point billboard is constrained to one rotation axis: "
+                "attachment-point marker lacks its three orthogonal rings: "
                 + str(point_obj.PointName)
             )
         if bool(point_obj.ViewObject.Visibility):
