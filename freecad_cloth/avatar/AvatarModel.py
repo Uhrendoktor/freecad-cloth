@@ -39,7 +39,12 @@ DEFAULT_MEASUREMENTS = {
 }
 
 
-DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0, "t_pose": 12.0}
+DEFAULT_POSE_ARM_ANGLES = {
+    "standing": 70.0,
+    "sewing": 55.0,
+    "sitting": 25.0,
+    "t_pose": 12.0,
+}
 
 
 LIMITS = {
