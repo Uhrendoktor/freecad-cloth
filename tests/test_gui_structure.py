@@ -10,15 +10,13 @@ from pathlib import Path
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
 from freecad_cloth.avatar.AvatarPoseGui import SkeletonPoseController
-from freecad_cloth.pattern import PatternCommands
-from freecad_cloth.sewing.workbench import (
-    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-    TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS,
-    ClothSewingWorkbench,
-    _validate_sewing_command_groups,
-)
-from freecad_cloth.simulation import SimulationCommands
 from freecad_cloth.gui import ClothWorkbenchBase
+from freecad_cloth.pattern import PatternCommands
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
+from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS
+from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
+from freecad_cloth.simulation import SimulationCommands
 
 
 ROOT = Path(__file__).resolve().parents[1]
