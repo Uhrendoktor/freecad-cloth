@@ -73,8 +73,8 @@ def run():
 
     point = create_arrangement_point(
         "front_panel_snap",
-        80.0,
-        52.0,
+        -30.0,
+        0.0,
         offset=3.0,
         wrap_direction="front",
     )
@@ -159,9 +159,9 @@ def run():
     doc.recompute()
 
     base = piece.Placement.Base
-    if abs(float(base.x) - 80.0) > 1e-6:
+    if abs(float(base.x) + 30.0) > 1e-6:
         raise RuntimeError("piece did not snap to arrangement-point X")
-    if abs(float(base.y) - 52.0) > 1e-6:
+    if abs(float(base.y) - 0.0) > 1e-6:
         raise RuntimeError("piece did not snap to arrangement-point Y")
     if abs(float(base.z) - 3.0) > 1e-6:
         raise RuntimeError("piece did not adopt arrangement-point offset")
@@ -174,7 +174,7 @@ def run():
     matching = [value for value in persisted if value.piece_id == "front-pattern-piece"]
     if len(matching) != 1:
         raise RuntimeError("snapped placement was not persisted for the acceptance piece")
-    if matching[0].position != (80.0, 52.0, 3.0):
+    if matching[0].position != (-30.0, 0.0, 3.0):
         raise RuntimeError(
             "persisted placement does not match the snapped arrangement-point position: "
             + str(matching[0].position)
