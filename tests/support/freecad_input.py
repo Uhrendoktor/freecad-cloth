@@ -7,11 +7,23 @@ import ctypes.util
 import io
 import os
 import time
+from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from types import ModuleType, TracebackType
+from typing import TYPE_CHECKING, Callable, Protocol, TypeAlias, cast
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PillowImage
+
+QtInputValue: TypeAlias = int | Enum
 
 
-def _qt_modules() -> tuple[Any, Any, Any, Any]:
+class _QtPoint(Protocol):
+    def x(self) -> int: ...
+    def y(self) -> int: ...
+
+
+def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     """Return the QtCore, QtGui, QtTest and QtWidgets modules available in FreeCAD."""
     try:
         from PySide import QtCore, QtGui, QtTest, QtWidgets
@@ -23,7 +35,7 @@ def _qt_modules() -> tuple[Any, Any, Any, Any]:
     return QtCore, QtGui, QtTest, QtWidgets
 
 
-def focus_main_window(gui: Any, size: tuple[int, int] | None = None) -> Any:
+def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> object:
     """Show and focus the FreeCAD main window before injecting GUI events."""
     _QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
@@ -43,7 +55,7 @@ def focus_main_window(gui: Any, size: tuple[int, int] | None = None) -> Any:
     return window
 
 
-def viewport_widget(gui: Any, view: Any | None = None) -> Any:
+def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
     """Find the Qt widget that owns the active FreeCAD 3D viewport."""
     _QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
@@ -57,7 +69,7 @@ def viewport_widget(gui: Any, view: Any | None = None) -> Any:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             pass
 
-    candidates: list[tuple[float, Any, str, int, int]] = []
+    candidates: list[tuple[float, object, str, int, int]] = []
     for widget in window.findChildren(QtWidgets.QWidget):
         try:
             if not widget.isVisible() or not widget.isEnabled():
@@ -207,7 +219,7 @@ def _native_input() -> _NativeXInput:
     return _NATIVE_INPUT
 
 
-def _x_button_number(QtCore: Any, button: Any | None) -> int:
+def _x_button_number(QtCore: ModuleType, button: QtInputValue | None) -> int:
     """Map Qt mouse-button names to X11 physical button numbers."""
     if isinstance(button, str):
         name = button.upper()
@@ -226,7 +238,7 @@ def _x_button_number(QtCore: Any, button: Any | None) -> int:
     raise ValueError("unsupported X11 mouse button: " + repr(button))
 
 
-def _modifier_keysyms(QtCore: Any, modifiers: Any | None) -> list[int]:
+def _modifier_keysyms(QtCore: ModuleType, modifiers: QtInputValue | None) -> list[int]:
     """Translate common Qt keyboard modifiers to X11 keysyms."""
     if modifiers is None:
         return []
@@ -250,7 +262,7 @@ def _modifier_keysyms(QtCore: Any, modifiers: Any | None) -> list[int]:
     return result
 
 
-def _global_position(widget: Any, position: tuple[float, float]) -> tuple[int, int]:
+def _global_position(widget: object, position: tuple[float, float]) -> tuple[int, int]:
     """Convert local widget coordinates into real display-global coordinates."""
     QtCore, _QtGui, _QtTest, _QtWidgets = _qt_modules()
     point = widget.mapToGlobal(_position(QtCore, position))
@@ -287,23 +299,23 @@ def release_all_input() -> None:
     _ACTIVE_MOUSE_MODIFIERS = []
 
 
-def _position(QtCore: Any, position: tuple[float, float]) -> Any:
+def _position(QtCore: ModuleType, position: tuple[float, float]) -> _QtPoint:
     """Convert a numeric viewport point to a Qt integer point."""
-    return QtCore.QPoint(int(round(position[0])), int(round(position[1])))
+    return cast(_QtPoint, QtCore.QPoint(int(round(position[0])), int(round(position[1]))))
 
 
-def _button_and_modifiers(QtCore: Any, button: Any | None, modifiers: Any | None) -> tuple[Any, Any]:
+def _button_and_modifiers(QtCore: ModuleType, button: QtInputValue | None, modifiers: QtInputValue | None) -> tuple[QtInputValue, QtInputValue]:
     """Resolve default Qt mouse button and modifier values across Qt bindings."""
     resolved_button = getattr(QtCore.Qt, "LeftButton") if button is None else button
     resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
-    return resolved_button, resolved_modifiers
+    return cast(QtInputValue, resolved_button), cast(QtInputValue, resolved_modifiers)
 
 
 def mouse_press(
-    widget: Any,
+    widget: object,
     position: tuple[float, float],
-    button: Any | None = None,
-    modifiers: Any | None = None,
+    button: QtInputValue | None = None,
+    modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
 ) -> None:
     """Inject a native X11 mouse press at a viewport or widget-local coordinate."""
@@ -321,7 +333,7 @@ def mouse_press(
 
 
 def mouse_move(
-    widget: Any,
+    widget: object,
     position: tuple[float, float],
     delay_ms: int = 20,
     buttons_down: bool = False,
@@ -336,10 +348,10 @@ def mouse_move(
 
 
 def mouse_release(
-    widget: Any,
+    widget: object,
     position: tuple[float, float],
-    button: Any | None = None,
-    modifiers: Any | None = None,
+    button: QtInputValue | None = None,
+    modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
 ) -> None:
     """Move to the release point, then emit a native X11 mouse release."""
@@ -358,11 +370,11 @@ def mouse_release(
 
 
 def click_viewport(
-    widget: Any,
+    widget: object,
     position: tuple[float, float],
-    gui: Any,
+    gui: ModuleType,
     additive: bool = False,
-    button: Any | None = None,
+    button: QtInputValue | None = None,
 ) -> None:
     """Inject a native viewport click; use semantic selection APIs in unsupported Pivy builds."""
     QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
@@ -376,7 +388,7 @@ def click_viewport(
     _wait_input(50)
 
 
-def click_widget(widget: Any, button: Any | None = None, modifiers: Any | None = None) -> None:
+def click_widget(widget: object, button: QtInputValue | None = None, modifiers: QtInputValue | None = None) -> None:
     """Click a visible Qt control through QtTest and move the visible OS cursor there."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
@@ -399,7 +411,7 @@ def click_widget(widget: Any, button: Any | None = None, modifiers: Any | None =
 
 
 def drag_viewport(
-    widget: Any,
+    widget: object,
     start: tuple[float, float],
     end: tuple[float, float],
     steps: int = 16,
@@ -422,7 +434,7 @@ def drag_viewport(
         mouse_release(widget, end)
 
 
-def _resolve_key(QtCore: Any, key: Any) -> Any:
+def _resolve_key(QtCore: ModuleType, key: str | QtInputValue) -> QtInputValue:
     """Resolve readable keyboard key names or pass through a Qt key enum."""
     if not isinstance(key, str):
         return key
@@ -435,9 +447,9 @@ def _resolve_key(QtCore: Any, key: Any) -> Any:
 
 
 def key_press(
-    widget: Any,
-    key: Any,
-    modifiers: Any | None = None,
+    widget: object,
+    key: str | QtInputValue,
+    modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
 ) -> None:
     """Inject a keyboard press event into the focused widget."""
@@ -447,7 +459,7 @@ def key_press(
 
 
 def type_text(
-    widget: Any,
+    widget: object,
     text: str,
     *,
     replace_selection: bool = True,
@@ -478,9 +490,9 @@ def type_text(
 
 
 def key_release(
-    widget: Any,
-    key: Any,
-    modifiers: Any | None = None,
+    widget: object,
+    key: str | QtInputValue,
+    modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
 ) -> None:
     """Inject a keyboard release event into the focused widget."""
@@ -490,9 +502,9 @@ def key_release(
 
 
 def key_click(
-    widget: Any,
-    key: Any,
-    modifiers: Any | None = None,
+    widget: object,
+    key: str | QtInputValue,
+    modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
 ) -> None:
     """Send a keyboard interaction after activating and focusing the target widget."""
@@ -530,7 +542,7 @@ def key_click(
     QtTest.QTest.qWait(30)
 
 
-def project_point(view: Any, point: Any) -> tuple[float, float]:
+def project_point(view: object, point: object) -> tuple[float, float]:
     """Project a FreeCAD world point to the viewport's top-left coordinate system."""
     projected = view.getPointOnScreen(point)
     size = view.getSize()
@@ -556,7 +568,7 @@ def wait_until(
 
 
 def write_gif(
-    frames: list[Any],
+    frames: list[PillowImage],
     path: str | Path,
     fps: int = 7,
     max_colors: int = 96,
@@ -600,8 +612,8 @@ class UiGifRecorder:
     def __init__(
         self,
         path: str | Path,
-        gui: Any,
-        window: Any | None = None,
+        gui: ModuleType,
+        window: object | None = None,
         fps: int = 7,
         scale: float = 0.5,
         max_frames: int = 120,
@@ -620,7 +632,7 @@ class UiGifRecorder:
         self.scale = float(scale)
         self.max_frames = int(max_frames)
         self.show_cursor = bool(show_cursor)
-        self.frames: list[Any] = []
+        self.frames: list[PillowImage] = []
         self._timer = None
         self._started = False
 
@@ -724,7 +736,12 @@ class UiGifRecorder:
         self.start()
         return self
 
-    def __exit__(self, _exc_type: Any, _exc: Any, _traceback: Any) -> None:
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
         """Persist collected frames on normal exit and best-effort preserve failures."""
         if self._started:
             self.stop()
