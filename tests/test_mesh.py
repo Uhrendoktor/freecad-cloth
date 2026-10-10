@@ -4,8 +4,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    PolylineSegment,
+    rectangle,
+)
 from freecad_cloth.pattern.PatternMesh import (
+    _edge_segment_ids,
     _point_to_segment_distance,
     refine_linear_boundary,
     triangulate,
@@ -38,6 +44,31 @@ def test_concave_polygon_triangulates():
     assert len(mesh.triangles) == 3
     assert abs(mesh.area - 1200.0) < 1e-7
     assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
+
+
+def test_sampled_curve_provenance_uses_curve_not_endpoint_chord():
+    # The native curve bulges right of its endpoint chord. Midpoints near either
+    # end are closer to the top/bottom lines than to that chord, but they still
+    # belong to the authored curve boundary.
+    pattern = ParametricPattern(
+        [
+            PolylineSegment("curve", ((10, 0), (14, 2), (15, 5), (14, 8), (10, 10))),
+            LineSegment("top", (10, 10), (0, 10)),
+            LineSegment("left", (0, 10), (0, 0)),
+            LineSegment("bottom", (0, 0), (10, 0)),
+        ]
+    )
+
+    points = pattern.sampled_outline(curve_samples=16)
+    assert _edge_segment_ids(pattern, points) == [
+        "curve",
+        "curve",
+        "curve",
+        "curve",
+        "top",
+        "left",
+        "bottom",
+    ]
 
 
 def test_reversed_rectangle_retains_segment_provenance():
