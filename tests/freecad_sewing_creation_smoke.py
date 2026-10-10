@@ -15,7 +15,6 @@ import contextlib
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
-from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
 import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
@@ -111,6 +110,22 @@ def process_events():
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
+
+
+def assert_pattern_piece_colors_visible(frame):
+    """Reject a seam GIF whose viewport has no rendered pattern pieces."""
+    counts = {"blue": 0, "orange": 0, "green": 0}
+    for red, green, blue in frame.convert("RGB").getdata():
+        if blue >= 120 and blue - red >= 25 and green - red >= 15:
+            counts["blue"] += 1
+        if red >= 140 and red - green >= 25 and green - blue >= 20:
+            counts["orange"] += 1
+        if green >= 110 and green - red >= 20 and green - blue >= 10:
+            counts["green"] += 1
+    assert all(value >= 500 for value in counts.values()), (
+        "seam-assignment GIF must visibly render all three colored pattern pieces; "
+        f"detected pixel counts={counts!r}"
+    )
 
 
 def record(message):
@@ -427,10 +442,11 @@ try:
     doc.recompute()
     record("fixtures=created pieces=3")
 
-    # Resize before reading the render area, then position the orthographic
-    # Coin camera explicitly. In this headless FreeCAD/Pivy build, fitAll()
-    # leaves the camera at its default ~4 mm field of view despite visible
-    # 100 mm pieces, so camera bounds are derived from the actual world shapes.
+    # Record from the real sewing workbench and let Fit All establish a valid
+    # camera center and clipping range. Then set only the orthographic height;
+    # moving the camera manually can put all geometry outside FreeCAD's clip range.
+    Gui.activateWorkbench("ClothSewingWorkbench")
+    process_events()
     window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
     for piece, color in (
@@ -440,12 +456,15 @@ try:
     ):
         view_object = piece.ViewObject
         view_object.Visibility = True
+        view_object.DisplayMode = "Flat Lines"
         view_object.ShapeColor = color
         view_object.LineColor = (0.12, 0.16, 0.21)
         view_object.LineWidth = 3.0
+        view_object.Transparency = 0
     doc.recompute()
     view.setCameraType("Orthographic")
     view.viewTop()
+    view.fitAll()
     process_events()
     _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
     QtTest.QTest.qWait(200)
@@ -461,23 +480,15 @@ try:
             raise RuntimeError(
                 "seam-assignment GIF fixture is not visible: " + piece.Label
             )
-        # FreeCAD's Shape.BoundBox already includes the object's Placement.
-        # Adding Placement.Base a second time shifts and enlarges the camera box.
+        # Shape.BoundBox is already in the placed/world coordinate system here.
         world_bounds.append((
             float(box.XMin), float(box.YMin), float(box.ZMin),
             float(box.XMax), float(box.YMax), float(box.ZMax),
         ))
     xmin = min(value[0] for value in world_bounds)
     ymin = min(value[1] for value in world_bounds)
-    zmin = min(value[2] for value in world_bounds)
     xmax = max(value[3] for value in world_bounds)
     ymax = max(value[4] for value in world_bounds)
-    zmax = max(value[5] for value in world_bounds)
-    center = coin.SbVec3f(
-        (xmin + xmax) * 0.5,
-        (ymin + ymax) * 0.5,
-        (zmin + zmax) * 0.5,
-    )
     view_size = view.getSize()
     view_width, view_height = float(view_size[0]), float(view_size[1])
     if view_width <= 0.0 or view_height <= 0.0:
@@ -486,18 +497,7 @@ try:
     extent_x, extent_y = xmax - xmin, ymax - ymin
     camera_height = max(150.0, 1.25 * extent_y, 1.25 * extent_x / aspect)
     camera = view.getCameraNode()
-    previous_position = coin.SbVec3f(camera.position.getValue())
-    # Preserve the distance used by FreeCAD's top view. Moving the camera far
-    # beyond the inherited clipping range can hide every piece even when its
-    # orthographic height is correct.
-    camera_distance = abs(float(previous_position[2]) - float(center[2]))
-    if camera_distance < 10.0:
-        camera_distance = max(100.0, 2.0 * max(extent_x, extent_y))
-    camera.position.setValue(
-        coin.SbVec3f(center[0], center[1], center[2] + camera_distance)
-    )
     camera.height.setValue(float(camera_height))
-    camera.pointAt(center, coin.SbVec3f(0.0, 1.0, 0.0))
     if hasattr(view, "redraw"):
         view.redraw()
     process_events()
@@ -512,11 +512,11 @@ try:
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
     record(
-        "seam-camera=passed center=(%.2f,%.2f,%.2f) bounds=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f) "
-        "height=%.2f distance=%.2f viewport=%dx%d"
+        "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
+        "height=%.2f viewport=%dx%d"
         % (
-            center[0], center[1], center[2], xmin, ymin, zmin, xmax, ymax, zmax,
-            float(camera_match.group(1)), camera_distance, int(view_width), int(view_height),
+            xmin, ymin, xmax, ymax, float(camera_match.group(1)),
+            int(view_width), int(view_height),
         )
     )
     recorder = UiGifRecorder(
@@ -526,16 +526,21 @@ try:
         fps=12,
         scale=0.5,
         max_frames=120,
+        show_cursor=False,
     )
     recorder.start()
     recorder.hold(700)
+    assert_pattern_piece_colors_visible(recorder.frames[-1])
 
     before = {obj.Name for obj in doc.Objects}
-    # Activate semantic edge subelements through FreeCAD's selection API. The
-    # viewport highlights and task-panel selection are real; screen-coordinate
-    # edge hit-testing is unreliable in this headless FreeCAD/Pivy build.
+    # Stage the selection so the recording distinguishes side A from the
+    # selected counterpart on side B before opening the real sewing task panel.
+    # FreeCAD's selection API produces the same viewport selection state
+    # without relying on fragile screen-coordinate hit testing in Xvfb.
+    select_edges((piece_a, 0))
+    recorder.hold(800)
     select_edges((piece_a, 0), (piece_b, 0))
-    recorder.hold(700)
+    recorder.hold(800)
     panel = open_public("ClothSewing_CreateSeam")
     recorder.hold(1100)
     assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
