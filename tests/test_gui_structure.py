@@ -14,8 +14,7 @@ from freecad_cloth.gui import ClothWorkbenchBase
 from freecad_cloth.pattern import PatternCommands
 from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
 from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS
-from freecad_cloth.sewing.workbench import ClothSewingWorkbench
-from freecad_cloth.sewing.workbench import _validate_sewing_command_groups
+from freecad_cloth.sewing.workbench import ClothSewingWorkbench, _validate_sewing_command_groups
 from freecad_cloth.simulation import SimulationCommands
 
 
