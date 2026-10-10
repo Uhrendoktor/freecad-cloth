@@ -230,14 +230,17 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
         best_index = 0
         best_distance = float("inf")
         for segment_index, segment in enumerate(pattern.segments):
-            if hasattr(segment, "control"):
+            if isinstance(segment, LineSegment):
+                distance = _point_to_segment_distance(midpoint, segment.start, segment.end)
+            else:
+                # Sampled native curves (PolylineSegment) can bulge far from their
+                # endpoint chord. Attribute boundary intervals to the actual curve,
+                # or neighboring straight seams can steal samples and disconnect IDs.
                 samples = segment.polyline(32)
                 distance = min(
                     _point_to_segment_distance(midpoint, a, b)
                     for a, b in zip(samples, samples[1:], strict=False)
                 )
-            else:
-                distance = _point_to_segment_distance(midpoint, segment.start, segment.end)
             if distance < best_distance:
                 best_index = segment_index
                 best_distance = distance
