@@ -58,8 +58,8 @@ from tests.support.pbd_contact_helpers import (
 )
 from tests.support.pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
 from tests.support.pbd_contact_helpers import positions_tuple as _positions_tuple
-from tests.support.pbd_contact_helpers import seam_geometry as _seam_geometry
 from tests.support.pbd_contact_helpers import screenshot as _screenshot
+from tests.support.pbd_contact_helpers import seam_geometry as _seam_geometry
 from tests.support.pbd_contact_helpers import target_signature as _target_signature
 
 _progress = make_progress_logger(OUT / "progress.log")
