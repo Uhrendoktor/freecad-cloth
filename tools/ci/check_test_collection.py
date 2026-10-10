@@ -20,11 +20,7 @@ def _missing_test_modules(paths: Iterable[str], collected_paths: Iterable[Path])
     """Return requested modules that produced no collected test items."""
     expected = _normalize(paths)
     collected = {Path(path).resolve() for path in collected_paths}
-    return tuple(
-        path.relative_to(ROOT).as_posix()
-        for path in expected
-        if path not in collected
-    )
+    return tuple(path.relative_to(ROOT).as_posix() for path in expected if path not in collected)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
