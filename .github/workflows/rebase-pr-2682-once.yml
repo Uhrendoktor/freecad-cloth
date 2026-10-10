@@ -1,4 +1,5 @@
 name: One-time PR 2682 rebase
+run-name: Rebase PR 2682 onto main
 
 on:
   push:
@@ -8,19 +9,264 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   rebase:
-    name: Rebase PR 2682 onto main
+    name: Rebase PR 2682 and dispatch native CI
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 15
     steps:
-      - name: Rebase the requested PR without squashing
+      - name: Check out full Git history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Rebase PR commits and reconcile mainline changes
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          TARGET_BRANCH: audit/geometry-ci-simplification-20261010
         shell: bash
         run: |
           set -euo pipefail
-          gh pr view 2682 --repo "$REPOSITORY" --json state,headRefName,headRefOid,baseRefName,baseRefOid
-          gh pr update-branch 2682 --repo "$REPOSITORY" --rebase
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main "refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          PR_BEFORE="$(git rev-parse HEAD)"
+          MAIN_BEFORE="$(git rev-parse origin/main)"
+          echo "pr-before=$PR_BEFORE"
+          echo "main-base=$MAIN_BEFORE"
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "PR already contains current main"
+          else
+            set +e
+            git -c core.editor=true rebase origin/main
+            rebase_status=$?
+            set -e
+            attempts=0
+            while [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; do
+              attempts=$((attempts + 1))
+              if [ "$attempts" -gt 120 ]; then
+                echo "rebase conflict resolution exceeded 120 steps"
+                git status --short
+                exit 1
+              fi
+              unmerged="$(git diff --name-only --diff-filter=U)"
+              if [ -n "$unmerged" ]; then
+                while IFS= read -r path; do
+                  [ -n "$path" ] || continue
+                  echo "resolving rebase conflict in $path by keeping the replayed PR change, then reconciling final state with main"
+                  if git cat-file -e ":3:$path" 2>/dev/null; then
+                    git checkout --theirs -- "$path"
+                    git add -- "$path"
+                  else
+                    git rm -f --ignore-unmatch -- "$path"
+                  fi
+                done <<< "$unmerged"
+              fi
+              set +e
+              continuation="$(GIT_EDITOR=true git rebase --continue 2>&1)"
+              continuation_status=$?
+              set -e
+              printf '%s\n' "$continuation"
+              if [ "$continuation_status" -ne 0 ]; then
+                if printf '%s' "$continuation" | grep -Eqi 'previous cherry-pick is now empty|nothing to commit|No changes'; then
+                  git rebase --skip
+                else
+                  git status --short
+                  exit "$continuation_status"
+                fi
+              fi
+            done
+            if [ "$rebase_status" -ne 0 ] && ! git merge-base --is-ancestor origin/main HEAD; then
+              echo "Git rebase did not finish on top of origin/main"
+              exit 1
+            fi
+          fi
+
+          # Restore mainline changes that are not part of the PR's final diff.
+          git checkout origin/main -- \
+            .github/actions/freecad-test/action.yml \
+            .github/workflows/canonical-execution.yml \
+            docker/freecad-ci/Dockerfile \
+            docs/LIBRARY_EVALUATION.md \
+            docs/MATH_VALIDATION.md \
+            freecad_cloth/common/MeshValidation.py \
+            freecad_cloth/common/ValidationModels.py \
+            freecad_cloth/common/VisualCaptureValidation.py \
+            pyproject.toml \
+            tests/test_geometry_library_properties.py \
+            tests/test_mesh_validation.py \
+            tests/test_validation_models.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Keep main's normalized GEOS calculation but add the PR's defensive
+          # projection fallback for cases where GEOS still returns a non-finite value.
+          path = Path("freecad_cloth/pattern/PatternMesh.py")
+          source = path.read_text(encoding="utf-8")
+          source = source.replace("from math import ceil, isclose, isfinite", "from math import ceil, hypot, isclose, isfinite")
+          start = source.index("def _point_to_segment_distance(")
+          end = source.find("\n\ndef ", start + 1)
+          if end < 0:
+              raise SystemExit("unable to locate end of _point_to_segment_distance")
+          function = '''def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
+              """Return a robust point-to-segment distance, including subnormal segments.
+
+              Normalize coordinate differences before asking GEOS to avoid overflow for
+              tiny coordinates. If GEOS still returns a non-finite distance because its
+              projection arithmetic underflows, use a unit-direction projection fallback.
+              """
+              if point in (start, end):
+                  return 0.0
+
+              with_offset = (
+                  end[0] - start[0],
+                  end[1] - start[1],
+                  point[0] - start[0],
+                  point[1] - start[1],
+              )
+              if not all(isfinite(value) for value in with_offset):
+                  raise ValueError("point-to-segment coordinate differences must be finite")
+              scale = max(abs(value) for value in with_offset)
+              if scale == 0.0:
+                  return 0.0
+
+              dx, dy, px, py = (value / scale for value in with_offset)
+              normalized_distance = float(
+                  LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
+              )
+              distance = scale * normalized_distance
+              if isfinite(distance):
+                  return distance
+
+              sx, sy = float(start[0]), float(start[1])
+              px, py = float(point[0]), float(point[1])
+              dx, dy = float(end[0]) - sx, float(end[1]) - sy
+              length = hypot(dx, dy)
+              if length == 0.0:
+                  distance = hypot(px - sx, py - sy)
+              else:
+                  unit_x, unit_y = dx / length, dy / length
+                  projection = (px - sx) * unit_x + (py - sy) * unit_y
+                  clamped = max(0.0, min(length, projection))
+                  closest_x = sx + clamped * unit_x
+                  closest_y = sy + clamped * unit_y
+                  distance = hypot(px - closest_x, py - closest_y)
+              if not isfinite(distance):
+                  raise ValueError("computed point-to-segment distance must be finite")
+              return distance
+          '''
+          source = source[:start] + function + source[end:]
+          path.write_text(source, encoding="utf-8")
+
+          # Preserve PR regressions while retaining main's two extreme-small-coordinate cases.
+          path = Path("tests/test_mesh.py")
+          source = path.read_text(encoding="utf-8")
+          if "test_point_to_segment_distance_tiny_scaled_coordinates" not in source:
+              source += '''
+
+          def test_point_to_segment_distance_tiny_scaled_coordinates() -> None:
+              """Normalized GEOS input keeps tiny but representable distances accurate."""
+              assert (
+                  _point_to_segment_distance(
+                      (1e-291, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)
+                  )
+                  == 1e-291
+              )
+              assert (
+                  _point_to_segment_distance(
+                      (0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)
+                  )
+                  == 0.0
+              )
+          '''
+          path.write_text(source, encoding="utf-8")
+
+          # Main converted the PNG tests to Pillow; append the PR's CRC/visibility
+          # regression cases to that version rather than reverting the mainline tests.
+          path = Path("tests/test_visual_capture_validation.py")
+          import subprocess
+          main_source = subprocess.check_output(
+              ["git", "show", "origin/main:tests/test_visual_capture_validation.py"],
+              text=True,
+          )
+          if "test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds" not in main_source:
+              main_source += '''
+
+          def test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds(tmp_path: Path):
+              path = tmp_path / "colored.png"
+              _write_png(
+                  path,
+                  2,
+                  2,
+                  [(255, 0, 0), (255, 255, 255), (255, 255, 255), (255, 255, 255)],
+              )
+              assert png_has_visible_content(
+                  path,
+                  expected_width=2,
+                  expected_height=2,
+                  minimum_pixels=1,
+                  pixel_threshold=250,
+              )
+              assert not png_has_visible_content(
+                  path,
+                  expected_width=2,
+                  expected_height=2,
+                  minimum_pixels=1,
+                  pixel_threshold=245,
+                  require_all_channels_below=True,
+              )
+              assert not png_has_visible_content(path, expected_width=3, expected_height=2)
+
+
+          def test_png_visible_content_rejects_bad_crc_and_uniform_white(tmp_path: Path):
+              path = tmp_path / "white.png"
+              _write_png(path, 2, 2, [(255, 255, 255)] * 4)
+              assert not png_has_visible_content(path, minimum_pixels=1)
+              data = bytearray(path.read_bytes())
+              data[-13] ^= 1
+              corrupt_path = tmp_path / "corrupt.png"
+              corrupt_path.write_bytes(data)
+              assert not png_has_visible_content(corrupt_path, minimum_pixels=1)
+          '''
+          path.write_text(main_source, encoding="utf-8")
+
+          # Route both the PR helper tests and main's geometry-library properties.
+          path = Path("tools/ci/python_validation.py")
+          source = path.read_text(encoding="utf-8")
+          anchor = '        "tests/test_validation_models.py",\n'
+          if anchor not in source:
+              raise SystemExit("could not locate core validation routing anchor")
+          if '"tests/test_geometry_library_properties.py"' not in source:
+              source = source.replace(
+                  anchor,
+                  anchor + '        "tests/test_geometry_library_properties.py",\n',
+                  1,
+              )
+          if '"tests/test_pbd_contact_helpers.py"' not in source:
+              source = source.replace(
+                  '        "tests/test_mesh_validation.py",\n',
+                  '        "tests/test_mesh_validation.py",\n        "tests/test_pbd_contact_helpers.py",\n',
+                  1,
+              )
+          path.write_text(source, encoding="utf-8")
+          PY
+
+          python3 -m compileall -q freecad_cloth tests tools/ci
+          git diff --check
+          git add -A
+          git commit -m "test: reconcile PR 2682 rebase with main validation" || true
+          git merge-base --is-ancestor origin/main HEAD
+          echo "rebased-head=$(git rev-parse HEAD)"
+          echo "rebased-commit-count=$(git rev-list --count origin/main..HEAD)"
+          git push --force-with-lease origin "HEAD:refs/heads/$TARGET_BRANCH"
+
+          gh workflow run canonical-execution.yml --repo "$REPOSITORY" --ref "$TARGET_BRANCH" -f runner_mode=hosted
+          echo "Dispatched canonical-execution.yml for exact rebased head $(git rev-parse HEAD)"
