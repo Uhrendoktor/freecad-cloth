@@ -24,7 +24,7 @@ def _sync_visuals(scene):
     for point in points:
         name = "ArrangementPoint_" + _safe_name(point.name)
         obj = existing.get(name) or scene.Document.addObject("Part::Feature", name)
-        obj.Label = "Arrangement: " + point.name
+        obj.Label = "Snap target: " + point.name
         if not hasattr(obj, "FittingType"):
             obj.addProperty(
                 "App::PropertyString", "FittingType", "Fitting"
@@ -43,7 +43,24 @@ def _sync_visuals(scene):
             obj.addProperty("App::PropertyDistance", "Offset", "Arrangement")
             obj.addProperty("App::PropertyAngle", "RotationZ", "Arrangement")
         obj.X, obj.Y, obj.Offset, obj.RotationZ = point.x, point.y, point.offset, point.rotation_z
-        obj.Shape = Part.makeSphere(4.0, App.Vector(point.x, point.y, point.offset))
+        center = App.Vector(point.x, point.y, point.offset)
+        obj.Shape = Part.makeCompound(
+            [
+                Part.makeSphere(0.8, center),
+                Part.makeCircle(7.0, center, App.Vector(0.0, 0.0, 1.0)),
+                Part.makeLine(
+                    center - App.Vector(10.0, 0.0, 0.0),
+                    center + App.Vector(10.0, 0.0, 0.0),
+                ),
+                Part.makeLine(
+                    center - App.Vector(0.0, 10.0, 0.0),
+                    center + App.Vector(0.0, 10.0, 0.0),
+                ),
+            ]
+        )
+        obj.ViewObject.ShapeColor = (0.15, 0.75, 1.0)
+        obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
+        obj.ViewObject.LineWidth = 2.0
         point_objects.append(obj)
     for volume in volumes:
         name = "BoundingVolume_" + _safe_name(volume.name)

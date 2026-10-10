@@ -7,6 +7,7 @@ available through FreeCAD's property editor for precision work.
 """
 
 import contextlib
+import math
 
 
 def _modules():
@@ -181,11 +182,37 @@ class DirectArrangeController:
             )
             color = coin.SoBaseColor()
             color.rgb = (0.15, 0.75, 1.0)
-            sphere = coin.SoSphere()
-            sphere.radius = 8.0
+            draw_style = coin.SoDrawStyle()
+            draw_style.lineWidth = 2.0
             separator.addChild(transform)
             separator.addChild(color)
-            separator.addChild(sphere)
+            separator.addChild(draw_style)
+
+            def add_polyline(points):
+                coordinates = coin.SoCoordinate3()
+                coordinates.point.setValues(0, len(points), points)
+                line = coin.SoLineSet()
+                line.numVertices.setValue(len(points))
+                separator.addChild(coordinates)
+                separator.addChild(line)
+
+            radius = 8.0
+            ring = [
+                coin.SbVec3f(
+                    radius * math.cos(index * 2.0 * math.pi / 32.0),
+                    radius * math.sin(index * 2.0 * math.pi / 32.0),
+                    0.0,
+                )
+                for index in range(33)
+            ]
+            add_polyline(ring)
+
+            center = coin.SoSphere()
+            center.radius = 0.8
+            separator.addChild(center)
+            arm = 11.0
+            add_polyline([coin.SbVec3f(-arm, 0.0, 0.0), coin.SbVec3f(arm, 0.0, 0.0)])
+            add_polyline([coin.SbVec3f(0.0, -arm, 0.0), coin.SbVec3f(0.0, arm, 0.0)])
             self.view.getSceneGraph().addChild(separator)
             self._snap_indicator = separator
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
@@ -245,7 +272,7 @@ class DirectArrangeController:
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
         self._location_callback = self.view.addEventCallback("SoLocation2Event", self._location_event)
         self._status(
-            "Drag a pattern piece in the 3D view. Blue arrangement points are snap targets."
+            "Drag a pattern piece in the 3D view. Blue crosshairs mark arrangement snap targets."
         )
 
     def deactivate(self):
@@ -304,7 +331,7 @@ class DirectArrangeController:
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
             self._status(
-                "Dragging {} — release near a blue point to snap.".format(piece.Label)
+                "Dragging {} — release near a blue crosshair to snap.".format(piece.Label)
             )
         elif state == "UP" and self.drag_piece is not None:
             piece = self.drag_piece
@@ -424,7 +451,7 @@ class FittingTaskPanel:
         actions = QtWidgets.QGroupBox("Arrange")
         action_layout = QtWidgets.QVBoxLayout(actions)
         self.instruction = QtWidgets.QLabel(
-            "Drag a pattern piece in the 3D view. Hover near a blue arrangement point to preview a snap."
+            "Drag a pattern piece. Blue crosshairs mark where its placement origin will snap; release to commit."
         )
         self.instruction.setWordWrap(True)
         action_layout.addWidget(self.instruction)

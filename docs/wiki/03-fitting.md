@@ -4,7 +4,9 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging a garment workpiece onto a blue arrangement snap point in the FreeCAD viewport" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="A flat garment pattern piece moving toward a blue crosshair arrangement snap target; release commits the placement" width="900"></p>
+
+The blue crosshair marks a named **arrangement point**: a snap target for the pattern piece's placement origin, not another garment piece or a surface the cloth attaches to. The flat, tan panel is the piece being moved; releasing commits its snapped placement.
 
 The animation records the snap preview and release-to-commit state changes in the live task panel. Headless acceptance drives the task panel's registered controller callbacks directly because native viewport injection is unstable in some FreeCAD/Pivy builds.
 
