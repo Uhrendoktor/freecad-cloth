@@ -154,7 +154,12 @@ def capture_main_window_frame(window):
         raise RuntimeError("could not encode the seam display-mode probe frame")
     payload = bytes(buffer.data())
     buffer.close()
-    return Image.open(io.BytesIO(payload)).convert("RGB")
+    frame = Image.open(io.BytesIO(payload)).convert("RGB")
+    # Match the recorder's 0.5 scale so this probe uses the same pixel budget
+    # as the final GIF's fail-fast visibility assertion.
+    resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+    size = (max(1, int(frame.width * 0.5)), max(1, int(frame.height * 0.5)))
+    return frame.resize(size, resampling)
 
 
 def record(message):
