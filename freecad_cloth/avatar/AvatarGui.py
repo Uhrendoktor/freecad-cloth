@@ -118,18 +118,14 @@ class AvatarTaskPanel:
         provider_row = QtWidgets.QHBoxLayout()
         for key, label in self.PROVIDERS:
             button = QtWidgets.QToolButton()
-            button.setText(
-                "MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry"
-            )
+            button.setText("MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry")
             button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolTip(label)
             self.provider_group.addButton(button)
             self.provider_buttons[key] = button
             provider_row.addWidget(button)
-            button.clicked.connect(
-                lambda checked=False, value=key: self._provider_changed(value)
-            )
+            button.clicked.connect(lambda checked=False, value=key: self._provider_changed(value))
         provider_row.addStretch(1)
         provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
@@ -403,9 +399,7 @@ class AvatarTaskPanel:
                 getattr(source, "Label", getattr(source, "Name", "FreeCAD object"))
             )
         self.provider_source_label.setText(text)
-        self.provider_source.setEnabled(
-            self._provider_id() == "freecad-geometry"
-        )
+        self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
     def _preset_changed(self, preset):
         if self._loading:
