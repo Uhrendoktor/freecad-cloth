@@ -4,21 +4,25 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="900"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="A flat garment pattern piece moving toward a blue crosshair arrangement snap target; release commits the placement" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/arrangement-anchor.gif" alt="Interactive Arrange enters surface-pick mode, a selected target face becomes a named blue snap anchor, and the marker appears in the viewport" width="900"></p>
 
-The blue crosshair marks a named **arrangement point**: a snap target for the pattern piece's placement origin, not another garment piece or a surface the cloth attaches to. The flat, tan panel is the piece being moved; releasing commits its snapped placement.
+The first animation shows how to create a surface-aware snap anchor. Name it, choose a wrap direction, select **Pick surface in viewport**, then click a face on the configured avatar or target geometry. The persistent marker records the picked world location, target object, selected subelement, and target geometry signature.
 
-The animation records the snap preview and release-to-commit state changes in the live task panel. Headless acceptance drives the task panel's registered controller callbacks directly because native viewport injection is unstable in some FreeCAD/Pivy builds.
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="A flat garment pattern piece moving toward a blue crosshair arrangement anchor; the preview snaps to it and release commits the placement" width="900"></p>
+
+A blue crosshair marks the pattern piece's placement-origin target. A picked surface anchor is linked to the target geometry so a changed or rebuilt target makes it stale; stale anchors are shown in red and excluded from snapping until they are picked again. The point controls piece placement—it is not a cloth pin or a surface constraint. Releasing the drag commits the snapped placement.
+
+The recordings show the live task panel and viewport. Headless acceptance exercises the task panel's selection and drag callbacks because native viewport injection is unstable in some FreeCAD/Pivy builds.
 
 ## Arrange pieces before simulation
 
 Start with valid PatternPieces and a selected, current **DrapeTarget**. The GIF shows the viewport snap interaction; the expected result is the saved placement, not the temporary drag preview.
 
 1. Open **Cloth Simulation** and enter **Interactive Arrange**.
-2. Select the piece to move and drag it in the viewport.
-3. If snapping is enabled, approach an arrangement point and wait for the snap marker.
+2. To create a target-aware snap point, enter a name, choose a wrap direction, select **Pick surface in viewport**, and click a face on the configured avatar/target.
+3. Drag a pattern piece in the viewport. With snapping enabled, approach the blue marker until the snap preview appears.
 4. Release to commit the placement as a FreeCAD transaction. Repeat for the remaining pieces.
-5. Review the entire garment-to-target relationship before opening the simulation controls. Reset and arrange again if a piece is accidentally placed or overlaps unexpectedly.
+5. If the target geometry, revision, or placement changes, recreate any red stale anchor before using it. Review the garment-to-target relationship before simulation; reset and arrange again if a piece is accidentally placed or overlaps unexpectedly.
 
 **Verify the result:** placements remain after save/reopen, the target is the intended collision authority, and the garment is intentionally positioned before Run. Fitting does not repair invalid sewing relationships or define collision geometry.
 
@@ -68,7 +72,7 @@ The fitting scene remains target-neutral.
 A saved document can carry:
 
 - piece placements;
-- arrangement points;
+- coordinate-based arrangement points and target-aware surface-anchor references;
 - fitting-scene state;
 - selected target identity;
 - measurements where supported.
