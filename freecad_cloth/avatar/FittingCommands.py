@@ -644,7 +644,8 @@ def create_arrangement_anchor(
     if doc is None:
         raise RuntimeError("open a document before creating a surface anchor")
     scene = _scene(doc) or create_fitting_scene()
-    if target is None or getattr(target, "Document", None) != doc:
+    target_document = getattr(target, "Document", None) if target is not None else None
+    if target_document is None or getattr(target_document, "Name", "") != doc.Name:
         raise ValueError("select a surface on geometry in the active document")
     signature = _target_signature(target)
     try:
