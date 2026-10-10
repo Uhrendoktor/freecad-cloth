@@ -46,7 +46,7 @@ def _sync_visuals(scene):
         center = App.Vector(point.x, point.y, point.offset)
         obj.Shape = Part.makeCompound(
             [
-                Part.makeSphere(2.0, center),
+                Part.makeSphere(0.8, center),
                 Part.makeCircle(7.0, center, App.Vector(0.0, 0.0, 1.0)),
                 Part.makeLine(
                     center - App.Vector(10.0, 0.0, 0.0),
