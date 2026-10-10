@@ -5,30 +5,25 @@ Compact live supervisor/recovery record. Do not use this file as an experiment l
 ## Repository
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Last audited main HEAD: `3257ac54a16aebc7ddc5394949a6172b250d1fe4`
-- Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
-- Root coordination ledger: #2492.
-- No production Tissu contact repair is merged.
+- Last reconciled main HEAD: `52518611f6c5df79e3648302e9f105eb841d01c6` (2026-10-10).
+- Canonical workflow: `.github/workflows/canonical-execution.yml`; exactly one canonical workflow.
+- Root coordination ledger: #2492. Its Tissu-era active-lane list must not be treated as current runtime authorization.
+- Current runtime: `PositionBasedDynamicsBackend` using pyPBD 2.2.2 is the only runtime backend; `tests/test_backend_authority.py` asserts that `XPBDBackend` is absent and PositionBasedDynamics is the production implementation.
+- The `DrapeTarget` / `CollisionSurface` boundary remains authoritative.
 
-## Current open diagnostic/research lanes
-- #2577 — independent human challenge of a proposed Tissu substep production remedy.
-- #2576 — bounded Tissu substep probe (16/20/32).
-- #2575 — avatar collision coarsening/coverage audit.
-- #2571 — diagnosis of the remaining canonical tunic Tissu collapse.
-- #2554 — backend-parity audit for Tissu/XPBD stitch replacement semantics.
-- #2545 — recorded TissuBackend set_stitches semantic divergence.
+## Historical Tissu diagnostic lanes
+The following open issues were created against the former Tissu runtime and were last updated on 2026-10-03 without assignees, comments, or linked implementation PRs:
+- #2577 — human challenge of a Tissu substep remedy.
+- #2576 — Tissu substep probe (16/20/32).
+- #2575 — avatar collision coarsening/coverage audit for the Tissu failure hypothesis.
+- #2571 — canonical Tissu tunic-collapse diagnosis.
+- #2554 — Tissu/XPBD stitch replacement-semantics parity.
+- #2545 — TissuBackend stitch-accumulation finding.
 
-These lanes are intentionally narrow. Inspect only the lane relevant to the current task.
-
-## Completed / historical diagnostic lanes
-- #2537 — cube complexity ladder; completed.
-- #2482 — avatar complexity ladder; completed.
-- #2535 — tunic initial/first-step collision diagnostic; completed.
-- #2540 — canonical tunic stitch handoff diagnostic; completed.
-- #1017 — completed release project criterion; historical release context only.
+These are historical evidence, not active tasks against current main. Do not dispatch or resume them as-is. Re-open the question only through a new, narrowly scoped issue with an exact current-main SHA and a falsifiable hypothesis if current PositionBasedDynamics behavior demonstrates the same concern. The parent ledger #2492 should be reconciled to this runtime boundary.
 
 ## Current-state warning
-The repository contains historical release-closeout documents and evidence. They describe what was validated at a particular point in time and are not a substitute for current-main state. The current PositionBasedDynamics runtime is authoritative. Historical Tissu diagnostic lanes and older release-closeout screenshots are context only; do not infer current simulation behavior from them.
+Historical release-closeout documents, closed issues, old branches, and old workflow runs are evidence for their recorded source revisions only. The current PositionBasedDynamics runtime and exact-head canonical runs are authoritative. Do not infer current simulation behavior from Tissu-specific diagnostics or older screenshots.
 
-
-Current task: migrating the production simulation runtime from Tissu to PositionBasedDynamics (pyPBD 2.2.2). The DrapeTarget/CollisionSurface boundary remains authoritative.
+## Current focus
+Keep the production simulation boundary backend-neutral, preserve existing acceptance thresholds and workflow topology, and require exact-head canonical validation plus rendered evidence for simulation changes. The open material-control audit (#2602) also needs to be assessed against the current PBD runtime; do not invent physical-to-solver numeric mappings without documented semantics.
