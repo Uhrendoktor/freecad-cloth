@@ -30,6 +30,14 @@ The Pattern and Sewing screenshots are captured from the same native Sketcher pi
 
 Use the generated artifacts only as evidence: the tunic is not a substitute for the simpler blanket when debugging a local installation.
 
+## Recommended guided journey: one tunic
+
+For a first garment, use the tunic as the narrative thread from editable pattern to sewn pieces, mannequin fitting, pose review, simulation, diagnostics, and export. Keep one saved FreeCAD document as the source of truth while following the [user guide](USER_GUIDE.md); each upstream edit should lead to the documented rebuild/recovery step before simulation.
+
+The README animations currently come from focused acceptance fixtures, not one continuous GUI recording over the same saved tunic document. `arrangement-anchor.gif` and `interactive-arrange.gif` use tunic panels and a mannequin; `seam-assignment.gif` isolates sewing interaction, and `pose-joint-rotation.gif` isolates the posing controls. Treat them as feature demonstrations, not evidence that one FCStd session flowed between those exact screens. The integrated tunic audit validates the garment path; a single-document, start-to-finish interaction recording remains a worthwhile follow-up.
+
+The blanket stays a separate deliberately simple example: it is the best way to tell whether a core drape/target issue is independent of garment complexity.
+
 ## Visual regression policy
 
 Every public example must have at least one executable visual fixture. README images are derived from those fixtures rather than manually captured screenshots.
