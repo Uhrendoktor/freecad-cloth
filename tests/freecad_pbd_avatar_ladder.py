@@ -26,7 +26,6 @@ def _boot(message):
 import faulthandler
 import json
 import math
-import runpy
 import time
 
 _boot("script-start")
@@ -49,65 +48,29 @@ try:
 except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
-_boot("before-shared-helper-runpath")
-_shared = runpy.run_path(
-    str(Path(__file__).with_name("freecad_pbd_contact_diagnostics.py")),
-    run_name="freecad_pbd_contact_diagnostics",
+_boot("before-support-helper-import")
+from tests.support.pbd_contact_helpers import (
+    build_piece as _build_piece,
+    build_scene as _build_scene,
+    checkpoint_record as _checkpoint_record_common,
+    connected_components as _connected_components,
+    events as _events,
+    make_progress_logger,
+    make_shutdown_gui,
+    mesh_geometry as _mesh_geometry,
+    nearest_surface_distance as _nearest_surface_distance,
+    positions_tuple as _positions_tuple,
+    schedule_freecad_main,
+    seam_geometry as _seam_geometry,
+    screenshot as _screenshot,
+    target_signature as _target_signature,
 )
-_boot("after-shared-helper-runpath")
-_build_piece = _shared["_build_piece"]
-_build_scene = _shared["_build_scene"]
-_connected_components = _shared["_connected_components"]
-_events = _shared["_events"]
-_mesh_geometry = _shared["_mesh_geometry"]
-_nearest_surface_distance = _shared["_nearest_surface_distance"]
-_progress = _shared["_progress"]
-_screenshot = _shared["_screenshot"]
-_shutdown_gui = _shared["_shutdown_gui"]
-_target_signature = _shared["_target_signature"]
 
+_progress = make_progress_logger(OUT / "progress.log")
+_shutdown_gui = make_shutdown_gui(_progress)
+_boot("after-support-helper-import")
 
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
-
-
-def _vector_tuple(value):
-    return [round(float(value.x), 6), round(float(value.y), 6), round(float(value.z), 6)]
-
-
-def _positions_tuple(backend):
-    return tuple(tuple(float(c) for c in point) for point in backend.positions())
-
-
-def _seam_geometry(backend, seam_stitch_pairs):
-    positions = _positions_tuple(backend)
-    result = []
-    for seam_id, pairs in sorted(seam_stitch_pairs.items()):
-        measurements = []
-        for left, right in pairs:
-            a = positions[int(left)]
-            b = positions[int(right)]
-            distance = math.dist(a, b)
-            measurements.append(
-                {
-                    "particle_a": int(left),
-                    "particle_b": int(right),
-                    "a_world_mm": [round(value, 6) for value in a],
-                    "b_world_mm": [round(value, 6) for value in b],
-                    "distance_mm": round(distance, 6),
-                }
-            )
-        distances = [item["distance_mm"] for item in measurements]
-        result.append(
-            {
-                "seam_id": str(seam_id),
-                "pair_count": len(measurements),
-                "min_span_mm": round(min(distances), 6) if distances else 0.0,
-                "max_span_mm": round(max(distances), 6) if distances else 0.0,
-                "mean_span_mm": round(sum(distances) / len(distances), 6) if distances else 0.0,
-                "pairs": measurements,
-            }
-        )
-    return result
 
 
 def _surface_signed_clearance(points, source_shape, collision_surface, proximity_mesh=None):
@@ -175,30 +138,21 @@ def _avatar_screenshot(view, path):
 def _checkpoint_record(
     step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh
 ):
-    finite = all(math.isfinite(float(c)) for point in positions for c in point)
+    """Add avatar-specific clearance observations to the shared checkpoint record."""
     signed_clearance, unsigned_clearance = _surface_signed_clearance(
-        positions,
-        source_shape,
-        collision_surface,
-        proximity_mesh,
+        positions, source_shape, collision_surface, proximity_mesh
     )
-    seam_geometry = _seam_geometry(base.backend, base.seam_stitch_pairs)
-    return {
-        "step": int(step),
-        "image": image,
-        "finite": bool(finite),
-        "components": _connected_components(positions, panel_triangles),
-        "max_seam_gap_mm": round(
-            max((entry["max_span_mm"] for entry in seam_geometry), default=0.0), 6
-        ),
-        "target_clearance_mm": signed_clearance,
-        "target_unsigned_clearance_mm": unsigned_clearance,
-        "penetration_mm": (
-            round(max(0.0, -float(signed_clearance)), 6) if signed_clearance is not None else None
-        ),
-        "contact_state": "diagnostic-only-avatar",
-        "seam_world_spans_mm": seam_geometry,
-    }
+    return _checkpoint_record_common(
+        step,
+        image,
+        positions,
+        panel_triangles,
+        signed_clearance,
+        unsigned_clearance,
+        base,
+        _connected_components,
+        "diagnostic-only-avatar",
+    )
 
 
 def _build_avatar_scene(doc):
@@ -703,13 +657,10 @@ _freecad_gui_hosted = bool(getattr(App, "GuiUp", False))
 
 
 def _schedule_freecad_main():
-    try:
-        from PySide import QtCore
-    except ImportError:
-        from PySide2 import QtCore
+    """Schedule the ladder outside FreeCAD's delayed-startup import callback."""
     _boot("freecad-hosted-entrypoint")
     _boot("entrypoint:schedule-main")
-    QtCore.QTimer.singleShot(0, _run_and_shutdown)
+    schedule_freecad_main(_run_and_shutdown)
 
 
 if __name__ == "__main__":

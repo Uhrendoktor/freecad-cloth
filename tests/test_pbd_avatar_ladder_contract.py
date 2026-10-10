@@ -33,7 +33,7 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen():
     assert '"seam_world_spans_mm"' in SOURCE
     assert '"placement_offsets_mm"' in SOURCE
     assert "first_failing_rung" in SOURCE
-    assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in SOURCE
+    assert "schedule_freecad_main(_run_and_shutdown)" in SOURCE
     assert "test-script: tests/freecad_pbd_avatar_ladder.py" in WORKFLOW
     assert "artifact" in WORKFLOW.lower()
     assert "avatar-ladder-2482" in WORKFLOW
