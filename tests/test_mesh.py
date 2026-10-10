@@ -1,5 +1,7 @@
 import sys
 from math import dist
+
+from hypothesis import given, strategies as st
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -103,6 +105,27 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments():
     assert _point_to_segment_distance((3.0, 0.0), (0.0, 0.0), (2.0, 0.0)) == 1.0
     assert _point_to_segment_distance((3.0, 4.0), (0.0, 0.0), (0.0, 0.0)) == 5.0
     assert _point_to_segment_distance((1.0, 1.0), (2.0, 0.0), (0.0, 0.0)) == 1.0
+
+
+@given(
+    px=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+    py=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+    sx=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+    sy=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+    ex=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+    ey=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
+)
+def test_point_to_segment_distance_obeys_metric_properties(
+    px: float, py: float, sx: float, sy: float, ex: float, ey: float
+) -> None:
+    """GEOS-backed distance is non-negative, endpoint-bounded, and orientation-invariant."""
+    point, start, end = (px, py), (sx, sy), (ex, ey)
+    distance = _point_to_segment_distance(point, start, end)
+    reversed_distance = _point_to_segment_distance(point, end, start)
+    endpoint_bound = min(dist(point, start), dist(point, end))
+    assert distance >= 0.0
+    assert distance <= endpoint_bound + 1e-8
+    assert abs(distance - reversed_distance) <= 1e-8
 
 
 def test_seam_generates_stitches():
