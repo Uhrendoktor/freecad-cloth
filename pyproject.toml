@@ -12,6 +12,7 @@ license = {text = "LGPL-2.1-or-later"}
 dependencies = [
   "pydantic>=2.11,<3",
   "triangle==20250106",
+  "numpy>=1.26,<3",
   "scipy>=1.14,<2",
   "shapely>=2,<3",
 ]
