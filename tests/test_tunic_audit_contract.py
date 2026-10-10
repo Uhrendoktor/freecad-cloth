@@ -318,7 +318,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "midpoint = App.Vector(x_offset + 0.17 * panel_width, armhole_mid_z, 0)" in debug
     assert "(x_offset + 0.06 * panel_width, 0.86 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.86 * garment_height)" in debug
-    assert 'if not (armhole_z < shoulder_z < neck_z)' in debug
+    assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
