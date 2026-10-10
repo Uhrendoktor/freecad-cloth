@@ -15,6 +15,13 @@ CASES = {
     "fitting": Path("artifacts/interactive-arrange.png"),
 }
 
+REQUIRED_GIFS = {
+    "fitting": (
+        Path("artifacts/ui-gifs/arrangement-anchor.gif"),
+        Path("artifacts/ui-gifs/interactive-arrange.gif"),
+    ),
+}
+
 
 def main() -> int:
     """Validate a captured GUI artifact without trusting the producer log."""
@@ -36,6 +43,11 @@ def main() -> int:
         min_distinct_rgb=16,
         min_opaque_pixels=500,
     )
+    for gif in REQUIRED_GIFS.get(args.case, ()):
+        if not gif.is_file() or not gif.stat().st_size:
+            raise SystemExit(f"missing acceptance GIF: {gif}")
+        print(f"{args.case}-gif=validated path={gif} bytes={gif.stat().st_size}")
+
     print(
         f"{args.case}-screenshot=validated "
         f"opaque_pixels={metrics['opaque_pixels']} "

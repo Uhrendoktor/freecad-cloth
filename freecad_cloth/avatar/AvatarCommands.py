@@ -68,8 +68,7 @@ def _parameters(obj):
         "right_elbow_angle": float(preset_defaults.right_elbow_angle),
     }
     angles = {
-        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name]))
-        for name in fallback
+        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name])) for name in fallback
     }
 
     # Migrate the stored schema once at the document boundary. New pose code uses
@@ -139,9 +138,7 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
         return vertices, triangles, landmarks, provider_id, source, "CC0"
     if provider_id == "freecad-geometry":
         source_obj = (
-            getattr(obj, "ProviderSource", None)
-            if provider_source is _MISSING
-            else provider_source
+            getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
         )
         if source_obj is None or source_obj is obj:
             raise ValueError("select a FreeCAD body as the avatar provider source")
@@ -333,6 +330,19 @@ def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISS
     target = obj.Document.getObject("DrapeTarget")
     if target is None:
         _ensure_drape_target(obj)
+
+    # Avatar pose edits regenerate the mesh in-place. Refresh fitting anchors
+    # after the final mesh exists so their saved triangle/barycentric reference
+    # follows the deformed surface instead of being invalidated by AvatarRevision.
+    try:
+        from freecad_cloth.avatar.FittingCommands import _refresh_anchor_positions, _scene
+
+        fitting_scene = _scene(obj.Document)
+        if fitting_scene is not None and getattr(fitting_scene, "AvatarProxy", None) == obj:
+            _refresh_anchor_positions(fitting_scene, update_visuals=True)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        # Avatar creation/rebuild must remain independent of the optional fitting scene.
+        pass
     return obj
 
 
@@ -346,7 +356,6 @@ def rebuild_avatar():
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
     return apply_avatar_parameters(obj, _parameters(obj))
-
 
 
 def edit_avatar():
@@ -482,7 +491,6 @@ def set_avatar_skin_offset(offset):
         current.pose,
     )
     return apply_avatar_parameters(obj, candidate)
-
 
 
 def avatar_measurement(name):

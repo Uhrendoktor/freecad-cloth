@@ -1,5 +1,8 @@
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
+import hashlib
+import json
+
 
 def _scene(doc):
     return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
@@ -9,6 +12,377 @@ def _safe_name(value):
     return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
 
 
+def _ensure_anchor_property(scene):
+    """Add anchor persistence to fitting scenes created by older workbench versions."""
+    if hasattr(scene, "ArrangementAnchorData"):
+        return
+    add_property = getattr(scene, "addProperty", None)
+    if callable(add_property):
+        add_property("App::PropertyStringList", "ArrangementAnchorData", "Arrangement")
+        scene.ArrangementAnchorData = []
+
+
+def _anchor_records(scene):
+    """Read the compact persistent anchor metadata keyed by arrangement-point name."""
+    _ensure_anchor_property(scene)
+    result = {}
+    for value in tuple(getattr(scene, "ArrangementAnchorData", ()) or ()):
+        try:
+            record = json.loads(str(value))
+            name = str(record.get("name", ""))
+            if name:
+                result[name] = record
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return result
+
+
+def _store_anchor_records(scene, records):
+    """Persist a stable, sorted representation of surface-anchor references."""
+    _ensure_anchor_property(scene)
+    scene.ArrangementAnchorData = [
+        json.dumps(records[name], sort_keys=True, separators=(",", ":")) for name in sorted(records)
+    ]
+
+
+def _point_xyz(point):
+    """Normalize a tuple or FreeCAD vector to a numeric XYZ triple."""
+    try:
+        return tuple(float(value) for value in point[:3])
+    except (TypeError, ValueError, IndexError):
+        return (float(point.x), float(point.y), float(point.z))
+
+
+def _geometry_round(value, digits=5):
+    """Round geometry values and canonicalize negative zero for stable signatures."""
+    rounded = round(float(value), digits)
+    return 0.0 if rounded == 0.0 else rounded
+
+
+def _mesh_topology(target):
+    """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
+    mesh = getattr(target, "Mesh", None)
+    topology = getattr(mesh, "Topology", None) if mesh is not None else None
+    if topology is None:
+        return None
+    try:
+        vertices, triangles = topology
+        points = tuple(_point_xyz(point) for point in vertices)
+        faces = tuple(tuple(int(index) for index in face) for face in triangles)
+        if (
+            not points
+            or not faces
+            or any(len(face) != 3 or min(face) < 0 or max(face) >= len(points) for face in faces)
+        ):
+            raise ValueError("mesh topology must contain valid triangles")
+        return points, faces
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("the selected target has unusable mesh topology") from exc
+
+
+def _target_signature(target):
+    """Sign local geometry/topology, deliberately excluding object Placement and mesh vertices.
+
+    Mesh anchors use stable triangle connectivity plus barycentric coordinates. This lets a
+    generated avatar deform its vertices during skeleton posing without invalidating the
+    anchor, while still detecting a topology rebuild. Non-mesh anchors follow object
+    Placement and become stale if the underlying shape geometry itself changes.
+    """
+    mesh_topology = _mesh_topology(target)
+    if mesh_topology is not None:
+        vertices, triangles = mesh_topology
+        payload = json.dumps(
+            {"vertex_count": len(vertices), "triangles": triangles},
+            separators=(",", ":"),
+        ).encode("ascii")
+        return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
+
+    shape = getattr(target, "Shape", None)
+    if shape is None:
+        raise ValueError("the selected target does not expose supported geometry")
+    # In FreeCAD, a Shape's returned geometry can include the owning object's
+    # Placement. Normalize a copy into object-local coordinates before signing it.
+    # A BRep serialization hash is not stable across an inverse rigid transform,
+    # so use rounded local vertex positions and intrinsic edge/face measures.
+    try:
+        normalized_shape = shape.copy()
+        placement = getattr(target, "Placement", None)
+        if placement is not None:
+            normalized_shape.transformShape(placement.inverse().toMatrix())
+        if bool(normalized_shape.isNull()):
+            raise ValueError("the selected target shape is null")
+
+        vertices = tuple(
+            sorted(
+                tuple(_geometry_round(value) for value in _point_xyz(vertex.Point))
+                for vertex in tuple(normalized_shape.Vertexes)
+            )
+        )
+        edges = tuple(
+            sorted(
+                (
+                    _geometry_round(edge.Length),
+                    tuple(_geometry_round(value) for value in _point_xyz(edge.CenterOfMass)),
+                )
+                for edge in tuple(normalized_shape.Edges)
+            )
+        )
+        faces = tuple(
+            sorted(
+                (
+                    str(type(face.Surface).__name__),
+                    _geometry_round(face.Area),
+                    tuple(_geometry_round(value) for value in _point_xyz(face.CenterOfMass)),
+                    len(tuple(face.Edges)),
+                )
+                for face in tuple(normalized_shape.Faces)
+            )
+        )
+        box = normalized_shape.BoundBox
+        signature = (
+            "ShapeLocal",
+            int(len(tuple(normalized_shape.Solids))),
+            len(vertices),
+            vertices,
+            edges,
+            faces,
+            _geometry_round(box.XMin),
+            _geometry_round(box.XMax),
+            _geometry_round(box.YMin),
+            _geometry_round(box.YMax),
+            _geometry_round(box.ZMin),
+            _geometry_round(box.ZMax),
+        )
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        raise ValueError("could not normalize the selected target shape") from exc
+    if not vertices and not edges and not faces:
+        raise ValueError("the selected target does not expose supported geometry")
+    return repr(("shape-geometry", signature))
+
+
+def _closest_triangle_weights(point, a, b, c):
+    """Return barycentric coordinates of the closest point on triangle ABC."""
+
+    def subtract(left, right):
+        return tuple(left[i] - right[i] for i in range(3))
+
+    def dot(left, right):
+        return sum(left[i] * right[i] for i in range(3))
+
+    ab = subtract(b, a)
+    ac = subtract(c, a)
+    ap = subtract(point, a)
+    d1, d2 = dot(ab, ap), dot(ac, ap)
+    if d1 <= 0.0 and d2 <= 0.0:
+        return (1.0, 0.0, 0.0)
+
+    bp = subtract(point, b)
+    d3, d4 = dot(ab, bp), dot(ac, bp)
+    if d3 >= 0.0 and d4 <= d3:
+        return (0.0, 1.0, 0.0)
+
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+        denom = d1 - d3
+        v = d1 / denom if abs(denom) > 1e-15 else 0.0
+        return (1.0 - v, v, 0.0)
+
+    cp = subtract(point, c)
+    d5, d6 = dot(ab, cp), dot(ac, cp)
+    if d6 >= 0.0 and d5 <= d6:
+        return (0.0, 0.0, 1.0)
+
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+        denom = d2 - d6
+        w = d2 / denom if abs(denom) > 1e-15 else 0.0
+        return (1.0 - w, 0.0, w)
+
+    va = d3 * d6 - d5 * d4
+    if va <= 0.0 and d4 - d3 >= 0.0 and d5 - d6 >= 0.0:
+        denom = (d4 - d3) + (d5 - d6)
+        w = (d4 - d3) / denom if abs(denom) > 1e-15 else 0.0
+        return (0.0, 1.0 - w, w)
+
+    denom = va + vb + vc
+    if abs(denom) <= 1e-15:
+        return (1.0, 0.0, 0.0)
+    inv = 1.0 / denom
+    v, w = vb * inv, vc * inv
+    return (1.0 - v - w, v, w)
+
+
+def _weighted_triangle_point(vertices, triangle, weights):
+    """Interpolate the current mesh position associated with saved triangle weights."""
+    return tuple(
+        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3)) for axis in range(3)
+    )
+
+
+def _mesh_anchor_local_position(target, anchor):
+    """Resolve a mesh anchor against current vertices, preserving its material location."""
+    topology = _mesh_topology(target)
+    if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
+        return tuple(float(value) for value in anchor.get("local_point", (0.0, 0.0, 0.0)))
+    vertices, triangles = topology
+    triangle_index = int(anchor["triangle_index"])
+    if triangle_index < 0 or triangle_index >= len(triangles):
+        raise ValueError("anchored mesh triangle no longer exists")
+    weights = tuple(float(value) for value in anchor["barycentric"])
+    if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
+        raise ValueError("stored mesh-anchor barycentric coordinates are invalid")
+    return _weighted_triangle_point(vertices, triangles[triangle_index], weights)
+
+
+def _mesh_anchor_coordinates(target, local_point):
+    """Find the closest mesh triangle and retain its barycentric hit coordinate."""
+    topology = _mesh_topology(target)
+    if topology is None:
+        return None
+    vertices, triangles = topology
+    best = None
+    best_distance = float("inf")
+    for triangle_index, triangle in enumerate(triangles):
+        a, b, c = (vertices[index] for index in triangle)
+        weights = _closest_triangle_weights(local_point, a, b, c)
+        projected = _weighted_triangle_point(vertices, triangle, weights)
+        distance = sum((projected[axis] - local_point[axis]) ** 2 for axis in range(3))
+        if distance < best_distance:
+            best_distance = distance
+            best = (triangle_index, weights, projected)
+    if best is None:
+        raise ValueError("the selected mesh contains no usable surface triangles")
+    return best
+
+
+def _anchor_record_status(scene, target, anchor, document=None):
+    if target is None:
+        return "missing target"
+    if document is None:
+        document = getattr(scene, "Document", None) if scene is not None else None
+    if document is not None:
+        drape_target = document.getObject("DrapeTarget")
+        configured_target = getattr(scene, "AvatarProxy", None)
+        if configured_target is None:
+            configured_target = getattr(drape_target, "SourceObject", None)
+        if configured_target is None:
+            return "unconfigured target"
+        if str(getattr(configured_target, "Name", "")) != str(getattr(target, "Name", "")):
+            return "wrong target"
+    try:
+        return (
+            "valid"
+            if _target_signature(target) == str(anchor.get("geometry_signature", ""))
+            else "stale"
+        )
+    except (AttributeError, TypeError, ValueError, RuntimeError):
+        return "invalid"
+
+
+def _anchor_world_position(target, anchor):
+    """Resolve a persistent local/mesh anchor into the document's world coordinates."""
+    import FreeCAD as App
+
+    local = _mesh_anchor_local_position(target, anchor)
+    placement = getattr(target, "Placement", None)
+    if placement is not None:
+        world = placement.multVec(App.Vector(*local))
+        return float(world.x), float(world.y), float(world.z)
+    return tuple(float(value) for value in local)
+
+
+def _refresh_anchor_positions(scene, update_visuals=False):
+    """Follow valid anchors after a target deforms or its object Placement changes."""
+    if scene is None or getattr(scene, "Document", None) is None:
+        return ()
+    import FreeCAD as App
+
+    doc = scene.Document
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    anchors = _anchor_records(scene)
+    values = {
+        point.name: point
+        for point in (
+            ArrangementPoint.from_string(value)
+            for value in tuple(getattr(scene, "ArrangementPoints", ()) or ())
+        )
+    }
+    changed = []
+    for name, anchor in anchors.items():
+        point = values.get(name)
+        if point is None:
+            continue
+        target = doc.getObject(str(anchor.get("target", "")))
+        if _anchor_record_status(scene, target, anchor) != "valid":
+            continue
+        try:
+            x, y, z = _anchor_world_position(target, anchor)
+        except (AttributeError, IndexError, TypeError, ValueError, RuntimeError):
+            continue
+        if max(abs(point.x - x), abs(point.y - y), abs(point.offset - z)) <= 1e-6:
+            continue
+        updated = ArrangementPoint(
+            point.name, x, y, z, point.wrap_direction, point.rotation_z, point.symmetry_group
+        )
+        values[name] = updated
+        changed.append((name, updated))
+    if not changed:
+        return ()
+
+    scene.ArrangementPoints = [values[key].to_string() for key in sorted(values)]
+    if update_visuals:
+        import Part
+
+        objects = {
+            str(getattr(obj, "PointName", "")): obj
+            for obj in (
+                doc.getObject(str(name))
+                for name in tuple(getattr(scene, "ArrangementPointObjects", ()) or ())
+            )
+            if obj is not None
+        }
+        for name, point in changed:
+            obj = objects.get(name)
+            if obj is None:
+                continue
+            obj.X, obj.Y, obj.Offset, obj.RotationZ = (
+                point.x,
+                point.y,
+                point.offset,
+                point.rotation_z,
+            )
+            center = App.Vector(point.x, point.y, point.offset)
+            obj.Shape = Part.makeCompound(
+                [
+                    Part.makeSphere(0.8, center),
+                    Part.makeCircle(7.0, center, App.Vector(0.0, 0.0, 1.0)),
+                    Part.makeLine(
+                        center - App.Vector(10.0, 0.0, 0.0),
+                        center + App.Vector(10.0, 0.0, 0.0),
+                    ),
+                    Part.makeLine(
+                        center - App.Vector(0.0, 10.0, 0.0),
+                        center + App.Vector(0.0, 10.0, 0.0),
+                    ),
+                ]
+            )
+    return tuple(name for name, _point in changed)
+
+
+def arrangement_anchor_status(point):
+    """Report whether a snap point's persisted surface reference is still current."""
+    expected = str(getattr(point, "AnchorGeometrySignature", "") or "")
+    if not expected:
+        return "unanchored"
+    target = getattr(point, "AnchorTarget", None)
+    if target is None:
+        return "missing target"
+    document = getattr(point, "Document", None)
+    scene = _scene(document) if document is not None else None
+    return _anchor_record_status(scene, target, {"geometry_signature": expected}, document=document)
+
+
 def _sync_visuals(scene):
     """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
     import FreeCAD as App
@@ -16,6 +390,9 @@ def _sync_visuals(scene):
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BoundingVolume
 
+    _ensure_anchor_property(scene)
+    _refresh_anchor_positions(scene)
+    anchor_records = _anchor_records(scene)
     points = tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)
     volumes = tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes)
     point_objects = []
@@ -42,7 +419,41 @@ def _sync_visuals(scene):
             obj.addProperty("App::PropertyDistance", "Y", "Arrangement")
             obj.addProperty("App::PropertyDistance", "Offset", "Arrangement")
             obj.addProperty("App::PropertyAngle", "RotationZ", "Arrangement")
+        if not hasattr(obj, "AnchorTarget"):
+            obj.addProperty("App::PropertyLinkGlobal", "AnchorTarget", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorSubelement", "Surface Anchor")
+            obj.addProperty("App::PropertyVector", "AnchorLocalPoint", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorGeometrySignature", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorStatus", "Surface Anchor")
         obj.X, obj.Y, obj.Offset, obj.RotationZ = point.x, point.y, point.offset, point.rotation_z
+        anchor = anchor_records.get(point.name)
+        if anchor:
+            obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
+            obj.AnchorSubelement = str(anchor.get("subelement", ""))
+            obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
+            local_point = tuple(anchor.get("local_point", (0.0, 0.0, 0.0)))
+            obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
+            obj.AnchorStatus = arrangement_anchor_status(obj)
+        else:
+            obj.AnchorTarget = None
+            obj.AnchorSubelement = ""
+            obj.AnchorGeometrySignature = ""
+            obj.AnchorLocalPoint = App.Vector(0.0, 0.0, 0.0)
+            obj.AnchorStatus = "unanchored"
+        if obj.AnchorStatus in {
+            "stale",
+            "missing target",
+            "invalid",
+            "wrong target",
+            "unconfigured target",
+        }:
+            obj.Label = "Stale anchor: " + point.name
+            obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
+            obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
+        else:
+            obj.Label = "Snap target: " + point.name
+            obj.ViewObject.ShapeColor = (0.15, 0.75, 1.0)
+            obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
         center = App.Vector(point.x, point.y, point.offset)
         obj.Shape = Part.makeCompound(
             [
@@ -58,8 +469,6 @@ def _sync_visuals(scene):
                 ),
             ]
         )
-        obj.ViewObject.ShapeColor = (0.15, 0.75, 1.0)
-        obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
         obj.ViewObject.LineWidth = 2.0
         point_objects.append(obj)
     for volume in volumes:
@@ -145,6 +554,9 @@ def create_fitting_scene():
     obj.addProperty(
         "App::PropertyStringList", "ArrangementPoints", "Arrangement"
     ).ArrangementPoints = []
+    obj.addProperty(
+        "App::PropertyStringList", "ArrangementAnchorData", "Arrangement"
+    ).ArrangementAnchorData = []
     obj.addProperty(
         "App::PropertyStringList", "BoundingVolumes", "Arrangement"
     ).BoundingVolumes = []
@@ -303,12 +715,16 @@ def create_arrangement_point(
     point.validate()
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     values[point.name] = point
+    anchors = _anchor_records(scene)
+    anchors.pop(point.name, None)
     if mirror:
         if not symmetry_group.strip():
             raise ValueError("mirror arrangement points require a symmetry group")
         mirrored = point.mirrored()
         values[mirrored.name] = mirrored
+        anchors.pop(mirrored.name, None)
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    _store_anchor_records(scene, anchors)
     scene.SymmetryEnabled = bool(scene.SymmetryEnabled)
     _sync_visuals(scene)
     return point
@@ -341,6 +757,9 @@ def set_arrangement_point(
     point.validate()
     values[name] = point
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    anchors = _anchor_records(scene)
+    anchors.pop(name, None)
+    _store_anchor_records(scene, anchors)
     _sync_visuals(scene)
     doc.recompute()
     return point
@@ -362,6 +781,9 @@ def delete_arrangement_point(name):
         raise ValueError(f"unknown arrangement point: {name}")
     del values[name]
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    anchors = _anchor_records(scene)
+    anchors.pop(name, None)
+    _store_anchor_records(scene, anchors)
     _sync_visuals(scene)
     return scene
 
@@ -521,6 +943,85 @@ def open_interactive_arrange(scene=None):
     return panel
 
 
+def create_arrangement_point_from_viewport():
+    """Open Interactive Arrange and arm the viewport surface-pick workflow."""
+    panel = open_interactive_arrange()
+    panel.start_anchor_pick()
+    return panel
+
+
+def create_arrangement_anchor(
+    name, target, world_point, subelement="Face", wrap_direction="front", rotation_z=0.0
+):
+    """Create a named snap point from a pick on persistent target geometry.
+
+    The anchor keeps a target-local location. Mesh surfaces use triangle indices and
+    barycentric weights so stable-topology deformations follow the same surface region;
+    non-mesh surfaces follow their object's Placement. Incompatible geometry is marked
+    stale instead of silently snapping to old world coordinates.
+    """
+    import FreeCAD as App
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise RuntimeError("open a document before creating a surface anchor")
+    scene = _scene(doc) or create_fitting_scene()
+    target_document = getattr(target, "Document", None) if target is not None else None
+    if target_document is None or getattr(target_document, "Name", "") != doc.Name:
+        raise ValueError("select a surface on geometry in the active document")
+    signature = _target_signature(target)
+    try:
+        coords = (float(world_point.x), float(world_point.y), float(world_point.z))
+    except AttributeError:
+        coords = tuple(float(value) for value in world_point[:3])
+    if len(coords) != 3:
+        raise ValueError("picked surface location must contain three coordinates")
+    world = App.Vector(*coords)
+    try:
+        local = target.Placement.inverse().multVec(world)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        local = world
+
+    local_coords = (float(local.x), float(local.y), float(local.z))
+    anchor = {
+        "name": str(name),
+        "target": str(target.Name),
+        "subelement": str(subelement),
+        "local_point": list(local_coords),
+        "geometry_signature": signature,
+    }
+    mesh_hit = _mesh_anchor_coordinates(target, local_coords)
+    if mesh_hit is not None:
+        triangle_index, barycentric, projected = mesh_hit
+        anchor["triangle_index"] = int(triangle_index)
+        anchor["barycentric"] = [float(value) for value in barycentric]
+        anchor["local_point"] = [float(value) for value in projected]
+        local = App.Vector(*projected)
+        try:
+            world = target.Placement.multVec(local)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            world = local
+        coords = (float(world.x), float(world.y), float(world.z))
+
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    point = ArrangementPoint(
+        str(name), coords[0], coords[1], coords[2], str(wrap_direction), float(rotation_z)
+    )
+    point.validate()
+    anchors = _anchor_records(scene)
+    anchors[point.name] = anchor
+    values = {
+        item.name: item
+        for item in (ArrangementPoint.from_string(value) for value in scene.ArrangementPoints)
+    }
+    values[point.name] = point
+    scene.ArrangementPoints = [values[key].to_string() for key in sorted(values)]
+    _store_anchor_records(scene, anchors)
+    _sync_visuals(scene)
+    doc.recompute()
+    return point
+
 
 class _FittingProxy:
     Type = "ClothFittingScene"
@@ -569,7 +1070,7 @@ _COMMAND_HANDLERS = {
     ),
     "ClothFitting_AssignAvatar": assign_avatar_source,
     "ClothFitting_AddPieces": add_selected_pattern_pieces,
-    "ClothFitting_CreateArrangementPoint": lambda: create_arrangement_point("Point1", 0, 0),
+    "ClothFitting_CreateArrangementPoint": create_arrangement_point_from_viewport,
     "ClothFitting_SetArrangementPoint": lambda: set_arrangement_point("Point1", x=0, y=0),
     "ClothFitting_DeleteArrangementPoint": lambda: delete_arrangement_point("Point1"),
     "ClothFitting_CreateBoundingVolume": lambda: create_bounding_volume("Volume1"),

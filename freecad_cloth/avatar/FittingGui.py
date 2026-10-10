@@ -112,10 +112,30 @@ class DirectArrangeController:
         document = getattr(self.scene, "Document", None)
         if document is None:
             return ()
+        from freecad_cloth.avatar.FittingCommands import (
+            _refresh_anchor_positions,
+            arrangement_anchor_status,
+        )
+
+        _refresh_anchor_positions(self.scene, update_visuals=True)
         for name in tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ()):
             obj = document.getObject(str(name))
-            if obj is not None and getattr(obj, "FittingType", "") == "ArrangementPoint":
-                result.append(obj)
+            if obj is None or getattr(obj, "FittingType", "") != "ArrangementPoint":
+                continue
+            status = arrangement_anchor_status(obj)
+            obj.AnchorStatus = status
+            if status in {
+                "stale",
+                "missing target",
+                "invalid",
+                "wrong target",
+                "unconfigured target",
+            }:
+                obj.Label = "Stale anchor: " + str(getattr(obj, "PointName", name))
+                obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
+                obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
+                continue
+            result.append(obj)
         return tuple(result)
 
     def _event_position(self, info):
@@ -427,6 +447,154 @@ class DirectArrangeController:
         )
 
 
+class ViewportAnchorPicker:
+    """Turn the next viewport face selection into a persistent snap anchor."""
+
+    def __init__(self, panel):
+        _App, self.Gui, _QtCore, _QtWidgets = _modules()
+        self.panel = panel
+        self.armed = False
+        self.Gui.Selection.addObserver(self)
+
+    def arm(self):
+        """Wait for the user to select a face on the configured target in the viewport."""
+        self.armed = True
+        self.panel.pick_surface_button.setEnabled(False)
+        self.panel.cancel_pick_button.setVisible(True)
+        self.panel.status.setText(
+            "Pick a face on the configured avatar/target in the 3D view. "
+            "The clicked location becomes a persistent snap anchor."
+        )
+
+    def cancel(self):
+        """Leave surface-pick mode without changing the document."""
+        self.armed = False
+        self.panel.pick_surface_button.setEnabled(True)
+        self.panel.cancel_pick_button.setVisible(False)
+        self.panel.status.setText("Surface pick cancelled; the document was not changed.")
+
+    def _finish(self):
+        self.armed = False
+        self.panel.pick_surface_button.setEnabled(True)
+        self.panel.cancel_pick_button.setVisible(False)
+
+    def _target_sources(self):
+        """Return the target currently authoritative for this fitting scene."""
+        scene = self.panel.scene
+        doc = getattr(scene, "Document", None)
+        candidate = getattr(scene, "AvatarProxy", None)
+        if candidate is None and doc is not None:
+            drape_target = doc.getObject("DrapeTarget")
+            candidate = getattr(drape_target, "SourceObject", None)
+        if candidate is None or not getattr(candidate, "Name", ""):
+            return {}
+        return {str(candidate.Name): candidate}
+
+    def _world_point(self, object_name, position):
+        """Normalize FreeCAD selection callback variants to a world-space Vector."""
+        candidates = ()
+        if len(position) == 3:
+            candidates = (position,)
+        elif len(position) == 1:
+            value = position[0]
+            if all(hasattr(value, name) for name in ("x", "y", "z")):
+                coordinates = tuple(getattr(value, name) for name in ("x", "y", "z"))
+                candidates = (coordinates,)
+            elif isinstance(value, str):
+                text = value.strip().strip("()[]")
+                candidates = (tuple(part.strip() for part in text.split(",")),)
+            else:
+                try:
+                    coordinates = tuple(value)
+                except TypeError:
+                    coordinates = ()
+                if len(coordinates) >= 3:
+                    candidates = (coordinates[:3],)
+        for coordinates in candidates:
+            try:
+                return self.panel.App.Vector(*(float(value) for value in coordinates))
+            except (TypeError, ValueError):
+                continue
+        for selection in self.Gui.Selection.getSelectionEx():
+            obj = getattr(selection, "Object", None)
+            if str(getattr(obj, "Name", "")) != str(object_name):
+                continue
+            points = tuple(getattr(selection, "PickedPoints", ()) or ())
+            if points:
+                picked = points[0]
+                try:
+                    return self.panel.App.Vector(float(picked.x), float(picked.y), float(picked.z))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+        return None
+
+    def addSelection(self, doc_name, object_name, subelement_name, *position):
+        """Consume FreeCAD's selected subelement across supported callback signatures."""
+        if not self.armed:
+            return
+        sources = self._target_sources()
+        target = sources.get(str(object_name))
+        if target is None:
+            self.panel.status.setText(
+                "That object is not the configured fitting target. Pick the avatar/target surface."
+            )
+            return
+        picked_sub_element = str(subelement_name or "")
+        if not picked_sub_element:
+            for selection in self.Gui.Selection.getSelectionEx():
+                obj = getattr(selection, "Object", None)
+                if str(getattr(obj, "Name", "")) != str(object_name):
+                    continue
+                names = tuple(getattr(selection, "SubElementNames", ()) or ())
+                if names:
+                    picked_sub_element = str(names[0])
+                    break
+        world_point = self._world_point(object_name, position)
+        # Mesh::Feature selections may provide a picked world coordinate without a
+        # TopoShape-style FaceN subelement name. Keep an explicit surface-kind label
+        # so mannequin meshes can use the same viewport workflow as BRep targets.
+        mesh = getattr(target, "Mesh", None)
+        if not picked_sub_element and mesh is not None:
+            picked_sub_element = "MeshSurface"
+        if world_point is None or not picked_sub_element:
+            self.panel.status.setText(
+                "Pick an actual face/triangle on the configured target, not empty viewport space."
+            )
+            return
+        name = str(self.panel.anchor_name.text()).strip()
+        if not name:
+            name = self.panel._next_anchor_name()
+        try:
+            from freecad_cloth.avatar.FittingCommands import create_arrangement_anchor
+
+            point = create_arrangement_anchor(
+                name,
+                target,
+                world_point,
+                subelement=picked_sub_element,
+                wrap_direction=str(self.panel.wrap_direction.currentText()),
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.panel.status.setText("Could not create surface anchor — {}.".format(exc))
+            return
+        self._finish()
+        self.Gui.Selection.clearSelection()
+        self.panel.anchor_name.setText(self.panel._next_anchor_name())
+        self.panel._refresh_context()
+        self.panel.status.setText(
+            "Created surface anchor '{}'. Drag a pattern piece to its marker; target changes "
+            "invalidate the anchor, and the anchor does not attach cloth to the surface.".format(
+                point.name
+            )
+        )
+
+    def dispose(self):
+        """Disarm picking and unregister the FreeCAD selection observer."""
+        self.armed = False
+        with contextlib.suppress(AttributeError, RuntimeError):
+            self.Gui.Selection.removeObserver(self)
+
+
 class FittingTaskPanel:
     """Task panel for direct garment placement around a persistent avatar target."""
 
@@ -476,6 +644,40 @@ class FittingTaskPanel:
         action_layout.addLayout(buttons)
         root.addWidget(actions)
 
+        anchors = QtWidgets.QGroupBox("Surface snap target")
+        anchor_layout = QtWidgets.QVBoxLayout(anchors)
+        name_row = QtWidgets.QHBoxLayout()
+        name_row.addWidget(QtWidgets.QLabel("Name"))
+        self.anchor_name = QtWidgets.QLineEdit()
+        self.anchor_name.setText(self._next_anchor_name())
+        self.anchor_name.setToolTip("Name stored with the picked snap target.")
+        name_row.addWidget(self.anchor_name)
+        anchor_layout.addLayout(name_row)
+        direction_row = QtWidgets.QHBoxLayout()
+        direction_row.addWidget(QtWidgets.QLabel("Wrap direction"))
+        self.wrap_direction = QtWidgets.QComboBox()
+        for direction in ("front", "back", "left", "right"):
+            self.wrap_direction.addItem(direction)
+        self.wrap_direction.setToolTip(
+            "Orientation applied when a pattern piece snaps to this anchor."
+        )
+        direction_row.addWidget(self.wrap_direction)
+        anchor_layout.addLayout(direction_row)
+        pick_buttons = QtWidgets.QHBoxLayout()
+        self.pick_surface_button = QtWidgets.QPushButton("Pick surface in viewport")
+        self.cancel_pick_button = QtWidgets.QPushButton("Cancel pick")
+        self.cancel_pick_button.setVisible(False)
+        pick_buttons.addWidget(self.pick_surface_button)
+        pick_buttons.addWidget(self.cancel_pick_button)
+        anchor_layout.addLayout(pick_buttons)
+        self.anchor_hint = QtWidgets.QLabel(
+            "Choose a name, start picking, then click a face on the configured avatar/target. "
+            "The point controls piece placement; it does not pin cloth to the surface."
+        )
+        self.anchor_hint.setWordWrap(True)
+        anchor_layout.addWidget(self.anchor_hint)
+        root.addWidget(anchors)
+
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         root.addWidget(self.status)
@@ -486,24 +688,60 @@ class FittingTaskPanel:
             status_callback=self.status.setText,
             snap_enabled=True,
         )
+        self.anchor_picker = ViewportAnchorPicker(self)
+        self.pick_surface_button.clicked.connect(self.start_anchor_pick)
+        self.cancel_pick_button.clicked.connect(self.anchor_picker.cancel)
         self.snap.toggled.connect(self.controller.set_snap_enabled)
         self.reset_button.clicked.connect(self.reset_arrangement)
         self.fit_button.clicked.connect(self._fit_view)
         self._refresh_context()
         self.controller.activate()
 
+    def _next_anchor_name(self):
+        """Return a predictable name not already used by a saved snap point."""
+        from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+        existing = {
+            point.name
+            for point in (
+                ArrangementPoint.from_string(value)
+                for value in tuple(getattr(self.scene, "ArrangementPoints", ()) or ())
+            )
+        }
+        index = 1
+        while "SurfaceAnchor{}".format(index) in existing:
+            index += 1
+        return "SurfaceAnchor{}".format(index)
+
+    def start_anchor_pick(self):
+        """Arm one viewport selection to create a surface-aware arrangement point."""
+        self.anchor_picker.arm()
+
     def _refresh_context(self):
+        from freecad_cloth.avatar.FittingCommands import arrangement_anchor_status
+
         pieces = tuple(getattr(self.scene, "PatternPieces", ()) or ())
-        points = tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ())
-        target = getattr(self.scene, "AvatarProxy", None) or getattr(
-            self.scene, "DrapeTarget", None
+        names = tuple(getattr(self.scene, "ArrangementPointObjects", ()) or ())
+        doc = getattr(self.scene, "Document", None)
+        point_objects = (
+            tuple(obj for obj in (doc.getObject(str(name)) for name in names) if obj is not None)
+            if doc is not None
+            else ()
         )
+        target = getattr(self.scene, "AvatarProxy", None)
+        if target is None and doc is not None:
+            drape_target = doc.getObject("DrapeTarget")
+            target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
+        stale = sum(
+            arrangement_anchor_status(point)
+            in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}
+            for point in point_objects
+        )
+        suffix = " | {} stale anchor(s) excluded".format(stale) if stale else ""
         self.context.setText(
-            "{} piece(s) | {} snap point(s) | Target: {}".format(
-                len(pieces),
-                len(points),
-                target_name,
+            "{} piece(s) | {} snap point(s) | Target: {}{}".format(
+                len(pieces), len(point_objects), target_name, suffix
             )
         )
 
@@ -527,11 +765,13 @@ class FittingTaskPanel:
 
     def accept(self):
         """Commit the current interaction and close the task panel."""
+        self.anchor_picker.dispose()
         self.controller.deactivate()
         return True
 
     def reject(self):
         """Cancel an active drag and close the task panel."""
+        self.anchor_picker.dispose()
         self.controller.deactivate()
         return True
 
