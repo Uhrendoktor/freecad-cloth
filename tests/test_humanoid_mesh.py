@@ -65,7 +65,7 @@ class HumanoidMeshTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "malformed.obj"
             path.write_text(
-                "v 0 0 0\\nv 1 0 0\\nv nan 1 0\\n",
+                "v 0 0 0\nv 1 0 0\nv nan 1 0\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(HumanoidMeshError, "finite"):
