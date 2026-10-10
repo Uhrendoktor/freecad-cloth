@@ -37,7 +37,7 @@ These checks complement the architecture contracts rather than replacing them. D
 
 Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
 
-CI runs the full repository Ruff check and formatter check. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+CI uses Ruff as the blocking lint/format gate. Rule `ANN401` prohibits explicit `typing.Any` annotations across the repository, including code outside the strict Pyright profile. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
 
 ## Documentation contract
 
