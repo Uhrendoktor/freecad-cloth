@@ -1264,6 +1264,107 @@ def simulation():
 
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)
+
+    def log_tunic_outline_topology(piece):
+        """Report the ordered native boundary around any polygon self-intersection."""
+        try:
+            import ast
+            import re
+
+            from shapely.geometry import LineString, Point, Polygon
+            from shapely.validation import explain_validity
+
+            from freecad_cloth.pattern.SketchAuthority import (
+                _resolve_sketch_ir,
+                _sampled_outline,
+            )
+
+            piece_ir = _resolve_sketch_ir(piece)
+            points = _sampled_outline(piece_ir)
+            polygon = Polygon(points)
+            reason = explain_validity(polygon)
+            draft_points = [
+                (float(point[0]), float(point[1]))
+                for point in ast.literal_eval(str(piece.DraftingBoundary))
+            ]
+            draft_polygon = Polygon(draft_points)
+            draft_reason = explain_validity(draft_polygon)
+
+            ranges = []
+            cursor = 0
+            boundary_summary = []
+            for boundary in piece_ir.boundaries:
+                count = len(boundary.samples) - 1
+                ranges.append(
+                    (cursor, cursor + count, str(boundary.id), str(boundary.kind))
+                )
+                cursor += count
+                boundary_summary.append(
+                    (
+                        str(boundary.id),
+                        str(boundary.kind),
+                        len(boundary.samples),
+                        tuple(round(float(v), 3) for v in boundary.samples[0][:2]),
+                        tuple(round(float(v), 3) for v in boundary.samples[-1][:2]),
+                    )
+                )
+
+            def edge_id(index):
+                for start, end, identity, _kind in ranges:
+                    if start <= index < end:
+                        return identity
+                return "<unknown>"
+
+            crossing_match = re.search(
+                r"\\[([+-]?[0-9.eE+-]+)\\s+([+-]?[0-9.eE+-]+)\\]",
+                reason,
+            )
+            nearby = ()
+            if crossing_match:
+                crossing = Point(
+                    float(crossing_match.group(1)),
+                    float(crossing_match.group(2)),
+                )
+                distances = []
+                for index, start in enumerate(points):
+                    end = points[(index + 1) % len(points)]
+                    distance = LineString((start, end)).distance(crossing)
+                    distances.append(
+                        (
+                            round(float(distance), 6),
+                            index,
+                            edge_id(index),
+                            tuple(round(float(v), 3) for v in start),
+                            tuple(round(float(v), 3) for v in end),
+                        )
+                    )
+                nearby = tuple(sorted(distances)[:8])
+
+            log(
+                "tunic-outline-topology piece=%s ir-valid=%s ir-reason=%s "
+                "draft-valid=%s draft-reason=%s ir-points=%d draft-points=%d "
+                "boundary-order=%r near-crossing=%r"
+                % (
+                    piece.Name,
+                    polygon.is_valid,
+                    reason,
+                    draft_polygon.is_valid,
+                    draft_reason,
+                    len(points),
+                    len(draft_points),
+                    tuple(boundary_summary),
+                    nearby,
+                )
+            )
+        except Exception as exc:
+            log(
+                "tunic-outline-topology-error piece=%s error=%s:%s"
+                % (piece.Name, type(exc).__name__, exc)
+            )
+
+    for piece in (front, back):
+        log_tunic_outline_topology(piece)
+
     capture_tunic_pattern_view(doc, front, back, hem_width)
 
     # Use semantic edge IDs and keep the two curved armholes (edges 2 and 6)
