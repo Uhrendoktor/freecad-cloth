@@ -8,6 +8,7 @@ piece/edge/seam contracts.
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import hypot
+from typing import SupportsFloat, cast
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
@@ -273,9 +274,14 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
 
 def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     if isinstance(segment, LineSegment):
-        samples = (tuple((*segment.start, 0.0)), tuple((*segment.end, 0.0)))
+        samples = (
+            (segment.start[0], segment.start[1], 0.0),
+            (segment.end[0], segment.end[1], 0.0),
+        )
         return BoundaryIR(segment.id, "line", samples)
-    samples = tuple(tuple((*point, 0.0)) for point in segment.polyline(curve_samples))
+    samples = tuple(
+        (point[0], point[1], 0.0) for point in segment.polyline(curve_samples)
+    )
     return BoundaryIR(segment.id, "curve", samples)
 
 
@@ -499,7 +505,8 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
 
 def _native_parameter(native, name: str, default: float) -> float:
     value = getattr(native, name, default)
-    return float(value() if callable(value) else value)
+    value = value() if callable(value) else value
+    return float(cast(SupportsFloat, value))
 
 
 def _native_value(native, parameter: float):

@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from math import isfinite
 from numbers import Real
-from typing import Annotated, TypeAlias
+from typing import Annotated, TypeAlias, cast
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictInt, StrictStr, TypeAdapter, model_validator
 
@@ -353,19 +353,19 @@ Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
 
 def validate_finite_number(value: object) -> float:
     """Return a finite real input as float, rejecting bool/string coercion."""
-    return FiniteScalar(value=value).value
+    return FiniteScalar(value=cast(FiniteNumber, value)).value
 
 
-def validate_point2d(value: Iterable[Real]) -> Point2D:
+def validate_point2d(value: Iterable[object]) -> Point2D:
     """Validate and normalize one two-dimensional point."""
     return Point2DAdapter.validate_python(value)
 
 
-def validate_points2d(values: Iterable[Iterable[Real]]) -> tuple[Point2D, ...]:
+def validate_points2d(values: Iterable[Iterable[object]]) -> tuple[Point2D, ...]:
     """Validate and normalize a sequence of two-dimensional points."""
     return Points2DAdapter.validate_python(values)
 
 
-def validate_points3d(values: Iterable[Iterable[Real]]) -> tuple[Point3D, ...]:
+def validate_points3d(values: Iterable[Iterable[object]]) -> tuple[Point3D, ...]:
     """Validate and normalize a sequence of three-dimensional points."""
     return Points3DAdapter.validate_python(values)
