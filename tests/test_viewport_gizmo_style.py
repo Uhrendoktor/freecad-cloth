@@ -26,7 +26,6 @@ from freecad_cloth.shared.viewport_gizmo_style import (
     SNAP_TARGET_COLOR,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -66,7 +65,7 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     assert 0.0 < RIG_JOINT_POINT_SIZE < RIG_ACTIVE_JOINT_POINT_SIZE
     assert ROTATION_GIZMO_SCALE > 0.0
     assert ROTATION_RING_RADIUS > 0.0
-    assert 0.0 < SNAP_LINE_WIDTH
+    assert SNAP_LINE_WIDTH > 0.0
     assert SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > 0.0
     assert SNAP_CROSSHAIR_HALF_LENGTH > SNAP_RING_RADIUS
     assert SNAP_RING_SEGMENTS >= 32

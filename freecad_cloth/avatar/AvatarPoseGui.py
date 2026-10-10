@@ -5,6 +5,7 @@ task panel keeps only essential posing aids visible while the viewport carries
 the primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
+import contextlib
 import math
 
 from freecad_cloth.shared.viewport_gizmo_style import (
@@ -476,10 +477,8 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         if self.scene_graph is not None and self.gizmo_separator is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 self.scene_graph.removeChild(self.gizmo_separator)
-            except (AttributeError, RuntimeError):
-                pass
         self.gizmo_separator = None
         self.gizmo_transform = None
         self.gizmo = None
@@ -615,10 +614,8 @@ class SkeletonPoseController:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
             if self.gizmo_separator is not None:
-                try:
+                with contextlib.suppress(AttributeError, RuntimeError):
                     self.scene_graph.removeChild(self.gizmo_separator)
-                except (AttributeError, RuntimeError):
-                    pass
             return False
 
     def _create_trackball_gizmo(self, coin):
@@ -678,10 +675,8 @@ class SkeletonPoseController:
             JointRotation(self.selected_bone),
         )
         name = ""
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             name = str(dragger.getName().getString())
-        except (AttributeError, RuntimeError):
-            pass
         self._active_gizmo_axis = {
             "ClothPoseRotationX": (1.0, 0.0, 0.0),
             "ClothPoseRotationY": (0.0, 1.0, 0.0),
@@ -756,10 +751,8 @@ class SkeletonPoseController:
             self._hover_separator = None
             self._hover_bone = None
             return
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             self.scene_graph.removeChild(self._hover_separator)
-        except (AttributeError, RuntimeError):
-            pass
         self._hover_separator = None
         self._hover_bone = None
 
@@ -841,7 +834,6 @@ class SkeletonPoseController:
     def _location_event(self, event_callback):
         if self._gizmo_dragging:
             return
-        coin = self._coin()
         event = event_callback.getEvent()
         position = event.getPosition()
         size = self.view.getSize()
@@ -1187,9 +1179,8 @@ class AvatarPoseTaskPanel:
         )
 
     def _staged_parameters(self):
-        from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
-
         from freecad_cloth.avatar.AvatarCommands import _parameters
+        from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
         stored = _parameters(self.avatar)
         measurements = dict(stored.measurements)

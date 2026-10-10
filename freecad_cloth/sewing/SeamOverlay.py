@@ -9,20 +9,21 @@ correspondence. No overlay node is persisted in the FreeCAD document.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from contextlib import suppress
 from hashlib import sha1
 from types import ModuleType
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
+from freecad_cloth.shared.seam_colors import (
+    register_seam_refresh_callback,
+    seam_color_map,
+    set_seam_color_highlighting_enabled,
+)
 from freecad_cloth.shared.viewport_gizmo_style import (
     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
-)
-from freecad_cloth.shared.seam_colors import (
-    register_seam_refresh_callback,
-    seam_color_map,
-    set_seam_color_highlighting_enabled,
 )
 
 _ACTIVE_CONTROLLER = None
@@ -203,7 +204,7 @@ def _side_segments(
 
     span = sum(
         sum(value * value for value in _subtract(right, left)) ** 0.5
-        for left, right in zip(coords, coords[1:])
+        for left, right in zip(coords, coords[1:], strict=False)
     )
     notch_half = min(4.0, max(1.5, span * 0.045))
     notch_center = coords[middle]
@@ -501,16 +502,12 @@ class SeamOverlayController:
     def deactivate(self) -> None:
         """Remove only this controller's transient Coin node and hover callback."""
         if self._location_callback is not None:
-            try:
+            with suppress(AttributeError, RuntimeError, TypeError):
                 self.view.removeEventCallback("SoLocation2Event", self._location_callback)
-            except (AttributeError, RuntimeError, TypeError):
-                pass
         self._location_callback = None
         if self.scene_graph is not None and self.root is not None:
-            try:
+            with suppress(AttributeError, RuntimeError, TypeError):
                 self.scene_graph.removeChild(self.root)
-            except (AttributeError, RuntimeError, TypeError):
-                pass
         self.scene_graph = None
         self.root = None
         self.rendered_seam_ids = ()
