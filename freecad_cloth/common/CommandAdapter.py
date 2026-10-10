@@ -12,6 +12,7 @@ class GuiCommandRegistrar(Protocol):
 
     def addCommand(self, name: str, command: "FunctionCommand") -> None: ...
 
+
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
 
 
@@ -49,7 +50,7 @@ class FunctionCommand:
     ) -> None:
         self.function = function
         self.tooltip = tooltip
-        self.command_name = command_name or function.__name__
+        self.command_name = command_name or getattr(function, "__name__", "command")
 
     def Activated(self) -> object:
         """Provide the public Activated operation."""
@@ -59,7 +60,7 @@ class FunctionCommand:
         """Provide the public GetResources operation."""
         return {
             "MenuText": self.function.__name__.replace("_", " ").title(),
-            "ToolTip": self.tooltip or self.function.__doc__ or "Cloth command",
+            "ToolTip": self.tooltip or getattr(self.function, "__doc__", None) or "Cloth command",
             "Pixmap": icon_for_command(self.command_name),
         }
 
