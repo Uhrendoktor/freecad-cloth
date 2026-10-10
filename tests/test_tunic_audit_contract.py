@@ -262,6 +262,20 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "def validate_tunic_production()" in validator
 
 
+def test_tunic_initial_projection_preserves_panel_topology_and_limits_arm_mapping():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    mapping = source.split("    def tunic_initial_surface_mesh(", 1)[1].split(
+        "    # Refreshing DrapeTarget", 1
+    )[0]
+    assert "projection_fade_mm = max(1.0, float(scene.ParticleDistance))" in mapping
+    assert "maximum_projection_delta_mm = 2.0 * projection_fade_mm" in mapping
+    assert "lateral_distance = abs(x - float(x_mid))" in mapping
+    assert "float(torso_half_width) + projection_fade_mm - lateral_distance" in mapping
+    assert "projected_y = float(surface_point[1]) + direction * (" in mapping
+    assert "point = (x, blended_y, z)" in mapping
+    assert "triangle_index, surface_point = hit\n                    point = _fit_surface_point(" not in mapping
+
+
 def test_pbd_collision_body_uses_coarsened_solver_surface():
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
