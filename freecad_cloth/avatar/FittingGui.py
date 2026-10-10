@@ -97,7 +97,8 @@ def _billboard_marker(coin, position, color_rgb):
     )
     marker.addChild(transform)
 
-    billboard = coin.SoBillboard()
+    billboard = coin.SoVRMLBillboard()
+    billboard.axisOfRotation.setValue(coin.SbVec3f(0.0, 0.0, 0.0))
     marker.addChild(billboard)
     glyph = coin.SoSeparator()
     draw_style = coin.SoDrawStyle()
