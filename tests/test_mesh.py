@@ -52,10 +52,13 @@ def test_sampled_curve_provenance_uses_curve_not_endpoint_chord():
     # belong to the authored curve boundary.
     pattern = ParametricPattern(
         [
-            PolylineSegment("curve", ((10, 0), (14, 2), (15, 5), (14, 8), (10, 10))),
-            LineSegment("top", (10, 10), (0, 10)),
-            LineSegment("left", (0, 10), (0, 0)),
-            LineSegment("bottom", (0, 0), (10, 0)),
+            PolylineSegment(
+                "curve",
+                ((0, 0), (-5, 1), (-9, 3), (-10, 5), (-9, 7), (-5, 9), (0, 10)),
+            ),
+            LineSegment("top", (0, 10), (-12, 10)),
+            LineSegment("left", (-12, 10), (-12, 0)),
+            LineSegment("bottom", (-12, 0), (0, 0)),
         ]
     )
 
