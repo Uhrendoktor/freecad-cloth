@@ -1,5 +1,7 @@
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
+import json
+
 
 def _scene(doc):
     return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
@@ -9,6 +11,64 @@ def _safe_name(value):
     return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
 
 
+def _ensure_anchor_property(scene):
+    """Add anchor persistence to fitting scenes created by older workbench versions."""
+    if hasattr(scene, "ArrangementAnchorData"):
+        return
+    add_property = getattr(scene, "addProperty", None)
+    if callable(add_property):
+        add_property("App::PropertyStringList", "ArrangementAnchorData", "Arrangement")
+        scene.ArrangementAnchorData = []
+
+
+def _anchor_records(scene):
+    """Read the compact persistent anchor metadata keyed by arrangement-point name."""
+    _ensure_anchor_property(scene)
+    result = {}
+    for value in tuple(getattr(scene, "ArrangementAnchorData", ()) or ()):
+        try:
+            record = json.loads(str(value))
+            name = str(record.get("name", ""))
+            if name:
+                result[name] = record
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return result
+
+
+def _store_anchor_records(scene, records):
+    """Persist a stable, sorted representation of surface-anchor references."""
+    _ensure_anchor_property(scene)
+    scene.ArrangementAnchorData = [
+        json.dumps(records[name], sort_keys=True, separators=(",", ":"))
+        for name in sorted(records)
+    ]
+
+
+def _target_signature(target):
+    """Return the same source/geometry signature used by the drape-target contract."""
+    from freecad_cloth.simulation.DrapeTarget import source_signature
+
+    signature = source_signature(target, deflection=1.0, thickness=0.0)
+    if len(signature) < 2 or signature[1] == ("Unknown",):
+        raise ValueError("the selected target does not expose supported geometry")
+    return repr(signature)
+
+
+def arrangement_anchor_status(point):
+    """Report whether a snap point's persisted surface reference is still current."""
+    expected = str(getattr(point, "AnchorGeometrySignature", "") or "")
+    if not expected:
+        return "unanchored"
+    target = getattr(point, "AnchorTarget", None)
+    if target is None:
+        return "missing target"
+    try:
+        return "valid" if _target_signature(target) == expected else "stale"
+    except (AttributeError, TypeError, ValueError, RuntimeError):
+        return "invalid"
+
+
 def _sync_visuals(scene):
     """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
     import FreeCAD as App
@@ -16,6 +76,8 @@ def _sync_visuals(scene):
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint, BoundingVolume
 
+    _ensure_anchor_property(scene)
+    anchor_records = _anchor_records(scene)
     points = tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)
     volumes = tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes)
     point_objects = []
@@ -42,7 +104,35 @@ def _sync_visuals(scene):
             obj.addProperty("App::PropertyDistance", "Y", "Arrangement")
             obj.addProperty("App::PropertyDistance", "Offset", "Arrangement")
             obj.addProperty("App::PropertyAngle", "RotationZ", "Arrangement")
+        if not hasattr(obj, "AnchorTarget"):
+            obj.addProperty("App::PropertyLinkGlobal", "AnchorTarget", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorSubelement", "Surface Anchor")
+            obj.addProperty("App::PropertyVector", "AnchorLocalPoint", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorGeometrySignature", "Surface Anchor")
+            obj.addProperty("App::PropertyString", "AnchorStatus", "Surface Anchor")
         obj.X, obj.Y, obj.Offset, obj.RotationZ = point.x, point.y, point.offset, point.rotation_z
+        anchor = anchor_records.get(point.name)
+        if anchor:
+            obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
+            obj.AnchorSubelement = str(anchor.get("subelement", ""))
+            obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
+            local_point = tuple(anchor.get("local_point", (0.0, 0.0, 0.0)))
+            obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
+            obj.AnchorStatus = arrangement_anchor_status(obj)
+        else:
+            obj.AnchorTarget = None
+            obj.AnchorSubelement = ""
+            obj.AnchorGeometrySignature = ""
+            obj.AnchorLocalPoint = App.Vector(0.0, 0.0, 0.0)
+            obj.AnchorStatus = "unanchored"
+        if obj.AnchorStatus in {"stale", "missing target", "invalid"}:
+            obj.Label = "Stale anchor: " + point.name
+            obj.ViewObject.ShapeColor = (0.95, 0.24, 0.16)
+            obj.ViewObject.LineColor = (0.65, 0.10, 0.08)
+        else:
+            obj.Label = "Snap target: " + point.name
+            obj.ViewObject.ShapeColor = (0.15, 0.75, 1.0)
+            obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
         center = App.Vector(point.x, point.y, point.offset)
         obj.Shape = Part.makeCompound(
             [
@@ -58,8 +148,6 @@ def _sync_visuals(scene):
                 ),
             ]
         )
-        obj.ViewObject.ShapeColor = (0.15, 0.75, 1.0)
-        obj.ViewObject.LineColor = (0.05, 0.45, 0.72)
         obj.ViewObject.LineWidth = 2.0
         point_objects.append(obj)
     for volume in volumes:
@@ -145,6 +233,9 @@ def create_fitting_scene():
     obj.addProperty(
         "App::PropertyStringList", "ArrangementPoints", "Arrangement"
     ).ArrangementPoints = []
+    obj.addProperty(
+        "App::PropertyStringList", "ArrangementAnchorData", "Arrangement"
+    ).ArrangementAnchorData = []
     obj.addProperty(
         "App::PropertyStringList", "BoundingVolumes", "Arrangement"
     ).BoundingVolumes = []
@@ -303,12 +394,16 @@ def create_arrangement_point(
     point.validate()
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     values[point.name] = point
+    anchors = _anchor_records(scene)
+    anchors.pop(point.name, None)
     if mirror:
         if not symmetry_group.strip():
             raise ValueError("mirror arrangement points require a symmetry group")
         mirrored = point.mirrored()
         values[mirrored.name] = mirrored
+        anchors.pop(mirrored.name, None)
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    _store_anchor_records(scene, anchors)
     scene.SymmetryEnabled = bool(scene.SymmetryEnabled)
     _sync_visuals(scene)
     return point
@@ -341,6 +436,9 @@ def set_arrangement_point(
     point.validate()
     values[name] = point
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    anchors = _anchor_records(scene)
+    anchors.pop(name, None)
+    _store_anchor_records(scene, anchors)
     _sync_visuals(scene)
     doc.recompute()
     return point
@@ -362,6 +460,9 @@ def delete_arrangement_point(name):
         raise ValueError(f"unknown arrangement point: {name}")
     del values[name]
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
+    anchors = _anchor_records(scene)
+    anchors.pop(name, None)
+    _store_anchor_records(scene, anchors)
     _sync_visuals(scene)
     return scene
 
@@ -521,6 +622,66 @@ def open_interactive_arrange(scene=None):
     return panel
 
 
+def create_arrangement_point_from_viewport():
+    """Open Interactive Arrange and arm the viewport surface-pick workflow."""
+    panel = open_interactive_arrange()
+    panel.start_anchor_pick()
+    return panel
+
+
+def create_arrangement_anchor(name, target, world_point, subelement="Face"):
+    """Create a named snap point from a pick on persistent target geometry.
+
+    The anchor records both the picked target and its source signature. A changed
+    or rebuilt target invalidates the anchor instead of silently snapping to stale
+    world coordinates.
+    """
+    import FreeCAD as App
+
+    doc = App.ActiveDocument
+    if doc is None:
+        raise RuntimeError("open a document before creating a surface anchor")
+    scene = _scene(doc) or create_fitting_scene()
+    if target is None or getattr(target, "Document", None) != doc:
+        raise ValueError("select a surface on geometry in the active document")
+    signature = _target_signature(target)
+    try:
+        coords = (float(world_point.x), float(world_point.y), float(world_point.z))
+    except AttributeError:
+        coords = tuple(float(value) for value in world_point[:3])
+    if len(coords) != 3:
+        raise ValueError("picked surface location must contain three coordinates")
+    world = App.Vector(*coords)
+    try:
+        local = target.Placement.inverse().multVec(world)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        local = world
+    from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
+
+    point = ArrangementPoint(str(name), coords[0], coords[1], coords[2])
+    point.validate()
+    anchors = _anchor_records(scene)
+    anchors[point.name] = {
+        "name": point.name,
+        "target": str(target.Name),
+        "subelement": str(subelement),
+        "local_point": [float(local.x), float(local.y), float(local.z)],
+        "geometry_signature": signature,
+    }
+    values = {
+        item.name: item
+        for item in (
+            ArrangementPoint.from_string(value)
+            for value in scene.ArrangementPoints
+        )
+    }
+    values[point.name] = point
+    scene.ArrangementPoints = [values[key].to_string() for key in sorted(values)]
+    _store_anchor_records(scene, anchors)
+    _sync_visuals(scene)
+    doc.recompute()
+    return point
+
 
 class _FittingProxy:
     Type = "ClothFittingScene"
@@ -569,7 +730,7 @@ _COMMAND_HANDLERS = {
     ),
     "ClothFitting_AssignAvatar": assign_avatar_source,
     "ClothFitting_AddPieces": add_selected_pattern_pieces,
-    "ClothFitting_CreateArrangementPoint": lambda: create_arrangement_point("Point1", 0, 0),
+    "ClothFitting_CreateArrangementPoint": create_arrangement_point_from_viewport,
     "ClothFitting_SetArrangementPoint": lambda: set_arrangement_point("Point1", x=0, y=0),
     "ClothFitting_DeleteArrangementPoint": lambda: delete_arrangement_point("Point1"),
     "ClothFitting_CreateBoundingVolume": lambda: create_bounding_volume("Volume1"),
