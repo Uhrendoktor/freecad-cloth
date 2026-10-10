@@ -104,3 +104,28 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "github.event.pull_request.head.sha" in source
     assert "persist-credentials: false" in source
+
+
+def test_collection_contract_passes_when_every_requested_module_collects():
+    from tools.ci.pytest_collection_contract import missing_requested_modules
+
+    assert missing_requested_modules(
+        ("tests/test_one.py", "tests/test_two.py"),
+        ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
+    ) == ()
+
+
+def test_collection_contract_rejects_a_requested_module_with_zero_items():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from tools.ci.pytest_collection_contract import RequestedModuleCollection
+
+    collected = SimpleNamespace(path=ROOT / "tests" / "test_one.py")
+    session = SimpleNamespace(items=[collected], exitstatus=pytest.ExitCode.OK)
+    contract = RequestedModuleCollection(
+        (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
+    )
+    contract.pytest_sessionfinish(session, pytest.ExitCode.OK)
+    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED

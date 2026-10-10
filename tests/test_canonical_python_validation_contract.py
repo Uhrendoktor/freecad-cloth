@@ -74,3 +74,16 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
 
 # Exact-head validation recut marker; behavior unchanged.
 # Final exact-head cube diagnostic trigger marker; behavior unchanged.
+
+
+def test_group_collection_is_checked_during_the_execution_run():
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+    plugin = ROOT / "tools" / "ci" / "pytest_collection_contract.py"
+    old_checker = ROOT / "tools" / "ci" / "check_test_collection.py"
+
+    assert plugin.is_file()
+    assert not old_checker.exists()
+    assert '"-p"' in runner
+    assert '"tools.ci.pytest_collection_contract"' in runner
+    assert "CLOTH_EXPECTED_TEST_MODULES" in runner
+    assert "collection_command" not in runner
