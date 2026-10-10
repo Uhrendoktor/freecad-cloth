@@ -223,6 +223,7 @@ def _case_record(
 def _run_case(case_id, rung, scene, piece, camera):
     started = time.perf_counter()
     _progress(f"{case_id}: assign-piece")
+    scene.GravityZ = 0.0
     scene.ClothPieces = [piece]
     scene.Steps = 0
     scene.touch()
