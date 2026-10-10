@@ -10,7 +10,9 @@ CommandCallable: TypeAlias = Callable[[], object]
 class GuiCommandRegistrar(Protocol):
     """Minimal FreeCAD GUI command-registration interface."""
 
-    def addCommand(self, name: str, command: "FunctionCommand") -> None: ...
+    def addCommand(self, name: str, command: "FunctionCommand") -> None:
+        """Register a named command with FreeCAD GUI."""
+        ...
 
 
 _ICON_DIR = Path(__file__).resolve().parents[2] / "resources" / "icons"
