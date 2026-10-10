@@ -6,9 +6,12 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TypeAlias, cast
 
 from visual_evidence import documented_assets
+
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tools" / "ci" / "visual_asset_sources.json"
@@ -20,7 +23,7 @@ def contract_errors() -> list[str]:
     """Validate exact documentation inventory and mapped generation sources."""
     errors: list[str] = []
     try:
-        payload: Any = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        payload = cast(JSONValue, json.loads(MANIFEST.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"cannot read visual asset manifest: {exc}"]
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
