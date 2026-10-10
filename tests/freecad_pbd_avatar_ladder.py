@@ -77,7 +77,17 @@ _boot("after-support-helper-import")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
-def _surface_signed_clearance(points, source_shape, collision_surface, proximity_mesh=None):
+def _surface_signed_clearance(
+    points, source_shape, collision_surface, proximity_mesh=None, trace_context=""
+):
+    """Measure target clearance and leave stage markers around native geometry calls."""
+    trace_enabled = trace_context == "rung-10-avatar-two-piece-large-seam step=45"
+
+    def trace(message):
+        if trace_enabled:
+            _boot(f"{trace_context}:clearance:{message}")
+
+    trace(f"start points={len(points)} source_shape={source_shape is not None}")
     unsigned = None
     if proximity_mesh is not None:
         try:
@@ -85,31 +95,46 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
             import trimesh  # noqa: F401
 
             if points:
+                trace("before-trimesh-nearest")
                 _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))
+                trace("after-trimesh-nearest")
                 unsigned = float(np.min(distances)) if len(distances) else float("inf")
-        except (ImportError, RuntimeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            trace(f"trimesh-nearest-fallback exception={exc!r}")
             unsigned = None
     if unsigned is None:
+        trace("before-shared-nearest-surface-fallback")
         unsigned = _nearest_surface_distance(points, collision_surface)
+        trace(f"after-shared-nearest-surface-fallback unsigned={unsigned!r}")
     if unsigned is None:
+        trace("clearance-unavailable")
         return None, None
     inside = False
     if source_shape is not None:
-        for point in points:
+        for index, point in enumerate(points):
             try:
-                if bool(source_shape.isInside(App.Vector(*point), 1e-6, True)):
+                trace(f"before-shape-isInside index={index}")
+                point_inside = bool(source_shape.isInside(App.Vector(*point), 1e-6, True))
+                trace(f"after-shape-isInside index={index} result={point_inside}")
+                if point_inside:
                     inside = True
                     break
-            except (AttributeError, TypeError, ValueError):
+            except (AttributeError, TypeError, ValueError) as exc:
+                trace(f"shape-isInside-fallback exception={exc!r}")
                 break
     if not inside and proximity_mesh is not None and points:
         try:
             import numpy as np
 
+            trace("before-trimesh-contains")
             inside = bool(np.any(proximity_mesh.contains(np.asarray(points, dtype=float))))
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            trace(f"after-trimesh-contains result={inside}")
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            trace(f"trimesh-contains-fallback exception={exc!r}")
             pass
-    return float(-unsigned if inside else unsigned), float(unsigned)
+    result = (float(-unsigned if inside else unsigned), float(unsigned))
+    trace(f"complete signed={result[0]} unsigned={result[1]}")
+    return result
 
 
 def _avatar_png_has_visible_content(path, minimum_pixels=128):
@@ -139,13 +164,18 @@ def _avatar_screenshot(view, path):
 
 
 def _checkpoint_record(
-    step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh
+    step, image, positions, panel_triangles, source_shape, collision_surface, base, proximity_mesh,
+    case_id="",
 ):
     """Add avatar-specific clearance observations to the shared checkpoint record."""
+    context = f"{case_id} step={step}"
+    _boot(f"checkpoint-record-start {context}")
     signed_clearance, unsigned_clearance = _surface_signed_clearance(
-        positions, source_shape, collision_surface, proximity_mesh
+        positions, source_shape, collision_surface, proximity_mesh, trace_context=context
     )
-    return _checkpoint_record_common(
+    _boot(f"checkpoint-record-after-clearance {context}")
+    _boot(f"checkpoint-record-before-common {context}")
+    record = _checkpoint_record_common(
         step,
         image,
         positions,
@@ -156,6 +186,8 @@ def _checkpoint_record(
         _connected_components,
         "diagnostic-only-avatar",
     )
+    _boot(f"checkpoint-record-after-common {context}")
+    return record
 
 
 def _build_avatar_scene(doc):
@@ -445,6 +477,7 @@ def _run_ladder_case(case_id):
                     collision_surface,
                     base,
                     proximity_mesh,
+                    case_id=case_id,
                 )
             )
             images[int(step)] = str(image.relative_to(OUT))
