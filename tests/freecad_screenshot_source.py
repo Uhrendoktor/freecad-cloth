@@ -229,6 +229,39 @@ def _mesh_points(mesh):
     return _mesh_geometry(mesh)[0]
 
 
+def _seam_lateral_snapshot(proxy, center_x):
+    """Measure world-X placement of every semantic seam from its exact solver pairs."""
+    backend = getattr(proxy, "backend", None)
+    reader = getattr(backend, "positions", None)
+    pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    if not callable(reader) or not pairs_by_seam:
+        raise RuntimeError("seam lateral diagnostic requires solver position and pair provenance")
+    positions = tuple(reader())
+
+    def x_value(point):
+        return float(point.x) if hasattr(point, "x") else float(point[0])
+
+    snapshot = {}
+    for seam_id, pairs in sorted(pairs_by_seam.items()):
+        offsets = []
+        for index_a, index_b in pairs:
+            a, b = int(index_a), int(index_b)
+            if not (0 <= a < len(positions) and 0 <= b < len(positions)):
+                raise RuntimeError("seam lateral diagnostic found an invalid solver particle index")
+            offsets.append(0.5 * (x_value(positions[a]) + x_value(positions[b])) - float(center_x))
+        if not offsets:
+            raise RuntimeError("seam lateral diagnostic found a seam without samples: " + str(seam_id))
+        snapshot[str(seam_id)] = {
+            "mean_x_offset_mm": round(sum(offsets) / len(offsets), 3),
+            "min_x_offset_mm": round(min(offsets), 3),
+            "max_x_offset_mm": round(max(offsets), 3),
+            "positive_samples": sum(value > 0.0 for value in offsets),
+            "negative_samples": sum(value < 0.0 for value in offsets),
+            "sample_count": len(offsets),
+        }
+    return snapshot
+
+
 def _post_drape_seam_gap(stitch_pairs, positions):
     """Measure the gap on the exact particle pairs passed to the solver."""
     if not stitch_pairs:
@@ -994,6 +1027,7 @@ def simulation():
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
     log("pin-mode=None solver-pins=0")
+    log("seam-world-x-step0=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
     log("target-collision-mode=mesh")
     log(
         f"step0-target-vertex-clearance-mm={float(initial_clearance):.2f} required-mm={float(clearance):.2f}"
@@ -1087,6 +1121,8 @@ def simulation():
     events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
+    log("seam-world-x-step90=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
+
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
     overlay = refresh_seam_overlay(doc)
