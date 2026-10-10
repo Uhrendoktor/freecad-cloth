@@ -333,6 +333,19 @@ def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISS
     target = obj.Document.getObject("DrapeTarget")
     if target is None:
         _ensure_drape_target(obj)
+
+    # Avatar pose edits regenerate the mesh in-place. Refresh fitting anchors
+    # after the final mesh exists so their saved triangle/barycentric reference
+    # follows the deformed surface instead of being invalidated by AvatarRevision.
+    try:
+        from freecad_cloth.avatar.FittingCommands import _refresh_anchor_positions, _scene
+
+        fitting_scene = _scene(obj.Document)
+        if fitting_scene is not None and getattr(fitting_scene, "AvatarProxy", None) == obj:
+            _refresh_anchor_positions(fitting_scene, update_visuals=True)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        # Avatar creation/rebuild must remain independent of the optional fitting scene.
+        pass
     return obj
 
 
