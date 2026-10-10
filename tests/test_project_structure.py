@@ -293,8 +293,24 @@ def test_neutral_collision_contract_is_singleton():
     assert "class CollisionSurface" not in avatar
 
 
-def test_python_sources_do_not_import_removed_simulation_runtime_v2():
+def test_python_sources_do_not_import_removed_architecture_modules():
     root = Path(__file__).resolve().parents[1]
+    forbidden_modules = {
+        "freecad_cloth.pattern.PatternSchema",
+        "freecad_cloth.pattern.PatternSync",
+        "freecad_cloth.sewing.SewingAssembly",
+        "freecad_cloth.sewing.SewingPlan",
+        "freecad_cloth.sewing.SewingSemantics",
+        "freecad_cloth.sewing.SeamReference",
+        "freecad_cloth.simulation.SimulationStaleGuard",
+        "freecad_cloth.simulation.SimulationQualityRuntimeV2",
+        "freecad_cloth.common.PatternSimulationAdapter",
+        "freecad_cloth.common.SketchAuthority",
+        "freecad_cloth.common.DrapeFailureClassifier",
+        "freecad_cloth.common.DrapeVisualSanity",
+        "freecad_cloth.common.ClothDiagnostics",
+        "freecad_cloth.common.ClothDiagnosticsGui",
+    }
     offenders = []
     for directory in (root / "freecad_cloth", root / "tests", root / "tools"):
         for path in directory.rglob("*.py"):
@@ -303,8 +319,14 @@ def test_python_sources_do_not_import_removed_simulation_runtime_v2():
             except SyntaxError as exc:
                 raise AssertionError(f"invalid Python source {path}: {exc}") from exc
             for node in ast.walk(module):
-                if isinstance(node, ast.ImportFrom) and node.module == (
-                    "freecad_cloth.simulation.SimulationQualityRuntimeV2"
-                ):
-                    offenders.append(f"{path.relative_to(root)}:{node.lineno}")
-    assert not offenders, "stale SimulationQualityRuntimeV2 imports: " + ", ".join(offenders)
+                imported = set()
+                if isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imported.add(node.module)
+                    for alias in node.names:
+                        imported.add(f"{node.module}.{alias.name}" if node.module else alias.name)
+                elif isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                for name in imported & forbidden_modules:
+                    offenders.append(f"{path.relative_to(root)}:{node.lineno}: {name}")
+    assert not offenders, "stale architecture imports: " + ", ".join(offenders)
