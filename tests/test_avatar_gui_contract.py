@@ -36,6 +36,10 @@ def test_avatar_panel_pose_fields_match_command_pose_schema():
 def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
     assert tuple(key for key, _label in AvatarTaskPanel.PROVIDERS) == AvatarCommands.PROVIDER_IDS
     assert len(AvatarTaskPanel.PROVIDERS) == len(set(AvatarCommands.PROVIDER_IDS))
+    provider_labels = dict(AvatarTaskPanel.PROVIDERS)
+    geometry_label = provider_labels["freecad-geometry"].lower()
+    assert "surface only" in geometry_label
+    assert "skeleton" in geometry_label and "animation" in geometry_label
 
 
 def test_avatar_panel_exposes_the_public_task_panel_protocol():
