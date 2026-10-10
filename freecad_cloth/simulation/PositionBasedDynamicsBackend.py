@@ -10,7 +10,6 @@ import hashlib
 import os
 from collections.abc import Callable, Iterable, Sequence
 from copy import deepcopy
-from math import isfinite
 from typing import Protocol, TypeAlias, cast
 
 import numpy as np
@@ -19,10 +18,10 @@ import numpy.typing as npt
 from freecad_cloth.common.ValidationModels import (
     CollisionSurfaceInput,
     MeshArrays,
-    PBDCollisionConfig,
-    PBDStepInput,
     ParticleIndexInput,
     ParticlePairInput,
+    PBDCollisionConfig,
+    PBDStepInput,
     validate_finite_number,
 )
 from freecad_cloth.shared.collision import CollisionSurface
@@ -73,6 +72,7 @@ class _NativePBDModel(Protocol):
     ) -> object:
         _ = testMesh
         ...
+
     def getParticles(self) -> _NativePBDParticles: ...
     def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None: ...
     def addBendingConstraints(
@@ -121,7 +121,7 @@ class _NativePBDVertexData(Protocol):
 
 class _NativePBDIndexedFaceMesh(Protocol):
     def initMesh(self, _vertex_count: int, _edge_count: int, _face_count: int) -> None: ...
-    def addFace(self, face: Sequence[int]) -> None: ...
+    def addFace(self, _face: Sequence[int]) -> None: ...
     def buildNeighbors(self) -> None: ...
 
 
@@ -232,11 +232,22 @@ _PBD_COLLISION_SDF_CACHE: object | None = None
 
 
 def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
+    """Hash binary mesh arrays without allocating their large textual representations."""
     digest = hashlib.sha256()
-    digest.update(repr(surface.vertices).encode("utf-8"))
-    digest.update(repr(surface.triangles).encode("utf-8"))
-    digest.update(repr(surface.thickness).encode("utf-8"))
-    digest.update(repr(tuple(int(value) for value in resolution)).encode("utf-8"))
+    digest.update(b"cloth-pbd-collision-sdf-key-v2\0")
+
+    vertices = np.ascontiguousarray(surface.vertices, dtype=np.dtype("<f8"))
+    triangles = np.ascontiguousarray(surface.triangles, dtype=np.dtype("<i8")).reshape((-1, 3))
+    voxel_resolution = np.ascontiguousarray(resolution, dtype=np.dtype("<i8"))
+    thickness = np.asarray((surface.thickness,), dtype=np.dtype("<f8"))
+
+    digest.update(len(surface.vertices).to_bytes(8, "little"))
+    digest.update(memoryview(vertices).cast("B"))
+    digest.update(len(surface.triangles).to_bytes(8, "little"))
+    digest.update(memoryview(triangles).cast("B"))
+    digest.update(memoryview(thickness).cast("B"))
+    digest.update(len(resolution).to_bytes(8, "little"))
+    digest.update(memoryview(voxel_resolution).cast("B"))
     return digest.digest()
 
 
@@ -277,17 +288,18 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         system_pins = tuple(
             i for i, particle in enumerate(system.particles) if particle.inv_mass == 0.0
         )
-        self._pin_indices = tuple(
-            dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins)
-        ) or system_pins
+        self._pin_indices = (
+            tuple(
+                dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in pins)
+            )
+            or system_pins
+        )
         self._stitches = tuple(
             (
                 pair.a,
                 pair.b,
             )
-            for pair in (
-                ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in stitches
-            )
+            for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in stitches)
         )
         self._stitch_compliance = 0.0
         if collision_surface is not None:
@@ -557,9 +569,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             raise ValueError("compliance must be finite and non-negative")
         self._stitches = tuple(
             (pair.a, pair.b)
-            for pair in (
-                ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs
-            )
+            for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs)
         )
         self._stitch_compliance = compliance
         self._time = 0.0

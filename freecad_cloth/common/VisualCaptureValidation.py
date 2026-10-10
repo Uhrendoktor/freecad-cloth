@@ -92,11 +92,97 @@ def _parse_png(path: Path) -> tuple[int, int, bytes, int]:
 
     if not saw_iend or width is None or height is None:
         raise ValueError("incomplete PNG")
+    if width <= 0 or height <= 0:
+        raise ValueError("PNG dimensions must be positive")
     if bit_depth != 8 or color_type not in (2, 6) or interlace != 0:
         raise ValueError("unsupported PNG pixel format")
     if not idat:
         raise ValueError("PNG has no image data")
     return width, height, zlib.decompress(bytes(idat)), 3 if color_type == 2 else 4
+
+
+def _capture_metrics(
+    path: Path,
+    *,
+    expected_width: int | None = None,
+    expected_height: int | None = None,
+    pixel_threshold: int = 250,
+    require_all_channels_below: bool = False,
+    track_colors: bool = True,
+) -> dict:
+    """Decode a PNG once and calculate visible-pixel metrics for shared validators."""
+    if not 0 <= pixel_threshold <= 256:
+        raise ValueError("pixel threshold must be between 0 and 256")
+    width, height, raw, bytes_per_pixel = _parse_png(path)
+    if (
+        expected_width is not None
+        and expected_height is not None
+        and (width, height) != (expected_width, expected_height)
+    ):
+        raise ValueError(
+            "PNG dimensions are %dx%d, expected %dx%d"
+            % (width, height, expected_width, expected_height)
+        )
+    if expected_width is not None and width != expected_width:
+        raise ValueError(f"PNG width is {width}, expected {expected_width}")
+    if expected_height is not None and height != expected_height:
+        raise ValueError(f"PNG height is {height}, expected {expected_height}")
+
+    nonwhite_pixels = 0
+    opaque_pixels = 0
+    colors = set() if track_colors else None
+    for row in _unfilter_rows(raw, width, height, bytes_per_pixel):
+        for index in range(0, len(row), bytes_per_pixel):
+            rgb = tuple(row[index : index + 3])
+            alpha = 255 if bytes_per_pixel == 3 else row[index + 3]
+            if alpha <= 8:
+                continue
+            opaque_pixels += 1
+            if colors is not None:
+                colors.add(rgb)
+            visible = (
+                all(channel < pixel_threshold for channel in rgb)
+                if require_all_channels_below
+                else min(rgb) < pixel_threshold
+            )
+            if visible:
+                nonwhite_pixels += 1
+
+    return {
+        "width": width,
+        "height": height,
+        "opaque_pixels": opaque_pixels,
+        "nonwhite_pixels": nonwhite_pixels,
+        "distinct_rgb": len(colors) if colors is not None else 0,
+    }
+
+
+def png_has_visible_content(
+    path: Path | str,
+    *,
+    minimum_pixels: int = 64,
+    expected_width: int | None = None,
+    expected_height: int | None = None,
+    pixel_threshold: int = 250,
+    require_all_channels_below: bool = False,
+) -> bool:
+    """Return whether a supported PNG contains the requested amount of visible content.
+
+    Invalid, truncated, unsupported, or incorrectly sized images return False so capture
+    retry loops can reject the frame and retry without duplicating PNG decoding code.
+    """
+    try:
+        metrics = _capture_metrics(
+            Path(path),
+            expected_width=expected_width,
+            expected_height=expected_height,
+            pixel_threshold=pixel_threshold,
+            require_all_channels_below=require_all_channels_below,
+            track_colors=False,
+        )
+    except (OSError, ValueError, struct.error, zlib.error, OverflowError):
+        return False
+    return metrics["nonwhite_pixels"] >= minimum_pixels
 
 
 def validate_png_capture(
@@ -109,47 +195,20 @@ def validate_png_capture(
     min_opaque_pixels: int = 64,
 ) -> dict:
     """Validate a GUI screenshot structurally and reject empty/uniform captures."""
-    width, height, raw, bytes_per_pixel = _parse_png(path)
-    if (width, height) != (expected_width, expected_height):
-        raise ValueError(
-            "PNG dimensions are %dx%d, expected %dx%d"
-            % (width, height, expected_width, expected_height)
-        )
-
-    nonwhite_pixels = 0
-    opaque_pixels = 0
-    colors = set()
-    for row in _unfilter_rows(raw, width, height, bytes_per_pixel):
-        for index in range(0, len(row), bytes_per_pixel):
-            rgb = tuple(row[index : index + 3])
-            alpha = 255 if bytes_per_pixel == 3 else row[index + 3]
-            if alpha <= 8:
-                continue
-            opaque_pixels += 1
-            colors.add(rgb)
-            if min(rgb) < 250:
-                nonwhite_pixels += 1
-
-    if opaque_pixels < min_opaque_pixels:
+    metrics = _capture_metrics(path, expected_width=expected_width, expected_height=expected_height)
+    if metrics["opaque_pixels"] < min_opaque_pixels:
         raise ValueError(
             "PNG content is effectively transparent: opaque_pixels=%d minimum=%d"
-            % (opaque_pixels, min_opaque_pixels)
+            % (metrics["opaque_pixels"], min_opaque_pixels)
         )
-    if nonwhite_pixels < min_nonwhite_pixels:
+    if metrics["nonwhite_pixels"] < min_nonwhite_pixels:
         raise ValueError(
             "PNG content is effectively blank: nonwhite_pixels=%d minimum=%d"
-            % (nonwhite_pixels, min_nonwhite_pixels)
+            % (metrics["nonwhite_pixels"], min_nonwhite_pixels)
         )
-    if len(colors) < min_distinct_rgb:
+    if metrics["distinct_rgb"] < min_distinct_rgb:
         raise ValueError(
             "PNG content is effectively uniform: distinct_rgb=%d minimum=%d"
-            % (len(colors), min_distinct_rgb)
+            % (metrics["distinct_rgb"], min_distinct_rgb)
         )
-
-    return {
-        "width": width,
-        "height": height,
-        "opaque_pixels": opaque_pixels,
-        "nonwhite_pixels": nonwhite_pixels,
-        "distinct_rgb": len(colors),
-    }
+    return metrics

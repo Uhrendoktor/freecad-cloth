@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import isfinite
+from math import hypot, isfinite
 
 from scipy.spatial import cKDTree
 
@@ -33,9 +33,7 @@ class MeshValidationResult:
     degenerate_faces: int
 
 
-def _validate_arrays(
-    vertices: Sequence[Point3], triangles: Sequence[Triangle]
-) -> MeshArrays:
+def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
     """Validate mesh coordinates and connectivity with one schema boundary."""
     return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
@@ -47,6 +45,30 @@ def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, f
     ys = [float(vertex[1]) for vertex in vertices]
     zs = [float(vertex[2]) for vertex in vertices]
     return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
+
+
+def _triangle_surface_area(vertices: Sequence[Point3], a: int, b: int, c: int) -> float:
+    """Return the geometric area of one 3D triangle."""
+    origin, first, second = vertices[a], vertices[b], vertices[c]
+    ab = tuple(float(first[axis]) - float(origin[axis]) for axis in range(3))
+    ac = tuple(float(second[axis]) - float(origin[axis]) for axis in range(3))
+    cross = (
+        ab[1] * ac[2] - ab[2] * ac[1],
+        ab[2] * ac[0] - ab[0] * ac[2],
+        ab[0] * ac[1] - ab[1] * ac[0],
+    )
+    return 0.5 * hypot(*cross)
+
+
+def _fallback_surface_area(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> float:
+    """Calculate total triangle area without optional mesh libraries."""
+    total = 0.0
+    for a, b, c in triangles:
+        area = _triangle_surface_area(vertices, a, b, c)
+        total += area
+        if not isfinite(area) or not isfinite(total):
+            raise ValueError("computed mesh surface area must be finite")
+    return total
 
 
 def _fallback_components(triangles: Sequence[Triangle]) -> int:
@@ -96,7 +118,11 @@ def validate_mesh(
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
-    degenerate = sum(1 for a, b, c in triangles if len({a, b, c}) < 3)
+    degenerate = sum(
+        1
+        for a, b, c in triangles
+        if len({a, b, c}) < 3 or _triangle_surface_area(vertices, a, b, c) == 0.0
+    )
 
     if prefer_trimesh:
         try:
@@ -137,7 +163,7 @@ def validate_mesh(
         faces=len(triangles),
         components=_fallback_components(triangles),
         bounds=_fallback_bounds(vertices),
-        surface_area=0.0,
+        surface_area=_fallback_surface_area(vertices, triangles),
         watertight=None,
         finite=True,
         degenerate_faces=degenerate,
@@ -166,6 +192,7 @@ def nearest_target_clearance(
     if not isfinite(clearance):
         raise ValueError("computed vertex clearance must be finite")
     return clearance
+
 
 def nearest_surface_clearance(
     garment_vertices: Sequence[Point3],

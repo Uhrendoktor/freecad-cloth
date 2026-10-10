@@ -8,6 +8,7 @@ from math import isfinite, sqrt
 from statistics import median
 
 Point3 = tuple[float, float, float]
+Triangle3 = tuple[int, int, int]
 
 
 def maximum_box_penetration(
@@ -71,46 +72,35 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
 def minimum_vertex_distance(
     source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
 ) -> float | None:
-    """Return the minimum point-to-target-vertex distance without a Python cross-product loop."""
+    """Return exact nearest vertex distance using the canonical SciPy KD-tree query."""
     if not source or not target:
         return None
-    try:
-        import numpy as np
-    except ImportError:
-        best = float("inf")
-        for a in source:
-            for b in target:
-                d2 = sum((float(a[i]) - float(b[i])) ** 2 for i in range(3))
-                if d2 < best:
-                    best = d2
-        return sqrt(best) if isfinite(best) else None
 
-    source_data = np.asarray(source, dtype=np.float64)
-    target_data = np.asarray(target, dtype=np.float64)
-    best = float("inf")
-    step = max(1, int(chunk_size))
-    for start in range(0, len(source_data), step):
-        chunk = source_data[start : start + step]
-        delta = chunk[:, None, :] - target_data[None, :, :]
-        best = min(best, float(np.min(np.sum(delta * delta, axis=2))))
-    return sqrt(best) if isfinite(best) else None
+    # Keep the legacy keyword accepted; the exact KD-tree query no longer allocates
+    # source-by-target pairwise distance matrices, so chunk_size is not needed.
+    del chunk_size
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
+    return nearest_target_clearance(source, target)
 
 
-def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
+def point_inside_closed_mesh(
+    point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle3]
+) -> bool:
     """Return whether a point is inside a closed triangle mesh by ray parity."""
     ray = (1.0, 0.3713906763541037, 0.1932424973120743)
     origin = (float(point[0]), float(point[1]), float(point[2]))
     hits = 0
     epsilon = 1e-9
 
-    def cross(left, right):
+    def cross(left: Point3, right: Point3) -> Point3:
         return (
             left[1] * right[2] - left[2] * right[1],
             left[2] * right[0] - left[0] * right[2],
             left[0] * right[1] - left[1] * right[0],
         )
 
-    def dot(left, right):
+    def dot(left: Point3, right: Point3) -> float:
         return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
 
     for triangle in triangles:
@@ -141,21 +131,26 @@ def point_inside_closed_mesh(point: Point3, vertices, triangles) -> bool:
     return bool(hits % 2)
 
 
-def points_inside_closed_mesh(points, vertices, triangles, *, chunk_size: int = 32) -> tuple[bool, ...]:
+def points_inside_closed_mesh(
+    points: Sequence[Point3],
+    vertices: Sequence[Point3],
+    triangles: Sequence[Triangle3],
+    *,
+    chunk_size: int = 32,
+) -> tuple[bool, ...]:
     """Return ray-parity results for many points without a Python point×triangle loop."""
     try:
         import numpy as np
     except ImportError:
         return tuple(point_inside_closed_mesh(point, vertices, triangles) for point in points)
 
-    face_data = [tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3]
+    face_data = [
+        tuple(int(index) for index in triangle) for triangle in triangles if len(triangle) == 3
+    ]
     if not face_data or not points:
         return tuple(False for _ in points)
     faces = np.asarray(face_data, dtype=np.int64)
-    valid = (
-        (faces >= 0).all(axis=1)
-        & (faces < len(vertices)).all(axis=1)
-    )
+    valid = (faces >= 0).all(axis=1) & (faces < len(vertices)).all(axis=1)
     faces = faces[valid]
     if len(faces) == 0:
         return tuple(False for _ in points)
@@ -365,7 +360,9 @@ def assert_drape_diagnostics(
         raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
 
 
-def mesh_shape_sanity(vertices, triangles):
+def mesh_shape_sanity(
+    vertices: Sequence[Point3], triangles: Sequence[Triangle3]
+) -> dict[str, bool | int | float]:
     """Return deterministic mesh-shape health metrics for visual regression.
 
     The metrics intentionally describe geometry rather than deciding whether a

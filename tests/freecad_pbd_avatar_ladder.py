@@ -27,9 +27,7 @@ import faulthandler
 import json
 import math
 import runpy
-import struct
 import time
-import zlib
 
 _boot("script-start")
 _boot("before-import-FreeCAD")
@@ -146,88 +144,10 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
 
 
 def _avatar_png_has_visible_content(path, minimum_pixels=128):
-    """Return True when an 8-bit RGB/RGBA PNG contains visible non-background pixels."""
+    """Check screenshot content using the shared structural PNG validator."""
+    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
 
-    data = Path(path).read_bytes()
-    signature = b"\x89PNG\r\n\x1a\n"
-    if not data.startswith(signature):
-        return False
-    offset = len(signature)
-    width = height = bit_depth = color_type = None
-    idat = bytearray()
-    while offset + 8 <= len(data):
-        length = struct.unpack(">I", data[offset : offset + 4])[0]
-        chunk_type = data[offset + 4 : offset + 8]
-        payload_start = offset + 8
-        payload_end = payload_start + length
-        if payload_end + 4 > len(data):
-            return False
-        payload = data[payload_start:payload_end]
-        offset = payload_end + 4
-        if chunk_type == b"IHDR":
-            width, height, bit_depth, color_type, _comp, _filt, _inter = struct.unpack(
-                ">IIBBBBB", payload
-            )
-        elif chunk_type == b"IDAT":
-            idat.extend(payload)
-        elif chunk_type == b"IEND":
-            break
-    if width is None or height is None or bit_depth != 8 or color_type not in (2, 6) or not idat:
-        return False
-
-    raw = zlib.decompress(bytes(idat))
-    channels = 3 if color_type == 2 else 4
-    row_bytes = int(width) * channels
-    stride = row_bytes + 1
-    if len(raw) < int(height) * stride:
-        return False
-
-    def paeth(a, b, c):
-        p = a + b - c
-        pa = abs(p - a)
-        pb = abs(p - b)
-        pc = abs(p - c)
-        if pa <= pb and pa <= pc:
-            return a
-        if pb <= pc:
-            return b
-        return c
-
-    previous = bytearray(row_bytes)
-    visible = 0
-    for row in range(int(height)):
-        base = row * stride
-        filter_type = raw[base]
-        encoded = raw[base + 1 : base + stride]
-        decoded = bytearray(row_bytes)
-        for i, value in enumerate(encoded):
-            left = decoded[i - channels] if i >= channels else 0
-            up = previous[i]
-            up_left = previous[i - channels] if i >= channels else 0
-            if filter_type == 0:
-                decoded[i] = value
-            elif filter_type == 1:
-                decoded[i] = (value + left) & 0xFF
-            elif filter_type == 2:
-                decoded[i] = (value + up) & 0xFF
-            elif filter_type == 3:
-                decoded[i] = (value + ((left + up) // 2)) & 0xFF
-            elif filter_type == 4:
-                decoded[i] = (value + paeth(left, up, up_left)) & 0xFF
-            else:
-                return False
-        for i in range(0, row_bytes, channels):
-            if color_type == 2:
-                pixel_visible = any(decoded[i + c] < 250 for c in range(3))
-            else:
-                alpha = decoded[i + 3]
-                pixel_visible = alpha > 8 and any(decoded[i + c] < 250 for c in range(3))
-            if pixel_visible:
-                visible += 1
-                if visible >= int(minimum_pixels):
-                    return True
-        previous = decoded
-    return False
+    return png_has_visible_content(path, minimum_pixels=int(minimum_pixels))
 
 
 def _avatar_screenshot(view, path):

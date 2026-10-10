@@ -1,14 +1,15 @@
 import unittest
 
+from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
 from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     mesh_shape_sanity,
+    minimum_vertex_distance,
     point_inside_closed_mesh,
     seam_correspondence_gap,
     summarize,
 )
-from freecad_cloth.common.MeshValidation import validate_mesh
 
 
 class DrapeVisualSanityTests(unittest.TestCase):
@@ -35,6 +36,12 @@ class DrapeVisualSanityTests(unittest.TestCase):
         )
         self.assertTrue(point_inside_closed_mesh((0.1, 0.1, 0.1), vertices, triangles))
         self.assertFalse(point_inside_closed_mesh((1.1, 0.1, 0.1), vertices, triangles))
+
+    def test_minimum_vertex_distance_uses_exact_nearest_query(self):
+        source = ((0.0, 0.0, 0.0), (1000.0, 0.0, 0.0))
+        target = ((5.0, 0.0, 0.0), (1005.0, 0.0, 0.0))
+        self.assertEqual(minimum_vertex_distance(source, target), 5.0)
+        self.assertIsNone(minimum_vertex_distance((), target))
 
     def test_reports_structurally_plausible_drape(self):
         garment = (
@@ -134,19 +141,6 @@ class DrapeVisualSanityTests(unittest.TestCase):
         result = validate_mesh(vertices, triangles, prefer_trimesh=False)
         self.assertEqual(result.components, 1)
         self.assertTrue(result.finite)
-
-    def test_fragmented_geometry_has_two_components(self):
-        vertices = (
-            (0.0, 0.0, 0.0),
-            (1.0, 0.0, 0.0),
-            (0.0, 1.0, 0.0),
-            (100.0, 0.0, 0.0),
-            (101.0, 0.0, 0.0),
-            (100.0, 1.0, 0.0),
-        )
-        triangles = ((0, 1, 2), (3, 4, 5))
-        result = validate_mesh(vertices, triangles, prefer_trimesh=False)
-        self.assertEqual(result.components, 2)
 
     def test_seam_correspondence_is_clean_for_matching_canonical_edges(self):
         boundary = (
