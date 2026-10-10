@@ -69,6 +69,16 @@ def stale_completed_runs(
     return stale
 
 
+def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
+    """Return commit activity time, preferring commit creation over original authorship."""
+    committer = commit_data.get("committer")
+    date = committer.get("date") if isinstance(committer, dict) else None
+    if not isinstance(date, str):
+        author = commit_data.get("author")
+        date = author.get("date") if isinstance(author, dict) else None
+    return epoch(date) if isinstance(date, str) else None
+
+
 def main() -> int:
     """Remove old agent branches and retain bounded workflow-run cleanup work."""
     repo = os.environ["REPO"]
@@ -96,12 +106,8 @@ def main() -> int:
         commit_data = data.get("commit")
         if not isinstance(commit_data, dict):
             continue
-        author = commit_data.get("author")
-        committer = commit_data.get("committer")
-        date = author.get("date") if isinstance(author, dict) else None
-        if not isinstance(date, str):
-            date = committer.get("date") if isinstance(committer, dict) else None
-        if isinstance(date, str) and epoch(date) < branch_cutoff:
+        activity_epoch = branch_activity_epoch(commit_data)
+        if activity_epoch is not None and activity_epoch < branch_cutoff:
             gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
             removed_branches += 1
 
