@@ -68,6 +68,22 @@ def _mesh_topology(target):
     try:
         vertices, triangles = topology
         points = tuple(_point_xyz(point) for point in vertices)
+        placement = getattr(target, "Placement", None)
+        if placement is not None:
+            # A placed Mesh::Feature can expose Mesh.Topology coordinates with the
+            # object placement already applied. Anchors persist in object-local
+            # space, so normalize here before calculating or resolving barycentric
+            # coordinates; _anchor_world_position applies Placement exactly once.
+            try:
+                import FreeCAD as App
+
+                inverse_placement = placement.inverse()
+                points = tuple(
+                    _point_xyz(inverse_placement.multVec(App.Vector(*point)))
+                    for point in points
+                )
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                raise ValueError("could not normalize target mesh vertices to object-local coordinates") from exc
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
         if (
             not points

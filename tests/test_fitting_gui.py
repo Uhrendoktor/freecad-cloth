@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from freecad_cloth.avatar.FittingCommands import (
     _geometry_round,
     _mesh_anchor_local_position,
+    _mesh_topology,
     _target_signature,
     arrangement_anchor_status,
 )
@@ -111,6 +112,50 @@ def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
 
     assert _target_signature(target) == signature_before
     assert _mesh_anchor_local_position(target, anchor) == (0.6, 1.0, 0.5)
+
+
+def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
+    import sys
+
+    class Placement:
+        def __init__(self, translation):
+            self.translation = tuple(translation)
+
+        def inverse(self):
+            return Placement(tuple(-value for value in self.translation))
+
+        def multVec(self, point):
+            return tuple(
+                float(value) + shift
+                for value, shift in zip(point, self.translation, strict=True)
+            )
+
+    local_vertices = (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+    )
+    translation = (4.0, -3.0, 6.0)
+    placed_vertices = tuple(
+        tuple(value + shift for value, shift in zip(point, translation, strict=True))
+        for point in local_vertices
+    )
+    triangles = ((0, 1, 2),)
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(Topology=(placed_vertices, triangles)),
+        Placement=Placement(translation),
+    )
+    monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(Vector=lambda *point: tuple(point)))
+
+    vertices, faces = _mesh_topology(target)
+    assert vertices == local_vertices
+    assert faces == triangles
+    anchor = {
+        "triangle_index": 0,
+        "barycentric": (0.2, 0.3, 0.5),
+        "local_point": (0.3, 0.5, 0.0),
+    }
+    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
 
 
 def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():
