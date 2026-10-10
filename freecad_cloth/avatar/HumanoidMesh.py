@@ -13,9 +13,11 @@ import json
 import math
 import os
 import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
@@ -47,6 +49,28 @@ DEFAULT_WEIGHTS_NAME = "makehuman-default-weights.mhw"
 DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
 
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters
+
+
+Point = tuple[float, float, float]
+Triangle = tuple[int, int, int]
+
+
+class BoneData(TypedDict):
+    """Minimal authored bone fields used by the avatar fitting pipeline."""
+
+    head: str
+    tail: str
+
+
+class SkeletonData(TypedDict):
+    """Authored MakeHuman joint index lists and their referencing bones."""
+
+    bones: dict[str, BoneData]
+    joints: dict[str, list[int]]
+
+
 class HumanoidMeshError(RuntimeError):
     """Raised when the real humanoid mesh cannot be loaded or fitted."""
 
@@ -58,13 +82,33 @@ class MeshData:
     vertices: tuple[tuple[float, float, float], ...]
     triangles: tuple[tuple[int, int, int], ...]
 
-    def validate(self):
+    def validate(self) -> Self:
         """Validate this value and raise ValueError when its state is invalid."""
         if len(self.vertices) < 3 or not self.triangles:
             raise HumanoidMeshError("humanoid mesh is empty")
+
+        for vertex in self.vertices:
+            try:
+                valid_vertex = len(vertex) == 3 and all(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and math.isfinite(value)
+                    for value in vertex
+                )
+            except (TypeError, OverflowError):
+                valid_vertex = False
+            if not valid_vertex:
+                raise HumanoidMeshError("humanoid mesh contains invalid vertex coordinates")
+
         count = len(self.vertices)
         for tri in self.triangles:
-            if len(tri) != 3 or any(i < 0 or i >= count for i in tri):
+            try:
+                valid_triangle = len(tri) == 3 and all(
+                    type(index) is int and 0 <= index < count for index in tri
+                )
+            except TypeError:
+                valid_triangle = False
+            if not valid_triangle:
                 raise HumanoidMeshError("humanoid mesh contains an invalid face")
         return self
 
@@ -104,9 +148,65 @@ def _verified_weights(path: Path) -> bool:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
-        return isinstance(payload.get("weights"), dict)
-    except (OSError, UnicodeError, ValueError):
+        if not isinstance(payload, dict):
+            return False
+        weights = payload.get("weights")
+        if not isinstance(weights, dict) or not weights:
+            return False
+
+        has_entries = False
+        for bone_name, entries in weights.items():
+            if not isinstance(bone_name, str) or not isinstance(entries, list):
+                return False
+            for entry in entries:
+                if not isinstance(entry, list) or len(entry) != 2:
+                    return False
+                index, weight = entry
+                if type(index) is not int or index < 0:
+                    return False
+                if (
+                    isinstance(weight, bool)
+                    or not isinstance(weight, (int, float))
+                    or not math.isfinite(weight)
+                    or weight < 0.0
+                ):
+                    return False
+                has_entries = True
+        return has_entries
+    except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
+
+
+def _valid_skeleton_payload(payload: object) -> bool:
+    """Return whether a decoded skeleton has usable bone and joint references."""
+    if not isinstance(payload, dict):
+        return False
+    bones = payload.get("bones")
+    joints = payload.get("joints")
+    if not isinstance(bones, dict) or not bones or not isinstance(joints, dict) or not joints:
+        return False
+    for joint_name, indices in joints.items():
+        if (
+            not isinstance(joint_name, str)
+            or not isinstance(indices, list)
+            or any(type(index) is not int or index < 0 for index in indices)
+        ):
+            return False
+    for bone_name, bone in bones.items():
+        if not isinstance(bone_name, str) or not isinstance(bone, dict):
+            return False
+        head = bone.get("head")
+        tail = bone.get("tail")
+        if (
+            not isinstance(head, str)
+            or not isinstance(tail, str)
+            or head not in joints
+            or tail not in joints
+            or not joints[head]
+            or not joints[tail]
+        ):
+            return False
+    return True
 
 
 def _verified_skeleton(path: Path) -> bool:
@@ -114,12 +214,12 @@ def _verified_skeleton(path: Path) -> bool:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="strict"))
-        return isinstance(payload.get("bones"), dict) and isinstance(payload.get("joints"), dict)
-    except (OSError, UnicodeError, ValueError):
+        return _valid_skeleton_payload(payload)
+    except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
 
 
-def _download(url: str, destination: Path, verifier) -> None:
+def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(
         prefix=".makehuman-", suffix=destination.suffix, dir=str(destination.parent)
@@ -231,14 +331,19 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
     return destination
 
 
-def _load_source_vertices(path: str | None = None) -> tuple[tuple[float, float, float], ...]:
+def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
     source = ensure_makehuman_base(path)
     try:
-        vertices = []
+        vertices: list[Point] = []
         for raw in source.read_text(encoding="utf-8", errors="strict").splitlines():
             fields = raw.split()
             if fields and fields[0] == "v" and len(fields) >= 4:
-                vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
+                point = (float(fields[1]), float(fields[2]), float(fields[3]))
+                if not all(math.isfinite(value) for value in point):
+                    raise ValueError("source vertex coordinates must be finite")
+                vertices.append(point)
+        if len(vertices) < 3:
+            raise ValueError("source mesh contains fewer than three vertices")
         return tuple(vertices)
     except (OSError, UnicodeError, ValueError) as exc:
         raise HumanoidMeshError(
@@ -247,31 +352,35 @@ def _load_source_vertices(path: str | None = None) -> tuple[tuple[float, float, 
 
 
 @lru_cache(maxsize=4)
-def load_makehuman_skeleton(path: str | None = None) -> dict:
+def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     """Load and return the requested makehuman skeleton resource."""
     source = ensure_makehuman_skeleton(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
-        if not isinstance(payload.get("bones"), dict) or not isinstance(
-            payload.get("joints"), dict
-        ):
-            raise HumanoidMeshError("MakeHuman skeleton is missing bones or joints")
-        return payload
     except (OSError, UnicodeError, ValueError) as exc:
         raise HumanoidMeshError(f"unable to parse MakeHuman skeleton {source}: {exc}") from exc
+    if not _valid_skeleton_payload(payload):
+        raise HumanoidMeshError(f"MakeHuman skeleton has invalid bones or joints: {source}")
+    return cast(SkeletonData, payload)
 
 
-def _joint_point(source_vertices, indices):
+def _joint_point(source_vertices: Sequence[Point], indices: Iterable[int]) -> Point:
     points = [
         source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)
     ]
     if not points:
         raise HumanoidMeshError("MakeHuman skeleton references missing joint vertices")
     count = float(len(points))
-    return tuple(sum(point[axis] for point in points) / count for axis in range(3))
+    return (
+        sum(point[0] for point in points) / count,
+        sum(point[1] for point in points) / count,
+        sum(point[2] for point in points) / count,
+    )
 
 
-def _bone_source_endpoints(source_vertices, skeleton, bone_name):
+def _bone_source_endpoints(
+    source_vertices: Sequence[Point], skeleton: SkeletonData, bone_name: str
+) -> tuple[Point, Point]:
     bone = skeleton["bones"].get(bone_name)
     if not bone:
         raise HumanoidMeshError(f"MakeHuman skeleton has no bone {bone_name}")
@@ -323,35 +432,35 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
         raise HumanoidMeshError(f"unable to parse MakeHuman base mesh {source}: {exc}") from exc
 
 
-def _lerp(a, b, t):
+def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * max(0.0, min(1.0, t))
 
 
-def _smoothstep(a, b, x):
+def _smoothstep(a: float, b: float, x: float) -> float:
     if a == b:
         return 0.0
     t = max(0.0, min(1.0, (x - a) / (b - a)))
     return t * t * (3.0 - 2.0 * t)
 
 
-def _axis_bounds(vertices, axis):
+def _axis_bounds(vertices: Sequence[Point], axis: int) -> tuple[float, float]:
     values = [v[axis] for v in vertices]
     return min(values), max(values)
 
 
-def _map_makehuman_axes(vertices):
+def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
     ymin, ymax = _axis_bounds(vertices, 1)
     span = max(1e-9, ymax - ymin)
     return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
 
 
-def _reoriented_triangles(triangles):
+def _reoriented_triangles(triangles: Sequence[Triangle]) -> tuple[Triangle, ...]:
     """Reverse winding after the handedness-flipping Y/Z axis permutation."""
     return tuple((int(a), int(c), int(b)) for a, b, c in triangles)
 
 
-def _profile_scale(z, profile):
+def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
     for i in range(len(profile) - 1):
         z0, s0 = profile[i]
         z1, s1 = profile[i + 1]
@@ -360,7 +469,7 @@ def _profile_scale(z, profile):
     return profile[-1][1]
 
 
-def _is_default_measurement_shape(parameters) -> bool:
+def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
     """Return whether the authoritative dimensions are the canonical defaults."""
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
@@ -370,7 +479,7 @@ def _is_default_measurement_shape(parameters) -> bool:
     )
 
 
-def _measurement_profile(parameters):
+def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
     """Return proportional changes relative to the canonical mannequin dimensions."""
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
@@ -389,7 +498,9 @@ def _measurement_profile(parameters):
     return profile
 
 
-def _estimate_shoulder_pivots(vertices, shoulder_half, shoulder_z, height_mm):
+def _estimate_shoulder_pivots(
+    vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
+) -> dict[float, float]:
     """Infer the shoulder rotation pivots from the fitted body surface."""
     pivots = {}
     for side in (-1.0, 1.0):
@@ -408,7 +519,13 @@ def _estimate_shoulder_pivots(vertices, shoulder_half, shoulder_z, height_mm):
     return pivots
 
 
-def _estimate_rest_arm_angles(vertices, shoulder_pivots, shoulder_z, height_mm, arm_weights=None):
+def _estimate_rest_arm_angles(
+    vertices: Sequence[Point],
+    shoulder_pivots: dict[float, float],
+    shoulder_z: float,
+    height_mm: float,
+    arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
+) -> dict[float, float]:
     """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
     result = {}
     for side_index, side in enumerate((-1.0, 1.0)):
@@ -510,7 +627,7 @@ def load_makehuman_weights(
         ) from exc
 
 
-def _normalize_fit_axes(vertices, parameters):
+def _normalize_fit_axes(vertices: Sequence[Point], parameters: AvatarParameters) -> Sequence[Point]:
     """Normalize horizontal source scale to authoritative body measurements.
 
     The pinned HM08 source can carry a source-specific aspect ratio unrelated to
@@ -545,7 +662,9 @@ def _normalize_fit_axes(vertices, parameters):
     return tuple((x * scale_x, y * scale_y, z) for x, y, z in vertices)
 
 
-def _make_source_fitted_mapper(source_vertices, parameters, skin_offset):
+def _make_source_fitted_mapper(
+    source_vertices: Sequence[Point], parameters: AvatarParameters, skin_offset: float
+) -> Callable[[Point], Point]:
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     ymin, ymax = _axis_bounds(body, 1)
     y_span = max(1e-9, ymax - ymin)
@@ -587,7 +706,7 @@ def _make_source_fitted_mapper(source_vertices, parameters, skin_offset):
     scale_x = norm_x_span / max(1e-9, pre_x_span)
     scale_y = norm_y_span / max(1e-9, pre_y_span)
 
-    def transform(point):
+    def transform(point: Point) -> Point:
         x, y, z = point
         normalized_z = (y - ymin) / y_span
         torso_scale = _profile_scale(normalized_z, torso_profile)
@@ -604,7 +723,7 @@ def _make_source_fitted_mapper(source_vertices, parameters, skin_offset):
     return transform
 
 
-def _authored_arm_rig_points(parameters):
+def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
     source = _load_source_vertices()
     skeleton = load_makehuman_skeleton()
     transform = _make_source_fitted_mapper(source, parameters, float(parameters.skin_offset))
@@ -619,7 +738,11 @@ def _authored_arm_rig_points(parameters):
     return points
 
 
-def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData:
+def fit_makehuman_mesh(
+    mesh: MeshData,
+    parameters: AvatarParameters,
+    arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
+) -> MeshData:
     """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
     height_mm = float(parameters.measurement("height"))
@@ -685,10 +808,16 @@ def fit_makehuman_mesh(mesh: MeshData, parameters, arm_weights=None) -> MeshData
         x = x + weight * (rotated_x - x)
         z = z + weight * (rotated_z - z)
         posed.append((x, y, z))
-    return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles))
+    return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles)).validate()
 
 
-def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm, source_weight=None):
+def _arm_pose_weight(
+    x: float,
+    z: float,
+    shoulder_pivot_x: float,
+    height_mm: float,
+    source_weight: float | None = None,
+) -> float:
     """Return source-authored arm influence, with a geometric legacy fallback."""
     if source_weight is not None:
         return max(0.0, min(1.0, float(source_weight)))
@@ -702,7 +831,9 @@ def _arm_pose_weight(x, z, shoulder_pivot_x, height_mm, source_weight=None):
     return lateral * vertical
 
 
-def build_humanoid_mesh(parameters, source_path=None) -> MeshData:
+def build_humanoid_mesh(
+    parameters: AvatarParameters, source_path: str | os.PathLike[str] | None = None
+) -> MeshData:
     """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
     source = load_makehuman_mesh(str(source_path) if source_path is not None else None)
     arm_weights = (
