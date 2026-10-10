@@ -5,7 +5,6 @@ task panel keeps only essential posing aids visible while the viewport carries
 the primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
-
 import math
 
 from freecad_cloth.shared.viewport_gizmo_style import (
@@ -59,9 +58,7 @@ def joint_world_positions(parameters):
         if data is None or bone not in transforms:
             continue
         fitted_head = mapper(_joint_point(source_vertices, skeleton["joints"][data["head"]]))
-        result[bone] = tuple(
-            float(value) for value in transforms[bone].apply(fitted_head)
-        )
+        result[bone] = tuple(float(value) for value in transforms[bone].apply(fitted_head))
     return result
 
 
@@ -179,9 +176,7 @@ class SkeletonPoseController:
     def _build_skeleton(self):
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
 
-        self._skeleton_segments, joints = skeleton_world_segments(
-            self.panel._staged_parameters()
-        )
+        self._skeleton_segments, joints = skeleton_world_segments(self.panel._staged_parameters())
         self._positions = {
             bone: self._skeleton_segments[bone][0]
             for bone, _label in CONTROLLABLE_JOINTS
@@ -201,7 +196,10 @@ class SkeletonPoseController:
             return
         if self.panel.avatar is None:
             raise RuntimeError("create a Cloth Human Mannequin first")
-        if str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08")) != "makehuman-hm08":
+        if (
+            str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
+            != "makehuman-hm08"
+        ):
             self.panel.status.setText(
                 "Pose Mode is available for the MakeHuman HM08 avatar provider."
             )
@@ -282,9 +280,7 @@ class SkeletonPoseController:
             bone = str(getattr(self.panel, "skeleton_joint_index", "") or "")
         if bone:
             self.select_joint(bone)
-        self.panel.status.setText(
-            "Click a bone to select · drag a rotation ring to pose."
-        )
+        self.panel.status.setText("Click a bone to select · drag a rotation ring to pose.")
 
     def _clear_fallback_gizmo(self):
         obj = self.fallback_gizmo_object
@@ -476,9 +472,7 @@ class SkeletonPoseController:
         elif self.selected_bone and self.gizmo_transform is not None:
             point = self._positions.get(self.selected_bone)
             if point is not None:
-                self.gizmo_transform.translation.setValue(
-                    self._coin().SbVec3f(*point)
-                )
+                self.gizmo_transform.translation.setValue(self._coin().SbVec3f(*point))
 
     def _remove_gizmo(self):
         if self.scene_graph is not None and self.gizmo_separator is not None:
@@ -582,7 +576,9 @@ class SkeletonPoseController:
                     "setName",
                 )
                 if any(not hasattr(dragger, item) for item in required):
-                    self.gizmo_style_error = "SoRotationDragger proxy is missing required fields or callbacks"
+                    self.gizmo_style_error = (
+                        "SoRotationDragger proxy is missing required fields or callbacks"
+                    )
                     return False
 
                 axis_transform = coin.SoTransform()
@@ -658,9 +654,7 @@ class SkeletonPoseController:
         self.gizmo_transform = coin.SoTransform()
         point = self._positions.get(bone)
         if point is not None:
-            self.gizmo_transform.translation.setValue(
-                coin.SbVec3f(*point)
-            )
+            self.gizmo_transform.translation.setValue(coin.SbVec3f(*point))
         self.gizmo_separator.addChild(self.gizmo_transform)
         if self._create_native_gizmo(coin):
             return
@@ -700,9 +694,7 @@ class SkeletonPoseController:
         )
         if hasattr(dragger, "rotationIncrement"):
             dragger.rotationIncrement.setValue(
-                math.radians(
-                    5.0 if self.panel.angle_snap.isChecked() else 1.0
-                )
+                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
             )
         self.panel.status.setText(
             "Rotating {} — release to keep the staged pose; Cancel restores it.".format(
@@ -720,9 +712,7 @@ class SkeletonPoseController:
             return
         try:
             quaternion = self._dragger_quaternion(dragger)
-            angle = math.degrees(
-                2.0 * math.atan2(float(quaternion[2]), float(quaternion[3]))
-            )
+            angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
             if self._active_gizmo_axis is None:
                 return
             delta = self.App.Rotation(
@@ -840,12 +830,9 @@ class SkeletonPoseController:
 
         if best is None and include_joint_fallback:
             for bone, point in {
-                name: self._screen_position(value)
-                for name, value in self._positions.items()
+                name: self._screen_position(value) for name, value in self._positions.items()
             }.items():
-                distance = (
-                    (point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2
-                ) ** 0.5
+                distance = ((point[0] - screen[0]) ** 2 + (point[1] - screen[1]) ** 2) ** 0.5
                 if distance < best_distance:
                     best = bone
                     best_distance = distance
@@ -920,7 +907,9 @@ class AvatarPoseTaskPanel:
         self.symmetry.setCheckable(True)
         self.symmetry.setChecked(False)
         self.symmetry.setAutoRaise(True)
-        self.symmetry.setToolTip("Mirror left/right joint rotations across the mannequin center line.")
+        self.symmetry.setToolTip(
+            "Mirror left/right joint rotations across the mannequin center line."
+        )
         self.angle_snap = QtWidgets.QToolButton()
         self.angle_snap.setText("5° Snap")
         self.angle_snap.setCheckable(True)
@@ -973,9 +962,7 @@ class AvatarPoseTaskPanel:
             box.setPrefix("{} ".format(axis.upper()))
             self.precision_fields[axis] = box
             precision_layout.addWidget(box)
-            box.valueChanged.connect(
-                lambda value, axis=axis: self._precision_changed(axis, value)
-            )
+            box.valueChanged.connect(lambda value, axis=axis: self._precision_changed(axis, value))
         selected_layout.addWidget(precision_widget)
         self.precision_widget = precision_widget
         self.precision_widget.setVisible(False)
@@ -1009,7 +996,9 @@ class AvatarPoseTaskPanel:
 
         action_row = QtWidgets.QHBoxLayout()
         self.reset_button = QtWidgets.QPushButton("Reset pose")
-        self.reset_button.setToolTip("Clear manual joint rotations and return to the active preset baseline.")
+        self.reset_button.setToolTip(
+            "Clear manual joint rotations and return to the active preset baseline."
+        )
         action_row.addWidget(self.reset_button)
         action_row.addStretch(1)
         root.addLayout(action_row)
@@ -1050,12 +1039,16 @@ class AvatarPoseTaskPanel:
             "Right leg": [],
         }
         for bone, label in CONTROLLABLE_JOINTS:
-            if bone.endswith(".L") and "leg" not in bone and any(
-                token in bone for token in ("clavicle", "arm", "wrist")
+            if (
+                bone.endswith(".L")
+                and "leg" not in bone
+                and any(token in bone for token in ("clavicle", "arm", "wrist"))
             ):
                 groups["Left arm"].append((bone, label))
-            elif bone.endswith(".R") and "leg" not in bone and any(
-                token in bone for token in ("clavicle", "arm", "wrist")
+            elif (
+                bone.endswith(".R")
+                and "leg" not in bone
+                and any(token in bone for token in ("clavicle", "arm", "wrist"))
             ):
                 groups["Right arm"].append((bone, label))
             elif bone.endswith(".L") and any(
@@ -1119,10 +1112,14 @@ class AvatarPoseTaskPanel:
         label = self._joint_label(str(bone))
         self.selected_label.setText(label)
         rotation = self._staged_joint_rotations.get(str(bone))
-        values = (0.0, 0.0, 0.0) if rotation is None else (
-            float(rotation.x),
-            float(rotation.y),
-            float(rotation.z),
+        values = (
+            (0.0, 0.0, 0.0)
+            if rotation is None
+            else (
+                float(rotation.x),
+                float(rotation.y),
+                float(rotation.z),
+            )
         )
         for axis, value in zip(("x", "y", "z"), values, strict=False):
             self._set_axis_value(axis, value)
@@ -1147,9 +1144,7 @@ class AvatarPoseTaskPanel:
             return
         values = {}
         for key in ("x", "y", "z"):
-            values[key] = (
-                float(value) if key == axis else float(self.precision_fields[key].value())
-            )
+            values[key] = float(value) if key == axis else float(self.precision_fields[key].value())
         self._stage_joint_rotation(
             self.skeleton_joint_index,
             values["x"],
@@ -1291,7 +1286,11 @@ class AvatarPoseTaskPanel:
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
             self.avatar.Document.recompute()
-            self.controller.refresh_overlay(keep_gizmo=bool(self.controller.gizmo is not None and self.controller.gizmo.isActive))
+            self.controller.refresh_overlay(
+                keep_gizmo=bool(
+                    self.controller.gizmo is not None and self.controller.gizmo.isActive
+                )
+            )
         except (AttributeError, RuntimeError, TypeError, ValueError):
             self.status.setText("Preview unavailable; the staged values remain editable.")
 

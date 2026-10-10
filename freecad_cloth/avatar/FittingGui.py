@@ -279,7 +279,9 @@ class DirectArrangeController:
         if self._mouse_callback is not None:
             return
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
-        self._location_callback = self.view.addEventCallback("SoLocation2Event", self._location_event)
+        self._location_callback = self.view.addEventCallback(
+            "SoLocation2Event", self._location_event
+        )
         self._status(
             "Drag a pattern piece in the 3D view. Blue crosshairs mark arrangement snap targets."
         )
@@ -339,9 +341,7 @@ class DirectArrangeController:
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
-            self._status(
-                "Dragging {} — release near a blue crosshair to snap.".format(piece.Label)
-            )
+            self._status("Dragging {} — release near a blue crosshair to snap.".format(piece.Label))
         elif state == "UP" and self.drag_piece is not None:
             piece = self.drag_piece
             snap = self.snap_point

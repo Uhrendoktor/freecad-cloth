@@ -74,10 +74,7 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     }
     widths = {identity: 6 for identity in hashed}
     while True:
-        candidates = {
-            identity: "S" + hashed[identity][:widths[identity]]
-            for identity in hashed
-        }
+        candidates = {identity: "S" + hashed[identity][: widths[identity]] for identity in hashed}
         by_label: dict[str, list[str]] = {}
         for identity, label in candidates.items():
             by_label.setdefault(label, []).append(identity)
@@ -90,7 +87,9 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
                 widths[identity] = min(widths[identity] + 2, len(hashed[identity]))
         # SHA-1 is long enough that the terminal collision path is only a defensive
         # guard; retain unique labels even if all digest characters collide.
-        if any(widths[identity] >= len(hashed[identity]) for group in collisions for identity in group):
+        if any(
+            widths[identity] >= len(hashed[identity]) for group in collisions for identity in group
+        ):
             labels.update(candidates)
             for identity in identities:
                 if labels[identity] in {labels[other] for other in labels if other != identity}:
@@ -163,15 +162,11 @@ def _add(
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
-def _scale(
-    vector: tuple[float, float, float], factor: float
-) -> tuple[float, float, float]:
+def _scale(vector: tuple[float, float, float], factor: float) -> tuple[float, float, float]:
     return (vector[0] * factor, vector[1] * factor, vector[2] * factor)
 
 
-def _unit(
-    vector: tuple[float, float, float]
-) -> tuple[float, float, float] | None:
+def _unit(vector: tuple[float, float, float]) -> tuple[float, float, float] | None:
     length = sum(float(value) * float(value) for value in vector) ** 0.5
     if length <= 1e-9:
         return None
@@ -212,10 +207,12 @@ def _side_segments(
     )
     notch_half = min(4.0, max(1.5, span * 0.045))
     notch_center = coords[middle]
-    segments.append([
-        _add(notch_center, _scale(perpendicular, -notch_half)),
-        _add(notch_center, _scale(perpendicular, notch_half)),
-    ])
+    segments.append(
+        [
+            _add(notch_center, _scale(perpendicular, -notch_half)),
+            _add(notch_center, _scale(perpendicular, notch_half)),
+        ]
+    )
 
     if len(coords) >= 3:
         arrow_index = max(1, min(len(coords) - 2, round((len(coords) - 1) * 0.68)))
@@ -290,11 +287,7 @@ def _add_label(
     respect_depth: bool = True,
 ) -> None:
     """Add a label that either obeys scene occlusion or is explicitly foregrounded."""
-    annotation_type = (
-        coin.SoSeparator
-        if respect_depth
-        else getattr(coin, "SoAnnotation", coin.SoSeparator)
-    )
+    annotation_type = coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
     annotation = annotation_type()
     depth = _depth_buffer(coin, respect_depth)
     color = coin.SoBaseColor()
@@ -382,10 +375,7 @@ def _simulation_seam_geometry(
                     if len(raw_pair) != 2:
                         continue
                     index_a, index_b = int(raw_pair[0]), int(raw_pair[1])
-                    if not (
-                        0 <= index_a < len(positions)
-                        and 0 <= index_b < len(positions)
-                    ):
+                    if not (0 <= index_a < len(positions) and 0 <= index_b < len(positions)):
                         continue
                     point_a, point_b = _xyz(positions[index_a]), _xyz(positions[index_b])
                 except (IndexError, TypeError, ValueError):
@@ -560,7 +550,9 @@ class SeamOverlayController:
             colors = seam_color_map(simulated.keys())
             labels = seam_display_labels(simulated.keys())
             simulation_rendered_ids: list[str] = []
-            for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(sorted(simulated.items())):
+            for label_lane, (identity, (points_a, points_b, connectors)) in enumerate(
+                sorted(simulated.items())
+            ):
                 focused = identity == str(active_seam_id)
                 width = SEAM_FOCUSED_LINE_WIDTH if focused else SEAM_LINE_WIDTH
                 side_group = coin.SoSeparator()
@@ -575,11 +567,19 @@ class SeamOverlayController:
                 label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
                 if should_show_seam_label(identity, hovered_seam_id):
                     _add_label(
-                        side_group, coin, label_a, labels[identity] + "-A", color,
+                        side_group,
+                        coin,
+                        label_a,
+                        labels[identity] + "-A",
+                        color,
                         respect_depth=_RESPECT_DEPTH_OCCLUSION,
                     )
                     _add_label(
-                        side_group, coin, label_b, labels[identity] + "-B", color,
+                        side_group,
+                        coin,
+                        label_b,
+                        labels[identity] + "-B",
+                        color,
                         respect_depth=_RESPECT_DEPTH_OCCLUSION,
                     )
                     rendered_label_ids.append(identity)
@@ -604,12 +604,22 @@ class SeamOverlayController:
                 edge_a = _resolved_edge(piece_a, seam, "A")
                 edge_b = _resolved_edge(piece_b, seam, "B")
                 points_a = _edge_samples(
-                    piece_a, edge_a, float(seam.StartA), float(seam.EndA), 17,
-                    z=0.75, transform_to_world=True,
+                    piece_a,
+                    edge_a,
+                    float(seam.StartA),
+                    float(seam.EndA),
+                    17,
+                    z=0.75,
+                    transform_to_world=True,
                 )
                 points_b = _edge_samples(
-                    piece_b, edge_b, float(seam.StartB), float(seam.EndB), 17,
-                    z=0.75, transform_to_world=True,
+                    piece_b,
+                    edge_b,
+                    float(seam.StartB),
+                    float(seam.EndB),
+                    17,
+                    z=0.75,
+                    transform_to_world=True,
                 )
                 if bool(getattr(seam, "ReversedB", False)):
                     points_b.reverse()
@@ -625,11 +635,19 @@ class SeamOverlayController:
             label_b = _label_anchor(points_b, (len(points_b) * 2) // 3, lane=label_lane)
             if should_show_seam_label(identity, hovered_seam_id):
                 _add_label(
-                    side_group, coin, label_a, labels[identity] + "-A", color,
+                    side_group,
+                    coin,
+                    label_a,
+                    labels[identity] + "-A",
+                    color,
                     respect_depth=_RESPECT_DEPTH_OCCLUSION,
                 )
                 _add_label(
-                    side_group, coin, label_b, labels[identity] + "-B", color,
+                    side_group,
+                    coin,
+                    label_b,
+                    labels[identity] + "-B",
+                    color,
                     respect_depth=_RESPECT_DEPTH_OCCLUSION,
                 )
                 rendered_label_ids.append(identity)
