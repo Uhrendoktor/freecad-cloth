@@ -117,9 +117,9 @@ def test_cube_ladder_caches_collision_proximity_mesh():
 
 def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
-    assert "runpy.run_path(" in source
-    assert "before-shared-helper-runpath" in source
-    assert "after-shared-helper-runpath" in source
+    assert "runpy.run_path(" not in source
+    assert "from tests.support.pbd_contact_helpers import" in source
+    assert "before-support-helper-import" in source
     assert "_TRACE_HANDLE = _BOOT_LOG.open(" in source
     assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
     assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
@@ -128,7 +128,8 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
     assert "_freecad_entrypoint_name = Path(__file__).stem" in source
     assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
     assert "def _schedule_freecad_main():" in source
-    assert "QtCore.QTimer.singleShot(0, _run_and_shutdown)" in source
+    assert "schedule_freecad_main(_run_and_shutdown)" in source
+    assert "QtCore.QTimer.singleShot(0, callback)" in HELPERS
     assert '_boot("freecad-hosted-entrypoint")' in source
     assert "__name__ == _freecad_entrypoint_name" in source
     assert '_boot("direct-entrypoint")' in source
