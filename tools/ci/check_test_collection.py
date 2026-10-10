@@ -1,9 +1,8 @@
-"""Validate that canonical pytest groups route and collect every requested test module."""
+"""Pytest plugin that verifies every requested validation module collects test items."""
 
 from __future__ import annotations
 
-import argparse
-from collections import Counter
+import os
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -17,42 +16,23 @@ def _normalize(paths: Iterable[str]) -> tuple[Path, ...]:
     return tuple(dict.fromkeys((ROOT / path).resolve() for path in paths))
 
 
-class _CollectionRecorder:
-    """Record which test files produced collected pytest items."""
-
-    def __init__(self) -> None:
-        self.counts: Counter[Path] = Counter()
-
-    def pytest_collection_modifyitems(self, items: list[pytest.Item]) -> None:
-        for item in items:
-            self.counts[Path(item.path).resolve()] += 1
-
-
-def assert_collected(paths: Iterable[str]) -> None:
-    """Fail closed when any requested test module collects zero pytest items."""
+def _missing_test_modules(paths: Iterable[str], collected_paths: Iterable[Path]) -> tuple[str, ...]:
+    """Return requested modules that produced no collected test items."""
     expected = _normalize(paths)
-    recorder = _CollectionRecorder()
-    status = pytest.main(
-        ["--collect-only", "-q", "--disable-warnings", *[str(path) for path in expected]],
-        plugins=[recorder],
+    collected = {Path(path).resolve() for path in collected_paths}
+    return tuple(
+        path.relative_to(ROOT).as_posix()
+        for path in expected
+        if path not in collected
     )
-    if status != pytest.ExitCode.OK:
-        raise SystemExit(f"pytest collection failed with exit code {int(status)}")
 
-    missing = [path.relative_to(ROOT).as_posix() for path in expected if not recorder.counts[path]]
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Fail the in-session pytest run when a requested module collects no items."""
+    configured = os.environ.get("CLOTH_EXPECTED_TEST_MODULES", "")
+    if not configured.strip():
+        return
+    expected = tuple(line.strip() for line in configured.splitlines() if line.strip())
+    missing = _missing_test_modules(expected, (Path(item.path) for item in items))
     if missing:
-        raise SystemExit("pytest modules collected no test items: " + ", ".join(missing))
-
-
-def main() -> int:
-    """Check one canonical validation group."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("tests", nargs="+")
-    args = parser.parse_args()
-    assert_collected(args.tests)
-    print(f"pytest-collection=passed modules={len(args.tests)}", flush=True)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+        raise pytest.UsageError("pytest modules collected no test items: " + ", ".join(missing))

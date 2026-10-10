@@ -1,23 +1,10 @@
+import pytest
+
 from freecad_cloth.common.MeshValidation import (
     nearest_surface_clearance,
     nearest_target_clearance,
     validate_mesh,
 )
-
-
-def _approx(actual, expected, tolerance=1e-9):
-    if abs(float(actual) - float(expected)) > tolerance:
-        raise AssertionError(f"expected {expected!r}, got {actual!r}")
-
-
-def _raises(exc_type, message, function):
-    try:
-        function()
-    except exc_type as exc:
-        if message not in str(exc):
-            raise AssertionError(f"expected {message!r} in {exc!r}") from exc
-    else:
-        raise AssertionError(f"expected {exc_type.__name__}")
 
 
 def square_mesh():
@@ -66,22 +53,21 @@ def test_degenerate_faces_include_distinct_collinear_vertices():
 
 
 def test_validation_rejects_bad_indices():
-    _raises(
-        ValueError,
-        "out of range",
-        lambda: validate_mesh(((0.0, 0.0, 0.0),) * 3, ((0, 1, 4),), prefer_trimesh=False),
-    )
+    with pytest.raises(ValueError, match="out of range"):
+        validate_mesh(((0.0, 0.0, 0.0),) * 3, ((0, 1, 4),), prefer_trimesh=False)
 
 
 def test_vertex_clearance_is_translation_sensitive():
-    _approx(nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)), 2.0)
+    assert nearest_target_clearance(
+        ((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)
+    ) == pytest.approx(2.0)
 
 
 def test_large_vertex_clearance_returns_exact_nearest_distance():
     """The required spatial index preserves the exact nearest-point distance."""
     garment = tuple((float(index), 5.0, 0.0) for index in range(48))
     target = tuple((float(index), 0.0, 0.0) for index in range(48))
-    _approx(nearest_target_clearance(garment, target), 5.0)
+    assert nearest_target_clearance(garment, target) == pytest.approx(5.0)
 
 
 def test_trimesh_surface_clearance_is_optional():
@@ -91,7 +77,7 @@ def test_trimesh_surface_clearance_is_optional():
     except RuntimeError as exc:
         assert "trimesh" in str(exc)
     else:
-        _approx(distance, 3.0)
+        assert distance == pytest.approx(3.0)
 
 
 def test_degenerate_face_is_reported_without_trimesh():

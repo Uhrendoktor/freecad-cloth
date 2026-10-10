@@ -159,9 +159,8 @@ def main() -> int:
     missing = [test for test in tests if not Path(test).is_file()]
     if missing:
         raise SystemExit("missing tests: " + ", ".join(missing))
-    collection_command = ["python3", "tools/ci/check_test_collection.py", *tests]
-    subprocess.run(collection_command, check=True, timeout=60)
-    command = ["python3", "-m", "pytest", "-q", *tests]
+    os.environ["CLOTH_EXPECTED_TEST_MODULES"] = "\n".join(tests)
+    command = ["python3", "-m", "pytest", "-q", "-p", "tools.ci.check_test_collection", *tests]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
     subprocess.run(command, check=True, timeout=110)
     print(f"python-validation={args.group} passed", flush=True)
