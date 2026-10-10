@@ -162,6 +162,27 @@ def test_pbd_collision_sdf_is_cached_outside_backend_instance():
     assert "self._collision_sdf" in backend
 
 
+def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive():
+    from freecad_cloth.shared.collision import CollisionSurface
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
+
+    surface = CollisionSurface(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 1, 2),),
+        thickness=1.0,
+    ).validate()
+    key = _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
+    assert key == _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
+
+    moved = CollisionSurface(
+        ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 1, 2),),
+        thickness=1.0,
+    ).validate()
+    assert key != _pbd_collision_sdf_cache_key(moved, [16, 16, 16])
+    assert key != _pbd_collision_sdf_cache_key(surface, [17, 16, 16])
+
+
 
 def test_pbd_ci_image_is_pinned_and_preinstalled():
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")

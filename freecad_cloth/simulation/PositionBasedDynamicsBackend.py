@@ -232,11 +232,22 @@ _PBD_COLLISION_SDF_CACHE: object | None = None
 
 
 def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
+    """Hash binary mesh arrays without allocating their large textual representations."""
     digest = hashlib.sha256()
-    digest.update(repr(surface.vertices).encode("utf-8"))
-    digest.update(repr(surface.triangles).encode("utf-8"))
-    digest.update(repr(surface.thickness).encode("utf-8"))
-    digest.update(repr(tuple(int(value) for value in resolution)).encode("utf-8"))
+    digest.update(b"cloth-pbd-collision-sdf-key-v2\0")
+
+    vertices = np.ascontiguousarray(surface.vertices, dtype=np.dtype("<f8"))
+    triangles = np.ascontiguousarray(surface.triangles, dtype=np.dtype("<i8")).reshape((-1, 3))
+    voxel_resolution = np.ascontiguousarray(resolution, dtype=np.dtype("<i8"))
+    thickness = np.asarray((surface.thickness,), dtype=np.dtype("<f8"))
+
+    digest.update(len(surface.vertices).to_bytes(8, "little"))
+    digest.update(memoryview(vertices).cast("B"))
+    digest.update(len(surface.triangles).to_bytes(8, "little"))
+    digest.update(memoryview(triangles).cast("B"))
+    digest.update(memoryview(thickness).cast("B"))
+    digest.update(len(resolution).to_bytes(8, "little"))
+    digest.update(memoryview(voxel_resolution).cast("B"))
     return digest.digest()
 
 
