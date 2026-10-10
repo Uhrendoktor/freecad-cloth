@@ -490,7 +490,7 @@ def _run_ladder_case(case_id):
             except (AttributeError, TypeError, ValueError):
                 source_shape = None
 
-        seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
+        seam_pre = _seam_geometry(positions, base.seam_stitch_pairs)
         proximity_mesh = None
         try:
             import numpy as np
