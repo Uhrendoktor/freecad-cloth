@@ -456,6 +456,7 @@ try:
     ):
         view_object = piece.ViewObject
         view_object.Visibility = True
+        view_object.DisplayMode = "Shaded"
         view_object.ShapeColor = color
         view_object.LineColor = (0.12, 0.16, 0.21)
         view_object.LineWidth = 3.0
