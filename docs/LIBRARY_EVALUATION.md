@@ -72,8 +72,9 @@ Pydantic is not used for each arithmetic operation or inside per-particle solver
 ### Delegation choices
 
 - **Triangle** remains responsible for constrained Delaunay triangulation and mesh refinement. The adapter retains checks needed for authored-boundary provenance, face orientation, and area preservation. Boundary-vertex reconciliation now builds one quantized-coordinate index instead of rescanning all output vertices for every boundary point.
-- **trimesh** remains an optional diagnostics library for point-to-triangle-surface queries and mesh metrics. The dependency-free component-count fallback stays because it preserves optional-install behavior.
+- **trimesh** remains optional for point-to-triangle-surface queries, mesh metrics, and watertight point-containment queries. When it or its spatial-index backend is absent, NumPy vectorized triangle-area and ray-parity calculations plus SciPy sparse connected-components preserve the non-trimesh diagnostics path.
 - **`math.dist`** replaces hand-rolled Euclidean norm loops for vertex clearance. It prevents non-strict `zip` from silently ignoring mismatched dimensions and delegates norm arithmetic to the standard library.
+- **Shapely/GEOS** handles point-to-segment distance and authored-segment provenance queries, with each curve sampled into a line geometry once per mapping operation. Hypothesis checks the distance invariants because GEOS operations are outside CrossHair's symbolic model.
 - **FreeCAD Part/OCCT** remains authoritative for native editable geometry and offsets. Shapely is required for the polygon simplicity predicate, but is not used as a drop-in seam-allowance buffer: buffer join styles, collapsed concavities and ring ordering can alter authored topology.
 - **svgpathtools**, **libigl**, and other optional geometry tools remain candidates until a concrete production path and FreeCAD packaging/runtime compatibility are demonstrated. Do not duplicate a geometry kernel simply to remove loops that preserve semantic identities a library does not know about.
 
