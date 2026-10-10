@@ -58,6 +58,13 @@ def test_fallback_surface_area_uses_triangle_geometry():
     assert result.surface_area == 6.0
 
 
+def test_degenerate_faces_include_distinct_collinear_vertices():
+    vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0))
+    result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
+    assert result.degenerate_faces == 1
+    assert result.surface_area == 0.0
+
+
 def test_validation_rejects_bad_indices():
     _raises(
         ValueError,

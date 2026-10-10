@@ -47,19 +47,24 @@ def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, f
     return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
 
 
+def _triangle_surface_area(vertices: Sequence[Point3], a: int, b: int, c: int) -> float:
+    """Return the geometric area of one 3D triangle."""
+    origin, first, second = vertices[a], vertices[b], vertices[c]
+    ab = tuple(float(first[axis]) - float(origin[axis]) for axis in range(3))
+    ac = tuple(float(second[axis]) - float(origin[axis]) for axis in range(3))
+    cross = (
+        ab[1] * ac[2] - ab[2] * ac[1],
+        ab[2] * ac[0] - ab[0] * ac[2],
+        ab[0] * ac[1] - ab[1] * ac[0],
+    )
+    return 0.5 * hypot(*cross)
+
+
 def _fallback_surface_area(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> float:
     """Calculate total triangle area without optional mesh libraries."""
     total = 0.0
     for a, b, c in triangles:
-        origin, first, second = vertices[a], vertices[b], vertices[c]
-        ab = tuple(float(first[axis]) - float(origin[axis]) for axis in range(3))
-        ac = tuple(float(second[axis]) - float(origin[axis]) for axis in range(3))
-        cross = (
-            ab[1] * ac[2] - ab[2] * ac[1],
-            ab[2] * ac[0] - ab[0] * ac[2],
-            ab[0] * ac[1] - ab[1] * ac[0],
-        )
-        area = 0.5 * hypot(*cross)
+        area = _triangle_surface_area(vertices, a, b, c)
         total += area
         if not isfinite(area) or not isfinite(total):
             raise ValueError("computed mesh surface area must be finite")
@@ -113,7 +118,11 @@ def validate_mesh(
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
-    degenerate = sum(1 for a, b, c in triangles if len({a, b, c}) < 3)
+    degenerate = sum(
+        1
+        for a, b, c in triangles
+        if len({a, b, c}) < 3 or _triangle_surface_area(vertices, a, b, c) == 0.0
+    )
 
     if prefer_trimesh:
         try:
