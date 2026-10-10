@@ -391,15 +391,9 @@ def focus_selected_seam_3d():
                 continue
             boxes.append(shape.BoundBox)
         if boxes:
-            extent_x = max(float(box.XMax) for box in boxes) - min(
-                float(box.XMin) for box in boxes
-            )
-            extent_y = max(float(box.YMax) for box in boxes) - min(
-                float(box.YMin) for box in boxes
-            )
-            extent_z = max(float(box.ZMax) for box in boxes) - min(
-                float(box.ZMin) for box in boxes
-            )
+            extent_x = max(float(box.XMax) for box in boxes) - min(float(box.XMin) for box in boxes)
+            extent_y = max(float(box.YMax) for box in boxes) - min(float(box.YMin) for box in boxes)
+            extent_z = max(float(box.ZMax) for box in boxes) - min(float(box.ZMin) for box in boxes)
             projected_span = extent_x + extent_y + extent_z
             if projected_span > 0.0:
                 size = view.getSize()
