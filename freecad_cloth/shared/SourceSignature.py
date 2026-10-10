@@ -9,33 +9,28 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable
-from typing import SupportsFloat, cast
 
 
-def _point_coordinates(point: object):
+def _point_coordinates(point):
     """Normalize iterable and FreeCAD-vector points to deterministic triples."""
     try:
-        values = tuple(cast(Iterable[object], point))
+        values = tuple(point)
     except TypeError:
         values = None
     if values is not None and len(values) >= 3:
-        return tuple(round(float(cast(SupportsFloat, c)), 6) for c in values[:3])
+        return tuple(round(float(c), 6) for c in values[:3])
     return (
-        round(float(cast(SupportsFloat, getattr(point, "x"))), 6),
-        round(float(cast(SupportsFloat, getattr(point, "y"))), 6),
-        round(float(cast(SupportsFloat, getattr(point, "z"))), 6),
+        round(float(point.x), 6),
+        round(float(point.y), 6),
+        round(float(point.z), 6),
     )
 
 
-def _digest_surface(vertices: Iterable[object], triangles: Iterable[object]):
+def _digest_surface(vertices, triangles):
     """Return a deterministic digest of the complete collision topology."""
     payload = {
         "vertices": [_point_coordinates(vertex) for vertex in vertices],
-        "triangles": [
-            tuple(int(cast(int, i)) for i in cast(Iterable[object], triangle))
-            for triangle in triangles
-        ],
+        "triangles": [tuple(int(i) for i in triangle) for triangle in triangles],
     }
     encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
@@ -62,7 +57,7 @@ def _mesh_signature(target):
     if topology is None:
         return None
     try:
-        vertices, triangles = cast(tuple[Iterable[object], Iterable[object]], topology)
+        vertices, triangles = topology
         return ("Mesh", len(vertices), len(triangles), _digest_surface(vertices, triangles))
     except (TypeError, ValueError, AttributeError):
         return None
@@ -73,7 +68,7 @@ def _shape_content_signature(shape, deflection=1.0):
     tessellate = getattr(shape, "tessellate", None)
     if callable(tessellate):
         try:
-            vertices, triangles = cast(tuple[Iterable[object], Iterable[object]], tessellate(float(deflection)))
+            vertices, triangles = tessellate(float(deflection))
             return (
                 "TessellatedShape",
                 len(vertices),
@@ -85,7 +80,7 @@ def _shape_content_signature(shape, deflection=1.0):
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
-            return ("ShapeHash", int(cast(int, hash_code())))
+            return ("ShapeHash", int(hash_code()))
         except (TypeError, ValueError, RuntimeError):
             pass
     return ("Unknown",)

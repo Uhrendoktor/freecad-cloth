@@ -8,7 +8,6 @@ compatibility adapter, not a second seam representation.
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import isfinite
-from typing import cast
 
 from freecad_cloth.common.ValidationModels import (
     TransformMatrixInput, validate_finite_number, validate_points3d,
@@ -282,7 +281,7 @@ class SeamGraph:
         raw_values = tuple(edge_vertices[key])
         if any(not isinstance(index, int) or isinstance(index, bool) or index < 0 for index in raw_values):
             raise ValueError(f"mesh edge {piece_id}:{edge_index} contains invalid vertex indices")
-        values = tuple(cast(int, index) for index in raw_values)
+        values = tuple(raw_values)
         if len(values) < 2:
             raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
         return values

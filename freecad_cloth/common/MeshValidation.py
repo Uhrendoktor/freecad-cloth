@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from math import hypot, isfinite
 
-from scipy.spatial import KDTree
+from scipy.spatial import cKDTree
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 
@@ -185,7 +185,7 @@ def nearest_target_clearance(
         raise ValueError("garment and target vertices are required")
 
     try:
-        distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        distances, _ = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
         clearance = min(float(value) for value in distances)
     except (OverflowError, ValueError, RuntimeError) as exc:
         raise ValueError("could not calculate finite nearest vertex clearance") from exc
