@@ -170,23 +170,23 @@ def _make_tunic_sketch(
     h = float(garment_height)
     neck_z = (1.0 - float(neckline_drop)) * h
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.66 * h
+    armhole_z = 0.58 * h
     shoulder_z = 0.86 * h
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + 0.82 * panel_width, armhole_z),
+        (x_offset + 0.76 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.18 * panel_width, armhole_z),
+        (x_offset + 0.24 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError("debug tunic shoulders must fall outward from neckline")
-    if points[3][0] - points[2][0] < 0.10 * float(panel_width):
+    if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         raise RuntimeError("debug tunic armhole is too narrow")
-    if shoulder_z - armhole_z < 0.15 * h:
+    if shoulder_z - armhole_z < 0.20 * h:
         raise RuntimeError("debug tunic armhole is too shallow")
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
@@ -200,10 +200,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if idx == 2:
             # Give the armhole meaningful vertical depth and inward sweep.
-            midpoint = App.Vector(x_offset + 0.83 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.77 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.17 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.23 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
