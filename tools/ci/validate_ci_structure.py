@@ -25,6 +25,18 @@ REQUIRED = (
 )
 
 
+TYPECHECK_COMMANDS = (
+    "python tools/ci/check_explicit_any_annotations.py",
+    "pyright -p pyrightconfig.json",
+    "pyright -p pyrightconfig.agent-strict.json",
+)
+
+
+def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
+    """Return required blocking type-gate commands missing from the canonical workflow."""
+    return tuple(command for command in TYPECHECK_COMMANDS if command not in workflow_text)
+
+
 def main() -> int:
     """Validate the repository CI structure and hard runtime contracts."""
     files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
@@ -36,6 +48,12 @@ def main() -> int:
         raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 500")
     if "pull_request_target" in text:
         raise SystemExit("pull_request_target is forbidden")
+    missing_typecheck = missing_typecheck_commands(text)
+    if missing_typecheck:
+        raise SystemExit(
+            "canonical workflow is missing required type-check gates: "
+            + ", ".join(missing_typecheck)
+        )
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
         raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
     if (

@@ -20,7 +20,8 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 In addition to the normal lint/test gates, the development environment enforces deterministic safeguards for multi-agent reliability:
 
-- Pyright runs in standard mode for the existing broad core profile and strict mode for selected deterministic core modules.
+- Blocking CI runs Pyright in standard mode for the configured broad core profile and strict mode for selected deterministic core modules.
+- A syntax-aware AST policy gate blocks explicit `Any` references across Python source, including type aliases and variable/class annotations that Ruff ANN401 does not inspect.
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
 - CrossHair symbolically checks a small, explicitly curated pure-math contract surface; Pydantic schemas validate the boundary preconditions those contracts assume.
@@ -37,7 +38,7 @@ These checks complement the architecture contracts rather than replacing them. D
 
 Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
 
-CI uses Ruff as the blocking lint/format gate. Rule `ANN401` prohibits explicit `typing.Any` annotations across the repository, including code outside the strict Pyright profile. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+CI uses Ruff as the blocking lint/format gate. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs both the configured broad standard Pyright profile and the curated strict profile as blocking checks. The `ty` pilot remains report-only until its diagnostics baseline is reviewed. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
 
 ## Documentation contract
 
