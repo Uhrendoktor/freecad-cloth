@@ -73,6 +73,31 @@ def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
     assert requested_pages == [1, 2]
 
 
+def test_maintenance_cleanup_prefers_committer_date_for_branch_activity():
+    from tools.ci import maintenance_cleanup
+
+    commit_data = {
+        "author": {"date": "2020-01-01T00:00:00Z"},
+        "committer": {"date": "2026-10-01T00:00:00Z"},
+    }
+
+    activity = maintenance_cleanup.branch_activity_epoch(commit_data)
+    cutoff = maintenance_cleanup.epoch("2026-09-26T00:00:00Z")
+
+    assert activity is not None
+    assert activity > cutoff
+
+
+def test_maintenance_cleanup_falls_back_to_author_date_when_needed():
+    from tools.ci import maintenance_cleanup
+
+    commit_data = {"author": {"date": "2026-10-01T00:00:00Z"}}
+
+    assert maintenance_cleanup.branch_activity_epoch(commit_data) == maintenance_cleanup.epoch(
+        "2026-10-01T00:00:00Z"
+    )
+
+
 def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff():
     from tools.ci import maintenance_cleanup
 
