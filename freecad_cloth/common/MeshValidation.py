@@ -33,9 +33,7 @@ class MeshValidationResult:
     degenerate_faces: int
 
 
-def _validate_arrays(
-    vertices: Sequence[Point3], triangles: Sequence[Triangle]
-) -> MeshArrays:
+def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
     """Validate mesh coordinates and connectivity with one schema boundary."""
     return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 

@@ -163,6 +163,7 @@ def _metrics(
     backend, stitches, pin_indices, initial_pins, target_vertices, triangles, requested_step
 ):
     from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
     positions = backend.positions()
     seam_gaps = []
     for a, b in stitches:
@@ -253,7 +254,13 @@ def run():
 
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
-            doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
+            doc,
+            name + "Source",
+            panel_width,
+            garment_height,
+            hem_width,
+            neckline_ratio,
+            neckline_drop,
         )
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0)

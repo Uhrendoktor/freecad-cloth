@@ -32,10 +32,7 @@ class TriangleMesh:
             raise ValueError("mesh needs at least three vertices")
         n = len(self.vertices)
         for tri in self.triangles:
-            if (
-                len(set(tri)) != 3
-                or any(type(index) is not int or index < 0 or index >= n for index in tri)
-            ):
+            if len(set(tri)) != 3 or any(type(index) is not int or index < 0 or index >= n for index in tri):
                 raise ValueError("invalid triangle index")
         if len(self.boundary_vertex_indices) < 3:
             raise ValueError("mesh needs at least three boundary vertices")

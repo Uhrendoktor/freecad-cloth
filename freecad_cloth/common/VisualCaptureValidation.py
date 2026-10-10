@@ -192,9 +192,7 @@ def validate_png_capture(
     min_opaque_pixels: int = 64,
 ) -> dict:
     """Validate a GUI screenshot structurally and reject empty/uniform captures."""
-    metrics = _capture_metrics(
-        path, expected_width=expected_width, expected_height=expected_height
-    )
+    metrics = _capture_metrics(path, expected_width=expected_width, expected_height=expected_height)
     if metrics["opaque_pixels"] < min_opaque_pixels:
         raise ValueError(
             "PNG content is effectively transparent: opaque_pixels=%d minimum=%d"
