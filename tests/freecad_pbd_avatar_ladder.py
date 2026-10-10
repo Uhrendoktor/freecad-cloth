@@ -53,11 +53,13 @@ from tests.support.pbd_contact_helpers import build_scene as _build_scene
 from tests.support.pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
 from tests.support.pbd_contact_helpers import connected_components as _connected_components
 from tests.support.pbd_contact_helpers import events as _events
-from tests.support.pbd_contact_helpers import make_progress_logger
-from tests.support.pbd_contact_helpers import make_shutdown_gui
+from tests.support.pbd_contact_helpers import (
+    make_progress_logger,
+    make_shutdown_gui,
+    schedule_freecad_main,
+)
 from tests.support.pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
 from tests.support.pbd_contact_helpers import positions_tuple as _positions_tuple
-from tests.support.pbd_contact_helpers import schedule_freecad_main
 from tests.support.pbd_contact_helpers import seam_geometry as _seam_geometry
 from tests.support.pbd_contact_helpers import screenshot as _screenshot
 from tests.support.pbd_contact_helpers import target_signature as _target_signature
