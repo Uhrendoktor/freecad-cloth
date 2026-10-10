@@ -386,8 +386,8 @@ def run():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("DebugTunicFront", front_y, 0.64, 0.10)
-    back, back_outline = make_piece("DebugTunicBack", back_y, 0.64, 0.10)
+    front, front_outline = make_piece("DebugTunicFront", front_y, 0.64, 0.06)
+    back, back_outline = make_piece("DebugTunicBack", back_y, 0.64, 0.06)
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam

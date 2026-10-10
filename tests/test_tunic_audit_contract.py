@@ -298,6 +298,24 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
     assert "np.einsum" in sanity
 
 
+
+def test_penetration_evidence_stays_on_numpy_path_in_freecad_host():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    audit = source.split("def write_drape_metrics(", 1)[1].split(
+        "\ndef _arc_through_midpoint(", 1
+    )[0]
+    evidence = audit.split("inside_points = []", 1)[1].split(
+        'log(\n                    "penetration-evidence', 1
+    )[0]
+
+    assert (
+        "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh"
+        not in audit
+    )
+    assert evidence.count("prefer_trimesh=False") == 2
+    assert "points_inside_closed_mesh(" in evidence
+    assert "point_inside_closed_mesh(" not in evidence
+
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
@@ -333,10 +351,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.10)' in debug
-    assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.10)' in debug
-    assert 'make_piece("VisualTunicFront", "back", 0.64, 0.10)' in audit
-    assert 'make_piece("VisualTunicBack", "front", 0.64, 0.10)' in audit
+    assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.06)' in debug
+    assert 'make_piece("VisualTunicFront", "back", 0.64, 0.06)' in audit
+    assert 'make_piece("VisualTunicBack", "front", 0.64, 0.06)' in audit
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():

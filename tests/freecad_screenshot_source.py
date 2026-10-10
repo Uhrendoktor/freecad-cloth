@@ -496,7 +496,7 @@ def write_drape_metrics(
             if collision_surface is not None:
                 from math import dist
 
-                from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+                from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
                 target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
                 target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
@@ -521,9 +521,12 @@ def write_drape_metrics(
                     for point in vertices:
                         point_tuple = tuple(float(value) for value in point)
                         try:
-                            authoritative_inside = point_inside_closed_mesh(
-                                point_tuple, target_points, target_triangles
-                            )
+                            authoritative_inside = points_inside_closed_mesh(
+                                (point_tuple,),
+                                target_points,
+                                target_triangles,
+                                prefer_trimesh=False,
+                            )[0]
                         except (TypeError, ValueError, IndexError):
                             break
                         if not authoritative_inside:
@@ -535,9 +538,12 @@ def write_drape_metrics(
                         solver_inside = None
                         if solver_vertices and solver_triangles:
                             try:
-                                solver_inside = point_inside_closed_mesh(
-                                    point_tuple, solver_vertices, solver_triangles
-                                )
+                                solver_inside = points_inside_closed_mesh(
+                                    (point_tuple,),
+                                    solver_vertices,
+                                    solver_triangles,
+                                    prefer_trimesh=False,
+                                )[0]
                             except (TypeError, ValueError, IndexError):
                                 solver_inside = None
                         inside_points.append(
@@ -1250,8 +1256,8 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.10)
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.06)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.06)
 
     def log_tunic_outline_topology(piece):
         """Report the ordered native boundary around any polygon self-intersection."""
