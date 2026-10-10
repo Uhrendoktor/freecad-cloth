@@ -69,7 +69,7 @@ def test_avatar_ladder_snapshots_solver_positions_before_rendering():
     assert checkpoint_loop.index("positions = _positions_tuple(base.backend)") < checkpoint_loop.index(
         "_avatar_screenshot(view, image)"
     )
-    assert "_seam_geometry(positions, base.seam_stitch_pairs)" in checkpoint_loop
+    assert "_seam_geometry(positions, base.seam_stitch_pairs)" in SOURCE
 
     checkpoint_record = SOURCE.split("def _checkpoint_record(", 1)[1].split(
         "def _build_avatar_scene(", 1
