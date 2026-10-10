@@ -16,9 +16,7 @@ def test_sketcher_acceptance_prepares_gui_before_workbench_assertion():
 
 
 def test_pose_acceptance_waits_for_paint_before_screen_capture():
-    source = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(encoding="utf-8")
     run = source.split("def run():", 1)[1]
     capture = source.split("def _capture_pose_screen", 1)[1].split("def _bounds", 1)[0]
     assert run.index("Gui.Control.showDialog(panel)") < run.index("_events()")
