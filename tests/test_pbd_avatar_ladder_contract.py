@@ -74,4 +74,4 @@ def test_avatar_ladder_snapshots_solver_positions_before_rendering():
     checkpoint_record = SOURCE.split("def _checkpoint_record(", 1)[1].split(
         "def _build_avatar_scene(", 1
     )[0]
-    assert "_seam_geometry(positions, seam_stitch_pairs)" in checkpoint_record
+    assert "_seam_geometry(positions, base.seam_stitch_pairs)" in checkpoint_record
