@@ -250,7 +250,15 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
 
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
-    """Return a scale-safe Euclidean distance to a finite segment."""
+    """Return a robust point-to-segment distance, including subnormal segments.
+
+    Normalize coordinate differences before asking GEOS to avoid overflow for
+    tiny coordinates. If GEOS still returns a non-finite distance because its
+    projection arithmetic underflows, use a unit-direction projection fallback.
+    """
+    if point in (start, end):
+        return 0.0
+
     with_offset = (
         end[0] - start[0],
         end[1] - start[1],
@@ -259,34 +267,33 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     )
     if not all(isfinite(value) for value in with_offset):
         raise ValueError("point-to-segment coordinate differences must be finite")
-    dx, dy, px, py = with_offset
-    if point in (start, end):
+    scale = max(abs(value) for value in with_offset)
+    if scale == 0.0:
         return 0.0
 
-    segment_length = hypot(dx, dy)
-    if segment_length == 0.0:
-        distance = hypot(px, py)
+    dx, dy, px, py = (value / scale for value in with_offset)
+    normalized_distance = float(LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py))))
+    distance = scale * normalized_distance
+    if isfinite(distance):
+        return distance
+
+    sx, sy = float(start[0]), float(start[1])
+    px, py = float(point[0]), float(point[1])
+    dx, dy = float(end[0]) - sx, float(end[1]) - sy
+    length = hypot(dx, dy)
+    if length == 0.0:
+        distance = hypot(px - sx, py - sy)
     else:
-        ux, uy = dx / segment_length, dy / segment_length
-        point_scale = max(abs(px), abs(py))
-        if point_scale == 0.0:
-            return 0.0
-
-        # Normalize the offset before dot/cross products. A segment may be
-        # subnormal while the point is far away, causing GEOS projection
-        # arithmetic to overflow or underflow when scales are mixed.
-        projection = (px / point_scale) * ux + (py / point_scale) * uy
-        if projection <= 0.0:
-            distance = hypot(px, py)
-        elif projection >= segment_length / point_scale:
-            distance = hypot(point[0] - end[0], point[1] - end[1])
-        else:
-            perpendicular = abs((px / point_scale) * uy - (py / point_scale) * ux)
-            distance = point_scale * perpendicular
-
+        unit_x, unit_y = dx / length, dy / length
+        projection = (px - sx) * unit_x + (py - sy) * unit_y
+        clamped = max(0.0, min(length, projection))
+        closest_x = sx + clamped * unit_x
+        closest_y = sy + clamped * unit_y
+        distance = hypot(px - closest_x, py - closest_y)
     if not isfinite(distance):
         raise ValueError("computed point-to-segment distance must be finite")
     return distance
+
 
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
     return _cross(a, b, c) / 2.0
