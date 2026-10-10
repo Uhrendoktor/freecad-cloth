@@ -773,7 +773,7 @@ def fit_makehuman_mesh(
             fitted, shoulder_pivots, shoulder_z, height_mm, arm_weights
         )
 
-    default_angle = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
+    default_angle = {"t_pose": 12.0, "standing": 12.0, "sewing": 55.0, "sitting": 25.0}.get(pose.preset, 12.0)
     left_angle = (
         default_angle
         if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0
