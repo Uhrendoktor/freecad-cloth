@@ -86,7 +86,6 @@ def test_reject_restores_snapshot_before_closing_dialog():
     assert calls == ["restore", "close"]
 
 
-
 def test_physical_material_controls_are_explicitly_unsupported_without_a_solver_mapping():
     assert PHYSICAL_MATERIAL_CONTROLS_SUPPORTED is False
     assert "PositionBasedDynamics solver" in PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE

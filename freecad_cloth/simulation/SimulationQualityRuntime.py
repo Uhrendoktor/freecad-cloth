@@ -10,7 +10,6 @@ from math import ceil
 from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
 from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
 
-
 PHYSICAL_MATERIAL_CONTROLS_SUPPORTED = False
 PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE = (
     "Density, thickness, stretch, shear, bend, and friction are preserved in the document "
@@ -18,8 +17,6 @@ PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE = (
     "disabled until a documented solver mapping is available. Color, specular, roughness, "
     "and transparency remain active presentation settings."
 )
-
-
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 

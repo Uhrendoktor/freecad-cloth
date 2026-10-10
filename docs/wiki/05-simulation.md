@@ -11,7 +11,10 @@
 Before running the solver, make sure the target is valid/current and the garment is intentionally arranged. Use the simple cube case before investigating a complete tunic.
 
 1. In **Cloth Simulation**, confirm the selected **DrapeTarget** and its validity.
-2. Choose mesh quality/resolution. In the Fabric panel, color, specular, roughness and transparency are active presentation controls. Physical density, thickness, stretch, shear, bend and friction controls are disabled until a documented mapping to the current PositionBasedDynamics solver exists.
+2. Choose mesh quality/resolution. In the Fabric panel, color, specular, roughness and transparency
+   are active presentation controls. Physical density, thickness, stretch, shear, bend and friction
+   controls are disabled until a documented mapping to the current PositionBasedDynamics solver
+   exists.
 3. Review the pinning mode: **Automatic**, **Explicit**, or **None**. Check the pin selection and expected sewing constraints.
 4. Use **Run** for normal simulation. Use **Step** to inspect controlled progression and **Reset** to recover from an invalid run.
 5. Watch actual garment state change: initial arrangement, contact, fold development, and settling. A rotating camera by itself is not simulated motion.

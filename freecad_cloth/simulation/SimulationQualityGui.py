@@ -39,10 +39,10 @@ class SimulationQualityTaskPanel:
         App, Gui, QtCore, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES
         from freecad_cloth.simulation.SimulationQualityRuntime import (
-            apply_quality_preset,
-            ensure_quality_properties,
             PHYSICAL_MATERIAL_CONTROLS_SUPPORTED,
             PHYSICAL_MATERIAL_CONTROLS_UNSUPPORTED_MESSAGE,
+            apply_quality_preset,
+            ensure_quality_properties,
         )
 
         self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
