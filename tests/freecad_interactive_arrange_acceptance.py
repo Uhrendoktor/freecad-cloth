@@ -282,18 +282,122 @@ def run():
     if "Stale anchor:" not in str(point_obj.Label):
         raise RuntimeError("stale surface anchor was not marked visibly in the viewport")
 
+    # Exercise the actual avatar skeleton rebuild path. Select a triangle that
+    # moves strongly under a manual joint rotation, then prove the saved barycentric
+    # anchor follows that same triangle when the avatar mesh is rebuilt.
+    from freecad_cloth.avatar.AvatarCommands import create_avatar, set_avatar_joint
+    from freecad_cloth.avatar.FittingCommands import (
+        _mesh_anchor_local_position,
+        create_arrangement_anchor,
+    )
+
+    avatar = create_avatar(attach_collision=False, doc=doc, object_name="PoseAnchorAvatar")
+    scene.AvatarProxy = avatar
+    doc.recompute()
+
+    def _mesh_snapshot(mesh_target):
+        mesh_vertices, mesh_triangles = mesh_target.Mesh.Topology
+        return (
+            tuple((float(v.x), float(v.y), float(v.z)) for v in mesh_vertices),
+            tuple(tuple(int(index) for index in face) for face in mesh_triangles),
+        )
+
+    rest_vertices, rest_triangles = _mesh_snapshot(avatar)
+    set_avatar_joint("upperarm01.L", y=30.0)
+    posed_vertices, posed_triangles = _mesh_snapshot(avatar)
+    if posed_triangles != rest_triangles:
+        raise RuntimeError("avatar skeleton edit unexpectedly changed mesh triangle connectivity")
+
+    moved_triangle_index = max(
+        range(len(rest_triangles)),
+        key=lambda index: sum(
+            sum(
+                (posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2
+                for axis in range(3)
+            )
+            for vertex in rest_triangles[index]
+        ),
+    )
+    moved_triangle = rest_triangles[moved_triangle_index]
+    movement_score = sum(
+        sum(
+            (posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2
+            for axis in range(3)
+        )
+        for vertex in moved_triangle
+    )
+    if movement_score <= 1e-4:
+        raise RuntimeError("manual skeleton edit did not deform any avatar surface triangle")
+
+    set_avatar_joint("upperarm01.L", y=0.0)
+    reset_vertices, reset_triangles = _mesh_snapshot(avatar)
+    if reset_triangles != rest_triangles:
+        raise RuntimeError("reset avatar pose changed surface triangle connectivity")
+    triangle_weights = (0.2, 0.3, 0.5)
+    local_pick = tuple(
+        sum(
+            reset_vertices[moved_triangle[index]][axis] * triangle_weights[index]
+            for index in range(3)
+        )
+        for axis in range(3)
+    )
+    world_pick = avatar.Placement.multVec(App.Vector(*local_pick))
+    create_arrangement_anchor(
+        "SkeletonSurfaceAnchor",
+        avatar,
+        world_pick,
+        subelement="Facet{}".format(moved_triangle_index + 1),
+    )
+    records = [json.loads(value) for value in scene.ArrangementAnchorData]
+    mesh_anchor_record = next(
+        value for value in records if value["name"] == "SkeletonSurfaceAnchor"
+    )
+    if int(mesh_anchor_record.get("triangle_index", -1)) != moved_triangle_index:
+        raise RuntimeError("surface picker did not persist the selected avatar triangle")
+    mesh_anchor_obj = doc.getObject("ArrangementPoint_SkeletonSurfaceAnchor")
+    rest_anchor = (
+        float(mesh_anchor_obj.X), float(mesh_anchor_obj.Y), float(mesh_anchor_obj.Offset)
+    )
+
+    # This calls the production avatar rebuild and its fitting-anchor refresh hook.
+    set_avatar_joint("upperarm01.L", y=30.0)
+    if arrangement_anchor_status(mesh_anchor_obj) != "valid":
+        raise RuntimeError("skeleton posing incorrectly invalidated a compatible mesh anchor")
+    expected_local = _mesh_anchor_local_position(avatar, mesh_anchor_record)
+    expected_world = avatar.Placement.multVec(App.Vector(*expected_local))
+    posed_anchor = (
+        float(mesh_anchor_obj.X), float(mesh_anchor_obj.Y), float(mesh_anchor_obj.Offset)
+    )
+    expected_pose_point = (
+        float(expected_world.x), float(expected_world.y), float(expected_world.z)
+    )
+    if any(
+        abs(actual_value - expected_value) > 1e-5
+        for actual_value, expected_value in zip(posed_anchor, expected_pose_point)
+    ):
+        raise RuntimeError(
+            "surface anchor did not follow the deformed avatar triangle: "
+            + repr((posed_anchor, expected_pose_point))
+        )
+    if sum(
+        (posed_anchor[index] - rest_anchor[index]) ** 2 for index in range(3)
+    ) <= 1e-4:
+        raise RuntimeError("avatar skeleton edit left the surface anchor at its old position")
+    if mesh_anchor_obj not in controller._points():
+        raise RuntimeError("a valid posed-avatar anchor was excluded from snapping")
+
     panel.reject()
     if controller._mouse_callback is not None or controller._location_callback is not None:
         raise RuntimeError("Interactive Arrange callbacks were not removed")
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/interactive-arrange.log").write_text(
-        "arrangement-anchor=passed target-linked=true persisted=true placement-follow=true stale-detection=true\n"
+        "arrangement-anchor=passed target-linked=true persisted=true placement-follow=true skeleton-follow=true stale-detection=true\n"
         "interactive-arrange=passed snapped=true persisted=true\n"
         "interactive-arrange-cleanup=passed callbacks-removed=true\n",
         encoding="utf-8",
     )
-    print("arrangement-anchor=passed target-linked=true persisted=true placement-follow=true stale-detection=true", flush=True)
+    print("arrangement-anchor=passed target-linked=true persisted=true placement-follow=true skeleton-follow=true stale-detection=true", flush=True)
     print("interactive-arrange=passed snapped=true persisted=true", flush=True)
     print("interactive-arrange-cleanup=passed callbacks-removed=true", flush=True)
     App.closeDocument(doc.Name)
