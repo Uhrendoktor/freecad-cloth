@@ -71,6 +71,7 @@ jobs:
           python -m ruff format tools/ci
           python -m ruff check --fix tools/ci
           python -m ruff check tools/ci
+          python -m ruff check --select ANN401 .
           python -m ruff format --check tools/ci
           python tools/check_documentation_contract.py
           python tools/check_markdown_contract.py

@@ -2,14 +2,25 @@
 
 from collections.abc import Sequence
 from math import hypot
-from typing import Any
+from typing import TypeAlias
 
 from freecad_cloth.common.ValidationModels import SimulationMeshQualityInput
+from freecad_cloth.pattern.PatternIR import PieceIR
+
+MeshVertex: TypeAlias = tuple[float, float, float]
+MeshTriangle: TypeAlias = tuple[int, int, int]
+BoundaryChain: TypeAlias = tuple[int, ...]
+QualityPieceMesh: TypeAlias = tuple[
+    list[MeshVertex], tuple[MeshTriangle, ...], tuple[BoundaryChain, ...]
+]
 
 
 def quality_piece_mesh(
-    piece: Any, start_height: float, particle_distance: float, piece_ir: Any = None
-) -> Any:
+    piece: object,
+    start_height: float,
+    particle_distance: float,
+    piece_ir: PieceIR | None = None,
+) -> QualityPieceMesh:
     """Provide the public quality piece mesh operation."""
     inputs = SimulationMeshQualityInput.model_validate(
         {"start_height": start_height, "particle_distance": particle_distance}

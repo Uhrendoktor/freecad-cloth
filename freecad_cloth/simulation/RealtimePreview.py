@@ -1,11 +1,27 @@
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
-from typing import Any
+from types import ModuleType
+from typing import Protocol, cast
 
 _PREVIEW = None
 
 
-def _qt() -> Any:
+class _SceneDocument(Protocol):
+    def recompute(self) -> None: ...
+
+
+class _SimulationScene(Protocol):
+    QualityPreset: str
+    ParticleDistance: float
+    SolverIterations: int
+    SolverSubsteps: int
+    TimeStep: float
+    Steps: int
+    Document: _SceneDocument
+    Proxy: object | None
+
+
+def _qt() -> ModuleType:
     try:
         from PySide import QtCore
     except ImportError:
@@ -13,13 +29,13 @@ def _qt() -> Any:
     return QtCore
 
 
-def _scene() -> Any | None:
+def _scene() -> _SimulationScene | None:
     import FreeCAD as App
 
     doc = App.ActiveDocument
     if doc is None:
         return None
-    return next(
+    scene = next(
         (
             obj
             for obj in doc.Objects
@@ -28,9 +44,10 @@ def _scene() -> Any | None:
         ),
         None,
     )
+    return cast(_SimulationScene, scene) if scene is not None else None
 
 
-def _prepare(scene: Any) -> None:
+def _prepare(scene: _SimulationScene) -> None:
     from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
     ensure_quality_properties(scene)
@@ -56,7 +73,7 @@ def _prepare(scene: Any) -> None:
 class _Preview:
     """Own the interactive timer and restore the user's simulation quality settings."""
 
-    def __init__(self, scene: Any) -> None:
+    def __init__(self, scene: _SimulationScene) -> None:
         QtCore = _qt()
         self.scene = scene
         self.timer = QtCore.QTimer()
