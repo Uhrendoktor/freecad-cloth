@@ -279,7 +279,9 @@ def run():
             + repr((overlay.getNumChildren(), len(anchor_objects)))
         )
     depth_state = overlay.getChild(0)
-    if bool(depth_state.test.getValue()) or bool(depth_state.write.getValue()):
+    if bool(depth_state.getField("test").getValue()) or bool(
+        depth_state.getField("write").getValue()
+    ):
         raise RuntimeError("attachment-point overlay is still depth-tested or writes depth")
     for index, point_obj in enumerate(anchor_objects.values(), start=1):
         marker = overlay.getChild(index)
@@ -287,7 +289,7 @@ def run():
             raise RuntimeError(
                 "attachment-point marker is not camera-facing: " + str(point_obj.PointName)
             )
-        billboard_axis = marker.getChild(1).axisOfRotation.getValue()
+        billboard_axis = marker.getChild(1).getField("axisOfRotation").getValue()
         if any(abs(float(billboard_axis[axis])) > 1e-9 for axis in range(3)):
             raise RuntimeError(
                 "attachment-point billboard is constrained to one rotation axis: "
