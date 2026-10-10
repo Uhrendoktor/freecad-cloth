@@ -83,9 +83,7 @@ def test_sewing_registration_uses_nested_menus_and_toolbar_subset(monkeypatch):
     monkeypatch.setattr(gui_module, "Gui", object())
     workbench = ClothSewingWorkbench()
     calls = []
-    workbench.appendToolbar = lambda name, commands: calls.append(
-            ("toolbar", name, list(commands))
-        )
+    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
     workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
     workbench._register_groups(
         SEWING_COMMAND_GROUPS,
