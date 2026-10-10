@@ -108,6 +108,7 @@ def _capture_metrics(
     expected_height: int | None = None,
     pixel_threshold: int = 250,
     require_all_channels_below: bool = False,
+    track_colors: bool = True,
 ) -> dict:
     """Decode a PNG once and calculate visible-pixel metrics for shared validators."""
     if not 0 <= pixel_threshold <= 256:
@@ -129,7 +130,7 @@ def _capture_metrics(
 
     nonwhite_pixels = 0
     opaque_pixels = 0
-    colors = set()
+    colors = set() if track_colors else None
     for row in _unfilter_rows(raw, width, height, bytes_per_pixel):
         for index in range(0, len(row), bytes_per_pixel):
             rgb = tuple(row[index : index + 3])
@@ -137,7 +138,8 @@ def _capture_metrics(
             if alpha <= 8:
                 continue
             opaque_pixels += 1
-            colors.add(rgb)
+            if colors is not None:
+                colors.add(rgb)
             visible = (
                 all(channel < pixel_threshold for channel in rgb)
                 if require_all_channels_below
@@ -151,7 +153,7 @@ def _capture_metrics(
         "height": height,
         "opaque_pixels": opaque_pixels,
         "nonwhite_pixels": nonwhite_pixels,
-        "distinct_rgb": len(colors),
+        "distinct_rgb": len(colors) if colors is not None else 0,
     }
 
 
@@ -176,6 +178,7 @@ def png_has_visible_content(
             expected_height=expected_height,
             pixel_threshold=pixel_threshold,
             require_all_channels_below=require_all_channels_below,
+            track_colors=False,
         )
     except (OSError, ValueError, struct.error, zlib.error, OverflowError):
         return False
