@@ -8,7 +8,6 @@ from pathlib import Path
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
-
 AVATAR_ENTRY_COMMANDS = (
     "ClothFitting_CreateAvatar",
     "ClothFitting_EditAvatar",
