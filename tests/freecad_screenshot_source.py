@@ -1486,7 +1486,8 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.75
-    # Keep this free-drape audit unpinned; fixed front/back neckline centers prevent the shoulder seams from converging.
+    # Keep the free-drape audit unpinned: fixed front/back neckline centers
+    # prevent the shoulder seams from converging.
     scene.PinMode = "None"
     scene.PinSelection = []
     scene.ClothPieces = [front, back]
@@ -1654,7 +1655,7 @@ def simulation():
         snap_distance = abs(cumulative_distances[central_offset] - midpoint_distance)
         if snap_distance > max(8.0, float(scene.ParticleDistance)):
             raise RuntimeError(
-                "canonical tunic neckline anchor did not resolve to its boundary midpoint: "
+                "canonical tunic neckline midpoint did not resolve on its boundary: "
                 "piece=%s edge=%s midpoint-offset-mm=%.2f"
                 % (piece.Name, neckline_edge_id, snap_distance)
             )
@@ -1663,8 +1664,8 @@ def simulation():
             "tunic-neckline-boundary piece=%s edge=%s vertices=%d length-mm=%.2f"
             % (piece.Name, neckline_edge_id, len(neckline_particles), total_length)
         )
-        # Keep the established contract log token; snap-mm is measured along the
-        # authored neckline chain, not from an unrelated world-space mesh vertex.
+        # Report the midpoint snap along the authored neckline chain, not to a
+        # potentially unrelated world-space mesh vertex.
         log(
             "tunic-neckline-midpoint piece=%s particle=%d snap-mm=%.2f"
             % (piece.Name, particle_index, snap_distance)
@@ -1686,7 +1687,7 @@ def simulation():
         solver_pins = tuple(sorted(int(index) for index in getattr(system, "pins", {})))
     if solver_pins:
         raise RuntimeError("canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,))
-    log("pin-mode=None solver-pins=0 neckline-midpoints=%s" % (neckline_midpoints,))
+    log("tunic-neckline-midpoints=%s" % (neckline_midpoints,))
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
