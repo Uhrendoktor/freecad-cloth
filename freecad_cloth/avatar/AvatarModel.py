@@ -256,7 +256,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         if params.pose.preset == "sitting"
         else (leg_x, 0.0, knee_z),
     }
-    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
+    arm_defaults = {"t_pose": 12.0, "standing": 12.0, "sewing": 55.0, "sitting": 25.0}
     default = arm_defaults[params.pose.preset]
     wrists = {}
     for side, angle_value, elbow_value, label in (
