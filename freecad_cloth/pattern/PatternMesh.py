@@ -230,9 +230,7 @@ def _prepare_segment_geometries(
     return tuple(prepared)
 
 
-def _nearest_segment_id(
-    prepared_segments: Sequence[tuple[str, LineString]], point: Point
-) -> str:
+def _nearest_segment_id(prepared_segments: Sequence[tuple[str, LineString]], point: Point) -> str:
     """Return the authored segment closest to a query point using GEOS distance."""
     query = ShapelyPoint(point)
     return min(prepared_segments, key=lambda item: item[1].distance(query))[0]
