@@ -1137,8 +1137,8 @@ def simulation():
                 )
             start_point = boundary.samples[0]
             end_point = boundary.samples[-1]
-            z_span = float(end_point[1]) - float(start_point[1])
-            if abs(z_span) <= 1e-9:
+            vertical_span = float(end_point[1]) - float(start_point[1])
+            if abs(vertical_span) <= 1e-9:
                 raise RuntimeError(
                     "canonical garment armhole endpoints do not define a vertical chord: "
                     "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
@@ -1150,7 +1150,7 @@ def simulation():
                     - (
                         float(start_point[0])
                         + (float(sample[1]) - float(start_point[1]))
-                        / z_span
+                        / vertical_span
                         * (float(end_point[0]) - float(start_point[0]))
                     )
                 )
