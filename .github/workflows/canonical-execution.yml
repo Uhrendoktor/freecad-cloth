@@ -336,6 +336,7 @@ jobs:
             artifacts/pypbd-provenance.txt
           environment: |
             CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_COLLISION_VOXEL_MM=6.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence

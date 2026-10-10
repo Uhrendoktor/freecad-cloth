@@ -14,9 +14,6 @@ source = source_path.read_text(encoding="utf-8")
 # The canonical tunic audit must use the authoritative DrapeTarget collision
 # surface; do not replace it with the optional torso-envelope approximation.
 os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
-# The default 12 mm SDF forces a 6 mm effective margin despite the 2 mm tolerance.
-# Use a finer fixture-only collision field; keep the production workflow/defaults intact.
-os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"] = "6.0"
 os.environ["CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"] = "1"
 os.environ["CLOTH_TUNIC_AUDIT_RUN_AVATAR_ACCEPTANCE"] = "1"
 # Preserve the canonical workflow's PBD substep budget. The audit must not secretly
