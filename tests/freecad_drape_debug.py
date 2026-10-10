@@ -159,11 +159,15 @@ def _triangle_degeneracy(positions, triangles):
     }
 
 
+def _minimum_vertex_distance(source, target):
+    """Use the shared exact nearest-neighbour implementation for diagnostics."""
+    from freecad_cloth.simulation.DrapeVisualSanity import minimum_vertex_distance
+
+    return minimum_vertex_distance(source, target)
+
 def _metrics(
     backend, stitches, pin_indices, initial_pins, target_vertices, triangles, requested_step
 ):
-    from freecad_cloth.common.MeshValidation import nearest_target_clearance
-
     positions = backend.positions()
     seam_gaps = []
     for a, b in stitches:
@@ -185,11 +189,7 @@ def _metrics(
         "maximum_seam_gap_mm": max(seam_gaps) if seam_gaps else 0.0,
         "seam_gaps_mm": seam_gaps,
         "maximum_pin_drift_mm": max(pin_drifts) if pin_drifts else 0.0,
-        "minimum_vertex_to_target_mm": (
-            nearest_target_clearance(positions, target_vertices)
-            if positions and target_vertices
-            else None
-        ),
+        "minimum_vertex_to_target_mm": _minimum_vertex_distance(positions, target_vertices),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
         "collision_mode": os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh")
         if getattr(backend, "name", "") == "position-based-dynamics"
@@ -201,9 +201,9 @@ def _metrics(
 
 def run():
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target
-    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
+    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     backend_requested = "pbd"
     log(
@@ -254,13 +254,7 @@ def run():
 
     def make_piece(name, y, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
-            doc,
-            name + "Source",
-            panel_width,
-            garment_height,
-            hem_width,
-            neckline_ratio,
-            neckline_drop,
+            doc, name + "Source", panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
         )
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0)

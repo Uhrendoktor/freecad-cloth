@@ -24,9 +24,9 @@ if str(ROOT) not in sys.path:
 
 import contextlib
 
-from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
+from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -87,6 +87,16 @@ def triangle_metrics(positions, triangles):
     }
 
 
+def sampled_min_distance(source, target, source_limit=256, target_limit=1024):
+    """Return the exact nearest distance between the deterministic sample subsets."""
+    if not source or not target:
+        return None
+    src = source if len(source) <= source_limit else source[:: max(1, len(source) // source_limit)]
+    tgt = target if len(target) <= target_limit else target[:: max(1, len(target) // target_limit)]
+    from freecad_cloth.common.MeshValidation import nearest_target_clearance
+
+    return nearest_target_clearance(src, tgt)
+
 def update_debug_geometry(doc, seam_obj, pin_obj, backend, pins):
     positions = backend.positions()
     lines = []
@@ -100,8 +110,6 @@ def update_debug_geometry(doc, seam_obj, pin_obj, backend, pins):
 
 
 def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, step):
-    from freecad_cloth.common.MeshValidation import nearest_target_clearance
-
     positions = backend.positions()
     seam_gaps = [
         math.dist(positions[int(a)], positions[int(b)])
@@ -122,11 +130,7 @@ def checkpoint_metrics(backend, pins, initial_pins, target_vertices, triangles, 
         "centroid": [sum(xs) / len(xs), sum(ys) / len(ys), sum(zs) / len(zs)],
         "maximum_seam_gap_mm": max(seam_gaps) if seam_gaps else 0.0,
         "maximum_pin_drift_mm": max(pin_drifts) if pin_drifts else 0.0,
-        "minimum_vertex_to_target_mm": (
-            nearest_target_clearance(positions, target_vertices)
-            if positions and target_vertices
-            else None
-        ),
+        "sampled_minimum_vertex_to_target_mm": sampled_min_distance(positions, target_vertices),
         "finite_vertices": all(math.isfinite(float(c)) for p in positions for c in p),
         "cloth_vertices": len(positions),
         "stitch_constraints": len(getattr(backend, "_stitches", ())),

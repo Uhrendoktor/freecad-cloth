@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import traceback
+from pathlib import Path
 from math import pi
 
 ROOT = "/workspace"
@@ -23,13 +24,12 @@ if ROOT not in sys.path:
 
 import contextlib
 
-from freecad_cloth.common.MeshValidation import validate_mesh
-from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
 from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     maximum_box_penetration,
     mesh_shape_sanity,
 )
+from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 # Keep the README turntable on the same geometry-appropriate collision path as
@@ -64,16 +64,17 @@ def events():
 
 
 def _png_has_visible_content(path):
-    """Validate turntable frames through the shared PNG decoder."""
+    """Use the common CRC-checked PNG parser for turntable captures."""
+    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
+
     return png_has_visible_content(
-        path,
+        Path(path),
         expected_width=640,
         expected_height=480,
         minimum_pixels=1000,
-        pixel_threshold=245,
-        require_all_channels_below=True,
+        channel_threshold=245,
+        require_all_channels_below_threshold=True,
     )
-
 
 def wait_for_gui_ready(timeout_seconds=15.0):
     deadline = time.monotonic() + timeout_seconds
