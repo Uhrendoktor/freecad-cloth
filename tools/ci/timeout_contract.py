@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 TEST_ACTION = ROOT / ".github/actions/freecad-test/action.yml"
@@ -26,8 +24,7 @@ def configured_timeout() -> int:
     )
     if not isinstance(value, int) or value <= 0:
         raise ValueError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds "
-            "must be a positive integer"
+            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
         )
     return value
 
@@ -43,9 +40,7 @@ def main() -> int:
             "FreeCAD application timeout must not be duplicated in the canonical workflow"
         )
     if "timeout-seconds:" in action:
-        raise SystemExit(
-            "FreeCAD test action must not define a second application timeout"
-        )
+        raise SystemExit("FreeCAD test action must not define a second application timeout")
     run_freecad = (ROOT / "tools/ci/run_freecad.py").read_text(encoding="utf-8")
     if "def configured_timeout_seconds()" not in run_freecad:
         raise SystemExit("run_freecad.py does not expose the authoritative timeout reader")

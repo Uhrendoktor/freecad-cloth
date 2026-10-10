@@ -24,7 +24,11 @@ RULES = (
 def _is_dynamic_surface(path: Path) -> bool:
     """Return whether a module is intentionally outside the annotation gate."""
     name = path.name
-    return name.endswith("Gui.py") or name.endswith("Commands.py") or name in {"gui.py", "workbench.py"}
+    return (
+        name.endswith("Gui.py")
+        or name.endswith("Commands.py")
+        or name in {"gui.py", "workbench.py"}
+    )
 
 
 def changed_production_modules(base: str) -> tuple[str, ...]:

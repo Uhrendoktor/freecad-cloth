@@ -1,5 +1,8 @@
 from collections.abc import Sequence
-from math import cos, sin, tau
+from math import cos, pi, sin, tau
+
+import pytest
+from shapely.geometry import Polygon
 
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -28,7 +31,6 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
             if values[0] * values[1] < -1e-10 and values[2] * values[3] < -1e-10:
                 return True
     return False
-
 
 
 def test_signed_area_preserves_orientation():
@@ -82,11 +84,8 @@ def test_concave_boundary_is_deterministic():
 
 
 def test_invalid_allowance_is_rejected():
-    try:
+    with pytest.raises(ValueError):
         seam_allowance_outline(rectangle(100.0, 60.0), -1.0)
-    except ValueError:
-        return
-    raise AssertionError("negative seam allowance must be rejected")
 
 
 def test_large_simple_ring_matches_intersection_reference():
@@ -101,6 +100,45 @@ def test_geos_detects_a_crossing_outline():
     points = ((0.0, 0.0), (2.0, 2.0), (0.0, 2.0), (2.0, 0.0))
     assert _python_self_intersects_reference(points)
     assert _self_intersects(points)
+
+
+def _pattern_from_outline(points: Sequence[Point]) -> ParametricPattern:
+    """Build a closed piecewise-linear pattern from ordered points."""
+    return ParametricPattern(
+        [
+            LineSegment(f"edge-{index}", point, points[(index + 1) % len(points)])
+            for index, point in enumerate(points)
+        ]
+    )
+
+
+def test_allowance_closes_narrow_concave_notch_without_self_intersection():
+    points = (
+        (0.0, 0.0),
+        (20.0, 0.0),
+        (20.0, 20.0),
+        (12.0, 20.0),
+        (12.0, 4.0),
+        (8.0, 4.0),
+        (8.0, 20.0),
+        (0.0, 20.0),
+    )
+    outline = seam_allowance_outline(_pattern_from_outline(points), 3.0)
+    offset = Polygon(outline)
+
+    assert offset.is_valid
+    assert offset.exterior.is_simple
+    assert len(outline) < len(points)
+    assert offset.area > Polygon(points).area
+
+
+def test_allowance_rejects_self_intersecting_source_outline():
+    points = tuple(
+        (cos(2.0 * pi * ((2 * index) % 5) / 5), sin(2.0 * pi * ((2 * index) % 5) / 5))
+        for index in range(5)
+    )
+    with pytest.raises(ValueError, match="valid simple polygon"):
+        seam_allowance_outline(_pattern_from_outline(points), 0.5)
 
 
 if __name__ == "__main__":

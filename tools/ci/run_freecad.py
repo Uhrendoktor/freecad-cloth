@@ -11,7 +11,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
 
@@ -20,13 +19,15 @@ def configured_timeout_seconds() -> float:
     import tomllib
 
     data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    value = data.get("tool", {}).get("freecad_cloth", {}).get("ci", {}).get(
-        "freecad_application_timeout_seconds"
+    value = (
+        data.get("tool", {})
+        .get("freecad_cloth", {})
+        .get("ci", {})
+        .get("freecad_application_timeout_seconds")
     )
     if not isinstance(value, int) or value <= 0:
         raise RuntimeError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds "
-            "must be a positive integer"
+            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
         )
     return float(value)
 
@@ -167,9 +168,7 @@ def main() -> int:
 
         existing_log = ""
         if args.log_file.is_file():
-            existing_log = args.log_file.read_text(
-                encoding="utf-8", errors="replace"
-            )
+            existing_log = args.log_file.read_text(encoding="utf-8", errors="replace")
         if not existing_log.strip():
             args.log_file.write_text(output, encoding="utf-8")
         sys.stdout.write(output)

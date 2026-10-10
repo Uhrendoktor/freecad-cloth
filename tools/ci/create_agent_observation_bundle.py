@@ -79,12 +79,7 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
                 "evidence entries must use an allowed role=relative/path form"
             )
         path = PurePosixPath(relative_path)
-        if (
-            path.is_absolute()
-            or not path.parts
-            or ".." in path.parts
-            or "\\" in relative_path
-        ):
+        if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in relative_path:
             raise ObservationBundleError(f"unsafe evidence path: {relative_path!r}")
         normalized_path = path.as_posix()
         if normalized_path in seen:
@@ -99,9 +94,7 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
     if not parsed:
         raise ObservationBundleError("at least one explicit evidence file is required")
     if len(parsed) > MAX_EVIDENCE_FILES:
-        raise ObservationBundleError(
-            f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit"
-        )
+        raise ObservationBundleError(f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit")
     return parsed
 
 
@@ -213,9 +206,7 @@ def create_observation_bundle(
     repository = environment.get("GITHUB_REPOSITORY") or None
     run_id = environment.get("GITHUB_RUN_ID") or None
     run_url = (
-        f"https://github.com/{repository}/actions/runs/{run_id}"
-        if repository and run_id
-        else None
+        f"https://github.com/{repository}/actions/runs/{run_id}" if repository and run_id else None
     )
     manifest: dict[str, object] = {
         "schema": SCHEMA,
@@ -224,7 +215,10 @@ def create_observation_bundle(
         "label": label.strip() or None,
         "context": {
             "repository": repository,
-            "commit_sha": environment.get("OBSERVATION_COMMIT_SHA") or environment.get("CLOTH_HEAD_SHA") or environment.get("GITHUB_SHA") or None,
+            "commit_sha": environment.get("OBSERVATION_COMMIT_SHA")
+            or environment.get("CLOTH_HEAD_SHA")
+            or environment.get("GITHUB_SHA")
+            or None,
             "workflow": environment.get("GITHUB_WORKFLOW") or None,
             "job": environment.get("GITHUB_JOB") or None,
             "event_name": environment.get("GITHUB_EVENT_NAME") or None,
@@ -274,11 +268,7 @@ def main() -> int:
         bool(line.strip())
         for line in environment.get("OBSERVATION_FILES", "").replace(";", "\n").splitlines()
     )
-    print(
-        "agent-observation=written "
-        "path=agent-observation.json "
-        f"evidence={count}"
-    )
+    print(f"agent-observation=written path=agent-observation.json evidence={count}")
     return 0
 
 
