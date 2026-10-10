@@ -7,6 +7,7 @@ available through FreeCAD's property editor for precision work.
 """
 
 import contextlib
+import math
 
 
 def _modules():
@@ -198,8 +199,8 @@ class DirectArrangeController:
             radius = 8.0
             ring = [
                 coin.SbVec3f(
-                    radius * __import__("math").cos(index * 2.0 * __import__("math").pi / 32.0),
-                    radius * __import__("math").sin(index * 2.0 * __import__("math").pi / 32.0),
+                    radius * math.cos(index * 2.0 * math.pi / 32.0),
+                    radius * math.sin(index * 2.0 * math.pi / 32.0),
                     0.0,
                 )
                 for index in range(33)
