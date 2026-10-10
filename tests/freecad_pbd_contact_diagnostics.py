@@ -57,14 +57,16 @@ from tests.support.pbd_contact_helpers import connected_components as _connected
 from tests.support.pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
 from tests.support.pbd_contact_helpers import events as _events
 from tests.support.pbd_contact_helpers import inside_outside as _inside_outside
-from tests.support.pbd_contact_helpers import make_progress_logger
-from tests.support.pbd_contact_helpers import make_shutdown_gui
+from tests.support.pbd_contact_helpers import (
+    make_progress_logger,
+    make_shutdown_gui,
+    schedule_freecad_main,
+)
 from tests.support.pbd_contact_helpers import mesh_geometry as _mesh_geometry
 from tests.support.pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
 from tests.support.pbd_contact_helpers import (
     nearest_surface_observation as _nearest_surface_observation,
 )
-from tests.support.pbd_contact_helpers import schedule_freecad_main
 from tests.support.pbd_contact_helpers import screenshot as _screenshot
 from tests.support.pbd_contact_helpers import target_signature as _target_signature
 
