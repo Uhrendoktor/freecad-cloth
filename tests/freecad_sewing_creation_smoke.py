@@ -139,10 +139,10 @@ def pattern_piece_color_counts(frame):
 
 
 def assert_pattern_piece_colors_visible(frame):
-    """Reject a seam GIF whose viewport has no rendered pattern pieces."""
+    """Reject a seam GIF unless both mating piece faces are visibly rendered."""
     counts = pattern_piece_color_counts(frame)
-    assert all(value >= 500 for value in counts.values()), (
-        "seam-assignment GIF must visibly render all three colored pattern pieces; "
+    assert counts["blue"] >= 500 and counts["orange"] >= 500, (
+        "seam-assignment GIF must visibly render both mating pattern pieces; "
         f"detected pixel counts={counts!r}"
     )
 
@@ -459,11 +459,15 @@ try:
     process_events()
     window = focus_main_window(Gui, size=(1280, 720))
     view = Gui.activeDocument().activeView()
-    for piece, color in (
+    # The first recording is specifically about a seam between two pieces.
+    # Keep the third fixture hidden during capture; it is restored for the later
+    # M:N/network acceptance cases in this same smoke test.
+    recording_pieces = (
         (piece_a, (0.34, 0.65, 0.88)),
         (piece_b, (0.94, 0.62, 0.30)),
-        (piece_c, (0.42, 0.72, 0.52)),
-    ):
+    )
+    piece_c.ViewObject.Visibility = False
+    for piece, color in recording_pieces:
         view_object = piece.ViewObject
         view_object.Visibility = True
         view_object.ShapeColor = color
@@ -480,7 +484,7 @@ try:
     QtTest.QTest.qWait(200)
 
     world_bounds = []
-    for piece in (piece_a, piece_b, piece_c):
+    for piece, _color in recording_pieces:
         box = piece.Shape.BoundBox
         if float(box.XLength) <= 0.0 or float(box.YLength) <= 0.0:
             raise RuntimeError(
@@ -574,6 +578,10 @@ try:
     wait_for_task_close()
     recorder.hold(800)
     recorder.stop()
+    piece_c.ViewObject.Visibility = True
+    doc.recompute()
+    view.fitAll()
+    process_events()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
         "1:1 commit lost seam"
     )
