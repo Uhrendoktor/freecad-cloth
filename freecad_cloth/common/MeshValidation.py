@@ -167,6 +167,39 @@ def validate_mesh(
     )
 
 
+def _nearest_target_observation_validated(
+    garment: tuple[Point3, ...],
+    target: tuple[Point3, ...],
+) -> tuple[float, Point3]:
+    """Run one exact KD-tree query on already validated vertex sets."""
+    try:
+        distances, indices = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        source_index = min(range(len(distances)), key=lambda index: float(distances[index]))
+        clearance = float(distances[source_index])
+        target_index = int(indices[source_index])
+    except (IndexError, OverflowError, ValueError, RuntimeError) as exc:
+        raise ValueError("could not calculate finite nearest vertex clearance") from exc
+    if not isfinite(clearance) or not 0 <= target_index < len(target):
+        raise ValueError("computed vertex clearance must be finite")
+    return clearance, target[target_index]
+
+
+def nearest_target_observation(
+    garment_vertices: Sequence[Point3],
+    target_vertices: Sequence[Point3],
+) -> tuple[float, Point3] | None:
+    """Return exact minimum vertex distance and the corresponding target vertex.
+
+    Empty inputs return None so diagnostic callers can preserve optional
+    observation semantics; non-empty inputs are validated and fail closed.
+    """
+    garment = validate_points3d(garment_vertices)
+    target = validate_points3d(target_vertices)
+    if not garment or not target:
+        return None
+    return _nearest_target_observation_validated(garment, target)
+
+
 def nearest_target_clearance(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
@@ -180,14 +213,7 @@ def nearest_target_clearance(
     target = validate_points3d(target_vertices)
     if not garment or not target:
         raise ValueError("garment and target vertices are required")
-
-    try:
-        distances, _ = cKDTree(target).query(garment, k=1, eps=0.0, workers=1)
-        clearance = min(float(value) for value in distances)
-    except (OverflowError, ValueError, RuntimeError) as exc:
-        raise ValueError("could not calculate finite nearest vertex clearance") from exc
-    if not isfinite(clearance):
-        raise ValueError("computed vertex clearance must be finite")
+    clearance, _ = _nearest_target_observation_validated(garment, target)
     return clearance
 
 def nearest_surface_clearance(
