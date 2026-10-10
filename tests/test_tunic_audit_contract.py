@@ -178,7 +178,6 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_COLLISION_VOXEL_MM=6.0" in workflow
     assert 'os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source
-    assert 'os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"] = "6.0"' in source
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
