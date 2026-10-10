@@ -63,7 +63,7 @@ class HumanoidMeshTests(unittest.TestCase):
     def test_obj_parser_rejects_non_finite_vertex_coordinates(self):
         for value in ("nan", "inf", "-inf"):
             with self.subTest(value=value):
-                source = f"v 0 0 0\\nv 1 0 0\\nv {value} 1 0\\nf 1 2 3\\n"
+                source = f"v 0 0 0\nv 1 0 0\nv {value} 1 0\nf 1 2 3\n"
                 with self.assertRaisesRegex(HumanoidMeshError, "invalid vertex coordinates"):
                     parse_obj(source)
 
