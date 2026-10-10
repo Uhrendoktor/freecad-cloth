@@ -102,6 +102,7 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
     count, _ = connected_components(adjacency, directed=False, return_labels=True)
     return int(count)
 
+
 def validate_mesh(
     vertices: Sequence[Point3],
     triangles: Sequence[Triangle],
@@ -124,7 +125,6 @@ def validate_mesh(
 
     if prefer_trimesh:
         try:
-            import numpy as np
             import trimesh
 
             mesh = trimesh.Trimesh(
