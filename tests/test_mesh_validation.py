@@ -58,14 +58,16 @@ def test_validation_rejects_bad_indices():
 
 
 def test_vertex_clearance_is_translation_sensitive():
-    assert nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)) == pytest.approx(2.0)
+    assert nearest_target_clearance(
+        ((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)
+    ) == pytest.approx(2.0, rel=0.0, abs=1e-9)
 
 
 def test_large_vertex_clearance_returns_exact_nearest_distance():
     """The required spatial index preserves the exact nearest-point distance."""
     garment = tuple((float(index), 5.0, 0.0) for index in range(48))
     target = tuple((float(index), 0.0, 0.0) for index in range(48))
-    assert nearest_target_clearance(garment, target) == pytest.approx(5.0)
+    assert nearest_target_clearance(garment, target) == pytest.approx(5.0, rel=0.0, abs=1e-9)
 
 
 def test_trimesh_surface_clearance_is_optional():
@@ -75,7 +77,7 @@ def test_trimesh_surface_clearance_is_optional():
     except RuntimeError as exc:
         assert "trimesh" in str(exc)
     else:
-        assert distance == pytest.approx(3.0)
+        assert distance == pytest.approx(3.0, rel=0.0, abs=1e-9)
 
 
 def test_degenerate_face_is_reported_without_trimesh():
