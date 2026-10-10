@@ -177,21 +177,6 @@ class SimulationQualityTaskPanel:
             PHYSICAL_MATERIAL_CONTROLS_SUPPORTED,
         )
         root.addWidget(fabric)
-        for widget in (
-            self.density,
-            self.thickness,
-            self.stretch,
-            self.shear,
-            self.bend,
-            self.friction,
-            self.specular,
-            self.roughness,
-            self.transparency,
-        ):
-            label = fform.labelForField(widget)
-            if label is not None:
-                label.setVisible(False)
-            widget.setVisible(False)
 
         collision = QtWidgets.QGroupBox("Collision")
         cform = QtWidgets.QFormLayout(collision)

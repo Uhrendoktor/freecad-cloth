@@ -98,6 +98,10 @@ def test_physical_material_controls_are_explicitly_unsupported_without_a_solver_
     ).read_text(encoding="utf-8")
     assert "_set_physical_material_controls_enabled(" in source
     assert "PHYSICAL_MATERIAL_CONTROLS_SUPPORTED" in source
+    fabric_block = source.split('fabric = QtWidgets.QGroupBox("Fabric")', 1)[1].split(
+        'collision = QtWidgets.QGroupBox("Collision")', 1
+    )[0]
+    assert "widget.setVisible(False)" not in fabric_block
 
 
 def test_disabling_physical_material_controls_also_disables_form_labels():
