@@ -167,7 +167,7 @@ def test_public_command_surfaces_preserve_authoring_boundaries():
 
 def test_simulation_workbench_exposes_avatar_entrypoints(monkeypatch):
     import freecad_cloth.simulation.DrapeCommands as DrapeCommands
-    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
+    from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench
 
     monkeypatch.setattr(DrapeCommands, "register_gui_commands", lambda: True)
     workbench = ClothSimulationWorkbench()
@@ -176,13 +176,11 @@ def test_simulation_workbench_exposes_avatar_entrypoints(monkeypatch):
 
     workbench.Initialize()
 
-    assert registered[0] == (
-        "Avatar & Fitting",
-        [
-            "ClothFitting_CreateAvatar",
-            "ClothFitting_EditAvatar",
-            "ClothFitting_PoseAvatar",
-        ],
+    assert registered[0] == ("Avatar & Fitting", AVATAR_ENTRY_COMMANDS)
+    assert AVATAR_ENTRY_COMMANDS == (
+        "ClothFitting_CreateAvatar",
+        "ClothFitting_EditAvatar",
+        "ClothFitting_PoseAvatar",
     )
     assert registered[1][0] == "Simulation"
 
