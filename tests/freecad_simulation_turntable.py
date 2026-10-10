@@ -5,8 +5,8 @@ import os
 import sys
 import time
 import traceback
-from pathlib import Path
 from math import pi
+from pathlib import Path
 
 ROOT = "/workspace"
 
@@ -24,12 +24,12 @@ if ROOT not in sys.path:
 
 import contextlib
 
+from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeVisualSanity import (
     inspect_drape,
     maximum_box_penetration,
     mesh_shape_sanity,
 )
-from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
 # Keep the README turntable on the same geometry-appropriate collision path as

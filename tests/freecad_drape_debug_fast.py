@@ -24,9 +24,9 @@ if str(ROOT) not in sys.path:
 
 import contextlib
 
+from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))
 OUT.mkdir(parents=True, exist_ok=True)

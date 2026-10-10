@@ -76,6 +76,7 @@ def add_rectangle_sketch(doc, name, width, height):
 def adopt_sketch(sketch, name):
     """Adopt a diagnostic Sketcher profile through the production pattern command."""
     import FreeCADGui as Gui
+
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 
     Gui.Selection.clearSelection()

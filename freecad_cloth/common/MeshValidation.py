@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import isfinite, hypot
+from math import hypot, isfinite
 
 from scipy.spatial import cKDTree
 

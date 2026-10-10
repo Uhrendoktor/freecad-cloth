@@ -10,7 +10,6 @@ import hashlib
 import os
 from collections.abc import Callable, Iterable, Sequence
 from copy import deepcopy
-from math import isfinite
 from typing import Protocol, TypeAlias, cast
 
 import numpy as np
@@ -19,10 +18,10 @@ import numpy.typing as npt
 from freecad_cloth.common.ValidationModels import (
     CollisionSurfaceInput,
     MeshArrays,
-    PBDCollisionConfig,
-    PBDStepInput,
     ParticleIndexInput,
     ParticlePairInput,
+    PBDCollisionConfig,
+    PBDStepInput,
     validate_finite_number,
 )
 from freecad_cloth.shared.collision import CollisionSurface
