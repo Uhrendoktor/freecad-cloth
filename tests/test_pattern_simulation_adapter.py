@@ -193,6 +193,32 @@ def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline(
     assert len(curved.samples) == 11
 
 
+def test_native_curve_remains_curved_through_quality_mesh_boundary():
+    from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+    from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+
+    piece = _Piece("front", _square_sketch("front", curved=True, bend=1.0))
+    piece_ir = resolve_piece_ir(piece, curve_samples=33)
+    positions, triangles, chains = quality_piece_mesh(
+        piece, 100.0, 2.0, piece_ir=piece_ir
+    )
+
+    boundaries = tuple(piece_ir.boundaries)
+    chains_by_id = {
+        str(boundary.id): chain
+        for boundary, chain in zip(boundaries, chains, strict=True)
+    }
+    curve = next(boundary for boundary in boundaries if boundary.id == "front:side")
+    chain = chains_by_id[str(curve.id)]
+    assert curve.kind == "arc"
+    assert len(curve.samples) == 33
+    assert len(chain) > 2
+    assert positions[chain[0]][:2] == curve.samples[0][:2]
+    assert positions[chain[-1]][:2] == curve.samples[-1][:2]
+    assert max(positions[index][0] for index in chain) > 10.8
+    assert triangles
+
+
 def test_semantic_seam_ids_and_provenance_survive_resolution():
     front = _Piece("front", _square_sketch("front"))
     back = _Piece("back", _square_sketch("back"))
