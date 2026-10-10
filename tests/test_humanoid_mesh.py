@@ -1,15 +1,21 @@
+import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MAKEHUMAN_BASE_URL,
+    MAKEHUMAN_SKELETON_SIZE,
+    MAKEHUMAN_WEIGHTS_SIZE,
     HumanoidMeshError,
     MeshData,
     _map_makehuman_axes,
     _reoriented_triangles,
+    _verified_skeleton,
+    _verified_weights,
     fit_makehuman_mesh,
     load_makehuman_mesh,
     parse_obj,
@@ -35,6 +41,59 @@ class HumanoidMeshTests(unittest.TestCase):
     def test_mesh_data_rejects_invalid_indices(self):
         with self.assertRaises(HumanoidMeshError):
             MeshData(((0.0, 0.0, 0.0),) * 3, ((0, 1, 3),)).validate()
+
+    @staticmethod
+    def _write_sized_json(path: Path, payload: object, size: int) -> None:
+        encoded = json.dumps(payload, separators=(",", ":"))
+        if len(encoded) > size:
+            raise AssertionError("test JSON payload is larger than the expected cache size")
+        path.write_text(encoded + " " * (size - len(encoded)), encoding="utf-8")
+
+    def test_mesh_data_rejects_non_finite_vertex_coordinates(self):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=value):
+                mesh = MeshData(
+                    ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, value, 1.0)),
+                    ((0, 1, 2),),
+                )
+                with self.assertRaisesRegex(HumanoidMeshError, "invalid vertex coordinates"):
+                    mesh.validate()
+
+    def test_obj_parser_rejects_non_finite_vertex_coordinates(self):
+        for value in ("nan", "inf", "-inf"):
+            with self.subTest(value=value):
+                source = f"v 0 0 0\\nv 1 0 0\\nv {value} 1 0\\nf 1 2 3\\n"
+                with self.assertRaisesRegex(HumanoidMeshError, "invalid vertex coordinates"):
+                    parse_obj(source)
+
+    def test_mesh_data_rejects_non_integer_face_indices(self):
+        mesh = MeshData(
+            ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+            ((0.5, 1, 2),),
+        )
+        with self.assertRaisesRegex(HumanoidMeshError, "invalid face"):
+            mesh.validate()
+
+    def test_weights_cache_verifier_rejects_malformed_or_empty_payloads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "weights.mhw"
+            for payload in ([], {"weights": {}}):
+                with self.subTest(payload_type=type(payload).__name__):
+                    self._write_sized_json(path, payload, MAKEHUMAN_WEIGHTS_SIZE)
+                    self.assertFalse(_verified_weights(path))
+
+    def test_skeleton_cache_verifier_rejects_malformed_or_empty_payloads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "skeleton.mhskel"
+            payloads = (
+                [],
+                {"bones": {}, "joints": {}},
+                {"bones": {"spine": {"head": "missing", "tail": "missing"}}, "joints": {}},
+            )
+            for payload in payloads:
+                with self.subTest(payload_type=type(payload).__name__, size=len(str(payload))):
+                    self._write_sized_json(path, payload, MAKEHUMAN_SKELETON_SIZE)
+                    self.assertFalse(_verified_skeleton(path))
 
     def test_real_source_is_pinned(self):
         self.assertIn(
