@@ -140,19 +140,41 @@ def _closest_point_on_triangle(point: Point3, a: Point3, b: Point3, c: Point3) -
 
 
 def _nearest_surface_point(
-    point: Point3, vertices: Sequence[Point3], triangles: Sequence[tuple[int, int, int]]
+    point: Point3,
+    vertices: Sequence[Point3],
+    triangles: Sequence[tuple[int, int, int]],
+    direction: Point3 | None = None,
+    max_backward_distance: float = 0.0,
 ) -> tuple[float, int, Point3]:
-    """Find the globally closest point on a validated triangulated target."""
+    """Find a closest surface point, optionally constrained to a semantic side."""
+    direction_unit = None
+    if direction is not None:
+        direction_length = sqrt(sum(float(value) ** 2 for value in direction))
+        if direction_length <= 1e-12:
+            raise ValueError("semantic surface projection direction must be non-zero")
+        if not isfinite(max_backward_distance) or max_backward_distance < 0.0:
+            raise ValueError("semantic surface backward allowance must be finite and non-negative")
+        direction_unit = tuple(float(value) / direction_length for value in direction)
+
     best = None
     for triangle_index, (ia, ib, ic) in enumerate(triangles):
         candidate = _closest_point_on_triangle(
             point, vertices[ia], vertices[ib], vertices[ic]
         )
+        if direction_unit is not None:
+            signed_distance = sum(
+                (candidate[axis] - point[axis]) * direction_unit[axis]
+                for axis in range(3)
+            )
+            if signed_distance < -max_backward_distance - 1e-6:
+                continue
         distance_squared = _distance_squared(point, candidate)
         record = (distance_squared, triangle_index, candidate)
         if best is None or record[:2] < best[:2]:
             best = record
     if best is None:
+        if direction_unit is not None:
+            raise ValueError("DrapeTarget has no surface point on the requested semantic side")
         raise ValueError("DrapeTarget surface has no triangles for nearest-point fallback")
     return sqrt(best[0]), best[1], best[2]
 
@@ -302,6 +324,16 @@ def project_avatar_attachments(
             preferred_direction,
             tuple(-component for component in preferred_direction),
         )
+
+        def _is_on_semantic_side(candidate_point):
+            if particle_index not in supplied_directions:
+                return True
+            signed_distance = sum(
+                (candidate_point[axis] - source[axis]) * preferred_direction[axis]
+                for axis in range(3)
+            )
+            return signed_distance >= -offset - 1e-6
+
         candidates = []
         for direction_index, direction in enumerate(directions):
             hits = native_mesh.nearestFacetOnRay(source, direction)
@@ -320,6 +352,15 @@ def project_avatar_attachments(
                     continue
                 distance = sqrt(_distance_squared(source, hit))
                 direction_candidates.append((distance, triangle_index, hit, direction))
+
+            # The opposite ray is a search fallback, not permission to attach a
+            # named front/back landmark to the other side of the mannequin.
+            if direction_index > 0 and particle_index in supplied_directions:
+                direction_candidates = [
+                    candidate
+                    for candidate in direction_candidates
+                    if _is_on_semantic_side(candidate[2])
+                ]
 
             # Semantic landmarks can be authored on the mannequin's center plane,
             # even when that plane lies outside one side of an asymmetric avatar.
@@ -380,7 +421,7 @@ def project_avatar_attachments(
                             (hit[axis] - interior_origin[axis]) * direction[axis]
                             for axis in range(3)
                         )
-                        if forward_distance < -1e-6:
+                        if forward_distance < -1e-6 or not _is_on_semantic_side(hit):
                             continue
                         distance = sqrt(_distance_squared(source, hit))
                         interior_candidates.append((distance, triangle_index, hit, direction))
@@ -423,8 +464,15 @@ def project_avatar_attachments(
         # surface; the same maximum-distance guard still rejects genuinely remote
         # landmarks. This fallback runs only when ray projection cannot be trusted.
         if source_distance > maximum_distance:
+            semantic_direction = (
+                preferred_direction if particle_index in supplied_directions else None
+            )
             nearest_distance, nearest_triangle, nearest_point = _nearest_surface_point(
-                source, vertices, triangles
+                source,
+                vertices,
+                triangles,
+                direction=semantic_direction,
+                max_backward_distance=offset if semantic_direction is not None else 0.0,
             )
             if nearest_distance < source_distance:
                 source_distance = nearest_distance

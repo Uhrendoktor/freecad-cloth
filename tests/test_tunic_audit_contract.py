@@ -567,6 +567,19 @@ def test_tunic_upper_profile_uses_avatar_landmarks_and_distributed_support():
     assert 'landmarks["neck_center"]' in simulation_objects
 
 
+def test_tunic_attachment_projection_fallback_preserves_semantic_side():
+    attachments = (
+        ROOT / "freecad_cloth" / "simulation" / "ClothAttachments.py"
+    ).read_text(encoding="utf-8")
+    projector = attachments.split("def project_avatar_attachments(", 1)[1].split(
+        "def resolve_avatar_attachment_targets(", 1
+    )[0]
+    assert "if direction_index > 0 and particle_index in supplied_directions:" in projector
+    assert "if _is_on_semantic_side(candidate[2])" in projector
+    assert "direction=semantic_direction" in projector
+    assert "max_backward_distance=offset if semantic_direction is not None else 0.0" in projector
+
+
 def test_tunic_attachment_selection_uses_authored_mesh_vertices():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     simulation = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(

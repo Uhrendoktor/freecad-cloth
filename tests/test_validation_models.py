@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
+from freecad_cloth.simulation.ClothAttachments import _nearest_surface_point
 from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 from freecad_cloth.sewing.SeamGraph import Transform3D
 from freecad_cloth.common.ValidationModels import (
@@ -39,6 +40,26 @@ def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:
     )
     assert mesh.vertices == ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
     assert mesh.triangles == ((0, 1, 2),)
+
+
+def test_nearest_surface_fallback_preserves_requested_semantic_side() -> None:
+    vertices = (
+        (-10.0, -5.0, -10.0), (10.0, -5.0, -10.0), (0.0, -5.0, 10.0),
+        (-10.0, 8.0, -10.0), (10.0, 8.0, -10.0), (0.0, 8.0, 10.0),
+    )
+    triangles = ((0, 1, 2), (3, 4, 5))
+
+    unrestricted = _nearest_surface_point((0.0, 0.0, 0.0), vertices, triangles)
+    back_side = _nearest_surface_point(
+        (0.0, 0.0, 0.0),
+        vertices,
+        triangles,
+        direction=(0.0, 1.0, 0.0),
+        max_backward_distance=3.0,
+    )
+
+    assert unrestricted[2][1] == pytest.approx(-5.0)
+    assert back_side[2][1] == pytest.approx(8.0)
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, "1.0", True])
