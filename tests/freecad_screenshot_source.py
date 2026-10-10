@@ -1102,13 +1102,16 @@ def simulation():
     view.viewFront()
     view.fitAll()
     events()
-    # Store the *actual* FreeCAD camera rotation used for this baseline image.
-    # viewFront() can still be animating when events() returns, so calling it
-    # later does not guarantee the identical projection for the draped alias.
-    arranged_front_orientation = view.getCameraOrientation()
-    log("camera-arranged=" + json.dumps(_camera_snapshot(view), sort_keys=True))
+    # Stop any animated viewFront() transition, then store the orientation
+    # after the task dock has been hidden. save() pumps GUI events, so a
+    # pending camera animation here would otherwise change the captured frame.
+    requested_front_orientation = view.getCameraOrientation()
+    view.setCameraOrientation(requested_front_orientation)
+    events()
     task_dock.hide()
     events()
+    arranged_front_orientation = view.getCameraOrientation()
+    log("camera-arranged=" + json.dumps(_camera_snapshot(view), sort_keys=True))
     save(
         "cloth-simulation-arranged.png",
         "Simulation Workbench arranged",
@@ -1235,6 +1238,15 @@ def simulation():
             # relying on a second animated viewFront() transition.
             view.setCameraOrientation(arranged_front_orientation)
             events()
+            restored_orientation = view.getCameraOrientation()
+            expected_q = tuple(float(value) for value in arranged_front_orientation.Q)
+            actual_q = tuple(float(value) for value in restored_orientation.Q)
+            rotation_agreement = abs(sum(a * b for a, b in zip(expected_q, actual_q, strict=True)))
+            if rotation_agreement < 1.0 - 1e-8:
+                raise RuntimeError(
+                    "draped front camera rotation does not match arranged screenshot "
+                    f"(quaternion agreement={rotation_agreement:.12f})"
+                )
             log("camera-draped-front=" + json.dumps(_camera_snapshot(view), sort_keys=True))
         save(
             f"cloth-simulation-draped-{direction}.png",
