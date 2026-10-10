@@ -629,7 +629,9 @@ def create_arrangement_point_from_viewport():
     return panel
 
 
-def create_arrangement_anchor(name, target, world_point, subelement="Face"):
+def create_arrangement_anchor(
+    name, target, world_point, subelement="Face", wrap_direction="front", rotation_z=0.0
+):
     """Create a named snap point from a pick on persistent target geometry.
 
     The anchor records both the picked target and its source signature. A changed
@@ -658,7 +660,9 @@ def create_arrangement_anchor(name, target, world_point, subelement="Face"):
         local = world
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
-    point = ArrangementPoint(str(name), coords[0], coords[1], coords[2])
+    point = ArrangementPoint(
+        str(name), coords[0], coords[1], coords[2], str(wrap_direction), float(rotation_z)
+    )
     point.validate()
     anchors = _anchor_records(scene)
     anchors[point.name] = {
