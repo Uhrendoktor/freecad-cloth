@@ -94,6 +94,7 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
+    assert "authoritative-seam-gap seam=%s" in source
 
 
 def test_canonical_tunic_has_two_curved_open_armholes():
