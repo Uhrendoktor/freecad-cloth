@@ -2,7 +2,7 @@
 
 The palette is semantic rather than a full application theme: axis values retain
 the familiar XYZ convention; amber is an active control, cyan a live snap target,
-and orange an in-progress surface stroke. Seam identity colors stay in seam_colors.
+and amber active controls, cyan live snap targets. Seam identity colors stay in seam_colors.
 """
 
 # Standard world-axis convention (RGB) used by the rotation gizmo.
@@ -18,9 +18,8 @@ RIG_PASSIVE_COLOR = (0.46, 0.48, 0.52)
 RIG_EDITABLE_COLOR = (0.72, 0.75, 0.80)
 JOINT_COLOR = (0.66, 0.68, 0.72)
 
-# Task-specific cues stay distinct: cyan for snap feedback, orange for drawing.
+# Task-specific cue: cyan for live snap feedback.
 SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
-PEN_STROKE_COLOR = (0.95, 0.55, 0.10)
 
 # Pose rig emphasis levels.
 RIG_PASSIVE_LINE_WIDTH = 1.4
@@ -45,10 +44,6 @@ SNAP_RING_SEGMENTS = 48
 SNAP_CENTER_RADIUS = 0.8
 SNAP_CROSSHAIR_HALF_LENGTH = 11.0
 
-# Surface pen: a strong path plus small samples and a distinct start point.
-PEN_STROKE_LINE_WIDTH = 3.0
-PEN_SAMPLE_POINT_SIZE = 5.0
-PEN_START_POINT_SIZE = 8.0
 
 # Seam lines remain identity-colored; these weights control visual hierarchy only.
 SEAM_LINE_WIDTH = 2.4

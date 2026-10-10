@@ -20,13 +20,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
-from freecad_cloth.shared.viewport_gizmo_style import (
-    ACTIVE_COLOR,
-    PEN_SAMPLE_POINT_SIZE,
-    PEN_START_POINT_SIZE,
-    PEN_STROKE_COLOR,
-    PEN_STROKE_LINE_WIDTH,
-)
 
 
 Point3 = tuple[float, float, float]
@@ -574,50 +567,13 @@ class SurfacePenController:
             line = coin.SoLineSet()
             line.numVertices.setValue(len(self.anchors))
             material = coin.SoBaseColor()
-            material.rgb = PEN_STROKE_COLOR
+            material.rgb = (0.95, 0.55, 0.10)
             width = coin.SoDrawStyle()
-            width.lineWidth = PEN_STROKE_LINE_WIDTH
+            width.lineWidth = 4.0
             self._overlay.addChild(material)
             self._overlay.addChild(width)
             self._overlay.addChild(coords)
             self._overlay.addChild(line)
-
-            # Small sample markers make the traced path legible on mesh edges;
-            # the brighter first point gives the user a clear closure target.
-            if len(self.anchors) > 1:
-                sample_separator = coin.SoSeparator()
-                sample_draw = coin.SoDrawStyle()
-                sample_draw.pointSize = PEN_SAMPLE_POINT_SIZE
-                sample_color = coin.SoBaseColor()
-                sample_color.rgb = PEN_STROKE_COLOR
-                sample_coords = coin.SoCoordinate3()
-                sample_points = [coin.SbVec3f(*anchor.point) for anchor in self.anchors[1:]]
-                sample_coords.point.setValues(0, len(sample_points), sample_points)
-                sample_set = coin.SoPointSet()
-                sample_set.numPoints = len(sample_points)
-                sample_separator.addChild(sample_draw)
-                sample_separator.addChild(sample_color)
-                sample_separator.addChild(sample_coords)
-                sample_separator.addChild(sample_set)
-                self._overlay.addChild(sample_separator)
-
-            if self.anchors:
-                start_separator = coin.SoSeparator()
-                start_draw = coin.SoDrawStyle()
-                start_draw.pointSize = PEN_START_POINT_SIZE
-                start_color = coin.SoBaseColor()
-                start_color.rgb = ACTIVE_COLOR
-                start_coords = coin.SoCoordinate3()
-                start_coords.point.setValues(
-                    0, 1, [coin.SbVec3f(*self.anchors[0].point)]
-                )
-                start_set = coin.SoPointSet()
-                start_set.numPoints = 1
-                start_separator.addChild(start_draw)
-                start_separator.addChild(start_color)
-                start_separator.addChild(start_coords)
-                start_separator.addChild(start_set)
-                self._overlay.addChild(start_separator)
             scene.addChild(self._overlay)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             self._overlay = None

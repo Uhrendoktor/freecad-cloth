@@ -6,10 +6,6 @@ from pathlib import Path
 from freecad_cloth.shared.viewport_gizmo_style import (
     ACTIVE_COLOR,
     JOINT_COLOR,
-    PEN_SAMPLE_POINT_SIZE,
-    PEN_START_POINT_SIZE,
-    PEN_STROKE_COLOR,
-    PEN_STROKE_LINE_WIDTH,
     POSE_AXIS_COLORS,
     RIG_ACTIVE_JOINT_POINT_SIZE,
     RIG_ACTIVE_LINE_WIDTH,
@@ -34,13 +30,13 @@ from freecad_cloth.shared.viewport_gizmo_style import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _assert_rgb(rgb):
+def _assert_rgb(rgb: tuple[float, float, float]) -> None:
     """Check that a semantic color is a normalized RGB triple."""
     assert len(rgb) == 3
     assert all(0.0 <= float(channel) <= 1.0 for channel in rgb)
 
 
-def test_pose_axis_colors_keep_the_standard_xyz_identity():
+def test_pose_axis_colors_keep_the_standard_xyz_identity() -> None:
     """Keep axis identity stable for spatial recognition."""
     assert tuple(POSE_AXIS_COLORS) == ("X", "Y", "Z")
     x, y, z = (POSE_AXIS_COLORS[axis] for axis in ("X", "Y", "Z"))
@@ -50,14 +46,13 @@ def test_pose_axis_colors_keep_the_standard_xyz_identity():
     assert len({x, y, z}) == 3
 
 
-def test_gizmo_semantic_colors_are_valid_and_distinct():
-    """Keep active, snap, pen and axis cues independently identifiable."""
+def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
+    """Keep active, snap and axis cues independently identifiable."""
     colors = (
         *POSE_AXIS_COLORS.values(),
         ACTIVE_COLOR,
         JOINT_COLOR,
         SNAP_TARGET_COLOR,
-        PEN_STROKE_COLOR,
     )
     for rgb in colors:
         _assert_rgb(rgb)
@@ -65,7 +60,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct():
     assert ACTIVE_COLOR not in POSE_AXIS_COLORS.values()
 
 
-def test_gizmo_dimensions_keep_clear_visual_hierarchy():
+def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     """Guard line and marker hierarchy without pinning rendering to exact pixels."""
     assert 0.0 < RIG_PASSIVE_LINE_WIDTH < RIG_EDITABLE_LINE_WIDTH < RIG_ACTIVE_LINE_WIDTH
     assert 0.0 < RIG_JOINT_POINT_SIZE < RIG_ACTIVE_JOINT_POINT_SIZE
@@ -75,14 +70,12 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy():
     assert SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > 0.0
     assert SNAP_CROSSHAIR_HALF_LENGTH > SNAP_RING_RADIUS
     assert SNAP_RING_SEGMENTS >= 32
-    assert 0.0 < PEN_STROKE_LINE_WIDTH
-    assert 0.0 < PEN_SAMPLE_POINT_SIZE < PEN_START_POINT_SIZE
     assert 0.0 < SEAM_LINE_WIDTH < SEAM_FOCUSED_LINE_WIDTH
     assert 0.0 < SEAM_CONNECTOR_LINE_WIDTH < SEAM_LINE_WIDTH
     assert SEAM_LABEL_FONT_SIZE > 0.0
 
 
-def test_each_overlay_owner_uses_shared_visual_tokens():
+def test_each_shared_style_overlay_uses_visual_tokens() -> None:
     """Catch a viewport overlay reintroducing local palette and weight literals."""
     requirements = {
         "freecad_cloth/avatar/AvatarPoseGui.py": {
@@ -97,13 +90,6 @@ def test_each_overlay_owner_uses_shared_visual_tokens():
             "SNAP_RING_RADIUS",
             "SNAP_RING_SEGMENTS",
             "SNAP_CROSSHAIR_HALF_LENGTH",
-        },
-        "freecad_cloth/pattern/SurfacePen.py": {
-            "ACTIVE_COLOR",
-            "PEN_STROKE_COLOR",
-            "PEN_STROKE_LINE_WIDTH",
-            "PEN_SAMPLE_POINT_SIZE",
-            "PEN_START_POINT_SIZE",
         },
         "freecad_cloth/sewing/SeamOverlay.py": {
             "SEAM_LINE_WIDTH",
