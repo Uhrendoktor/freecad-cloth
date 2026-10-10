@@ -2,7 +2,11 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.avatar.FittingCommands import arrangement_anchor_status
+from freecad_cloth.avatar.FittingCommands import (
+    _mesh_anchor_local_position,
+    _target_signature,
+    arrangement_anchor_status,
+)
 from freecad_cloth.avatar.FittingGui import (
     arrangement_rotation,
     coin_position_to_screen,
@@ -76,3 +80,53 @@ def test_surface_anchor_is_invalidated_when_fitting_target_changes():
     )
 
     assert arrangement_anchor_status(point) == "wrong target"
+
+
+def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
+    from types import SimpleNamespace
+
+    triangles = ((0, 1, 2),)
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(
+            Topology=(
+                ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                triangles,
+            )
+        )
+    )
+    anchor = {
+        "triangle_index": 0,
+        "barycentric": (0.2, 0.3, 0.5),
+        "local_point": (0.3, 0.5, 0.0),
+    }
+
+    signature_before = _target_signature(target)
+    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+
+    target.Mesh.Topology = (
+        ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 1.0)),
+        triangles,
+    )
+
+    assert _target_signature(target) == signature_before
+    assert _mesh_anchor_local_position(target, anchor) == (0.6, 1.0, 0.5)
+
+
+def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():
+    from types import SimpleNamespace
+
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(
+            Topology=(
+                ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                ((0, 1, 2),),
+            )
+        )
+    )
+    signature_before = _target_signature(target)
+    target.Mesh.Topology = (
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 2, 1),),
+    )
+
+    assert _target_signature(target) != signature_before
