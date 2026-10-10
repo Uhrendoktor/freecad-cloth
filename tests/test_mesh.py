@@ -7,7 +7,12 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, rectangle
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    PolylineSegment,
+    rectangle,
+)
 from freecad_cloth.pattern.PatternMesh import (
     _point_to_segment_distance,
     refine_linear_boundary,
@@ -41,6 +46,32 @@ def test_concave_polygon_triangulates():
     assert len(mesh.triangles) == 3
     assert abs(mesh.area - 1200.0) < 1e-7
     assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
+
+
+def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints():
+    pattern = ParametricPattern(
+        [
+            LineSegment("bottom", (0, 0), (100, 0)),
+            LineSegment("right", (100, 0), (100, 100)),
+            PolylineSegment(
+                "scoop",
+                ((100, 100), (99, 90), (50, 80), (1, 90), (0, 100)),
+            ),
+            LineSegment("left", (0, 100), (0, 0)),
+        ]
+    )
+    mesh = triangulate(pattern)
+
+    # Endpoint-near curved spans belong to the sampled curve, not the adjacent sides.
+    assert mesh.boundary_edge_segment_ids == (
+        "bottom",
+        "right",
+        "scoop",
+        "scoop",
+        "scoop",
+        "scoop",
+        "left",
+    )
 
 
 def test_reversed_rectangle_retains_segment_provenance():

@@ -29,8 +29,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 STEPS = [0, 5, 10, 20, 30]
 SEAMS = (
     (1, 1, "TunicRightSide"),
-    (2, 2, "TunicRightShoulder"),
-    (6, 6, "TunicLeftShoulder"),
+    (3, 3, "TunicRightShoulder"),
+    (5, 5, "TunicLeftShoulder"),
     (7, 7, "TunicLeftSide"),
 )
 
@@ -60,6 +60,109 @@ def close_task():
         pass
 
 
+def _arc_through_midpoint(Part, start, end, midpoint):
+    """Build a minor native circular arc through an explicit on-arc point."""
+    import math
+
+    sx, sy = float(start.x), float(start.y)
+    ex, ey = float(end.x), float(end.y)
+    mx, my = float(midpoint.x), float(midpoint.y)
+    start_sq = sx * sx + sy * sy
+    end_sq = ex * ex + ey * ey
+    middle_sq = mx * mx + my * my
+    determinant = 2.0 * (sx * (ey - my) + ex * (my - sy) + mx * (sy - ey))
+    if abs(determinant) <= 1e-9:
+        raise RuntimeError("tunic armhole points are collinear; cannot construct an arc")
+
+    center_x = (start_sq * (ey - my) + end_sq * (my - sy) + middle_sq * (sy - ey)) / determinant
+    center_y = (start_sq * (mx - ex) + end_sq * (sx - mx) + middle_sq * (ex - sx)) / determinant
+    radius = math.hypot(sx - center_x, sy - center_y)
+    if not math.isfinite(radius) or radius <= 1e-9:
+        raise RuntimeError("tunic armhole circle has an invalid radius")
+
+    def curve_value(curve, parameter_value):
+        getter = getattr(curve, "valueAt", None)
+        if not callable(getter):
+            getter = getattr(curve, "value", None)
+        if not callable(getter):
+            raise RuntimeError("tunic armhole curve has no native parameter evaluator")
+        return getter(float(parameter_value))
+
+    tau = 2.0 * math.pi
+    selected = None
+    for normal_z in (1.0, -1.0):
+        circle = Part.Circle(
+            App.Vector(center_x, center_y, 0.0),
+            App.Vector(0.0, 0.0, normal_z),
+            radius,
+        )
+        # Derive parameters from the native circle basis instead of assuming
+        # which global direction its X axis uses for either normal orientation.
+        zero_point = curve_value(circle, 0.0)
+        quarter_point = curve_value(circle, math.pi / 2.0)
+        axis_x = (
+            (float(zero_point.x) - center_x) / radius,
+            (float(zero_point.y) - center_y) / radius,
+        )
+        axis_y = (
+            (float(quarter_point.x) - center_x) / radius,
+            (float(quarter_point.y) - center_y) / radius,
+        )
+
+        def parameter(point_x, point_y, axis_x=axis_x, axis_y=axis_y):
+            dx = point_x - center_x
+            dy = point_y - center_y
+            return (
+                math.atan2(
+                    dx * axis_y[0] + dy * axis_y[1],
+                    dx * axis_x[0] + dy * axis_x[1],
+                )
+                % tau
+            )
+
+        start_angle = parameter(sx, sy)
+        end_angle = parameter(ex, ey)
+        middle_angle = parameter(mx, my)
+        sweep = (end_angle - start_angle) % tau
+        middle_sweep = (middle_angle - start_angle) % tau
+        if sweep > 1e-9 and middle_sweep <= sweep + 1e-9:
+            selected = (circle, normal_z, start_angle, sweep, middle_sweep)
+            break
+
+    if selected is None:
+        raise RuntimeError("tunic armhole points do not define a consistent circular sweep")
+    circle, normal_z, start_angle, sweep, middle_sweep = selected
+    if sweep >= math.pi:
+        raise RuntimeError(
+            "tunic armhole through-point selects a major arc: sweep-rad=%.6f" % sweep
+        )
+
+    arc = Part.ArcOfCircle(circle, start_angle, start_angle + sweep)
+    checks = (
+        ("start", start, start_angle),
+        ("end", end, start_angle + sweep),
+        ("midpoint", midpoint, start_angle + middle_sweep),
+    )
+    for role, expected, parameter_value in checks:
+        actual = curve_value(arc, parameter_value)
+        error = math.hypot(float(actual.x) - float(expected.x), float(actual.y) - float(expected.y))
+        if error > 1e-5:
+            raise RuntimeError(
+                "tunic armhole arc lost authored %s: error-mm=%.6f "
+                "normal-z=%.0f expected=(%.4f,%.4f) actual=(%.4f,%.4f)"
+                % (
+                    role,
+                    error,
+                    normal_z,
+                    float(expected.x),
+                    float(expected.y),
+                    float(actual.x),
+                    float(actual.y),
+                )
+            )
+    return arc
+
+
 def _make_tunic_sketch(
     doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
 ):
@@ -72,24 +175,32 @@ def _make_tunic_sketch(
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + panel_width, armhole_z),
-        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + 0.84 * panel_width, armhole_z),
+        (x_offset + 0.90 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
-        (x_offset + 0.14 * panel_width, shoulder_z),
-        (x_offset, armhole_z),
+        (x_offset + 0.10 * panel_width, shoulder_z),
+        (x_offset + 0.16 * panel_width, armhole_z),
     ]
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
         if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
             raise RuntimeError("debug tunic profile lost canonical bilateral symmetry")
     sketch = doc.addObject("Sketcher::SketchObject", name)
+    armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
     for idx, start in enumerate(points):
         end = points[(idx + 1) % len(points)]
-        sketch.addGeometry(
-            Part.LineSegment(App.Vector(start[0], start[1], 0), App.Vector(end[0], end[1], 0)),
-            False,
-        )
+        start_vector = App.Vector(start[0], start[1], 0)
+        end_vector = App.Vector(end[0], end[1], 0)
+        if idx == 2:
+            midpoint = App.Vector(x_offset + 0.82 * panel_width, armhole_mid_z, 0)
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 6:
+            midpoint = App.Vector(x_offset + 0.18 * panel_width, armhole_mid_z, 0)
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        else:
+            geometry = Part.LineSegment(start_vector, end_vector)
+        sketch.addGeometry(geometry, False)
     return sketch, points
 
 
@@ -306,9 +417,10 @@ def run():
     )
 
     def pin_indices(piece, outline, positions):
+        x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (0.14 * panel_width, 0.97 * garment_height),
-            (0.86 * panel_width, 0.97 * garment_height),
+            (x_offset + 0.10 * panel_width, 0.98 * garment_height),
+            (x_offset + 0.90 * panel_width, 0.98 * garment_height),
         )
         result = []
         available = list(range(len(positions)))

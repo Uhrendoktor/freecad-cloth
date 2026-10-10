@@ -10,21 +10,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert (
-        'front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())'
-        in source
-    )
-    assert (
-        'back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())'
-        in source
-    )
+    assert "front_edge_ids = tuple(" in source
+    assert "back_edge_ids = tuple(" in source
+    assert '"SemanticEdgeIds"' in source
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in source
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_neckline_anchors():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "ArrangementPoint.from_string" in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
@@ -32,9 +27,30 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
     assert 'hip_point = arrangement_world("hip")' in source
     assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
     assert "status = target_status(target)" in source
-    assert 'scene.PinMode = "None"' in source
+    assert 'scene.PinMode = "Automatic"' in source
+    assert 'scene.PinMode = "Explicit"' in source
     assert "scene.PinSelection = []" in source
-    assert "if solver_pins:" in source
+    assert "scene.PinSelection = [str(index) for index in expected_pins]" in source
+    assert "if solver_pins != expected_pins or persisted_pins != expected_pins:" in source
+    assert "base_proxy_getter().source_signature = None" in source
+    assert "tunic-neckline-anchor piece=%s particle=%d snap-mm=%.2f" in source
+    assert "panel_indices.get(panel.Name, ())" in source
+    assert 'panel_objects = tuple(getattr(scene, "DrapePanels", ()))' in source
+    assert "scene.touch()" in source
+    initial_piece_links = source.index("scene.ClothPieces = [front, back]")
+    initial_cache_invalidation = source.index("base_proxy_getter().source_signature = None")
+    first_panel_map = source.index('panel_piece_names = getattr(proxy, "panel_piece_names", {})')
+    assert initial_piece_links < initial_cache_invalidation < first_panel_map
+    assert "tunic-simulation-panel-map proxy=%s links=%d panels=%r map=%r particles=%d" in source
+    assert "canonical tunic simulation did not build an authored pattern panel" in source
+    assert "def _neckline_boundary_particles(" in source
+    assert '"semantic-chain-endpoints"' in source
+    assert '"authored-edge-projection"' in source
+    assert (
+        "tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f"
+        in source
+    )
+    assert "boundary_index >= len(boundary_chains)" not in source
     assert "nearest_target_clearance" in source
     assert "step0-target-vertex-clearance-mm=" in source
     assert "authored_shoulder_pins" not in source
@@ -45,12 +61,12 @@ def test_canonical_tunic_uses_arrangement_points_target_collision_and_no_pins():
 
 def test_canonical_tunic_uses_matching_authored_mapping():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "required_indices = (1, 3, 5, 7)" in audit
     assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"' in audit
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[2], back_edge_ids[6], "TunicRightShoulder"' not in audit
+    assert 'front_edge_ids[3], back_edge_ids[5], "TunicRightShoulder"' not in audit
 
 
 def test_canonical_tunic_source_rewrite_compiles():
@@ -78,6 +94,45 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
     assert "if max_seam_gap > 35.0" in source
+
+
+def test_canonical_tunic_has_two_curved_open_armholes():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "if index == 2:" in source
+    assert "elif index == 6:" in source
+    assert "def _arc_through_midpoint(Part, start, end, midpoint):" in source
+    assert "Part.ArcOfCircle(circle, start_angle, start_angle + sweep)" in source
+    assert "zero_point = curve_value(circle, 0.0)" in source
+    assert "quarter_point = curve_value(circle, math.pi / 2.0)" in source
+    assert 'getter = getattr(curve, "valueAt", None)' in source
+    assert 'getter = getattr(curve, "value", None)' in source
+    assert "tunic armhole curve has no native parameter evaluator" in source
+    assert "tunic armhole arc lost authored %s" in source
+    sketch_builder = source.split("def _make_tunic_sketch(", 1)[1].split("\ndef _adopt_sketch", 1)[
+        0
+    ]
+    assert (
+        'sketch.addConstraint([Sketcher.Constraint("Block", index) '
+        "for index in range(len(geometry))])"
+    ) in sketch_builder
+    assert 'Sketcher.Constraint("Coincident"' not in sketch_builder
+    assert "tunic armhole collapsed during Sketcher recompute" in sketch_builder
+    assert "armhole_z = 0.88 * float(garment_height)" in sketch_builder
+    assert "(x_offset + 0.84 * panel_width, armhole_z)" in sketch_builder
+    assert "(x_offset + 0.90 * panel_width, shoulder_z)" in sketch_builder
+    assert "(x_offset + 0.10 * panel_width, shoulder_z)" in sketch_builder
+    assert "(x_offset + 0.16 * panel_width, armhole_z)" in sketch_builder
+    assert "x_offset + 0.82 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.18 * panel_width, armhole_mid_z" in sketch_builder
+    assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
+    assert 'boundary.kind != "arc" or len(boundary.samples) < 8' in source
+    assert "armhole curve has insufficient inward clearance" in source
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False' in source
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False' in source
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False' in source
+    assert 'front_edge_ids[2], back_edge_ids[2], "TunicRightArmhole"' not in source
+    assert 'front_edge_ids[6], back_edge_ids[6], "TunicLeftArmhole"' not in source
 
 
 def test_simulation_proxy_serializes_only_rebuildable_metadata():
@@ -206,7 +261,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
     assert "SEAM_SOURCE = " in audit
-    assert "required_indices = (1, 2, 6, 7)" in audit
+    assert "required_indices = (1, 3, 5, 7)" in audit
     assert "TunicRightShoulder" in audit
     assert "TunicLeftShoulder" in audit
     assert "ParticleDistance = 32.0" in audit
@@ -264,3 +319,19 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+
+def test_canonical_tunic_fixture_blocks_every_authored_segment():
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    start = source.index("def _make_tunic_sketch(")
+    end = source.index("\ndef _adopt_sketch(", start)
+    fixture = source[start:end]
+
+    # Fixing all authored segments prevents coincident-only constraints from
+    # folding otherwise unconstrained straight edges across the pattern outline.
+    expected_constraint = (
+        'sketch.addConstraint([Sketcher.Constraint("Block", index) '
+        "for index in range(len(geometry))])"
+    )
+    assert expected_constraint in fixture
+    assert 'Sketcher.Constraint("Coincident"' not in fixture
