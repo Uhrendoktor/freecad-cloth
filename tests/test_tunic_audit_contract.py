@@ -128,8 +128,8 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "shoulder_z - armhole_z < 0.15 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.18 * panel_width, armhole_z)" in sketch_builder
-    assert "x_offset + 0.75 * panel_width, armhole_mid_z" in sketch_builder
-    assert "x_offset + 0.25 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.83 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.17 * panel_width, armhole_mid_z" in sketch_builder
     assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
     assert 'boundary.kind != "arc" or len(boundary.samples) < 8' in source
     assert "armhole curve has insufficient inward clearance" in source
@@ -277,15 +277,21 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
 
-def test_tunic_penetration_audit_prefers_vectorized_trimesh_with_python_fallback():
+def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "import trimesh" in source
-    assert "target_mesh.contains(np.asarray(points, dtype=float))" in source
-    assert "penetration-check=numpy-ray-parity" in source
+    inside_check = source.split("def _inside_target_count(", 1)[1].split(
+        "\ndef write_drape_metrics(", 1
+    )[0]
+    assert "Trimesh/Rtree's native contains query" in inside_check
+    assert "target_mesh.contains" not in inside_check
+    assert "import trimesh" not in inside_check
+    assert "points_inside_closed_mesh(points, vertices, triangles, prefer_trimesh=False)" in inside_check
+    assert "penetration-check=numpy-ray-parity" in inside_check
     sanity = (ROOT / "freecad_cloth" / "simulation" / "DrapeVisualSanity.py").read_text(
         encoding="utf-8"
     )
-    assert "def points_inside_closed_mesh(" in sanity
+    assert "prefer_trimesh: bool = True" in sanity
+    assert "if prefer_trimesh:" in sanity
     assert "np.einsum" in sanity
 
 
