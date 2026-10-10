@@ -33,7 +33,8 @@ _boot("before-import-FreeCAD")
 import FreeCAD as App
 
 _boot("import-FreeCAD-complete")
-import FreeCADGui as Gui
+# Keep this import after the checkpoint so slow GUI startup remains diagnosable.
+import FreeCADGui as Gui  # noqa: I001
 
 _boot("import-FreeCADGui-complete")
 _boot("import-Part-complete")
