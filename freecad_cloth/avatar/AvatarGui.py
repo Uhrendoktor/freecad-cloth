@@ -142,7 +142,7 @@ class AvatarTaskPanel:
         pose = QtWidgets.QGroupBox("Pose")
         pose_layout = QtWidgets.QFormLayout(pose)
         self.pose = QtWidgets.QComboBox()
-        self.pose.addItems(("standing", "sewing", "sitting"))
+        self.pose.addItems(("standing", "sewing", "sitting", "t_pose"))
         self.pose.setToolTip("Choose the saved fitting pose.")
         pose_layout.addRow("Preset", self.pose)
         for key, label in self.POSE_FIELDS:
