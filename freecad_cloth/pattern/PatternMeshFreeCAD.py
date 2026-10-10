@@ -7,6 +7,7 @@ while retaining stable pattern-segment provenance.
 """
 
 from collections.abc import Iterable, Sequence
+
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 from freecad_cloth.pattern.PatternMesh import (
     TriangleMesh,
