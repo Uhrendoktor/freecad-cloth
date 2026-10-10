@@ -803,18 +803,18 @@ def _make_tunic_sketch(
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + 0.72 * panel_width, armhole_z),
-        (x_offset + 0.90 * panel_width, shoulder_z),
+        (x_offset + 0.82 * panel_width, armhole_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.10 * panel_width, shoulder_z),
-        (x_offset + 0.28 * panel_width, armhole_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.18 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError(
             "canonical tunic shoulders must slope downward from neckline to shoulder tip"
         )
-    if points[3][0] - points[2][0] < 0.15 * float(panel_width):
+    if points[3][0] - points[2][0] < 0.10 * float(panel_width):
         raise RuntimeError("canonical tunic armhole opening is too narrow")
     if shoulder_z - armhole_z < 0.15 * float(garment_height):
         raise RuntimeError("canonical tunic armhole opening is too shallow")
@@ -831,10 +831,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if index == 2:
             # Extend the armhole down the side and inward to create a usable opening.
-            midpoint = App.Vector(x_offset + 0.75 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.83 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.25 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.17 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
