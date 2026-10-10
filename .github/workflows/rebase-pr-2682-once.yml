@@ -1,0 +1,26 @@
+name: One-time PR 2682 rebase
+
+on:
+  push:
+    branches:
+      - automation/rebase-pr-2682-20261010
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    name: Rebase PR 2682 onto main
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Rebase the requested PR without squashing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr view 2682 --repo "$REPOSITORY" --json state,headRefName,headRefOid,baseRefName,baseRefOid
+          gh pr update-branch 2682 --repo "$REPOSITORY" --rebase
