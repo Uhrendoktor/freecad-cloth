@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 from freecad_cloth.avatar.FittingCommands import (
+    _geometry_round,
     _mesh_anchor_local_position,
     _target_signature,
     arrangement_anchor_status,
@@ -130,3 +131,9 @@ def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():
     )
 
     assert _target_signature(target) != signature_before
+
+
+def test_shape_anchor_signature_canonicalizes_signed_zero():
+    assert repr(_geometry_round(-0.0)) == repr(0.0)
+    assert repr(_geometry_round(-1e-7)) == repr(0.0)
+    assert _geometry_round(1.234567) == 1.23457
