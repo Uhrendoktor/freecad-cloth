@@ -1237,6 +1237,10 @@ def simulation():
             # Reuse the arranged frame's exact camera rotation rather than
             # relying on a second animated viewFront() transition.
             view.setCameraOrientation(arranged_front_orientation)
+            view.fitAll()
+            # fitAll may update the camera position; restore the rotation once
+            # more so both its view axis and framing are deterministic.
+            view.setCameraOrientation(arranged_front_orientation)
             events()
             restored_orientation = view.getCameraOrientation()
             expected_q = tuple(float(value) for value in arranged_front_orientation.Q)
