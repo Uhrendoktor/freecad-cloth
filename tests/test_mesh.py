@@ -156,7 +156,7 @@ def test_triangulation_rejects_nonfinite_area_limits() -> None:
             raise AssertionError("non-finite max_area was accepted")
 
 
-def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping():
+def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> None:
     class CountedCurve(QuadraticBezier):
         calls = 0
 
