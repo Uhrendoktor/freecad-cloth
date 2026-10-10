@@ -35,8 +35,6 @@ import FreeCAD as App
 _boot("import-FreeCAD-complete")
 import FreeCADGui as Gui
 
-from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
-
 _boot("import-FreeCADGui-complete")
 _boot("import-Part-complete")
 try:
@@ -106,12 +104,10 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
 
 
 def _avatar_png_has_visible_content(path, minimum_pixels=128):
-    """Delegate PNG parsing to the shared validator with the avatar threshold."""
-    return png_has_visible_content(
-        Path(path),
-        minimum_pixels=int(minimum_pixels),
-        channel_threshold=250,
-    )
+    """Check screenshot content using the shared structural PNG validator."""
+    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
+
+    return png_has_visible_content(path, minimum_pixels=int(minimum_pixels))
 
 
 def _avatar_screenshot(view, path):
