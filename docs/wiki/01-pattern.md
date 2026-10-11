@@ -53,7 +53,7 @@ The **3D Pattern Pen** traces a closed boundary on a visible mannequin or Cloth 
 6. Set **Planar deviation limit** (8 mm by default), then choose **Finish Stroke → Pattern**. This validates the boundary and its distance from a deterministic local plane before creating the persistent draft and pattern piece.
 7. Inspect the resulting native Sketcher geometry, then save the FCStd document. The sketch—not the sampled surface anchors—is the editable geometry authority.
 
-The recording below captures the real FreeCAD UI through the open task panel, an unfinished stroke, a closed boundary, and the extracted Sketcher result. Its stages are captured by the native FreeCAD acceptance fixture; the animation is not a hand-drawn illustration.
+The recording below captures the real FreeCAD UI in **Freehand trace** mode through an unfinished stroke, a closed boundary, and the extracted Sketcher result. Point placement is the default interactive mode; the animation documents the retained drag-based alternative. Its stages are captured by the native FreeCAD acceptance fixture, not a hand-drawn illustration.
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/surface-pen-workflow.gif" alt="FreeCAD Surface Pen progressing from its task panel through an incomplete stroke and closed outline to the resulting Sketcher pattern" width="900"></p>
 
