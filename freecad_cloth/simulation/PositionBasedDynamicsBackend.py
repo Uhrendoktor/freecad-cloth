@@ -46,6 +46,7 @@ class _NativePBDParticles(Protocol):
     def getMass(self, index: int) -> float: ...
     def getVelocity(self, index: int) -> Sequence[float]: ...
     def setVelocity(self, index: int, velocity: FloatArray) -> None: ...
+    def setPosition(self, index: int, position: FloatArray) -> None: ...
     def getVertices(self) -> object: ...
 
 
@@ -321,6 +322,11 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
         self._collision_mode = collision_mode
         self._collision_sdf: object | None = None
+        self._collision_sdf_resolution: tuple[int, ...] | None = None
+        self._collision_voxel_mm: float | None = None
+        self._collision_configured_tolerance_mm: float | None = None
+        self._collision_effective_tolerance_mm: float | None = None
+        self._collision_projector: object | None = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -365,6 +371,41 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         mesh.buildNeighbors()
 
         resolution = _pbd_collision_resolution(collision_surface)
+        collision_voxel_mm = _pbd_collision_voxel_mm()
+        configured_tolerance_mm = _pbd_collision_tolerance_mm()
+        effective_tolerance_mm = _pbd_collision_effective_tolerance_mm(collision_surface)
+        self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)
+        self._collision_voxel_mm = collision_voxel_mm
+        self._collision_configured_tolerance_mm = configured_tolerance_mm
+        self._collision_effective_tolerance_mm = effective_tolerance_mm
+        print(
+            "cloth-pbd-collision-config "
+            f"target_thickness_mm={float(collision_surface.thickness):.2f} "
+            f"configured_tolerance_mm={configured_tolerance_mm:.2f} "
+            f"voxel_mm={collision_voxel_mm:.2f} "
+            f"effective_tolerance_mm={effective_tolerance_mm:.2f} "
+            f"resolution={list(self._collision_sdf_resolution)}",
+            flush=True,
+        )
+        if self._collision_projector is None:
+            try:
+                from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+
+                self._collision_projector = MeshCollisionProjector(
+                    collision_surface,
+                    clearance_mm=effective_tolerance_mm,
+                )
+                print(
+                    "cloth-pbd-position-projection ready "
+                    f"clearance_mm={effective_tolerance_mm:.2f} "
+                    f"candidate_triangles={min(32, len(collision_surface.triangles))}",
+                    flush=True,
+                )
+            except ValueError as exc:
+                # An open or inconsistently oriented target still uses the native
+                # collision path; signed position projection requires a closed mesh.
+                print(f"cloth-pbd-position-projection disabled reason={exc}", flush=True)
+
         cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
         global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
         if self._collision_sdf is None and cache_key == _PBD_COLLISION_SDF_CACHE_KEY:
@@ -409,9 +450,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         rigid_body.setFrictionCoeff(0.5)
 
         collision_detection = sim.getTimeStep().getCollisionDetection()
-        collision_detection.setTolerance(
-            _pbd_collision_effective_tolerance_mm(collision_surface) / _MM
-        )
+        collision_detection.setTolerance(effective_tolerance_mm / _MM)
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()
@@ -499,6 +538,53 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _PBD_ITERATIONS_DEFAULT,
         )
 
+    def _project_collision_positions(self) -> None:
+        """Resolve residual position-level mesh contacts after the native PBD pass."""
+        projector = self._collision_projector
+        if projector is None:
+            return
+        from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+
+        if not isinstance(projector, MeshCollisionProjector):
+            return
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        corrected_mm, outward_normals = projector.project(positions_mm)
+        from freecad_cloth.simulation.MeshCollisionProjector import project_stitched_pairs
+
+        corrected_mm, outward_normals = project_stitched_pairs(
+            projector,
+            corrected_mm,
+            outward_normals,
+            self._stitches,
+            self._pin_indices,
+        )
+        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
+        pinned = set(self._pin_indices)
+        for raw_index in moved_indices:
+            index = int(raw_index)
+            if index in pinned:
+                continue
+            position = corrected_mm[index]
+            particles.setPosition(
+                index,
+                np.asarray(
+                    (position[0] / _MM, position[2] / _MM, position[1] / _MM),
+                    dtype=np.float64,
+                ),
+            )
+            # Velocity coordinates use the same PBD (X, Z, Y) axis permutation.
+            normal = outward_normals[index]
+            normal_pbd = np.asarray((normal[0], normal[2], normal[1]), dtype=np.float64)
+            velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
+            inward_speed = float(np.dot(velocity, normal_pbd))
+            if inward_speed < 0.0:
+                particles.setVelocity(index, velocity - inward_speed * normal_pbd)
+
     def step(
         self,
         dt: float = 1.0 / 60.0,
@@ -543,6 +629,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             int(iterations),
         )
         timestep.step(self._model)
+        self._project_collision_positions()
         self._time += float(dt)
 
     def reset(self) -> None:

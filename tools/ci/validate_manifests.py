@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import re
+from math import ceil, isclose
 from pathlib import Path
 
 ROOT = Path("artifacts/simulation-ladder")
@@ -157,6 +158,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     text = progress.read_text(encoding="utf-8")
     markers = (
         "scenario-pass",
+        "tunic-collision-config target-thickness-mm=",
         "realtime-preview=passed backend=position-based-dynamics",
         "drape-metrics=",
         "diagnostic-map=passed metric=stress",
@@ -164,6 +166,41 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     )
     if any(marker not in text for marker in markers):
         raise SystemExit("tunic: progress contract failed")
+
+    collision = re.search(
+        r"tunic-collision-config target-thickness-mm=([0-9.]+) "
+        r"voxel-mm=([0-9.]+) configured-tolerance-mm=([0-9.]+) "
+        r"effective-tolerance-mm=([0-9.]+) "
+        r"sdf-resolution=(\d+)x(\d+)x(\d+) "
+        r"span-mm=([0-9.]+)x([0-9.]+)x([0-9.]+)",
+        text,
+    )
+    if collision is None:
+        raise SystemExit("tunic: runtime collision configuration evidence is invalid")
+    thickness_mm, voxel_mm, configured_tolerance_mm, effective_tolerance_mm = (
+        float(value) for value in collision.groups()[:4]
+    )
+    sdf_resolution = tuple(int(value) for value in collision.groups()[4:7])
+    surface_spans_mm = tuple(float(value) for value in collision.groups()[7:10])
+    if not isclose(thickness_mm, 5.0, abs_tol=1e-6):
+        raise SystemExit(f"tunic: mannequin collision thickness must be 5 mm, got {thickness_mm}")
+    if not isclose(voxel_mm, 8.0, abs_tol=1e-6):
+        raise SystemExit(f"tunic: PBD SDF voxel must be 8 mm, got {voxel_mm}")
+    if not isclose(configured_tolerance_mm, 2.0, abs_tol=1e-6):
+        raise SystemExit(
+            f"tunic: configured collision tolerance must be 2 mm, got {configured_tolerance_mm}"
+        )
+    expected_tolerance_mm = max(configured_tolerance_mm, thickness_mm, 0.5 * voxel_mm)
+    if not isclose(effective_tolerance_mm, expected_tolerance_mm, abs_tol=1e-6):
+        raise SystemExit("tunic: effective collision tolerance does not match its inputs")
+    expected_resolution = tuple(
+        max(16, min(256, int(ceil((span + 200.0) / voxel_mm)))) for span in surface_spans_mm
+    )
+    if sdf_resolution != expected_resolution:
+        raise SystemExit(
+            "tunic: runtime SDF resolution does not match its configured voxel size: "
+            f"actual={sdf_resolution} expected={expected_resolution}"
+        )
 
     required_images = (
         generated / "cloth-simulation-draped.png",

@@ -14,6 +14,7 @@ def create_quality_simulation_scene(doc):
     """Create a quality-controlled simulation scene and its explicit mannequin target."""
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    from freecad_cloth.simulation.DrapeTarget import DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
@@ -28,7 +29,7 @@ def create_quality_simulation_scene(doc):
     set_drape_target_source(
         scene,
         avatar,
-        float(getattr(avatar, "SkinOffset", 3.0)),
+        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
         1.0,
     )
     ensure_quality_properties(scene)
@@ -166,8 +167,13 @@ def simulation_status():
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
     from freecad_cloth.simulation.DrapeTarget import target_status
+
     target_info = target_status(target)
-    target_info = {"blocked": target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}, **target_info}
+    target_info = {
+        "blocked": target_info["state"]
+        in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"},
+        **target_info,
+    }
     return {
         "state": "ready" if finite and not target_info["blocked"] else "invalid/stale",
         "message": "Cloth Simulation ready"

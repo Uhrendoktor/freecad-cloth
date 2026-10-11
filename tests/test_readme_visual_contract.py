@@ -64,9 +64,7 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
         encoding="utf-8"
     )
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
 
     for asset in (
         "cloth-pattern-design.png",
@@ -87,18 +85,15 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "find_asset(asset)" in publisher
 
 
-
-
 def test_turntable_job_has_no_orphaned_or_legacy_tunic_screenshot_step():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    block = workflow.split("  gui-turntables:", 1)[1].split(
-        "  gui-visual-examples:", 1
-    )[0]
+    block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     action = "      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@9ebd3adbca798a46363904d1ba94c9b267cf52d9"
     assert "tests/freecad_screenshot_source.py" not in block
     assert action + "\n" + action not in block
+
 
 def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     import json
@@ -106,9 +101,7 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     screenshot_source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(
         encoding="utf-8"
     )
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     manifest = json.loads(
         (ROOT / "tools" / "ci" / "visual_asset_sources.json").read_text(encoding="utf-8")
     )["assets"]
@@ -119,9 +112,23 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
         "\ndef simulation():", 1
     )[0]
     assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
-    assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
-    assert "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)" in screenshot_source
-    assert "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit" in screenshot_source
+    assert screenshot_source.rindex(
+        "capture_tunic_pattern_view(doc, front, back, hem_width)"
+    ) > screenshot_source.index("front, front_outline = make_piece")
+    assert (
+        "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)" in screenshot_source
+    )
+    assert (
+        "flat display copies of canonical Sketcher profiles with persistent source sketches "
+        "and seam references unchanged"
+    ) in screenshot_source
+    sewing_capture = screenshot_source.split("def capture_tunic_sewing_view(", 1)[1].split(
+        "\ndef simulation()", 1
+    )[0]
+    assert "VisualTunicFrontSewingPreviewSketch" in sewing_capture
+    assert "VisualTunicBackSewingPreviewSketch" in sewing_capture
+    assert "front.Sketch.Placement = front_placement" not in sewing_capture
+    assert "back.Sketch.Placement = back_placement" not in sewing_capture
     assert "def pattern_and_sewing(" not in screenshot_source
     for name in (
         "cloth-pattern-design.png",
@@ -147,9 +154,7 @@ def test_hosted_fallback_visual_publication_is_a_release_gate():
 
 def test_pose_visual_audit_exposes_all_avatar_renders():
     pose = (ROOT / "docs" / "wiki" / "04-pose.md").read_text(encoding="utf-8")
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
 
     for asset in (
         "cloth-avatar-front.png",
@@ -165,11 +170,9 @@ def test_pose_visual_audit_exposes_all_avatar_renders():
 
 
 def test_visual_publisher_removes_stale_public_images_before_publish():
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
 
-    assert 'path.suffix.lower() in IMAGE_SUFFIXES' in publisher
+    assert "path.suffix.lower() in IMAGE_SUFFIXES" in publisher
     assert "path.unlink()" in publisher
     assert "for asset in sorted(expected):" in publisher
     assert "write_provenance(" in publisher
@@ -177,9 +180,7 @@ def test_visual_publisher_removes_stale_public_images_before_publish():
 
 
 def test_visual_publisher_preserves_script_local_import_invocation():
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     action = (ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml").read_text(
         encoding="utf-8"
     )

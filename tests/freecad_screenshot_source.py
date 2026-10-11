@@ -403,34 +403,23 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         if not vertices or not triangles:
             raise RuntimeError("authoritative collision surface has no inside/outside topology")
 
-        # Prefer trimesh's vectorized ray query for production-size mannequins.
-        # The deterministic pure-Python parity test remains the dependency-free fallback.
-        try:
-            import numpy as np
-            import trimesh
-
-            target_mesh = trimesh.Trimesh(
-                vertices=np.asarray(vertices, dtype=float),
-                faces=np.asarray(triangles, dtype=int),
-                process=False,
-            )
-            if target_mesh.is_watertight:
-                states = target_mesh.contains(np.asarray(points, dtype=float))
-                log(
-                    "penetration-check=trimesh contains points=%d triangles=%d"
-                    % (len(points), len(triangles))
-                )
-                return int(np.count_nonzero(states))
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
-
+        # Avoid Trimesh/Rtree's native contains query in the embedded FreeCAD host.
+        # The vectorized NumPy ray-parity path preserves the strict vertex-inside gate.
         from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
         log(
             "penetration-check=numpy-ray-parity points=%d triangles=%d"
             % (len(points), len(triangles))
         )
-        return sum(points_inside_closed_mesh(points, vertices, triangles))
+        return sum(
+            points_inside_closed_mesh(
+                points,
+                vertices,
+                triangles,
+                prefer_trimesh=False,
+                chunk_size=4,
+            )
+        )
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
 
@@ -519,7 +508,7 @@ def write_drape_metrics(
             if collision_surface is not None:
                 from math import dist
 
-                from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+                from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
                 target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
                 target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
@@ -544,9 +533,12 @@ def write_drape_metrics(
                     for point in vertices:
                         point_tuple = tuple(float(value) for value in point)
                         try:
-                            authoritative_inside = point_inside_closed_mesh(
-                                point_tuple, target_points, target_triangles
-                            )
+                            authoritative_inside = points_inside_closed_mesh(
+                                (point_tuple,),
+                                target_points,
+                                target_triangles,
+                                prefer_trimesh=False,
+                            )[0]
                         except (TypeError, ValueError, IndexError):
                             break
                         if not authoritative_inside:
@@ -558,9 +550,12 @@ def write_drape_metrics(
                         solver_inside = None
                         if solver_vertices and solver_triangles:
                             try:
-                                solver_inside = point_inside_closed_mesh(
-                                    point_tuple, solver_vertices, solver_triangles
-                                )
+                                solver_inside = points_inside_closed_mesh(
+                                    (point_tuple,),
+                                    solver_vertices,
+                                    solver_triangles,
+                                    prefer_trimesh=False,
+                                )[0]
                             except (TypeError, ValueError, IndexError):
                                 solver_inside = None
                         inside_points.append(
@@ -596,45 +591,373 @@ def write_drape_metrics(
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
+def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
+    """Build a minor native circular arc through an explicit on-arc point."""
+    import math
+
+    sx, sy = float(start.x), float(start.y)
+    ex, ey = float(end.x), float(end.y)
+    mx, my = float(midpoint.x), float(midpoint.y)
+    start_sq = sx * sx + sy * sy
+    end_sq = ex * ex + ey * ey
+    middle_sq = mx * mx + my * my
+    determinant = 2.0 * (sx * (ey - my) + ex * (my - sy) + mx * (sy - ey))
+    if abs(determinant) <= 1e-9:
+        raise RuntimeError("tunic armhole points are collinear; cannot construct an arc")
+
+    center_x = (start_sq * (ey - my) + end_sq * (my - sy) + middle_sq * (sy - ey)) / determinant
+    center_y = (start_sq * (mx - ex) + end_sq * (sx - mx) + middle_sq * (ex - sx)) / determinant
+    radius = math.hypot(sx - center_x, sy - center_y)
+    if not math.isfinite(radius) or radius <= 1e-9:
+        raise RuntimeError("tunic armhole circle has an invalid radius")
+
+    def curve_value(curve: object, parameter_value: float) -> object:
+        getter = getattr(curve, "valueAt", None)
+        if not callable(getter):
+            getter = getattr(curve, "value", None)
+        if not callable(getter):
+            raise RuntimeError("tunic armhole curve has no native parameter evaluator")
+        return getter(float(parameter_value))
+
+    tau = 2.0 * math.pi
+    selected = None
+    for normal_z in (1.0, -1.0):
+        circle = Part.Circle(
+            App.Vector(center_x, center_y, 0.0),
+            App.Vector(0.0, 0.0, normal_z),
+            radius,
+        )
+        # Derive parameters from the native circle basis instead of assuming
+        # which global direction its X axis uses for either normal orientation.
+        zero_point = curve_value(circle, 0.0)
+        quarter_point = curve_value(circle, math.pi / 2.0)
+        axis_x = (
+            (float(zero_point.x) - center_x) / radius,
+            (float(zero_point.y) - center_y) / radius,
+        )
+        axis_y = (
+            (float(quarter_point.x) - center_x) / radius,
+            (float(quarter_point.y) - center_y) / radius,
+        )
+
+        def parameter(
+            point_x: float,
+            point_y: float,
+            axis_x: tuple[float, float] = axis_x,
+            axis_y: tuple[float, float] = axis_y,
+        ) -> float:
+            dx = point_x - center_x
+            dy = point_y - center_y
+            return (
+                math.atan2(
+                    dx * axis_y[0] + dy * axis_y[1],
+                    dx * axis_x[0] + dy * axis_x[1],
+                )
+                % tau
+            )
+
+        start_angle = parameter(sx, sy)
+        end_angle = parameter(ex, ey)
+        middle_angle = parameter(mx, my)
+        sweep = (end_angle - start_angle) % tau
+        middle_sweep = (middle_angle - start_angle) % tau
+        if sweep > 1e-9 and middle_sweep <= sweep + 1e-9:
+            selected = (circle, normal_z, start_angle, sweep, middle_sweep)
+            break
+
+    if selected is None:
+        raise RuntimeError("tunic armhole points do not define a consistent circular sweep")
+    circle, normal_z, start_angle, sweep, middle_sweep = selected
+    if sweep >= math.pi:
+        raise RuntimeError(
+            "tunic armhole through-point selects a major arc: sweep-rad=%.6f" % sweep
+        )
+
+    arc = Part.ArcOfCircle(circle, start_angle, start_angle + sweep)
+    checks = (
+        ("start", start, start_angle),
+        ("end", end, start_angle + sweep),
+        ("midpoint", midpoint, start_angle + middle_sweep),
+    )
+    for role, expected, parameter_value in checks:
+        actual = curve_value(arc, parameter_value)
+        error = math.hypot(float(actual.x) - float(expected.x), float(actual.y) - float(expected.y))
+        if error > 1e-5:
+            raise RuntimeError(
+                "tunic armhole arc lost authored %s: error-mm=%.6f "
+                "normal-z=%.0f expected=(%.4f,%.4f) actual=(%.4f,%.4f)"
+                % (
+                    role,
+                    error,
+                    normal_z,
+                    float(expected.x),
+                    float(expected.y),
+                    float(actual.x),
+                    float(actual.y),
+                )
+            )
+    return arc
+
+
+def _polyline_distance_fraction(
+    point: tuple[float, float], samples: tuple[tuple[float, float], ...]
+) -> tuple[float, float]:
+    """Return nearest 2D polyline distance and its normalized arc-length position."""
+    import math
+
+    spans = []
+    total = 0.0
+    for start, end in zip(samples, samples[1:], strict=False):
+        length = math.hypot(float(end[0]) - float(start[0]), float(end[1]) - float(start[1]))
+        spans.append((total, start, end, length))
+        total += length
+    if total <= 1e-12:
+        return math.inf, 0.0
+
+    best = (math.inf, 0.0)
+    for offset, start, end, length in spans:
+        if length <= 1e-12:
+            continue
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        fraction = (
+            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
+        ) / (length * length)
+        fraction = max(0.0, min(1.0, fraction))
+        nearest_x = float(start[0]) + fraction * dx
+        nearest_y = float(start[1]) + fraction * dy
+        distance = math.hypot(float(point[0]) - nearest_x, float(point[1]) - nearest_y)
+        candidate = (distance, (offset + fraction * length) / total)
+        if candidate < best:
+            best = candidate
+    return best
+
+
+def _neckline_boundary_particles(
+    piece: object,
+    boundary: object,
+    piece_indices: object,
+    boundary_chains: object,
+    particle_positions: object,
+) -> tuple[tuple[int, ...], str, float]:
+    """Resolve neckline mesh particles from semantic endpoints, with geometric fallback."""
+    import math
+
+    import FreeCAD as App
+
+    samples = tuple((float(sample[0]), float(sample[1])) for sample in boundary.samples)
+    if len(samples) < 2:
+        raise RuntimeError("canonical tunic neckline source edge has fewer than two samples")
+
+    placement = getattr(piece, "Placement", None)
+    inverse = placement.inverse() if placement is not None else None
+    local_positions = {}
+    for raw_index in piece_indices:
+        index = int(raw_index)
+        world = particle_positions[index]
+        point = App.Vector(float(world[0]), float(world[1]), float(world[2]))
+        if inverse is not None:
+            point = inverse.multVec(point)
+        local_positions[index] = (float(point.x), float(point.y))
+
+    start, end = samples[0], samples[-1]
+    best_chain = ()
+    best_endpoint_error = math.inf
+    # A runtime may order boundary chains differently from a separate PatternIR
+    # resolution. Match the authored edge by its actual endpoints before using
+    # any sequence position.
+    for raw_chain in boundary_chains:
+        chain = tuple(int(index) for index in raw_chain)
+        if len(chain) < 2 or chain[0] not in local_positions or chain[-1] not in local_positions:
+            continue
+        first = local_positions[chain[0]]
+        last = local_positions[chain[-1]]
+        forward_error = max(math.dist(first, start), math.dist(last, end))
+        reverse_error = max(math.dist(first, end), math.dist(last, start))
+        if reverse_error < forward_error:
+            candidate_chain = tuple(reversed(chain))
+            error = reverse_error
+        else:
+            candidate_chain = chain
+            error = forward_error
+        if error < best_endpoint_error:
+            best_chain = candidate_chain
+            best_endpoint_error = error
+
+    # This is a coordinate-correspondence tolerance, not a fit or solver threshold.
+    if best_chain and best_endpoint_error <= 1e-4:
+        return best_chain, "semantic-chain-endpoints", best_endpoint_error
+
+    # If chain metadata omits or reorders this edge, recover only vertices that
+    # lie on the authored edge in the piece's local plane. Unrelated world-space
+    # nearest vertices are deliberately excluded.
+    projected = []
+    nearest_distance = math.inf
+    for index, point in local_positions.items():
+        distance, fraction = _polyline_distance_fraction(point, samples)
+        nearest_distance = min(nearest_distance, distance)
+        if distance <= 1e-4:
+            projected.append((fraction, index))
+    projected.sort()
+    particles = tuple(index for _fraction, index in projected)
+    if len(particles) >= 2:
+        return particles, "authored-edge-projection", best_endpoint_error
+
+    raise RuntimeError(
+        "canonical tunic neckline has no mesh particles on its authored edge: "
+        "piece=%s edge=%s chains=%d matched-particles=%d nearest-mm=%.6f "
+        "endpoint-error-mm=%.6f"
+        % (
+            piece.Name,
+            boundary.id,
+            len(boundary_chains),
+            len(particles),
+            nearest_distance,
+            best_endpoint_error,
+        )
+    )
+
+
 def _make_tunic_sketch(
-    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08
+    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.03
 ):
     import Part
     import Sketcher
 
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = 0.62 * float(garment_height)
+    shoulder_z = 0.94 * float(garment_height)
+    neckline_scoop_depth = 0.12 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (neckline_ratio * panel_width, neck_z),
-        ((1.0 - neckline_ratio) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.00, 0.82 * garment_height),
+        (x_offset + 0.74 * panel_width, armhole_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + neckline_ratio * panel_width, neck_z),
+        (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.26 * panel_width, armhole_z),
     ]
-    geometry = [
-        Part.LineSegment(
-            App.Vector(points[i][0], points[i][1], 0),
-            App.Vector(points[(i + 1) % len(points)][0], points[(i + 1) % len(points)][1], 0),
+    if not (armhole_z < shoulder_z < neck_z):
+        raise RuntimeError(
+            "canonical tunic shoulders must slope downward from neckline to shoulder tip"
         )
-        for i in range(len(points))
-    ]
+    if not (armhole_z < neckline_scoop_z < shoulder_z):
+        raise RuntimeError(
+            "canonical tunic neckline scoop must cut below the shoulders and above the armholes"
+        )
+    if points[3][0] - points[2][0] < 0.15 * float(panel_width):
+        raise RuntimeError("canonical tunic armhole opening is too narrow")
+    if shoulder_z - armhole_z < 0.20 * float(garment_height):
+        raise RuntimeError("canonical tunic armhole opening is too shallow")
+    center_x = 0.5 * float(hem_width)
+    for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
+        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
+            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
+
+    # The armholes are free, inward-scooped edges. They must not be sewn shut.
+    geometry = []
+    armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
+    side_ease_mm = 4.0
+    for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
+        start_vector = App.Vector(start[0], start[1], 0)
+        end_vector = App.Vector(end[0], end[1], 0)
+        if index == 1:
+            # Add modest chest-to-waist ease without moving the armhole endpoints.
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) + side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 2:
+            # Keep the open armholes at their authored inward-scooped size.
+            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 4:
+            # A true U-shaped neckline: the center arc cuts down into the panel.
+            midpoint = App.Vector(0.5 * (start[0] + end[0]), neckline_scoop_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 6:
+            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 7:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) - side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        else:
+            geometry.append(Part.LineSegment(start_vector, end_vector))
+
     sketch.addGeometry(geometry, False)
-    sketch.addConstraint(
-        [
-            Sketcher.Constraint("Coincident", 0, 2, 1, 1),
-            Sketcher.Constraint("Coincident", 1, 2, 2, 1),
-            Sketcher.Constraint("Coincident", 2, 2, 3, 1),
-            Sketcher.Constraint("Coincident", 3, 2, 4, 1),
-            Sketcher.Constraint("Coincident", 4, 2, 5, 1),
-            Sketcher.Constraint("Coincident", 5, 2, 6, 1),
-            Sketcher.Constraint("Coincident", 6, 2, 7, 1),
-            Sketcher.Constraint("Coincident", 7, 2, 0, 1),
-        ]
-    )
+    # This fixture authors every segment explicitly; preserve each segment's
+    # coordinates so an underconstrained Sketcher solve cannot fold the straight
+    # shoulders/sides/hem across the outline while retaining the two fixed arcs.
+    # Shared endpoints are authored from the same point tuples, so no coincidence
+    # solver movement is needed to close this deterministic test profile.
+    sketch.addConstraint([Sketcher.Constraint("Block", index) for index in range(len(geometry))])
     doc.recompute()
+    for index in (2, 6):
+        curve = sketch.Geometry[index]
+        first = float(curve.FirstParameter)
+        last = float(curve.LastParameter)
+        parameter_span = last - first
+        if parameter_span <= 1e-3:
+            raise RuntimeError(
+                "tunic armhole collapsed during Sketcher recompute: index=%d span=%.9f"
+                % (index, parameter_span)
+            )
+        evaluator = getattr(curve, "valueAt", None)
+        if not callable(evaluator):
+            evaluator = getattr(curve, "value", None)
+        if not callable(evaluator):
+            raise RuntimeError("tunic armhole native curve has no parameter evaluator")
+        native_samples = tuple(
+            evaluator(first + parameter_span * fraction / 8.0) for fraction in range(9)
+        )
+        native_xy = tuple((float(sample.x), float(sample.y)) for sample in native_samples)
+        start_xy, end_xy = native_xy[0], native_xy[-1]
+        vertical_span = end_xy[1] - start_xy[1]
+        if abs(vertical_span) <= 1e-9:
+            raise RuntimeError("tunic armhole native curve has a horizontal endpoint chord")
+        inward = -1.0 if index == 2 else 1.0
+        deviations = tuple(
+            inward
+            * (
+                sample[0]
+                - (
+                    start_xy[0]
+                    + (sample[1] - start_xy[1]) / vertical_span * (end_xy[0] - start_xy[0])
+                )
+            )
+            for sample in native_xy[1:-1]
+        )
+        log(
+            "tunic-native-armhole index=%d type=%s range=(%.9f,%.9f) "
+            "start=(%.3f,%.3f) end=(%.3f,%.3f) "
+            "bounds=(%.3f,%.3f,%.3f,%.3f) inward-scoop=%.3f samples=%r"
+            % (
+                index,
+                type(curve).__name__,
+                first,
+                last,
+                start_xy[0],
+                start_xy[1],
+                end_xy[0],
+                end_xy[1],
+                min(point[0] for point in native_xy),
+                min(point[1] for point in native_xy),
+                max(point[0] for point in native_xy),
+                max(point[1] for point in native_xy),
+                max(deviations),
+                tuple((round(point[0], 3), round(point[1], 3)) for point in native_xy),
+            )
+        )
     return sketch, points
 
 
@@ -779,12 +1102,6 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
         for piece in pieces
     }
-    original_sketch_placements = {
-        piece.Sketch.Name: App.Placement(
-            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
-        )
-        for piece in pieces
-    }
     original_visibility = {}
     for obj in doc.Objects:
         view_object = getattr(obj, "ViewObject", None)
@@ -792,10 +1109,12 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             original_visibility[obj.Name] = bool(view_object.Visibility)
 
     sewing = None
+    preview_sketches = []
     gap = max(80.0, 0.15 * float(hem_width))
     try:
-        # Reuse the exact native Sketcher sources used by the drape. Only their
-        # placements and visibility change for the flat Sewing-workbench capture.
+        # Keep the semantic source sketches at their authored placements: moving a
+        # Sketcher object changes the geometry/provenance fingerprints used by persistent
+        # seam references. Duplicate only the display geometry for this flat screenshot.
         for obj in doc.Objects:
             view_object = getattr(obj, "ViewObject", None)
             if view_object is not None and hasattr(view_object, "Visibility"):
@@ -806,27 +1125,78 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         )
         back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
-        front.Sketch.Placement = front_placement
         back.Placement = back_placement
-        back.Sketch.Placement = back_placement
         front.ViewObject.Visibility = False
         back.ViewObject.Visibility = False
-        front.Sketch.ViewObject.Visibility = True
-        back.Sketch.ViewObject.Visibility = True
+
+        import Sketcher
+
+        for piece, placement, preview_name in (
+            (front, front_placement, "VisualTunicFrontSewingPreviewSketch"),
+            (back, back_placement, "VisualTunicBackSewingPreviewSketch"),
+        ):
+            preview = doc.addObject("Sketcher::SketchObject", preview_name)
+            preview.addGeometry(list(piece.Sketch.Geometry), False)
+            preview.addConstraint(
+                [Sketcher.Constraint("Block", index) for index in range(len(preview.Geometry))]
+            )
+            preview.Placement = placement
+            preview.Label = preview_name
+            preview.ViewObject.Visibility = True
+            preview_sketches.append(preview)
+
         for seam, _piece_a, _piece_b in seam_records:
             seam.ViewObject.Visibility = True
         doc.recompute()
 
-        invalid_seams = [
-            str(getattr(seam, "SeamId", getattr(seam, "Label", seam.Name)))
-            for seam, _piece_a, _piece_b in seam_records
-            if str(getattr(seam, "Status", "")) != "Valid"
-            or getattr(getattr(seam, "Shape", None), "isNull", lambda: True)()
-        ]
+        from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+
+        invalid_seams = []
+        seam_diagnostics = []
+        for seam, piece_a, piece_b in seam_records:
+            seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", seam.Name)))
+            status = str(getattr(seam, "Status", ""))
+            shape = getattr(seam, "Shape", None)
+            shape_is_null = getattr(shape, "isNull", lambda: True)()
+            edge_a_id = str(getattr(seam, "EdgeAId", ""))
+            edge_b_id = str(getattr(seam, "EdgeBId", ""))
+            reference_errors = []
+            for prefix, piece, edge_id, signature in (
+                ("A", piece_a, edge_a_id, str(getattr(seam, "EdgeASignature", ""))),
+                ("B", piece_b, edge_b_id, str(getattr(seam, "EdgeBSignature", ""))),
+            ):
+                try:
+                    _resolve_document_edge(piece, edge_id, signature)
+                except Exception as exc:
+                    reference_errors.append((prefix, type(exc).__name__, str(exc)))
+            if status != "Valid" or shape_is_null:
+                invalid_seams.append(seam_id)
+                sketch_a = getattr(piece_a, "Sketch", None)
+                sketch_b = getattr(piece_b, "Sketch", None)
+                ids_a = tuple(
+                    str(value) for value in (getattr(sketch_a, "SemanticEdgeIds", ()) or ())
+                )
+                ids_b = tuple(
+                    str(value) for value in (getattr(sketch_b, "SemanticEdgeIds", ()) or ())
+                )
+                seam_diagnostics.append(
+                    (
+                        seam_id,
+                        status,
+                        bool(shape_is_null),
+                        edge_a_id,
+                        edge_b_id,
+                        tuple(index for index, value in enumerate(ids_a) if value == edge_a_id),
+                        tuple(index for index, value in enumerate(ids_b) if value == edge_b_id),
+                        tuple(reference_errors),
+                    )
+                )
         if invalid_seams:
             raise RuntimeError(
                 "canonical tunic has invalid semantic seams before Sewing capture: "
                 + ", ".join(invalid_seams)
+                + "; diagnostics="
+                + repr(tuple(seam_diagnostics))
             )
 
         activate(
@@ -858,7 +1228,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         save(
             "cloth-sewing.png",
             "Sewing Workbench canonical tunic",
-            "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit",
+            "flat display copies of canonical Sketcher profiles with persistent source sketches and seam references unchanged",
         )
         log(
             "canonical-tunic-sewing=passed front=%s back=%s seam-ids=%s"
@@ -872,9 +1242,11 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         close_task()
         if sewing is not None:
             sewing.ViewObject.Visibility = False
+        for preview in preview_sketches:
+            if doc.getObject(preview.Name) is not None:
+                doc.removeObject(preview.Name)
         for piece in pieces:
             piece.Placement = original_piece_placements[piece.Name]
-            piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
         for obj in doc.Objects:
             if obj.Name in original_visibility:
                 obj.ViewObject.Visibility = original_visibility[obj.Name]
@@ -949,9 +1321,18 @@ def simulation():
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
-    panel_width = max(420.0, shoulder_width + 100.0)
-    hem_width = max(450.0, panel_width + 80.0)
-    garment_height = max(560.0, shoulder_z - hem_z)
+    panel_width = max(420.0, shoulder_width + 105.0)
+    hem_width = max(450.0, panel_width + 100.0)
+    # Add 10% horizontal ease at the underarms and shoulders without changing fit height.
+    panel_width *= 1.10
+    hem_width *= 1.10
+    # Raise the shoulder seam above the avatar landmark so free drape can settle it down.
+    shoulder_headroom_mm = 20.0
+    garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)
+    log(
+        "tunic-shoulder-headroom target-mm=%.1f actual-mm=%.1f"
+        % (shoulder_headroom_mm, 0.94 * garment_height - (shoulder_z - hem_z))
+    )
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
@@ -982,8 +1363,9 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+    # Widen the neck opening and lift the shoulder seams 20 mm over the mannequin's shoulder landmark.
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)
 
     def log_tunic_outline_topology(piece):
         """Log the actual sampled boundary and crossing edges before sewing or draping."""
@@ -1101,20 +1483,116 @@ def simulation():
     topology_results = [log_tunic_outline_topology(piece) for piece in (front, back)]
 
     capture_tunic_pattern_view(doc, front, back, hem_width)
-    # Same-side side seams and authored shoulder seams; the neckline remains open.
+
+    # Use semantic edge IDs and keep the two curved armholes (edges 2 and 6)
+    # open. Only the two side seams and two shoulder seams are joined.
+    front_edge_ids = tuple(
+        str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ()
+    )
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical tunic sketches have no complete semantic edge map")
+    required_indices = (1, 3, 5, 7)
+    if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
+        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+
+    from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+    for piece, edge_ids in ((front, front_edge_ids), (back, back_edge_ids)):
+        piece_ir = resolve_piece_ir(piece)
+        boundary_by_id = {str(boundary.id): boundary for boundary in piece_ir.boundaries}
+        for edge_index, inward in ((2, -1.0), (6, 1.0)):
+            boundary = boundary_by_id.get(edge_ids[edge_index])
+            if boundary is None or boundary.kind != "arc" or len(boundary.samples) < 8:
+                raise RuntimeError(
+                    "canonical garment armhole was not preserved as a sampled native curve: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            start_point = boundary.samples[0]
+            end_point = boundary.samples[-1]
+            vertical_span = float(end_point[1]) - float(start_point[1])
+            if abs(vertical_span) <= 1e-9:
+                raise RuntimeError(
+                    "canonical garment armhole endpoints do not define a vertical chord: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            scoop_depth = max(
+                inward
+                * (
+                    float(sample[0])
+                    - (
+                        float(start_point[0])
+                        + (float(sample[1]) - float(start_point[1]))
+                        / vertical_span
+                        * (float(end_point[0]) - float(start_point[0]))
+                    )
+                )
+                for sample in boundary.samples[1:-1]
+            )
+            if scoop_depth <= 0.02 * float(panel_width):
+                deviations = tuple(
+                    float(sample[0])
+                    - (
+                        float(start_point[0])
+                        + (float(sample[1]) - float(start_point[1]))
+                        / vertical_span
+                        * (float(end_point[0]) - float(start_point[0]))
+                    )
+                    for sample in boundary.samples[1:-1]
+                )
+                native_geometry = piece.Sketch.Geometry[edge_index]
+                log(
+                    "tunic-armhole-debug piece=%s edge=%s native=%s range=%s "
+                    "start=(%.3f,%.3f) end=(%.3f,%.3f) x-deviation=[%.3f,%.3f] "
+                    "signed-inward=%.3f"
+                    % (
+                        piece.Name,
+                        edge_ids[edge_index],
+                        type(native_geometry).__name__,
+                        tuple(float(value) for value in boundary.parameter_range),
+                        float(start_point[0]),
+                        float(start_point[1]),
+                        float(end_point[0]),
+                        float(end_point[1]),
+                        min(deviations),
+                        max(deviations),
+                        float(scoop_depth),
+                    )
+                )
+                raise RuntimeError(
+                    "canonical garment armhole curve has insufficient inward clearance: "
+                    "piece=%s edge=%s scoop-mm=%.2f"
+                    % (piece.Name, edge_ids[edge_index], scoop_depth)
+                )
+
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False),
+        (front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False),
+        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False),
+    )
     seam_records = []
-    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
+    for edge_a_id, edge_b_id, seam_id, reversed_b in seam_specs:
         seam = Seam(
             str(front.PieceId),
-            edge_a,
+            edge_a_id,
             str(back.PieceId),
-            edge_b,
+            edge_b_id,
             id=seam_id,
+            reversed_b=reversed_b,
             alignment="uniform",
             stitch_group="TunicAssembly",
         )
         add_seam(doc, seam)
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
+        if (
+            str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id
+            or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id
+            or bool(getattr(seam_obj, "ReversedB", False)) != reversed_b
+        ):
+            raise RuntimeError(
+                "canonical tunic seam %s did not retain its authored correspondence" % seam_id
+            )
         seam_records.append((seam_obj, front, back))
     capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)
     invalid_native = next(
@@ -1145,11 +1623,38 @@ def simulation():
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.75
+    # Keep the free-drape audit unpinned: fixed front/back neckline centers
+    # prevent the shoulder seams from converging.
     scene.PinMode = "None"
     scene.PinSelection = []
     scene.ClothPieces = [front, back]
+    link_records = tuple(
+        (
+            str(getattr(piece, "Name", "")),
+            str(getattr(piece, "PieceId", "")),
+            str(getattr(piece, "PatternType", "")),
+        )
+        for piece in (getattr(scene, "ClothPieces", ()) or ())
+    )
+    log("tunic-simulation-input-cloth-pieces=%r" % (link_records,))
+    proxy = scene.Proxy
+    base_proxy_getter = getattr(proxy, "_base_or_restore", None)
+    if not callable(base_proxy_getter):
+        raise RuntimeError("canonical tunic simulation cannot invalidate its cached scene")
+    # Explicitly invalidate the initial demo signature; touch() alone retained its backend.
+    base_proxy_getter().source_signature = None
+    scene.touch()
     refresh_drape_target(target)
     doc.recompute()
+    # Recompute may leave the GUI-created demo backend cached after the authored
+    # PatternPieces are linked. Re-enter the same proxy execution path with its
+    # signature invalidated so the audit measures the real tunic panels.
+    proxy = scene.Proxy
+    base_proxy_getter = getattr(proxy, "_base_or_restore", None)
+    if not callable(base_proxy_getter):
+        raise RuntimeError("canonical tunic simulation cannot rebuild its authored panels")
+    base_proxy_getter().source_signature = None
+    proxy.execute(scene)
     status = target_status(target)
     if str(status.get("state", "")) != "ready":
         raise RuntimeError(
@@ -1159,16 +1664,169 @@ def simulation():
     backend = getattr(proxy, "backend", None)
     if backend is None:
         raise RuntimeError("canonical tunic did not build a simulation backend")
+    particle_positions = tuple(
+        tuple(float(value) for value in position) for position in backend.positions()
+    )
+    panel_indices = getattr(proxy, "panel_indices", {})
+    panel_objects = tuple(getattr(scene, "DrapePanels", ()))
+    if len(panel_objects) < 2:
+        raise RuntimeError("canonical tunic did not create one drape mesh per panel")
+    neckline_midpoints = []
+    panel_boundary_edges = getattr(proxy, "panel_boundary_edges", {})
+    panel_piece_names = getattr(proxy, "panel_piece_names", {})
+    panel_map_summary = tuple(
+        (
+            str(getattr(panel, "Name", "")),
+            str(panel_piece_names.get(getattr(panel, "Name", ""), "")),
+            len(tuple(panel_indices.get(getattr(panel, "Name", ""), ()))),
+            len(tuple(panel_boundary_edges.get(getattr(panel, "Name", ""), ()))),
+        )
+        for panel in panel_objects[:2]
+    )
+    log(
+        "tunic-simulation-panel-map proxy=%s links=%d panels=%r map=%r particles=%d"
+        % (
+            type(proxy).__name__,
+            len(tuple(getattr(scene, "ClothPieces", ()) or ())),
+            tuple(str(getattr(panel, "Name", "")) for panel in panel_objects[:2]),
+            panel_map_summary,
+            len(particle_positions),
+        )
+    )
+    for piece, panel in zip((front, back), panel_objects[:2], strict=True):
+        if str(panel_piece_names.get(panel.Name, "")) != str(piece.Name):
+            raise RuntimeError(
+                "canonical tunic simulation did not build an authored pattern panel: "
+                "piece=%s panel=%s mapped-piece=%s cloth-pieces=%r"
+                % (
+                    piece.Name,
+                    panel.Name,
+                    str(panel_piece_names.get(panel.Name, "")),
+                    link_records,
+                )
+            )
+    for piece, _outline, panel, edge_ids in zip(
+        (front, back),
+        (front_outline, back_outline),
+        panel_objects[:2],
+        (front_edge_ids, back_edge_ids),
+        strict=True,
+    ):
+        piece_indices = tuple(int(index) for index in panel_indices.get(panel.Name, ()))
+        piece_index_set = set(piece_indices)
+        if not piece_index_set:
+            raise RuntimeError(
+                "canonical tunic has no simulation particles for piece %s" % piece.Name
+            )
+
+        # Resolve the neckline by authored Sketcher edge ID, then anchor to the
+        # midpoint of that edge's actual meshed boundary chain. This avoids a
+        # world-space nearest-vertex search that can accidentally select the
+        # wrong region when a panel has been placed or rotated.
+        piece_ir = resolve_piece_ir(piece)
+        neckline_edge_id = str(edge_ids[4])
+        neckline_boundary = next(
+            (boundary for boundary in piece_ir.boundaries if str(boundary.id) == neckline_edge_id),
+            None,
+        )
+        if neckline_boundary is None:
+            raise RuntimeError(
+                "canonical tunic could not resolve neckline semantic edge: "
+                "piece=%s edge=%s" % (piece.Name, neckline_edge_id)
+            )
+        boundary_chains = tuple(panel_boundary_edges.get(panel.Name, ()))
+        neckline_particles, boundary_method, endpoint_error = _neckline_boundary_particles(
+            piece,
+            neckline_boundary,
+            piece_indices,
+            boundary_chains,
+            particle_positions,
+        )
+        log(
+            "tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f"
+            % (
+                piece.Name,
+                neckline_edge_id,
+                boundary_method,
+                len(boundary_chains),
+                endpoint_error,
+            )
+        )
+        if len(neckline_particles) < 2:
+            raise RuntimeError(
+                "canonical tunic neckline boundary has too few mesh vertices: "
+                "piece=%s edge=%s" % (piece.Name, neckline_edge_id)
+            )
+        if any(index not in piece_index_set for index in neckline_particles):
+            raise RuntimeError(
+                "canonical tunic neckline boundary contains particles from another panel: "
+                "piece=%s edge=%s" % (piece.Name, neckline_edge_id)
+            )
+
+        cumulative_distances = [0.0]
+        for first_index, second_index in zip(
+            neckline_particles, neckline_particles[1:], strict=False
+        ):
+            first = particle_positions[first_index]
+            second = particle_positions[second_index]
+            span = sum((float(second[axis]) - float(first[axis])) ** 2 for axis in range(3)) ** 0.5
+            if span <= 1e-9:
+                raise RuntimeError(
+                    "canonical tunic neckline boundary contains a zero-length segment: "
+                    "piece=%s edge=%s" % (piece.Name, neckline_edge_id)
+                )
+            cumulative_distances.append(cumulative_distances[-1] + span)
+
+        total_length = cumulative_distances[-1]
+        if total_length <= 1e-9:
+            raise RuntimeError(
+                "canonical tunic neckline boundary has zero length: "
+                "piece=%s edge=%s" % (piece.Name, neckline_edge_id)
+            )
+        midpoint_distance = 0.5 * total_length
+        central_offset = min(
+            range(len(neckline_particles)),
+            key=lambda index: abs(cumulative_distances[index] - midpoint_distance),
+        )
+        particle_index = neckline_particles[central_offset]
+        snap_distance = abs(cumulative_distances[central_offset] - midpoint_distance)
+        if snap_distance > max(8.0, float(scene.ParticleDistance)):
+            raise RuntimeError(
+                "canonical tunic neckline midpoint did not resolve on its boundary: "
+                "piece=%s edge=%s midpoint-offset-mm=%.2f"
+                % (piece.Name, neckline_edge_id, snap_distance)
+            )
+        neckline_midpoints.append(particle_index)
+        log(
+            "tunic-neckline-boundary piece=%s edge=%s vertices=%d length-mm=%.2f"
+            % (piece.Name, neckline_edge_id, len(neckline_particles), total_length)
+        )
+        # Report the midpoint snap along the authored neckline chain, not to a
+        # potentially unrelated world-space mesh vertex.
+        log(
+            "tunic-neckline-midpoint piece=%s particle=%d snap-mm=%.2f"
+            % (piece.Name, particle_index, snap_distance)
+        )
+    neckline_midpoints = tuple(sorted(set(neckline_midpoints)))
+    if len(neckline_midpoints) != 2:
+        raise RuntimeError(
+            "canonical tunic requires one distinct neckline midpoint per panel: %s"
+            % (neckline_midpoints,)
+        )
+
+    if str(getattr(scene, "PinMode", "")) != "None":
+        raise RuntimeError("canonical tunic must use PinMode=None for seam convergence")
     if list(getattr(scene, "PinSelection", ())) != []:
         raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
-    solver_pins = tuple(int(i) for i in getattr(backend, "_pin_indices", ()))
+    solver_pins = tuple(sorted(int(index) for index in getattr(backend, "_pin_indices", ())))
     if not solver_pins:
         system = getattr(backend, "system", None)
-        solver_pins = tuple(sorted(int(i) for i in getattr(system, "pins", {})))
-    if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None")
+        solver_pins = tuple(sorted(int(index) for index in getattr(system, "pins", {})))
     if solver_pins:
-        raise RuntimeError(f"canonical tunic PinMode=None still has solver pins: {solver_pins}")
+        raise RuntimeError(
+            "canonical tunic PinMode=None still has solver pins: %s" % (solver_pins,)
+        )
+    log("tunic-neckline-midpoints=%s" % (neckline_midpoints,))
     surface = collision_surface(
         target_source,
         float(getattr(target, "CollisionDeflection", 1.0)),
