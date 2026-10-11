@@ -1,0 +1,23 @@
+id: no-broad-base-exception
+valid:
+  - |
+    try:
+      work()
+    except RuntimeError:
+      recover()
+  - |
+    try:
+      work()
+    except Exception:
+      recover()
+invalid:
+  - |
+    try:
+      work()
+    except BaseException:
+      recover()
+  - |
+    try:
+      work()
+    except BaseException:
+      raise

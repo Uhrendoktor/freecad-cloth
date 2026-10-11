@@ -1,0 +1,8 @@
+id: no-sys-path-insert
+language: Python
+severity: error
+message: "Production code must not mutate sys.path; use package/import configuration instead."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: sys.path.insert($$$ARGS)

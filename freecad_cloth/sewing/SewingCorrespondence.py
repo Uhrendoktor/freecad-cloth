@@ -1,0 +1,310 @@
+"""Solver- and FreeCAD-independent curved seam correspondence helpers.
+
+The Sewing workbench stores seam topology elsewhere.  This module only answers
+whether two normalized seam ranges can be paired and how their parameters map.
+It deliberately has no FreeCAD/Qt dependency so it can be used by task panels,
+headless validation, and future mesh adapters without creating a second seam
+model.
+"""
+
+import bisect
+import math
+from collections.abc import Iterable
+from dataclasses import dataclass
+
+from freecad_cloth.common.ValidationModels import (
+    ArcLengthSamplingInput, CorrespondenceAnalysisInput, CorrespondenceSamplesInput,
+)
+
+STATUS_VALID = "valid"
+STATUS_REVERSED = "reversed"
+STATUS_LENGTH_MISMATCH = "length_mismatch"
+STATUS_INVALID_RANGE = "invalid_range"
+
+
+@dataclass(frozen=True)
+class CorrespondenceReport:
+    """Deterministic validation result for a pair of seam ranges."""
+
+    status: str
+    message: str
+    length_a: float
+    length_b: float
+    length_ratio: float
+    reversed_b: bool
+
+    @property
+    def valid(self) -> bool:
+        """Return whether the correspondence is usable for sewing."""
+        return self.status in {STATUS_VALID, STATUS_REVERSED}
+
+    @property
+    def severity(self) -> str:
+        """Return the shared machine-checkable severity for this report."""
+        return "error" if self.status in {STATUS_LENGTH_MISMATCH, STATUS_INVALID_RANGE} else "info"
+
+    @property
+    def recovery(self) -> str:
+        """Return the shared deterministic recovery guidance."""
+        return correspondence_recovery(self.status)
+
+    def evidence(self) -> dict:
+        """Return the shared headless/GUI correspondence evidence contract."""
+        return {
+            "status": str(self.status),
+            "severity": self.severity,
+            "message": str(self.message),
+            "length_a": float(self.length_a),
+            "length_b": float(self.length_b),
+            "length_ratio": float(self.length_ratio),
+            "reversed_b": bool(self.reversed_b),
+            "recovery": self.recovery,
+        }
+
+
+def correspondence_status_label(report: CorrespondenceReport) -> str:
+    """Return the shared persisted Status label for sewing objects."""
+    if report.status in {STATUS_VALID, STATUS_REVERSED}:
+        return "Valid"
+    if report.status == STATUS_LENGTH_MISMATCH:
+        return "Length mismatch"
+    if report.status == STATUS_INVALID_RANGE:
+        return "Invalid range"
+    return "Invalid"
+
+
+def correspondence_recovery(status: str) -> str:
+    """Return deterministic recovery guidance for a correspondence status."""
+    return {
+        STATUS_VALID: "no repair required",
+        STATUS_REVERSED: "keep the explicit B reversal or use Reverse B",
+        STATUS_LENGTH_MISMATCH: "edit the pattern geometry or seam ranges; do not hide the mismatch with tolerance",
+        STATUS_INVALID_RANGE: "reset the seam ranges or edit them to a positive normalized interval",
+    }.get(str(status), "inspect the seam reference before accepting")
+
+
+def _range_is_valid(start: float, end: float) -> bool:
+    return math.isfinite(start) and math.isfinite(end) and 0.0 <= start < end <= 1.0
+
+
+def analyze_correspondence(
+    length_a: float,
+    length_b: float,
+    start_a: float = 0.0,
+    end_a: float = 1.0,
+    start_b: float = 0.0,
+    end_b: float = 1.0,
+    reversed_b: bool = False,
+    length_tolerance: float = 0.05,
+) -> CorrespondenceReport:
+    """Validate two seam ranges and classify their repair state.
+
+    ``length_a`` and ``length_b`` are the physical lengths of the selected
+    ranges in millimetres (or any common unit).  The comparison is symmetric:
+    a ratio of ``1.05`` and ``0.95238`` represent the same 5% mismatch.
+
+    Reversal is a usable state rather than an error.  A task panel can expose
+    it as an orientation/repair action while still allowing the seam to be
+    accepted.  A length mismatch is reported when the relative difference
+    exceeds ``length_tolerance``.
+    """
+    inputs = CorrespondenceAnalysisInput.model_validate(
+        {
+            "length_a": length_a, "length_b": length_b,
+            "start_a": start_a, "end_a": end_a,
+            "start_b": start_b, "end_b": end_b,
+            "reversed_b": reversed_b, "length_tolerance": length_tolerance,
+        }
+    )
+    length_a, length_b = inputs.length_a, inputs.length_b
+    start_a, end_a = inputs.start_a, inputs.end_a
+    start_b, end_b = inputs.start_b, inputs.end_b
+    reversed_b, length_tolerance = inputs.reversed_b, inputs.length_tolerance
+
+    if not _range_is_valid(start_a, end_a) or not _range_is_valid(start_b, end_b):
+        return CorrespondenceReport(
+            STATUS_INVALID_RANGE,
+            "seam parameter ranges must satisfy 0 <= start < end <= 1",
+            float(length_a),
+            float(length_b),
+            float("inf"),
+            bool(reversed_b),
+        )
+
+    ratio = max(length_a, length_b) / min(length_a, length_b)
+    relative_difference = ratio - 1.0
+    if relative_difference > length_tolerance:
+        return CorrespondenceReport(
+            STATUS_LENGTH_MISMATCH,
+            f"seam lengths differ by {relative_difference * 100.0:.2f}% (limit {length_tolerance * 100.0:.2f}%)",
+            float(length_a),
+            float(length_b),
+            float(ratio),
+            bool(reversed_b),
+        )
+
+    if reversed_b:
+        return CorrespondenceReport(
+            STATUS_REVERSED,
+            "seam correspondence is valid with B reversed",
+            float(length_a),
+            float(length_b),
+            float(ratio),
+            True,
+        )
+    return CorrespondenceReport(
+        STATUS_VALID,
+        "seam correspondence is valid",
+        float(length_a),
+        float(length_b),
+        float(ratio),
+        False,
+    )
+
+
+def arc_length_vertex_indices(
+    values: Iterable[int],
+    points: Iterable[Iterable[float]],
+    count: int,
+    start: float = 0.0,
+    end: float = 1.0,
+) -> tuple[int, ...]:
+    """Select existing edge vertices by physical arc length over a normalized range."""
+    inputs = ArcLengthSamplingInput.model_validate(
+        {"values": values, "points": points, "count": count, "start": start, "end": end}
+    )
+    values, points = inputs.values, inputs.points
+    count, start, end = inputs.count, inputs.start, inputs.end
+
+    cumulative = [0.0]
+    for first, second in zip(points, points[1:], strict=False):
+        next_distance = cumulative[-1] + math.dist(first, second)
+        if not math.isfinite(next_distance):
+            raise ValueError("arc-length sampling total length must be finite")
+        cumulative.append(next_distance)
+    total = cumulative[-1]
+    if total <= 0.0:
+        raise ValueError("arc-length sampling needs a positive total length")
+
+    sample_count = min(count, len(values))
+    last = len(values) - 1
+    start_distance = start * total
+    end_distance = end * total
+
+    def nearest_index(distance: float) -> int:
+        right = bisect.bisect_left(cumulative, distance)
+        if right <= 0:
+            return 0
+        if right >= len(cumulative):
+            return last
+        left = right - 1
+        if distance - cumulative[left] <= cumulative[right] - distance:
+            return left
+        return right
+
+    first_index = nearest_index(start_distance)
+    last_index = nearest_index(end_distance)
+
+    # A selected seam range can be shorter than the requested M:N sample count
+    # in terms of existing vertices. Expand the usable vertex window deterministically
+    # so we never invent topology or silently drop requested correspondence samples.
+    if last_index < first_index:
+        first_index, last_index = last_index, first_index
+    span = last_index - first_index + 1
+    if span < sample_count:
+        deficit = sample_count - span
+        shift_left = min(first_index, deficit)
+        first_index -= shift_left
+        deficit -= shift_left
+        last_index = min(last, last_index + deficit)
+
+    if last_index - first_index + 1 < sample_count:
+        raise ValueError("arc-length sampling needs more distinct edge vertices")
+
+    result = []
+    for sample in range(sample_count):
+        local = sample / float(sample_count - 1)
+        target = start_distance + (end_distance - start_distance) * local
+        lower_bound = max(first_index, result[-1] + 1 if result else first_index)
+        upper_bound = last_index - (sample_count - sample - 1)
+
+        right = bisect.bisect_left(cumulative, target)
+        candidates = []
+        for index in (right - 1, right, right + 1):
+            if lower_bound <= index <= upper_bound:
+                candidates.append(index)
+
+        if candidates:
+            index = min(
+                candidates,
+                key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
+            )
+        else:
+            # The monotone topology window constrains the best match.  Choose
+            # the nearer feasible endpoint while reserving one vertex per sample.
+            candidate_pair = (lower_bound, upper_bound)
+            index = min(
+                candidate_pair,
+                key=lambda candidate: (abs(cumulative[candidate] - target), candidate),
+            )
+        result.append(index)
+
+    return tuple(values[index] for index in result)
+
+
+def map_parameter(
+    parameter_a: float,
+    start_a: float = 0.0,
+    end_a: float = 1.0,
+    start_b: float = 0.0,
+    end_b: float = 1.0,
+    reversed_b: bool = False,
+) -> float:
+    """Map a normalized parameter from seam A to seam B deterministically."""
+    if not math.isfinite(float(parameter_a)):
+        raise ValueError("seam parameter must be finite")
+    if not _range_is_valid(start_a, end_a) or not _range_is_valid(start_b, end_b):
+        raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
+    if not 0.0 <= parameter_a <= 1.0:
+        raise ValueError("seam parameter must be in [0, 1]")
+
+    local = (parameter_a - start_a) / (end_a - start_a)
+    local = min(1.0, max(0.0, local))
+    if reversed_b:
+        local = 1.0 - local
+    return start_b + local * (end_b - start_b)
+
+
+def correspondence_samples(
+    count: int,
+    start_a: float = 0.0,
+    end_a: float = 1.0,
+    start_b: float = 0.0,
+    end_b: float = 1.0,
+    reversed_b: bool = False,
+) -> tuple[tuple[float, float], ...]:
+    """Return paired normalized parameters for deterministic mesh sampling."""
+    inputs = CorrespondenceSamplesInput.model_validate(
+        {
+            "count": count, "start_a": start_a, "end_a": end_a,
+            "start_b": start_b, "end_b": end_b, "reversed_b": reversed_b,
+        }
+    )
+    count = inputs.count
+    start_a, end_a = inputs.start_a, inputs.end_a
+    start_b, end_b = inputs.start_b, inputs.end_b
+    reversed_b = inputs.reversed_b
+    return tuple(
+        (
+            start_a + (end_a - start_a) * i / (count - 1),
+            map_parameter(
+                start_a + (end_a - start_a) * i / (count - 1),
+                start_a,
+                end_a,
+                start_b,
+                end_b,
+                reversed_b,
+            ),
+        )
+        for i in range(count)
+    )

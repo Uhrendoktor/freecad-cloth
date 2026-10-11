@@ -1,0 +1,7 @@
+id: no-os-system
+valid:
+  - "os.path.join(root, name)"
+  - "subprocess.run(['tool', 'arg'], check=True)"
+invalid:
+  - "os.system(command)"
+  - "os.system('git status')"

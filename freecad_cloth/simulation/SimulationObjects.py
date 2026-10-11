@@ -1,0 +1,773 @@
+"""FreeCAD-facing deterministic cloth simulation scene objects."""
+
+PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
+
+
+def _mesh_object(doc, name, label):
+    obj = doc.addObject("Mesh::Feature", name)
+    obj.Label = label
+    obj.addProperty(
+        "App::PropertyString", "ClothMeshType", "Simulation"
+    ).ClothMeshType = "DrapedCloth"
+    return obj
+
+
+def _write_mesh(obj, positions, triangles):
+    import Mesh
+
+    native = Mesh.Mesh()
+    native.addFacets(
+        [
+            (positions[a], positions[b], positions[c])
+            for a, b, c in triangles
+        ]
+    )
+    obj.Mesh = native
+
+
+def _write_grid_mesh(obj, positions, indices, nx, ny):
+    triangles = []
+    for j in range(ny - 1):
+        for i in range(nx - 1):
+            a = indices[j * nx + i]
+            b = a + 1
+            c = (j + 1) * nx + i + 1
+            d = (j + 1) * nx + i
+            triangles.extend(((a, b, c), (a, c, d)))
+    _write_mesh(obj, positions, triangles)
+
+
+def _parse_pair_list(values, particle_count=None):
+    pairs = []
+    for value in values or ():
+        parts = [p.strip() for p in str(value).replace(",", "-").split("-") if p.strip()]
+        if len(parts) == 2:
+            try:
+                pair = (int(parts[0]), int(parts[1]))
+            except ValueError:
+                continue
+            if particle_count is None or all(0 <= i < particle_count for i in pair):
+                pairs.append(pair)
+    return tuple(dict.fromkeys(pairs))
+
+
+def _parse_int_list(values, particle_count=None):
+    result = []
+    for value in values or ():
+        for part in str(value).replace(";", ",").split(","):
+            try:
+                i = int(part.strip())
+            except ValueError:
+                continue
+            if particle_count is None or 0 <= i < particle_count:
+                result.append(i)
+    return tuple(dict.fromkeys(result))
+
+
+def normalize_pin_mode(value):
+    """Return a supported persistent pinning mode, preserving legacy defaults."""
+    mode = str(value or "Automatic").strip()
+    return mode if mode in PIN_MODE_NAMES else "Automatic"
+
+
+def resolve_pin_indices(obj, particle_count, automatic_default=()):
+    """Resolve the solver pin indices from the persistent pinning mode."""
+    mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
+    explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
+    if mode == "None":
+        return ()
+    if mode == "Explicit":
+        return explicit
+    if explicit:
+        return explicit
+    return tuple(int(index) for index in automatic_default if 0 <= int(index) < int(particle_count))
+
+
+def _simulation_source_signature(obj, pieces):
+    """Return deterministic inputs that require rebuilding the cloth scene."""
+    if pieces:
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
+
+        resolved = resolve_simulation_pattern(
+            getattr(obj, "Document", None),
+            tuple(pieces),
+        )
+        pattern_signature = resolved.signature
+    else:
+        pattern_signature = ((), ())
+    target = getattr(obj, "DrapeTarget", None)
+    target_signature = ()
+    if target is not None:
+        try:
+            from freecad_cloth.simulation.DrapeTarget import source_signature
+
+            source = getattr(target, "SourceObject", None)
+            target_signature = (
+                source_signature(
+                    source,
+                    float(getattr(target, "CollisionDeflection", 1.0)),
+                    float(getattr(target, "CollisionThickness", 0.0)),
+                )
+                if source is not None
+                else ("unassigned",)
+            )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            target_signature = ("invalid-target",)
+    else:
+        target_signature = ("unassigned",)
+    pin_mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
+    pin_signature = (
+        pin_mode,
+        _parse_int_list(getattr(obj, "PinSelection", ())) if pin_mode != "None" else (),
+    )
+    return (
+        pattern_signature,
+        target_signature,
+        int(getattr(obj, "StitchSamples", 8)),
+        pin_signature,
+    )
+
+
+def _piece_mesh(piece, start_height, piece_ir=None):
+    import FreeCAD as App
+
+    from freecad_cloth.simulation.PatternSimulationAdapter import (
+        geometry_from_piece_ir,
+        resolve_piece_ir,
+    )
+    from freecad_cloth.pattern.PatternMesh import triangulate
+
+    if piece_ir is None:
+        piece_ir = resolve_piece_ir(piece)
+    mesh = triangulate(geometry_from_piece_ir(piece_ir))
+    placement = getattr(piece, "Placement", None)
+    vertices = []
+    for x, y in mesh.vertices:
+        point = App.Vector(x, y, float(start_height))
+        if placement is not None:
+            point = placement.multVec(point)
+        vertices.append((float(point.x), float(point.y), float(point.z)))
+
+    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
+    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
+    if not segment_ids:
+        raise ValueError("pattern mesh semantic boundary provenance is missing")
+    if len(segment_ids) != len(boundary):
+        raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
+
+    edge_pairs = {}
+    for index, segment_id in enumerate(segment_ids):
+        raw_key = str(segment_id)
+        base = next(
+            (
+                str(boundary_ir.id)
+                for boundary_ir in piece_ir.boundaries
+                if raw_key == str(boundary_ir.id)
+                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
+            ),
+            None,
+        )
+        if base is None:
+            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
+        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
+        edge_pairs.setdefault(base, []).append(pair)
+
+    by_id = {}
+    mesh_vertices = tuple(mesh.vertices)
+    for boundary_ir in piece_ir.boundaries:
+        edge_id = str(boundary_ir.id)
+        pairs = edge_pairs.get(edge_id)
+        if not pairs:
+            raise ValueError(f"pattern mesh has no boundary provenance for semantic edge {edge_id}")
+        vertex_indices = {vertex for pair in pairs for vertex in pair}
+        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
+        ordered = tuple(
+            sorted(
+                vertex_indices,
+                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
+            )
+        )
+        if len(ordered) < 2:
+            raise ValueError(f"pattern mesh semantic edge {edge_id} has too few boundary vertices")
+        actual_pairs = {frozenset(pair) for pair in pairs}
+        ordered_pairs = {
+            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
+        }
+        if ordered_pairs != actual_pairs:
+            raise ValueError(f"pattern mesh semantic edge {edge_id} boundary chain is disconnected")
+        by_id[edge_id] = ordered
+
+    return (
+        vertices,
+        mesh.triangles,
+        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
+    )
+
+
+def _polyline_parameter(point, polyline):
+    if len(polyline) < 2:
+        return 0.0
+    total = 0.0
+    spans = []
+    for start, end in zip(polyline, polyline[1:], strict=False):
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        spans.append((total, start, end, length))
+        total += length
+    if total <= 1e-12:
+        return 0.0
+    best = None
+    for offset, start, end, length in spans:
+        if length <= 1e-12:
+            continue
+        dx = float(end[0]) - float(start[0])
+        dy = float(end[1]) - float(start[1])
+        t = (
+            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
+        ) / (length * length)
+        t = max(0.0, min(1.0, t))
+        px = float(start[0]) + t * dx
+        py = float(start[1]) + t * dy
+        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
+        candidate = (distance, offset + t * length)
+        best = candidate if best is None or candidate < best else best
+    return best[1] / total if best else 0.0
+
+
+def _mesh_constraints(positions, triangles):
+    from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
+
+    particles = [Particle(*p) for p in positions]
+    edges = set()
+    constraints = []
+    for a, b, c in triangles:
+        for u, v in ((a, b), (b, c), (c, a)):
+            edge = (min(u, v), max(u, v))
+            if edge in edges:
+                continue
+            edges.add(edge)
+            constraints.append(DistanceConstraint(u, v, distance(particles[u], particles[v])))
+    return constraints
+
+
+def _sample_boundary(values, start, end, count, points=None):
+    if len(values) < 2:
+        raise ValueError("seam edge requires at least two boundary vertices")
+    if points is not None:
+        from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
+
+        return list(arc_length_vertex_indices(values, points, count, start, end))
+    count = max(2, min(int(count), len(values)))
+    result = []
+    last = len(values) - 1
+    for i in range(count):
+        t = float(start) + (float(end) - float(start)) * i / float(count - 1)
+        index = max(0, min(last, int(round(t * last))))
+        if result and index == result[-1] and index < last:
+            index += 1
+        result.append(values[index])
+    return result
+
+
+def _seam_pair_records(pattern, panel_data, seam_samples=8):
+    """Return exact solver stitch pairs plus their semantic seam provenance."""
+    pairs = []
+    records = []
+    for seam in pattern.seams:
+        data_a = panel_data.get(str(seam.piece_a))
+        data_b = panel_data.get(str(seam.piece_b))
+        if data_a is None or data_b is None:
+            continue
+        piece_ir_a = pattern.piece(seam.piece_a)
+        piece_ir_b = pattern.piece(seam.piece_b)
+        edge_a = _boundary_vertices(piece_ir_a, seam.edge_a, data_a)
+        edge_b = _boundary_vertices(piece_ir_b, seam.edge_b, data_b)
+        points_a = tuple(data_a["positions"][index] for index in edge_a)
+        points_b = tuple(data_b["positions"][index] for index in edge_b)
+        va = _sample_boundary(
+            edge_a,
+            seam.start_a,
+            seam.end_a,
+            seam_samples,
+            points_a,
+        )
+        vb = _sample_boundary(
+            edge_b,
+            seam.start_b,
+            seam.end_b,
+            seam_samples,
+            points_b,
+        )
+        if seam.reversed_b:
+            vb.reverse()
+        seam_pairs = tuple(zip(va, vb, strict=False))
+        pairs.extend(seam_pairs)
+        records.append(
+            (
+                str(seam.id),
+                str(piece_ir_a.name),
+                str(piece_ir_b.name),
+                seam_pairs,
+            )
+        )
+    return tuple(dict.fromkeys(pairs)), tuple(records)
+
+
+def _boundary_vertices(piece_ir, edge_id, panel_data):
+    for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"], strict=False):
+        if str(boundary.id) == str(edge_id):
+            return tuple(values)
+    raise ValueError(f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}")
+
+
+def _collision_for_scene(obj):
+    """Resolve collision strictly from the persistent DrapeTarget."""
+    target = getattr(obj, "DrapeTarget", None)
+    if target is not None:
+        from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+        source = getattr(target, "SourceObject", None)
+        managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or str(
+            getattr(source, "Name", "")
+        ) in {"ClothAvatar", "HumanoidAvatar"}
+        if managed:
+            return collision_surface(
+                source,
+                float(getattr(target, "CollisionDeflection", 1.0)),
+                float(getattr(target, "CollisionThickness", 0.0)),
+            )
+        status = target_status(target)
+        if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+            raise RuntimeError(status["message"])
+        return collision_surface(
+            source,
+            float(getattr(target, "CollisionDeflection", 1.0)),
+            float(getattr(target, "CollisionThickness", 0.0)),
+        )
+    return None
+
+
+def _ensure_state_properties(obj):
+    """Ensure the persistent simulation lifecycle fields exist on old/new documents."""
+    if not hasattr(obj, "SimulationState"):
+        add_property = getattr(obj, "addProperty", None)
+        if callable(add_property):
+            add_property(
+                "App::PropertyString", "SimulationState", "State", "Simulation lifecycle state"
+            )
+        if not hasattr(obj, "SimulationState"):
+            setattr(obj, "SimulationState", "READY_FOR_SIMULATION")
+    if not hasattr(obj, "InvalidationReason"):
+        add_property = getattr(obj, "addProperty", None)
+        if callable(add_property):
+            add_property(
+                "App::PropertyString",
+                "InvalidationReason",
+                "State",
+                "Why simulation derived state is stale or invalid",
+            )
+        if not hasattr(obj, "InvalidationReason"):
+            setattr(obj, "InvalidationReason", "")
+
+
+def _set_simulation_state(obj, state, reason=""):
+    """Persist the authoritative simulation lifecycle state and reason."""
+    _ensure_state_properties(obj)
+    obj.SimulationState = str(state)
+    obj.InvalidationReason = str(reason)
+
+
+class SimulationProxy:
+    """Public data model or service class for SimulationProxy."""
+
+    Type = "ClothSimulation"
+
+    def __init__(self):
+        self.backend = None
+        self.panel_indices = {}
+        self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
+        self.source_signature = None
+        self.last_steps = 0
+        self.collision_surface = None
+
+    def __getstate__(self):
+        """Persist only deterministic proxy metadata; runtime solver state is rebuildable."""
+        return {"schema": 1}
+
+    def __setstate__(self, state):
+        """Restore an empty runtime cache; FreeCAD document properties remain authoritative."""
+        self.backend = None
+        self.panel_indices = {}
+        self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
+        self.source_signature = None
+        self.last_steps = 0
+        self.collision_surface = None
+
+    def execute(self, obj):
+        """Recompute the FreeCAD object from its current source properties."""
+        _ensure_state_properties(obj)
+        target = getattr(obj, "DrapeTarget", None)
+        if target is not None:
+            from freecad_cloth.simulation.DrapeTarget import target_status
+
+            status = target_status(target)
+            if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
+                _set_simulation_state(obj, "STALE", status["reason"] or status["message"])
+                return None
+        pieces = [
+            p
+            for p in getattr(obj, "ClothPieces", ())
+            if getattr(p, "PatternType", "") == "PatternPiece"
+        ]
+        signature = _simulation_source_signature(obj, pieces)
+        try:
+            if (
+                getattr(self, "backend", None) is None
+                or signature != getattr(self, "source_signature", None)
+                or int(obj.Steps) < int(getattr(self, "last_steps", 0))
+            ):
+                self._build(obj, signature)
+            steps = int(obj.Steps)
+            if steps > self.last_steps:
+                for _ in range(steps - self.last_steps):
+                    self.backend.step(
+                        float(obj.TimeStep),
+                        int(obj.Iterations),
+                        (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
+                        self.collision_surface,
+                    )
+                self.last_steps = steps
+            positions = self.backend.positions()
+            for panel in getattr(obj, "DrapePanels", ()):
+                _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
+            obj.SimulatedTime = self.backend.time
+            obj.ParticleCount = len(positions)
+            obj.FiniteState = self.backend.finite()
+        except ValueError as exc:
+            message = str(exc)
+            if message.startswith("cannot simulate invalid seam "):
+                _set_simulation_state(obj, "BLOCKED", message)
+                return None
+            raise
+        _set_simulation_state(obj, "READY_FOR_SIMULATION", "")
+        return None
+
+    def _build(self, obj, signature=None, piece_mesh=None):
+        pieces = [
+            p
+            for p in getattr(obj, "ClothPieces", ())
+            if getattr(p, "PatternType", "") == "PatternPiece"
+        ]
+        if pieces:
+            self._build_pattern_scene(obj, pieces, signature, piece_mesh=piece_mesh)
+        else:
+            self._build_demo(obj)
+
+    def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
+        from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
+
+        start_height = float(getattr(obj, "StartHeight", 120.0))
+        resolved = resolve_simulation_pattern(obj.Document, tuple(pieces))
+        mesh_builder = piece_mesh or _piece_mesh
+        positions = []
+        triangles_global = []
+        panel_data = {}
+        panels = list(getattr(obj, "DrapePanels", ()))
+        for index, piece in enumerate(pieces):
+            piece_ir = resolved.piece(str(piece.PieceId))
+            vertices, triangles, boundary = mesh_builder(
+                piece,
+                start_height,
+                piece_ir=piece_ir,
+            )
+            offset = len(positions)
+            positions.extend(vertices)
+            triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
+            triangles_global.extend(triangles)
+            edges = tuple(
+                tuple(int(vertex_index) + offset for vertex_index in edge) for edge in boundary
+            )
+            panel_data[str(piece.PieceId)] = {
+                "offset": offset,
+                "vertex_count": len(vertices),
+                "boundary_edges": edges,
+                "positions": tuple(positions),
+                "triangles": triangles,
+                "piece": piece,
+            }
+            panel = (
+                panels[index] if index < len(panels) else self._ensure_panel(obj.Document, index)
+            )
+            panel.Label = f"Drape: {piece.Label}"
+        if len(panels) < len(pieces):
+            panels.extend(
+                self._ensure_panel(obj.Document, i) for i in range(len(panels), len(pieces))
+            )
+        obj.DrapePanels = panels[: len(pieces)]
+        panels = list(obj.DrapePanels)
+
+        particles = [Particle(*p) for p in positions]
+        system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
+        seam_pairs, seam_pair_records = _seam_pair_records(
+            resolved.pattern,
+            panel_data,
+            int(getattr(obj, "StitchSamples", 8)),
+        )
+        system.add_stitches(seam_pairs)
+        first = panel_data[str(pieces[0].PieceId)] if pieces else None
+        boundary = (
+            tuple(dict.fromkeys(i for edge in first["boundary_edges"] for i in edge))
+            if first is not None
+            else ()
+        )
+        pins = resolve_pin_indices(
+            obj,
+            len(particles),
+            tuple(boundary[:2] + boundary[-2:]),
+        )
+        if pins:
+            system.pin(pins)
+        collision_surface = _collision_for_scene(obj)
+        self.backend = PositionBasedDynamicsBackend(
+            system,
+            tuple(triangles_global),
+            pins=pins,
+            stitches=seam_pairs,
+            collision_surface=collision_surface,
+        )
+        self.panel_indices = {}
+        self.panel_triangles = {}
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
+        self.seam_stitch_pairs = {
+            seam_id: tuple(stitch_pairs)
+            for seam_id, _piece_a_name, _piece_b_name, stitch_pairs in seam_pair_records
+        }
+        for panel, piece in zip(panels, pieces, strict=False):
+            data = panel_data[str(piece.PieceId)]
+            self.panel_indices[panel.Name] = tuple(
+                range(data["offset"], data["offset"] + data["vertex_count"])
+            )
+            self.panel_triangles[panel.Name] = data["triangles"]
+            self.panel_boundary_edges[panel.Name] = data["boundary_edges"]
+            self.panel_piece_names[panel.Name] = str(getattr(piece, "Name", ""))
+        self.source_signature = signature or _simulation_source_signature(obj, pieces)
+        self.last_steps = 0
+        self.collision_surface = getattr(
+            self.backend, "solver_collision_surface", collision_surface
+        )
+        for panel in panels:
+            _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
+
+    def _build_demo(self, obj):
+        from freecad_cloth.simulation.ClothSolver import ClothSystem
+        from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+            PositionBasedDynamicsBackend,
+        )
+
+        nx, ny = 8, 5
+        left = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(-100.0, -30.0, 90.0))
+        right = ClothSystem.grid(100.0, 60.0, nx, ny, origin=(0.0, -30.0, 90.0))
+        offset = len(left.particles)
+        particles = left.particles + right.particles
+        tris = []
+        for j in range(ny - 1):
+            for i in range(nx - 1):
+                a = j * nx + i
+                b = a + 1
+                c = (j + 1) * nx + i + 1
+                d = (j + 1) * nx + i
+                tris.extend(((a, b, c), (a, c, d)))
+        triangles = tuple(tris) + tuple((a + offset, b + offset, c + offset) for a, b, c in tris)
+        constraints = list(left.constraints) + [
+            type(c)(c.a + offset, c.b + offset, c.rest, c.compliance) for c in right.constraints
+        ]
+        system = ClothSystem(particles, constraints)
+        system.add_stitches(
+            _parse_pair_list(getattr(obj, "SeamSelection", ()), len(particles))
+            or tuple((j * nx + nx - 1, offset + j * nx) for j in range(ny))
+        )
+        pins = resolve_pin_indices(
+            obj,
+            len(particles),
+            (0, nx - 1, offset, offset + nx - 1),
+        )
+        if pins:
+            system.pin(pins)
+        collision_surface = _collision_for_scene(obj)
+        self.backend = PositionBasedDynamicsBackend(
+            system,
+            tuple(triangles),
+            pins=pins,
+            stitches=tuple((stitch.a, stitch.b) for stitch in system.stitches),
+            collision_surface=collision_surface,
+        )
+        self.panel_indices = {
+            "DrapePanelA": tuple(range(offset)),
+            "DrapePanelB": tuple(range(offset, offset * 2)),
+        }
+        self.panel_triangles = {
+            "DrapePanelA": tuple(tris),
+            "DrapePanelB": tuple((a + offset, b + offset, c + offset) for a, b, c in tris),
+        }
+        self.panel_boundary_edges = {}
+        self.panel_piece_names = {}
+        self.seam_stitch_pairs = {}
+        self.source_signature = _simulation_source_signature(obj, ())
+        self.last_steps = 0
+        self.collision_surface = getattr(
+            self.backend, "solver_collision_surface", collision_surface
+        )
+        positions = self.backend.positions()
+        for panel, key in zip(
+            getattr(obj, "DrapePanels", ()), ("DrapePanelA", "DrapePanelB"), strict=False
+        ):
+            _write_grid_mesh(panel, positions, self.panel_indices[key], nx, ny)
+
+    def _ensure_panel(self, doc, index):
+        names = ["DrapePanelA", "DrapePanelB"]
+        name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
+        obj = doc.getObject(name)
+        return obj if obj is not None else _mesh_object(doc, name, name)
+
+    def reset(self, obj):
+        """Reset the runtime state to its initial values."""
+        if self.backend is not None:
+            self.backend.reset()
+        obj.Steps = 0
+        obj.SimulatedTime = 0.0
+        obj.ParticleCount = len(self.backend.positions()) if self.backend is not None else 0
+        obj.FiniteState = self.backend.finite() if self.backend is not None else True
+        self.last_steps = 0
+
+
+def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
+    """Create a target-neutral compatibility collision proxy."""
+    avatar = doc.getObject("AvatarCollision")
+    if avatar is None:
+        avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
+        avatar.Label = "Avatar Collision Proxy (Compatibility)"
+        avatar.addProperty("App::PropertyString", "CollisionType", "Simulation")
+        avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
+        avatar.addProperty("App::PropertyFloat", "CollisionThickness", "Simulation")
+        avatar.addProperty("App::PropertyFloat", "CollisionDeflection", "Simulation")
+        avatar.addProperty("App::PropertyInteger", "CollisionVertexCount", "Simulation")
+        avatar.addProperty("App::PropertyInteger", "CollisionTriangleCount", "Simulation")
+    avatar.SourceObject = source_obj
+    avatar.CollisionType = "MeshSurface" if source_obj is not None else "Unassigned"
+    avatar.CollisionThickness = float(thickness)
+    avatar.CollisionDeflection = float(deflection)
+    if source_obj is not None:
+        from freecad_cloth.simulation.DrapeTarget import collision_surface
+
+        surface = collision_surface(source_obj, deflection, thickness)
+        avatar.CollisionVertexCount = len(surface.vertices)
+        avatar.CollisionTriangleCount = len(surface.triangles)
+    else:
+        avatar.CollisionVertexCount = 0
+        avatar.CollisionTriangleCount = 0
+    return avatar
+
+
+def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
+    """Set an avatar collision proxy without coupling Simulation to Avatar."""
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+
+    doc = scene.Document
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        target = doc.getObject("DrapeTarget")
+    target_type = (
+        "Mannequin"
+        if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar"
+        else "FreeCAD Geometry"
+    )
+    if target is None:
+        target = create_drape_target(doc, source_obj, target_type, deflection, thickness)
+    else:
+        target.CollisionThickness = float(thickness)
+        target.CollisionDeflection = float(deflection)
+        assign_drape_target(target, source_obj, target_type)
+    proxy = create_avatar_collision(doc, source_obj, thickness, deflection)
+    scene.AvatarProxy = proxy
+    if "DrapeTarget" in set(getattr(scene, "PropertiesList", ()) or ()):
+        scene.DrapeTarget = target
+    doc.recompute()
+    return proxy
+
+
+def create_simulation_scene(doc, build=True):
+    """Create and return the requested simulation scene object."""
+    scene = doc.addObject("App::FeaturePython", "ClothSimulation")
+    scene.Label = "Cloth Simulation"
+    scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
+    scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
+    scene.addProperty("App::PropertyInteger", "Steps", "Solver").Steps = 0
+    scene.addProperty("App::PropertyFloat", "StartHeight", "Solver").StartHeight = 120.0
+    scene.addProperty("App::PropertyInteger", "StitchSamples", "Sewing").StitchSamples = 8
+    scene.addProperty("App::PropertyFloat", "GravityX", "Solver").GravityX = 0.0
+    scene.addProperty("App::PropertyFloat", "GravityY", "Solver").GravityY = 0.0
+    scene.addProperty("App::PropertyFloat", "GravityZ", "Solver").GravityZ = -9810.0
+    scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
+    scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
+    scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
+    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Draping", "Avatar source used by fitting workflows")
+    scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
+    scene.PinMode = list(PIN_MODE_NAMES)
+    scene.PinMode = "Automatic"
+    scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
+    scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
+    scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
+    scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
+    scene.addProperty("App::PropertyBool", "FiniteState", "State").FiniteState = True
+    scene.addProperty("App::PropertyFloat", "CollisionX", "Collision").CollisionX = 0.0
+    scene.addProperty("App::PropertyFloat", "CollisionY", "Collision").CollisionY = 0.0
+    scene.addProperty("App::PropertyFloat", "CollisionZ", "Collision").CollisionZ = 0.0
+    scene.addProperty("App::PropertyFloat", "CollisionRadius", "Collision").CollisionRadius = 38.0
+    proxy = SimulationProxy()
+    scene.Proxy = proxy
+    from freecad_cloth.common.GarmentDocument import link_garment_object
+
+    link_garment_object(scene, "Simulation", doc)
+    panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
+    panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
+    link_garment_object(panel_a, "SimulationOutput", doc)
+    link_garment_object(panel_b, "SimulationOutput", doc)
+    scene.DrapePanels = [panel_a, panel_b]
+    if build:
+        proxy._build(scene, ())
+    return scene
+
+
+def step_scene(scene, steps=1):
+    """Provide the public step scene operation."""
+    scene.Steps = int(scene.Steps) + int(steps)
+    scene.Document.recompute()
+    return scene
+
+
+def reset_scene(scene):
+    """Provide the public reset scene operation."""
+    proxy = getattr(scene, "Proxy", None)
+    if proxy is not None and hasattr(proxy, "reset"):
+        proxy.reset(scene)
+    scene.Document.recompute()
+    return scene
+
+
+def create_drape_scene(doc):
+    """Create and return the requested drape scene object."""
+    scene = create_simulation_scene(doc)
+    step_scene(scene, 30)
+    return scene

@@ -1,0 +1,17 @@
+id: no-eval
+language: Python
+severity: error
+message: "Do not use eval(); use a safe parser or explicit conversion."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: eval($$$ARGS)
+---
+id: no-exec
+language: Python
+severity: error
+message: "Do not use exec() in production package code."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: exec($$$ARGS)

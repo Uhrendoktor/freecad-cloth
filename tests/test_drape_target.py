@@ -1,0 +1,177 @@
+"""Regression tests for the target-neutral draping contract."""
+
+import unittest
+
+from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
+
+
+class _Vec:
+    def __init__(self, x=0.0, y=0.0, z=0.0):
+        self.x, self.y, self.z = x, y, z
+
+
+class _Rotation:
+    def __init__(self, angle=0.0):
+        self.Angle = angle
+        self.Axis = _Vec(0, 0, 1)
+
+
+class _Placement:
+    def __init__(self, x=0.0, y=0.0, z=0.0, angle=0.0):
+        self.Base = _Vec(x, y, z)
+        self.Rotation = _Rotation(angle)
+
+
+class _BoundBox:
+    XMin = 0.0
+    XMax = 1.0
+    YMin = 0.0
+    YMax = 1.0
+    ZMin = 0.0
+    ZMax = 1.0
+
+
+class _Shape:
+    def __init__(self, value):
+        self.value = value
+
+    def isNull(self):
+        return False
+
+    def hashCode(self):
+        return self.value
+
+
+class _BrepShape:
+    def __init__(self, payload):
+        self.payload = payload
+        self.BoundBox = _BoundBox()
+
+    def isNull(self):
+        return False
+
+    def hashCode(self):
+        return 7
+
+    def exportBrepToString(self):
+        return self.payload
+
+
+class _Mesh:
+    def __init__(self, vertices, triangles):
+        self.Topology = (vertices, triangles)
+
+
+class _Target:
+    def __init__(self):
+        self.Name = "Chair"
+        self.Label = "Chair target"
+        self.Placement = _Placement()
+        self.Shape = _Shape(1)
+
+
+class _MeshTarget:
+    def __init__(self):
+        self.Name = "MeshTarget"
+        self.Label = "Mesh target"
+        self.Placement = _Placement()
+        self.Mesh = _Mesh((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0)), ((0, 1, 2),))
+
+
+class _PersistentTarget:
+    def __init__(self):
+        self.TargetType = "FreeCAD Geometry"
+        self.Enabled = True
+        self.CollisionDeflection = 1.0
+        self.CollisionThickness = 2.0
+        self.SourceObject = _Target()
+        self.CollisionVertexCount = 8
+        self.CollisionTriangleCount = 12
+        self.SourceSignature = repr(source_signature(self.SourceObject, 1.0, 2.0))
+
+
+class DrapeTargetTests(unittest.TestCase):
+    def test_target_spec_accepts_supported_types(self):
+        DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
+        DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.5, 1.5).validate()
+
+    def test_target_spec_rejects_invalid_settings(self):
+        for spec in (
+            DrapeTargetSpec("Unknown", "Chair"),
+            DrapeTargetSpec("FreeCAD Geometry", ""),
+            DrapeTargetSpec("FreeCAD Geometry", "Chair", 0),
+            DrapeTargetSpec("FreeCAD Geometry", "Chair", 1, -1),
+        ):
+            with self.assertRaises(ValueError):
+                spec.validate()
+
+    def test_source_signature_tracks_geometry_placement_and_collision_settings(self):
+        target = _Target()
+        baseline = source_signature(target, 1, 2)
+        target.Shape.value = 2
+        self.assertNotEqual(source_signature(target, 1, 2), baseline)
+        target.Placement = _Placement(10, -5, 0, 15)
+        moved = source_signature(target, 1, 2)
+        self.assertNotEqual(moved, baseline)
+        self.assertNotEqual(source_signature(target, 0.5, 2), moved)
+        self.assertNotEqual(source_signature(target, 0.5, 4), source_signature(target, 0.5, 2))
+
+    def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchanged(self):
+        target = _Target()
+        target.Shape = _BrepShape("brep-a")
+        baseline = source_signature(target, 1, 2)
+        target.Shape = _BrepShape("brep-b")
+        changed = source_signature(target, 1, 2)
+        self.assertNotEqual(changed, baseline)
+
+    def test_mesh_signature_hashes_complete_topology_not_aggregate_counts(self):
+        target = _MeshTarget()
+        baseline = source_signature(target, 1, 2)
+        target.Mesh.Topology = ((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 0, 1)), ((0, 1, 2),))
+        self.assertNotEqual(source_signature(target, 1, 2), baseline)
+
+    def test_mesh_signature_tracks_triangle_connectivity(self):
+        target = _MeshTarget()
+        baseline = source_signature(target, 1, 2)
+        target.Mesh.Topology = (target.Mesh.Topology[0], ((0, 2, 1),))
+        self.assertNotEqual(source_signature(target, 1, 2), baseline)
+
+    def test_mesh_signature_tracks_triangle_order(self):
+        target = _MeshTarget()
+        target.Mesh.Topology = (
+            (_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0), _Vec(0, 0, 1)),
+            ((0, 1, 2), (0, 2, 3)),
+        )
+        baseline = source_signature(target, 1, 2)
+        target.Mesh.Topology = (target.Mesh.Topology[0], ((0, 2, 3), (0, 1, 2)))
+        self.assertNotEqual(source_signature(target, 1, 2), baseline)
+
+    def test_source_signature_is_stable(self):
+        target = _Target()
+        self.assertEqual(source_signature(target, 1, 2), source_signature(target, 1, 2))
+
+    def test_target_status_is_ready_when_signature_is_current(self):
+        status = target_status(_PersistentTarget())
+        self.assertEqual(status["state"], "ready")
+        self.assertFalse(status["stale"])
+
+    def test_target_status_reports_source_change_as_stale(self):
+        target = _PersistentTarget()
+        target.SourceObject.Shape.value = 99
+        status = target_status(target)
+        self.assertEqual(status["state"], "stale")
+        self.assertTrue(status["stale"])
+        self.assertIn("source", status["reason"])
+
+    def test_target_status_reports_missing_collision_cache(self):
+        target = _PersistentTarget()
+        target.CollisionVertexCount = 0
+        status = target_status(target)
+        self.assertEqual(status["state"], "unbuilt")
+        self.assertTrue(status["stale"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+

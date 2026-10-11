@@ -1,0 +1,272 @@
+"""Regression coverage for the direct-manipulation fitting frontend."""
+
+from types import SimpleNamespace
+
+from freecad_cloth.avatar.FittingCommands import (
+    _geometry_round,
+    _mesh_anchor_local_position,
+    _mesh_topology,
+    _target_signature,
+    arrangement_anchor_status,
+)
+from freecad_cloth.avatar.FittingGui import (
+    arrangement_rotation,
+    coin_position_to_screen,
+    nearest_arrangement_point,
+)
+
+
+def test_nearest_arrangement_point_returns_closest_candidate_within_threshold():
+    points = (
+        SimpleNamespace(X=0.0, Y=0.0, RotationZ=0.0, WrapDirection="front"),
+        SimpleNamespace(X=10.0, Y=0.0, RotationZ=15.0, WrapDirection="back"),
+    )
+
+    assert nearest_arrangement_point((8.0, 1.0), points, 3.0) is points[1]
+    assert nearest_arrangement_point((20.0, 0.0), points, 3.0) is None
+
+
+def test_nearest_arrangement_point_prefers_closest_even_when_input_is_unsorted():
+    points = (
+        SimpleNamespace(X=1.0, Y=1.0),
+        SimpleNamespace(X=4.0, Y=4.0),
+        SimpleNamespace(X=9.0, Y=9.0),
+    )
+
+    assert nearest_arrangement_point((3.0, 3.0), points, 5.0) is points[1]
+
+
+def test_arrangement_rotation_maps_wrap_direction_to_viewport_rotation():
+    assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="front")) == 5.0
+    assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="back")) == 185.0
+    assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="left")) == 95.0
+    assert arrangement_rotation(SimpleNamespace(RotationZ=5.0, WrapDirection="right")) == -85.0
+
+
+def test_coin_event_coordinates_are_converted_before_snap_matching():
+    screen_position = coin_position_to_screen((710.0, 461.0), 590.0)
+    assert screen_position == (710.0, 129.0)
+
+    target = SimpleNamespace(X=710.0, Y=129.0)
+    assert nearest_arrangement_point(screen_position, (target,), 36.0) is target
+
+
+def test_coordinate_based_arrangement_point_has_no_surface_anchor_requirement():
+    from types import SimpleNamespace
+
+    point = SimpleNamespace(AnchorGeometrySignature="", AnchorTarget=None)
+    assert arrangement_anchor_status(point) == "unanchored"
+
+
+def test_surface_anchor_without_its_target_is_not_current():
+    from types import SimpleNamespace
+
+    point = SimpleNamespace(AnchorGeometrySignature="saved-signature", AnchorTarget=None)
+    assert arrangement_anchor_status(point) == "missing target"
+
+
+def test_surface_anchor_is_invalidated_when_fitting_target_changes():
+    from types import SimpleNamespace
+
+    old_target = SimpleNamespace(Name="OldMannequin")
+    new_target = SimpleNamespace(Name="ReplacementMannequin")
+    scene = SimpleNamespace(FittingType="FittingScene", AvatarProxy=new_target)
+    document = SimpleNamespace(
+        Objects=[scene],
+        getObject=lambda name: None,
+    )
+    point = SimpleNamespace(
+        AnchorGeometrySignature="previous-geometry-signature",
+        AnchorTarget=old_target,
+        Document=document,
+    )
+
+    assert arrangement_anchor_status(point) == "wrong target"
+
+
+def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
+    from types import SimpleNamespace
+
+    triangles = ((0, 1, 2),)
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(
+            Topology=(
+                ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                triangles,
+            )
+        )
+    )
+    anchor = {
+        "triangle_index": 0,
+        "barycentric": (0.2, 0.3, 0.5),
+        "local_point": (0.3, 0.5, 0.0),
+    }
+
+    signature_before = _target_signature(target)
+    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+
+    target.Mesh.Topology = (
+        ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 1.0)),
+        triangles,
+    )
+
+    assert _target_signature(target) == signature_before
+    assert _mesh_anchor_local_position(target, anchor) == (0.6, 1.0, 0.5)
+
+
+def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
+    import sys
+
+    class Placement:
+        def __init__(self, translation):
+            self.translation = tuple(translation)
+
+        def inverse(self):
+            return Placement(tuple(-value for value in self.translation))
+
+        def multVec(self, point):
+            return tuple(
+                float(value) + shift for value, shift in zip(point, self.translation, strict=True)
+            )
+
+    local_vertices = (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+    )
+    translation = (4.0, -3.0, 6.0)
+    placed_vertices = tuple(
+        tuple(value + shift for value, shift in zip(point, translation, strict=True))
+        for point in local_vertices
+    )
+    triangles = ((0, 1, 2),)
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(Topology=(placed_vertices, triangles)),
+        Placement=Placement(translation),
+    )
+    monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(Vector=lambda *point: tuple(point)))
+
+    vertices, faces = _mesh_topology(target)
+    assert vertices == local_vertices
+    assert faces == triangles
+    anchor = {
+        "triangle_index": 0,
+        "barycentric": (0.2, 0.3, 0.5),
+        "local_point": (0.3, 0.5, 0.0),
+    }
+    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+
+
+def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():
+    from types import SimpleNamespace
+
+    target = SimpleNamespace(
+        Mesh=SimpleNamespace(
+            Topology=(
+                ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                ((0, 1, 2),),
+            )
+        )
+    )
+    signature_before = _target_signature(target)
+    target.Mesh.Topology = (
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((0, 2, 1),),
+    )
+
+    assert _target_signature(target) != signature_before
+
+
+def test_shape_anchor_signature_canonicalizes_signed_zero():
+    assert repr(_geometry_round(-0.0)) == repr(0.0)
+    assert repr(_geometry_round(-1e-7)) == repr(0.0)
+    assert _geometry_round(1.234567) == 1.23457
+
+
+def test_shape_anchor_signature_is_invariant_to_object_translation():
+    class Placement:
+        def __init__(self, translation):
+            self.translation = translation
+
+        def inverse(self):
+            return Placement(tuple(-value for value in self.translation))
+
+        def toMatrix(self):
+            return self
+
+    class Shape:
+        def __init__(self, offset):
+            self.offset = offset
+
+        def copy(self):
+            return Shape(self.offset)
+
+        def transformShape(self, matrix):
+            self.offset = tuple(
+                value + shift for value, shift in zip(self.offset, matrix.translation, strict=True)
+            )
+
+        def isNull(self):
+            return False
+
+        def _point(self, point):
+            return tuple(value + shift for value, shift in zip(point, self.offset, strict=True))
+
+        @property
+        def Vertexes(self):
+            return [
+                SimpleNamespace(Point=self._point(point))
+                for point in (
+                    (0.0, 0.0, 0.0),
+                    (1.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                )
+            ]
+
+        @property
+        def Edges(self):
+            return [
+                SimpleNamespace(Length=1.0, CenterOfMass=self._point((0.5, 0.0, 0.0))),
+                SimpleNamespace(Length=1.0, CenterOfMass=self._point((0.0, 0.5, 0.0))),
+                SimpleNamespace(
+                    Length=1.41421356237,
+                    CenterOfMass=self._point((0.5, 0.5, 0.0)),
+                ),
+            ]
+
+        @property
+        def Faces(self):
+            return [
+                SimpleNamespace(
+                    Surface=object(),
+                    Area=0.5,
+                    CenterOfMass=self._point((1.0 / 3.0, 1.0 / 3.0, 0.0)),
+                    Edges=(None, None, None),
+                )
+            ]
+
+        @property
+        def BoundBox(self):
+            x, y, z = self.offset
+            return SimpleNamespace(
+                XMin=x,
+                XMax=x + 1.0,
+                YMin=y,
+                YMax=y + 1.0,
+                ZMin=z,
+                ZMax=z,
+            )
+
+        @property
+        def Solids(self):
+            return (object(),)
+
+    origin = (0.0, 0.0, 0.0)
+    target = SimpleNamespace(Shape=Shape(origin), Placement=Placement(origin))
+    signature = _target_signature(target)
+
+    translation = (4.0, -3.0, 6.0)
+    target.Shape = Shape(translation)
+    target.Placement = Placement(translation)
+
+    assert _target_signature(target) == signature

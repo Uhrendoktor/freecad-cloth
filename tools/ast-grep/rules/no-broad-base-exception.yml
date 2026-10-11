@@ -1,0 +1,12 @@
+id: no-broad-base-exception
+language: Python
+severity: error
+message: "Do not catch BaseException in production domain code; handle specific failures."
+files:
+  - freecad_cloth/**/*.py
+rule:
+  pattern: |
+    try:
+      $$$BODY
+    except BaseException:
+      $$$HANDLER
