@@ -1,5 +1,7 @@
 """FreeCAD GUI controls for the Cloth Simulation workbench."""
 
+from typing import ClassVar
+
 
 def _modules():
     import FreeCAD as App
@@ -20,7 +22,7 @@ class SimulationTaskPanel:
     mannequin or arbitrary FreeCAD Shape/Mesh geometry.
     """
 
-    MATERIALS = {
+    MATERIALS: ClassVar[dict[str, tuple[float, float, float]]] = {
         "Cotton": (0.35, 0.20, 0.01),
         "Silk": (0.12, 0.08, 0.005),
         "Denim": (0.65, 0.45, 0.02),
