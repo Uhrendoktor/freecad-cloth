@@ -19,7 +19,7 @@ dependencies = [
   "numpy>=1.26,<3",
   "scipy>=1.14,<2",
   "shapely>=2,<3",
-  "anny>=0.6,<0.7",
+  "anny>=0.5,<0.6",
   "clad-body[anny]>=0.6.1,<0.7",
 ]
 classifiers = [
