@@ -175,9 +175,7 @@ def mirror_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
     """Return a deterministic left/right mirrored pose."""
-    mirrored = []
-    for item in normalize_joint_rotations(rotations):
-        mirrored.append(item.mirrored())
+    mirrored = [item.mirrored() for item in normalize_joint_rotations(rotations)]
     return normalize_joint_rotations(mirrored)
 
 
