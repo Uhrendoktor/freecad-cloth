@@ -804,17 +804,17 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.54 * float(garment_height)
+    armhole_z = 0.50 * float(garment_height)
     shoulder_z = 0.86 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + 0.70 * panel_width, armhole_z),
+        (x_offset + 0.62 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.30 * panel_width, armhole_z),
+        (x_offset + 0.38 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError(
@@ -837,10 +837,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if index == 2:
             # Shape the open armhole as a smooth inward scoop.
-            midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.63 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.37 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
