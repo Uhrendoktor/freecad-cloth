@@ -228,7 +228,6 @@ class QualitySimulationProxy:
 
     def _build_pattern_scene(self, obj, pieces, signature):
         """Use the authoritative base scene builder with quality tessellation."""
-        from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
         base = self._base_or_restore()
