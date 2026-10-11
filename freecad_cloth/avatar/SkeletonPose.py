@@ -10,9 +10,9 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable, Iterable, Mapping
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing import NotRequired, TypedDict
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 class JointRotationInput(TypedDict):
     """Dictionary input accepted by the persistent joint-rotation API."""
@@ -21,7 +21,6 @@ class JointRotationInput(TypedDict):
     x: NotRequired[float]
     y: NotRequired[float]
     z: NotRequired[float]
-
 
 CONTROLLABLE_JOINTS = (
     ("spine05", "Pelvis"),
@@ -63,7 +62,6 @@ MIRROR_BONES = {
     "foot.R": "foot.L",
 }
 
-
 @pydantic_dataclass(frozen=True)
 class JointRotation:
     """A persistent Euler rotation for one authored mannequin joint."""
@@ -93,7 +91,6 @@ class JointRotation:
         # and reverses the Y/Z rotation axes.
         return JointRotation(mirror, float(self.x), -float(self.y), -float(self.z))
 
-
 def normalize_joint_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
@@ -110,13 +107,11 @@ def normalize_joint_rotations(
         values[item.bone] = item
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
 
-
 def joint_rotation_map(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> dict[str, JointRotation]:
     """Return joint rotations keyed by authored MakeHuman bone name."""
     return {item.bone: item for item in normalize_joint_rotations(rotations)}
-
 
 def joint_rotations_to_json(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
@@ -139,7 +134,6 @@ def joint_rotations_to_json(
         sort_keys=True,
         separators=(",", ":"),
     )
-
 
 def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
     """Deserialize persistent joint rotations, accepting legacy empty values."""
@@ -169,7 +163,6 @@ def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
         )
     return normalize_joint_rotations(rotations)
 
-
 def mirror_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
@@ -179,10 +172,8 @@ def mirror_rotations(
         mirrored.append(item.mirrored())
     return normalize_joint_rotations(mirrored)
 
-
 Matrix = tuple[float, ...]
 Vector = tuple[float, float, float]
-
 
 @pydantic_dataclass(frozen=True)
 class AffineTransform:
@@ -224,12 +215,10 @@ class AffineTransform:
         )
         return AffineTransform(inverse_matrix, inverse_translation)
 
-
 IDENTITY = AffineTransform(
     (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
     (0.0, 0.0, 0.0),
 )
-
 
 def _matmul(a: Matrix, b: Matrix) -> Matrix:
     """Multiply two row-major 3x3 matrices."""
@@ -238,7 +227,6 @@ def _matmul(a: Matrix, b: Matrix) -> Matrix:
         for row in range(3)
         for col in range(3)
     )
-
 
 def _matvec(matrix: Matrix, vector: Vector) -> Vector:
     """Multiply a row-major matrix by a 3D vector."""
@@ -249,13 +237,11 @@ def _matvec(matrix: Matrix, vector: Vector) -> Vector:
         matrix[6] * x + matrix[7] * y + matrix[8] * z,
     )
 
-
 def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
     """Return the transform that applies second then first."""
     matrix = _matmul(first.matrix, second.matrix)
     translated = first.apply(second.translation)
     return AffineTransform(matrix, translated)
-
 
 def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Matrix:
     """Return an XYZ Euler rotation matrix."""
@@ -270,12 +256,10 @@ def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Ma
     mz = (cz, -sz, 0.0, sz, cz, 0.0, 0.0, 0.0, 1.0)
     return _matmul(mz, _matmul(my, mx))
 
-
 def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
     """Create a rotation about an existing rest-space joint."""
     rotated = _matvec(rotation, point)
     return AffineTransform(rotation, tuple(point[i] - rotated[i] for i in range(3)))
-
 
 def build_bone_transforms(
     source_vertices: tuple[Vector, ...],
@@ -318,7 +302,6 @@ def build_bone_transforms(
     for bone_name in skeleton["bones"]:
         visit(bone_name)
     return cache
-
 
 def apply_weighted_fk(
     source_vertices: tuple[Vector, ...],
