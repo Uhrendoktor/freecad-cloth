@@ -50,7 +50,6 @@ class AvatarFittingTests(unittest.TestCase):
         )
         _FittingProxy().execute(obj)
 
-
     def test_fitting_proxy_rejects_invalid_persisted_state(self):
         from freecad_cloth.avatar.FittingCommands import _FittingProxy
 
@@ -454,9 +453,10 @@ def test_fitting_stage_status_reports_saved_arrangement_state():
     simulation = type("Simulation", (), {"Document": doc})()
 
     message, reset_available = fitting_stage_status(simulation)
-    assert message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    assert (
+        message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    )
     assert reset_available is True
-
 
 
 if __name__ == "__main__":
