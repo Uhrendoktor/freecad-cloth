@@ -43,7 +43,6 @@ def _validate_units(units: str) -> str:
     return "mm"
 
 
-
 @dataclass(frozen=True)
 class _ResolvedNotchCut:
     """Geometric cut-insertion plan for one semantic notch."""
