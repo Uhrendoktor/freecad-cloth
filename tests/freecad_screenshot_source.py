@@ -1091,16 +1091,32 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             seam.ViewObject.Visibility = True
         doc.recompute()
 
-        invalid_seams = [
-            str(getattr(seam, "SeamId", getattr(seam, "Label", seam.Name)))
-            for seam, _piece_a, _piece_b in seam_records
-            if str(getattr(seam, "Status", "")) != "Valid"
-            or getattr(getattr(seam, "Shape", None), "isNull", lambda: True)()
-        ]
+        invalid_seams = []
+        seam_diagnostics = []
+        for seam, piece_a, piece_b in seam_records:
+            seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", seam.Name)))
+            status = str(getattr(seam, "Status", ""))
+            shape = getattr(seam, "Shape", None)
+            shape_is_null = getattr(shape, "isNull", lambda: True)()
+            if status != "Valid" or shape_is_null:
+                invalid_seams.append(seam_id)
+                edge_a_id = str(getattr(seam, "EdgeAId", ""))
+                edge_b_id = str(getattr(seam, "EdgeBId", ""))
+                sketch_a = getattr(piece_a, "Sketch", None)
+                sketch_b = getattr(piece_b, "Sketch", None)
+                ids_a = tuple(str(value) for value in (getattr(sketch_a, "SemanticEdgeIds", ()) or ()))
+                ids_b = tuple(str(value) for value in (getattr(sketch_b, "SemanticEdgeIds", ()) or ()))
+                seam_diagnostics.append((
+                    seam_id, status, bool(shape_is_null), edge_a_id, edge_b_id,
+                    tuple(index for index, value in enumerate(ids_a) if value == edge_a_id),
+                    tuple(index for index, value in enumerate(ids_b) if value == edge_b_id),
+                ))
         if invalid_seams:
             raise RuntimeError(
                 "canonical tunic has invalid semantic seams before Sewing capture: "
                 + ", ".join(invalid_seams)
+                + "; diagnostics="
+                + repr(tuple(seam_diagnostics))
             )
 
         activate(
