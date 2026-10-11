@@ -1110,9 +1110,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
                 try:
                     _resolve_document_edge(piece, edge_id, signature)
                 except Exception as exc:
-                    reference_errors.append(
-                        (prefix, type(exc).__name__, str(exc))
-                    )
+                    reference_errors.append((prefix, type(exc).__name__, str(exc)))
             if status != "Valid" or shape_is_null:
                 invalid_seams.append(seam_id)
                 sketch_a = getattr(piece_a, "Sketch", None)
@@ -1130,12 +1128,8 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
                         bool(shape_is_null),
                         edge_a_id,
                         edge_b_id,
-                        tuple(
-                            index for index, value in enumerate(ids_a) if value == edge_a_id
-                        ),
-                        tuple(
-                            index for index, value in enumerate(ids_b) if value == edge_b_id
-                        ),
+                        tuple(index for index, value in enumerate(ids_a) if value == edge_a_id),
+                        tuple(index for index, value in enumerate(ids_b) if value == edge_b_id),
                         tuple(reference_errors),
                     )
                 )
