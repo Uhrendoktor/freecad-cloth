@@ -84,6 +84,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     def Deactivated(self):
         callback = _WORKBENCH_DEACTIVATION_CALLBACK
         if callback is not None:
+
             def finish_deactivation() -> None:
                 # FreeCAD may deliver the new workbench's Activated() before
                 # the previous workbench's Deactivated(). Defer cleanup until
