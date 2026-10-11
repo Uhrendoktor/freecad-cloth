@@ -1,5 +1,5 @@
-import sys
 import re
+import sys
 from pathlib import Path
 from unittest import TestCase
 from xml.etree import ElementTree
