@@ -771,12 +771,10 @@ def _make_source_fitted_mapper(
         # merely because the posed hand happens to share that height band.
         base_x_mm = x * scale_x
         base_y_mm = z * scale_y
-        torso_scale_x = _profile_scale(normalized_z, measurement_profile_x) * _profile_scale(
-            normalized_z, gender_profile_x
-        )
-        torso_scale_y = _profile_scale(normalized_z, measurement_profile_y) * _profile_scale(
-            normalized_z, gender_profile_y
-        )
+        torso_measurement_x = _profile_scale(normalized_z, measurement_profile_x)
+        torso_measurement_y = _profile_scale(normalized_z, measurement_profile_y)
+        gender_scale_x = _profile_scale(normalized_z, gender_profile_x)
+        gender_scale_y = _profile_scale(normalized_z, gender_profile_y)
 
         # Estimate a stable trunk envelope from canonical measurements. Its
         # dimensions deliberately do not depend on the edited measurements,
@@ -790,11 +788,13 @@ def _make_source_fitted_mapper(
             1.0 - _smoothstep(0.75, 0.83, normalized_z)
         )
         torso_influence = max(0.0, min(1.0, core_influence * torso_height_influence))
-        torso_scale_x = _lerp(1.0, torso_scale_x, torso_influence)
-        torso_scale_y = _lerp(1.0, torso_scale_y, torso_influence)
+        torso_measurement_x = _lerp(1.0, torso_measurement_x, torso_influence)
+        torso_measurement_y = _lerp(1.0, torso_measurement_y, torso_influence)
 
-        # Shoulder breadth is local to the shoulder girdle, not all vertices at
-        # that height. A posed hand outside this envelope receives no scaling.
+        # Body-blend width changes also reach the shoulder girdle, but taper
+        # away along the upper arms. Circumference controls remain restricted
+        # to the trunk. This keeps broad shoulders anatomically distinct from
+        # a uniformly inflated chest cross-section.
         shoulder_rise = _smoothstep(0.67, 0.75, normalized_z)
         shoulder_fall = 1.0 - _smoothstep(0.80, 0.88, normalized_z)
         shoulder_blend = shoulder_rise * shoulder_fall
@@ -802,10 +802,13 @@ def _make_source_fitted_mapper(
             shoulder_half + 10.0, shoulder_half + 75.0, abs(base_x_mm)
         )
         shoulder_influence = shoulder_blend * shoulder_envelope
+        body_blend_influence = max(torso_influence, shoulder_influence)
+        gender_scale_x = _lerp(1.0, gender_scale_x, body_blend_influence)
+        gender_scale_y = _lerp(1.0, gender_scale_y, torso_influence)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_influence)
 
-        x_mm = base_x_mm * torso_scale_x * lateral_scale
-        y_mm = base_y_mm * torso_scale_y
+        x_mm = base_x_mm * torso_measurement_x * gender_scale_x * lateral_scale
+        y_mm = base_y_mm * torso_measurement_y * gender_scale_y
         radius = math.hypot(x_mm, y_mm)
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
