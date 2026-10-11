@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing import NotRequired, TypedDict
 
 
@@ -64,7 +64,7 @@ MIRROR_BONES = {
 }
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class JointRotation:
     """A persistent Euler rotation for one authored mannequin joint."""
 
@@ -184,7 +184,7 @@ Matrix = tuple[float, ...]
 Vector = tuple[float, float, float]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AffineTransform:
     """Small immutable affine transform used by the headless FK implementation."""
 
