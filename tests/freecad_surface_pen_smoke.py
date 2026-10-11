@@ -219,6 +219,29 @@ def main() -> None:
         assert any("bsplinecurve" in type(geometry).__name__.lower() for geometry in curve_geometry)
         assert str(curve_piece.GeometryAuthority) == "Sketcher"
 
+        # Reference-point mode is deliberately open-ended: it must not require a
+        # closed stroke and should create editable construction points in Sketcher.
+        reference_controller = SurfacePenController(target, target)
+        reference_controller.set_input_mode("Reference points")
+        reference_map = {
+            (100, 100): SurfaceAnchor((10.0, 10.0, 20.0), (0.0, 0.0, 1.0)),
+            (200, 100): SurfaceAnchor((110.0, 10.0, 20.0), (0.0, 0.0, 1.0)),
+            (200, 180): SurfaceAnchor((110.0, 70.0, 20.0), (0.0, 0.0, 1.0)),
+            (100, 180): SurfaceAnchor((10.0, 70.0, 20.0), (0.0, 0.0, 1.0)),
+        }
+        reference_controller._pick = lambda position: reference_map.get(
+            (int(position[0]), int(position[1]))
+        )
+        for position in ((100, 100), (200, 100), (200, 180), (100, 180)):
+            reference_controller._mouse_event(_mouse("DOWN", position))
+            reference_controller._mouse_event(_mouse("UP", position))
+        assert reference_controller.can_finish
+        reference_sketch = reference_controller.finish()
+        assert reference_sketch.TypeId == "Sketcher::SketchObject"
+        assert str(reference_sketch.SurfaceAuthoring) == "ClothPattern.SurfacePen.ReferencePoints"
+        assert len(tuple(reference_sketch.Geometry)) == 4
+        assert all(reference_sketch.getConstruction(index) for index in range(4))
+
         # Changing the source geometry must invalidate the persisted draft rather
         # than silently reusing coordinates sampled from an older target.
         target.Shape = Part.makeBox(141.0, 100.0, 20.0)
@@ -234,6 +257,8 @@ def main() -> None:
         (ARTIFACTS / "surface-pen.log").write_text(
             "surface-pen-controller=passed\n"
             "surface-pen-native-sketcher-extraction=passed\n"
+            "surface-pen-native-bspline-extraction=passed\\n"
+            "surface-pen-reference-points=passed\\n"
             "surface-pen-stale-target-guard=passed\n"
             "surface-pen-ui-captures=passed\n",
             encoding="utf-8",
