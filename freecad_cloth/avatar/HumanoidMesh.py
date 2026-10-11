@@ -494,7 +494,7 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
     for name, z in bands:
         ratio = parameters.measurement(name) / float(DEFAULT_MEASUREMENTS[name])
         profile.append((z, max(0.75, min(1.35, ratio))))
-    profile.extend(((0.75, profile[-1][1]), (1.0, profile[-1][1])))
+    profile.extend(((0.75, 1.0), (1.0, 1.0)))
     return profile
 
 
@@ -643,47 +643,35 @@ def load_makehuman_weights(
         ) from exc
 
 
-def _normalize_fit_axes(vertices: Sequence[Point], parameters: AvatarParameters) -> Sequence[Point]:
-    """Normalize horizontal source scale to authoritative body measurements.
-
-    The pinned HM08 source can carry a source-specific aspect ratio unrelated to
-    the Cloth millimetre measurement schema. Width follows shoulder/upper-arm
-    measurements and depth follows chest circumference, while Z remains the
-    canonical fitted height. This is a single final scale correction, not a
-    second avatar geometry model.
-    """
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
-
-    x_min, x_max = _axis_bounds(vertices, 0)
-    y_min, y_max = _axis_bounds(vertices, 1)
-    x_span = x_max - x_min
-    y_span = y_max - y_min
-    if x_span <= 1e-9 or y_span <= 1e-9:
-        return vertices
-
-    shoulder = float(parameters.measurement("shoulder"))
-    upper_arm = float(parameters.measurement("upper_arm"))
-    chest = float(parameters.measurement("chest"))
-    default_upper_arm = float(DEFAULT_MEASUREMENTS["upper_arm"])
-    default_chest = float(DEFAULT_MEASUREMENTS["chest"])
-
-    target_width = shoulder + 1.5 * upper_arm
-    target_depth = chest / math.pi
-
-    target_width *= 1.0 + 0.05 * max(0.0, (upper_arm / default_upper_arm) - 1.0)
-    target_depth *= 1.0 + 0.05 * max(0.0, (chest / default_chest) - 1.0)
-    scale_x = target_width / x_span
-    scale_y = target_depth / y_span
-
-    return tuple((x * scale_x, y * scale_y, z) for x, y, z in vertices)
-
-
 def _make_source_fitted_mapper(
     source_vertices: Sequence[Point], parameters: AvatarParameters, skin_offset: float
 ) -> Callable[[Point], Point]:
+    """Map source vertices using fixed calibration and localized dimensions.
+
+    Axis calibration is pinned to the canonical body envelope. Measurement
+    changes act only within their height bands so local edits cannot rescale
+    unrelated regions such as the head. Skeleton callers use zero skin offset;
+    padding is reserved for the visible surface.
+    """
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     ymin, ymax = _axis_bounds(body, 1)
     y_span = max(1e-9, ymax - ymin)
+    x_min, x_max = _axis_bounds(body, 0)
+    depth_min, depth_max = _axis_bounds(body, 2)
+    source_width = max(1e-9, x_max - x_min)
+    source_depth = max(1e-9, depth_max - depth_min)
+
+    # Keep axis calibration independent of the edited torso profile. Otherwise
+    # a hip/chest edit changes the global bounds and scales the entire mannequin.
+    default_width = float(DEFAULT_MEASUREMENTS["shoulder"]) + 1.5 * float(
+        DEFAULT_MEASUREMENTS["upper_arm"]
+    )
+    default_depth = float(DEFAULT_MEASUREMENTS["chest"]) / math.pi
+    scale_x = default_width / source_width
+    scale_y = default_depth / source_depth
+
     height_mm = float(parameters.measurement("height"))
     torso_profile = (
         [(0.0, 1.0), (1.0, 1.0)]
@@ -694,52 +682,33 @@ def _make_source_fitted_mapper(
     if _is_default_measurement_shape(parameters):
         shoulder_scale = 1.0
     else:
-        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
-
         shoulder_scale = max(
             0.80,
-            min(1.25, parameters.measurement("shoulder") / float(DEFAULT_MEASUREMENTS["shoulder"])),
+            min(
+                1.25,
+                parameters.measurement("shoulder")
+                / float(DEFAULT_MEASUREMENTS["shoulder"]),
+            ),
         )
-
-    body_fitted = []
-    for point in body:
-        x, y, z = point
-        normalized_z = (y - ymin) / y_span
-        torso_scale = _profile_scale(normalized_z, torso_profile)
-        torso_scale *= _profile_scale(normalized_z, gender_profile)
-        shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
-        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        x_mm = x * height_mm / y_span * torso_scale * lateral_scale
-        y_mm = z * height_mm / y_span * torso_scale
-        radius = math.hypot(x_mm, y_mm)
-        if radius > 1e-9 and skin_offset:
-            x_mm += x_mm / radius * skin_offset
-            y_mm += y_mm / radius * skin_offset
-        body_fitted.append((x_mm, y_mm, normalized_z * height_mm))
-    normalized = _normalize_fit_axes(tuple(body_fitted), parameters)
-    pre_x_span = max(v[0] for v in body_fitted) - min(v[0] for v in body_fitted)
-    pre_y_span = max(v[1] for v in body_fitted) - min(v[1] for v in body_fitted)
-    norm_x_span = max(v[0] for v in normalized) - min(v[0] for v in normalized)
-    norm_y_span = max(v[1] for v in normalized) - min(v[1] for v in normalized)
-    scale_x = norm_x_span / max(1e-9, pre_x_span)
-    scale_y = norm_y_span / max(1e-9, pre_y_span)
 
     def transform(point: Point) -> Point:
         x, y, z = point
         normalized_z = (y - ymin) / y_span
         torso_scale = _profile_scale(normalized_z, torso_profile)
         torso_scale *= _profile_scale(normalized_z, gender_profile)
-        shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
+        # Shoulder breadth is a shoulder-band edit, not a head-width control.
+        shoulder_rise = _smoothstep(0.67, 0.75, normalized_z)
+        shoulder_fall = 1.0 - _smoothstep(0.80, 0.88, normalized_z)
+        shoulder_blend = shoulder_rise * shoulder_fall
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        x_mm = x * height_mm / y_span * torso_scale * lateral_scale
-        y_mm = z * height_mm / y_span * torso_scale
+        x_mm = x * scale_x * torso_scale * lateral_scale
+        y_mm = z * scale_y * torso_scale
         radius = math.hypot(x_mm, y_mm)
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
             y_mm += y_mm / radius * skin_offset
-        x_mm *= scale_x
-        y_mm *= scale_y
         z_mm = normalized_z * height_mm
+
         # A smooth front-surface bulge acts as an intuitive bust-size control.
         # The neutral default (zero) is geometry-identical to the pinned HM08 base.
         # Feminine gender blend introduces a modest natural breast baseline;
@@ -757,13 +726,11 @@ def _make_source_fitted_mapper(
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
 
-    return transform
-
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
     source = _load_source_vertices()
     skeleton = load_makehuman_skeleton()
-    transform = _make_source_fitted_mapper(source, parameters, float(parameters.skin_offset))
+    transform = _make_source_fitted_mapper(source, parameters, 0.0)
     points = {}
     for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
         shoulder = _bone_source_endpoints(source, skeleton, "upperarm01" + suffix)[0]
