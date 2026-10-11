@@ -40,7 +40,6 @@ def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes():
         assert variant_source == source
 
 
-
 def test_joint_rotation_bounds_and_mirror():
     rotation = JointRotation("upperarm01.L", 12.0, 20.0, 30.0).validate()
     mirrored = rotation.mirrored()
