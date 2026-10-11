@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import fnmatch
+import json
 import re
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
+PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 TY_CONFIG = ROOT / "ty.toml"
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
@@ -32,6 +35,7 @@ TYPECHECK_COMMANDS = (
     "pyright -p pyrightconfig.json",
     "pyright -p pyrightconfig.agent-strict.json",
     "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
+    "python tools/ci/check_changed_python_types.py",
 )
 
 
@@ -50,6 +54,50 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
     return isinstance(terminal, dict) and terminal.get("error-on-warning") is True
 
 
+def _matches_pyright_path(path: str, pattern: str) -> bool:
+    """Match a repository-relative Python path against a Pyright include/exclude item."""
+    candidate = ROOT / pattern
+    if candidate.is_dir():
+        prefix = pattern.rstrip("/") + "/"
+        return path == pattern or path.startswith(prefix)
+    return fnmatch.fnmatchcase(path, pattern) or Path(path).match(pattern)
+
+
+def pyright_coverage_gaps(config_text: str) -> tuple[str, ...]:
+    """Return production modules not analyzed under the configured Pyright include set.
+
+    The expected inventory is derived from the current production tree, so adding
+    a new module does not require manually updating a second path list.
+    """
+    try:
+        config = json.loads(config_text)
+    except json.JSONDecodeError:
+        return ("<invalid pyrightconfig.json>",)
+
+    includes = config.get("include")
+    excludes = config.get("exclude", [])
+    if (
+        not isinstance(includes, list)
+        or not includes
+        or not all(isinstance(item, str) for item in includes)
+        or not isinstance(excludes, list)
+        or not all(isinstance(item, str) for item in excludes)
+    ):
+        return ("<invalid Pyright include/exclude configuration>",)
+
+    production_files = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "freecad_cloth").rglob("*.py")
+        if path.is_file()
+    )
+    return tuple(
+        path
+        for path in production_files
+        if not any(_matches_pyright_path(path, item) for item in includes)
+        or any(_matches_pyright_path(path, item) for item in excludes)
+    )
+
+
 def main() -> int:
     """Validate the repository CI structure and hard runtime contracts."""
     files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
@@ -66,6 +114,13 @@ def main() -> int:
         raise SystemExit(
             "canonical workflow is missing required type-check gates: "
             + ", ".join(missing_typecheck)
+        )
+    coverage_gaps = pyright_coverage_gaps(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    if coverage_gaps:
+        raise SystemExit(
+            "Pyright does not cover all production Python modules; uncovered modules: "
+            + ", ".join(coverage_gaps[:20])
+            + (" ..." if len(coverage_gaps) > 20 else "")
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
         raise SystemExit("ty.toml must set [terminal].error-on-warning = true")
