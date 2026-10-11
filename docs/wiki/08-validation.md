@@ -31,7 +31,7 @@ Visual evidence supports human judgment, while automated checks make repeated cl
 
 | Feature | Human evidence | Executable evidence |
 | --- | --- | --- |
-| Pattern | Pattern screenshot | Pattern workbench/export smoke + screenshot source |
+| Pattern | Native pattern screenshot; Surface Pen task-panel screenshot, closed-stroke-to-Sketcher GIF, and extracted outline | Pattern workbench/export smoke + Surface Pen controller/extraction/stale-target smoke + screenshot validation |
 | Sewing | Sewing screenshot | Sewing smoke/creation + garment E2E |
 | Fitting | Interactive Arrange screenshot | <code>freecad_interactive_arrange_acceptance.py</code> |
 | Avatar shape | Seven-profile mannequin gallery + body-shape/dimension editor screenshot and shape/dimension GIFs | <code>freecad_avatar_shape_editor_acceptance.py</code> + <code>tools/ci/validate_acceptance.py avatar-shape-editor</code> |

@@ -221,6 +221,25 @@
       "producers": [
         "tests/freecad_sewing_creation_smoke.py"
       ]
+    },
+    "surface-pen-pattern.png": {
+      "artifact": "surface-pen",
+      "producers": [
+        "tests/freecad_surface_pen_smoke.py"
+      ]
+    },
+    "surface-pen-workflow.gif": {
+      "artifact": "surface-pen",
+      "producers": [
+        "tests/freecad_surface_pen_smoke.py",
+        "tools/ci/publish_visual_evidence.py"
+      ]
+    },
+    "surface-pen.png": {
+      "artifact": "surface-pen",
+      "producers": [
+        "tests/freecad_surface_pen_smoke.py"
+      ]
     }
   }
 }

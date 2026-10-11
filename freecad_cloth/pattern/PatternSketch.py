@@ -5,6 +5,8 @@ identity and derived compatibility data; PatternIR preserves curve kind and
 endpoint connectivity for downstream sewing and simulation adapters.
 """
 
+from collections.abc import Sequence
+
 
 def _piece_object(document, piece_id):
     return next(
@@ -31,6 +33,28 @@ def _ensure_piece_properties(obj):
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
 
 
+def _is_axis_aligned_rectangle(
+    points: Sequence[tuple[float, float]], tolerance: float = 1e-7
+) -> bool:
+    """Return whether four points describe the four corners of an axis-aligned rectangle."""
+    if len(points) != 4:
+        return False
+    xs = sorted({round(float(point[0]) / tolerance) for point in points})
+    ys = sorted({round(float(point[1]) / tolerance) for point in points})
+    if len(xs) != 2 or len(ys) != 2:
+        return False
+    corners = {
+        (round(float(point[0]) / tolerance), round(float(point[1]) / tolerance)) for point in points
+    }
+    expected = {(x, y) for x in xs for y in ys}
+    if corners != expected:
+        return False
+    return all(
+        abs(float(a[0]) - float(b[0])) <= tolerance or abs(float(a[1]) - float(b[1])) <= tolerance
+        for a, b in zip(points, (*points[1:], points[0]), strict=False)
+    )
+
+
 def _add_geometry(sketch, points):
     import FreeCAD as App
     import Part
@@ -46,12 +70,13 @@ def _add_geometry(sketch, points):
 
     # Coincident endpoint constraints keep the boundary topologically closed
     # while leaving dimensional degrees of freedom available to the user.
-    constraints = []
-    for index in range(len(points)):
-        constraints.append(
-            Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
-        )
-    if len(points) == 4:
+    constraints = [
+        Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
+        for index in range(len(points))
+    ]
+    # Only infer a rectangle when its actual coordinates prove that intent.
+    # Four arbitrary surface points must never be reshaped by assumed H/V constraints.
+    if _is_axis_aligned_rectangle(points):
         constraints.extend(
             (
                 Sketcher.Constraint("Horizontal", 0),
@@ -63,7 +88,44 @@ def _add_geometry(sketch, points):
     sketch.addConstraint(constraints)
 
 
-def create_sketch_for_piece(piece, document=None):
+def _add_native_geometry(
+    sketch: object, segments: Sequence[tuple[str, Sequence[tuple[float, float]]]]
+) -> None:
+    """Add connected line/B-spline boundary segments to a native Sketcher sketch."""
+    import FreeCAD as App
+    import Part
+    import Sketcher
+
+    geometry = []
+    for kind, points in segments:
+        vectors = [App.Vector(float(point[0]), float(point[1]), 0) for point in points]
+        if kind == "line":
+            if len(vectors) != 2:
+                raise ValueError("line boundary segment requires exactly two endpoints")
+            geometry.append(Part.LineSegment(vectors[0], vectors[1]))
+        elif kind == "bspline":
+            if len(vectors) < 3:
+                raise ValueError("B-spline boundary segment requires an interior curve point")
+            curve = Part.BSplineCurve()
+            curve.interpolate(vectors)
+            geometry.append(curve)
+        else:
+            raise ValueError(f"unsupported surface boundary segment type: {kind}")
+    if len(geometry) < 3:
+        raise ValueError("surface sketch requires at least three connected boundary segments")
+    sketch.addGeometry(geometry, False)
+    constraints = [
+        Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(geometry), 1)
+        for index in range(len(geometry))
+    ]
+    sketch.addConstraint(constraints)
+
+
+def create_sketch_for_piece(
+    piece,
+    document=None,
+    geometry_segments: Sequence[tuple[str, Sequence[tuple[float, float]]]] | None = None,
+):
     """Create or return the native Sketcher representation for ``piece``."""
     try:
         import FreeCAD as App
@@ -85,6 +147,13 @@ def create_sketch_for_piece(piece, document=None):
         None,
     )
     if existing is not None:
+        if geometry_segments is not None:
+            existing.clear()
+            _add_native_geometry(existing, geometry_segments)
+            existing.SemanticEdgeIds = [
+                f"{piece.id}:edge:{i}" for i in range(len(geometry_segments))
+            ]
+            document.recompute()
         _attach(existing, piece, document)
         from freecad_cloth.common.GarmentDocument import link_garment_object
 
@@ -98,12 +167,16 @@ def create_sketch_for_piece(piece, document=None):
     sketch.addProperty("App::PropertyString", "PatternPieceId", "Cloth Pattern")
     sketch.PatternPieceId = piece.id
     sketch.addProperty("App::PropertyStringList", "SemanticEdgeIds", "Cloth Pattern")
-    sketch.SemanticEdgeIds = [f"{piece.id}:edge:{i}" for i in range(len(piece.outline))]
+    edge_count = len(geometry_segments) if geometry_segments is not None else len(piece.outline)
+    sketch.SemanticEdgeIds = [f"{piece.id}:edge:{i}" for i in range(edge_count)]
     sketch.addProperty("App::PropertyString", "GeometryAuthority", "Cloth Pattern")
     sketch.GeometryAuthority = "Sketcher"
     sketch.addProperty("App::PropertyString", "GeometrySource", "Cloth Pattern")
     sketch.GeometrySource = "ClothPattern.PatternPiece"
-    _add_geometry(sketch, piece.outline)
+    if geometry_segments is None:
+        _add_geometry(sketch, piece.outline)
+    else:
+        _add_native_geometry(sketch, geometry_segments)
     _attach(sketch, piece, document)
     from freecad_cloth.common.GarmentDocument import link_garment_object
 

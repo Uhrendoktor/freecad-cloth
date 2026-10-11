@@ -12,7 +12,10 @@ from freecad_cloth.pattern.PatternDrafting import (
     serialize_points,
 )
 from freecad_cloth.pattern.PatternModel import PatternPiece
-from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+from freecad_cloth.pattern.PatternSketch import (
+    _is_axis_aligned_rectangle,
+    create_sketch_for_piece,
+)
 
 
 def test_pattern_sketch_module_is_headless_safe():
@@ -228,3 +231,8 @@ if __name__ == "__main__":
     test_polygon_drafting_round_trip_and_editing()
     test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
     print("pattern sketch tests passed")
+
+
+def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints() -> None:
+    assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
+    assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))

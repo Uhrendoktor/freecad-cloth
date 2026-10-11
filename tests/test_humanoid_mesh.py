@@ -3,21 +3,25 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MAKEHUMAN_BASE_URL,
+    MAKEHUMAN_DATA_ENV,
     MAKEHUMAN_SKELETON_SIZE,
     MAKEHUMAN_WEIGHTS_SIZE,
     HumanoidMeshError,
     MeshData,
+    _find_local_base_mesh,
     _load_source_vertices,
     _make_source_fitted_mapper,
     _map_makehuman_axes,
     _reoriented_triangles,
     _verified_skeleton,
     _verified_weights,
+    ensure_makehuman_base,
     fit_makehuman_mesh,
     load_makehuman_mesh,
     load_makehuman_skeleton,
@@ -127,6 +131,64 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
+    def test_local_mesh_discovery_accepts_only_verified_install_mesh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("fixture", encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    side_effect=lambda candidate: candidate == mesh_path,
+                ),
+            ):
+                self.assertEqual(_find_local_base_mesh(), mesh_path)
+
+    def test_local_mesh_discovery_ignores_unverified_install_mesh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("different revision", encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    return_value=False,
+                ),
+            ):
+                self.assertIsNone(_find_local_base_mesh())
+
+    def test_local_mesh_discovery_avoids_download(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("fixture", encoding="utf-8")
+            cache = Path(directory) / "cache"
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        MAKEHUMAN_DATA_ENV: str(install),
+                        "FREECAD_CLOTH_AVATAR_MESH": "",
+                        "FREECAD_CLOTH_AVATAR_CACHE": str(cache),
+                    },
+                ),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    side_effect=lambda candidate: candidate == mesh_path,
+                ),
+                patch("freecad_cloth.avatar.HumanoidMesh._download") as download,
+            ):
+                self.assertEqual(ensure_makehuman_base(), mesh_path)
+                download.assert_not_called()
+
     def test_real_source_height_axis_is_makehuman_y_up_and_fits_to_z(self):
         source = load_makehuman_mesh()
         spans = tuple(
@@ -197,12 +259,33 @@ class HumanoidMeshTests(unittest.TestCase):
                 mapper = _make_source_fitted_mapper(source_vertices, edited, 0.0)
                 edited_head = tuple(mapper(point) for point in head_vertices)
                 self.assertEqual(edited_head, baseline_head)
-                region_point = (1.0, region_levels[name], 0.5)
+                region_point = (0.2, region_levels[name], 0.5)
                 self.assertNotEqual(
                     mapper(region_point),
                     baseline_mapper(region_point),
                     f"{name} did not change its intended body region",
                 )
+
+    def test_torso_measurement_is_anisotropic_and_spares_distal_vertices(self) -> None:
+        levels = (0.0, 0.42, 0.50, 0.54, 0.58, 0.64, 0.69, 0.75, 0.80, 0.88, 0.90, 0.95, 1.0)
+        source_vertices = tuple(
+            (x, level, depth) for level in levels for x in (-1.0, 1.0) for depth in (-0.5, 0.5)
+        )
+        baseline = AvatarParameters()
+        edited = baseline.with_measurements(waist=baseline.measurement("waist") + 100.0)
+        base_map = _make_source_fitted_mapper(source_vertices, baseline, 0.0)
+        edited_map = _make_source_fitted_mapper(source_vertices, edited, 0.0)
+
+        torso = (0.3, 0.58, 0.25)
+        before, after = base_map(torso), edited_map(torso)
+        lateral_delta = abs(after[0] - before[0])
+        depth_delta = abs(after[1] - before[1])
+        self.assertGreater(lateral_delta, depth_delta * 1.5)
+
+        # At the same height, a point outside the canonical torso envelope is
+        # not pulled outward by a waist edit.
+        distal = (0.8, 0.58, 0.25)
+        self.assertEqual(edited_map(distal), base_map(distal))
 
     def test_fit_rejects_non_finite_results_from_extreme_finite_vertices(self):
         source = parse_obj("""

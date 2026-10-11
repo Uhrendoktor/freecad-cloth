@@ -1,8 +1,9 @@
 """MakeHuman-backed humanoid mesh provider.
 
 The avatar is a real polygonal human base mesh rather than a collection of
-FreeCAD primitives. The pinned MakeHuman HM08 base mesh is fetched lazily and
-cached locally, then fitted into the Cloth millimetre coordinate system.
+FreeCAD primitives. The pinned MakeHuman HM08 base mesh is reused from a
+matching local installation when available, otherwise fetched lazily and cached
+locally before fitting into the Cloth millimetre coordinate system.
 """
 
 from __future__ import annotations
@@ -19,6 +20,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
+
+from freecad_cloth.avatar.MakeHumanTargets import (
+    apply_measurement_targets,
+    resolve_target,
+    target_directory,
+)
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
@@ -41,6 +48,7 @@ MAKEHUMAN_SKELETON_URL = (
 MAKEHUMAN_SKELETON_SIZE = 117790
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
+MAKEHUMAN_DATA_ENV = "FREECAD_CLOTH_MAKEHUMAN_DATA"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 WEIGHTS_ENV = "FREECAD_CLOTH_AVATAR_WEIGHTS"
 SKELETON_ENV = "FREECAD_CLOTH_AVATAR_SKELETON"
@@ -242,8 +250,94 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
         raise
 
 
+def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
+    """Return conventional MakeHuman install paths without scanning the whole disk."""
+    roots: list[Path] = []
+    candidates: list[Path] = []
+    configured = os.environ.get(MAKEHUMAN_DATA_ENV, "").strip()
+    if configured:
+        explicit = Path(configured).expanduser()
+        if explicit.suffix.lower() == ".obj":
+            candidates.append(explicit)
+        roots.append(explicit)
+
+    home = Path.home()
+    roots.extend(
+        (
+            home / ".local" / "share" / "makehuman",
+            home / ".config" / "makehuman",
+            home / ".var" / "app" / "org.makehuman.MakeHuman" / "data",
+            home / "makehuman",
+            home / "MakeHuman",
+            home / "makehuman-community",
+            home / "src" / "makehuman",
+            home / "Development" / "makehuman",
+            Path("/usr/share/makehuman"),
+            Path("/usr/local/share/makehuman"),
+            Path("/usr/share"),
+            Path("/usr/local/share"),
+            Path("/opt/makehuman"),
+            Path("/opt/MakeHuman"),
+            Path("/opt/makehuman-community"),
+            Path("/Applications/MakeHuman.app"),
+            home / "Applications" / "MakeHuman.app",
+        )
+    )
+    for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
+        value = os.environ.get(variable, "").strip()
+        if value:
+            install_root = Path(value).expanduser()
+            roots.extend(
+                (
+                    install_root / "MakeHuman",
+                    install_root / "MakeHumanCommunity",
+                    install_root / "makehuman",
+                )
+            )
+    for variable in ("LOCALAPPDATA", "APPDATA"):
+        value = os.environ.get(variable, "").strip()
+        if value:
+            profile_root = Path(value).expanduser()
+            roots.extend(
+                (
+                    profile_root / "Programs" / "MakeHuman",
+                    profile_root / "MakeHuman",
+                    profile_root / "makehuman",
+                )
+            )
+
+    layouts = (
+        Path("3dobjs") / "base.obj",
+        Path("data") / "3dobjs" / "base.obj",
+        Path("makehuman") / "data" / "3dobjs" / "base.obj",
+        Path("makehuman") / "makehuman" / "data" / "3dobjs" / "base.obj",
+        Path("Contents") / "Resources" / "makehuman" / "data" / "3dobjs" / "base.obj",
+        Path("Contents") / "Resources" / "data" / "3dobjs" / "base.obj",
+        Path("Resources") / "makehuman" / "data" / "3dobjs" / "base.obj",
+    )
+    for root in roots:
+        candidates.extend(root / layout for layout in layouts)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = os.path.normcase(str(candidate))
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return tuple(unique)
+
+
+def _find_local_base_mesh() -> Path | None:
+    """Find a local copy only if its bytes match the pinned indexed HM08 mesh."""
+    for candidate in _makehuman_base_mesh_candidates():
+        if _verified(candidate):
+            return candidate
+    return None
+
+
 def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return a real human OBJ, using an explicit local override when supplied."""
+    """Resolve a human OBJ from an explicit path, local install, or pinned download."""
     override = os.environ.get(CACHE_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
@@ -259,12 +353,16 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     destination = _default_cache_path()
     if _verified(destination):
         return destination
+    local_mesh = _find_local_base_mesh()
+    if local_mesh is not None:
+        return local_mesh
     try:
         _download(MAKEHUMAN_BASE_URL, destination, _verified)
     except Exception as exc:
         raise HumanoidMeshError(
-            "unable to obtain the pinned MakeHuman HM08 base mesh; "
-            f"set {CACHE_ENV} to a local OBJ file or allow network access ({exc})"
+            "unable to obtain the pinned MakeHuman HM08 base mesh; set "
+            f"{MAKEHUMAN_DATA_ENV} to a MakeHuman install/data directory, set "
+            f"{CACHE_ENV} to a local OBJ file, or allow network access ({exc})"
         ) from exc
     return destination
 
@@ -364,29 +462,44 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     return cast(SkeletonData, payload)
 
 
-def _joint_point(source_vertices: Sequence[Point], indices: Iterable[int]) -> Point:
+def _joint_point(
+    source_vertices: Sequence[Point],
+    indices: Iterable[int],
+    mapper: Callable[[Point], Point] | None = None,
+) -> Point:
+    """Average authored joint vertices, optionally after fitting each vertex.
+
+    Fitting the average source point is not equivalent to averaging the fitted
+    points when the mapping is nonlinear. The latter keeps rest-joint
+    locations aligned with the actual fitted surface.
+    """
     points = [
         source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)
     ]
     if not points:
         raise HumanoidMeshError("MakeHuman skeleton references missing joint vertices")
-    count = float(len(points))
+    fitted = [mapper(point) for point in points] if mapper is not None else points
+    count = float(len(fitted))
     return (
-        sum(point[0] for point in points) / count,
-        sum(point[1] for point in points) / count,
-        sum(point[2] for point in points) / count,
+        sum(point[0] for point in fitted) / count,
+        sum(point[1] for point in fitted) / count,
+        sum(point[2] for point in fitted) / count,
     )
 
 
 def _bone_source_endpoints(
-    source_vertices: Sequence[Point], skeleton: SkeletonData, bone_name: str
+    source_vertices: Sequence[Point],
+    skeleton: SkeletonData,
+    bone_name: str,
+    mapper: Callable[[Point], Point] | None = None,
 ) -> tuple[Point, Point]:
+    """Return authored endpoints, optionally fitted vertex-by-vertex."""
     bone = skeleton["bones"].get(bone_name)
     if not bone:
         raise HumanoidMeshError(f"MakeHuman skeleton has no bone {bone_name}")
     return (
-        _joint_point(source_vertices, skeleton["joints"][bone["head"]]),
-        _joint_point(source_vertices, skeleton["joints"][bone["tail"]]),
+        _joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=mapper),
+        _joint_point(source_vertices, skeleton["joints"][bone["tail"]], mapper=mapper),
     )
 
 
@@ -498,12 +611,43 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
     return profile
 
 
-def _gender_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
-    """Return localized width changes for the feminine/masculine blend."""
+def _measurement_axis_profiles(
+    parameters: AvatarParameters,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Split circumference changes into anatomically asymmetric width/depth scales.
+
+    A torso circumference is not a sphere radius. Hips and waists generally
+    need a stronger lateral response, while depth still changes smoothly to
+    preserve a plausible cross-section. Exponents sum to two so the average
+    first-order cross-section scale remains close to the requested ratio.
+    """
+    bands = (
+        ("hip", 0.50, 1.25),
+        ("high_hip", 0.54, 1.20),
+        ("waist", 0.58, 1.30),
+        ("underbust", 0.64, 1.15),
+        ("chest", 0.69, 1.15),
+    )
+    # Reuse the canonical per-measurement ratios so clamping and band placement
+    # stay identical for both the legacy profile and its anisotropic version.
+    ratios = _measurement_profile(parameters)
+    lateral = [(0.42, 1.0)]
+    depth = [(0.42, 1.0)]
+    for index, (_name, height, lateral_exponent) in enumerate(bands, start=1):
+        ratio = ratios[index][1]
+        lateral.append((height, ratio**lateral_exponent))
+        depth.append((height, ratio ** (2.0 - lateral_exponent)))
+    lateral.extend(((0.75, 1.0), (1.0, 1.0)))
+    depth.extend(((0.75, 1.0), (1.0, 1.0)))
+    return lateral, depth
+
+
+def _gender_axis_profiles(
+    parameters: AvatarParameters,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Return separate lateral and depth shape fields for the body-shape blend."""
     delta = max(-0.5, min(0.5, float(parameters.gender) - 0.5))
-    # Feminine-side shapes gain pelvis width and a narrower waist/shoulder line;
-    # masculine-side shapes reverse those localized offsets.
-    return [
+    lateral = [
         (0.0, 1.0),
         (0.42, 1.0),
         (0.50, 1.0 - 0.16 * delta),
@@ -512,6 +656,19 @@ def _gender_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
         (0.77, 1.0 + 0.14 * delta),
         (1.0, 1.0),
     ]
+    # Depth changes are smaller than lateral changes; this avoids uniform
+    # three-dimensional inflation while retaining the existing slider intent.
+    depth = [
+        (0.0, 1.0),
+        (0.42, 1.0),
+        (0.50, 1.0 - 0.04 * delta),
+        (0.58, 1.0 + 0.03 * delta),
+        (0.64, 1.0 + 0.04 * delta),
+        (0.69, 1.0 + 0.06 * delta),
+        (0.77, 1.0 + 0.02 * delta),
+        (1.0, 1.0),
+    ]
+    return lateral, depth
 
 
 def _estimate_shoulder_pivots(
@@ -643,15 +800,144 @@ def load_makehuman_weights(
         ) from exc
 
 
+def _section_circumference(
+    vertices: Sequence[Point],
+    triangles: Sequence[Triangle],
+    plane: float,
+    vertical_axis: int = 2,
+    max_width: float | None = None,
+) -> float:
+    """Measure a closed mesh-section perimeter at a horizontal height plane.
+
+    Triangle/plane intersections form a graph of contour segments. The largest
+    centrally located closed loop is selected so disconnected limb sections do
+    not accidentally become the body circumference.
+    """
+    if vertical_axis not in (0, 1, 2):
+        raise ValueError("vertical_axis must be 0, 1, or 2")
+    axes = tuple(axis for axis in range(3) if axis != vertical_axis)
+    node_points: dict[tuple[int, int], tuple[float, float]] = {}
+    graph: dict[tuple[int, int], set[tuple[int, int]]] = {}
+    segment_seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+
+    for tri in triangles:
+        if len(tri) != 3 or any(index < 0 or index >= len(vertices) for index in tri):
+            continue
+        tri_points = [vertices[index] for index in tri]
+        hits: dict[tuple[int, int], tuple[float, float]] = {}
+        for start, end in ((0, 1), (1, 2), (2, 0)):
+            first, second = tri_points[start], tri_points[end]
+            z0, z1 = first[vertical_axis], second[vertical_axis]
+            if (z0 < plane < z1) or (z1 < plane < z0):
+                fraction = (plane - z0) / (z1 - z0)
+            elif math.isclose(z0, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
+                z1, plane, rel_tol=0.0, abs_tol=1e-8
+            ):
+                fraction = 0.0
+            elif math.isclose(z1, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
+                z0, plane, rel_tol=0.0, abs_tol=1e-8
+            ):
+                fraction = 1.0
+            else:
+                continue
+            point = tuple(first[axis] + fraction * (second[axis] - first[axis]) for axis in axes)
+            key = (round(point[0] * 10000), round(point[1] * 10000))
+            hits.setdefault(key, point)
+        if len(hits) != 2:
+            continue
+        first_key, second_key = hits
+        if first_key == second_key:
+            continue
+        edge = tuple(sorted((first_key, second_key)))
+        if edge in segment_seen:
+            continue
+        segment_seen.add(edge)
+        node_points.setdefault(first_key, hits[first_key])
+        node_points.setdefault(second_key, hits[second_key])
+        graph.setdefault(first_key, set()).add(second_key)
+        graph.setdefault(second_key, set()).add(first_key)
+
+    if not graph:
+        return 0.0
+
+    loops: list[tuple[float, float, float, float]] = []
+    visited: set[tuple[int, int]] = set()
+    for seed in graph:
+        if seed in visited:
+            continue
+        component: set[tuple[int, int]] = set()
+        stack = [seed]
+        while stack:
+            current = stack.pop()
+            if current in component:
+                continue
+            component.add(current)
+            stack.extend(graph[current] - component)
+        visited.update(component)
+        if len(component) < 3 or any(len(graph[key]) != 2 for key in component):
+            continue
+        start = min(component)
+        ordered = [start]
+        previous: tuple[int, int] | None = None
+        current = start
+        closed = False
+        for _ in range(len(component) + 1):
+            options = sorted(key for key in graph[current] if key != previous)
+            if not options:
+                break
+            following = options[0]
+            if following == start:
+                closed = True
+                break
+            if following in ordered:
+                break
+            ordered.append(following)
+            previous, current = current, following
+        if not closed or len(ordered) < 3:
+            continue
+        points = [node_points[key] for key in ordered]
+        perimeter = sum(
+            math.hypot(
+                points[(index + 1) % len(points)][0] - point[0],
+                points[(index + 1) % len(points)][1] - point[1],
+            )
+            for index, point in enumerate(points)
+        )
+        twice_area = sum(
+            points[index][0] * points[(index + 1) % len(points)][1]
+            - points[(index + 1) % len(points)][0] * points[index][1]
+            for index in range(len(points))
+        )
+        area = abs(twice_area) * 0.5
+        centroid_x = sum(point[0] for point in points) / len(points)
+        width = max(point[0] for point in points) - min(point[0] for point in points)
+        if area > 1e-5 and perimeter > 1e-5:
+            loops.append((area, perimeter, abs(centroid_x), width))
+
+    central = [
+        item for item in loops if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)
+    ]
+    if not central:
+        return 0.0
+    # A body cross-section is the largest centered closed contour, not the
+    # disconnected left/right arm or leg loops that can share its height.
+    return max(central, key=lambda item: item[0])[1]
+
+
 def _make_source_fitted_mapper(
-    source_vertices: Sequence[Point], parameters: AvatarParameters, skin_offset: float
+    source_vertices: Sequence[Point],
+    parameters: AvatarParameters,
+    skin_offset: float,
+    source_triangles: Sequence[Triangle] | None = None,
 ) -> Callable[[Point], Point]:
     """Map source vertices using fixed calibration and localized dimensions.
 
     Axis calibration is pinned to the canonical body envelope. Measurement
     changes act only within their height bands so local edits cannot rescale
     unrelated regions such as the head. Skeleton callers use zero skin offset;
-    padding is reserved for the visible surface.
+    padding is reserved for the visible surface. When the source topology is
+    supplied, a section-contour pass iteratively calibrates the named torso
+    rings to their requested circumference in millimetres.
     """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
@@ -673,12 +959,22 @@ def _make_source_fitted_mapper(
     scale_y = default_depth / source_depth
 
     height_mm = float(parameters.measurement("height"))
-    torso_profile = (
-        [(0.0, 1.0), (1.0, 1.0)]
-        if _is_default_measurement_shape(parameters)
-        else _measurement_profile(parameters)
+    measurement_profile_x, measurement_profile_y = _measurement_axis_profiles(parameters)
+    gender_profile_x, gender_profile_y = _gender_axis_profiles(parameters)
+    target_root = target_directory()
+    use_gender_targets = bool(
+        target_root
+        and resolve_target("macrodetails/gender/female", target_root)
+        and resolve_target("macrodetails/gender/male", target_root)
     )
-    gender_profile = _gender_profile(parameters)
+    use_breast_target = bool(
+        target_root and resolve_target("breast/breast-volume-vert-up", target_root)
+    )
+    if use_gender_targets:
+        # Authored gender targets provide the broad anatomical silhouette;
+        # don't stack the procedural gender scale on top of those deltas.
+        gender_profile_x = [(height, 1.0) for height, _scale in gender_profile_x]
+        gender_profile_y = [(height, 1.0) for height, _scale in gender_profile_y]
     if _is_default_measurement_shape(parameters):
         shoulder_scale = 1.0
     else:
@@ -690,53 +986,151 @@ def _make_source_fitted_mapper(
             ),
         )
 
+    core_width_profile = [
+        (0.42, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.50, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.54, float(DEFAULT_MEASUREMENTS["high_hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.58, float(DEFAULT_MEASUREMENTS["waist"]) * 1.10 / (2.0 * math.pi)),
+        (0.64, float(DEFAULT_MEASUREMENTS["underbust"]) * 1.10 / (2.0 * math.pi)),
+        (0.69, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+        (0.75, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+        (0.83, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+        (1.00, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+    ]
+    # Keep this mask fixed to the canonical shoulder location. Changing the
+    # shoulder measurement must not make the influence envelope swallow hands.
+    shoulder_half = float(DEFAULT_MEASUREMENTS["shoulder"]) / 2.0
+
     def transform(point: Point) -> Point:
         x, y, z = point
         normalized_z = (y - ymin) / y_span
-        torso_scale = _profile_scale(normalized_z, torso_profile)
-        torso_scale *= _profile_scale(normalized_z, gender_profile)
-        # Shoulder breadth is a shoulder-band edit, not a head-width control.
+
+        # Start from stable source coordinates. Region masks are evaluated in
+        # this calibrated frame so a waist/chest edit cannot stretch a hand
+        # merely because the posed hand happens to share that height band.
+        base_x_mm = x * scale_x
+        base_y_mm = z * scale_y
+        torso_measurement_x = _profile_scale(normalized_z, measurement_profile_x)
+        torso_measurement_y = _profile_scale(normalized_z, measurement_profile_y)
+        gender_scale_x = _profile_scale(normalized_z, gender_profile_x)
+        gender_scale_y = _profile_scale(normalized_z, gender_profile_y)
+
+        # Estimate a stable trunk envelope from canonical measurements. Its
+        # dimensions deliberately do not depend on the edited measurements,
+        # preventing the influence mask from expanding into the arms as the
+        # user changes chest or waist values.
+        core_half_width = _profile_scale(normalized_z, core_width_profile)
+        core_influence = 1.0 - _smoothstep(core_half_width, core_half_width + 45.0, abs(base_x_mm))
+        torso_height_influence = _smoothstep(0.36, 0.43, normalized_z) * (
+            1.0 - _smoothstep(0.75, 0.83, normalized_z)
+        )
+        torso_influence = max(0.0, min(1.0, core_influence * torso_height_influence))
+        torso_measurement_x = _lerp(1.0, torso_measurement_x, torso_influence)
+        torso_measurement_y = _lerp(1.0, torso_measurement_y, torso_influence)
+
+        # Body-blend width changes also reach the shoulder girdle, but taper
+        # away along the upper arms. Circumference controls remain restricted
+        # to the trunk. This keeps broad shoulders anatomically distinct from
+        # a uniformly inflated chest cross-section.
         shoulder_rise = _smoothstep(0.67, 0.75, normalized_z)
         shoulder_fall = 1.0 - _smoothstep(0.80, 0.88, normalized_z)
         shoulder_blend = shoulder_rise * shoulder_fall
-        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        x_mm = x * scale_x * torso_scale * lateral_scale
-        y_mm = z * scale_y * torso_scale
+        shoulder_envelope = 1.0 - _smoothstep(
+            shoulder_half + 10.0, shoulder_half + 75.0, abs(base_x_mm)
+        )
+        shoulder_influence = shoulder_blend * shoulder_envelope
+        body_blend_influence = max(torso_influence, shoulder_influence)
+        gender_scale_x = _lerp(1.0, gender_scale_x, body_blend_influence)
+        gender_scale_y = _lerp(1.0, gender_scale_y, torso_influence)
+        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_influence)
+
+        x_mm = base_x_mm * torso_measurement_x * gender_scale_x * lateral_scale
+        y_mm = base_y_mm * torso_measurement_y * gender_scale_y
         radius = math.hypot(x_mm, y_mm)
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
             y_mm += y_mm / radius * skin_offset
         z_mm = normalized_z * height_mm
 
-        # A smooth front-surface bulge acts as an intuitive bust-size control.
-        # The neutral default (zero) is geometry-identical to the pinned HM08 base.
-        # Feminine gender blend introduces a modest natural breast baseline;
-        # the independent control adds projection regardless of the blend.
-        breast_size = min(
-            1.0,
-            float(parameters.breast_size) + max(0.0, 0.5 - float(parameters.gender)) * 1.2,
+        # Keep the authored breast control local to the chest. Its broader,
+        # flatter influence gives a less spherical silhouette than a narrow
+        # isotropic bump and does not affect unrelated limb vertices.
+        fallback_breast_size = 0.0 if use_breast_target else float(parameters.breast_size)
+        fallback_gender_fullness = (
+            0.0 if use_gender_targets else max(0.0, 0.5 - float(parameters.gender)) * 1.2
         )
-        if breast_size > 0.0:
+        breast_size = min(1.0, fallback_breast_size + fallback_gender_fullness)
+        if breast_size > 0.0 and 0.60 <= normalized_z <= 0.76 and abs(base_x_mm) < 190.0:
             front_weight = _smoothstep(-18.0, 28.0, y_mm)
-            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.033) ** 2)
+            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
             lateral_weight = max(
-                math.exp(-0.5 * ((x_mm - center_x) / 43.0) ** 2) for center_x in (-72.0, 72.0)
+                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2) for center_x in (-72.0, 72.0)
             )
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
+
+    if source_triangles:
+        # Apply damped corrections at the named profile nodes. Each iteration
+        # measures the actual deformed mesh contour, so target morphs, gender
+        # shape, anisotropic scaling, and the soft torso mask are all included.
+        profile_parameters = (
+            ("hip", 0.50, 1.25),
+            ("high_hip", 0.54, 1.20),
+            ("waist", 0.58, 1.30),
+            ("underbust", 0.64, 1.15),
+            ("chest", 0.69, 1.15),
+        )
+        for _iteration in range(7):
+            fitted_body = tuple(transform(point) for point in body)
+            max_relative_error = 0.0
+            for index, (name, normalized_height, lateral_exponent) in enumerate(
+                profile_parameters, start=1
+            ):
+                requested = float(parameters.measurement(name))
+                contour_limit = max(
+                    520.0,
+                    2.0 * _profile_scale(normalized_height, core_width_profile) + 250.0,
+                )
+                actual = _section_circumference(
+                    fitted_body,
+                    source_triangles,
+                    normalized_height * height_mm,
+                    vertical_axis=2,
+                    max_width=contour_limit,
+                )
+                if actual <= 1e-6 or requested <= 0.0:
+                    continue
+                relative_error = (requested - actual) / requested
+                max_relative_error = max(max_relative_error, abs(relative_error))
+                correction = max(0.70, min(1.43, requested / actual))
+                current_x = measurement_profile_x[index][1]
+                current_y = measurement_profile_y[index][1]
+                measurement_profile_x[index] = (
+                    normalized_height,
+                    max(0.45, min(2.25, current_x * correction**lateral_exponent)),
+                )
+                measurement_profile_y[index] = (
+                    normalized_height,
+                    max(0.45, min(2.25, current_y * correction ** (2.0 - lateral_exponent))),
+                )
+            if max_relative_error <= 0.002:
+                break
 
     return transform
 
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
-    source = _load_source_vertices()
+    source = apply_measurement_targets(_load_source_vertices(), parameters)
     skeleton = load_makehuman_skeleton()
-    transform = _make_source_fitted_mapper(source, parameters, 0.0)
+    triangles = load_makehuman_mesh().triangles
+    transform = _make_source_fitted_mapper(source, parameters, 0.0, source_triangles=triangles)
     points = {}
     for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
-        shoulder = _bone_source_endpoints(source, skeleton, "upperarm01" + suffix)[0]
-        wrist = _bone_source_endpoints(source, skeleton, "wrist" + suffix)[0]
-        points[physical_side] = {"shoulder": transform(shoulder), "wrist": transform(wrist)}
+        shoulder = _bone_source_endpoints(
+            source, skeleton, "upperarm01" + suffix, mapper=transform
+        )[0]
+        wrist = _bone_source_endpoints(source, skeleton, "wrist" + suffix, mapper=transform)[0]
+        points[physical_side] = {"shoulder": shoulder, "wrist": wrist}
 
     if points[-1.0]["shoulder"][0] > points[1.0]["shoulder"][0]:
         points[-1.0], points[1.0] = points[1.0], points[-1.0]
@@ -751,8 +1145,16 @@ def fit_makehuman_mesh(
     """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
     height_mm = float(parameters.measurement("height"))
-    transform = _make_source_fitted_mapper(mesh.vertices, parameters, float(parameters.skin_offset))
-    fitted = tuple(transform(point) for point in mesh.vertices)
+    source_vertices = apply_measurement_targets(mesh.vertices, parameters)
+    transform = _make_source_fitted_mapper(
+        source_vertices,
+        parameters,
+        float(parameters.skin_offset),
+        source_triangles=(
+            mesh.triangles if len(mesh.vertices) >= MAKEHUMAN_BODY_VERTEX_COUNT else None
+        ),
+    )
+    fitted = tuple(transform(point) for point in source_vertices)
 
     pose = parameters.pose
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0

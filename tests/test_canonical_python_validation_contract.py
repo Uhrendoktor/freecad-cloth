@@ -54,7 +54,13 @@ def test_canonical_python_job_executes_pytest_contract_modules():
 def test_gui_acceptance_validator_uses_visual_artifacts_only():
     from tools.ci import validate_acceptance
 
-    assert set(validate_acceptance.CASES) == {"avatar-pose", "avatar-shape-editor", "fitting"}
+    assert set(validate_acceptance.CASES) == {
+        "avatar-pose",
+        "avatar-shape-editor",
+        "fitting",
+        "surface-pen",
+    }
+    assert len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == 4
     assert len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"]) == 2
     assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
 
@@ -71,6 +77,18 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "evidence-head:" in publisher
     assert "source-sha:" in publisher
     assert "mode: pr" in publisher
+
+
+def test_main_visual_publisher_pins_surface_pen_artifact_download_revision() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    start = workflow.index("  publish-readme-turntables:")
+    match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
+    end = start + 3 + match.start() if match else len(workflow)
+    publisher = workflow[start:end]
+    # This immutable revision adds the required Surface Pen artifact download.
+    assert "@f63948fe20421061904324bcef128a4fcfc69965" in publisher
 
 
 # Exact-head validation recut marker; behavior unchanged.

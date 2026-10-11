@@ -39,11 +39,54 @@ A PatternPiece carries a stable semantic identity and points to the authoritativ
 
 ## 3D Pattern Pen
 
-The **3D Pattern Pen** is the first 3D-to-2D authoring bridge. Select or create the mannequin/drape target, start **Cloth Pattern → 3D Pattern Pen**, and drag over the visible target surface. **Finish Stroke → Pattern** creates a normal native Sketcher-backed PatternPiece.
+The **3D Pattern Pen** traces a closed boundary on a visible mannequin or Cloth drape target, then extracts a bounded near-planar patch into a normal native Sketcher-backed `PatternPiece`. It is an alternative way to start a pattern—not a replacement for Sketcher.
 
-The first implementation uses a bounded planar projection. A patch that exceeds the configured **Planar deviation limit** is rejected instead of silently producing a misleading flat pattern. The persisted 3D draft records the target source signature so a changed target invalidates the draft rather than silently moving it.
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/surface-pen.png" alt="FreeCAD 3D Pattern Pen task panel with a closed orange surface stroke over the target and Finish Stroke enabled" width="900"></p>
 
-This is intentionally not a second pattern editor: after extraction, native Sketcher remains the editable geometry authority. General curved-surface unwrapping, geodesic flattening, darts/relief generation and bidirectional 2D↔3D editing remain future work.
+### Trace a boundary and create the pattern
+
+1. Open a document containing the intended mannequin or Cloth target. Select that target when the document contains more than one supported target.
+2. Switch to **Cloth Pattern → 3D Pattern Pen**. **Point placement** is the default input mode; the 3D view accepts clicks on the target surface.
+3. Choose **Corner point** for a sharp boundary vertex. Choose **Curve point** to add a point that the generated B-spline segment will pass through between its neighboring corner points. Consecutive corner points remain straight lines. Place at least three corner points for a closed pattern boundary.
+4. To sketch the boundary yourself using Sketcher, choose **Reference points**. Click at least three points in boundary order. **Create Sketcher Points** creates a native sketch with construction points and opens it for editing; connect the points with native lines, arcs, or B-splines and constrain the resulting outline.
+5. To retain the drag-based interaction, switch **Input mode** to **Freehand trace**. Drag on the surface and release to lift the pen; another drag continues the same boundary. Freehand traces currently produce a polyline boundary.
+6. For Point placement or Freehand trace, return the endpoint to within **6 mm** of the first point. The orange viewport line previews the closing edge and the status explains the gap. **Finish Stroke → Pattern** becomes enabled once the boundary closes and Point placement has at least three corners.
+7. Set **Planar deviation limit** (8 mm by default), then choose **Finish Stroke → Pattern**. This validates the boundary and its distance from a deterministic local plane before creating the persistent draft and pattern piece.
+8. Inspect the resulting native Sketcher geometry, then save the FCStd document. The sketch—not the sampled surface anchors—is the editable geometry authority.
+
+The recording below captures the real FreeCAD UI in **Freehand trace** mode through an unfinished stroke, a closed boundary, and the extracted Sketcher result. Point placement is the default interactive mode; the animation documents the retained drag-based alternative. Its stages are captured by the native FreeCAD acceptance fixture, not a hand-drawn illustration.
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/surface-pen-workflow.gif" alt="FreeCAD Surface Pen progressing from its task panel through an incomplete stroke and closed outline to the resulting Sketcher pattern" width="900"></p>
+
+After extraction, the target is no longer required to edit the 2D geometry: open the generated native Sketcher sketch to add dimensions or constraints, then use the standard pattern metadata and sewing workflow.
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/surface-pen-pattern.png" alt="Native Sketcher outline produced by the Surface Pen; the target is hidden so the editable flat boundary is clear" width="900"></p>
+
+### What is saved
+
+- The **3D Surface Draft** stores sampled world-space anchors, the target link and source signature, closure tolerance, flattening mode, configured planar tolerance, and measured maximum deviation.
+- On successful extraction, the draft is marked **Extracted** and hidden. The new `PatternPiece` links back to the draft for provenance and uses a standard `Sketcher::SketchObject` for editable 2D geometry.
+- The target signature is checked before extraction. If its source geometry changes after the stroke was recorded, extraction marks the draft **Stale surface target** and refuses to reuse the old samples.
+- The viewport stroke is transient while drawing; the finished draft and native pattern/sketch are document state.
+
+### Limits and recovery
+
+The current MVP projects the sampled boundary onto one deterministic local plane. It is **not** general curved-surface unwrapping or geodesic flattening.
+
+| Situation | Expected behavior |
+| --- | --- |
+| Boundary is still open | Finish stays disabled; return near the first sample or choose **Clear** and redraw. |
+| Fewer than three distinct boundary vertices or fewer than three corner points in Point placement mode | Finish stays disabled until the boundary has enough authored corners. |
+| Curve points with no three corner points | Finish stays disabled; a surface boundary needs at least three corners. |
+| Reference points mode has fewer than three points | Create Sketcher Points stays disabled. |
+| Reference points mode | Finish creates construction points and opens a native Sketcher sketch; connect them with ordinary Sketcher geometry. |
+| Freehand trace mode | Existing drag-to-sample interaction remains available and produces straight Sketcher segments. |
+| Flattened outline self-intersects or has negligible area | Extraction is rejected rather than creating a misleading piece. |
+| Maximum deviation exceeds the limit | Extraction is rejected with the measured deviation and configured limit. Increase the limit only if a less-faithful planar approximation is acceptable; otherwise trace a flatter patch. |
+| Target source changed after tracing | The draft is marked stale; redraw on the current target. |
+| Successful extraction | Continue with the normal Sketcher, pattern-metadata, validation, and sewing commands. |
+
+General curved-surface flattening, dart/relief generation, and bidirectional 2D↔3D editing remain future work. For broader pattern-authoring limits, see the [Workbench guide](../WORKBENCH_GUIDE.md) and [Troubleshooting](../TROUBLESHOOTING.md).
 
 ## Production export
 

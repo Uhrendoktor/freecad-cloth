@@ -14,7 +14,7 @@ Use this editor to prepare a mannequin for pattern fitting and sewing. It separa
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-body-shape-gallery.png" alt="Seven real FreeCAD HM08 mannequin renders showing feminine, masculine, slim, plus-size, muscular, tall, and petite example body shapes at a shared orthographic scale" width="1000"></p>
 
-The gallery is rendered from the bundled HM08 mannequin mesh using the existing **Gender blend**, **Breast fullness**, and measurement inputs. Camera scale stays fixed across all seven views, so body height and breadth remain comparable. Each card shows its height, waist, hip, and shape-control values.
+The gallery is rendered from the pinned HM08 mannequin mesh using the existing **Gender blend**, **Breast fullness**, and measurement inputs. The mesh is reused from a matching local MakeHuman installation when found, or downloaded from the pinned upstream revision and cached on first use. Camera scale stays fixed across all seven views, so body height and breadth remain comparable. Each card shows its height, waist, hip, and shape-control values.
 
 These are **example parameter combinations**, not named presets available in a preset menu. To create a similar silhouette, enter the displayed blend/fullness values, then adjust height, chest, waist, hip, shoulder, upper-arm, and thigh measurements to the intended wearer. Use the measurements as a starting point rather than assuming the example proportions fit every person or garment.
 
@@ -42,9 +42,22 @@ The labelled lines, markers, and circumference rings are transient viewport over
 
 If a build cannot initialise the viewport interaction, use the numeric measurement fields. Imported FreeCAD geometry is a surface provider rather than a parametric human body, so its shape and measurement controls are disabled.
 
-## Scope and limitations
 
-The editor currently applies deterministic, localized procedural deformations to the bundled HM08 mannequin. It does not yet load the full MakeHuman target-morph library, and the gender blend is not a high-fidelity commercial avatar morph system. Cup-size-specific garment grading is not inferred from the breast-fullness slider; set bust and underbust circumferences as measurements and treat shape fullness as a separate visual/body-surface control.
+### Base mesh lookup and offline behavior
+
+The HM08 base mesh is not bundled in the workbench package. The loader first uses its checksum-verified cache, then checks common MakeHuman installation paths and the optional `FREECAD_CLOTH_MAKEHUMAN_DATA` setting, and finally downloads the pinned mesh into the cache. Set that variable to a MakeHuman installation root or data directory to prioritize a particular local installation. Auto-discovery accepts only a byte-for-byte match for the pinned mesh so its vertex indices remain compatible with the authored rig data. `FREECAD_CLOTH_AVATAR_MESH` remains an explicit path override and may point to a custom OBJ.
+
+The default skinning weights and skeleton are managed as separate cached downloads, with their own `FREECAD_CLOTH_AVATAR_WEIGHTS` and `FREECAD_CLOTH_AVATAR_SKELETON` overrides. Finding the base mesh locally therefore does not by itself guarantee fully offline setup; the required weights and skeleton must also already be cached or configured locally. For CI, the PBD validation image separately downloads and checksum-verifies the pinned HM08 mesh at image-build time, then sets `FREECAD_CLOTH_AVATAR_MESH` to that image path so the test matrix reuses the image copy instead of downloading the base mesh inside each test container.
+
+## Shape deformation model and limitations
+
+The HM08 shape fitter uses separate lateral and depth profiles for circumference changes instead of scaling each torso cross-section equally in both directions. Waist, hip, underbust, and chest changes are constrained by a stable soft torso envelope, while shoulder breadth and the gender blend use a separate shoulder-girdle envelope that tapers into the upper arms. This prevents a torso control from moving distal arm/hand vertices merely because they happen to share the same height in a pose.
+
+The skeleton and pose overlay also derive joint centers by fitting the authored joint vertices individually before averaging them. This is important because the body-shape mapping is nonlinear: mapping the average source point can place a joint somewhere different from the center of the fitted joint surface.
+
+The fitter now supports MakeHuman HM08 sparse morph targets when a compatible MakeHuman or MPFB2 target library is installed. It parses plain, gzip-compressed, and archived targets, preserves vertex indexing, and converts MPFB2's Blender-oriented X/Z/-Y offsets back into the MakeHuman source axes when its target metadata is detected. It blends selected gender/breast-volume and directional measurement targets, and keeps asset files external because they are distributed separately from this workbench. Existing MakeHuman installations, including both loose data trees and the standard `targets.npz` archive, are discovered automatically in common data locations; set `FREECAD_CLOTH_MAKEHUMAN_TARGETS` to a target directory, a MakeHuman `data` directory, or a checkout of `makehuman-assets` to select another library. If no target library is present, fitting continues with the deterministic procedural shape controls.
+
+For hip, high-hip, waist, underbust, and bust/chest, the fitter also measures the actual closed mesh contour at each named height and iteratively corrects the local width/depth profile toward the requested circumference. The contour correction is topology-based and runs after target deltas are applied, so authored target shape and numeric circumference remain separate controls. Other circumference dimensions use the available MakeHuman targets when installed, but are not yet independently guaranteed to match an exact mesh-intersection perimeter. Cup-size-specific garment grading is not inferred from the breast-fullness slider; set bust and underbust circumferences as measurements and treat shape fullness as a separate surface-shape control.
 
 When the mesh is rebuilt, fitting anchors are refreshed against the stable avatar mesh where possible. If an anchor is visibly marked stale or no longer follows the intended surface, recreate it before arranging fabric. Always review the actual garment-to-target relationship before running simulation.
 
@@ -55,7 +68,8 @@ The editor screenshot and interaction GIFs are generated by the FreeCAD GUI acce
 - Editor screenshot and interaction GIF source: <code>tests/freecad_avatar_shape_editor_acceptance.py</code>
 - Profile gallery renders and composition: <code>tests/freecad_avatar_screenshot.py</code>
 - Model/persistence: <code>freecad_cloth/avatar/AvatarModel.py</code> and <code>freecad_cloth/avatar/AvatarCommands.py</code>
-- Mesh deformation: <code>freecad_cloth/avatar/HumanoidMesh.py</code>
+- Mesh deformation and contour fitting: <code>freecad_cloth/avatar/HumanoidMesh.py</code>
+- MakeHuman sparse morph-target loading: <code>freecad_cloth/avatar/MakeHumanTargets.py</code>
 - Task panel: <code>freecad_cloth/avatar/AvatarGui.py</code>
 - Transient dimension handles: <code>freecad_cloth/avatar/AvatarShapeGui.py</code>
 
