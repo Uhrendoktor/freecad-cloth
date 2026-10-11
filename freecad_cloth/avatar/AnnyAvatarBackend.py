@@ -430,9 +430,12 @@ def _fit_anny_body(
                 pose_parameterization="local-bone",
                 return_bone_ends=True,
             )
+        rig_output_vertices = rig_output["vertices"]
+        # Anny's forward pass retains its leading batch dimension (1, N, 3);
+        # strip that singleton dimension before converting individual points.
         rig_vertices = tuple(
             (float(vertex[0]) * 1000.0, float(vertex[1]) * 1000.0, float(vertex[2]) * 1000.0)
-            for vertex in rig_output["vertices"]
+            for vertex in rig_output_vertices[0]
         )
 
     if fit_hip:
