@@ -250,7 +250,6 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
         raise
 
 
-
 def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
     """Return conventional MakeHuman install paths without scanning the whole disk."""
     roots: list[Path] = []
