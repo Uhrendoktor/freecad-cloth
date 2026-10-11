@@ -13,11 +13,11 @@ changing the viewport or PatternPiece authority boundaries.
 
 from __future__ import annotations
 
+import collections.abc
 import contextlib
+import dataclasses
 import json
 import math
-from dataclasses import dataclass
-from typing import Sequence
 
 from freecad_cloth.shared.SourceSignature import source_signature
 
@@ -73,7 +73,7 @@ def _normalize(a: Vector3) -> Vector3:
     return _scale(a, 1.0 / length)
 
 
-def _centroid(points: Sequence[Point3]) -> Point3:
+def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
     if not points:
         raise ValueError("at least one point is required")
     count = float(len(points))
@@ -84,7 +84,7 @@ def _centroid(points: Sequence[Point3]) -> Point3:
     )
 
 
-def polygon_area_2d(points: Sequence[Point2]) -> float:
+def polygon_area_2d(points: collections.abc.Sequence[Point2]) -> float:
     """Return the signed polygon area in square millimetres."""
     if len(points) < 3:
         return 0.0
@@ -128,7 +128,7 @@ def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
     )
 
 
-def polygon_self_intersects(points: Sequence[Point2]) -> bool:
+def polygon_self_intersects(points: collections.abc.Sequence[Point2]) -> bool:
     """Return True when a non-adjacent polygon edge pair intersects."""
     count = len(points)
     if count < 4:
@@ -149,7 +149,7 @@ def polygon_self_intersects(points: Sequence[Point2]) -> bool:
     return False
 
 
-def simplify_polyline(points: Sequence[Point3], tolerance_mm: float = 1.0) -> tuple[Point3, ...]:
+def simplify_polyline(points: collections.abc.Sequence[Point3], tolerance_mm: float = 1.0) -> tuple[Point3, ...]:
     """Simplify a spatial polyline with a deterministic RDP pass."""
     values = tuple(_as_point3(point) for point in points)
     if len(values) <= 2:
@@ -166,7 +166,7 @@ def simplify_polyline(points: Sequence[Point3], tolerance_mm: float = 1.0) -> tu
         projection = _add(start, _scale(axis, _dot(_sub(point, start), axis) / (span * span)))
         return _length(_sub(point, projection))
 
-    def rdp(items: Sequence[Point3]) -> tuple[Point3, ...]:
+    def rdp(items: collections.abc.Sequence[Point3]) -> tuple[Point3, ...]:
         if len(items) <= 2:
             return tuple(items)
         start, end = items[0], items[-1]
@@ -186,7 +186,7 @@ def simplify_polyline(points: Sequence[Point3], tolerance_mm: float = 1.0) -> tu
     return rdp(values)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SurfaceAnchor:
     """A sampled target-space point and its surface normal.
 
@@ -211,7 +211,7 @@ class SurfaceAnchor:
         return cls(_as_point3(value["point"]), _as_point3(value["normal"]))
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class FlattenedSurfacePatch:
     """2D result of the bounded MVP surface-to-plane projection."""
 
@@ -238,7 +238,7 @@ class FlattenedSurfacePatch:
 
 
 def flatten_surface_patch(
-    points: Sequence[Point3],
+    points: collections.abc.Sequence[Point3],
     tolerance_mm: float = 8.0,
 ) -> FlattenedSurfacePatch:
     """Project a sampled closed surface boundary onto a deterministic best local plane.
@@ -397,7 +397,7 @@ def _append_anchor(
 
 
 def surface_stroke_can_finish(
-    anchors: Sequence[SurfaceAnchor],
+    anchors: collections.abc.Sequence[SurfaceAnchor],
     tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
 ) -> bool:
     """Return whether a stroke has three distinct vertices and a nearby closing sample."""
@@ -413,7 +413,7 @@ def surface_stroke_can_finish(
 
 
 def close_surface_stroke(
-    anchors: Sequence[SurfaceAnchor],
+    anchors: collections.abc.Sequence[SurfaceAnchor],
     tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
 ) -> tuple[SurfaceAnchor, ...]:
     """Validate and normalize a closed surface boundary."""
@@ -437,7 +437,7 @@ def close_surface_stroke(
 
 
 def create_surface_pen_object(
-    doc, target, anchors: Sequence[SurfaceAnchor], label="3D Surface Draft"
+    doc, target, anchors: collections.abc.Sequence[SurfaceAnchor], label="3D Surface Draft"
 ):
     """Persist a finished surface draft as a rebuildable authoring object."""
     import FreeCAD as App
