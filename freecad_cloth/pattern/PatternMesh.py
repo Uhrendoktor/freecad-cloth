@@ -17,6 +17,7 @@ from shapely.geometry import Point as ShapelyPoint
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
 
+
 @pydantic_dataclass(frozen=True)
 class TriangleMesh:
     """Triangle mesh in pattern coordinates, in millimetres."""
@@ -68,6 +69,7 @@ class TriangleMesh:
         """Provide the public boundary edges operation."""
         indices = self.boundary_vertex_indices
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
+
 
 def triangulate(
     pattern: ParametricPattern, curve_samples: int = 16, max_area: float | None = None
@@ -173,6 +175,7 @@ def triangulate(
         raise ValueError("triangulation area does not match pattern area")
     return mesh
 
+
 def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
     """Subdivide straight authored boundary segments without changing semantic identity."""
     spacing = float(max_spacing)
@@ -191,8 +194,10 @@ def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> Pa
             segments.append(segment)
     return ParametricPattern(segments)
 
+
 def _quantize(value: float) -> float:
     return round(float(value), 9)
+
 
 def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
     result: list[Point] = []
@@ -210,6 +215,7 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
         result.pop()
     return result
 
+
 def _prepare_segment_geometries(
     pattern: ParametricPattern, curve_samples: int
 ) -> tuple[tuple[str, LineString], ...]:
@@ -225,10 +231,12 @@ def _prepare_segment_geometries(
         prepared.append((segment.id, LineString(points)))
     return tuple(prepared)
 
+
 def _nearest_segment_id(prepared_segments: Sequence[tuple[str, LineString]], point: Point) -> str:
     """Return the authored segment closest to a query point using GEOS distance."""
     query = ShapelyPoint(point)
     return min(prepared_segments, key=lambda item: item[1].distance(query))[0]
+
 
 def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
     """Map sampled boundary edges to authored segments with one GEOS query per edge."""
@@ -239,6 +247,7 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
         midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
         result.append(_nearest_segment_id(prepared_segments, midpoint))
     return result
+
 
 def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     """Return a robust point-to-segment distance, including subnormal segments.
@@ -285,11 +294,14 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         raise ValueError("computed point-to-segment distance must be finite")
     return distance
 
+
 def _triangle_area(a: Point, b: Point, c: Point) -> float:
     return _cross(a, b, c) / 2.0
 
+
 def _cross(a: Point, b: Point, c: Point) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
 
 def _self_intersects(points: Sequence[Point]) -> bool:
     """Return whether a closed polygon boundary crosses itself using GEOS."""
