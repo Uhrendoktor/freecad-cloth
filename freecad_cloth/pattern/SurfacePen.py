@@ -579,9 +579,12 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
     min_y = min(point[1] for point in points)
     offset = (min_x, min_y)
     shifted = [(round(x - offset[0], 6), round(y - offset[1], 6)) for x, y in points]
+    segments = surface_segments_from_anchor_kinds(
+        shifted, [anchor.kind for anchor in anchors]
+    )
     pattern = PatternPiece(piece_name, shifted, id=piece_id)
     obj = add_pattern_piece(doc, pattern)
-    sketch = create_sketch_for_piece(pattern, doc)
+    sketch = create_sketch_for_piece(pattern, doc, geometry_segments=segments)
     obj.GeometryMode = "Sketch"
     _add_surface_provenance(obj, surface_draft)
     surface_draft.Visibility = False
