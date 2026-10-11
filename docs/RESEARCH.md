@@ -40,6 +40,64 @@ A practical garment pattern workflow also needs, in increasing maturity:
 
 These should be semantic Pattern data and adapters around native FreeCAD geometry, not a second drafting kernel.
 
+### Printable sewing-pattern output: research and proposal
+
+This section extends the production-pattern workflow above. It distinguishes vector interchange from a deliverable that a home sewer can print at **100% / 1:1**, assemble, and cut fabric from.
+
+#### Current Cloth implementation (verified on main at `e7e6dc3bc7c6695f5c821f108ee4495df6b33816`)
+
+- `freecad_cloth/pattern/PatternExport.py` derives exports from the authoritative `PatternPiece` / Sketcher source, emits SVG or DXF, includes stable piece/edge/seam identities and construction-mark metadata, derives a nominal cut boundary from seam allowance, and blocks export when a referenced semantic seam is not valid. Export is designed to be deterministic and read-only.
+- `freecad_cloth/pattern/PatternExportGui.py` exposes a single-piece task panel with SVG/DXF selection, a free-text unit field (default `mm`), curve-sample count, and output path. `ClothPattern_Export` is a public workbench command.
+- `tests/test_pattern_export_semantics.py` and the FreeCAD export smoke / garment end-to-end fixtures cover repeatability, persistent mark identity, metadata, invalid-seam blocking, and save/reload. These are valuable semantic checks, but they do not currently prove that a standards-compliant renderer visibly draws the SVG paths or that the printed dimensions measure correctly.
+- The current export is not yet a paper-print workflow: there is no PDF export, page-size/margin model, tiled home-printer output, registration/overlap marks, calibration square, or multi-piece page composition. Grading, marker nesting, and manufacturing validation remain separate roadmap work.
+
+#### Production risks found in the exporter
+
+1. **SVG boundary linework is not painted.** The SVG writer emits the sewing path and cut paths with `fill="none"` but does not assign `stroke` or a stylesheet; grainline/internal `<line>` elements likewise have no stroke. SVG's default `stroke` is `none`, so a conforming renderer has no outline to draw for those elements. Existing string/metadata assertions will not catch a visually blank boundary. This is a release-blocking defect for SVG-based printing. See [MDN: SVG `stroke`](https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/stroke).
+2. **The unit field labels rather than converts.** Pattern coordinates are emitted unchanged, while the selected unit text is attached to the SVG's physical `width`/`height` and stored as metadata. DXF vertices are also unchanged; units are recorded in the JSON comment rather than the standard DXF `$INSUNITS` header variable. The default `mm` is consistent with the model, but changing the GUI field to `in` or `cm` can silently produce a physically wrong size instead of a converted export. Make millimetres the canonical internal/output geometry unit, or implement and test explicit conversion; do not offer a free-text unit label that changes physical size without conversion. See [Autodesk: DXF HEADER section variables](https://help.autodesk.com/cloudhelp/2024/ENU/AutoCAD-DXF/files/GUID-A85E8E67-27CD-4C59-BE61-4DC9FADBE74A.htm).
+3. **The cut contour is emitted as independent open edge paths.** `derive_cut_boundary` offsets each segment separately; the exporters emit each offset edge as an open path/polyline. Adjacent offset endpoints are not joined at corners, so the cut outline may contain gaps or overlaps rather than one continuous closed perimeter. A rectangular piece with allowance is a simple regression fixture: the outer cut loop must be closed and corners must meet exactly.
+4. **Notches are marks on the sewing line, not cut-edge notches.** SVG currently writes a filled circle at the sewing-boundary point. DXF writes a short segment from that point in fixed +Y direction. This does not produce a correctly oriented notch on the cutting boundary, and the DXF direction is wrong for many edge orientations. Use a semantic notch model that resolves the outward cut edge, local edge normal and inward depth, and export a recognizable single/double notch or drill mark.
+5. **Annotation extents and geometry fidelity need stronger contracts.** SVG bounds are calculated from the sewing and cut-edge points, not from the extents of grainlines and text, so annotations can exceed the declared viewport. Curved Sketcher boundaries are sampled and written as straight polyline segments; a fixed sample count does not bound physical deviation for every curve. Use adaptive sampling with an explicit maximum deviation (or preserve exact curve primitives where the format supports them), and include all visible annotations in layout bounds.
+6. **The document/UI model is single-piece.** The panel exports one piece per invocation and does not offer a print preview or page composition. This is suitable as an early interchange adapter, but requires manual handling for a multi-piece garment and offers no guarantee that a paper printer can reproduce the intended physical size.
+
+#### Comparison with CLO and Blender-based workflows
+
+- **CLO separates interchange from printing.** Its [2D Pattern DXF import/export](https://support.clo3d.com/hc/en-us/articles/115000493067-2D-Pattern-DXF-Import-Export) supports Standard DXF and apparel-oriented DXF-AAMA/DXF-ASTM options. Its [2D Patterns (1:1) snapshot](https://support.clo3d.com/hc/en-us/articles/115000556948-2D-Snapshot-1-1) exports PDF and DXF variants with paper dimensions/orientation, units, scale/rotation, line options, and additional-information options. Its [Plot Patterns](https://support.clo3d.com/hc/en-us/articles/360001557927-Plot-Patterns) workflow has a print-layout mode, preview, outline/seam-allowance and notch options, and plotter output. The lesson for Cloth is that DXF/SVG exchange alone is not equivalent to printable output; page layout, line semantics, scale control and preview are part of the user-facing feature.
+- **Blender's comparable sewing workflow is an add-on, not a native production pattern-printing pipeline.** [Seams to Sewing Pattern Remastered](https://github.com/Faceless-Ghost/blender-seams-to-sewing-pattern) converts a mesh using its UV layout and offers SVG export for real-world sewing. This is a useful, lightweight route from a 3D mesh to flat outlines, but depends on sound mesh/UV preparation and an explicit real-world scale convention; it should not be treated as equivalent to a Sketcher-authoritative garment pattern with semantic edge IDs and per-edge allowances. Cloth already has native 2D source geometry, so it should export that authoritative geometry rather than introduce a UV-unwrapping step.
+- **Useful shared pattern:** preserve the editable garment model, derive print/interchange geometry from it, expose physical scale deliberately, and keep the print layout separate from the source piece. Cloth can reuse those principles without copying either application's implementation.
+
+#### Recommended delivery phases
+
+**P0 — make the current vector exports physically trustworthy**
+1. Add explicit print-safe styles to SVG paths/marks (black, visible cut and sewing lines with distinct dash/weight styles; no dependency on external CSS).
+2. Treat millimetres as the canonical geometry unit. Replace the free-text field with a clearly defined unit policy; add DXF `$INSUNITS` and validate import scale. If other output units are supported, convert every coordinate, allowance, notch depth, label, and annotation consistently.
+3. Build the seam-allowance perimeter as connected geometry with correct corner joins and a closed cut contour. Validate self-intersections, degenerate edges, and allowances too large for local geometry; block with an actionable diagnostic rather than emitting ambiguous cut lines.
+4. Export notches at the cut edge, oriented from local edge tangents/normals, with stable single/double-notch semantics. Ensure grainlines and internal marks are visible and included in the page bounds.
+5. Add independent output checks: parse and render a representative SVG with a real renderer; inspect the rendered artifact; assert physical dimensions from the SVG root / DXF unit declaration; and add a curved-piece case with a documented geometric deviation limit. Keep current deterministic/read-only and stale-reference tests.
+
+**P1 — deliver a first-class printable PDF**
+- Add a **Print Pattern** action alongside interchange export. Start with scale fixed at 100% / 1:1; allow paper size (A4, A3, US Letter, custom), orientation and printer-safe margins.
+- Lay a single piece across as many pages as necessary. Include configurable overlap, registration/alignment marks, page IDs/order, trim indicators, and a page overview. A 50 mm or 100 mm calibration square should be printed in the PDF; clearly warn users to disable “fit to page” / scaling in the PDF viewer and printer driver.
+- Compose a whole selected set of pieces into one PDF; include piece name/ID and essential pattern information. Preserve vector paths rather than rasterizing the cutting outline. Exporting standalone SVG per piece and an optional combined SVG/ZIP can remain useful for Inkscape/Illustrator users.
+- Use one shared print-layout model for PDF and SVG pages so geometry, scale, annotation placement and tile boundaries cannot drift between formats. TechDraw may be an integration option for page objects, but the garment-specific tiling/annotation model should remain owned by Cloth.
+
+**P2 — garment production features**
+- Introduce explicit semantic annotation fields for piece name, size, cut quantity, fabric/material, fold edge, dart/fold lines, internal construction, notches and match labels. Export styles should map consistently to SVG groups and DXF layers (for example `CUT`, `SEWING`, `GRAINLINE`, `NOTCH`, `INTERNAL`, `FOLD`, and `ANNOTATION`).
+- Add multi-piece export and a paper-layout preview before attempting automatic fabric-marker nesting. Keep multi-size grading, nesting and manufacturing validation as later work; they should build on the validated cut/perimeter and annotation model rather than obscure export correctness.
+
+#### Acceptance criteria for “printable”
+
+A release should not call pattern export print-ready until all of the following pass:
+
+- A 100 × 60 mm test piece with 5 mm all-around seam allowance yields a closed 110 × 70 mm cut perimeter, with the sewing line remaining 100 × 60 mm.
+- A calibration square measures exactly 50 mm in the SVG/PDF's declared physical size and in a documented 100% print test; page fit/shrink is not applied silently.
+- The SVG renders visible cut/sewing lines, grainline, notch and text without external stylesheets. No required geometry/mark is clipped by the viewport.
+- Cut contour joins are continuous; notch geometry intersects the cut boundary and points in the correct local direction; curved edges stay within the stated tolerance.
+- A tiled PDF has deterministic page order, visible overlap/registration guides, and matching scale on every tile. Users can reassemble it without guessing alignment.
+- Re-export with unchanged model state is byte-deterministic and does not mutate the source document; invalid/stale geometry or semantic seam references block export with a clear reason.
+
+The initial target should be **one reliable piece → one correct SVG/DXF → one correctly scaled tiled PDF**. Only then expand into full marker-making, grading and fabric nesting.
+
 ## Fitting and simulation workflow
 
 Fitting is more than moving a mesh once. Useful persistent concepts are arrangement points/anchors, wrap direction, superimpose, reset, body measurements and a named collision target. Simulation then adds mesh quality, material parameters, pinning, solver controls and diagnostics.
