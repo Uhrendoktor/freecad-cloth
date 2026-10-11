@@ -52,6 +52,96 @@ The repository already contains an opt-in observation-bundle mechanism: it recor
 
 **Implication here:** keep artifacts as the only observation channel. Generate a compact report from the exact run, attach it to the existing tunic artifact, and test whether a model can name the correct causal layer from that report. Do not make network inference, hidden live-state probes, persistent GUI access, or local/manual FreeCAD observations part of the process.
 
+## Deep dive: the two research papers and what transfers to FreeCAD Cloth
+
+### 3DSRBench: measure spatial reasoning rather than image recognition
+
+**Primary sources:** [ICCV 2025 paper and supplementary material](https://openaccess.thecvf.com/content/ICCV2025/html/Ma_3DSRBench_A_Comprehensive_3D_Spatial_Reasoning_Benchmark_ICCV_2025_paper.html), [project page with benchmark splits and results](https://3dsrbench.github.io/), [arXiv version](https://arxiv.org/abs/2412.07825).
+
+3DSRBench is a diagnostic benchmark, not a new scene-reconstruction engine. Its central contribution is a controlled way to ask whether a vision-language model can answer questions whose answers depend on 3D geometry rather than superficial 2D cues.
+
+**Benchmark construction.** The paper reports 2,772 manually annotated visual question-answer pairs across 12 subtypes. The real split has 2,100 questions over MS-COCO images. The synthetic split has 672 questions rendered from HSSD indoor scenes: 336 under common 6D camera viewpoints and 336 under uncommon viewpoints of the same underlying scenes. The paper uses complementary horizontal-flip augmentation to reach 5,250 real and 1,692 synthetic questions. The 12 subtypes form four families:
+
+- **Height:** which object is higher in world space. Correct reasoning must distinguish world height from vertical pixel location and account for camera pitch/roll.
+- **Location:** near/far, closer to the camera, and directly above/underneath. These require separating image-plane proximity from 3D distance and depth.
+- **Orientation:** which side of an object faces the camera, front/behind relations, and left/right from an object's perspective. Viewer-relative and object-relative directions are not interchangeable.
+- **Multi-object reasoning:** five subtypes requiring relations over several objects, including reasoning about which way an object faces or which object is nearer to a reference.
+
+The construction explicitly tries to remove dataset shortcuts: answer distributions are balanced, questions with trivial answers are avoided, and some questions are phrased so familiar language priors (for example, which side a stereotypical object is on) cannot solve them.
+
+**Evaluation controls.** The paper combines two important ideas. *CircularEval* reorders multiple-choice options; a prediction is considered reliable only when the answer stays the same across option permutations. *FlipEval* pairs original images with horizontally flipped images. For relations whose meaning changes under the image reflection (notably viewer/image left-right), the target answer is changed consistently; for relations such as world height, the underlying answer normally remains the same. This tests for answer-position bias and ungrounded left/right heuristics, not just average accuracy.
+
+The synthetic split is particularly relevant to CAD screenshots because the same scene is viewed from different camera 6D poses. The project's published results show material degradation from common to uncommon viewpoints: for example GPT-4o goes from 51.2% to 44.3% and LLaVA-NeXT-8B from 45.5% to 36.8% in that reported table. A model that seems to understand a standard front/axonometric view may therefore fail when the camera is rotated, even though the underlying geometry has not changed. Orientation and multi-object reasoning are especially difficult categories.
+
+**Transfer to FreeCAD Cloth.** Reuse the benchmark *design*, not its natural-image inputs or its vision-model stack:
+
+1. Hold the garment, mannequin pose, placements, sewing graph and simulator checkpoint constant while rendering front, rear, left, right, top, axonometric and at least one less familiar oblique view. Every view must carry a declared camera name/orientation and the same scene ID.
+2. Ask questions whose ground truth is computed directly from the CAD model: Is the front panel in front of or behind the mannequin surface in this world frame? Which specific semantic edge crosses another? Does a visible gap belong to a side seam or to the unsewn armhole? Is a panel outside the body at step 0, or only after draping?
+3. Use matched viewpoint pairs. For **world-space** relations, rotating the camera must not change the answer. For **camera-relative** left/right questions, the expected answer must be derived from the camera transform. Never assume a horizontal bitmap flip is semantically equivalent to a 3D mirror; reflect the scene or camera and recompute the expected label when the tested relation requires it.
+4. Use option-order permutations where multiple-choice questions are used, and balanced counterfactuals with opposite answers. Include successful cases alongside superficially similar failures so the model cannot pass by always declaring overlap or topology invalid.
+
+This makes the goal *spatial consistency under controlled transformations*, rather than memorizing that a particular view tends to correspond to a particular defect.
+
+### Ego3D-Bench / Ego3D-VLM: supply one shared coordinate map across views
+
+**Primary sources:** [arXiv paper, version 2](https://arxiv.org/html/2509.06266v2), [official implementation](https://github.com/vbdi/Ego3D-Bench).
+
+Ego3D addresses a related but different weakness: a model sees several views yet fails to consolidate them into a coherent world model. Ego3D-Bench contains more than 8,600 question-answer pairs from NuScenes (six views), Waymo (seven views) and Argoverse 1 (five views). It deliberately excludes questions answerable from each image independently. Its five task families are absolute distance, relative distance, localization from one object's perspective to another, motion reasoning, and travel time; questions can be ego-centric or object-centric. Ground-truth 3D annotations support rule-generated answers, with human review for harder motion questions. The benchmark scores multiple-choice accuracy and metric distance with RMSE.
+
+Ego3D-VLM constructs a compact textual **cognitive map** alongside the images:
+
+1. A referring-expression model grounds objects named in the question in every relevant view, returning bounding boxes.
+2. A metric depth estimator supplies depth at each box centre. The system projects pixel centres through camera intrinsics into camera-frame 3D coordinates.
+3. It applies camera extrinsics (rotation and translation) to express detections in a shared global frame anchored to the front camera. This is the key step: the same object in the front-left view and the rear view is not treated as unrelated 2D observations.
+4. A relational scaling step can use a known-size category such as a human to calibrate uncertain metric scale.
+5. The generator records the named object, its shared 3D location, and the view it came from in a compact text/JSON map. The VLM reasons using that map **and** the original images: the map anchors direction, position and distance; images preserve appearance and fine visual evidence.
+
+The paper reports an average 12% improvement in multiple-choice accuracy and 56% improvement in distance-estimation RMSE when integrating Ego3D-VLM. In its results table GPT-4o moves from 56.7% to 73.2% average multiple-choice accuracy, with average distance RMSE falling from 19.2 m to 7.4 m. Its ablation with estimated camera parameters already improves InternVL3-8B from 43.1% to 56.0% accuracy and RMSE 27.2 m to 10.8 m; using a ground-truth cognitive map reaches 79.4% and 1.3 m. The large gap between estimated and ground-truth maps is informative: errors in grounding, depth and transforms can become errors in the model's reasoning, so perception/geometry errors must be visible and measurable rather than hidden in a single prose description.
+
+The authors also list limitations: weak reasoning models may gain little; redundant detections/false positives can mislead; metric-depth estimates may be wrong; and relational scaling from assumed object size is approximate. This argues against adding an image-derived reconstruction stage to FreeCAD when exact CAD geometry is available.
+
+**Transfer to FreeCAD Cloth: a CAD-native cognitive map.** Replace Ego3D's estimated 2D box/depth/pose pipeline with exact quantities already owned by FreeCAD:
+
+- Use one explicit **world frame** (mm; axis directions documented; front/back defined by the mannequin frame) and store every view's camera transform relative to that frame.
+- For every pattern piece, store the stable piece ID, local 2D boundary samples, native curve/edge IDs and kinds, validity, local bounding box/area, local-to-world homogeneous transform, and sampled world-space boundary points. Do not silently conflate local sketch coordinates with world coordinates.
+- For every mannequin landmark, store a persistent semantic name (neck, left/right shoulder, axilla, hip, wrist, and any garment-specific landmark) and world XYZ in mm. Store mannequin pose/source revision and collision-surface bounds/identity with it.
+- For every seam, store both piece IDs and stable edge IDs, normalized ranges, reversal/alignment, the transformed edge samples, length mismatch, endpoint gap, and validation state. A seam is a named graph edge between geometry entities, not just a coloured line on screen.
+- For each simulation checkpoint, refer to the same piece IDs and world frame, and add exact initial/final bounds, clearance, inside/penetration samples, seam-gap metrics, solver step/time, finite-state flag, and measured threshold. Distinguish what was computed from what was merely visible in a screenshot.
+- Keep images in the dossier because appearance reveals useful details, but present them with the map. Use the numeric scene map as grounding, not as a replacement for visual inspection.
+
+For FreeCAD, the map is better than a learned visual depth estimator because it has authoritative units and transforms. It should nevertheless carry provenance and validity flags: a mathematically precise transform does not make an invalid pattern outline or a stale collision mesh valid.
+
+### Derived benchmark: test whether the map improves diagnosis
+
+Ego3D's use of explicit ablations suggests a useful experiment rather than an assumption that more JSON is automatically better. Build a set of representative GitHub Actions artifact cases, each frozen by workflow run ID and source commit. For each case, require the same structured answer: first failed stage; entities and semantic IDs involved; relevant local/world coordinates; evidence supporting the diagnosis; one falsifying check; and the single next experiment. Include at least these contrasts:
+
+| Challenge | Required reasoning | Ground truth |
+|---|---|---|
+| Invalid pattern vs valid pattern with similar silhouette | Identify upstream topology failure rather than guessing from the rendered fill | Native PatternIR/Sketcher boundary validity and exact crossing edges |
+| Same garment from familiar vs unfamiliar camera views | Keep world relations invariant under view changes; correctly handle camera-relative directions | Camera transforms and exact entity coordinates |
+| Correct vs swapped seam edge IDs | Reason over semantic relations, not seam colour or index alone | Native seam references and boundary IDs |
+| Correct vs incorrect local-to-world transform | Detect front/back, rotation or offset error across all views | Persisted transform matrices and target-relative distances |
+| Initial overlap vs post-drape penetration | Identify the earliest checkpoint that violates clearance | Step-0 and checkpoint geometry/clearance metrics |
+| Bad collision mesh vs genuinely unstable solver | Distinguish geometry/contact failure from numerical failure | Surface source/currentness, collision diagnostics, finite-state history |
+| Valid successful garment | Avoid a default-to-failure bias | Stage gates plus final multi-view and fit measurements |
+
+Use three controlled information conditions: **images only**, **structured map only**, and **images + map**. Keep the prompt, case, source revision and evaluation rubric fixed. The map-only condition measures whether the report contains the necessary geometry; images+map measures whether the visual evidence adds causal information beyond the measurements. Do not expose run outcomes or filenames containing labels that leak the answer to the evaluator.
+
+Adopt benchmark controls inspired by the papers:
+
+- **Viewpoint robustness:** matched rendered views of the same exact scene; test whether diagnoses contradict one another when world facts do not change.
+- **Balanced counterfactual pairs:** geometrically mirror/swap relevant components or change a seam reference, then regenerate ground truth; use opposite answers where appropriate instead of relying on class frequency.
+- **Permutation robustness:** reorder answer options and entity presentation while requiring the same underlying diagnosis.
+- **Per-family scores:** topology, coordinate-frame/transform, orientation/relationship, seam mapping, initial clearance/contact and numerical stability; do not hide a weak category in an overall accuracy.
+- **Localization and metric errors:** exact edge/entity accuracy, correct first failed stage, coordinate error in mm normalized by a declared scale (such as mannequin height), stage-order violations, unsupported-claim rate, and false success/failure rate.
+- **Causal discipline:** explicitly score whether the answer proposes tuning the solver while an upstream geometry, mapping or placement invariant is still false.
+
+For a first pass, use authored rules and known workflow-failure artifacts to create gold answers; humans adjudicate disputed labels. Only consider model adaptation after the images-only versus map-only versus combined experiment identifies a repeatable reasoning error that remains after the coordinate/geometry evidence has been made complete. The papers do not justify assuming fine-tuning is the first fix.
+
+### Important difference from the papers
+
+Both papers address uncertain geometry inferred from ordinary camera images. FreeCAD has a stronger oracle: the source sketches, transforms, semantic seam links, mannequin target and simulation state are available inside the CAD process. Therefore, do not introduce Grounding-DINO, Depth-Anything or a generic point-cloud reconstruction simply to mimic Ego3D-VLM. The transferable principle is **a shared, explicit spatial representation and a benchmark designed to expose viewpoint shortcuts**. Generate that representation during the FreeCAD workflow and consume only the resulting GitHub Actions artifacts during diagnosis.
+
 ## Recommended scene dossier
 
 The dossier should answer these questions in this order:
