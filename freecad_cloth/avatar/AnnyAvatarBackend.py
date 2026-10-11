@@ -12,7 +12,7 @@ import os
 from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
@@ -61,6 +61,12 @@ class AnnyAvatarBackendError(RuntimeError):
     """Raised when Anny cannot produce a compatible avatar mesh."""
 
 
+class _ForwardModel(Protocol):
+    """Minimal writable model interface needed for the compatibility adapter."""
+
+    forward: Callable[..., object]
+
+
 def _adapt_clad_body_pose_alias(model: object) -> None:
     """Translate clad-body 0.6.1 legacy forward calls for Anny 0.6."""
     forward = getattr(model, "forward", None)
@@ -75,7 +81,7 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
 
     # clad-body 0.6.1 still supplies root_relative_world on every forward call.
     # Anny 0.6 translates that alias only in the factory, not in forward().
-    setattr(model, "forward", compatible_forward)
+    cast(_ForwardModel, model).forward = compatible_forward
 
 
 @lru_cache(maxsize=1)
