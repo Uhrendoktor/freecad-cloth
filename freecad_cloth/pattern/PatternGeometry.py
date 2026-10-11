@@ -5,7 +5,6 @@ from math import hypot, isfinite
 
 from shapely.errors import GEOSException
 from shapely.geometry import Polygon
-
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
