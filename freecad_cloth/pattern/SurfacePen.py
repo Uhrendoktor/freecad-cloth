@@ -157,8 +157,6 @@ def simplify_polyline(
     if len(values) <= 2:
         return values
     tolerance = max(0.0, float(tolerance_mm))
-    if tolerance <= 1e-12:
-        return values
 
     def perpendicular_distance(point: Point3, start: Point3, end: Point3) -> float:
         axis = _sub(end, start)
@@ -188,29 +186,83 @@ def simplify_polyline(
     return rdp(values)
 
 
+def surface_segments_from_anchor_kinds(
+    points: collections.abc.Sequence[Point2],
+    kinds: collections.abc.Sequence[str],
+) -> tuple[tuple[str, tuple[Point2, ...]], ...]:
+    """Build line and B-spline segments from corner points and curve-through points.
+
+    A curve point between two corners makes their connecting boundary segment a
+    B-spline interpolating both corners and the curve points. Consecutive corners
+    remain straight lines, so authored sharp corners are preserved.
+    """
+    values = tuple((float(point[0]), float(point[1])) for point in points)
+    point_kinds = tuple(str(kind).lower() for kind in kinds)
+    if len(values) < 3:
+        raise ValueError("surface boundary needs at least three points")
+    if len(point_kinds) != len(values):
+        raise ValueError("surface boundary point types do not match the point count")
+    if any(kind not in {"corner", "curve"} for kind in point_kinds):
+        raise ValueError("surface boundary point type must be corner or curve")
+    corners = [index for index, kind in enumerate(point_kinds) if kind == "corner"]
+    if len(corners) < 3:
+        raise ValueError("surface boundary needs at least three corner points")
+
+    segments = []
+    count = len(values)
+    for corner_index, start_index in enumerate(corners):
+        end_index = corners[(corner_index + 1) % len(corners)]
+        segment_points = [values[start_index]]
+        interior_indices = []
+        index = (start_index + 1) % count
+        while index != end_index:
+            segment_points.append(values[index])
+            interior_indices.append(index)
+            index = (index + 1) % count
+        segment_points.append(values[end_index])
+        if any(point_kinds[index] == "curve" for index in interior_indices):
+            # Projection can collapse distinct 3D anchors onto the same 2D point.
+            compact = []
+            for point in segment_points:
+                if not compact or math.dist(point, compact[-1]) > 1e-7:
+                    compact.append(point)
+            if len(compact) < 3:
+                segments.append(("line", (values[start_index], values[end_index])))
+            else:
+                segments.append(("bspline", tuple(compact)))
+        else:
+            segments.append(("line", (values[start_index], values[end_index])))
+    return tuple(segments)
+
+
 @dataclasses.dataclass(frozen=True)
 class SurfaceAnchor:
-    """A sampled target-space point and its surface normal.
+    """A picked target-space point with its surface normal and authoring intent.
 
-    The first MVP stores the target's authoritative source signature plus the
-    world-space pick. Triangle/barycentric storage can be added later without
-    changing the public stroke representation.
+    Corner points create straight segments unless curve points occur before the
+    next corner. Curve points are interpolated by a native B-spline between their
+    neighboring corners. The default keeps older saved drafts compatible.
     """
 
     point: Point3
     normal: Vector3
+    kind: str = "corner"
 
     def to_json(self) -> dict:
         """Serialize this surface anchor for persistent document storage."""
         return {
             "point": [round(float(value), 6) for value in self.point],
             "normal": [round(float(value), 6) for value in self.normal],
+            "kind": self.kind,
         }
 
     @classmethod
     def from_json(cls, value: dict) -> "SurfaceAnchor":
         """Restore a surface anchor from its serialized mapping."""
-        return cls(_as_point3(value["point"]), _as_point3(value["normal"]))
+        kind = str(value.get("kind", "corner")).lower()
+        if kind not in {"corner", "curve"}:
+            raise ValueError(f"unsupported surface anchor point type: {kind}")
+        return cls(_as_point3(value["point"]), _as_point3(value["normal"]), kind)
 
 
 @dataclasses.dataclass(frozen=True)
