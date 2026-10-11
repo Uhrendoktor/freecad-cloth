@@ -203,7 +203,9 @@ def transform_landmarks(
 
 def build_hierarchical_avatar_mesh(parameters: AvatarParameters) -> MeshData:
     """Build the mannequin with the shared weighted-FK deformation system."""
-    return _build_manual_mesh(parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False))
+    return _build_manual_mesh(
+        parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False)
+    )
 
 
 def generate_hierarchical_mesh(
