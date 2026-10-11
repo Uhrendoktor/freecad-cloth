@@ -7,7 +7,6 @@ compatibility adapter, not a second seam representation.
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import field, replace
-
 from math import isfinite
 from typing import cast
 
