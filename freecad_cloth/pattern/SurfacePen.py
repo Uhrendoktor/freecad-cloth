@@ -188,29 +188,83 @@ def simplify_polyline(
     return rdp(values)
 
 
+def surface_segments_from_anchor_kinds(
+    points: collections.abc.Sequence[Point2],
+    kinds: collections.abc.Sequence[str],
+) -> tuple[tuple[str, tuple[Point2, ...]], ...]:
+    """Build line and B-spline segments from corner points and curve-through points.
+
+    A curve point between two corners makes their connecting boundary segment a
+    B-spline interpolating both corners and the curve points. Consecutive corners
+    remain straight lines, so authored sharp corners are preserved.
+    """
+    values = tuple((float(point[0]), float(point[1])) for point in points)
+    point_kinds = tuple(str(kind).lower() for kind in kinds)
+    if len(values) < 3:
+        raise ValueError("surface boundary needs at least three points")
+    if len(point_kinds) != len(values):
+        raise ValueError("surface boundary point types do not match the point count")
+    if any(kind not in {"corner", "curve"} for kind in point_kinds):
+        raise ValueError("surface boundary point type must be corner or curve")
+    corners = [index for index, kind in enumerate(point_kinds) if kind == "corner"]
+    if len(corners) < 3:
+        raise ValueError("surface boundary needs at least three corner points")
+
+    segments = []
+    count = len(values)
+    for corner_index, start_index in enumerate(corners):
+        end_index = corners[(corner_index + 1) % len(corners)]
+        segment_points = [values[start_index]]
+        interior_indices = []
+        index = (start_index + 1) % count
+        while index != end_index:
+            segment_points.append(values[index])
+            interior_indices.append(index)
+            index = (index + 1) % count
+        segment_points.append(values[end_index])
+        if any(point_kinds[index] == "curve" for index in interior_indices):
+            # Projection can collapse distinct 3D anchors onto the same 2D point.
+            compact = []
+            for point in segment_points:
+                if not compact or math.dist(point, compact[-1]) > 1e-7:
+                    compact.append(point)
+            if len(compact) < 3:
+                segments.append(("line", (values[start_index], values[end_index])))
+            else:
+                segments.append(("bspline", tuple(compact)))
+        else:
+            segments.append(("line", (values[start_index], values[end_index])))
+    return tuple(segments)
+
+
 @dataclasses.dataclass(frozen=True)
 class SurfaceAnchor:
-    """A sampled target-space point and its surface normal.
+    """A picked target-space point with its surface normal and authoring intent.
 
-    The first MVP stores the target's authoritative source signature plus the
-    world-space pick. Triangle/barycentric storage can be added later without
-    changing the public stroke representation.
+    Corner points create straight segments unless curve points occur before the
+    next corner. Curve points are interpolated by a native B-spline between their
+    neighboring corners. The default keeps older saved drafts compatible.
     """
 
     point: Point3
     normal: Vector3
+    kind: str = "corner"
 
     def to_json(self) -> dict:
         """Serialize this surface anchor for persistent document storage."""
         return {
             "point": [round(float(value), 6) for value in self.point],
             "normal": [round(float(value), 6) for value in self.normal],
+            "kind": self.kind,
         }
 
     @classmethod
     def from_json(cls, value: dict) -> "SurfaceAnchor":
         """Restore a surface anchor from its serialized mapping."""
-        return cls(_as_point3(value["point"]), _as_point3(value["normal"]))
+        kind = str(value.get("kind", "corner")).lower()
+        if kind not in {"corner", "curve"}:
+            raise ValueError(f"unsupported surface anchor point type: {kind}")
+        return cls(_as_point3(value["point"]), _as_point3(value["normal"]), kind)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -527,9 +581,10 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
     min_y = min(point[1] for point in points)
     offset = (min_x, min_y)
     shifted = [(round(x - offset[0], 6), round(y - offset[1], 6)) for x, y in points]
+    segments = surface_segments_from_anchor_kinds(shifted, [anchor.kind for anchor in anchors])
     pattern = PatternPiece(piece_name, shifted, id=piece_id)
     obj = add_pattern_piece(doc, pattern)
-    sketch = create_sketch_for_piece(pattern, doc)
+    sketch = create_sketch_for_piece(pattern, doc, geometry_segments=segments)
     obj.GeometryMode = "Sketch"
     _add_surface_provenance(obj, surface_draft)
     surface_draft.Visibility = False
@@ -558,6 +613,8 @@ class SurfacePenController:
         self.status_callback = status_callback or (lambda _message: None)
         self.view = None
         self.anchors: list[SurfaceAnchor] = []
+        self.input_mode = "point"
+        self.point_kind = "corner"
         self._drawing = False
         self._last_screen = None
         self._mouse_callback = None
@@ -576,28 +633,74 @@ class SurfacePenController:
 
     @property
     def can_finish(self) -> bool:
-        """Return whether the current stroke meets the boundary-closure contract."""
-        return surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM)
+        """Return whether this mode has enough input to finish safely."""
+        if self.input_mode == "references":
+            return len(self.anchors) >= 3
+        if not surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
+            return False
+        if self.input_mode == "point":
+            return sum(anchor.kind == "corner" for anchor in self.anchors[:-1]) >= 3
+        return True
+
+    def set_input_mode(self, value: str) -> None:
+        """Switch between point placement, freehand trace, and reference-point modes."""
+        label = str(value).lower()
+        if "freehand" in label:
+            mode = "freehand"
+        elif "reference" in label:
+            mode = "references"
+        else:
+            mode = "point"
+        self.input_mode = mode
+        self._drawing = False
+        self._last_screen = None
+        self._status(self._stroke_status())
+
+    def set_point_kind(self, value: str) -> None:
+        """Choose whether the next placed anchor is a corner or curve-through point."""
+        self.point_kind = "curve" if "curve" in str(value).lower() else "corner"
+        self._status(self._stroke_status())
 
     def _stroke_status(self) -> str:
-        """Describe the current sample count and distance to the stroke start."""
+        """Describe the boundary closure, point count, and current authoring mode."""
         if not self.anchors:
+            if self.input_mode == "point":
+                return (
+                    "Point placement: click the target to add corners. Choose Curve point "
+                    "to create a smooth segment between neighboring corners."
+                )
+            if self.input_mode == "references":
+                return (
+                    "Reference points: click at least three locations around the intended "
+                    "outline. Finish creates construction points in a native Sketcher sketch."
+                )
+            return "Freehand trace: drag on the selected surface. Release to lift and continue."
+        if self.input_mode == "references":
             return (
-                "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+                f"Reference points: {len(self.anchors)} placed. Add points around the intended "
+                "outline; finish when at least three points define a usable planar patch."
             )
         distance = _length(_sub(self.anchors[-1].point, self.anchors[0].point))
-        if self.can_finish:
+        boundary_count = len(self.anchors) - 1
+        if surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
+            if self.input_mode == "point":
+                corners = sum(anchor.kind == "corner" for anchor in self.anchors[:-1])
+                if corners < 3:
+                    return (
+                        f"Boundary closed, but only {corners} corner points are placed. "
+                        "Add at least three corners before finishing."
+                    )
             return (
-                f"Boundary closed: {len(self.anchors) - 1} boundary samples; "
-                f"gap {distance:.1f} mm. Finish Stroke → Pattern is ready."
+                f"Boundary closed: {boundary_count} points; gap {distance:.1f} mm. "
+                "Finish Stroke → Pattern is ready."
             )
         if len(self.anchors) < 4:
             return (
-                f"Surface stroke: {len(self.anchors)} samples. Add at least three distinct "
-                f"boundary points, then return within {self.CLOSE_DISTANCE_MM:.1f} mm of the start."
+                f"Boundary: {len(self.anchors)} points. Add at least three distinct points, "
+                f"then return within {self.CLOSE_DISTANCE_MM:.1f} mm of the start."
             )
         return (
-            f"Surface stroke: {len(self.anchors)} samples; endpoint gap {distance:.1f} mm. "
+            f"Boundary: {len(self.anchors)} points; endpoint gap {distance:.1f} mm. "
             f"Return within {self.CLOSE_DISTANCE_MM:.1f} mm of the first point to close."
         )
 
@@ -665,10 +768,7 @@ class SurfacePenController:
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
         )
-        self._status(
-            "3D Pattern Pen: drag on the visible target. Release to lift and continue; "
-            + self._stroke_status()
-        )
+        self._status("3D Pattern Pen ready. " + self._stroke_status())
 
     def deactivate(self):
         """Remove viewport callbacks and discard transient drawing state."""
@@ -698,6 +798,22 @@ class SurfacePenController:
         self._update_overlay()
         self._status("Surface stroke cleared. " + self._stroke_status())
 
+    def _place_point(self, anchor: SurfaceAnchor) -> bool:
+        """Append one deliberate boundary point and accept a near-start click as closure."""
+        placed = SurfaceAnchor(anchor.point, anchor.normal, self.point_kind)
+        if (
+            len(self.anchors) >= 3
+            and _length(_sub(placed.point, self.anchors[0].point)) <= self.CLOSE_DISTANCE_MM
+        ):
+            self.anchors.append(placed)
+            return True
+        return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
+
+    def _place_reference_point(self, anchor: SurfaceAnchor) -> bool:
+        """Append one reference point without treating proximity to the start as closure."""
+        placed = SurfaceAnchor(anchor.point, anchor.normal, "corner")
+        return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
+
     def _mouse_event(self, info):
         position = self._event_position(info)
         if position is None:
@@ -710,6 +826,14 @@ class SurfacePenController:
             anchor = self._pick(position)
             if anchor is None:
                 self._status("Pointer is not over the selected mannequin surface.")
+                return
+            if self.input_mode in {"point", "references"}:
+                if self.input_mode == "references":
+                    self._place_reference_point(anchor)
+                else:
+                    self._place_point(anchor)
+                self._update_overlay()
+                self._status(self._stroke_status())
                 return
             self._drawing = True
             self._last_screen = position
@@ -740,26 +864,75 @@ class SurfacePenController:
             self._update_overlay()
             self._status(self._stroke_status())
 
+    def _finish_reference_points(self, document: object, tolerance_mm: float) -> object:
+        """Create a native Sketcher sketch containing flattened construction points."""
+        import Part
+
+        if len(self.anchors) < 3:
+            raise ValueError("reference-point mode needs at least three points")
+        patch = flatten_surface_patch([anchor.point for anchor in self.anchors], tolerance_mm)
+        points = list(patch.points)
+        min_x = min(point[0] for point in points)
+        min_y = min(point[1] for point in points)
+        shifted = [(round(x - min_x, 6), round(y - min_y, 6)) for x, y in points]
+        sketch = document.addObject(
+            "Sketcher::SketchObject",
+            document.getUniqueObjectName("SurfaceReferencePoints"),
+        )
+        sketch.Label = "Surface Reference Points"
+        sketch.addProperty("App::PropertyString", "SurfaceAuthoring", "3D Authoring")
+        sketch.SurfaceAuthoring = "ClothPattern.SurfacePen.ReferencePoints"
+        sketch.addProperty("App::PropertyLinkGlobal", "SurfaceTarget", "3D Authoring")
+        sketch.SurfaceTarget = self.target
+        sketch.addProperty("App::PropertyString", "SurfaceTargetSignature", "3D Authoring")
+        sketch.SurfaceTargetSignature = _target_signature(self.target)
+        sketch.addProperty("App::PropertyString", "SurfaceAnchorsJSON", "3D Authoring")
+        sketch.SurfaceAnchorsJSON = json.dumps(
+            [anchor.to_json() for anchor in self.anchors],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        sketch.addProperty("App::PropertyLength", "PlanarTolerance", "3D Authoring")
+        sketch.PlanarTolerance = float(tolerance_mm)
+        sketch.addProperty("App::PropertyLength", "MaxDeviation", "3D Authoring")
+        sketch.MaxDeviation = float(patch.max_deviation_mm)
+        for x, y in shifted:
+            sketch.addGeometry(Part.Point(self.App.Vector(x, y, 0)), True)
+        document.recompute()
+        self.clear()
+        self._status(
+            f"Created native Sketcher reference-point sketch with {len(shifted)} points. "
+            "Connect the construction points with native Sketcher geometry."
+        )
+        return sketch
+
     def finish(self, tolerance_mm=8.0, name=None):
-        """Validate the stroke and create a native Sketcher-backed pattern piece."""
+        """Finish the active Surface Pen mode and create its native Sketcher result."""
         if self._drawing:
             self._drawing = False
             self._last_screen = None
-        closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
         document = self.App.ActiveDocument
         if document is None:
             raise RuntimeError("an active document is required")
-        simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
-        if len(simplified) < 3:
-            raise ValueError("surface stroke simplified to fewer than three points")
-        by_point = {tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed}
-        anchors = tuple(
-            by_point.get(tuple(round(value, 6) for value in point))
-            or SurfaceAnchor(point, closed[min(index, len(closed) - 1)].normal)
-            for index, point in enumerate(simplified)
-        )
+        if self.input_mode == "references":
+            return self._finish_reference_points(document, tolerance_mm)
+        closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
+        if self.input_mode == "point":
+            anchors = closed
+        else:
+            simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
+            if len(simplified) < 3:
+                raise ValueError("surface stroke simplified to fewer than three points")
+            by_point = {
+                tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed
+            }
+            anchors = tuple(
+                by_point.get(tuple(round(value, 6) for value in point))
+                or SurfaceAnchor(point, closed[min(index, len(closed) - 1)].normal)
+                for index, point in enumerate(simplified)
+            )
         # Validate the same bounded planar contract before any persistent object
-        # is created. Extraction itself repeats the target-signature check.
+        # is created. Extraction repeats the target-signature check.
         patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
         # Retain the closing sample in persisted state: extraction repeats the
         # closure check on the serialized stroke before flattening it.
@@ -787,14 +960,28 @@ class SurfacePenTaskPanel:
 
         instructions = QtWidgets.QLabel(
             "<b>3D Pattern Pen</b><br>"
-            "Drag on the visible mannequin surface to trace a closed piece. "
-            "Lift the mouse to continue the same stroke."
+            "Point placement: click to add corners. A Curve point between two corners "
+            "creates a smooth B-spline segment. Freehand trace remains available for "
+            "drag-based sampling. Reference points creates construction points to connect in Sketcher."
         )
         instructions.setWordWrap(True)
         outer.addWidget(instructions)
         self.form.setMaximumWidth(380)
 
         controls = QtWidgets.QFormLayout()
+        self.input_mode_combo = QtWidgets.QComboBox()
+        self.input_mode_combo.addItems(["Point placement", "Freehand trace", "Reference points"])
+        self.input_mode_combo.currentTextChanged.connect(self._input_mode_changed)
+        controls.addRow("Input mode", self.input_mode_combo)
+
+        self.point_kind_combo = QtWidgets.QComboBox()
+        self.point_kind_combo.addItems(["Corner point", "Curve point"])
+        self.point_kind_combo.setToolTip(
+            "A curve point is interpolated between the neighboring corner points."
+        )
+        self.point_kind_combo.currentTextChanged.connect(self._point_kind_changed)
+        controls.addRow("Point type", self.point_kind_combo)
+
         self.tolerance = QtWidgets.QDoubleSpinBox()
         self.tolerance.setRange(0.5, 100.0)
         self.tolerance.setDecimals(1)
@@ -819,9 +1006,22 @@ class SurfacePenTaskPanel:
         buttons.addWidget(self.cancel_button)
         outer.addLayout(buttons)
         self.controller.status_callback = self.update_status
-        self.update_status(
-            "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
-        )
+        self._input_mode_changed(self.input_mode_combo.currentText())
+        self._point_kind_changed(self.point_kind_combo.currentText())
+        self.update_status(self.controller._stroke_status())
+
+    def _input_mode_changed(self, value: str) -> None:
+        """Switch between boundary authoring, freehand tracing, and reference points."""
+        self.controller.set_input_mode(value)
+        self.point_kind_combo.setEnabled(self.controller.input_mode == "point")
+        if self.controller.input_mode == "references":
+            self.finish_button.setText("Create Sketcher Points")
+        else:
+            self.finish_button.setText("Finish Stroke → Pattern")
+
+    def _point_kind_changed(self, value: str) -> None:
+        """Set the kind assigned to the next point placed on the target."""
+        self.controller.set_point_kind(value)
 
     def update_status(self, message: str) -> None:
         """Show drawing guidance and enable extraction only for a closable boundary."""
@@ -837,13 +1037,21 @@ class SurfacePenTaskPanel:
         return __import__("FreeCAD"), __import__("FreeCADGui"), QtWidgets
 
     def finish(self):
-        """Finish extraction using the task-panel planar tolerance."""
+        """Finish the selected Surface Pen mode using the task-panel planar tolerance."""
         try:
-            self.controller.finish(float(self.tolerance.value()))
+            result = self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
-            self.update_status(f"Could not create pattern: {exc}")
+            self.update_status(f"Could not finish Surface Pen: {exc}")
             return False
+        open_reference_sketch = (
+            str(getattr(result, "SurfaceAuthoring", ""))
+            == "ClothPattern.SurfacePen.ReferencePoints"
+        )
         self.accept()
+        if open_reference_sketch:
+            active = self.controller.Gui.activeDocument()
+            if active is not None:
+                active.setEdit(result.Name)
         return True
 
     def accept(self):

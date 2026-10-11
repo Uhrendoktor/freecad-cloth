@@ -7,6 +7,7 @@ from freecad_cloth.pattern.SurfacePen import (
     polygon_area_2d,
     polygon_self_intersects,
     simplify_polyline,
+    surface_segments_from_anchor_kinds,
     surface_stroke_can_finish,
 )
 
@@ -149,3 +150,41 @@ def test_surface_pick_rejects_unrelated_visible_object():
             raise AssertionError("picker must not be called for an unrelated object")
 
     assert pick_surface_point(View(), 1, 2, Target()) is None
+
+
+def test_surface_anchor_round_trips_point_authoring_kind() -> None:
+    corner = SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0), "corner")
+    curve = SurfaceAnchor((4.0, 5.0, 6.0), (0.0, 0.0, 1.0), "curve")
+    assert SurfaceAnchor.from_json(corner.to_json()) == corner
+    assert SurfaceAnchor.from_json(curve.to_json()) == curve
+
+
+def test_legacy_surface_anchor_json_defaults_to_corner() -> None:
+    restored = SurfaceAnchor.from_json({"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]})
+    assert restored == SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+
+def test_surface_segments_preserve_corners_and_build_splines_for_curve_points() -> None:
+    points = ((0, 0), (40, 20), (80, 0), (100, 80), (0, 80))
+    kinds = ("corner", "curve", "corner", "corner", "corner")
+    segments = surface_segments_from_anchor_kinds(points, kinds)
+
+    assert len(segments) == 4
+    assert segments[0] == ("bspline", ((0.0, 0.0), (40.0, 20.0), (80.0, 0.0)))
+    assert segments[1:] == (
+        ("line", ((80.0, 0.0), (100.0, 80.0))),
+        ("line", ((100.0, 80.0), (0.0, 80.0))),
+        ("line", ((0.0, 80.0), (0.0, 0.0))),
+    )
+
+
+def test_surface_segments_reject_boundaries_with_too_few_corners() -> None:
+    try:
+        surface_segments_from_anchor_kinds(
+            ((0, 0), (50, 20), (100, 0), (50, 60)),
+            ("corner", "curve", "corner", "curve"),
+        )
+    except ValueError as exc:
+        assert "at least three corner points" in str(exc)
+    else:
+        raise AssertionError("a curve boundary without three authored corners was accepted")
