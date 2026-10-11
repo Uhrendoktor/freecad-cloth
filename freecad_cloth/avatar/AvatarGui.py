@@ -462,6 +462,7 @@ class AvatarTaskPanel:
         self._provider_source_object = selection[0]
         self._dirty = True
         self._refresh_provider_source()
+        self._update_shape_enabled()
         self._refresh_status(
             "Provider source staged: {}. Apply & Rebuild to use it.".format(
                 getattr(selection[0], "Label", selection[0].Name)
