@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import base64
 import json
+from collections.abc import Callable
 from math import ceil, cos, isfinite, radians, sin
 
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
-from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
     _metadata,
     _sampled_sewing,
     _validate_units,
 )
+from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 
 _MM_TO_PT = 72.0 / 25.4
 _HEADER_MM = 10.0
@@ -293,10 +294,15 @@ def to_pdf(
                 "1 j",
             ]
 
-            def page_point(point: Point) -> tuple[float, float]:
+            def page_point(
+                point: Point,
+                *,
+                tile_left_mm: float = tile_left,
+                tile_bottom_mm: float = tile_bottom,
+            ) -> tuple[float, float]:
                 return (
-                    (content_left + point[0] - tile_left) * _MM_TO_PT,
-                    (content_bottom + point[1] - tile_bottom) * _MM_TO_PT,
+                    (content_left + point[0] - tile_left_mm) * _MM_TO_PT,
+                    (content_bottom + point[1] - tile_bottom_mm) * _MM_TO_PT,
                 )
 
             def draw_polyline(
@@ -305,23 +311,31 @@ def to_pdf(
                 closed: bool,
                 width_mm: float,
                 dashed: bool = False,
+                _commands: list[str] = commands,
+                _page_point: Callable[[Point], tuple[float, float]] = page_point,
             ) -> None:
                 if len(points) < 2:
                     return
-                commands.append(f"{_number(width_mm * _MM_TO_PT)} w")
-                commands.append("[5 3] 0 d" if dashed else "[] 0 d")
-                x, y = page_point(points[0])
-                commands.append(f"{_number(x)} {_number(y)} m")
+                _commands.append(f"{_number(width_mm * _MM_TO_PT)} w")
+                _commands.append("[5 3] 0 d" if dashed else "[] 0 d")
+                x, y = _page_point(points[0])
+                _commands.append(f"{_number(x)} {_number(y)} m")
                 for point in points[1:]:
-                    x, y = page_point(point)
-                    commands.append(f"{_number(x)} {_number(y)} l")
+                    x, y = _page_point(point)
+                    _commands.append(f"{_number(x)} {_number(y)} l")
                 if closed:
-                    commands.append("h")
-                commands.append("S")
-                commands.append("[] 0 d")
+                    _commands.append("h")
+                _commands.append("S")
+                _commands.append("[] 0 d")
 
-            def draw_text_pt(x_pt: float, y_pt: float, text: str, size_pt: float) -> None:
-                commands.append(
+            def draw_text_pt(
+                x_pt: float,
+                y_pt: float,
+                text: str,
+                size_pt: float,
+                _commands: list[str] = commands,
+            ) -> None:
+                _commands.append(
                     f"BT /F1 {_number(size_pt)} Tf {_number(x_pt)} {_number(y_pt)} Td "
                     f"{_literal(text)} Tj ET"
                 )
