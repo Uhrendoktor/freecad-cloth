@@ -103,6 +103,46 @@ def validate_metrics(payload: object) -> list[str]:
     if p95_interval is not None and p95_interval > FRAME_BUDGET_MS:
         errors.append("p95_frame_interval_ms exceeds the 30 FPS budget")
 
+    stage_value = metrics.get("stage_timings")
+    required_stages = (
+        "advance_preview_frame",
+        "solver_step",
+        "state_publish",
+        "mesh_write",
+        "overlay_schedule",
+        "viewport_redraw",
+    )
+    if not isinstance(stage_value, dict):
+        errors.append("stage_timings must be a JSON object")
+    else:
+        stages = cast(dict[str, object], stage_value)
+        for name in required_stages:
+            stage_value_for_name = stages.get(name)
+            if not isinstance(stage_value_for_name, dict):
+                errors.append(f"stage_timings.{name} must be a JSON object")
+                continue
+            stage = cast(dict[str, object], stage_value_for_name)
+            samples = _integer(stage.get("samples"))
+            minimum_samples = (
+                max(1, frames // 2 - 2)
+                if name == "overlay_schedule" and frames is not None
+                else frames
+                if name != "mesh_write" and frames is not None
+                else frames
+                if frames is not None
+                else MIN_FRAMES
+            )
+            if samples is None or samples < minimum_samples:
+                errors.append(
+                    f"stage_timings.{name}.samples must be >= {minimum_samples}"
+                )
+            for metric_name in ("mean_ms", "p95_ms", "max_ms"):
+                value = _number(stage.get(metric_name))
+                if value is None or value < 0.0:
+                    errors.append(
+                        f"stage_timings.{name}.{metric_name} must be a finite non-negative number"
+                    )
+
     profile_value = metrics.get("profile")
     if not isinstance(profile_value, dict):
         errors.append("profile must be a JSON object")
