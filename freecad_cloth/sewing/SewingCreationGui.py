@@ -6,6 +6,7 @@ transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
 import re
+from typing import ClassVar
 
 
 def viewport_edge_candidate(document, hit_info):
@@ -206,7 +207,7 @@ class SewingCreationSession:
 class SewingCreationTaskPanel:
     """Small Preview/Commit/Cancel task panel for one staged sewing creation."""
 
-    _TRANSACTION_NAMES = {
+    _TRANSACTION_NAMES: ClassVar[dict[str, str]] = {
         "seam": "Create Seam",
         "mn": "Create M:N Sewing",
         "free": "Create Free Sewing",
