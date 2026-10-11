@@ -31,7 +31,9 @@ def test_package_workbench_initializers_are_import_safe_and_unique():
 
 
 def test_simulation_workbench_registers_drape_and_simulation_surfaces():
-    cls = getattr(importlib.import_module("freecad_cloth.simulation.workbench"), "ClothSimulationWorkbench")
+    cls = getattr(
+        importlib.import_module("freecad_cloth.simulation.workbench"), "ClothSimulationWorkbench"
+    )
     workbench = cls()
     workbench.Initialize()
     assert "ClothSimulation_CreateDrape" in workbench.commands
