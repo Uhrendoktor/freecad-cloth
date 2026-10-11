@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass
 from html import escape
+from pathlib import Path
 from math import cos, hypot, radians, sin
 from xml.etree import ElementTree
 
@@ -546,6 +547,41 @@ def validate_export(
         from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
     )
     return {"format": normalized_format, "valid": True, "metadata": metadata}
+
+
+def validate_svg_export(
+    pattern: ParametricPattern,
+    exported: str,
+    curve_samples: int = 32,
+    units: str = "mm",
+    derived: DerivedPattern | None = None,
+    piece_id: str = "",
+    seam_ids: tuple[str, ...] = (),
+    seam_allowance: float = 0.0,
+    *,
+    dpi: int = 96,
+    output_path: str | Path | None = None,
+) -> dict[str, object]:
+    """Validate generated SVG structure and render it with an independent QtSvg backend."""
+    result = validate_export(
+        pattern,
+        exported,
+        "svg",
+        curve_samples,
+        units,
+        derived,
+        piece_id,
+        seam_ids,
+        seam_allowance,
+    )
+    from freecad_cloth.pattern.PatternSvgValidation import render_svg_for_validation
+
+    result["render"] = render_svg_for_validation(
+        exported,
+        dpi=dpi,
+        output_path=output_path,
+    )
+    return result
 
 
 def _piece_seams(piece):
