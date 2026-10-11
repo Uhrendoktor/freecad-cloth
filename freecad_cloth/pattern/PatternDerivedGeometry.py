@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from math import atan2, cos, hypot, isfinite
 
 from shapely.geometry import Polygon
-
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import (
