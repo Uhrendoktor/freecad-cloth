@@ -112,9 +112,7 @@ def test_affine_transform_composition_matches_sequential_application():
         (-2.0, 5.0, 1.0),
     )
     point = (1.25, -2.5, 9.0)
-    assert _compose(first, second).apply(point) == pytest.approx(
-        first.apply(second.apply(point))
-    )
+    assert _compose(first, second).apply(point) == pytest.approx(first.apply(second.apply(point)))
 
 
 def test_joint_map_rejects_unknown_bones():
