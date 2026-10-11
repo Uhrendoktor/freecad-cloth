@@ -131,7 +131,6 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
-
     def test_local_mesh_discovery_accepts_only_verified_install_mesh(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             install = Path(directory) / "makehuman"
