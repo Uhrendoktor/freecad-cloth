@@ -65,8 +65,13 @@ class MeshCollisionProjector:
             raise ValueError("collision projection mesh has no reliable enclosed volume")
         orientation = 1.0 if signed_volume_times_six > 0.0 else -1.0
         self._normals = raw_normals * (orientation / lengths[:, None])
-        self._tree = KDTree(np.mean(triangles, axis=1))
+        self._centroids = np.mean(triangles, axis=1)
+        self._tree = KDTree(self._centroids)
         self._candidate_count = min(32, len(self._triangles))
+        triangle_radius_mm = float(
+            np.linalg.norm(triangles - self._centroids[:, None, :], axis=2).max()
+        )
+        self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
 
     def project(self, points_mm: npt.ArrayLike) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Return corrected world-mm positions and outward normals for moved points.
@@ -85,16 +90,33 @@ class MeshCollisionProjector:
         if points.shape[0] == 0:
             return corrected, contact_normals
 
-        _, candidate_ids = self._tree.query(
+        centroid_distances, candidate_ids = self._tree.query(
             points,
             k=self._candidate_count,
             eps=0.0,
             workers=1,
         )
-        candidate_triangles = self._triangles[np.asarray(candidate_ids, dtype=np.int64)]
+        candidate_ids = np.asarray(candidate_ids, dtype=np.int64)
+        closest_face_ids = candidate_ids[:, 0]
+        closest_face_normals = self._normals[closest_face_ids]
+        closest_plane_signed_distance = np.einsum(
+            "nd,nd->n",
+            points - self._centroids[closest_face_ids],
+            closest_face_normals,
+        )
+        # Far exterior garment points skip triangle projection. Keep points whose
+        # closest-centroid plane says "inside" active even when penetration is deep.
+        active = (centroid_distances[:, 0] <= self._search_radius_mm) | (
+            closest_plane_signed_distance < 0.0
+        )
+        if not bool(np.any(active)):
+            return corrected, contact_normals
+        active_points = points[active]
+        active_candidate_ids = candidate_ids[active]
+        candidate_triangles = self._triangles[active_candidate_ids]
         triangles = self._vertices[candidate_triangles]
         a, b, c = triangles[:, :, 0, :], triangles[:, :, 1, :], triangles[:, :, 2, :]
-        p = points[:, None, :]
+        p = active_points[:, None, :]
         ab, ac = b - a, c - a
         ap = p - a
 
@@ -151,19 +173,20 @@ class MeshCollisionProjector:
         squared_distance = np.einsum("nkd,nkd->nk", p - closest, p - closest)
 
         nearest_candidate = np.argmin(squared_distance, axis=1)
-        row_indices = np.arange(points.shape[0])
+        row_indices = np.arange(active_points.shape[0])
         nearest_points = closest[row_indices, nearest_candidate]
-        nearest_face_slots = np.asarray(candidate_ids, dtype=np.int64)[
-            row_indices, nearest_candidate
-        ]
+        nearest_face_slots = active_candidate_ids[row_indices, nearest_candidate]
         outward = self._normals[nearest_face_slots]
-        signed_distance = np.einsum("nd,nd->n", points - nearest_points, outward)
+        signed_distance = np.einsum("nd,nd->n", active_points - nearest_points, outward)
         needs_projection = signed_distance < self.clearance_mm - 1e-8
         if bool(np.any(needs_projection)):
-            projected = nearest_points[needs_projection] + (
+            active_corrected = active_points.copy()
+            active_normals = np.zeros_like(active_points)
+            active_corrected[needs_projection] = nearest_points[needs_projection] + (
                 self.clearance_mm * outward[needs_projection]
             )
-            corrected[needs_projection] = projected
-            contact_normals[needs_projection] = outward[needs_projection]
+            active_normals[needs_projection] = outward[needs_projection]
+            corrected[active] = active_corrected
+            contact_normals[active] = active_normals
 
         return corrected, contact_normals
