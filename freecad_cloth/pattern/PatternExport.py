@@ -57,9 +57,7 @@ class _ResolvedNotchCut:
     half_width: float
 
 
-def _project_point_onto_polyline(
-    point: Point, points: list[Point]
-) -> tuple[Point, float, float]:
+def _project_point_onto_polyline(point: Point, points: list[Point]) -> tuple[Point, float, float]:
     """Project a point to a polyline and return (projection, arclength, distance)."""
     if len(points) < 2:
         raise ValueError("cannot project onto a polyline with fewer than two points")
@@ -76,8 +74,7 @@ def _project_point_onto_polyline(
             1.0,
             max(
                 0.0,
-                ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy)
-                / (length * length),
+                ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / (length * length),
             ),
         )
         projected = (start[0] + fraction * dx, start[1] + fraction * dy)
@@ -96,9 +93,7 @@ def _polyline_point_at(points: list[Point], distance: float) -> Point:
     """Interpolate a point at an arclength on a polyline."""
     if len(points) < 2:
         raise ValueError("cannot interpolate a polyline with fewer than two points")
-    total = sum(
-        hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False)
-    )
+    total = sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
     target = min(total, max(0.0, distance))
     travelled = 0.0
     for start, end in zip(points, points[1:], strict=False):
@@ -223,13 +218,15 @@ def _cut_contour_with_notches(
     for _, kind, point, apex in events:
         candidates = (point, apex) if kind == "left" and apex is not None else (point,)
         for candidate in candidates:
-            if not result or hypot(
-                candidate[0] - result[-1][0], candidate[1] - result[-1][1]
-            ) > 1e-9:
+            if (
+                not result
+                or hypot(candidate[0] - result[-1][0], candidate[1] - result[-1][1]) > 1e-9
+            ):
                 result.append(candidate)
-    if len(result) > 1 and hypot(
-        result[-1][0] - result[0][0], result[-1][1] - result[0][1]
-    ) <= 1e-9:
+    if (
+        len(result) > 1
+        and hypot(result[-1][0] - result[0][0], result[-1][1] - result[0][1]) <= 1e-9
+    ):
         result.pop()
     notched_polygon = Polygon(result)
     if (
@@ -327,7 +324,9 @@ def to_svg(
         f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none" stroke="#000000" stroke-width="0.2" stroke-dasharray="2 1" stroke-linecap="round" stroke-linejoin="round"/></g>',
     ]
     if cut_edges or cut_contour:
-        notch_ids = " ".join(escape(notch.id, quote=True) for notch in derived.notches) if derived else ""
+        notch_ids = (
+            " ".join(escape(notch.id, quote=True) for notch in derived.notches) if derived else ""
+        )
         cut_points = cut_contour or tuple(point for edge in cut_edges for point in edge.points)
         lines.append(
             f'  <g id="cut-boundary"><path id="cut-perimeter" data-notch-ids="{notch_ids}" d="{path(cut_points, True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
