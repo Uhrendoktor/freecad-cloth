@@ -272,7 +272,8 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     knee_z = max(300.0, float(m["ankle"]) / 2.0 + float(m["inseam"]) * 0.52)
     ankle_z = float(m["ankle"]) / 2.0
     shoulder_half = float(m["shoulder"]) / 2.0
-    leg_x = max(55.0, float(m["hip"]) / (2.0 * 3.141592653589793) * 0.42)
+    # Hip circumference changes the pelvis envelope, not the leg stance width.
+    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * 3.141592653589793) * 0.42)
     side_y = 230.0 if params.pose.preset == "sitting" else 0.0
     knees = {
         "left": (-leg_x, side_y, pelvis_z - 15.0)
