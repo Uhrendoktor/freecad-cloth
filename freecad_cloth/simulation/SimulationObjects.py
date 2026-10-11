@@ -47,7 +47,9 @@ def _write_mesh(obj, positions, triangles):
     vertices = [App.Vector(*positions[index]) for index in vertex_indices]
     # The face indices originate from validated panel topology. Avoid repeating
     # the constructor's manifold check on every transient preview mesh rebuild.
-    obj.Mesh = Mesh.Mesh((vertices, list(faces)), False)
+    native = Mesh.Mesh()
+    native.addFacets((vertices, list(faces)), False)
+    obj.Mesh = native
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
