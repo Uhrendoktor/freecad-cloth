@@ -9,7 +9,6 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landma
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
     _bone_source_endpoints,
-    _joint_point,
     _load_source_vertices,
     _make_source_fitted_mapper,
     _reoriented_triangles,
@@ -65,9 +64,7 @@ def _arm_pose_configuration(
         wrist = mapper(wrist_source)
         side = -1.0 if shoulder[0] < 0.0 else 1.0
         desired = float(
-            parameters.pose.left_arm_angle
-            if side < 0.0
-            else parameters.pose.right_arm_angle
+            parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle
         )
         radial = max(1e-9, side * (wrist[0] - shoulder[0]))
         downward = max(0.0, shoulder[2] - wrist[2])
@@ -118,9 +115,7 @@ def pose_world_state(
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
     source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, float(parameters.skin_offset)
-    )
+    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
     skeleton = load_makehuman_skeleton()
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
         parameters, source_vertices, skeleton, mapper
@@ -140,7 +135,8 @@ def _manual_pose_state(
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
     source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(
+    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
+    mesh_mapper = _make_source_fitted_mapper(
         source_vertices, parameters, float(parameters.skin_offset)
     )
     skeleton = load_makehuman_skeleton()
@@ -157,7 +153,7 @@ def _manual_pose_state(
         effective_rotations,
         rotation_pivots=effective_pivots,
     )
-    rest_vertices = tuple(mapper(point) for point in mesh.vertices)
+    rest_vertices = tuple(mesh_mapper(point) for point in mesh.vertices)
     weights = load_makehuman_weights(len(rest_vertices))
     posed_vertices = apply_weighted_fk(
         source_vertices,
@@ -200,9 +196,7 @@ def transform_landmarks(
             continue
         rest_point = baseline.inverse().apply(tuple(float(value) for value in landmark.position))
         posed_point = effective.apply(rest_point)
-        result.append(
-            Landmark(landmark.name, tuple(float(value) for value in posed_point))
-        )
+        result.append(Landmark(landmark.name, tuple(float(value) for value in posed_point)))
     return tuple(result)
 
 

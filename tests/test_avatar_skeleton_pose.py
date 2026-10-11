@@ -5,18 +5,39 @@ import json
 import pytest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
-from freecad_cloth.avatar.HierarchicalPose import transform_landmarks
+from freecad_cloth.avatar.HierarchicalPose import pose_world_state, transform_landmarks
+from freecad_cloth.avatar.HumanoidMesh import _bone_source_endpoints
 from freecad_cloth.avatar.SkeletonPose import (
     CONTROLLABLE_BONES,
-    AffineTransform,
     IDENTITY,
+    AffineTransform,
     JointRotation,
+    _compose,
     apply_weighted_fk,
     joint_rotation_map,
     joint_rotations_from_json,
     joint_rotations_to_json,
-    _compose,
 )
+
+
+def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes():
+    baseline = AvatarParameters()
+    hip_changed = baseline.with_measurements(hip=baseline.measurement("hip") + 120.0)
+    padded = AvatarParameters(skin_offset=8.0)
+    source, skeleton, baseline_mapper, _ = pose_world_state(baseline)
+
+    for variant in (hip_changed, padded):
+        variant_source, variant_skeleton, variant_mapper, _ = pose_world_state(variant)
+        assert variant_skeleton == skeleton
+        unchanged_bones = (
+            ("head", "neck01", "clavicle.L")
+            if variant is hip_changed
+            else ("head", "neck01", "spine05", "clavicle.L")
+        )
+        for bone_name in unchanged_bones:
+            for point in _bone_source_endpoints(source, skeleton, bone_name):
+                assert baseline_mapper(point) == pytest.approx(variant_mapper(point))
+        assert variant_source == source
 
 
 def test_joint_rotation_bounds_and_mirror():
@@ -91,9 +112,7 @@ def test_affine_transform_composition_matches_sequential_application():
         (-2.0, 5.0, 1.0),
     )
     point = (1.25, -2.5, 9.0)
-    assert _compose(first, second).apply(point) == pytest.approx(
-        first.apply(second.apply(point))
-    )
+    assert _compose(first, second).apply(point) == pytest.approx(first.apply(second.apply(point)))
 
 
 def test_joint_map_rejects_unknown_bones():

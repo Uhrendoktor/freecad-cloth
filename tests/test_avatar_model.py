@@ -35,6 +35,16 @@ def test_measurement_change_changes_geometry_without_mutating_source():
     assert generate_mesh(params)[0] != generate_mesh(wider)[0]
 
 
+def test_hip_circumference_does_not_change_leg_stance_landmarks():
+    params = AvatarParameters()
+    wider_hip = params.with_measurements(hip=params.measurement("hip") + 120.0)
+    baseline_landmarks = {item.name: item.position for item in generate_mesh(params)[2]}
+    wider_landmarks = {item.name: item.position for item in generate_mesh(wider_hip)[2]}
+
+    for name in ("knee_left", "knee_right", "ankle_left", "ankle_right"):
+        assert wider_landmarks[name] == baseline_landmarks[name]
+
+
 def test_gender_and_breast_controls_persist_and_change_geometry():
     neutral = AvatarParameters()
     feminine = AvatarParameters(gender=0.0)
