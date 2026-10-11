@@ -922,12 +922,12 @@ class SurfacePenController:
         if self._drawing:
             self._drawing = False
             self._last_screen = None
-        closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
         document = self.App.ActiveDocument
         if document is None:
             raise RuntimeError("an active document is required")
         if self.input_mode == "references":
             return self._finish_reference_points(document, tolerance_mm)
+        closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
         if self.input_mode == "point":
             anchors = closed
         else:
