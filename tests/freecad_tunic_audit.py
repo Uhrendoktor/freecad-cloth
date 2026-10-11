@@ -186,7 +186,9 @@ replacements = {
     # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
     # depth extrema are dominated by hands in the near-T pose and can pull the stitched
     # panels through the body; the silhouette filter excludes those outliers.
-    "panel_fit_ratio = 0.96 - 0.04; panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)": "panel_fit_ratio = 0.96 - 0.04; panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)",
+    """    panel_fit_ratio = 0.96 - 0.04
+    panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)""": """    panel_fit_ratio = 0.96 - 0.04
+    panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)""",
     "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(500.0, panel_width + 80.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
