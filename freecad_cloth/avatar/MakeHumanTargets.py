@@ -146,6 +146,14 @@ def target_directory() -> Path | None:
             (base / "targets", base / "data" / "targets", base / "base" / "targets", base)
         )
     home = Path.home()
+    configured_home = os.environ.get("MH_HOME_LOCATION", "").strip()
+    if configured_home:
+        custom_data = Path(configured_home).expanduser() / "v1py3" / "data"
+        candidates.extend((custom_data / "targets", custom_data))
+    local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if local_app_data:
+        windows_data = Path(local_app_data) / "makehuman" / "v1py3" / "data"
+        candidates.extend((windows_data / "targets", windows_data))
     candidates.extend(
         (
             home / "Documents" / "makehuman" / "v1py3" / "data" / "targets",
