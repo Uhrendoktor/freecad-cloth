@@ -319,7 +319,17 @@ jobs:
           test-script: tests/freecad_realtime_benchmark.py
           pre-command: mkdir -p artifacts
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
-          environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          environment: |
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+            CLOTH_PBD_SUBSTEPS=1
+            CLOTH_REALTIME_FRAMES=120
+            CLOTH_REALTIME_WARMUP_FRAMES=30
+          artifact-name: realtime-preview-performance
+          artifact-path: artifacts/freecad-realtime/**
+
+      - name: Independently validate realtime performance metrics
+        if: always()
+        run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
 
       - uses: ./.github/actions/freecad-test
         with:
