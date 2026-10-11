@@ -121,11 +121,7 @@ def _shape_change_summary(before, after, height_mm):
         changed_vertices += int(changed)
         if 0.50 * height_mm <= old[2] <= 0.80 * height_mm:
             torso_changed_vertices += int(changed)
-        if (
-            0.64 * height_mm <= old[2] <= 0.73 * height_mm
-            and old[1] > 0.0
-            and abs(old[0]) <= 160.0
-        ):
+        if 0.64 * height_mm <= old[2] <= 0.73 * height_mm and old[1] > 0.0 and abs(old[0]) <= 160.0:
             front_projection_deltas.append(new[1] - old[1])
     if not front_projection_deltas:
         raise RuntimeError("no front-facing upper-torso vertices available for shape review")
@@ -306,9 +302,7 @@ def run():
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
                 raise RuntimeError("breast fullness did not persist to the FreeCAD avatar object")
             updated_mesh = _mesh_points(avatar)
-            shape_delta = _shape_change_summary(
-                original_mesh, updated_mesh, float(avatar.Height)
-            )
+            shape_delta = _shape_change_summary(original_mesh, updated_mesh, float(avatar.Height))
             if shape_delta["changed_vertices"] == 0:
                 raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
             if shape_delta["torso_changed_vertices"] == 0:
