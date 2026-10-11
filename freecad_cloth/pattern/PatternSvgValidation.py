@@ -1,10 +1,10 @@
 """Independent QtSvg rendering and physical-dimension checks for pattern SVGs."""
 
 import math
+import pathlib
 import re
 import types
-from pathlib import Path
-from xml.etree import ElementTree
+import xml.etree.ElementTree as ET
 
 
 _MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
@@ -39,7 +39,7 @@ def render_svg_for_validation(
     svg: str,
     *,
     dpi: int = 96,
-    output_path: str | Path | None = None,
+    output_path: str | pathlib.Path | None = None,
 ) -> dict[str, object]:
     """Validate physical SVG sizing and render it independently with QtSvg.
 
@@ -145,7 +145,7 @@ def render_svg_for_validation(
 
     saved_path = ""
     if output_path is not None:
-        target = Path(output_path)
+        target = pathlib.Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         if not image.save(str(target), "PNG"):
             raise OSError(f"could not write SVG validation preview: {target}")
