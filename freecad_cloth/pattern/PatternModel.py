@@ -6,14 +6,13 @@ values rather than being replaced by a second database/model.
 """
 
 from dataclasses import field
-from typing import Union
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_finite_number
 
 Point = tuple[float, float]
-EdgeRef = Union[int, str]
+EdgeRef = int | str
 
 
 def _empty_points() -> list[Point]:
