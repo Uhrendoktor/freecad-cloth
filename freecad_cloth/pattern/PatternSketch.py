@@ -44,7 +44,9 @@ def _is_axis_aligned_rectangle(
     ys = sorted({round(float(point[1]) / tolerance) for point in points})
     if len(xs) != 2 or len(ys) != 2:
         return False
-    corners = {(round(float(point[0]) / tolerance), round(float(point[1]) / tolerance)) for point in points}
+    corners = {
+        (round(float(point[0]) / tolerance), round(float(point[1]) / tolerance)) for point in points
+    }
     expected = {(x, y) for x in xs for y in ys}
     if corners != expected:
         return False
