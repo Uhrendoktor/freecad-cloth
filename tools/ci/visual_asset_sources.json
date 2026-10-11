@@ -31,11 +31,6 @@
         "tests/freecad_avatar_shape_editor_acceptance.py"
       ]
     },
-      "artifact": "avatar-pose-ui",
-      "producers": [
-        "tests/freecad_avatar_pose_ui_acceptance.py"
-      ]
-    },
     "cloth-avatar-bottom.png": {
       "artifact": "readme-turntables",
       "producers": [
