@@ -6,7 +6,6 @@ import math
 from collections.abc import Callable
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
-from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
     _bone_source_endpoints,
@@ -17,6 +16,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
+from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
 from freecad_cloth.avatar.SkeletonPose import (
     AffineTransform,
     JointRotation,
