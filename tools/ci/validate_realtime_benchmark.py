@@ -123,15 +123,14 @@ def validate_metrics(payload: object) -> list[str]:
                 continue
             stage = cast(dict[str, object], stage_value_for_name)
             samples = _integer(stage.get("samples"))
-            minimum_samples = (
-                max(1, frames // 2 - 2)
-                if name == "overlay_schedule" and frames is not None
-                else frames
-                if name != "mesh_write" and frames is not None
-                else frames
-                if frames is not None
-                else MIN_FRAMES
-            )
+            if frames is None:
+                minimum_samples = MIN_FRAMES
+            elif name == "overlay_schedule":
+                minimum_samples = max(1, frames // 2 - 2)
+            elif name == "mesh_write":
+                minimum_samples = frames * 2
+            else:
+                minimum_samples = frames
             if samples is None or samples < minimum_samples:
                 errors.append(
                     f"stage_timings.{name}.samples must be >= {minimum_samples}"
