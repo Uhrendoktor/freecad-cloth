@@ -416,7 +416,6 @@ def to_dxf(
     return "\n".join(lines)
 
 
-
 def to_pdf(
     pattern: ParametricPattern,
     curve_samples: int = 32,
