@@ -145,6 +145,4 @@ def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
         float(thickness),
     )
 
-
-
 __all__ = ["source_signature"]
