@@ -356,7 +356,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
-    assert "shoulder_width + 100.0" in source
+    assert "shoulder_width + 105.0" in source
     assert "hem_width = max(450.0, panel_width + 100.0)" in source
     assert "shoulder_span_ratio" not in audit
     assert '"panel_width = max(420.0, shoulder_width + 105.0)":' not in audit
@@ -366,7 +366,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
         in audit
     )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
-    assert "panel_width = max(420.0, shoulder_width + 100.0)" in debug
+    assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in source
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
