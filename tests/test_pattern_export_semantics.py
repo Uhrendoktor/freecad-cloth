@@ -164,7 +164,7 @@ def test_release_gate_rejects_unknown_format():
         validate_export(_curved_pattern(), "", "pdf")
 
 
-def test_svg_contains_visible_print_safe_geometry():
+def test_svg_contains_visible_print_safe_geometry() -> None:
     pattern = _curved_pattern()
     svg = to_svg(pattern, curve_samples=9, derived=_derived(pattern), piece_id="bodice-front")
     root = ElementTree.fromstring(svg)
@@ -190,7 +190,7 @@ def test_svg_contains_visible_print_safe_geometry():
     assert root.attrib["height"].endswith("mm")
 
 
-def test_export_rejects_units_that_would_relabel_without_conversion():
+def test_export_rejects_units_that_would_relabel_without_conversion() -> None:
     pattern = _curved_pattern()
     with TestCase().assertRaisesRegex(ValueError, "units must be 'mm'"):
         to_svg(pattern, units="in")
@@ -198,13 +198,13 @@ def test_export_rejects_units_that_would_relabel_without_conversion():
         to_dxf(pattern, units="cm")
 
 
-def test_dxf_declares_millimetres_in_standard_header():
+def test_dxf_declares_millimetres_in_standard_header() -> None:
     dxf = to_dxf(_curved_pattern())
     assert "$INSUNITS\n70\n4\n" in dxf
     assert from_dxf_metadata(dxf)["units"] == "mm"
 
 
-def test_cut_perimeter_is_closed_and_has_expected_allowance_extent():
+def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
     contour = derived.cut_contour
