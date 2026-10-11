@@ -425,13 +425,15 @@ def _fit_anny_body(
         for _step in range(_FIT_STEPS):
             hip_optimizer.zero_grad(set_to_none=True)
             actual = measure_grad(body, only=[hip_key])
-            relative_error = (actual[hip_key] - hip_target_value).abs() / hip_target_value.clamp_min(
-                1.0
-            )
+            relative_error = (
+                actual[hip_key] - hip_target_value
+            ).abs() / hip_target_value.clamp_min(1.0)
             if float(relative_error.max().detach()) <= _FIT_TOLERANCE:
                 break
             measurement_loss = (
-                ((actual[hip_key] - hip_target_value) / hip_target_value.clamp_min(1.0)).square().mean()
+                ((actual[hip_key] - hip_target_value) / hip_target_value.clamp_min(1.0))
+                .square()
+                .mean()
             )
             hip_penalty = torch.stack(
                 [
