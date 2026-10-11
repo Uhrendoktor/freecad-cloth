@@ -355,17 +355,17 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.96 * panel_width, 0.88 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
-    assert "shoulder_width / panel_fit_ratio + 35.0" in debug
-    assert "panel_fit_ratio = 0.96 - 0.04" in source
-    assert "shoulder_width / panel_fit_ratio + 35.0" in source
+    assert "shoulder_width / panel_fit_ratio + 20.0" in debug
+    assert "panel_fit_ratio = 0.94 - 0.06" in source
+    assert "shoulder_width / panel_fit_ratio + 20.0" in source
     assert "clearance = max(10.0, 0.05 * body_depth)" in debug
     assert (
         '"clearance = max(10.0, 0.05 * body_depth)": "clearance = max(10.0, 0.05 * body_depth);"'
         in audit
     )
     assert "clearance = max(10.0, 0.05 * body_depth)" in source
-    assert "panel_fit_ratio = 0.96 - 0.04" in debug
-    assert "panel_fit_ratio = 0.96 - 0.04" in audit
+    assert "panel_fit_ratio = 0.94 - 0.06" in debug
+    assert "panel_fit_ratio = 0.94 - 0.06" in audit
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
     assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.06)' in debug
