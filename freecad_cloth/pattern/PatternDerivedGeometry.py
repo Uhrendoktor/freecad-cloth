@@ -243,14 +243,19 @@ def _join_variable_offset_edges(
         d = current[1]
         intersection = _line_intersection(a, b, c, d)
         allowance = max(allowances[previous_index], allowances[index])
-        if intersection is not None and hypot(
-            intersection[0] - corner[0], intersection[1] - corner[1]
-        ) <= max(allowance, 1e-9) * miter_limit:
+        if (
+            intersection is not None
+            and hypot(intersection[0] - corner[0], intersection[1] - corner[1])
+            <= max(allowance, 1e-9) * miter_limit
+        ):
             joints.append((intersection, intersection))
-        elif hypot(
-            previous_end[0] - current_start[0],
-            previous_end[1] - current_start[1],
-        ) <= 1e-9:
+        elif (
+            hypot(
+                previous_end[0] - current_start[0],
+                previous_end[1] - current_start[1],
+            )
+            <= 1e-9
+        ):
             midpoint = (
                 (previous_end[0] + current_start[0]) / 2.0,
                 (previous_end[1] + current_start[1]) / 2.0,
@@ -270,9 +275,10 @@ def _join_variable_offset_edges(
             if not contour or hypot(point[0] - contour[-1][0], point[1] - contour[-1][1]) > 1e-9:
                 contour.append(point)
 
-    if len(contour) > 1 and hypot(
-        contour[-1][0] - contour[0][0], contour[-1][1] - contour[0][1]
-    ) <= 1e-9:
+    if (
+        len(contour) > 1
+        and hypot(contour[-1][0] - contour[0][0], contour[-1][1] - contour[0][1]) <= 1e-9
+    ):
         contour.pop()
     if len(contour) < 3:
         raise ValueError("per-edge seam allowance produced fewer than three cut points")
