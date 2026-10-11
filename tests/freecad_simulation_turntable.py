@@ -457,7 +457,7 @@ def main():
 
     doc = App.newDocument("ClothBlanketTurntable")
     try:
-        scene, cube, blanket, panel, initial_positions = build_simulation_state(doc)
+        scene, cube, _blanket, panel, initial_positions = build_simulation_state(doc)
         view = Gui.activeDocument().activeView()
         arranged_objects = [cube, panel]
         arranged_started = time.monotonic()
@@ -545,7 +545,7 @@ def main():
         panel.ViewObject.Visibility = True
         cube.ViewObject.Visibility = True
         doc.recompute()
-        shape, drape = validate_blanket_drape(panel, cube)
+        _shape, drape = validate_blanket_drape(panel, cube)
         log(
             "stage=validation-pass state={} clearance_mm={} elapsed_ms={:.1f}".format(
                 drape.state,
