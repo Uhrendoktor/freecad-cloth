@@ -115,9 +115,7 @@ def _load_target_cached(
                 prior[1] + offset[1],
                 prior[2] + offset[2],
             )
-    return MakeHumanTarget(
-        f"{source.as_posix()}::{archive_key}", tuple(sorted(merged.items()))
-    )
+    return MakeHumanTarget(f"{source.as_posix()}::{archive_key}", tuple(sorted(merged.items())))
 
 
 def load_target(
@@ -131,9 +129,7 @@ def load_target(
         source = Path(path).expanduser().resolve()
         archive_key = None
     stat = source.stat()
-    return _load_target_cached(
-        source.as_posix(), stat.st_mtime_ns, stat.st_size, archive_key
-    )
+    return _load_target_cached(source.as_posix(), stat.st_mtime_ns, stat.st_size, archive_key)
 
 
 def target_directory() -> Path | None:
@@ -198,7 +194,7 @@ def _target_index(root_text: str) -> dict[str, str]:
     for path in files:
         relative = path.relative_to(root).as_posix()
         suffix = ".target.gz" if relative.endswith(".target.gz") else ".target"
-        target_name = relative[:-len(suffix)]
+        target_name = relative[: -len(suffix)]
         index.setdefault(target_name.casefold(), path.as_posix())
         index.setdefault(Path(target_name).name.casefold(), path.as_posix())
     return index
@@ -214,17 +210,15 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
         for key in archive.files:
             if not key.endswith(".index"):
                 continue
-            target_name = key[:-len(".index")]
+            target_name = key[: -len(".index")]
             if target_name.startswith("targets/"):
-                target_name = target_name[len("targets/"):]
-            index.setdefault(target_name.casefold(), key[:-len(".index")])
-            index.setdefault(Path(target_name).name.casefold(), key[:-len(".index")])
+                target_name = target_name[len("targets/") :]
+            index.setdefault(target_name.casefold(), key[: -len(".index")])
+            index.setdefault(Path(target_name).name.casefold(), key[: -len(".index")])
     return index
 
 
-def resolve_target(
-    name: str, root: str | os.PathLike[str] | None = None
-) -> TargetReference | None:
+def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
     """Resolve a target by relative path or basename, with or without extension."""
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None or not base.is_dir():
@@ -234,7 +228,7 @@ def resolve_target(
         return None
     for suffix in (".target.gz", ".target"):
         if cleaned.endswith(suffix):
-            cleaned = cleaned[:-len(suffix)]
+            cleaned = cleaned[: -len(suffix)]
             break
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
@@ -252,9 +246,7 @@ def resolve_target(
         )
         archive_key = archive_targets.get(cleaned.casefold())
         if archive_key is None:
-            archive_key = archive_targets.get(
-                cleaned.removeprefix("targets/").casefold()
-            )
+            archive_key = archive_targets.get(cleaned.removeprefix("targets/").casefold())
         if archive_key is not None:
             return TargetReference(archive_path, archive_key)
     return None
