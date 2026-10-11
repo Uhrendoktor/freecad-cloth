@@ -846,7 +846,9 @@ def _make_tunic_sketch(
             "canonical tunic shoulders must slope downward from neckline to shoulder tip"
         )
     if not (armhole_z < neckline_scoop_z < shoulder_z):
-        raise RuntimeError("canonical tunic neckline scoop must cut below the shoulders and above the armholes")
+        raise RuntimeError(
+            "canonical tunic neckline scoop must cut below the shoulders and above the armholes"
+        )
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         raise RuntimeError("canonical tunic armhole opening is too narrow")
     if shoulder_z - armhole_z < 0.20 * float(garment_height):
