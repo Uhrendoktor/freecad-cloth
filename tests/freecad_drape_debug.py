@@ -402,9 +402,12 @@ def run():
     clearance = max(20.0, 0.08 * body_depth)
     front_y = box.YMax + clearance
     back_y = box.YMin - clearance
-    rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
+    # Keep the panel hems on their exterior clearances while converging the
+    # upper shoulder seam edges toward the posed mannequin.
+    front_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
+    back_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
 
-    def make_piece(name, y, neckline_ratio, neckline_drop):
+    def make_piece(name, y, rotation, neckline_ratio, neckline_drop):
         sketch, outline = _make_tunic_sketch(
             doc,
             name + "Source",
@@ -416,13 +419,13 @@ def run():
         )
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0)
-        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
+        piece.Placement = App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
     # Mirror the wider neckline and landmark-derived shoulder headroom in the lightweight diagnostic.
-    front, front_outline = make_piece("DebugTunicFront", front_y, 0.72, 0.03)
-    back, back_outline = make_piece("DebugTunicBack", back_y, 0.72, 0.03)
+    front, front_outline = make_piece("DebugTunicFront", front_y, front_rot, 0.72, 0.03)
+    back, back_outline = make_piece("DebugTunicBack", back_y, back_rot, 0.72, 0.03)
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam
