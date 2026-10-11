@@ -358,7 +358,7 @@ class AvatarTaskPanel:
         self.breast_slider.setSingleStep(1)
         self.breast_slider.setPageStep(10)
         self.breast_slider.setToolTip(
-            "Stage additional breast projection from the neutral base shape (0–100%)."
+            "Stage additional breast projection from the neutral base shape (0–100%)."  # noqa: RUF001 - en dash is part of the UI range label.
         )
         breast_row.addWidget(self.breast_slider, 1)
         breast_row.addWidget(QtWidgets.QLabel("More"))
