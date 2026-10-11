@@ -279,7 +279,9 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
             return TargetReference(path.resolve(), coordinate_format=_target_coordinate_format(base))
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is not None:
-        return TargetReference(Path(indexed_path))
+        return TargetReference(
+            Path(indexed_path), coordinate_format=_target_coordinate_format(base)
+        )
     archive_candidates = (base / "targets.npz", base.parent / "targets.npz")
     for archive_path in archive_candidates:
         if not archive_path.is_file():
