@@ -8,7 +8,6 @@ measurements are fitted through the libraries' differentiable body model.
 from __future__ import annotations
 
 import json
-import math
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -151,7 +150,6 @@ def _fit_anny_body(
         ) from exc
 
     values = dict(measurements)
-    local_labels = _measurement_local_change_labels()
     body = load_anny_from_params(
         _initial_phenotypes(gender, breast_size),
         device="cpu",
