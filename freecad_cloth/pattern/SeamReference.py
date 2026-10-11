@@ -12,12 +12,12 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point = tuple[float, float]
 
-NATIVE_SIGNATURE_PREFIX = "native-v1:"
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+NATIVE_SIGNATURE_PREFIX = "native-v1:"
 
 def _normalize_provenance(value, precision=9):
     """Convert native PatternIR provenance into deterministic JSON data."""
@@ -33,18 +33,14 @@ def _normalize_provenance(value, precision=9):
         return value
     return str(value)
 
-
 class EdgeReferenceError(ValueError):
     """Base error for invalid or unresolvable semantic edge references."""
-
 
 class MissingEdgeReference(EdgeReferenceError):
     """The semantic edge id no longer exists on its pattern piece."""
 
-
 class ChangedEdgeReference(EdgeReferenceError):
     """The semantic id exists but its geometry no longer matches."""
-
 
 @pydantic_dataclass(frozen=True)
 class EdgeReference:
@@ -82,7 +78,6 @@ class EdgeReference:
         except KeyError as exc:
             raise ValueError(f"edge reference is missing {exc.args[0]}") from exc
 
-
 def semantic_edge_id(piece_id: str, ordinal: int) -> str:
     """Return the canonical fallback id used for generated polygon edges."""
     if not str(piece_id).strip():
@@ -91,7 +86,6 @@ def semantic_edge_id(piece_id: str, ordinal: int) -> str:
     if ordinal < 0:
         raise ValueError("edge ordinal must be non-negative")
     return "%s:edge:%d" % (piece_id, ordinal)
-
 
 def edge_signature(
     points: Sequence[Point],
@@ -121,7 +115,6 @@ def edge_signature(
     )
     return prefix + hashlib.sha256(encoded.encode("ascii")).hexdigest()
 
-
 def capture_edge_reference(
     piece_id: str,
     edge_id: str,
@@ -134,7 +127,6 @@ def capture_edge_reference(
         str(edge_id),
         edge_signature(points, provenance=provenance),
     )
-
 
 def resolve_edge_reference(
     reference: EdgeReference,
@@ -172,7 +164,6 @@ def resolve_edge_reference(
             f"semantic edge reference {reference.edge_id} geometry/provenance changed"
         )
     return match
-
 
 def resolve_edge_reference_status(reference: EdgeReference, edges: Iterable[Mapping[str, object]]):
     """Return ``(valid, reason)`` without raising for UI validation paths."""
