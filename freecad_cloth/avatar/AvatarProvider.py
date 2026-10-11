@@ -97,7 +97,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
     def parameters(self):
         """Return the current provider parameters."""
-        return None
+        return
 
     def surface(self):
         """Return the current surface mesh."""
