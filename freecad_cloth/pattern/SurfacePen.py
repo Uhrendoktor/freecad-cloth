@@ -635,7 +635,9 @@ class SurfacePenController:
 
     @property
     def can_finish(self) -> bool:
-        """Return whether the boundary is closed and has enough authored corners."""
+        """Return whether this mode has enough input to finish safely."""
+        if self.input_mode == "references":
+            return len(self.anchors) >= 3
         if not surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
             return False
         if self.input_mode == "point":
@@ -643,8 +645,14 @@ class SurfacePenController:
         return True
 
     def set_input_mode(self, value: str) -> None:
-        """Switch between deliberate point placement and the legacy freehand trace."""
-        mode = "freehand" if "freehand" in str(value).lower() else "point"
+        """Switch between point placement, freehand trace, and reference-point modes."""
+        label = str(value).lower()
+        if "freehand" in label:
+            mode = "freehand"
+        elif "reference" in label:
+            mode = "references"
+        else:
+            mode = "point"
         self.input_mode = mode
         self._drawing = False
         self._last_screen = None
@@ -663,8 +671,18 @@ class SurfacePenController:
                     "Point placement: click the target to add corners. Choose Curve point "
                     "to create a smooth segment between neighboring corners."
                 )
+            if self.input_mode == "references":
+                return (
+                    "Reference points: click at least three locations around the intended "
+                    "outline. Finish creates construction points in a native Sketcher sketch."
+                )
             return (
                 "Freehand trace: drag on the selected surface. Release to lift and continue."
+            )
+        if self.input_mode == "references":
+            return (
+                f"Reference points: {len(self.anchors)} placed. Add points around the intended "
+                "outline; finish when at least three points define a usable planar patch."
             )
         distance = _length(_sub(self.anchors[-1].point, self.anchors[0].point))
         boundary_count = len(self.anchors) - 1
