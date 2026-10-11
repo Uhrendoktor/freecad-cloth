@@ -294,5 +294,8 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation():
     )
     assert '"boundary-order=%r near-crossing=%r"' in simulation
     assert "samples," in simulation
-    # Report classification belongs to the host-side dossier.
-    assert "invalid_derived" not in simulation
+    # Keep geometric validity guards in FreeCAD, but keep report classification on the host.
+    assert "canonical tunic derived pattern outline is invalid before simulation" in simulation
+    assert "fit_assessment" not in simulation
+    assert "review_required" not in simulation
+    assert 'status["result"]' not in simulation
