@@ -242,8 +242,8 @@ def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
 
 
 def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> None:
-    from tools.ci.validate_realtime_benchmark import FRAME_BUDGET_MS
     from tools.ci.validate_manifests import _validate_realtime_metrics
+    from tools.ci.validate_realtime_benchmark import FRAME_BUDGET_MS
 
     metrics = _valid_realtime_benchmark_metrics()
     metrics["p95_frame_interval_ms"] = FRAME_BUDGET_MS + 0.1
