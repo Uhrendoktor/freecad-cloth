@@ -581,9 +581,7 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
     min_y = min(point[1] for point in points)
     offset = (min_x, min_y)
     shifted = [(round(x - offset[0], 6), round(y - offset[1], 6)) for x, y in points]
-    segments = surface_segments_from_anchor_kinds(
-        shifted, [anchor.kind for anchor in anchors]
-    )
+    segments = surface_segments_from_anchor_kinds(shifted, [anchor.kind for anchor in anchors])
     pattern = PatternPiece(piece_name, shifted, id=piece_id)
     obj = add_pattern_piece(doc, pattern)
     sketch = create_sketch_for_piece(pattern, doc, geometry_segments=segments)
@@ -676,9 +674,7 @@ class SurfacePenController:
                     "Reference points: click at least three locations around the intended "
                     "outline. Finish creates construction points in a native Sketcher sketch."
                 )
-            return (
-                "Freehand trace: drag on the selected surface. Release to lift and continue."
-            )
+            return "Freehand trace: drag on the selected surface. Release to lift and continue."
         if self.input_mode == "references":
             return (
                 f"Reference points: {len(self.anchors)} placed. Add points around the intended "
@@ -874,16 +870,11 @@ class SurfacePenController:
 
         if len(self.anchors) < 3:
             raise ValueError("reference-point mode needs at least three points")
-        patch = flatten_surface_patch(
-            [anchor.point for anchor in self.anchors], tolerance_mm
-        )
+        patch = flatten_surface_patch([anchor.point for anchor in self.anchors], tolerance_mm)
         points = list(patch.points)
         min_x = min(point[0] for point in points)
         min_y = min(point[1] for point in points)
-        shifted = [
-            (round(x - min_x, 6), round(y - min_y, 6))
-            for x, y in points
-        ]
+        shifted = [(round(x - min_x, 6), round(y - min_y, 6)) for x, y in points]
         sketch = document.addObject(
             "Sketcher::SketchObject",
             document.getUniqueObjectName("SurfaceReferencePoints"),
@@ -893,9 +884,7 @@ class SurfacePenController:
         sketch.SurfaceAuthoring = "ClothPattern.SurfacePen.ReferencePoints"
         sketch.addProperty("App::PropertyLinkGlobal", "SurfaceTarget", "3D Authoring")
         sketch.SurfaceTarget = self.target
-        sketch.addProperty(
-            "App::PropertyString", "SurfaceTargetSignature", "3D Authoring"
-        )
+        sketch.addProperty("App::PropertyString", "SurfaceTargetSignature", "3D Authoring")
         sketch.SurfaceTargetSignature = _target_signature(self.target)
         sketch.addProperty("App::PropertyString", "SurfaceAnchorsJSON", "3D Authoring")
         sketch.SurfaceAnchorsJSON = json.dumps(
@@ -981,9 +970,7 @@ class SurfacePenTaskPanel:
 
         controls = QtWidgets.QFormLayout()
         self.input_mode_combo = QtWidgets.QComboBox()
-        self.input_mode_combo.addItems(
-            ["Point placement", "Freehand trace", "Reference points"]
-        )
+        self.input_mode_combo.addItems(["Point placement", "Freehand trace", "Reference points"])
         self.input_mode_combo.currentTextChanged.connect(self._input_mode_changed)
         controls.addRow("Input mode", self.input_mode_combo)
 
