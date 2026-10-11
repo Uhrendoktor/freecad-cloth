@@ -78,11 +78,12 @@ def main() -> None:
         if backend is None:
             raise RuntimeError("Realtime preview did not initialize its solver backend")
 
-        preview = _Preview(scene)
-        timer = preview.timer
-        # Instrument the real callback in-place; preserve its QTimer and callback implementation.
+        active_preview = _Preview(scene)
+        preview = active_preview
+        timer = active_preview.timer
+        # This fresh timer has only the production tick connected; replace it with an instrumented call.
         try:
-            timer.timeout.disconnect(preview.tick)
+            timer.timeout.disconnect()
         except (RuntimeError, TypeError) as exc:
             raise RuntimeError("Could not instrument the production preview timer") from exc
 
@@ -96,7 +97,7 @@ def main() -> None:
 
         def timed_tick() -> None:
             started_at = time.perf_counter()
-            preview.tick()
+            active_preview.tick()
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count >= WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
@@ -125,7 +126,7 @@ def main() -> None:
 
         started = time.perf_counter()
         deadline.start(TIMEOUT_MS)
-        preview.start()
+        active_preview.start()
         execute_loop = getattr(event_loop, "exec", None) or event_loop.exec_
         execute_loop()
         elapsed = time.perf_counter() - started
