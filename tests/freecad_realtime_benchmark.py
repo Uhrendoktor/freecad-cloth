@@ -70,8 +70,11 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
             [
                 Part.LineSegment(
                     App.Vector(points[index][0], points[index][1], 0.0),
-                    App.Vector(points[(index + 1) % len(points)][0],
-                               points[(index + 1) % len(points)][1], 0.0),
+                    App.Vector(
+                        points[(index + 1) % len(points)][0],
+                        points[(index + 1) % len(points)][1],
+                        0.0,
+                    ),
                 )
                 for index in range(len(points))
             ],
@@ -258,11 +261,7 @@ def main() -> None:
             "solver_substeps": int(scene.SolverSubsteps),
             "pbd_substeps": int(getattr(backend, "_substeps", 1)),
         }
-        fixture_pass = (
-            particle_count >= 100
-            and len(panels) == 2
-            and collision_triangles > 0
-        )
+        fixture_pass = particle_count >= 100 and len(panels) == 2 and collision_triangles > 0
         profile_pass = (
             profile["quality_preset"] == "Fast"
             and profile["particle_distance_mm"] >= 40.0
