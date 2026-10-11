@@ -22,8 +22,10 @@ def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
 
     assert feminine["gender"] == 1.0
     assert masculine["gender"] == 0.0
-    assert feminine["_local_changes"]["breast-volume-vert-up"] == 0.25
-    assert masculine["_local_changes"]["breast-volume-vert-up"] == 0.75
+    assert feminine["cupsize"] == 0.25
+    assert masculine["cupsize"] == 0.75
+    assert feminine["_local_changes"]["breast-volume-vert-up"] == 0.0
+    assert masculine["_local_changes"]["breast-volume-vert-up"] == 0.0
 
 
 def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None:
@@ -55,6 +57,13 @@ def test_clad_body_legacy_pose_alias_is_translated_for_anny_forward() -> None:
 
     assert model.forward(pose_parameterization="root_relative_world") == "local-bone"
     assert model.forward(pose_parameterization="local-bone") == "local-bone"
+
+
+def test_hip_only_shape_edits_do_not_change_rig_vertex_space() -> None:
+    parameters = AvatarParameters()
+    hip_changed = parameters.with_measurements(hip=parameters.measurement("hip") + 120.0)
+
+    assert build_avatar_rig_vertices(parameters) == build_avatar_rig_vertices(hip_changed)
 
 
 def test_fitted_rig_keeps_helper_vertices_without_exposing_them_as_body_surface() -> None:
