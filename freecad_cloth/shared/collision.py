@@ -7,6 +7,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
+
 @pydantic_dataclass(frozen=True)
 class CollisionSurface:
     """Immutable triangle surface consumed by collision-aware runtimes."""
@@ -45,6 +46,7 @@ class CollisionSurface:
         return CollisionSurface(
             self.vertices, self.triangles, self.region, float(thickness)
         ).validate()
+
 
 def surface_from_triangles(
     vertices: Iterable[Iterable[Real]],
