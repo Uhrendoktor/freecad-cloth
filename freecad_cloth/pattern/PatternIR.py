@@ -279,9 +279,7 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
             (segment.end[0], segment.end[1], 0.0),
         )
         return BoundaryIR(segment.id, "line", samples)
-    samples = tuple(
-        (point[0], point[1], 0.0) for point in segment.polyline(curve_samples)
-    )
+    samples = tuple((point[0], point[1], 0.0) for point in segment.polyline(curve_samples))
     return BoundaryIR(segment.id, "curve", samples)
 
 
