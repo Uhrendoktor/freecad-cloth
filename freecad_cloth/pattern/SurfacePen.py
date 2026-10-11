@@ -613,6 +613,8 @@ class SurfacePenController:
         self.status_callback = status_callback or (lambda _message: None)
         self.view = None
         self.anchors: list[SurfaceAnchor] = []
+        self.input_mode = "point"
+        self.point_kind = "corner"
         self._drawing = False
         self._last_screen = None
         self._mouse_callback = None
@@ -631,28 +633,58 @@ class SurfacePenController:
 
     @property
     def can_finish(self) -> bool:
-        """Return whether the current stroke meets the boundary-closure contract."""
-        return surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM)
+        """Return whether the boundary is closed and has enough authored corners."""
+        if not surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
+            return False
+        if self.input_mode == "point":
+            return sum(anchor.kind == "corner" for anchor in self.anchors[:-1]) >= 3
+        return True
+
+    def set_input_mode(self, value: str) -> None:
+        """Switch between deliberate point placement and the legacy freehand trace."""
+        mode = "freehand" if "freehand" in str(value).lower() else "point"
+        self.input_mode = mode
+        self._drawing = False
+        self._last_screen = None
+        self._status(self._stroke_status())
+
+    def set_point_kind(self, value: str) -> None:
+        """Choose whether the next placed anchor is a corner or curve-through point."""
+        self.point_kind = "curve" if "curve" in str(value).lower() else "corner"
+        self._status(self._stroke_status())
 
     def _stroke_status(self) -> str:
-        """Describe the current sample count and distance to the stroke start."""
+        """Describe the boundary closure, point count, and current authoring mode."""
         if not self.anchors:
+            if self.input_mode == "point":
+                return (
+                    "Point placement: click the target to add corners. Choose Curve point "
+                    "to create a smooth segment between neighboring corners."
+                )
             return (
-                "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+                "Freehand trace: drag on the selected surface. Release to lift and continue."
             )
         distance = _length(_sub(self.anchors[-1].point, self.anchors[0].point))
-        if self.can_finish:
+        boundary_count = len(self.anchors) - 1
+        if surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
+            if self.input_mode == "point":
+                corners = sum(anchor.kind == "corner" for anchor in self.anchors[:-1])
+                if corners < 3:
+                    return (
+                        f"Boundary closed, but only {corners} corner points are placed. "
+                        "Add at least three corners before finishing."
+                    )
             return (
-                f"Boundary closed: {len(self.anchors) - 1} boundary samples; "
-                f"gap {distance:.1f} mm. Finish Stroke → Pattern is ready."
+                f"Boundary closed: {boundary_count} points; gap {distance:.1f} mm. "
+                "Finish Stroke → Pattern is ready."
             )
         if len(self.anchors) < 4:
             return (
-                f"Surface stroke: {len(self.anchors)} samples. Add at least three distinct "
-                f"boundary points, then return within {self.CLOSE_DISTANCE_MM:.1f} mm of the start."
+                f"Boundary: {len(self.anchors)} points. Add at least three distinct points, "
+                f"then return within {self.CLOSE_DISTANCE_MM:.1f} mm of the start."
             )
         return (
-            f"Surface stroke: {len(self.anchors)} samples; endpoint gap {distance:.1f} mm. "
+            f"Boundary: {len(self.anchors)} points; endpoint gap {distance:.1f} mm. "
             f"Return within {self.CLOSE_DISTANCE_MM:.1f} mm of the first point to close."
         )
 
@@ -753,6 +785,17 @@ class SurfacePenController:
         self._update_overlay()
         self._status("Surface stroke cleared. " + self._stroke_status())
 
+    def _place_point(self, anchor):
+        """Append one deliberate point and accept a near-start click as closure."""
+        placed = SurfaceAnchor(anchor.point, anchor.normal, self.point_kind)
+        if (
+            len(self.anchors) >= 3
+            and _length(_sub(placed.point, self.anchors[0].point)) <= self.CLOSE_DISTANCE_MM
+        ):
+            self.anchors.append(placed)
+            return True
+        return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
+
     def _mouse_event(self, info):
         position = self._event_position(info)
         if position is None:
@@ -765,6 +808,11 @@ class SurfacePenController:
             anchor = self._pick(position)
             if anchor is None:
                 self._status("Pointer is not over the selected mannequin surface.")
+                return
+            if self.input_mode == "point":
+                self._place_point(anchor)
+                self._update_overlay()
+                self._status(self._stroke_status())
                 return
             self._drawing = True
             self._last_screen = position
@@ -804,18 +852,21 @@ class SurfacePenController:
         document = self.App.ActiveDocument
         if document is None:
             raise RuntimeError("an active document is required")
-        simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
-        if len(simplified) < 3:
-            raise ValueError("surface stroke simplified to fewer than three points")
-        by_point = {tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed}
-        anchors = tuple(
-            by_point.get(tuple(round(value, 6) for value in point))
-            or SurfaceAnchor(point, closed[min(index, len(closed) - 1)].normal)
-            for index, point in enumerate(simplified)
-        )
+        if self.input_mode == "point":
+            anchors = closed
+        else:
+            simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
+            if len(simplified) < 3:
+                raise ValueError("surface stroke simplified to fewer than three points")
+            by_point = {
+                tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed
+            }
+            anchors = tuple(
+                by_point.get(tuple(round(value, 6) for value in point))
+                or SurfaceAnchor(point, closed[min(index, len(closed) - 1)].normal)
+                for index, point in enumerate(simplified)
+            )
         # Validate the same bounded planar contract before any persistent object
-        # is created. Extraction itself repeats the target-signature check.
-        patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
         # Retain the closing sample in persisted state: extraction repeats the
         # closure check on the serialized stroke before flattening it.
         draft_anchors = (*anchors, self.anchors[-1])
