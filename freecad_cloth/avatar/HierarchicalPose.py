@@ -197,9 +197,7 @@ def transform_landmarks(
             continue
         rest_point = baseline.inverse().apply(tuple(float(value) for value in landmark.position))
         posed_point = effective.apply(rest_point)
-        result.append(
-            Landmark(landmark.name, tuple(float(value) for value in posed_point))
-        )
+        result.append(Landmark(landmark.name, tuple(float(value) for value in posed_point)))
     return tuple(result)
 
 
