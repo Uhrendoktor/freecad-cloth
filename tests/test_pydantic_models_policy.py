@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from tools.ci import check_pydantic_models
 from tools.ci.check_pydantic_models import (
     repository_violations,
     serialization_exception_is_justified,
@@ -41,9 +42,28 @@ def test_pydantic_dataclass_is_accepted() -> None:
     assert standard_dataclass_decorators(source, "sample.py") == ()
 
 
-def test_freecad_exception_requires_a_serialization_incompatibility_reason() -> None:
+def test_freecad_exception_requires_a_serialization_incompatibility_reason(
+    monkeypatch,
+) -> None:
     """Do not let generic convenience/performance notes bypass Pydantic."""
-    assert not serialization_exception_is_justified("freecad_cloth/example.py")
+    path = "freecad_cloth/example.py"
+    monkeypatch.setattr(
+        check_pydantic_models,
+        "FREECAD_SERIALIZATION_EXCEPTIONS",
+        {
+            path: (
+                "FreeCAD internal serialization is incompatible with this Pydantic field.",
+                "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason",
+            )
+        },
+    )
+    assert serialization_exception_is_justified(path)
+    monkeypatch.setattr(
+        check_pydantic_models,
+        "FREECAD_SERIALIZATION_EXCEPTIONS",
+        {path: ("Performance overhead", "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason")},
+    )
+    assert not serialization_exception_is_justified(path)
 
 
 def test_all_production_records_follow_the_pydantic_policy() -> None:
