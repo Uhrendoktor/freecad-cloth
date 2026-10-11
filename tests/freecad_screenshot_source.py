@@ -244,7 +244,6 @@ def _camera_snapshot(view):
             round(float(up.y), 6),
             round(float(up.z), 6),
         ],
-        "screen_up_world": [round(float(up.x), 6), round(float(up.y), 6), round(float(up.z), 6)],
         "view_forward_world": [
             round(float(forward.x), 6),
             round(float(forward.y), 6),
