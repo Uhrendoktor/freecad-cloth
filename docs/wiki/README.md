@@ -17,7 +17,7 @@ The recommended learning sequence is **Sketcher pattern → semantic seams → a
 
 ## Follow the workflow
 
-The overview shows the complete sequence and the resulting visual states. Each stage links to a focused feature guide.
+The overview shows the complete sequence and the resulting visual states. Each stage links to a focused feature guide. The mannequin shape/dimension step belongs before piece arrangement so sewing and fitting use the intended body surface.
 
 | Stage | Guide | Visual evidence |
 | --- | --- | --- |
