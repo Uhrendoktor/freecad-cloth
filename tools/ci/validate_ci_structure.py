@@ -71,13 +71,11 @@ TYPECHECK_COMMANDS = (
     "python tools/ci/check_changed_python_types.py",
 )
 
-PYTHON_POLICY_COMMANDS = (
-    "python tools/ci/check_pydantic_models.py",
-)
+PYTHON_POLICY_COMMANDS = ("python tools/ci/check_pydantic_models.py",)
 
 RUFF_COMMANDS = (
-    "xargs -0 -r python -m ruff format --check < \"$RUNNER_TEMP/python-files.zlist\"",
-    "xargs -0 -r python -m ruff check < \"$RUNNER_TEMP/python-files.zlist\"",
+    'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
+    'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"',
 )
 
 
@@ -209,7 +207,9 @@ def main() -> int:
             + ", ".join(missing_python_policies)
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
-        raise SystemExit("duplicate Pyright config must be removed; maintain only pyrightconfig.json")
+        raise SystemExit(
+            "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
+        )
     try:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
@@ -219,7 +219,10 @@ def main() -> int:
     command_lines = {line.strip() for line in text.splitlines()}
     missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
     if missing_ruff:
-        raise SystemExit("canonical workflow must run Ruff over every tracked Python file: " + ", ".join(missing_ruff))
+        raise SystemExit(
+            "canonical workflow must run Ruff over every tracked Python file: "
+            + ", ".join(missing_ruff)
+        )
     base_ref = os.environ.get("BASE_REF") or os.environ.get("GITHUB_BASE_REF")
     added_modules = added_production_python_modules(base_ref) if base_ref else ()
     coverage_violations = pyright_coverage_contract_violations(
