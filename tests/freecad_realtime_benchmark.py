@@ -141,8 +141,6 @@ def _percentile(values: list[float], fraction: float) -> float | None:
     return ordered[max(0, min(len(ordered) - 1, rank))]
 
 
-
-
 class _TimedGuiView:
     """Forward FreeCAD view calls while recording the synchronous viewport redraw cost."""
 
@@ -184,6 +182,7 @@ def _timing_summary(values: list[float]) -> dict[str, float | int | None]:
         "p95_ms": _percentile(values, 0.95),
         "max_ms": max(values) if values else None,
     }
+
 
 def main() -> None:
     """Exercise the real Qt preview timer and gate its sustained frame interval."""
