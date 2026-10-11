@@ -149,7 +149,7 @@ model = anny.create_fullbody_model(
     local_changes=sorted(labels),
     remove_unattached_vertices=False,
     triangulate_faces=True,
-    pose_parameterization="root_relative_world",
+    pose_parameterization="local-bone",
     bone_orientation="blender-rootidentity",
     all_phenotypes=True,
 ).to(dtype=torch.float32, device="cpu")

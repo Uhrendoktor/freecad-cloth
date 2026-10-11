@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -59,6 +60,23 @@ _FIT_TOLERANCE = 0.012
 class AnnyAvatarBackendError(RuntimeError):
     """Raised when Anny cannot produce a compatible avatar mesh."""
 
+def _adapt_clad_body_pose_alias(model: object) -> None:
+    """Translate clad-body 0.6.1 legacy forward calls for Anny 0.6."""
+    forward = getattr(model, "forward", None)
+    if not callable(forward):
+        raise AnnyAvatarBackendError("Anny model does not expose a callable forward method.")
+    original_forward: Callable[..., object] = forward
+
+    def compatible_forward(*args: object, **kwargs: object) -> object:
+        if kwargs.get("pose_parameterization") == "root_relative_world":
+            kwargs["pose_parameterization"] = "local-bone"
+        return original_forward(*args, **kwargs)
+
+    # clad-body 0.6.1 still supplies root_relative_world on every forward call.
+    # Anny 0.6 translates that alias only in the factory, not in forward().
+    setattr(model, "forward", compatible_forward)
+
+@lru_cache(maxsize=1)
 
 @lru_cache(maxsize=1)
 def _measurement_local_change_labels() -> tuple[str, ...]:
@@ -182,10 +200,11 @@ def _fit_anny_body(
         local_changes=sorted(local_values),
         remove_unattached_vertices=False,
         triangulate_faces=True,
-        pose_parameterization="root_relative_world",
+        pose_parameterization="local-bone",
         bone_orientation="blender-rootidentity",
         all_phenotypes=True,
     ).to(dtype=torch.float32, device="cpu")
+    _adapt_clad_body_pose_alias(model)
 
     # Cloth's skin weights and authored joints index the unedited HM08 mesh.
     # Do not silently fit against a reordered/filtered topology.
