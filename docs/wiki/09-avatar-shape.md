@@ -14,7 +14,7 @@ Use this editor to prepare a mannequin for pattern fitting and sewing. It separa
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-body-shape-gallery.png" alt="Seven real FreeCAD HM08 mannequin renders showing feminine, masculine, slim, plus-size, muscular, tall, and petite example body shapes at a shared orthographic scale" width="1000"></p>
 
-The gallery is rendered from the bundled HM08 mannequin mesh using the existing **Gender blend**, **Breast fullness**, and measurement inputs. Camera scale stays fixed across all seven views, so body height and breadth remain comparable. Each card shows its height, waist, hip, and shape-control values.
+The gallery is rendered from the pinned HM08 mannequin mesh using the existing **Gender blend**, **Breast fullness**, and measurement inputs. The mesh is reused from a matching local MakeHuman installation when found, or downloaded from the pinned upstream revision and cached on first use. Camera scale stays fixed across all seven views, so body height and breadth remain comparable. Each card shows its height, waist, hip, and shape-control values.
 
 These are **example parameter combinations**, not named presets available in a preset menu. To create a similar silhouette, enter the displayed blend/fullness values, then adjust height, chest, waist, hip, shoulder, upper-arm, and thigh measurements to the intended wearer. Use the measurements as a starting point rather than assuming the example proportions fit every person or garment.
 
@@ -41,6 +41,13 @@ For a small end-to-end exercise, follow [Example 3: Prepare a mannequin for sewi
 The labelled lines, markers, and circumference rings are transient viewport overlay geometry. They do not add FreeCAD document objects. A drag updates the staged task-panel value; **Apply & Rebuild** is the commit boundary. Closing the editor removes the overlay and its callbacks. The 3D Pattern Pen remains a separate authoring tool and is not reused by this editor.
 
 If a build cannot initialise the viewport interaction, use the numeric measurement fields. Imported FreeCAD geometry is a surface provider rather than a parametric human body, so its shape and measurement controls are disabled.
+
+
+### Base mesh lookup and offline behavior
+
+The HM08 base mesh is not bundled in the workbench package. The loader first uses its checksum-verified cache, then checks common MakeHuman installation paths and the optional `FREECAD_CLOTH_MAKEHUMAN_DATA` setting, and finally downloads the pinned mesh into the cache. Set that variable to a MakeHuman installation root or data directory to prioritize a particular local installation. Auto-discovery accepts only a byte-for-byte match for the pinned mesh so its vertex indices remain compatible with the authored rig data. `FREECAD_CLOTH_AVATAR_MESH` remains an explicit path override and may point to a custom OBJ.
+
+The default skinning weights and skeleton are managed as separate cached downloads, with their own `FREECAD_CLOTH_AVATAR_WEIGHTS` and `FREECAD_CLOTH_AVATAR_SKELETON` overrides. Finding the base mesh locally therefore does not by itself guarantee fully offline setup; the required weights and skeleton must also already be cached or configured locally.
 
 ## Shape deformation model and limitations
 
