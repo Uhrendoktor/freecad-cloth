@@ -365,7 +365,7 @@ def run():
     hem_width = max(500.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
-    clearance = max(20.0, 0.08 * body_depth)
+    clearance = max(10.0, 0.05 * body_depth)
     front_y = box.YMax + clearance
     back_y = box.YMin - clearance
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
