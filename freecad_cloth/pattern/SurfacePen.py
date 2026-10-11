@@ -11,7 +11,7 @@ surface-parameterization backend can replace the flattening helper without
 changing the viewport or PatternPiece authority boundaries.
 """
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 import collections.abc
 import contextlib
@@ -259,7 +259,7 @@ class SurfaceAnchor:
         }
 
     @classmethod
-    def from_json(cls, value: dict) -> "SurfaceAnchor":
+    def from_json(cls, value: dict) -> SurfaceAnchor:
         """Restore a surface anchor from its serialized mapping."""
         kind = str(value.get("kind", "corner")).lower()
         if kind not in {"corner", "curve"}:
@@ -276,7 +276,7 @@ class FlattenedSurfacePatch:
     normal: Vector3
     max_deviation_mm: float
 
-    def validate(self, tolerance_mm: float) -> "FlattenedSurfacePatch":
+    def validate(self, tolerance_mm: float) -> FlattenedSurfacePatch:
         """Validate topology, area, and allowed planar deviation."""
         if len(self.points) < 3:
             raise ValueError("surface patch needs at least three distinct points")
@@ -1104,12 +1104,12 @@ __all__ = [
     "SurfaceAnchor",
     "SurfacePenController",
     "SurfacePenTaskPanel",
+    "close_surface_stroke",
     "extract_surface_draft_to_pattern",
     "flatten_surface_patch",
-    "close_surface_stroke",
     "polygon_area_2d",
     "polygon_self_intersects",
     "simplify_polyline",
-    "surface_stroke_can_finish",
     "start_surface_pen",
+    "surface_stroke_can_finish",
 ]
