@@ -132,18 +132,21 @@ def _shape_change_summary(
         1 for point in changed_positions if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
     )
     bust_baseline = before if breast_reference is None else breast_reference
+    # The Anny/Blender body faces -Y in FreeCAD coordinates. Positive Y is
+    # the back surface, so measuring its maximum can report an inward back
+    # contour as a failed breast-projection edit. Compare the front-most points.
     before_front = tuple(
-        point[1]
+        -point[1]
         for point in bust_baseline
         if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
-        and point[1] > 0.0
+        and point[1] < 0.0
         and abs(point[0]) <= 160.0
     )
     after_front = tuple(
-        point[1]
+        -point[1]
         for point in after
         if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
-        and point[1] > 0.0
+        and point[1] < 0.0
         and abs(point[0]) <= 160.0
     )
     if not before_front or not after_front:
