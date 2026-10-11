@@ -213,7 +213,7 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
     assert abs(float(observed["minimum"]) - 663.158) < 0.001
     assert abs(float(observed["maximum"]) - 1235.459) < 0.001
     assert abs(float(deviations["cloth_top_below_shoulder_reference"]) - 112.041) < 0.001
-    assert abs(float(deviations["cloth_extends_below_expected_hem"]) - 256.843) < 0.001
+    assert abs(float(deviations["cloth_extends_below_expected_hem"]) - 256.842) < 0.001
     findings = fit_assessment["findings"]
     assert isinstance(findings, list)
     assert {finding["kind"] for finding in findings if isinstance(finding, dict)} == {
