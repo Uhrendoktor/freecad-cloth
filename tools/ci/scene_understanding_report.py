@@ -237,39 +237,51 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     hem_shortfall_mm = max(0.0, observed_min_z - hem_z)
     findings: list[dict[str, object]] = []
     if top_below_reference_mm > review_threshold_mm:
-        findings.append({
-            "kind": "cloth_top_below_shoulder_reference",
-            "severity": "warning",
-            "observed_mm": round(top_below_reference_mm, 3),
-            "review_threshold_mm": round(review_threshold_mm, 3),
-            "message": "highest final cloth point is materially below the estimated shoulder reference",
-        })
+        findings.append(
+            {
+                "kind": "cloth_top_below_shoulder_reference",
+                "severity": "warning",
+                "observed_mm": round(top_below_reference_mm, 3),
+                "review_threshold_mm": round(review_threshold_mm, 3),
+                "message": "highest final cloth point is materially below the estimated shoulder reference",
+            }
+        )
     if top_above_reference_mm > review_threshold_mm:
-        findings.append({
-            "kind": "cloth_top_above_shoulder_reference",
-            "severity": "warning",
-            "observed_mm": round(top_above_reference_mm, 3),
-            "review_threshold_mm": round(review_threshold_mm, 3),
-            "message": "highest final cloth point is materially above the estimated shoulder reference",
-        })
+        findings.append(
+            {
+                "kind": "cloth_top_above_shoulder_reference",
+                "severity": "warning",
+                "observed_mm": round(top_above_reference_mm, 3),
+                "review_threshold_mm": round(review_threshold_mm, 3),
+                "message": "highest final cloth point is materially above the estimated shoulder reference",
+            }
+        )
     if hem_overshoot_mm > review_threshold_mm:
-        findings.append({
-            "kind": "cloth_extends_below_expected_hem",
-            "severity": "warning",
-            "observed_mm": round(hem_overshoot_mm, 3),
-            "review_threshold_mm": round(review_threshold_mm, 3),
-            "message": "lowest final cloth point extends materially below the declared hem level",
-        })
+        findings.append(
+            {
+                "kind": "cloth_extends_below_expected_hem",
+                "severity": "warning",
+                "observed_mm": round(hem_overshoot_mm, 3),
+                "review_threshold_mm": round(review_threshold_mm, 3),
+                "message": "lowest final cloth point extends materially below the declared hem level",
+            }
+        )
     if hem_shortfall_mm > review_threshold_mm:
-        findings.append({
-            "kind": "cloth_ends_above_expected_hem",
-            "severity": "warning",
-            "observed_mm": round(hem_shortfall_mm, 3),
-            "review_threshold_mm": round(review_threshold_mm, 3),
-            "message": "lowest final cloth point ends materially above the declared hem level",
-        })
+        findings.append(
+            {
+                "kind": "cloth_ends_above_expected_hem",
+                "severity": "warning",
+                "observed_mm": round(hem_shortfall_mm, 3),
+                "review_threshold_mm": round(review_threshold_mm, 3),
+                "message": "lowest final cloth point ends materially above the declared hem level",
+            }
+        )
 
-    state = "review_required" if findings or "below-hem-candidate" in diagnostic_names else "within_heuristic_tolerance"
+    state = (
+        "review_required"
+        if findings or "below-hem-candidate" in diagnostic_names
+        else "within_heuristic_tolerance"
+    )
     return {
         "state": state,
         "method": "final panel world-space Z bounds compared with declared hem and bounding-box-derived shoulder reference",
