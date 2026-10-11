@@ -56,6 +56,7 @@ def _capture(name: str) -> Path:
             "Surface Pen capture requires a 1280x720-capable screen, got %dx%d"
             % (geometry.width(), geometry.height())
         )
+    window.showNormal()
     window.resize(1280, 720)
     window.show()
     window.raise_()
