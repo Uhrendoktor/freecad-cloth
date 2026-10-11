@@ -61,6 +61,7 @@ jobs:
           git clone --quiet --depth 1 https://github.com/tabler/tabler-icons.git "$RUNNER_TEMP/tabler-icons"
           python - <<'PY'
           from pathlib import Path
+          import os
           import re
           import subprocess
           import xml.etree.ElementTree as ET
@@ -115,7 +116,7 @@ jobs:
                       paths.append(" ".join(element.attrib["d"].split()))
               return tuple(paths) if paths else None
 
-          upstream_root = Path("$RUNNER_TEMP/tabler-icons/icons/outline")
+          upstream_root = Path(os.environ["RUNNER_TEMP"]) / "tabler-icons" / "icons" / "outline"
           upstream = {}
           for svg in upstream_root.glob("*.svg"):
               signature = path_signature(svg)
