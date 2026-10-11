@@ -22,6 +22,7 @@ from freecad_cloth.pattern.PatternMesh import (
 )
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
+from freecad_cloth.simulation.SimulationObjects import _indexed_mesh_topology
 
 
 def test_rectangle_mesh_area_and_topology():
@@ -229,3 +230,14 @@ def test_point_to_segment_distance_tiny_scaled_coordinates() -> None:
         == 1e-291
     )
     assert _point_to_segment_distance((0.0, 0.0), (0.0, 0.0), (0.0, 3.858376809264568e-291)) == 0.0
+
+
+def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None:
+    triangles = ((0, 1, 2), (0, 2, 3), (5, 6, 7), (3, 2, 0))
+
+    result = _indexed_mesh_topology(triangles)
+    vertex_indices, faces = result
+
+    assert vertex_indices == (0, 1, 2, 3, 5, 6, 7)
+    assert faces == ((0, 1, 2), (0, 2, 3), (4, 5, 6), (3, 2, 0))
+    assert _indexed_mesh_topology(triangles) is result

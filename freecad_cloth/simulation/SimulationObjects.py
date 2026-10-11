@@ -45,7 +45,9 @@ def _write_mesh(obj, positions, triangles):
     # frames, then update only the current solver coordinates.
     vertex_indices, faces = _indexed_mesh_topology(topology)
     vertices = [App.Vector(*positions[index]) for index in vertex_indices]
-    obj.Mesh = Mesh.Mesh((vertices, list(faces)))
+    # The face indices originate from validated panel topology. Avoid repeating
+    # the constructor's manifold check on every transient preview mesh rebuild.
+    obj.Mesh = Mesh.Mesh((vertices, list(faces)), False)
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
