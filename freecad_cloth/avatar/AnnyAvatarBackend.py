@@ -156,16 +156,15 @@ def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | 
         "weight": 0.5,
         "height": 0.5,
         "proportions": 0.5,
-        "cupsize": 0.5,
+        "cupsize": breast_size,
         "firmness": 0.5,
         # Keep the unexposed race controls at Anny's neutral equal blend.
         "african": 1.0 / 3.0,
         "asian": 1.0 / 3.0,
         "caucasian": 1.0 / 3.0,
-        "_local_changes": {
-            name: breast_size if name == _BREAST_LOCAL_CHANGE else 0.0
-            for name in _measurement_local_change_labels()
-        },
+        # Breast size is an Anny phenotype, not a vertical-position morph.
+        # Keep the independent breast-volume-position target at its neutral value.
+        "_local_changes": {name: 0.0 for name in _measurement_local_change_labels()},
     }
 
 
@@ -173,6 +172,8 @@ def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
+    *,
+    fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Fit an Anny body and preserve every indexed vertex for rig anchors."""
     try:
@@ -410,41 +411,42 @@ def _fit_anny_body(
                 if name not in breast_names and name not in hip_change_names:
                     value.clamp_(-1.0, 1.0)
 
-    # Only the hip-specific morphs may move while fitting hip circumference.
-    # All other local and global shape controls are now frozen.
-    for name, value in body.local_changes_kwargs.items():
-        value.requires_grad_(name in hip_change_names)
-    hip_parameters = [
-        value for name, value in body.local_changes_kwargs.items() if name in hip_change_names
-    ]
-    hip_name, hip_key, hip_target = hip_targets[0]
-    hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
-    hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)
-    for _step in range(_FIT_STEPS):
-        hip_optimizer.zero_grad(set_to_none=True)
-        actual = measure_grad(body, only=[hip_key])
-        relative_error = (actual[hip_key] - hip_target_value).abs() / hip_target_value.clamp_min(
-            1.0
-        )
-        if float(relative_error.max().detach()) <= _FIT_TOLERANCE:
-            break
-        measurement_loss = (
-            ((actual[hip_key] - hip_target_value) / hip_target_value.clamp_min(1.0)).square().mean()
-        )
-        hip_penalty = torch.stack(
-            [
-                value.square().mean()
-                for name, value in body.local_changes_kwargs.items()
-                if name in hip_change_names
-            ]
-        ).mean()
-        loss = measurement_loss + 0.0005 * hip_penalty
-        loss.backward()
-        hip_optimizer.step()
-        with torch.no_grad():
-            for name, value in body.local_changes_kwargs.items():
-                if name in hip_change_names:
-                    value.clamp_(-1.0, 1.0)
+    if fit_hip:
+        # Only the hip-specific morphs may move while fitting hip circumference.
+        # All other local and global shape controls are now frozen.
+        for name, value in body.local_changes_kwargs.items():
+            value.requires_grad_(name in hip_change_names)
+        hip_parameters = [
+            value for name, value in body.local_changes_kwargs.items() if name in hip_change_names
+        ]
+        hip_name, hip_key, hip_target = hip_targets[0]
+        hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
+        hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)
+        for _step in range(_FIT_STEPS):
+            hip_optimizer.zero_grad(set_to_none=True)
+            actual = measure_grad(body, only=[hip_key])
+            relative_error = (actual[hip_key] - hip_target_value).abs() / hip_target_value.clamp_min(
+                1.0
+            )
+            if float(relative_error.max().detach()) <= _FIT_TOLERANCE:
+                break
+            measurement_loss = (
+                ((actual[hip_key] - hip_target_value) / hip_target_value.clamp_min(1.0)).square().mean()
+            )
+            hip_penalty = torch.stack(
+                [
+                    value.square().mean()
+                    for name, value in body.local_changes_kwargs.items()
+                    if name in hip_change_names
+                ]
+            ).mean()
+            loss = measurement_loss + 0.0005 * hip_penalty
+            loss.backward()
+            hip_optimizer.step()
+            with torch.no_grad():
+                for name, value in body.local_changes_kwargs.items():
+                    if name in hip_change_names:
+                        value.clamp_(-1.0, 1.0)
 
     for value in body.local_changes_kwargs.values():
         value.requires_grad_(False)
@@ -527,26 +529,38 @@ def _cached_fitted_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
+    fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Cache fitted surface and full rig vertices so viewport events do not refit."""
-    return _fit_anny_body(measurements, gender, breast_size)
+    return _fit_anny_body(measurements, gender, breast_size, fit_hip=fit_hip)
 
 
 def _fitted_body_for(
     parameters: AvatarParameters,
+    *,
+    fit_hip: bool = True,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
-    """Return the cached visible surface and complete rig-indexed fitted vertices."""
-    key = tuple(
-        sorted((str(name), float(value)) for name, value in parameters.measurements.items())
+    """Return the cached shape and rig-indexed vertices for the selected fit contract."""
+    measurement_values = {
+        str(name): float(value) for name, value in parameters.measurements.items()
+    }
+    if not fit_hip:
+        # The hip-specific morph is a surface-shaping control, not a skeleton
+        # control. Normalize this cache key so hip-only edits reuse the same rig.
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+
+        measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
+    key = tuple(sorted(measurement_values.items()))
+    return _cached_fitted_body(
+        key, float(parameters.gender), float(parameters.breast_size), fit_hip
     )
-    return _cached_fitted_body(key, float(parameters.gender), float(parameters.breast_size))
 
 
 def build_avatar_rig_vertices(
     parameters: AvatarParameters,
 ) -> tuple[tuple[float, float, float], ...]:
-    """Return all fitted Anny vertices in millimetres for legacy rig joint indices."""
-    _mesh, rig_vertices = _fitted_body_for(parameters)
+    """Return Anny rig vertices with hip-only morphs excluded from skeleton anchors."""
+    _mesh, rig_vertices = _fitted_body_for(parameters, fit_hip=False)
     return rig_vertices
 
 
