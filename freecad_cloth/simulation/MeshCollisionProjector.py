@@ -211,9 +211,9 @@ class MeshCollisionProjector:
             # triangle edge/vertex removes tangential displacement and can collapse
             # neighboring cloth faces when multiple particles share a closest edge.
             correction_mm = self.clearance_mm - signed_distance[needs_projection]
+            correction = correction_mm[:, None] * outward[needs_projection]
             active_corrected[needs_projection] = (
-                active_points[needs_projection]
-                + correction_mm[:, None] * outward[needs_projection]
+                active_points[needs_projection] + correction
             )
             active_normals[needs_projection] = outward[needs_projection]
             corrected[active_point_indices] = active_corrected
