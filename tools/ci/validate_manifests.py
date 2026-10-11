@@ -147,8 +147,8 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     surface_spans_mm = tuple(float(value) for value in collision.groups()[7:10])
     if not isclose(thickness_mm, 5.0, abs_tol=1e-6):
         raise SystemExit(f"tunic: mannequin collision thickness must be 5 mm, got {thickness_mm}")
-    if not isclose(voxel_mm, 3.0, abs_tol=1e-6):
-        raise SystemExit(f"tunic: PBD SDF voxel must be 3 mm, got {voxel_mm}")
+    if not isclose(voxel_mm, 8.0, abs_tol=1e-6):
+        raise SystemExit(f"tunic: PBD SDF voxel must be 8 mm, got {voxel_mm}")
     if not isclose(configured_tolerance_mm, 2.0, abs_tol=1e-6):
         raise SystemExit(
             f"tunic: configured collision tolerance must be 2 mm, got {configured_tolerance_mm}"
