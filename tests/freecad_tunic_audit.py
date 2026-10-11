@@ -228,19 +228,21 @@ replacements = {
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
     "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 4; log("tunic-solver=particle-distance-24 iterations-8 substeps=4");',
-    """    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
+    """    orientation_margin_mm = 26.0
+    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
     back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
 
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance - orientation_margin_mm
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance + orientation_margin_mm
         else:
             raise ValueError("tunic target-relative side must be front or back")
         rotation = front_rot if side == "front" else back_rot
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
-""": """    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
+""": """    orientation_margin_mm = 26.0
+    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
     back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
     log("tunic-panel-orientation front-deg=80 back-deg=100")
 
@@ -264,16 +266,16 @@ replacements = {
         target_front_y = min(projected_target_ys)
         target_back_y = max(projected_target_ys)
         if side == "front":
-            y = target_front_y - clearance
+            y = target_front_y - clearance - orientation_margin_mm
         elif side == "back":
-            y = target_back_y + clearance
+            y = target_back_y + clearance + orientation_margin_mm
         else:
             raise ValueError("tunic target-relative side must be front or back")
         log(
             "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
-            "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+            "panel-y=%.2f clearance-mm=%.2f orientation-margin-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
             % (
-                side, target_front_y, target_back_y, y, clearance,
+                side, target_front_y, target_back_y, y, clearance, orientation_margin_mm,
                 x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
             )
         )
