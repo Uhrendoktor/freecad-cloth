@@ -79,7 +79,7 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "mode: pr" in publisher
 
 
-def test_main_visual_publisher_pins_surface_pen_artifact_download_revision():
+def test_main_visual_publisher_pins_surface_pen_artifact_download_revision() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
