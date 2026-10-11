@@ -23,7 +23,7 @@ The overview shows the complete sequence and the resulting visual states. Each s
 | --- | --- | --- |
 | 1. Pattern | [Author a pattern piece](01-pattern.md) | Native Sketcher-backed geometry |
 | 2. Sewing | [Create and inspect seams](02-sewing.md) | Seam assignment and A/B identity |
-| 3. Avatar shape | [Edit body shape and dimensions](09-avatar-shape.md) | Shape sliders, measurement rings, and staged dimension drag |
+| 3. Avatar shape | [Edit body shape and dimensions](09-avatar-shape.md) | Seven rendered body-shape examples, shape sliders, measurement rings, and staged dimension drag |
 | 4. Fitting | [Arrange and snap pieces](03-fitting.md) | Drag preview and committed placement |
 | 5. Pose | [Pose the mannequin](04-pose.md) | Joint selection and rotation gizmo |
 | 6. Simulation | [Run a cloth simulation](05-simulation.md) | Arranged garment, motion, and final drape |

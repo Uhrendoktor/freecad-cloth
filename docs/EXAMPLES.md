@@ -6,7 +6,7 @@ The project uses a complexity ladder so a new user can validate the installation
 |---|---|---|---|
 | Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
 | Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
-| Prepare a mannequin for sewing | Focused | body-shape blend, breast fullness, named measurements, viewport dimension handles, and staged rebuild | shape-editor screenshot + two interaction GIFs in the [avatar-shape guide](wiki/09-avatar-shape.md) |
+| Prepare a mannequin for sewing | Focused | body-shape blend, breast fullness, named measurements, viewport dimension handles, and staged rebuild | seven-profile mannequin gallery, shape-editor screenshot, and two interaction GIFs in the [avatar-shape guide](wiki/09-avatar-shape.md) |
 
 ## 1. Blanket over Cube
 
