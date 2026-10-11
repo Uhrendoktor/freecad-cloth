@@ -13,6 +13,7 @@ import hashlib
 import html
 import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import cast
@@ -346,6 +347,18 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     return {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
+        "provenance": {
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "commit_sha": os.environ.get("OBSERVATION_COMMIT_SHA") or os.environ.get("GITHUB_SHA"),
+            "workflow": os.environ.get("GITHUB_WORKFLOW"),
+            "job": os.environ.get("GITHUB_JOB"),
+            "event_name": os.environ.get("GITHUB_EVENT_NAME"),
+            "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "test_script": os.environ.get("OBSERVATION_TEST_SCRIPT"),
+            "container_image": os.environ.get("OBSERVATION_IMAGE"),
+            "artifact_name": "tunic-visual-audit",
+        },
         "status": {
             "result": result,
             "failed_stage": failed_stage,
@@ -476,18 +489,27 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                 f'<path d="{" ".join(path_data)}" fill="#f8fafc" fill-opacity="0.65" '
                 f'stroke="#364152" stroke-width="1.8" stroke-linejoin="round"/>'
             )
+        crossing_edge_colors: dict[int, str] = {}
+        for raw_nearby in _as_list(record.get("near_crossing")):
+            if not isinstance(raw_nearby, dict) or float(raw_nearby.get("distance_mm", math.inf)) > 1e-6:
+                continue
+            edge_match = re.search(r":edge:(\d+)$", str(raw_nearby.get("edge_id", "")))
+            if edge_match:
+                edge_index = int(edge_match.group(1))
+                if edge_index not in crossing_edge_colors:
+                    crossing_edge_colors[edge_index] = (
+                        "#cc3333" if not crossing_edge_colors else "#e08a18"
+                    )
         for edge_index, local_points, edge_id in edge_shapes:
             if not local_points:
                 continue
-            highlighted = edge_index in {2, 3, 5, 6} and bool(record.get("crossing_local_mm"))
-            stroke = "#cc3333" if edge_index == 3 else "#e08a18" if edge_index == 2 else "#758195"
-            if not highlighted:
-                stroke = "#758195"
+            highlighted = edge_index in crossing_edge_colors
+            stroke = crossing_edge_colors.get(edge_index, "#758195")
             points_to_draw = [transform(point) for point in local_points]
             point_string = " ".join(f"{x:.3f},{y:.3f}" for x, y in points_to_draw)
             pieces_rendered.append(
                 f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
-                f'stroke-width="{3.2 if edge_index in {2, 3} and highlighted else 1.6}" '
+                f'stroke-width="{3.2 if highlighted else 1.6}" '
                 f'stroke-linecap="round" stroke-linejoin="round"/>'
             )
             mid = local_points[len(local_points) // 2]
@@ -518,9 +540,10 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>'
         )
         if not valid:
+            crossing_labels = ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
             pieces_rendered.append(
                 f'<text x="{origin_x:.3f}" y="68" font-size="11" font-family="sans-serif" fill="#364152">'
-                "Red: shoulder edge 3; amber: armhole edge 2</text>"
+                f"Highlighted crossing edges: {html.escape(crossing_labels)}</text>"
             )
     if not pieces_rendered:
         pieces_rendered.append(
