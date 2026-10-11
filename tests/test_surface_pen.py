@@ -43,7 +43,7 @@ def test_close_surface_stroke_accepts_nearby_closing_sample():
     assert closed[-1] == anchors[3]
 
 
-def test_surface_stroke_can_finish_requires_closed_distinct_boundary():
+def test_surface_stroke_can_finish_requires_closed_distinct_boundary() -> None:
     closed = (
         SurfaceAnchor((0, 0, 0), (0, 0, 1)),
         SurfaceAnchor((80, 0, 0), (0, 0, 1)),
