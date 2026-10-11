@@ -444,12 +444,12 @@ def write_drape_metrics(
     proxy=None,
     collision_surface=None,
 ):
+    from freecad_cloth.common.MeshValidation import validate_mesh
     from freecad_cloth.simulation.DrapeFailureClassifier import (
         classify_drape,
         summarize_classification,
     )
     from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, summarize
-    from freecad_cloth.common.MeshValidation import validate_mesh
 
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None))
     box = avatar.Mesh.BoundBox
@@ -894,8 +894,8 @@ def simulation():
         refresh_drape_target,
         target_status,
     )
-    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     scene = create_quality_simulation_scene(doc)
