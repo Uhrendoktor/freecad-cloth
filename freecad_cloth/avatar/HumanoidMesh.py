@@ -963,9 +963,7 @@ def _make_source_fitted_mapper(
         # isotropic bump and does not affect unrelated limb vertices.
         fallback_breast_size = 0.0 if use_breast_target else float(parameters.breast_size)
         fallback_gender_fullness = (
-            0.0
-            if use_gender_targets
-            else max(0.0, 0.5 - float(parameters.gender)) * 1.2
+            0.0 if use_gender_targets else max(0.0, 0.5 - float(parameters.gender)) * 1.2
         )
         breast_size = min(1.0, fallback_breast_size + fallback_gender_fullness)
         if breast_size > 0.0 and 0.60 <= normalized_z <= 0.76 and abs(base_x_mm) < 190.0:
