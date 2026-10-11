@@ -189,6 +189,16 @@ Keep a stable top-level schema while versioning payload sections independently:
 
 The schema above is illustrative; preserve exact measured values in the report and never infer unavailable values. FreeCAD world coordinates use millimetres; pattern points should explicitly say they are local 2D coordinates, so local and world space are not accidentally compared.
 
+## Execution success is not garment-fit success
+
+The first successful run of the new dossier exposed a missing semantic layer. In workflow run [38136418907](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/38136418907), the pattern outlines were valid, four sewing relationships were present, the script exited successfully, and the collision metrics reported zero penetrating vertices with a maximum sampled seam correspondence gap of about 2.85 mm. However, the uploaded front/left views showed the fabric gathered around the hips with the upper torso and shoulders uncovered. The scene report's previous `PASSED` label therefore overstated what those checks establish.
+
+The same artifact's final panel bounds span approximately Z=663.16..1235.46 mm, while its metrics record a declared hem level of Z=920 mm and an estimated shoulder reference at Z=1347.5 mm. The cloth extends about 256.84 mm below the declared hem and its highest point is about 112.05 mm below the shoulder reference. Both panels already carry `below-hem-candidate`. The shoulder reference is derived from the avatar bounding box rather than a named anatomical landmark, so these differences are **review signals, not definitive fit ground truth**.
+
+Keep separate statuses for (a) script / workflow execution, (b) topology and physical plausibility, and (c) garment coverage/alignment/attachment. A successful script, non-penetration, and low seam gap cannot certify that the garment covers its intended body regions or remains anchored where intended. The dossier now includes a separate fit-alignment screen; when large Z-bound deviations or the existing below-hem diagnostic are present it should say `review_required`, preserve the collision and seam observations, list the evidence and uncertainty, and request multi-view review. It must not fail the solver or modify numerical thresholds solely because this heuristic fires.
+
+The next iteration should replace the bounding-box shoulder proxy with explicit, persisted world-space body landmarks (at minimum shoulder/neck/axilla/hip) and record intended garment coverage zones and attachment/pinning constraints. The artifact-only evaluation should then score whether the garment's final surface covers the expected zones, whether panel top and hem align to those declared anchors, and whether the relevant attachments remain satisfied across checkpoints. If no authoritative landmark or coverage contract was emitted, the correct output is `not_assessed`, not an invented fit verdict.
+
 ## Visual rendering contract
 
 Generate a dedicated annotated SVG from the same sampled boundary and intersection data, not by image-editing the screenshots. It should:
