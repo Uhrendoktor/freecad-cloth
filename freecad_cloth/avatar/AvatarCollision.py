@@ -12,6 +12,7 @@ from freecad_cloth.shared.collision import (
     surface_from_triangles,
 )
 
+
 def ensure_collision_proxy(doc, source_obj, thickness=2.0, deflection=1.0):
     """Create or refresh the legacy avatar collision display proxy locally."""
     avatar = doc.getObject("AvatarCollision")
@@ -32,6 +33,7 @@ def ensure_collision_proxy(doc, source_obj, thickness=2.0, deflection=1.0):
     avatar.CollisionVertexCount = len(surface.vertices)
     avatar.CollisionTriangleCount = len(surface.triangles)
     return avatar
+
 
 @pydantic_dataclass(frozen=True)
 class AvatarSpec:
