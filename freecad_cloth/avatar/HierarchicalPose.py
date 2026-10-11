@@ -136,7 +136,7 @@ def _manual_pose_state(
     tuple[dict[str, AffineTransform], dict[str, AffineTransform]],
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
-    source_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=False)
+    source_mesh = mesh
     source_vertices = source_mesh.vertices
     mapper = _identity_point
     padded_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=True)
