@@ -8,8 +8,9 @@ piece/edge/seam contracts.
 from collections.abc import Mapping, Sequence
 from dataclasses import field, replace
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import hypot
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
@@ -17,7 +18,6 @@ from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 Point3 = tuple[float, float, float]
-
 
 @pydantic_dataclass(frozen=True)
 class BoundaryIR:
@@ -53,7 +53,6 @@ class BoundaryIR:
             for a, b in zip(self.samples, self.samples[1:], strict=False)
         )
 
-
 @pydantic_dataclass(frozen=True)
 class PieceIR:
     """One garment panel in solver-neutral local coordinates."""
@@ -77,7 +76,6 @@ class PieceIR:
             boundary.validate()
         if self.seam_allowance < 0.0:
             raise ValueError("seam allowance cannot be negative")
-
 
 @pydantic_dataclass(frozen=True)
 class SeamIR:
@@ -113,7 +111,6 @@ class SeamIR:
             raise ValueError("seam ranges must have positive extent")
         if self.alignment not in {"endpoints", "uniform"}:
             raise ValueError("unsupported sewing alignment")
-
 
 @pydantic_dataclass(frozen=True)
 class PatternIR:
@@ -224,7 +221,6 @@ class PatternIR:
             )
         return _with_seams(cls, graph, pieces, edge_index_maps)
 
-
 def _with_seams(
     cls,
     graph: SeamGraph,
@@ -264,7 +260,6 @@ def _with_seams(
     result.validate()
     return result
 
-
 def _line_geometry(piece: PatternPiece) -> ParametricPattern:
     """Build a compatibility geometry when no richer curve adapter is given."""
     segments = []
@@ -272,7 +267,6 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
         end = piece.outline[(index + 1) % len(piece.outline)]
         segments.append(LineSegment(f"edge:{index}", start, end))
     return ParametricPattern(segments)
-
 
 def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     if isinstance(segment, LineSegment):
@@ -283,7 +277,6 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
         return BoundaryIR(segment.id, "line", samples)
     samples = tuple((point[0], point[1], 0.0) for point in segment.polyline(curve_samples))
     return BoundaryIR(segment.id, "curve", samples)
-
 
 def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
@@ -309,7 +302,6 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
             f"Sketcher pattern has no non-construction boundary geometries: {piece_id}"
         )
     return _order_sketch_boundary(boundaries, piece_id), edge_index_map
-
 
 def _order_sketch_boundary(
     boundaries: Sequence[BoundaryIR], piece_id: str
@@ -430,13 +422,11 @@ def _order_sketch_boundary(
         )
     return tuple(ordered)
 
-
 def _find_vertex(vertices, point):
     for index, (representative, _) in enumerate(vertices):
         if _distance3(representative, point) <= 1e-7:
             return index
     return None
-
 
 def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
     candidates = [index for index in adjacency[current_edge] if index != current_edge]
@@ -446,10 +436,8 @@ def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
             return index
     raise ValueError("Sketcher boundary connectivity is inconsistent")
 
-
 def _point_sort_key(point: Point3):
     return tuple(round(value, 12) for value in point)
-
 
 def _orient_boundary(boundary, edge_vertices, start_vertex):
     edge_start, edge_end = edge_vertices
@@ -459,7 +447,6 @@ def _orient_boundary(boundary, edge_vertices, start_vertex):
         return replace(boundary, samples=tuple(reversed(boundary.samples)))
     raise ValueError(f"Sketcher boundary orientation cannot start at {boundary.id}")
 
-
 def _is_construction(sketch, index: int) -> bool:
     getter = getattr(sketch, "getConstruction", None)
     if not callable(getter):
@@ -468,7 +455,6 @@ def _is_construction(sketch, index: int) -> bool:
         return bool(getter(index))
     except (IndexError, TypeError):
         return False
-
 
 def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     type_name = type(native).__name__.lower()
@@ -502,11 +488,9 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     )
     return BoundaryIR(edge_id, kind, samples, (first, last))
 
-
 def _native_parameter(native, name: str, default: float) -> float:
     value = getattr(native, name, default)
     return validate_finite_number(value() if callable(value) else value)
-
 
 def _native_value(native, parameter: float):
     value_at = getattr(native, "valueAt", None)
@@ -517,14 +501,11 @@ def _native_value(native, parameter: float):
         return value(parameter)
     raise ValueError(f"Sketcher curve does not expose valueAt/value: {type(native).__name__}")
 
-
 def _point3(point) -> Point3:
     return (float(point.x), float(point.y), float(getattr(point, "z", 0.0)))
 
-
 def _distance3(a: Point3, b: Point3) -> float:
     return hypot(a[0] - b[0], a[1] - b[1]) + abs(a[2] - b[2])
-
 
 def _resolve_edge(
     reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
