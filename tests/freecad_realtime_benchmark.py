@@ -175,7 +175,9 @@ class _TimedGuiView:
 class _TimedGuiDocument:
     """Forward active-document calls and instrument the active view returned to preview."""
 
-    def __init__(self, document: _ActiveViewDocument, record_stage: Callable[[str, float], None]) -> None:
+    def __init__(
+        self, document: _ActiveViewDocument, record_stage: Callable[[str, float], None]
+    ) -> None:
         self._document = document
         self._record_stage = record_stage
 
