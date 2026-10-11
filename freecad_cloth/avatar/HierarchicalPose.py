@@ -118,9 +118,7 @@ def pose_world_state(
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
     source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, float(parameters.skin_offset)
-    )
+    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
     skeleton = load_makehuman_skeleton()
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
         parameters, source_vertices, skeleton, mapper
@@ -140,7 +138,8 @@ def _manual_pose_state(
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
     source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(
+    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
+    mesh_mapper = _make_source_fitted_mapper(
         source_vertices, parameters, float(parameters.skin_offset)
     )
     skeleton = load_makehuman_skeleton()
@@ -157,7 +156,7 @@ def _manual_pose_state(
         effective_rotations,
         rotation_pivots=effective_pivots,
     )
-    rest_vertices = tuple(mapper(point) for point in mesh.vertices)
+    rest_vertices = tuple(mesh_mapper(point) for point in mesh.vertices)
     weights = load_makehuman_weights(len(rest_vertices))
     posed_vertices = apply_weighted_fk(
         source_vertices,
