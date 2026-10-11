@@ -7,6 +7,7 @@ closes so they cannot interfere with the independent 3D Pattern Pen tool.
 
 from __future__ import annotations
 
+import contextlib
 import math
 
 
@@ -120,7 +121,7 @@ class AvatarDimensionController:
         """Remove the overlay and every event callback owned by this controller."""
         view = self.view
         if view is not None:
-            with __import__("contextlib").suppress(AttributeError, RuntimeError, TypeError):
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 coin = self._coin()
                 if self.mouse_callback is not None:
                     view.removeEventCallbackPivy(
@@ -131,7 +132,7 @@ class AvatarDimensionController:
                         coin.SoLocation2Event.getClassTypeId(), self.location_callback
                     )
         if self.scene_graph is not None and self.overlay is not None:
-            with __import__("contextlib").suppress(AttributeError, RuntimeError, TypeError):
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 self.scene_graph.removeChild(self.overlay)
         self.view = None
         self.scene_graph = None
@@ -186,7 +187,6 @@ class AvatarDimensionController:
             from freecad_cloth.shared.viewport_gizmo_style import (
                 ACTIVE_COLOR,
                 RIG_PASSIVE_COLOR,
-                SNAP_RING_SEGMENTS,
                 SNAP_TARGET_COLOR,
             )
 
@@ -357,5 +357,5 @@ class AvatarDimensionController:
                 item["label"].lower()
             )
         )
-        with __import__("contextlib").suppress(AttributeError, RuntimeError):
+        with contextlib.suppress(AttributeError, RuntimeError):
             event_callback.setHandled()
