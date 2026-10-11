@@ -34,8 +34,10 @@ from freecad_cloth.avatar.AvatarCommands import (
 )
 from freecad_cloth.pattern.PatternOCCT import native_offset_wire
 from freecad_cloth.sewing.SewingGui import correspondence_report
-from freecad_cloth.simulation.DrapeCommands import create_drape_target_from_selection
-from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+from freecad_cloth.simulation.DrapeCommands import (
+    create_drape_target_from_selection,
+    set_drape_target_source,
+)
 from freecad_cloth.simulation.SimulationObjects import (
     create_simulation_scene,
     reset_scene,
