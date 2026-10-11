@@ -132,7 +132,7 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
 
 
-    def test_local_mesh_discovery_accepts_only_verified_install_mesh(self):
+    def test_local_mesh_discovery_accepts_only_verified_install_mesh(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             install = Path(directory) / "makehuman"
             mesh_path = install / "data" / "3dobjs" / "base.obj"
@@ -148,7 +148,7 @@ class HumanoidMeshTests(unittest.TestCase):
             ):
                 self.assertEqual(_find_local_base_mesh(), mesh_path)
 
-    def test_local_mesh_discovery_ignores_unverified_install_mesh(self):
+    def test_local_mesh_discovery_ignores_unverified_install_mesh(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             install = Path(directory) / "makehuman"
             mesh_path = install / "data" / "3dobjs" / "base.obj"
@@ -164,7 +164,7 @@ class HumanoidMeshTests(unittest.TestCase):
             ):
                 self.assertIsNone(_find_local_base_mesh())
 
-    def test_local_mesh_discovery_avoids_download(self):
+    def test_local_mesh_discovery_avoids_download(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             install = Path(directory) / "makehuman"
             mesh_path = install / "data" / "3dobjs" / "base.obj"
