@@ -298,7 +298,7 @@ def main():
     try:
         blanket_width = 200.0
         blanket_height = 200.0
-        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
+        sketch, _outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
         piece = adopt_sketch(doc, sketch)
         placement = App.Placement(
             App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 90.0),
