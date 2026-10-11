@@ -400,8 +400,9 @@ def run():
     garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    front_y = box.YMax + clearance
-    back_y = box.YMin - clearance
+    orientation_margin_mm = 26.0
+    front_y = box.YMax + clearance + orientation_margin_mm
+    back_y = box.YMin - clearance - orientation_margin_mm
     # Keep the panel hems on their exterior clearances while converging the
     # upper shoulder seam edges toward the posed mannequin.
     front_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
