@@ -26,7 +26,7 @@ def _dim(value):
     return f"{float(value):g}"
 
 
-def _validate_units(units):
+def _validate_units(units: str) -> str:
     """Require millimetres, the canonical unit of Cloth pattern geometry."""
     normalized = str(units).strip().lower()
     if normalized != "mm":
