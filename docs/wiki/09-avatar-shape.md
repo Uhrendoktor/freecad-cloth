@@ -47,7 +47,7 @@ If a build cannot initialise the viewport interaction, use the numeric measureme
 
 The HM08 base mesh is not bundled in the workbench package. The loader first uses its checksum-verified cache, then checks common MakeHuman installation paths and the optional `FREECAD_CLOTH_MAKEHUMAN_DATA` setting, and finally downloads the pinned mesh into the cache. Set that variable to a MakeHuman installation root or data directory to prioritize a particular local installation. Auto-discovery accepts only a byte-for-byte match for the pinned mesh so its vertex indices remain compatible with the authored rig data. `FREECAD_CLOTH_AVATAR_MESH` remains an explicit path override and may point to a custom OBJ.
 
-The default skinning weights and skeleton are managed as separate cached downloads, with their own `FREECAD_CLOTH_AVATAR_WEIGHTS` and `FREECAD_CLOTH_AVATAR_SKELETON` overrides. Finding the base mesh locally therefore does not by itself guarantee fully offline setup; the required weights and skeleton must also already be cached or configured locally.
+The default skinning weights and skeleton are managed as separate cached downloads, with their own `FREECAD_CLOTH_AVATAR_WEIGHTS` and `FREECAD_CLOTH_AVATAR_SKELETON` overrides. Finding the base mesh locally therefore does not by itself guarantee fully offline setup; the required weights and skeleton must also already be cached or configured locally. For CI, the PBD validation image separately downloads and checksum-verifies the pinned HM08 mesh at image-build time, then sets `FREECAD_CLOTH_AVATAR_MESH` to that image path so the test matrix reuses the image copy instead of downloading the base mesh inside each test container.
 
 ## Shape deformation model and limitations
 
