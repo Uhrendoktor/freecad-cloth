@@ -1,7 +1,7 @@
 """FreeCAD-independent derived geometry and construction marks for patterns."""
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import atan2, cos, hypot, isfinite
 
 from shapely.geometry import Polygon
@@ -18,7 +18,7 @@ from freecad_cloth.pattern.PatternGeometry import (
 )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Notch:
     """Public data model or service class for Notch."""
 
@@ -37,7 +37,7 @@ class Notch:
             raise ValueError("notch depth must be positive")
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class PatternMark:
     """A persistent semantic construction mark attached to the sewing line."""
 
@@ -59,7 +59,7 @@ class PatternMark:
             raise ValueError("pattern mark length must be positive")
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class OffsetEdge:
     """Public data model or service class for OffsetEdge."""
 
@@ -67,7 +67,7 @@ class OffsetEdge:
     points: tuple[Point, ...]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DerivedPattern:
     """Public data model or service class for DerivedPattern."""
 
