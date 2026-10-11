@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial import KDTree
 
 from freecad_cloth.shared.collision import CollisionSurface
@@ -69,7 +70,7 @@ class MeshCollisionProjector:
         self._tree = KDTree(np.mean(triangles, axis=1))
         self._candidate_count = min(32, len(self._triangles))
 
-    def project(self, points_mm: Sequence[Sequence[float]]) -> tuple[np.ndarray, np.ndarray]:
+    def project(self, points_mm: npt.ArrayLike) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Return corrected world-mm positions and outward normals for moved points.
 
         Zero rows in the returned normal array mark positions that did not require a
