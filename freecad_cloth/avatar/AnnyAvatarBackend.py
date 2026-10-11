@@ -69,7 +69,7 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     except ImportError as exc:
         raise AnnyAvatarBackendError(
             "Anny is required for parametric mannequin generation; install "
-            "'clad-body[anny]' in the FreeCAD Python environment."
+            "'anny>=0.5,<0.6' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
         ) from exc
 
     metadata_path = Path(get_anny_root_dir()) / "data" / "mpfb2" / "targets" / "target.json"
@@ -148,8 +148,8 @@ def _fit_anny_body(
         from clad_body.measure import measure_grad
     except ImportError as exc:
         raise AnnyAvatarBackendError(
-            "Anny-backed mannequin generation requires 'clad-body[anny]'. "
-            "Run `python -m pip install 'freecad-cloth[avatar]'` with the Python interpreter used by FreeCAD."
+            "Anny-backed mannequin generation requires 'anny>=0.5,<0.6' and 'clad-body[anny]>=0.6.1,<0.7'. "
+            "Run `python -m pip install 'anny>=0.5,<0.6' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
         ) from exc
 
     values = dict(measurements)
