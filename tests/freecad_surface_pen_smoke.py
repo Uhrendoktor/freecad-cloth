@@ -257,8 +257,8 @@ def main() -> None:
         (ARTIFACTS / "surface-pen.log").write_text(
             "surface-pen-controller=passed\n"
             "surface-pen-native-sketcher-extraction=passed\n"
-            "surface-pen-native-bspline-extraction=passed\\n"
-            "surface-pen-reference-points=passed\\n"
+            "surface-pen-native-bspline-extraction=passed\n"
+            "surface-pen-reference-points=passed\n"
             "surface-pen-stale-target-guard=passed\n"
             "surface-pen-ui-captures=passed\n",
             encoding="utf-8",
