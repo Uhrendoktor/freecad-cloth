@@ -2,13 +2,13 @@
 
 import hashlib
 import json
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import CollisionSurface
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
-
 
 @pydantic_dataclass(frozen=True)
 class DrapeTargetSpec:
@@ -32,11 +32,9 @@ class DrapeTargetSpec:
         if self.thickness < 0:
             raise ValueError("drape target thickness must not be negative")
 
-
 def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
     """Return a collision-ready surface representation."""
     return surface_from_freecad(target, float(deflection), float(thickness))
-
 
 def _point_coordinates(point):
     """Normalize iterable and FreeCAD-vector points to deterministic triples."""
@@ -52,7 +50,6 @@ def _point_coordinates(point):
         round(float(point.z), 6),
     )
 
-
 def _digest_surface(vertices, triangles):
     """Return a deterministic digest of the complete collision topology."""
     payload = {
@@ -61,7 +58,6 @@ def _digest_surface(vertices, triangles):
     }
     encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
-
 
 def _mesh_signature(target):
     # MakeHuman avatars retain a stable authored revision instead of depending
@@ -89,7 +85,6 @@ def _mesh_signature(target):
     except (TypeError, ValueError, AttributeError):
         return None
 
-
 def _shape_content_signature(shape):
     """Return a persistent geometry-content digest for a FreeCAD TopoShape."""
     exporter = getattr(shape, "exportBrepToString", None)
@@ -114,7 +109,6 @@ def _shape_content_signature(shape):
         except (TypeError, ValueError, RuntimeError):
             pass
     return ("Unknown",)
-
 
 def _geometry_signature(target):
     mesh_signature = _mesh_signature(target)
@@ -144,7 +138,6 @@ def _geometry_signature(target):
         return ("ShapeContent", _shape_content_signature(shape))
     return ("Unknown",)
 
-
 def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
     """Provide the public source signature operation."""
     placement = getattr(target, "Placement", None)
@@ -164,7 +157,6 @@ def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
         float(deflection),
         float(thickness),
     )
-
 
 def target_status(target):
     """Return a deterministic user-facing state for a persistent DrapeTarget."""
@@ -244,14 +236,12 @@ def target_status(target):
         "reason": "",
     }
 
-
 def refresh_drape_target(target):
     """Provide the public refresh drape target operation."""
     source = getattr(target, "SourceObject", None)
     if source is None:
         raise ValueError("drape target source is required")
     return assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
-
 
 def create_drape_target(
     doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0
@@ -292,7 +282,6 @@ def create_drape_target(
 
     link_garment_object(target, "DrapeTarget", doc)
     return target
-
 
 def assign_drape_target(target, source, target_type: str | None = None):
     """Provide the public assign drape target operation."""
