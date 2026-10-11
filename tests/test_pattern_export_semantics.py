@@ -164,7 +164,6 @@ def test_release_gate_rejects_unknown_format():
         validate_export(_curved_pattern(), "", "pdf")
 
 
-
 def test_svg_contains_visible_print_safe_geometry():
     pattern = _curved_pattern()
     svg = to_svg(pattern, curve_samples=9, derived=_derived(pattern), piece_id="bodice-front")
