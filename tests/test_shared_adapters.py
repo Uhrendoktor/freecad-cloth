@@ -164,4 +164,3 @@ def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
         assert calls == [document]
     finally:
         register_seam_refresh_callback(None)
-
