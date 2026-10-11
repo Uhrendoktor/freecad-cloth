@@ -71,9 +71,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     )
     assert cut_path.attrib["data-notch-ids"] == "notch-1"
     assert "107.000000,62." in cut_path.attrib["d"]
-    assert not any(
-        element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter()
-    )
+    assert not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter())
     assert 'data-mark-id="grain-1"' in svg
     assert from_svg_metadata(svg) == {
         "version": 1,
