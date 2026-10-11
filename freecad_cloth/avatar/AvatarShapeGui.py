@@ -289,6 +289,26 @@ class AvatarDimensionController:
                 distance = candidate
         return best
 
+    @staticmethod
+    def _dragged_value(
+        current: float,
+        delta_screen: tuple[float, float],
+        projected_axis: tuple[float, float],
+        multiplier: float,
+        bounds: tuple[float, float],
+        axis_length: float = 100.0,
+    ) -> float:
+        """Convert a viewport drag into a clamped millimetre measurement."""
+        denominator = projected_axis[0] ** 2 + projected_axis[1] ** 2
+        if denominator <= 1e-8:
+            return float(current)
+        delta_world = (
+            delta_screen[0] * projected_axis[0]
+            + delta_screen[1] * projected_axis[1]
+        ) * float(axis_length) / denominator
+        low, high = bounds
+        return max(float(low), min(float(high), float(current) + delta_world * multiplier))
+
     def _location_event(self, event_callback):
         """Track handle hover and apply motion while the user drags a dimension."""
         event = event_callback.getEvent()
@@ -301,17 +321,20 @@ class AvatarDimensionController:
                 return
             try:
                 axis = self._screen_axis(item)
-                length_sq = axis[0] * axis[0] + axis[1] * axis[1]
-                if length_sq <= 1e-8:
-                    return
-                delta_screen = (screen[0] - self._last_screen[0], screen[1] - self._last_screen[1])
-                delta_world = (
-                    delta_screen[0] * axis[0] + delta_screen[1] * axis[1]
-                ) * self.DRAG_AXIS_LENGTH / length_sq
+                delta_screen = (
+                    screen[0] - self._last_screen[0],
+                    screen[1] - self._last_screen[1],
+                )
                 current = float(self.panel._boxes[self._drag_key].value())
-                candidate = current + delta_world * float(item["multiplier"])
-                low, high = item["bounds"]
-                self.panel._boxes[self._drag_key].setValue(max(float(low), min(float(high), candidate)))
+                candidate = self._dragged_value(
+                    current,
+                    delta_screen,
+                    axis,
+                    float(item["multiplier"]),
+                    item["bounds"],
+                    self.DRAG_AXIS_LENGTH,
+                )
+                self.panel._boxes[self._drag_key].setValue(candidate)
                 self._last_screen = screen
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 return
