@@ -357,7 +357,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "shoulder_width / panel_fit_ratio + 35.0" in debug
     assert "clearance = max(10.0, 0.05 * body_depth)" in debug
-    assert '"clearance = max(10.0, 0.05 * body_depth)": "clearance = max(10.0, 0.05 * body_depth);"' in audit
+    assert (
+        '"clearance = max(10.0, 0.05 * body_depth)": "clearance = max(10.0, 0.05 * body_depth);"'
+        in audit
+    )
     assert "clearance = max(10.0, 0.05 * body_depth)" in source
     assert "panel_fit_ratio = 0.94 - 0.06" in debug
     assert "panel_fit_ratio = 0.94 - 0.06" in audit
