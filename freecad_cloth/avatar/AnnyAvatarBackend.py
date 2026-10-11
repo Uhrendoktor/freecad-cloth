@@ -352,8 +352,12 @@ def _fit_anny_body(
         source="FreeCAD Cloth / Anny",
     )
 
-    vertices = tuple(
-        tuple(float(component) * 1000.0 for component in point)
+    vertices: tuple[tuple[float, float, float], ...] = tuple(
+        (
+            float(point[0]) * 1000.0,
+            float(point[1]) * 1000.0,
+            float(point[2]) * 1000.0,
+        )
         for point in fitted_body.vertices
     )
     triangles: tuple[tuple[int, int, int], ...] = tuple(
@@ -408,8 +412,12 @@ def build_avatar_shape_mesh(
     )
     normals = np.asarray(surface.vertex_normals, dtype=float)
     offset = float(parameters.skin_offset)
-    padded = tuple(
-        tuple(float(point[axis] + offset * normal[axis]) for axis in range(3))
+    padded: tuple[tuple[float, float, float], ...] = tuple(
+        (
+            float(point[0] + offset * normal[0]),
+            float(point[1] + offset * normal[1]),
+            float(point[2] + offset * normal[2]),
+        )
         for point, normal in zip(mesh.vertices, normals, strict=True)
     )
     return MeshData(padded, mesh.triangles).validate()
