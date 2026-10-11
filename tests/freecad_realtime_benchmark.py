@@ -28,7 +28,7 @@ WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
 
 
-def _add_tunic_preview_fixture(doc, scene) -> None:
+def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
     """Build two authored, sewn tunic panels so preview timing covers garment-scale meshes."""
     import Part
     import Sketcher
@@ -64,7 +64,7 @@ def _add_tunic_preview_fixture(doc, scene) -> None:
         (0.0, 0.82 * garment_height),
     )
 
-    def make_piece(name: str, y: float):
+    def make_piece(name: str, y: float) -> object:
         sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
         sketch.addGeometry(
             [
