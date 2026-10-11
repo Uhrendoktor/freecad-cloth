@@ -234,6 +234,9 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     assert "self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)" in backend
     assert "effective_tolerance_mm / _MM" in backend
     assert "cloth-pbd-collision-config " in backend
+    assert "timestep.step(self._model)\\n        self._project_collision_positions()" in backend
+    assert "particles.setPosition(" in backend
+    assert "inward_speed < 0.0" in backend
 
 
 def test_pbd_collision_sdf_is_cached_outside_backend_instance():
