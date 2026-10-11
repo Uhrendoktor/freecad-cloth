@@ -23,7 +23,7 @@ def _mesh_object(doc, name, label):
 @lru_cache(maxsize=64)
 def _indexed_mesh_topology(
     triangles: tuple[tuple[int, int, int], ...],
-) -> tuple[tuple[int, ...], tuple[tuple[int, int, int], ...]]:
+) -> tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]:
     """Cache the compact local topology for one panel's particle-index triangles."""
     vertex_indices = tuple(sorted({index for triangle in triangles for index in triangle}))
     remap = {index: local for local, index in enumerate(vertex_indices)}
