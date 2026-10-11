@@ -411,6 +411,30 @@ def _fit_anny_body(
                 if name not in breast_names and name not in hip_change_names:
                     value.clamp_(-1.0, 1.0)
 
+    model = body.model
+    if body.phenotype_kwargs is None:
+        raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
+    if body.local_changes_kwargs is None:
+        raise AnnyAvatarBackendError("Anny did not preserve the fitted morph tensors.")
+    first_parameter = next(iter(body.phenotype_kwargs.values()))
+    pose = build_anny_apose(model, first_parameter.device)
+    rig_vertices: tuple[tuple[float, float, float], ...] | None = None
+    if fit_hip:
+        # Capture the rig's neutral hip shape before fitting the hip-only morph.
+        # This snapshot lets rig anchors and the visible mesh share one Anny fit.
+        with torch.no_grad():
+            rig_output = model(
+                pose_parameters=pose,
+                phenotype_kwargs=body.phenotype_kwargs,
+                local_changes_kwargs=body.local_changes_kwargs,
+                pose_parameterization="local-bone",
+                return_bone_ends=True,
+            )
+        rig_vertices = tuple(
+            (float(vertex[0]) * 1000.0, float(vertex[1]) * 1000.0, float(vertex[2]) * 1000.0)
+            for vertex in rig_output["vertices"]
+        )
+
     if fit_hip:
         # Only the hip-specific morphs may move while fitting hip circumference.
         # All other local and global shape controls are now frozen.
@@ -453,13 +477,6 @@ def _fit_anny_body(
     for value in body.local_changes_kwargs.values():
         value.requires_grad_(False)
 
-    model = body.model
-    if body.phenotype_kwargs is None:
-        raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
-    if body.local_changes_kwargs is None:
-        raise AnnyAvatarBackendError("Anny did not preserve the fitted morph tensors.")
-    first_parameter = next(iter(body.phenotype_kwargs.values()))
-    pose = build_anny_apose(model, first_parameter.device)
     with torch.no_grad():
         output = model(
             pose_parameters=pose,
@@ -491,23 +508,24 @@ def _fit_anny_body(
             f"received {len(all_vertices)}."
         )
 
-    # The fitted Anny array retains the complete source-index space, including
-    # unreferenced HM08 helper vertices used by the authored MakeHuman skeleton.
-    # These vertices are necessary for rig joint anchors but must not be shown
-    # as anatomy: the public surface remains the first 13,380 body vertices.
-    rig_vertices: tuple[tuple[float, float, float], ...] = tuple(
-        (
-            float(vertex[0]) * 1000.0,
-            float(vertex[1]) * 1000.0,
-            float(vertex[2]) * 1000.0,
-        )
+    # Keep display vertices and rig vertices in the same complete source-index
+    # space. The visible surface uses the hip-fitted result, while rig anchors
+    # use the pre-hip snapshot returned by the same fitting pass.
+    surface_vertices: tuple[tuple[float, float, float], ...] = tuple(
+        (float(vertex[0]) * 1000.0, float(vertex[1]) * 1000.0, float(vertex[2]) * 1000.0)
         for vertex in all_vertices
     )
-    if len(base_ids) != len(rig_vertices) or base_ids != list(range(len(base_ids))):
+    if len(base_ids) != len(surface_vertices) or base_ids != list(range(len(base_ids))):
         raise AnnyAvatarBackendError(
             "Anny's full vertex index map does not preserve the original HM08 rig index space."
         )
-    vertices = rig_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT]
+    if rig_vertices is None:
+        rig_vertices = surface_vertices
+    elif len(rig_vertices) != len(surface_vertices):
+        raise AnnyAvatarBackendError(
+            "Anny's hip-neutral rig snapshot does not preserve the surface vertex index space."
+        )
+    vertices = surface_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT]
     triangles: tuple[tuple[int, int, int], ...] = tuple(
         (int(face[0]), int(face[1]), int(face[2]))
         for face in fitted_body.faces
@@ -546,14 +564,11 @@ def _fitted_body_for(
     measurement_values = {
         str(name): float(value) for name, value in parameters.measurements.items()
     }
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+    if not fit_hip:
+        # Hip circumference controls visible hip surface only, not the skeleton.
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
-    default_hip = float(DEFAULT_MEASUREMENTS["hip"])
-    if not fit_hip or abs(measurement_values["hip"] - default_hip) <= 1e-9:
-        # At the default circumference the hip-specific fit is exactly neutral.
-        # Reuse the rig-fit cache instead of rerunning the costly whole-body fit.
-        measurement_values["hip"] = default_hip
-        fit_hip = False
+        measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
     key = tuple(sorted(measurement_values.items()))
     return _cached_fitted_body(
         key, float(parameters.gender), float(parameters.breast_size), fit_hip
@@ -563,8 +578,8 @@ def _fitted_body_for(
 def build_avatar_rig_vertices(
     parameters: AvatarParameters,
 ) -> tuple[tuple[float, float, float], ...]:
-    """Return Anny rig vertices with hip-only morphs excluded from skeleton anchors."""
-    _mesh, rig_vertices = _fitted_body_for(parameters, fit_hip=False)
+    """Return cached Anny rig vertices captured before the visible hip-only fit."""
+    _mesh, rig_vertices = _fitted_body_for(parameters)
     return rig_vertices
 
 
