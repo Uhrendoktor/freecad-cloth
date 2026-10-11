@@ -342,10 +342,10 @@ jobs:
           observation-label: Tunic pattern-to-fitting scene diagnostics
           observation-files: >-
             summary=scene-understanding.json;visual=scene-understanding.svg
-          # Intermediate SDF resolution is scoped to this zero-penetration audit only.
+          # Bound native SDF construction time; exact mesh projection and strict acceptance gates remain active.
           environment: |
             CLOTH_PBD_SUBSTEPS=16
-            CLOTH_PBD_COLLISION_VOXEL_MM=3.0
+            CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
