@@ -804,8 +804,8 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.56 * float(garment_height)
-    shoulder_z = 0.88 * float(garment_height)
+    armhole_z = 0.58 * float(garment_height)
+    shoulder_z = 0.90 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
@@ -832,15 +832,31 @@ def _make_tunic_sketch(
     # The armholes are free, inward-scooped edges. They must not be sewn shut.
     geometry = []
     armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
+    side_ease_mm = 6.0
     for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
-        if index == 2:
+        if index == 1:
+            # Add modest chest-to-waist ease without moving the armhole endpoints.
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) + side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 2:
             # Keep the open armholes at their authored inward-scooped size.
             midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
             midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 7:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) - side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))

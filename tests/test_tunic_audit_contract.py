@@ -118,14 +118,19 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     ) in sketch_builder
     assert 'Sketcher.Constraint("Coincident"' not in sketch_builder
     assert "tunic armhole collapsed during Sketcher recompute" in sketch_builder
-    assert "armhole_z = 0.56 * float(garment_height)" in sketch_builder
+    assert "armhole_z = 0.58 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.70 * panel_width, armhole_z)" in sketch_builder
-    assert "shoulder_z = 0.88 * float(garment_height)" in sketch_builder
+    assert "shoulder_z = 0.90 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.94 * panel_width, shoulder_z)" in sketch_builder
     assert "if not (armhole_z < shoulder_z < neck_z)" in sketch_builder
     assert "shoulders must slope downward from neckline to shoulder tip" in sketch_builder
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in sketch_builder
     assert "shoulder_z - armhole_z < 0.20 * float(garment_height)" in sketch_builder
+    assert "side_ease_mm = 6.0" in sketch_builder
+    assert "if index == 1:" in sketch_builder
+    assert "elif index == 7:" in sketch_builder
+    assert "0.5 * (start[0] + end[0]) + side_ease_mm" in sketch_builder
+    assert "0.5 * (start[0] + end[0]) - side_ease_mm" in sketch_builder
     assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in sketch_builder
     # The wider arc stays below the shoulder-to-neckline edge; .69/.31 self-intersects.
@@ -342,17 +347,20 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "SimulationQualityRuntimeV2" not in debug
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
-    assert "armhole_z = 0.56 * h" in debug
-    assert "armhole_z = 0.56 * h" in debug
-    assert "shoulder_z = 0.88 * h" in debug
+    assert "armhole_z = 0.58 * h" in debug
+    assert "armhole_z = 0.58 * h" in debug
+    assert "shoulder_z = 0.90 * h" in debug
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug
     assert "shoulder_z - armhole_z < 0.20 * h" in debug
+    assert "side_ease_mm = 6.0" in debug
+    assert "if idx == 1:" in debug
+    assert "elif idx == 7:" in debug
     assert "(x_offset + 0.70 * panel_width, armhole_z)" in debug
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in debug
     assert "midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)" in debug
     assert "midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)" in debug
-    assert "(x_offset + 0.06 * panel_width, 0.88 * garment_height)" in debug
-    assert "(x_offset + 0.94 * panel_width, 0.88 * garment_height)" in debug
+    assert "(x_offset + 0.06 * panel_width, 0.90 * garment_height)" in debug
+    assert "(x_offset + 0.94 * panel_width, 0.90 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug

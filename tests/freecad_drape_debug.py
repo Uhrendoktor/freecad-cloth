@@ -170,8 +170,8 @@ def _make_tunic_sketch(
     h = float(garment_height)
     neck_z = (1.0 - float(neckline_drop)) * h
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.56 * h
-    shoulder_z = 0.88 * h
+    armhole_z = 0.58 * h
+    shoulder_z = 0.90 * h
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
@@ -194,16 +194,31 @@ def _make_tunic_sketch(
             raise RuntimeError("debug tunic profile lost canonical bilateral symmetry")
     sketch = doc.addObject("Sketcher::SketchObject", name)
     armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
+    side_ease_mm = 6.0
     for idx, start in enumerate(points):
         end = points[(idx + 1) % len(points)]
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
-        if idx == 2:
+        if idx == 1:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) + side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
             midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
             midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 7:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) - side_ease_mm,
+                0.5 * (start[1] + end[1]),
+                0,
+            )
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
@@ -425,8 +440,8 @@ def run():
     def pin_indices(piece, outline, positions):
         x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (x_offset + 0.06 * panel_width, 0.88 * garment_height),
-            (x_offset + 0.94 * panel_width, 0.88 * garment_height),
+            (x_offset + 0.06 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.94 * panel_width, 0.90 * garment_height),
         )
         result = []
         available = list(range(len(positions)))
