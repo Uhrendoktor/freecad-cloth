@@ -42,7 +42,7 @@ def _literal(value: str) -> str:
         if byte in (ord("("), ord(")"), ord("\\")):
             escaped.append("\\" + chr(byte))
         elif byte < 32 or byte > 126:
-            escaped.append("\\" + "{:03o}".format(byte))
+            escaped.append("\\" + f"{byte:03o}")
         else:
             escaped.append(chr(byte))
     return "(" + "".join(escaped) + ")"
