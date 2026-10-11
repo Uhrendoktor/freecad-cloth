@@ -16,8 +16,8 @@ from __future__ import annotations
 import contextlib
 import json
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Sequence
 
 from freecad_cloth.shared.SourceSignature import source_signature
 
