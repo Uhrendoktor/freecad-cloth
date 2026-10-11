@@ -286,7 +286,9 @@ def render_body_shape_gallery(doc, view, avatar, output):
             frame_path = frame_dir / ("%02d.png" % index)
             view.saveImage(str(frame_path), 420, 560, "White")
             if not frame_path.is_file() or frame_path.stat().st_size < 3000:
-                raise RuntimeError("body-shape frame missing or suspiciously small: " + str(frame_path))
+                raise RuntimeError(
+                    "body-shape frame missing or suspiciously small: " + str(frame_path)
+                )
             with Image.open(frame_path) as source:
                 if source.size != (420, 560):
                     raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
