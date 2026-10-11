@@ -198,12 +198,28 @@ def _make_tunic_sketch(
         end = points[(idx + 1) % len(points)]
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
-        if idx == 2:
+        if idx == 1:
+            side_mid_z = 0.35 * h
+            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
+            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
+            midpoint = App.Vector(
+                side_chord_x + 0.04 * float(panel_width), side_mid_z, 0
+            )
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 2:
             # Give the armhole meaningful vertical depth and inward sweep.
             midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
             midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 7:
+            side_mid_z = 0.35 * h
+            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
+            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
+            midpoint = App.Vector(
+                side_chord_x - 0.04 * float(panel_width), side_mid_z, 0
+            )
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
@@ -362,7 +378,7 @@ def run():
     shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
     shoulder_span_ratio = 0.94 - 0.06
     panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 30.0)
-    hem_width = max(500.0, panel_width + 140.0)
+    hem_width = max(500.0, panel_width + 90.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)

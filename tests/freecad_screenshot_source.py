@@ -835,12 +835,29 @@ def _make_tunic_sketch(
     for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
-        if index == 2:
+        if index == 1:
+            # Add modest ease through the side/waist without moving either armhole endpoint.
+            side_mid_z = 0.35 * float(garment_height)
+            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
+            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
+            midpoint = App.Vector(
+                side_chord_x + 0.04 * float(panel_width), side_mid_z, 0
+            )
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 2:
             # Shape the open armhole as a smooth inward scoop.
             midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
             midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 7:
+            side_mid_z = 0.35 * float(garment_height)
+            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
+            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
+            midpoint = App.Vector(
+                side_chord_x - 0.04 * float(panel_width), side_mid_z, 0
+            )
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
