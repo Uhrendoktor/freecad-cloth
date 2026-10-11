@@ -1059,9 +1059,7 @@ def fit_makehuman_mesh(
         parameters,
         float(parameters.skin_offset),
         source_triangles=(
-            mesh.triangles
-            if len(mesh.vertices) >= MAKEHUMAN_BODY_VERTEX_COUNT
-            else None
+            mesh.triangles if len(mesh.vertices) >= MAKEHUMAN_BODY_VERTEX_COUNT else None
         ),
     )
     fitted = tuple(transform(point) for point in source_vertices)
