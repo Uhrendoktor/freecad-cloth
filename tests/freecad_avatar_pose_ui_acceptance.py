@@ -462,7 +462,9 @@ def run():
     # positions first, then match them within the native-coordinate tolerance.
     actual_values = tuple((point.x, point.y, point.z) for point in actual_points)
 
-    def unique_positions(points):
+    def unique_positions(
+        points: tuple[tuple[float, float, float], ...],
+    ) -> tuple[tuple[float, float, float], ...]:
         unique = {}
         for point in points:
             key = tuple(round(float(value), 5) for value in point)
