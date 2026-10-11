@@ -1,10 +1,15 @@
 """Independent QtSvg rendering and physical-dimension checks for pattern SVGs."""
 
+from __future__ import annotations
+
 import math
-import pathlib
 import re
-import types
-import xml.etree.ElementTree
+from pathlib import Path
+from typing import TYPE_CHECKING
+from xml.etree import ElementTree
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 
 _MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
@@ -21,7 +26,7 @@ def _parse_mm_length(value: str, name: str) -> float:
     return length
 
 
-def _qt_modules() -> tuple[types.ModuleType, types.ModuleType, types.ModuleType]:
+def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
     """Load the Qt SVG modules supported by FreeCAD without a module-level Qt dependency."""
     try:
         from PySide import QtCore, QtGui, QtSvg
@@ -39,7 +44,7 @@ def render_svg_for_validation(
     svg: str,
     *,
     dpi: int = 96,
-    output_path: str | pathlib.Path | None = None,
+    output_path: str | Path | None = None,
 ) -> dict[str, object]:
     """Validate physical SVG sizing and render it independently with QtSvg.
 
@@ -53,8 +58,8 @@ def render_svg_for_validation(
         raise ValueError("SVG validation DPI must be an integer between 36 and 600")
 
     try:
-        root = xml.etree.ElementTree.fromstring(svg)
-    except xml.etree.ElementTree.ParseError as exc:
+        root = ElementTree.fromstring(svg)
+    except ElementTree.ParseError as exc:
         raise ValueError("SVG is not well-formed XML") from exc
     if root.tag.rsplit("}", 1)[-1] != "svg":
         raise ValueError("document root is not SVG")
@@ -145,7 +150,7 @@ def render_svg_for_validation(
 
     saved_path = ""
     if output_path is not None:
-        target = pathlib.Path(output_path)
+        target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         if not image.save(str(target), "PNG"):
             raise OSError(f"could not write SVG validation preview: {target}")
