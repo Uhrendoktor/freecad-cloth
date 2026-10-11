@@ -839,7 +839,6 @@ def render_markdown(report: dict[str, object]) -> str:
     fit = _as_dict(report.get("fit_assessment"))
     fit_state = str(fit.get("state", "not_assessed"))
     fit_findings = _as_list(fit.get("findings"))
-    fit_deviations = _as_dict(fit.get("deviations_mm"))
     fit_references = _as_dict(fit.get("reference_levels_mm"))
     fit_observed = _as_dict(fit.get("observed_final_panel_z_mm"))
     lines.extend(["", "## Fit and placement assessment", ""])
