@@ -182,40 +182,38 @@ replacements = {
     pose_view.fitAll()
     events()
     save("cloth-mannequin-near-t-pose.png", "Mannequin near-T pose before cloth", "FK pose verified by shoulder-to-wrist geometry before draping")""",
-    "clearance = max(10.0, 0.05 * body_depth)": "clearance = max(10.0, 0.05 * body_depth);",
+    "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
     # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
     # depth extrema are dominated by hands in the near-T pose and can pull the stitched
     # panels through the body; the silhouette filter excludes those outliers.
-    """    panel_fit_ratio = 0.94 - 0.06
-    panel_width = max(420.0, shoulder_width / panel_fit_ratio + 20.0)""": """    panel_fit_ratio = 0.94 - 0.06
-    panel_width = max(420.0, shoulder_width / panel_fit_ratio + 20.0)""",
+    "panel_width = max(420.0, shoulder_width + 100.0)": "shoulder_span_ratio = 0.86 - 0.14; panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)",
     "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(500.0, panel_width + 80.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.54 * float(garment_height)
-    shoulder_z = 0.88 * float(garment_height)
+    shoulder_z = 0.86 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.70 * panel_width, armhole_z),
-        (x_offset + 0.96 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.04 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.30 * panel_width, armhole_z),
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.54 * garment_height
-    shoulder_z = 0.88 * garment_height
+    shoulder_z = 0.86 * garment_height
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.70 * panel_width, armhole_z),
-        (x_offset + 0.96 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.04 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.30 * panel_width, armhole_z),
     ]
 """,
