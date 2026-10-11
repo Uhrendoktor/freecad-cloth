@@ -352,25 +352,32 @@ def _fit_anny_body(
         source="FreeCAD Cloth / Anny",
     )
 
+    all_vertices = fitted_body.vertices
+    if len(all_vertices) < MAKEHUMAN_BODY_VERTEX_COUNT:
+        raise AnnyAvatarBackendError(
+            "The installed Anny topology is incompatible with the MakeHuman rig: "
+            f"expected at least {MAKEHUMAN_BODY_VERTEX_COUNT} indexed vertices, "
+            f"received {len(all_vertices)}."
+        )
+
+    # Anny retains unreferenced HM08 helper vertices so its rig index map stays
+    # compatible with MakeHuman. Cloth must expose only the canonical visible
+    # body surface: the first 13,380 vertices and triangles whose three indices
+    # refer to that body prefix, matching parse_obj()'s existing mesh contract.
     vertices: tuple[tuple[float, float, float], ...] = tuple(
         (
-            float(point[0]) * 1000.0,
-            float(point[1]) * 1000.0,
-            float(point[2]) * 1000.0,
+            float(all_vertices[index][0]) * 1000.0,
+            float(all_vertices[index][1]) * 1000.0,
+            float(all_vertices[index][2]) * 1000.0,
         )
-        for point in fitted_body.vertices
+        for index in range(MAKEHUMAN_BODY_VERTEX_COUNT)
     )
     triangles: tuple[tuple[int, int, int], ...] = tuple(
         (int(face[0]), int(face[1]), int(face[2]))
         for face in fitted_body.faces
         if len(face) == 3
+        and all(0 <= int(index) < MAKEHUMAN_BODY_VERTEX_COUNT for index in face)
     )
-    if len(vertices) < MAKEHUMAN_BODY_VERTEX_COUNT:
-        raise AnnyAvatarBackendError(
-            "The installed Anny topology is incompatible with the MakeHuman rig: "
-            f"expected at least {MAKEHUMAN_BODY_VERTEX_COUNT} indexed vertices, "
-            f"received {len(vertices)}."
-        )
     result = MeshData(vertices, triangles)
     try:
         result.validate()
