@@ -2,6 +2,8 @@ import gzip
 import os
 import tempfile
 import unittest
+
+import numpy as np
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +13,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     apply_targets,
     load_target,
     parse_target,
+    resolve_target,
     target_directory,
 )
 
@@ -23,7 +26,7 @@ class MakeHumanTargetTests(unittest.TestCase):
         )
         self.assertEqual(
             target.offsets,
-            ((0, (0.125, -0.5, -0.25)), (2, (-1.0, 0.75, 0.0))),
+            ((0, (0.125, -0.25, 0.5)), (2, (-1.0, 0.0, -0.75))),
         )
 
     def test_target_parser_rejects_non_finite_and_negative_indices(self) -> None:
@@ -43,8 +46,8 @@ class MakeHumanTargetTests(unittest.TestCase):
             )
             vertices = ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0), (7.0, 8.0, 9.0))
             fitted = apply_targets(vertices, {"measure-waist-circ-incr": 0.5}, root)
-            self.assertEqual(fitted[0], (1.05, 2.15, 3.1))
-            self.assertEqual(fitted[1], (-0.05, -0.25, 0.0))
+            self.assertEqual(fitted[0], (1.05, 2.1, 2.85))
+            self.assertEqual(fitted[1], (-0.05, 0.0, 0.25))
             self.assertEqual(fitted[2], vertices[2])
 
     def test_gzip_targets_load_and_installed_library_is_discovered(self) -> None:
@@ -56,9 +59,41 @@ class MakeHumanTargetTests(unittest.TestCase):
             with gzip.open(target_path, "wt", encoding="utf-8") as stream:
                 stream.write("3 0.0 0.2 -0.1\n")
             target = load_target(target_path)
-            self.assertEqual(target.offsets, ((3, (0.0, 0.1, 0.2)),))
+            self.assertEqual(target.offsets, ((3, (0.0, 0.2, -0.1)),))
             with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
                 self.assertEqual(target_directory(), root.resolve() / "targets")
+
+
+    def test_makehuman_targets_npz_archive_uses_native_coordinate_offsets(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cloth-target-archive-") as directory:
+            root = Path(directory)
+            archive = root / "targets.npz"
+            np.savez_compressed(
+                archive,
+                **{
+                    "targets/torso/measure-waist-circ-incr.index": np.array(
+                        [0, 2], dtype=np.uint16
+                    ),
+                    "targets/torso/measure-waist-circ-incr.vector": np.array(
+                        [[100, -250, 300], [-100, 0, 500]], dtype=np.int16
+                    ),
+                },
+            )
+            reference = resolve_target("torso/measure-waist-circ-incr", root)
+            self.assertIsNotNone(reference)
+            assert reference is not None
+            target = load_target(reference)
+            self.assertEqual(
+                target.offsets,
+                ((0, (0.1, -0.25, 0.3)), (2, (-0.1, 0.0, 0.5))),
+            )
+            vertices = ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
+            blended = apply_targets(
+                vertices, {"torso/measure-waist-circ-incr": 0.5}, root
+            )
+            self.assertEqual(blended[0], (1.05, 1.875, 3.15))
+            self.assertEqual(blended[1], vertices[1])
+            self.assertEqual(blended[2], (6.95, 8.0, 9.25))
 
     def test_mesh_section_returns_polygon_perimeter(self) -> None:
         vertices = (
