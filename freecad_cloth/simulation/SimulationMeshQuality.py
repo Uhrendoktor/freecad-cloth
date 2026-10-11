@@ -27,11 +27,11 @@ def quality_piece_mesh(
     )
     start_height = inputs.start_height
     spacing = max(0.25, inputs.particle_distance)
+    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
     from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
-    from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
 
     if piece_ir is None:
         piece_ir = resolve_piece_ir(piece)
