@@ -17,6 +17,7 @@ from freecad_cloth.pattern.PatternGeometry import (
     signed_area,
 )
 
+
 @pydantic_dataclass(frozen=True)
 class Notch:
     """Public data model or service class for Notch."""
@@ -34,6 +35,7 @@ class Notch:
             raise ValueError("notch position must be between 0 and 1")
         if self.depth <= 0:
             raise ValueError("notch depth must be positive")
+
 
 @pydantic_dataclass(frozen=True)
 class PatternMark:
@@ -56,12 +58,14 @@ class PatternMark:
         if self.length <= 0:
             raise ValueError("pattern mark length must be positive")
 
+
 @pydantic_dataclass(frozen=True)
 class OffsetEdge:
     """Public data model or service class for OffsetEdge."""
 
     id: str
     points: tuple[Point, ...]
+
 
 @pydantic_dataclass(frozen=True)
 class DerivedPattern:
@@ -72,6 +76,7 @@ class DerivedPattern:
     notches: tuple[Notch, ...]
     marks: tuple[PatternMark, ...] = ()
     cut_contour: tuple[Point, ...] = ()
+
 
 def derive_cut_boundary(
     pattern: ParametricPattern,
@@ -138,6 +143,7 @@ def derive_cut_boundary(
             raise ValueError("per-edge seam allowance produced an invalid cut contour")
     return DerivedPattern(pattern, tuple(cut_edges), (), (), cut_contour)
 
+
 def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPattern:
     """Add the requested notches data."""
     by_id = derived.sewing_boundary.by_id()
@@ -158,6 +164,7 @@ def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPat
         derived.marks,
         derived.cut_contour,
     )
+
 
 def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedPattern:
     """Add the requested marks data."""
@@ -180,6 +187,7 @@ def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedP
         derived.cut_contour,
     )
 
+
 def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
     """Provide the public notch point operation."""
     notch.validate()
@@ -187,6 +195,7 @@ def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
     if segment is None:
         raise ValueError(f"notch references unknown segment: {notch.segment_id}")
     return segment.point(notch.t)
+
 
 def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
     """Provide the public mark point operation."""
@@ -198,6 +207,7 @@ def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
         raise ValueError(f"pattern mark references unknown segment: {mark.segment_id}")
     return segment.point(mark.t)
 
+
 def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[list[Point]]:
     result = []
     for segment in segments:
@@ -208,6 +218,7 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[li
         else:
             raise TypeError(f"unsupported segment type: {type(segment).__name__}")
     return result
+
 
 def _join_variable_offset_edges(
     sampled: list[list[Point]],
@@ -273,6 +284,7 @@ def _join_variable_offset_edges(
         raise ValueError("per-edge seam allowance produced fewer than three cut points")
     return tuple(contour)
 
+
 def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
     """Intersect two infinite 2D lines, returning None for parallel lines."""
     ax, ay = b[0] - a[0], b[1] - a[1]
@@ -282,6 +294,7 @@ def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
         return None
     fraction = ((c[0] - a[0]) * by - (c[1] - a[1]) * bx) / denominator
     return (a[0] + fraction * ax, a[1] + fraction * ay)
+
 
 def _offset_polyline(
     points: list[Point], width: float, outward_sign: float, miter_limit: float
