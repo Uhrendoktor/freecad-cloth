@@ -124,9 +124,7 @@ def _shape_change_summary(before, after, height_mm):
 
     changed_positions = tuple(point for point in after if key(point) not in before_keys)
     torso_changed_vertices = sum(
-        1
-        for point in changed_positions
-        if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
+        1 for point in changed_positions if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
     )
     before_front = tuple(
         point[1]
