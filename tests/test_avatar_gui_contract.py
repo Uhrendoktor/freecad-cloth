@@ -20,6 +20,16 @@ def test_avatar_panel_groups_cover_all_editable_measurements():
     assert set(grouped) == set(AvatarCommands.DEFAULT_MEASUREMENTS)
 
 
+def test_avatar_panel_shape_fields_match_persistent_command_properties():
+    assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == AvatarCommands.SHAPE_PROPERTY_MAP
+    assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == {
+        "gender": "GenderBlend",
+        "breast_size": "BreastSize",
+    }
+    assert callable(AvatarTaskPanel._shape_changed)
+    assert callable(AvatarTaskPanel._toggle_dimension_gizmo)
+
+
 def test_avatar_panel_pose_fields_match_command_pose_schema():
     assert tuple(key for key, _label in AvatarTaskPanel.POSE_FIELDS) == (
         "left_arm_angle",
@@ -44,6 +54,9 @@ def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
 def test_avatar_panel_exposes_the_public_task_panel_protocol():
     assert callable(AvatarTaskPanel)
     for method in (
+        "_add_shape_group",
+        "_update_shape_labels",
+        "_update_shape_enabled",
         "_staged_parameters",
         "_apply",
         "_open_pose_mode",
