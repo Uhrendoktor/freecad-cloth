@@ -96,13 +96,23 @@ def create_mannequin_drape_target():
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarCommands import create_avatar
-    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+    from freecad_cloth.simulation.DrapeTarget import (
+        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
+        assign_drape_target,
+        create_drape_target,
+    )
 
     doc = App.ActiveDocument or App.newDocument("ClothDrape")
     mannequin = doc.getObject("ClothAvatar") or create_avatar()
     target = _target(doc)
     if target is None:
-        target = create_drape_target(doc, mannequin, "Mannequin", 1.0, 2.0)
+        target = create_drape_target(
+            doc,
+            mannequin,
+            "Mannequin",
+            1.0,
+            DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
+        )
     else:
         assign_drape_target(target, mannequin, "Mannequin")
     target.Label = "Drape Target (Mannequin)"

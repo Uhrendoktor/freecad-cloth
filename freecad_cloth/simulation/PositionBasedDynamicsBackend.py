@@ -321,6 +321,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
         self._collision_mode = collision_mode
         self._collision_sdf: object | None = None
+        self._collision_sdf_resolution: tuple[int, ...] | None = None
+        self._collision_voxel_mm: float | None = None
+        self._collision_configured_tolerance_mm: float | None = None
+        self._collision_effective_tolerance_mm: float | None = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -365,6 +369,21 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         mesh.buildNeighbors()
 
         resolution = _pbd_collision_resolution(collision_surface)
+        self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)
+        self._collision_voxel_mm = _pbd_collision_voxel_mm()
+        self._collision_configured_tolerance_mm = _pbd_collision_tolerance_mm()
+        self._collision_effective_tolerance_mm = _pbd_collision_effective_tolerance_mm(
+            collision_surface
+        )
+        print(
+            "cloth-pbd-collision-config "
+            f"target_thickness_mm={float(collision_surface.thickness):.2f} "
+            f"configured_tolerance_mm={self._collision_configured_tolerance_mm:.2f} "
+            f"voxel_mm={self._collision_voxel_mm:.2f} "
+            f"effective_tolerance_mm={self._collision_effective_tolerance_mm:.2f} "
+            f"resolution={list(self._collision_sdf_resolution)}",
+            flush=True,
+        )
         cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
         global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
         if self._collision_sdf is None and cache_key == _PBD_COLLISION_SDF_CACHE_KEY:
@@ -410,7 +429,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
         collision_detection = sim.getTimeStep().getCollisionDetection()
         collision_detection.setTolerance(
-            _pbd_collision_effective_tolerance_mm(collision_surface) / _MM
+            self._collision_effective_tolerance_mm / _MM
         )
 
     def _build(self) -> None:

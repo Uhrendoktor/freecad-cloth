@@ -379,6 +379,69 @@ timed_anchor = """    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
+    if active_collision is None:
+        raise RuntimeError("tunic PBD backend has no active mannequin collision surface")
+    from math import ceil as _ceil
+    collision_voxel_mm = float(getattr(active_backend, "_collision_voxel_mm", -1.0))
+    collision_configured_tolerance_mm = float(
+        getattr(active_backend, "_collision_configured_tolerance_mm", -1.0)
+    )
+    collision_effective_tolerance_mm = float(
+        getattr(active_backend, "_collision_effective_tolerance_mm", -1.0)
+    )
+    collision_target_thickness_mm = float(getattr(active_collision, "thickness", 0.0))
+    collision_sdf_resolution = tuple(
+        int(value)
+        for value in (getattr(active_backend, "_collision_sdf_resolution", ()) or ())
+    )
+    collision_spans_mm = tuple(
+        max(float(vertex[axis]) for vertex in active_collision.vertices)
+        - min(float(vertex[axis]) for vertex in active_collision.vertices)
+        for axis in range(3)
+    )
+    expected_sdf_resolution = tuple(
+        max(16, min(256, int(_ceil((span + 200.0) / 3.0))))
+        for span in collision_spans_mm
+    )
+    if abs(collision_target_thickness_mm - 5.0) > 1e-6:
+        raise RuntimeError(
+            "tunic mannequin collision thickness must be 5 mm, got %.3f"
+            % collision_target_thickness_mm
+        )
+    if abs(collision_voxel_mm - 3.0) > 1e-6:
+        raise RuntimeError(
+            "tunic PBD SDF voxel size must be 3 mm, got %.3f" % collision_voxel_mm
+        )
+    if abs(collision_configured_tolerance_mm - 2.0) > 1e-6:
+        raise RuntimeError(
+            "tunic configured PBD collision tolerance must be 2 mm, got %.3f"
+            % collision_configured_tolerance_mm
+        )
+    expected_effective_tolerance_mm = max(
+        collision_configured_tolerance_mm,
+        collision_target_thickness_mm,
+        0.5 * collision_voxel_mm,
+    )
+    if abs(collision_effective_tolerance_mm - expected_effective_tolerance_mm) > 1e-6:
+        raise RuntimeError("tunic PBD effective collision tolerance does not match its inputs")
+    if collision_sdf_resolution != expected_sdf_resolution:
+        raise RuntimeError(
+            "tunic PBD SDF resolution %r does not match configured 3 mm voxel resolution %r"
+            % (collision_sdf_resolution, expected_sdf_resolution)
+        )
+    log(
+        "tunic-collision-config target-thickness-mm=%.2f voxel-mm=%.2f "
+        "configured-tolerance-mm=%.2f effective-tolerance-mm=%.2f "
+        "sdf-resolution=%dx%dx%d span-mm=%.2fx%.2fx%.2f"
+        % (
+            collision_target_thickness_mm,
+            collision_voxel_mm,
+            collision_configured_tolerance_mm,
+            collision_effective_tolerance_mm,
+            *collision_sdf_resolution,
+            *collision_spans_mm,
+        )
+    )
     configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))
     effective_substeps = int(getattr(active_backend, "_substeps", -1))
     if effective_substeps != configured_substeps:
