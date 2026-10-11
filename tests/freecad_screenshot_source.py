@@ -1223,7 +1223,7 @@ def simulation():
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
-    panel_width = max(420.0, shoulder_width + 100.0)
+    panel_fit_ratio = 0.96 - 0.04; panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)
     hem_width = max(450.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
