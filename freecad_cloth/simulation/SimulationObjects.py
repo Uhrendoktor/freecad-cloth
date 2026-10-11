@@ -31,10 +31,11 @@ def _indexed_mesh_topology(
     return vertex_indices, faces
 
 
-# FreeCAD mesh features are identified by document/object name. Caching this
-# signature lets preview frames update existing point coordinates without
-# re-triangulating an unchanged panel.
+# FreeCAD mesh features are identified by document/object name. Cache the
+# indexed topology alongside a separately owned mutable buffer: obj.Mesh exposes
+# an immutable property view, so calling setPoint on that view raises ReferenceError.
 _MESH_OBJECT_TOPOLOGY: dict[tuple[str, str], tuple[tuple[int, int, int], ...]] = {}
+_MESH_OBJECT_BUFFERS: dict[tuple[str, str], object] = {}
 
 
 def _mesh_object_key(obj: object) -> tuple[str, str]:
@@ -57,42 +58,53 @@ def _write_mesh(obj, positions, triangles):
     if not topology:
         obj.Mesh = Mesh.Mesh()
         _MESH_OBJECT_TOPOLOGY.pop(object_key, None)
+        _MESH_OBJECT_BUFFERS.pop(object_key, None)
         return
 
     # FreeCAD's indexed constructor builds shared vertices and triangle indices
     # directly. Cache the mapping because panel topology is fixed across preview
-    # frames, then update only the current solver coordinates.
+    # frames, then update only the separately owned mutable mesh buffer.
     vertex_indices, faces = _indexed_mesh_topology(topology)
     vertices = [App.Vector(*positions[index]) for index in vertex_indices]
-    native = getattr(obj, "Mesh", None)
+    buffer = _MESH_OBJECT_BUFFERS.get(object_key)
     if (
         _MESH_OBJECT_TOPOLOGY.get(object_key) == topology
-        and native is not None
-        and getattr(native, "CountPoints", -1) == len(vertex_indices)
-        and getattr(native, "CountFacets", -1) == len(faces)
+        and buffer is not None
+        and getattr(buffer, "CountPoints", -1) == len(vertex_indices)
+        and getattr(buffer, "CountFacets", -1) == len(faces)
     ):
-        set_point = getattr(native, "setPoint", None)
+        set_point = getattr(buffer, "setPoint", None)
         if callable(set_point):
             try:
                 for index, point in enumerate(vertices):
                     set_point(index, point)
-                obj.Mesh = native
+                # The property setter copies the mutable buffer into the
+                # document-owned mesh; do not mutate the obj.Mesh const view.
+                obj.Mesh = buffer
                 return
-            except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
-                # Fall back to a complete native mesh if this FreeCAD build does
-                # not support editing all indexed points in place.
-                pass
+            except (
+                AttributeError,
+                IndexError,
+                ReferenceError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ):
+                _MESH_OBJECT_BUFFERS.pop(object_key, None)
+                _MESH_OBJECT_TOPOLOGY.pop(object_key, None)
 
     # The face indices originate from validated panel topology. Avoid repeating
     # the constructor's manifold check on every transient preview mesh rebuild.
-    native = Mesh.Mesh()
-    native.addFacets((vertices, list(faces)), False)
-    obj.Mesh = native
+    buffer = Mesh.Mesh()
+    buffer.addFacets((vertices, list(faces)), False)
+    obj.Mesh = buffer
+    _MESH_OBJECT_BUFFERS[object_key] = buffer
     _MESH_OBJECT_TOPOLOGY[object_key] = topology
     if len(_MESH_OBJECT_TOPOLOGY) > 256:
         _MESH_OBJECT_TOPOLOGY.clear()
+        _MESH_OBJECT_BUFFERS.clear()
+        _MESH_OBJECT_BUFFERS[object_key] = buffer
         _MESH_OBJECT_TOPOLOGY[object_key] = topology
-
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
     triangles = []
