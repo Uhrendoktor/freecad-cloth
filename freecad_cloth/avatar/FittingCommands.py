@@ -158,7 +158,7 @@ def _target_signature(target):
         box = normalized_shape.BoundBox
         signature = (
             "ShapeLocal",
-            int(len(tuple(normalized_shape.Solids))),
+            len(tuple(normalized_shape.Solids)),
             len(vertices),
             vertices,
             edges,
