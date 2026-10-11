@@ -273,10 +273,8 @@ def run():
     progress_path.parent.mkdir(parents=True, exist_ok=True)
     trace = progress_path.open("w", encoding="utf-8", buffering=1)
     faulthandler.enable(file=trace, all_threads=True)
-    try:
+    with suppress(AttributeError, RuntimeError, OSError):
         faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
-    except (AttributeError, RuntimeError, OSError):
-        pass
 
     def progress(message):
         trace.write(str(message) + "\n")
