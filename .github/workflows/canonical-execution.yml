@@ -70,13 +70,6 @@ jobs:
           python -m compileall -q tests tools/ci
           git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
           xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
-          xargs -0 -r python -m ruff check --fix < "$RUNNER_TEMP/python-files.zlist" || true
-          mkdir -p "$RUNNER_TEMP/ruff-fixed"
-          git diff --name-only -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/ruff-fixed-files.zlist"
-          while IFS= read -r -d '' file; do
-            mkdir -p "$RUNNER_TEMP/ruff-fixed/$(dirname "$file")"
-            cp "$file" "$RUNNER_TEMP/ruff-fixed/$file"
-          done < "$RUNNER_TEMP/ruff-fixed-files.zlist"
           xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"
           python tools/check_documentation_contract.py
           python tools/check_markdown_contract.py
@@ -96,14 +89,6 @@ jobs:
           fi
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py tests/test_changed_python_types.py tests/test_pydantic_models_policy.py
           crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
-      - name: Export safe Ruff fixes for review
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ruff-safe-fixes-${{ github.run_id }}
-          path: ${{ runner.temp }}/ruff-fixed/
-          if-no-files-found: ignore
-          retention-days: 1
       - name: Workflow linters
         run: |
           set -euo pipefail
