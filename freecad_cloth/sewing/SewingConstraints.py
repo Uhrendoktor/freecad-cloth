@@ -8,6 +8,7 @@ from freecad_cloth.pattern.PatternGeometry import ParametricPattern
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
 from freecad_cloth.pattern.PatternModel import Seam
 
+
 @pydantic_dataclass(frozen=True)
 class Stitch:
     """Public data model or service class for Stitch."""
@@ -15,6 +16,7 @@ class Stitch:
     vertex_a: int
     vertex_b: int
     rest_length: float = 0.0
+
 
 @pydantic_dataclass(frozen=True)
 class SewingConstraintSet:
@@ -30,6 +32,7 @@ class SewingConstraintSet:
                 raise ValueError("a stitch cannot connect a vertex to itself")
             if stitch.rest_length < 0:
                 raise ValueError("stitch rest length cannot be negative")
+
 
 def build_sewing_constraints(
     pattern_a: ParametricPattern,
@@ -66,6 +69,7 @@ def build_sewing_constraints(
     result = SewingConstraintSet(tuple(stitches), {key: tuple(pairs)})
     result.validate()
     return result
+
 
 def _nearest_boundary_vertex(mesh: TriangleMesh, indices, point):
     if not indices:
