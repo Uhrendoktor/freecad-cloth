@@ -215,6 +215,11 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     parsed = ast.parse(source_path.read_text(encoding="utf-8"))
     identifiers = {node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)}
     attributes = {node.attr for node in ast.walk(parsed) if isinstance(node, ast.Attribute)}
+    string_constants = {
+        node.value
+        for node in ast.walk(parsed)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
     assert "_Preview" in identifiers
     assert "_prepare" in identifiers
     assert "QEventLoop" in attributes
@@ -223,8 +228,8 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     assert "WARMUP_FRAMES" in identifiers
     assert "FRAMES" in identifiers
     assert "stage_timings" in identifiers
-    assert "solver_step" in identifiers
-    assert "viewport_redraw" in identifiers
+    assert "solver_step" in string_constants
+    assert "viewport_redraw" in string_constants
     assert "validate_realtime_benchmark.py" in (
         ROOT / ".github" / "workflows" / "canonical-execution.yml"
     ).read_text(encoding="utf-8")
