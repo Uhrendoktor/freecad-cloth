@@ -2,9 +2,9 @@
 
 ## Boundary-validation policy
 
-Pydantic v2 models in `freecad_cloth/common/ValidationModels.py` validate data where geometry and correspondence code crosses an algorithm boundary. They reject non-finite coordinates, fractional or boolean mesh indices, malformed faces, invalid sample counts, and invalid normalized ranges. The models are frozen and reject extra fields so validated snapshots cannot be mutated accidentally.
+Pydantic v2 models in `freecad_cloth/common/ValidationModels.py` validate geometry and correspondence boundaries. Every production data-carrier dataclass is also backed by `pydantic.dataclasses.dataclass`, preserving dataclass APIs while validating construction. They reject non-finite coordinates, fractional or boolean mesh indices, malformed faces, invalid sample counts, and invalid normalized ranges. The models are frozen and reject extra fields so validated snapshots cannot be mutated accidentally.
 
-Validation is deliberately not duplicated across every internal arithmetic operation. Functions validate external inputs once, then operate on normalized immutable values. FreeCAD documents, Sketcher, OCCT, Triangle, and PositionBasedDynamics remain authoritative for their respective domains; Pydantic schemas guard boundaries rather than replacing the domain model.
+Validation is deliberately not duplicated across every internal arithmetic operation. Data records validate when constructed; functions validate external inputs once, then operate on normalized values. FreeCAD's native document/property serialization remains authoritative, and the policy permits a standard-library dataclass only when a specific incompatibility with that serialization is documented and tested. FreeCAD documents, Sketcher, OCCT, Triangle, and PositionBasedDynamics remain authoritative for their respective domains; Pydantic schemas guard boundaries rather than replacing the domain model.
 
 ## Invariants and executable evidence
 
