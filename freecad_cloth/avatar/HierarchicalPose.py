@@ -11,8 +11,8 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
 )
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.HumanoidMesh import (
-    MeshData,
     HumanoidMeshError,
+    MeshData,
     _bone_source_endpoints,
     _load_source_vertices,
     load_makehuman_skeleton,
