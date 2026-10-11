@@ -35,6 +35,30 @@ def test_measurement_change_changes_geometry_without_mutating_source():
     assert generate_mesh(params)[0] != generate_mesh(wider)[0]
 
 
+def test_gender_and_breast_controls_persist_and_change_geometry():
+    neutral = AvatarParameters()
+    feminine = AvatarParameters(gender=0.0)
+    masculine = AvatarParameters(gender=1.0)
+    fuller = AvatarParameters(breast_size=1.0)
+
+    assert AvatarParameters.from_json(feminine.to_json()) == feminine
+    assert AvatarParameters.from_json(fuller.to_json()) == fuller
+    assert neutral.with_measurements(waist=780).gender == neutral.gender
+    assert neutral.with_measurements(waist=780).breast_size == neutral.breast_size
+    assert generate_mesh(feminine)[0] != generate_mesh(masculine)[0]
+    assert generate_mesh(neutral)[0] != generate_mesh(fuller)[0]
+
+
+def test_invalid_shape_values_are_rejected():
+    for changes in ({"gender": -0.01}, {"gender": 1.01}, {"breast_size": -0.01}, {"breast_size": 1.01}):
+        try:
+            AvatarParameters(**changes)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid shape value was accepted: {}".format(changes))
+
+
 def test_skin_offset_changes_collision_geometry():
     base = AvatarParameters(skin_offset=0)
     padded = AvatarParameters(skin_offset=8)
