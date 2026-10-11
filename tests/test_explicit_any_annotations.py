@@ -11,7 +11,9 @@ from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
     TY_CONFIG,
     TYPECHECK_COMMANDS,
+    PYTHON_POLICY_COMMANDS,
     WORKFLOW,
+    missing_python_policy_commands,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
     ty_warnings_are_blocking,
@@ -80,9 +82,15 @@ def test_parse_errors_fail_closed() -> None:
 
 
 def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
-    """Require the AST gate plus broad and strict Pyright profiles in CI."""
+    """Require one strict Pyright config and all blocking static-analysis gates."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     assert missing_typecheck_commands(workflow_text) == ()
+    assert missing_python_policy_commands(workflow_text) == ()
+    assert workflow_text.count("pyright -p pyrightconfig.json") == 1
+    assert "pyrightconfig.agent-strict.json" not in workflow_text
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    assert config["typeCheckingMode"] == "strict"
+    assert not PYRIGHT_CONFIG.with_name("pyrightconfig.agent-strict.json").exists()
 
 
 @pytest.mark.parametrize("command", TYPECHECK_COMMANDS)
@@ -91,6 +99,14 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
     assert missing_typecheck_commands(tampered) == (command,)
+
+
+@pytest.mark.parametrize("command", PYTHON_POLICY_COMMANDS)
+def test_python_policy_contract_detects_removed_command(command: str) -> None:
+    """Prevent removal of the production Pydantic policy."""
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+    tampered = workflow_text.replace(command, "", 1)
+    assert missing_python_policy_commands(tampered) == (command,)
 
 
 def test_pyright_coverage_matches_the_reviewed_staged_inventory() -> None:
@@ -127,17 +143,15 @@ def test_new_production_modules_cannot_escape_pyright_scope() -> None:
 
 
 def test_typecheck_commands_must_be_standalone_blocking_steps() -> None:
-    """Reject a shell chain that can mask an earlier type-checker's nonzero status."""
+    """Reject a shell chain that can mask a type checker's nonzero status."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     chained = workflow_text.replace(
-        "          python tools/ci/check_explicit_any_annotations.py\n"
-        "          pyright -p pyrightconfig.json",
-        "          python tools/ci/check_explicit_any_annotations.py && pyright -p pyrightconfig.json",
+        "          pyright -p pyrightconfig.json\n",
+        "          python tools/ci/check_explicit_any_annotations.py && pyright -p pyrightconfig.json\n",
         1,
     )
     missing = missing_typecheck_commands(chained)
-    assert "python tools/ci/check_explicit_any_annotations.py" in missing
-    assert "pyright -p pyrightconfig.json" in missing
+    assert missing == ("pyright -p pyrightconfig.json",)
 
 
 def test_ty_warning_diagnostics_are_blocking() -> None:
