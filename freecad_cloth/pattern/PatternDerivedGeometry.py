@@ -220,7 +220,6 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[li
     return result
 
 
-
 def _join_variable_offset_edges(
     sampled: list[list[Point]],
     cut_edges: list[OffsetEdge],
