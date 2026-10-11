@@ -350,6 +350,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "SimulationQualityRuntimeV2" not in debug
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
     assert "neckline_drop=0.03" in source
+    assert "shoulder_headroom_mm = 20.0" in source
+    assert "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
+    assert "shoulder_headroom_mm = 20.0" in debug
+    assert "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
     assert "armhole_z = 0.62 * h" in debug
     assert "armhole_z = 0.62 * h" in debug
@@ -366,12 +370,12 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.06 * panel_width, 0.94 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.94 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
-    assert "neckline_scoop_depth = 0.10 * h" in debug
+    assert "neckline_scoop_depth = 0.12 * h" in debug
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in debug
     assert "if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug
-    assert "neckline_scoop_depth = 0.10 * float(garment_height)" in source
+    assert "neckline_scoop_depth = 0.12 * float(garment_height)" in source
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
-    assert "neckline_scoop_depth = 0.10 * float(garment_height)" in audit
+    assert "neckline_scoop_depth = 0.12 * float(garment_height)" in audit
     assert 'make_piece("VisualTunicFront", "front", 0.72, 0.03)' in source
     assert 'make_piece("VisualTunicBack", "back", 0.72, 0.03)' in source
     assert "elif idx == 4:" in debug

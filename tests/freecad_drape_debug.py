@@ -177,7 +177,7 @@ def _make_tunic_sketch(
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.62 * h
     shoulder_z = 0.94 * h
-    neckline_scoop_depth = 0.10 * h
+    neckline_scoop_depth = 0.12 * h
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.0, 0.0),
@@ -395,7 +395,9 @@ def run():
     # Match the canonical 10% horizontal ease used by the production visual fixture.
     panel_width *= 1.10
     hem_width *= 1.10
-    garment_height = max(560.0, shoulder_z - hem_z)
+    # Match the canonical 20 mm vertical shoulder headroom while keeping the hem at the hip.
+    shoulder_headroom_mm = 20.0
+    garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     front_y = box.YMax + clearance
@@ -418,7 +420,7 @@ def run():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    # Mirror the wider, deeper neckline and raised shoulders in the lightweight diagnostic.
+    # Mirror the wider neckline and landmark-derived shoulder headroom in the lightweight diagnostic.
     front, front_outline = make_piece("DebugTunicFront", front_y, 0.72, 0.03)
     back, back_outline = make_piece("DebugTunicBack", back_y, 0.72, 0.03)
     for edge_a, edge_b, seam_id in SEAMS:

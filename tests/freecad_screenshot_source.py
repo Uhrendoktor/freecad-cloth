@@ -829,7 +829,7 @@ def _make_tunic_sketch(
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.62 * float(garment_height)
     shoulder_z = 0.94 * float(garment_height)
-    neckline_scoop_depth = 0.10 * float(garment_height)
+    neckline_scoop_depth = 0.12 * float(garment_height)
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
@@ -1326,7 +1326,13 @@ def simulation():
     # Add 10% horizontal ease at the underarms and shoulders without changing fit height.
     panel_width *= 1.10
     hem_width *= 1.10
-    garment_height = max(560.0, shoulder_z - hem_z)
+    # Raise the shoulder seam above the avatar landmark so free drape can settle it down.
+    shoulder_headroom_mm = 20.0
+    garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)
+    log(
+        "tunic-shoulder-headroom target-mm=%.1f actual-mm=%.1f"
+        % (shoulder_headroom_mm, 0.94 * garment_height - (shoulder_z - hem_z))
+    )
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
@@ -1357,7 +1363,7 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    # Widen and deepen the neckline; lift the shoulder seams over the mannequin's shoulders.
+    # Widen the neck opening and lift the shoulder seams 20 mm over the mannequin's shoulder landmark.
     front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)
 
