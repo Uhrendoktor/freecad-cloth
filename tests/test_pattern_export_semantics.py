@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from unittest import TestCase
+from xml.etree import ElementTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,7 +20,12 @@ from freecad_cloth.pattern.PatternExport import (
     to_svg,
     validate_export,
 )
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, QuadraticBezier
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    QuadraticBezier,
+    rectangle,
+)
 
 
 def _curved_pattern():
@@ -157,6 +163,65 @@ def test_release_gate_rejects_unknown_format():
     with TestCase().assertRaisesRegex(ValueError, "format must be 'svg' or 'dxf'"):
         validate_export(_curved_pattern(), "", "pdf")
 
+
+
+def test_svg_contains_visible_print_safe_geometry():
+    pattern = _curved_pattern()
+    svg = to_svg(pattern, curve_samples=9, derived=_derived(pattern), piece_id="bodice-front")
+    root = ElementTree.fromstring(svg)
+    elements = list(root.iter())
+    by_id = {element.attrib["id"]: element for element in elements if element.attrib.get("id")}
+
+    sewing_group = by_id["sewing-boundary"]
+    sewing_path = next(
+        element for element in sewing_group.iter() if element.tag.rsplit("}", 1)[-1] == "path"
+    )
+    cut_path = by_id["cut-perimeter"]
+    notch = by_id["notch-notch-1"]
+    grainline = by_id["mark-grain-1"]
+    text = next(element for element in elements if element.attrib.get("data-mark-id") == "grain-1")
+
+    for element in (sewing_path, cut_path, notch, grainline):
+        assert element.attrib.get("stroke") == "#000000"
+    assert sewing_path.attrib.get("fill") == "none"
+    assert cut_path.attrib.get("fill") == "none"
+    assert text.attrib.get("fill") == "#000000"
+    assert text.attrib.get("font-size") == "3mm"
+    assert root.attrib["width"].endswith("mm")
+    assert root.attrib["height"].endswith("mm")
+
+
+def test_export_rejects_units_that_would_relabel_without_conversion():
+    pattern = _curved_pattern()
+    with TestCase().assertRaisesRegex(ValueError, "units must be 'mm'"):
+        to_svg(pattern, units="in")
+    with TestCase().assertRaisesRegex(ValueError, "units must be 'mm'"):
+        to_dxf(pattern, units="cm")
+
+
+def test_dxf_declares_millimetres_in_standard_header():
+    dxf = to_dxf(_curved_pattern())
+    assert "\\$INSUNITS\\n70\\n4\\n" in dxf
+    assert from_dxf_metadata(dxf)["units"] == "mm"
+
+
+def test_cut_perimeter_is_closed_and_has_expected_allowance_extent():
+    pattern = rectangle(100.0, 60.0)
+    derived = derive_cut_boundary(pattern, 5.0)
+    contour = derived.cut_contour
+    assert len(contour) >= 4
+    xs = [point[0] for point in contour]
+    ys = [point[1] for point in contour]
+    assert max(xs) - min(xs) == 110.0
+    assert max(ys) - min(ys) == 70.0
+    assert all(
+        contour[index] != contour[(index + 1) % len(contour)]
+        for index in range(len(contour))
+    )
+    dxf = to_dxf(pattern, derived=derived)
+    assert "8\\nCUT\\n" in dxf
+    cut_section = dxf.split("8\\nCUT\\n", 1)[1].split("0\\nENDSEC", 1)[0]
+    assert "70\\n1\\n" in cut_section
 
 def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     class Piece:
