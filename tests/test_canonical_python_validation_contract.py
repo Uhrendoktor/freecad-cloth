@@ -79,6 +79,21 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "mode: pr" in publisher
 
 
+def test_main_visual_publisher_pins_surface_pen_artifact_download_revision():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    start = workflow.index("  publish-readme-turntables:")
+    match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
+    end = start + 3 + match.start() if match else len(workflow)
+    publisher = workflow[start:end]
+    # This immutable revision adds the required Surface Pen artifact download.
+    assert (
+        "publish-visual-evidence@f63948fe20421061904324bcef128a4fcfc69965"
+        in publisher
+    )
+
+
 # Exact-head validation recut marker; behavior unchanged.
 # Final exact-head cube diagnostic trigger marker; behavior unchanged.
 
