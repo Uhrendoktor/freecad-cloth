@@ -132,29 +132,34 @@ def _shape_change_summary(
         1 for point in changed_positions if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
     )
     bust_baseline = before if breast_reference is None else breast_reference
-    # clad-body normalizes Anny output to Z-up with +Y facing forward.
-    # Measuring -Y tracks the back contour and can mistake back-shape changes
-    # for a failed bust-projection edit; measure the positive-Y front instead.
-    before_front = tuple(
-        point[1]
-        for point in bust_baseline
-        if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
-        and point[1] > 0.0
-        and abs(point[0]) <= 160.0
-    )
-    after_front = tuple(
-        point[1]
-        for point in after
-        if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
-        and point[1] > 0.0
-        and abs(point[0]) <= 160.0
-    )
-    if not before_front or not after_front:
-        raise RuntimeError("no front-facing upper-torso vertices available for shape review")
+    # clad-body normalizes Anny output to Z-up; evaluate the two breast lobes
+    # separately so sternum/cleavage movement cannot dominate the measurement.
+    # The center exclusion removes the sternum; the outer limit excludes arms.
+    def front_lobe(points, side):
+        return tuple(
+            point[1]
+            for point in points
+            if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
+            and point[1] > 0.0
+            and 25.0 <= side * point[0] <= 155.0
+        )
+
+    side_deltas = {}
+    for side, name in ((-1.0, "left"), (1.0, "right")):
+        before_lobe = front_lobe(bust_baseline, side)
+        after_lobe = front_lobe(after, side)
+        if not before_lobe or not after_lobe:
+            raise RuntimeError(
+                "no front-facing {} breast vertices available for shape review".format(name)
+            )
+        side_deltas[name] = max(after_lobe) - max(before_lobe)
     return {
         "changed_vertices": len(changed_positions),
         "torso_changed_vertices": torso_changed_vertices,
-        "max_bust_projection_delta_mm": max(after_front) - max(before_front),
+        "left_bust_projection_delta_mm": side_deltas["left"],
+        "right_bust_projection_delta_mm": side_deltas["right"],
+        "min_side_bust_projection_delta_mm": min(side_deltas.values()),
+        "max_bust_projection_delta_mm": max(side_deltas.values()),
     }
 
 
@@ -356,7 +361,7 @@ def run():
                 raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
             if shape_delta["torso_changed_vertices"] == 0:
                 raise RuntimeError("body-shape rebuild did not change the torso region")
-            if shape_delta["max_bust_projection_delta_mm"] < 1.0:
+            if shape_delta["min_side_bust_projection_delta_mm"] < 1.0:
                 raise RuntimeError(
                     "breast fullness did not visibly move the front torso surface: "
                     + repr(shape_delta)
@@ -432,13 +437,14 @@ def run():
             "avatar-shape-editor=passed "
             "gender=0.20 breast_size=0.65 "
             "shape_changed_vertices={shape_changed} torso_changed_vertices={torso_changed} "
-            "max_bust_projection_delta_mm={bust_delta:.2f} "
+            "left_bust_delta_mm={left_bust:.2f} right_bust_delta_mm={right_bust:.2f} "
             "hip_before={hip_before:.2f} hip_after={hip_after:.2f} "
             "document_objects_overlay=transient "
             "screenshot_opaque_pixels={opaque} screenshot_distinct_rgb={distinct}\n".format(
                 shape_changed=shape_delta["changed_vertices"],
                 torso_changed=shape_delta["torso_changed_vertices"],
-                bust_delta=shape_delta["max_bust_projection_delta_mm"],
+                left_bust=shape_delta["left_bust_projection_delta_mm"],
+                right_bust=shape_delta["right_bust_projection_delta_mm"],
                 hip_before=hip_before,
                 hip_after=hip_after,
                 opaque=metrics["opaque_pixels"],
@@ -449,11 +455,12 @@ def run():
         print(
             "avatar-shape-editor=passed gender=0.20 breast_size=0.65 "
             "shape_changed_vertices={} torso_changed_vertices={} "
-            "max_bust_projection_delta_mm={:.2f} "
+            "left_bust_delta_mm={:.2f} right_bust_delta_mm={:.2f} "
             "hip_before={:.2f} hip_after={:.2f}".format(
                 shape_delta["changed_vertices"],
                 shape_delta["torso_changed_vertices"],
-                shape_delta["max_bust_projection_delta_mm"],
+                shape_delta["left_bust_projection_delta_mm"],
+                shape_delta["right_bust_projection_delta_mm"],
                 hip_before,
                 hip_after,
             ),
