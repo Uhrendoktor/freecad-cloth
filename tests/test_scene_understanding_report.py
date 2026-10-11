@@ -155,6 +155,77 @@ def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> No
     assert status["result"] == "passed"
     assert status["failed_stage"] is None
     assert report["issues"] == []
+    fit_assessment = report["fit_assessment"]
+    assert isinstance(fit_assessment, dict)
+    assert fit_assessment["state"] == "not_assessed"
+
+
+def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(tmp_path: Path) -> None:
+    """Script success, non-penetration, and seams alone must not certify garment coverage."""
+    output_root = tmp_path / "docs" / "images" / "generated"
+    output_root.mkdir(parents=True)
+    progress = output_root / "gui-progress.log"
+    metrics = {
+        "hem_z": 920.0,
+        "shoulder_z": 1347.5,
+        "target_height": 1750.0,
+        "panels": [
+            {
+                "panel": "Drape: VisualTunicFront",
+                "bounds": [-311.1, 283.3, -60.5, 182.8, 663.1575, 1235.4524],
+                "diagnostics": ["below-hem-candidate"],
+                "penetrating_vertices": 0,
+                "target_vertex_clearance": 4.2358,
+                "state": "structurally-plausible",
+            },
+            {
+                "panel": "Drape: VisualTunicBack",
+                "bounds": [-309.1, 286.6, -163.8, 59.8, 663.6136, 1235.4589],
+                "diagnostics": ["below-hem-candidate"],
+                "penetrating_vertices": 0,
+                "target_vertex_clearance": 4.8229,
+                "state": "structurally-plausible",
+            },
+        ],
+    }
+    (output_root / "drape-visual-metrics.json").write_text(
+        json.dumps(metrics), encoding="utf-8"
+    )
+    progress.write_text(
+        "script-start\\ntunic-simulation-start\\n"
+        + "drape-metrics="
+        + json.dumps(metrics["panels"][0])
+        + "\\nscenario-pass\\nscript-end exit-code=0\\n",
+        encoding="utf-8",
+    )
+
+    report = write_report(progress, output_root, tmp_path)
+
+    status = report["status"]
+    fit_assessment = report["fit_assessment"]
+    assert isinstance(status, dict) and isinstance(fit_assessment, dict)
+    assert status["result"] == "review_required"
+    assert status["failed_stage"] is None
+    assert fit_assessment["state"] == "review_required"
+    observed = fit_assessment["observed_final_panel_z_mm"]
+    deviations = fit_assessment["deviations_mm"]
+    assert isinstance(observed, dict) and isinstance(deviations, dict)
+    assert observed["minimum"] == 663.158
+    assert observed["maximum"] == 1235.452
+    assert deviations["cloth_top_below_shoulder_reference"] == 112.048
+    assert deviations["cloth_extends_below_expected_hem"] == 256.843
+    findings = fit_assessment["findings"]
+    assert isinstance(findings, list)
+    assert {finding["kind"] for finding in findings if isinstance(finding, dict)} == {
+        "cloth_top_below_shoulder_reference",
+        "cloth_extends_below_expected_hem",
+    }
+    markdown = (output_root / "scene-understanding.md").read_text(encoding="utf-8")
+    assert "## Fit and placement assessment" in markdown
+    assert "REVIEW REQUIRED" in markdown
+    assert "not an anatomical landmark" in markdown
+    svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
+    assert "Scene report result: REVIEW_REQUIRED" in svg
 
 
 def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> None:
