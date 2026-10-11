@@ -69,6 +69,7 @@ LIMITS = {
     "back_waist": (300, 650),
 }
 
+
 @pydantic_dataclass(frozen=True)
 class Pose:
     """Public data model or service class for Pose."""
@@ -107,12 +108,14 @@ class Pose:
                 raise ValueError(f"{name} must be between -90 and 90 degrees")
         normalize_joint_rotations(self.joint_rotations)
 
+
 @pydantic_dataclass(frozen=True)
 class Landmark:
     """Public data model or service class for Landmark."""
 
     name: str
     position: tuple
+
 
 @pydantic_dataclass(frozen=True)
 class AvatarParameters:
@@ -257,6 +260,7 @@ class AvatarParameters:
             float(shape.get("breast_size", 0.0)),
         )
 
+
 def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     m = params.measurements
     height = float(m["height"])
@@ -314,6 +318,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     return tuple(
         Landmark(name, tuple(map(float, position))) for name, position in sorted(landmarks.items())
     )
+
 
 def generate_mesh(
     params: AvatarParameters,
