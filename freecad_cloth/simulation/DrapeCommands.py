@@ -43,6 +43,7 @@ def _attach_to_simulation(doc, source, target):
         scene.DrapeTarget = target
     doc.recompute()
 
+
 def set_drape_target_source(scene, source, thickness=2.0, deflection=1.0):
     """Assign a persistent collision source through the target-neutral API."""
     if scene is None or not _is_simulation_scene(scene):

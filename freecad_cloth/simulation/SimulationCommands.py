@@ -168,7 +168,11 @@ def simulation_status():
     target = _find_drape_target(doc)
     from freecad_cloth.simulation.DrapeTarget import target_status
     target_info = target_status(target)
-    target_info = {"blocked": target_info["state"] in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"}, **target_info}
+    target_info = {
+        "blocked": target_info["state"]
+        in {"stale", "unbuilt", "unassigned", "invalid", "missing", "disabled"},
+        **target_info,
+    }
     return {
         "state": "ready" if finite and not target_info["blocked"] else "invalid/stale",
         "message": "Cloth Simulation ready"

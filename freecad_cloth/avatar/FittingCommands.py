@@ -634,9 +634,7 @@ def assign_avatar_source(source=None):
         else "FreeCAD Geometry"
     )
     target_thickness = (
-        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
-        if target_type == "Mannequin"
-        else 2.0
+        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if target_type == "Mannequin" else 2.0
     )
     if target is None:
         target = create_drape_target(doc, source, target_type, 1.0, target_thickness)
