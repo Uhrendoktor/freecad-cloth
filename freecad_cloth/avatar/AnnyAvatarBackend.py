@@ -109,7 +109,9 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     return tuple(sorted(selected))
 
 
-def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float]:
+def _initial_phenotypes(
+    gender: float, breast_size: float
+) -> dict[str, float | dict[str, float]]:
     """Translate Cloth's UI controls into Anny's published phenotype convention."""
     return {
         # Anny's gender endpoints are male=0 and female=1; Cloth uses the
@@ -161,8 +163,11 @@ def _fit_anny_body(
         for parameter_name, key in MEASUREMENT_FIELDS
     )
     optimized_phenotypes = {"height", "weight", "muscle", "proportions"}
-    optimizer_parameters = []
-    initial_values = {}
+    if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
+        raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
+
+    optimizer_parameters: list[torch.Tensor] = []
+    initial_values: dict[tuple[str, str], torch.Tensor] = {}
     for name, value in body.phenotype_kwargs.items():
         trainable = name in optimized_phenotypes
         value.requires_grad_(trainable)
@@ -258,9 +263,10 @@ def _fit_anny_body(
         tuple(float(component) * 1000.0 for component in point)
         for point in fitted_body.vertices
     )
-    triangles = tuple(
-        tuple(int(index) for index in face)
+    triangles: tuple[tuple[int, int, int], ...] = tuple(
+        (int(face[0]), int(face[1]), int(face[2]))
         for face in fitted_body.faces
+        if len(face) == 3
     )
     if len(vertices) < MAKEHUMAN_BODY_VERTEX_COUNT:
         raise AnnyAvatarBackendError(
