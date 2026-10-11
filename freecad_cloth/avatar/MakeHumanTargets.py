@@ -105,8 +105,13 @@ def target_directory() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
-        if candidate.is_dir() and any(candidate.glob("*.target*")):
-            return candidate.resolve()
+        if candidate.is_dir():
+            # Official assets are organized into nested anatomical folders.
+            # Check shallow paths first, then recursively for checkout layouts.
+            if any(candidate.glob("*.target*")) or any(candidate.glob("*/*.target*")):
+                return candidate.resolve()
+            if any(candidate.rglob("*.target*")):
+                return candidate.resolve()
     return None
 
 
