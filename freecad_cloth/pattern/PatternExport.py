@@ -2,8 +2,11 @@
 
 import json
 from html import escape
-from math import cos, radians, sin
+from dataclasses import dataclass
+from math import cos, hypot, radians, sin
 from xml.etree import ElementTree
+from shapely.geometry import Point as ShapelyPoint
+from shapely.geometry import Polygon
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
@@ -15,7 +18,13 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
     mark_point,
     notch_point,
 )
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
+from freecad_cloth.pattern.PatternGeometry import (
+    LineSegment,
+    ParametricPattern,
+    Point,
+    PolylineSegment,
+    signed_area,
+)
 
 
 def _fmt(value):
@@ -32,6 +41,207 @@ def _validate_units(units: str) -> str:
     if normalized != "mm":
         raise ValueError("units must be 'mm'; pattern coordinates are defined in millimetres")
     return "mm"
+
+
+
+@dataclass(frozen=True)
+class _ResolvedNotchCut:
+    """Geometric cut-insertion plan for one semantic notch."""
+
+    id: str
+    center: float
+    left_measure: float
+    right_measure: float
+    left_point: Point
+    right_point: Point
+    apex: Point
+    half_width: float
+
+
+def _project_point_onto_polyline(
+    point: Point, points: list[Point]
+) -> tuple[Point, float, float]:
+    """Project a point to a polyline and return (projection, arclength, distance)."""
+    if len(points) < 2:
+        raise ValueError("cannot project onto a polyline with fewer than two points")
+    travelled = 0.0
+    best_distance = float("inf")
+    best_point: Point | None = None
+    best_measure = 0.0
+    for start, end in zip(points, points[1:], strict=False):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = hypot(dx, dy)
+        if length <= 1e-12:
+            continue
+        fraction = min(
+            1.0,
+            max(
+                0.0,
+                ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy)
+                / (length * length),
+            ),
+        )
+        projected = (start[0] + fraction * dx, start[1] + fraction * dy)
+        distance = hypot(point[0] - projected[0], point[1] - projected[1])
+        if distance < best_distance:
+            best_distance = distance
+            best_point = projected
+            best_measure = travelled + fraction * length
+        travelled += length
+    if best_point is None:
+        raise ValueError("cannot project onto a degenerate polyline")
+    return best_point, best_measure, best_distance
+
+
+def _polyline_point_at(points: list[Point], distance: float) -> Point:
+    """Interpolate a point at an arclength on a polyline."""
+    if len(points) < 2:
+        raise ValueError("cannot interpolate a polyline with fewer than two points")
+    total = sum(
+        hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False)
+    )
+    target = min(total, max(0.0, distance))
+    travelled = 0.0
+    for start, end in zip(points, points[1:], strict=False):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = hypot(dx, dy)
+        if length <= 1e-12:
+            continue
+        if travelled + length >= target:
+            fraction = (target - travelled) / length
+            return (start[0] + fraction * dx, start[1] + fraction * dy)
+        travelled += length
+    return points[-1]
+
+
+def _interior_normal(pattern: ParametricPattern, notch: Notch) -> Point:
+    """Find the sewing-side normal, including zero-allowance and curved edges."""
+    segment = pattern.by_id()[notch.segment_id]
+    before_t = max(0.0, notch.t - 1e-4)
+    after_t = min(1.0, notch.t + 1e-4)
+    before, after = segment.point(before_t), segment.point(after_t)
+    dx, dy = after[0] - before[0], after[1] - before[1]
+    length = hypot(dx, dy)
+    if length <= 1e-12:
+        raise ValueError(f"cannot determine notch orientation on edge {notch.segment_id}")
+    orientation = signed_area(pattern.sampled_outline(32))
+    return (-dy / length, dx / length) if orientation > 0 else (dy / length, -dx / length)
+
+
+def _cut_contour_with_notches(
+    pattern: ParametricPattern, derived: DerivedPattern
+) -> tuple[Point, ...]:
+    """Insert inward-facing V notches into the actual cut perimeter.
+
+    Each notch is mapped through its semantic sewing edge to the matching offset
+    edge and then to the joined outer perimeter. The perimeter is split around
+    the notch and replaced with two cut legs meeting at the requested inward
+    depth. This avoids emitting a misleading line or circle on the sewing line.
+    """
+    contour = tuple(
+        derived.cut_contour
+        or tuple(point for edge in derived.cut_boundary for point in edge.points)
+    )
+    if not derived.notches:
+        return contour
+    if len(contour) < 3:
+        raise ValueError("cannot place notches on an invalid cut contour")
+
+    ring = [*contour, contour[0]]
+    measures = [0.0]
+    for start, end in zip(ring, ring[1:], strict=False):
+        measures.append(measures[-1] + hypot(end[0] - start[0], end[1] - start[1]))
+    perimeter = measures[-1]
+    base_polygon = Polygon(contour)
+    if perimeter <= 1e-9 or not base_polygon.is_valid or base_polygon.area <= 0:
+        raise ValueError("cannot place notches on an invalid cut contour")
+
+    edge_by_id = {edge.id: edge for edge in derived.cut_boundary}
+    resolved: list[_ResolvedNotchCut] = []
+    for notch in derived.notches:
+        sewing_point = notch_point(pattern, notch)
+        edge = edge_by_id.get(notch.segment_id)
+        if edge is None:
+            raise ValueError(f"notch references missing cut edge: {notch.segment_id}")
+        edge_anchor, _, _ = _project_point_onto_polyline(sewing_point, list(edge.points))
+        cut_point, cut_measure, _ = _project_point_onto_polyline(edge_anchor, ring)
+        inward_x = sewing_point[0] - cut_point[0]
+        inward_y = sewing_point[1] - cut_point[1]
+        inward_length = hypot(inward_x, inward_y)
+        if inward_length <= 1e-6:
+            inward_x, inward_y = _interior_normal(pattern, notch)
+        else:
+            inward_x, inward_y = inward_x / inward_length, inward_y / inward_length
+
+        apex: Point = (
+            cut_point[0] + inward_x * notch.depth,
+            cut_point[1] + inward_y * notch.depth,
+        )
+        if not base_polygon.contains(ShapelyPoint(*apex)):
+            raise ValueError(f"notch {notch.id} extends outside the cut piece")
+        half_width = min(2.0, max(0.5, notch.depth / 2.0))
+        left_measure = (cut_measure - half_width) % perimeter
+        right_measure = (cut_measure + half_width) % perimeter
+        resolved.append(
+            _ResolvedNotchCut(
+                notch.id,
+                cut_measure % perimeter,
+                left_measure,
+                right_measure,
+                _polyline_point_at(ring, left_measure),
+                _polyline_point_at(ring, right_measure),
+                apex,
+                half_width,
+            )
+        )
+
+    for index, first in enumerate(resolved):
+        for second in resolved[index + 1 :]:
+            distance = abs(first.center - second.center)
+            distance = min(distance, perimeter - distance)
+            if distance <= first.half_width + second.half_width + 1e-6:
+                raise ValueError("notch cut spans overlap on the cut contour")
+
+    origin = resolved[0].left_measure
+    intervals: list[tuple[float, float]] = []
+    events: list[tuple[float, str, Point, Point | None]] = []
+    for notch in resolved:
+        left_q = (notch.left_measure - origin) % perimeter
+        right_q = (notch.right_measure - origin) % perimeter
+        if left_q >= right_q:
+            raise ValueError("notch cut spans cannot be ordered on the cut contour")
+        intervals.append((left_q, right_q))
+        events.append((left_q, "left", notch.left_point, notch.apex))
+        events.append((right_q, "right", notch.right_point, None))
+
+    for measure, point in zip(measures[:-1], contour, strict=False):
+        relative = (measure - origin) % perimeter
+        if any(left - 1e-9 <= relative <= right + 1e-9 for left, right in intervals):
+            continue
+        events.append((relative, "vertex", point, None))
+    events.sort(key=lambda event: event[0])
+
+    result: list[Point] = []
+    for _, kind, point, apex in events:
+        candidates = (point, apex) if kind == "left" and apex is not None else (point,)
+        for candidate in candidates:
+            if not result or hypot(
+                candidate[0] - result[-1][0], candidate[1] - result[-1][1]
+            ) > 1e-9:
+                result.append(candidate)
+    if len(result) > 1 and hypot(
+        result[-1][0] - result[0][0], result[-1][1] - result[0][1]
+    ) <= 1e-9:
+        result.pop()
+    notched_polygon = Polygon(result)
+    if (
+        len(result) < 3
+        or not notched_polygon.is_valid
+        or not notched_polygon.exterior.is_simple
+        or notched_polygon.area > base_polygon.area
+    ):
+        raise ValueError("notches produce an invalid cut contour")
+    return tuple(result)
 
 
 def _sampled_sewing(pattern, curve_samples):
@@ -73,7 +283,7 @@ def to_svg(
     if derived is not None and derived.sewing_boundary is not pattern:
         raise ValueError("derived pattern belongs to a different sewing boundary")
     cut_edges = derived.cut_boundary if derived is not None else ()
-    cut_contour = derived.cut_contour if derived is not None else ()
+    cut_contour = _cut_contour_with_notches(pattern, derived) if derived is not None else ()
     xs = [p[0] for p in sewing]
     ys = [p[1] for p in sewing]
     if cut_contour:
@@ -84,11 +294,6 @@ def to_svg(
             xs.extend(p[0] for p in edge.points)
             ys.extend(p[1] for p in edge.points)
     if derived is not None:
-        for notch in derived.notches:
-            x, y = notch_point(pattern, notch)
-            radius = max(0.5, notch.depth / 4)
-            xs.extend((x - radius, x + radius))
-            ys.extend((y - radius, y + radius))
         for mark in derived.marks:
             x, y = mark_point(pattern, mark)
             half = mark.length / 2
@@ -124,17 +329,13 @@ def to_svg(
         f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none" stroke="#000000" stroke-width="0.2" stroke-dasharray="2 1" stroke-linecap="round" stroke-linejoin="round"/></g>',
     ]
     if cut_edges or cut_contour:
+        notch_ids = " ".join(escape(notch.id, quote=True) for notch in derived.notches) if derived else ""
         cut_points = cut_contour or tuple(point for edge in cut_edges for point in edge.points)
         lines.append(
-            f'  <g id="cut-boundary"><path id="cut-perimeter" d="{path(cut_points, True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
+            f'  <g id="cut-boundary"><path id="cut-perimeter" data-notch-ids="{notch_ids}" d="{path(cut_points, True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
         )
-    if derived is not None and (derived.notches or derived.marks):
+    if derived is not None and derived.marks:
         lines.append('  <g id="construction-marks">')
-        for notch in derived.notches:
-            x, y = xy(notch_point(pattern, notch))
-            lines.append(
-                f'    <circle id="notch-{escape(notch.id, quote=True)}" cx="{_fmt(x)}" cy="{_fmt(y)}" r="{_fmt(max(0.5, notch.depth / 4))}" fill="none" stroke="#000000" stroke-width="0.2" data-segment="{escape(notch.segment_id, quote=True)}" data-t="{_fmt(notch.t)}"/>'
-            )
         for mark in derived.marks:
             x, y = xy(mark_point(pattern, mark))
             angle = radians(mark.angle)
@@ -179,14 +380,9 @@ def to_dxf(
 
     polyline(sewing, "SEWING", True)
     if derived is not None:
-        cut_contour = derived.cut_contour or tuple(
-            point for edge in derived.cut_boundary for point in edge.points
-        )
+        cut_contour = _cut_contour_with_notches(pattern, derived)
         if cut_contour:
             polyline(cut_contour, "CUT", True)
-        for notch in derived.notches:
-            x, y = notch_point(pattern, notch)
-            polyline([(x, y), (x, y + notch.depth)], "MARK", False)
         for mark in derived.marks:
             x, y = mark_point(pattern, mark)
             angle = radians(mark.angle)
