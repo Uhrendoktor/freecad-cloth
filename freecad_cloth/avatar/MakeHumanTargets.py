@@ -88,7 +88,7 @@ def target_directory() -> Path | None:
     configured = os.environ.get(TARGETS_ENV, "").strip()
     if configured:
         base = Path(configured).expanduser()
-        candidates.extend((base, base / "targets", base / "data" / "targets", base / "base" / "targets"))
+        candidates.extend((base / "targets", base / "data" / "targets", base / "base" / "targets", base))
     home = Path.home()
     candidates.extend(
         (
