@@ -18,19 +18,19 @@ import Part
 from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
-from tests.support.freecad_input import (
-    UiGifRecorder,
-    _qt_modules,
-    click_widget,
-    focus_main_window,
-)
-from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
     set_seam_highlights_enabled,
     set_seam_overlay_respect_depth,
+)
+from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    _qt_modules,
+    click_widget,
+    focus_main_window,
 )
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
@@ -281,8 +281,8 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
     """Capture real viewport frames while hover labels and highlights change."""
     from PIL import Image
 
-    from tests.support.freecad_input import write_gif
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+    from tests.support.freecad_input import write_gif
 
     identities = sorted({str(value).strip() for value in seam_ids if str(value).strip()})
     assert identities, "seam overlay animation requires at least one semantic seam ID"
@@ -343,7 +343,7 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
             )
             with Image.open(frame_path) as image_frame:
                 rgb = image_frame.convert("RGB")
-                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                resampling = getattr(Image, "Resampling", Image).LANCZOS
                 frames.append(rgb.resize((640, 360), resampling).copy())
 
         output = LOG_PATH.parent / "ui-gifs" / filename
@@ -982,7 +982,7 @@ try:
         "seam-overlay-sewing-3d.png",
         hovered_seam_id=str(visual_seam.SeamId),
     )
-    assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
+    assert str(overlay.root.getName().getString()) == "ClothSemanticSeamOverlay"
     record("seam-viewport-overlay-sewing-3d=passed labels=paired-A-B")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)
