@@ -31,7 +31,7 @@ ARTIFACTS = Path("artifacts")
 ARTIFACTS.mkdir(parents=True, exist_ok=True)
 
 
-def _events():
+def _events() -> None:
     """Paint FreeCAD's main window before recording a visual state."""
     application = QtWidgets.QApplication.instance()
     Gui.updateGui()
@@ -42,7 +42,7 @@ def _events():
         application.processEvents()
 
 
-def _capture(name):
+def _capture(name: str) -> Path:
     """Capture and validate a 1280x720 real FreeCAD main-window screenshot."""
     application = QtWidgets.QApplication.instance()
     screen = None if application is None else application.primaryScreen()
@@ -89,17 +89,17 @@ def _capture(name):
     return path
 
 
-def _mouse(state, position):
+def _mouse(state: str, position: tuple[int, int]) -> dict[str, object]:
     """Return the FreeCAD callback mapping for a left-button stroke event."""
     return {"State": state, "Button": "BUTTON1", "Position": position}
 
 
-def _record_frame(index):
+def _record_frame(index: int) -> None:
     """Capture one state in the Surface Pen workflow animation."""
     _capture(f"surface-pen-frame-{index:02d}.png")
 
 
-def main():
+def main() -> None:
     """Exercise controller input, native Sketcher extraction, and target invalidation."""
     doc = App.newDocument("SurfacePenSmoke")
     controller = None
