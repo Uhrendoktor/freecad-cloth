@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from freecad_cloth.avatar.HumanoidMesh import _section_circumference
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -56,7 +57,7 @@ class MakeHumanTargetTests(unittest.TestCase):
                 stream.write("3 0.0 0.2 -0.1\n")
             target = load_target(target_path)
             self.assertEqual(target.offsets, ((3, (0.0, 0.1, 0.2)),))
-            with unittest.mock.patch.dict(os.environ, {TARGETS_ENV: str(root)}):
+            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
                 self.assertEqual(target_directory(), root.resolve() / "targets")
 
     def test_mesh_section_returns_polygon_perimeter(self) -> None:
