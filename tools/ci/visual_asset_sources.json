@@ -7,10 +7,28 @@
         "tests/freecad_interactive_arrange_acceptance.py"
       ]
     },
+    "avatar-dimension-drag.gif": {
+      "artifact": "avatar-shape-editor",
+      "producers": [
+        "tests/freecad_avatar_shape_editor_acceptance.py"
+      ]
+    },
     "avatar-pose-mode.png": {
       "artifact": "avatar-pose-ui",
       "producers": [
         "tests/freecad_avatar_pose_ui_acceptance.py"
+      ]
+    },
+    "avatar-shape-edit.gif": {
+      "artifact": "avatar-shape-editor",
+      "producers": [
+        "tests/freecad_avatar_shape_editor_acceptance.py"
+      ]
+    },
+    "avatar-shape-editor.png": {
+      "artifact": "avatar-shape-editor",
+      "producers": [
+        "tests/freecad_avatar_shape_editor_acceptance.py"
       ]
     },
     "cloth-avatar-bottom.png": {
