@@ -220,18 +220,31 @@ class AvatarDimensionController:
                     for index in range(self.RING_SEGMENTS)
                 ]
                 ring.append(ring[0])
-                color = ACTIVE_COLOR if self._hover_key == key or self._drag_key == key else SNAP_TARGET_COLOR
+                color = (
+                    ACTIVE_COLOR
+                    if self._hover_key == key or self._drag_key == key
+                    else SNAP_TARGET_COLOR
+                )
                 self._add_line(coin, ring, color, 2.4 if color == ACTIVE_COLOR else 1.5)
 
             for item in specs:
                 key = item["key"]
                 point = item["point"]
-                color = ACTIVE_COLOR if self._hover_key == key or self._drag_key == key else SNAP_TARGET_COLOR
+                color = (
+                    ACTIVE_COLOR
+                    if self._hover_key == key or self._drag_key == key
+                    else SNAP_TARGET_COLOR
+                )
                 self._add_line(
                     coin,
-                    (point, (point[0] + item["axis"][0] * 26.0,
-                             point[1] + item["axis"][1] * 26.0,
-                             point[2] + item["axis"][2] * 26.0)),
+                    (
+                        point,
+                        (
+                            point[0] + item["axis"][0] * 26.0,
+                            point[1] + item["axis"][1] * 26.0,
+                            point[2] + item["axis"][2] * 26.0,
+                        ),
+                    ),
                     color,
                     2.4,
                 )
@@ -303,9 +316,10 @@ class AvatarDimensionController:
         if denominator <= 1e-8:
             return float(current)
         delta_world = (
-            delta_screen[0] * projected_axis[0]
-            + delta_screen[1] * projected_axis[1]
-        ) * float(axis_length) / denominator
+            (delta_screen[0] * projected_axis[0] + delta_screen[1] * projected_axis[1])
+            * float(axis_length)
+            / denominator
+        )
         low, high = bounds
         return max(float(low), min(float(high), float(current) + delta_world * multiplier))
 
