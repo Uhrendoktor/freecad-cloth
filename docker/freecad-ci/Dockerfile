@@ -76,6 +76,9 @@ ENV FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj
 # SWIG build toolchain even though FreeCAD embeds the SWIG runtime.
 RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('bundled-pivy-module=' + pivy.__file__); print('bundled-coin=' + coin.SoDB.getVersion()); print('bundled-coin-module=' + coin.__file__)" \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.8.0+cpu" \
+    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
         "pydantic>=2.11,<3" \
@@ -85,6 +88,8 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         "trimesh>=4,<6" \
         "scipy>=1.14,<2" \
         "shapely>=2,<3" \
+        "anny>=0.6,<0.7" \
+        "clad-body[anny]>=0.6.1,<0.7" \
         pytest \
         hypothesis==6.168.3 \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
