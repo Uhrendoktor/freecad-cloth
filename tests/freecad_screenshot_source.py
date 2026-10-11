@@ -805,15 +805,15 @@ def _make_tunic_sketch(
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.54 * float(garment_height)
-    shoulder_z = 0.86 * float(garment_height)
+    shoulder_z = 0.88 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.70 * panel_width, armhole_z),
-        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + 0.96 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.04 * panel_width, shoulder_z),
         (x_offset + 0.30 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
