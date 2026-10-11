@@ -1014,7 +1014,7 @@ def simulation():
             outline.extend(samples[:-1])
             segments.extend(
                 (str(boundary.id), start, end)
-                for start, end in zip(samples, samples[1:], strict=True)
+                for start, end in zip(samples[:-1], samples[1:], strict=True)
             )
 
         ir_polygon = Polygon(outline)
