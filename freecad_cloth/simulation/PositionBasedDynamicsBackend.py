@@ -89,7 +89,6 @@ class _NativePBDModel(Protocol):
         testMesh: bool,
         sdf: object,
     ) -> _NativePBDRigidBody:
-        _ = testMesh, sdf
         ...
 
 
