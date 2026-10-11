@@ -364,29 +364,46 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     return cast(SkeletonData, payload)
 
 
-def _joint_point(source_vertices: Sequence[Point], indices: Iterable[int]) -> Point:
+def _joint_point(
+    source_vertices: Sequence[Point],
+    indices: Iterable[int],
+    mapper: Callable[[Point], Point] | None = None,
+) -> Point:
+    """Average authored joint vertices, optionally after fitting each vertex.
+
+    Fitting the average source point is not equivalent to averaging the fitted
+    points when the mapping is nonlinear. The latter keeps rest-joint
+    locations aligned with the actual fitted surface.
+    """
     points = [
-        source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)
+        source_vertices[int(index)]
+        for index in indices
+        if 0 <= int(index) < len(source_vertices)
     ]
     if not points:
         raise HumanoidMeshError("MakeHuman skeleton references missing joint vertices")
-    count = float(len(points))
+    fitted = [mapper(point) for point in points] if mapper is not None else points
+    count = float(len(fitted))
     return (
-        sum(point[0] for point in points) / count,
-        sum(point[1] for point in points) / count,
-        sum(point[2] for point in points) / count,
+        sum(point[0] for point in fitted) / count,
+        sum(point[1] for point in fitted) / count,
+        sum(point[2] for point in fitted) / count,
     )
 
 
 def _bone_source_endpoints(
-    source_vertices: Sequence[Point], skeleton: SkeletonData, bone_name: str
+    source_vertices: Sequence[Point],
+    skeleton: SkeletonData,
+    bone_name: str,
+    mapper: Callable[[Point], Point] | None = None,
 ) -> tuple[Point, Point]:
+    """Return authored endpoints, optionally fitted vertex-by-vertex."""
     bone = skeleton["bones"].get(bone_name)
     if not bone:
         raise HumanoidMeshError(f"MakeHuman skeleton has no bone {bone_name}")
     return (
-        _joint_point(source_vertices, skeleton["joints"][bone["head"]]),
-        _joint_point(source_vertices, skeleton["joints"][bone["tail"]]),
+        _joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=mapper),
+        _joint_point(source_vertices, skeleton["joints"][bone["tail"]], mapper=mapper),
     )
 
 
@@ -498,12 +515,48 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
     return profile
 
 
-def _gender_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
-    """Return localized width changes for the feminine/masculine blend."""
+def _measurement_axis_profiles(
+    parameters: AvatarParameters,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Split circumference changes into anatomically asymmetric width/depth scales.
+
+    A torso circumference is not a sphere radius. Hips and waists generally
+    need a stronger lateral response, while depth still changes smoothly to
+    preserve a plausible cross-section. Exponents sum to two so the average
+    first-order cross-section scale remains close to the requested ratio.
+    """
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+
+    bands = (
+        ("hip", 0.50, 1.25),
+        ("high_hip", 0.54, 1.20),
+        ("waist", 0.58, 1.30),
+        ("underbust", 0.64, 1.15),
+        ("chest", 0.69, 1.15),
+    )
+    lateral = [(0.42, 1.0)]
+    depth = [(0.42, 1.0)]
+    for name, height, lateral_exponent in bands:
+        ratio = max(
+            0.75,
+            min(
+                1.35,
+                parameters.measurement(name) / float(DEFAULT_MEASUREMENTS[name]),
+            ),
+        )
+        lateral.append((height, ratio**lateral_exponent))
+        depth.append((height, ratio ** (2.0 - lateral_exponent)))
+    lateral.extend(((0.75, 1.0), (1.0, 1.0)))
+    depth.extend(((0.75, 1.0), (1.0, 1.0)))
+    return lateral, depth
+
+
+def _gender_axis_profiles(
+    parameters: AvatarParameters,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Return separate lateral and depth shape fields for the body-shape blend."""
     delta = max(-0.5, min(0.5, float(parameters.gender) - 0.5))
-    # Feminine-side shapes gain pelvis width and a narrower waist/shoulder line;
-    # masculine-side shapes reverse those localized offsets.
-    return [
+    lateral = [
         (0.0, 1.0),
         (0.42, 1.0),
         (0.50, 1.0 - 0.16 * delta),
@@ -512,6 +565,19 @@ def _gender_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
         (0.77, 1.0 + 0.14 * delta),
         (1.0, 1.0),
     ]
+    # Depth changes are smaller than lateral changes; this avoids uniform
+    # three-dimensional inflation while retaining the existing slider intent.
+    depth = [
+        (0.0, 1.0),
+        (0.42, 1.0),
+        (0.50, 1.0 - 0.04 * delta),
+        (0.58, 1.0 + 0.03 * delta),
+        (0.64, 1.0 + 0.04 * delta),
+        (0.69, 1.0 + 0.06 * delta),
+        (0.77, 1.0 + 0.02 * delta),
+        (1.0, 1.0),
+    ]
+    return lateral, depth
 
 
 def _estimate_shoulder_pivots(
@@ -673,12 +739,8 @@ def _make_source_fitted_mapper(
     scale_y = default_depth / source_depth
 
     height_mm = float(parameters.measurement("height"))
-    torso_profile = (
-        [(0.0, 1.0), (1.0, 1.0)]
-        if _is_default_measurement_shape(parameters)
-        else _measurement_profile(parameters)
-    )
-    gender_profile = _gender_profile(parameters)
+    measurement_profile_x, measurement_profile_y = _measurement_axis_profiles(parameters)
+    gender_profile_x, gender_profile_y = _gender_axis_profiles(parameters)
     if _is_default_measurement_shape(parameters):
         shoulder_scale = 1.0
     else:
@@ -693,34 +755,77 @@ def _make_source_fitted_mapper(
     def transform(point: Point) -> Point:
         x, y, z = point
         normalized_z = (y - ymin) / y_span
-        torso_scale = _profile_scale(normalized_z, torso_profile)
-        torso_scale *= _profile_scale(normalized_z, gender_profile)
-        # Shoulder breadth is a shoulder-band edit, not a head-width control.
+
+        # Start from stable source coordinates. Region masks are evaluated in
+        # this calibrated frame so a waist/chest edit cannot stretch a hand
+        # merely because the posed hand happens to share that height band.
+        base_x_mm = x * scale_x
+        base_y_mm = z * scale_y
+        torso_scale_x = _profile_scale(normalized_z, measurement_profile_x) * _profile_scale(
+            normalized_z, gender_profile_x
+        )
+        torso_scale_y = _profile_scale(normalized_z, measurement_profile_y) * _profile_scale(
+            normalized_z, gender_profile_y
+        )
+
+        # Estimate a stable trunk envelope from canonical measurements. Its
+        # dimensions deliberately do not depend on the edited measurements,
+        # preventing the influence mask from expanding into the arms as the
+        # user changes chest or waist values.
+        core_width_profile = [
+            (0.42, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+            (0.50, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+            (0.54, float(DEFAULT_MEASUREMENTS["high_hip"]) * 1.10 / (2.0 * math.pi)),
+            (0.58, float(DEFAULT_MEASUREMENTS["waist"]) * 1.10 / (2.0 * math.pi)),
+            (0.64, float(DEFAULT_MEASUREMENTS["underbust"]) * 1.10 / (2.0 * math.pi)),
+            (0.69, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+            (0.75, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+            (0.83, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+            (1.00, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+        ]
+        core_half_width = _profile_scale(normalized_z, core_width_profile)
+        core_influence = 1.0 - _smoothstep(
+            core_half_width, core_half_width + 45.0, abs(base_x_mm)
+        )
+        torso_height_influence = _smoothstep(0.36, 0.43, normalized_z) * (
+            1.0 - _smoothstep(0.75, 0.83, normalized_z)
+        )
+        torso_influence = max(0.0, min(1.0, core_influence * torso_height_influence))
+        torso_scale_x = _lerp(1.0, torso_scale_x, torso_influence)
+        torso_scale_y = _lerp(1.0, torso_scale_y, torso_influence)
+
+        # Shoulder breadth is local to the shoulder girdle, not all vertices at
+        # that height. A posed hand outside this envelope receives no scaling.
         shoulder_rise = _smoothstep(0.67, 0.75, normalized_z)
         shoulder_fall = 1.0 - _smoothstep(0.80, 0.88, normalized_z)
         shoulder_blend = shoulder_rise * shoulder_fall
-        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
-        x_mm = x * scale_x * torso_scale * lateral_scale
-        y_mm = z * scale_y * torso_scale
+        shoulder_half = float(parameters.measurement("shoulder")) / 2.0
+        shoulder_envelope = 1.0 - _smoothstep(
+            shoulder_half + 10.0, shoulder_half + 75.0, abs(base_x_mm)
+        )
+        shoulder_influence = shoulder_blend * shoulder_envelope
+        lateral_scale = _lerp(1.0, shoulder_scale, shoulder_influence)
+
+        x_mm = base_x_mm * torso_scale_x * lateral_scale
+        y_mm = base_y_mm * torso_scale_y
         radius = math.hypot(x_mm, y_mm)
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
             y_mm += y_mm / radius * skin_offset
         z_mm = normalized_z * height_mm
 
-        # A smooth front-surface bulge acts as an intuitive bust-size control.
-        # The neutral default (zero) is geometry-identical to the pinned HM08 base.
-        # Feminine gender blend introduces a modest natural breast baseline;
-        # the independent control adds projection regardless of the blend.
+        # Keep the authored breast control local to the chest. Its broader,
+        # flatter influence gives a less spherical silhouette than a narrow
+        # isotropic bump and does not affect unrelated limb vertices.
         breast_size = min(
             1.0,
             float(parameters.breast_size) + max(0.0, 0.5 - float(parameters.gender)) * 1.2,
         )
-        if breast_size > 0.0:
+        if breast_size > 0.0 and 0.60 <= normalized_z <= 0.76 and abs(base_x_mm) < 190.0:
             front_weight = _smoothstep(-18.0, 28.0, y_mm)
-            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.033) ** 2)
+            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
             lateral_weight = max(
-                math.exp(-0.5 * ((x_mm - center_x) / 43.0) ** 2) for center_x in (-72.0, 72.0)
+                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2) for center_x in (-72.0, 72.0)
             )
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
@@ -734,9 +839,13 @@ def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[s
     transform = _make_source_fitted_mapper(source, parameters, 0.0)
     points = {}
     for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
-        shoulder = _bone_source_endpoints(source, skeleton, "upperarm01" + suffix)[0]
-        wrist = _bone_source_endpoints(source, skeleton, "wrist" + suffix)[0]
-        points[physical_side] = {"shoulder": transform(shoulder), "wrist": transform(wrist)}
+        shoulder = _bone_source_endpoints(
+            source, skeleton, "upperarm01" + suffix, mapper=transform
+        )[0]
+        wrist = _bone_source_endpoints(
+            source, skeleton, "wrist" + suffix, mapper=transform
+        )[0]
+        points[physical_side] = {"shoulder": shoulder, "wrist": wrist}
 
     if points[-1.0]["shoulder"][0] > points[1.0]["shoulder"][0]:
         points[-1.0], points[1.0] = points[1.0], points[-1.0]
