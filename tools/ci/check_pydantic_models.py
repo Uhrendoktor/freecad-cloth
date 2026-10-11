@@ -9,10 +9,9 @@ from typing import Final
 ROOT: Final = Path(__file__).resolve().parents[2]
 PRODUCTION_ROOT: Final = ROOT / "freecad_cloth"
 
-# An entry is allowed only for a demonstrated incompatibility with FreeCAD's
-# own serialized document representation. Keep the list empty unless a concrete
-# serialized field cannot be represented by a Pydantic model/dataclass.
-FREECAD_SERIALIZATION_EXCEPTIONS: Final[dict[str, str]] = {}
+# Every exception must name the concrete serialization incompatibility and the
+# regression test that proves why a Pydantic record cannot be used.
+FREECAD_SERIALIZATION_EXCEPTIONS: Final[dict[str, tuple[str, str]]] = {}
 
 
 def standard_dataclass_decorators(
@@ -59,9 +58,34 @@ def standard_dataclass_decorators(
 
 
 def serialization_exception_is_justified(path: str) -> bool:
-    """Require any compatibility exception to name the exact FreeCAD serialization blocker."""
-    reason = FREECAD_SERIALIZATION_EXCEPTIONS.get(path, "").casefold()
-    return "freecad" in reason and "serialization" in reason and "incompatib" in reason
+    """Require a concrete FreeCAD serialization reason and an existing regression test."""
+    exception = FREECAD_SERIALIZATION_EXCEPTIONS.get(path)
+    if exception is None:
+        return False
+    reason, regression_test = exception
+    normalized_reason = reason.casefold()
+    test_reference = regression_test.split("#", maxsplit=1)
+    if (
+        "freecad" not in normalized_reason
+        or "serialization" not in normalized_reason
+        or "incompatib" not in normalized_reason
+        or len(test_reference) != 2
+        or not test_reference[0].startswith("tests/")
+        or not test_reference[1].startswith("test_")
+    ):
+        return False
+    test_path = ROOT / test_reference[0]
+    if not test_path.is_file():
+        return False
+    try:
+        test_tree = ast.parse(test_path.read_text(encoding="utf-8"), filename=regression_test)
+    except (OSError, SyntaxError):
+        return False
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == test_reference[1]
+        for node in ast.walk(test_tree)
+    )
 
 
 def repository_violations() -> tuple[str, ...]:
