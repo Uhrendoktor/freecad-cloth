@@ -37,7 +37,7 @@ def _indexed_mesh_topology(
 _MESH_OBJECT_TOPOLOGY: dict[tuple[str, str], tuple[tuple[int, int, int], ...]] = {}
 
 
-def _mesh_object_key(obj):
+def _mesh_object_key(obj: object) -> tuple[str, str]:
     document = getattr(obj, "Document", None)
     document_name = getattr(document, "Name", None)
     object_name = getattr(obj, "Name", None)
