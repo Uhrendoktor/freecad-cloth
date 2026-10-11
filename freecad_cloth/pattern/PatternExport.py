@@ -5,6 +5,7 @@ from html import escape
 from math import cos, hypot, radians, sin
 from pathlib import Path
 from xml.etree import ElementTree
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry import Polygon
