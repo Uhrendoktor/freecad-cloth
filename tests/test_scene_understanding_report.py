@@ -233,3 +233,4 @@ def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> N
     assert issue["kind"] == "invalid_derived_outline"
     assert issue["source"] == "derived DraftingBoundary representation"
 
+
