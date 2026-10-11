@@ -493,8 +493,10 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         if coords and math.dist(coords[0], coords[-1]) > 1e-5:
             coords.append(coords[0])
 
-        def transform(point: list[float]) -> tuple[float, float]:
-            return origin_x + point[0] * scale, base_y - point[1] * scale
+        def transform(
+            point: list[float], *, x_offset: float = origin_x
+        ) -> tuple[float, float]:
+            return x_offset + point[0] * scale, base_y - point[1] * scale
 
         if coords:
             first_x, first_y = transform(coords[0])
