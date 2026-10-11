@@ -19,8 +19,7 @@ CASES = {
 
 REQUIRED_FRAMES = {
     "surface-pen": tuple(
-        Path(f"artifacts/surface-pen-frame-{index:02d}.png")
-        for index in range(1, 5)
+        Path(f"artifacts/surface-pen-frame-{index:02d}.png") for index in range(1, 5)
     ),
 }
 
