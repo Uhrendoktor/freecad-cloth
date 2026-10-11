@@ -3,21 +3,25 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
     MAKEHUMAN_BASE_URL,
+    MAKEHUMAN_DATA_ENV,
     MAKEHUMAN_SKELETON_SIZE,
     MAKEHUMAN_WEIGHTS_SIZE,
     HumanoidMeshError,
     MeshData,
+    _find_local_base_mesh,
     _load_source_vertices,
     _make_source_fitted_mapper,
     _map_makehuman_axes,
     _reoriented_triangles,
     _verified_skeleton,
     _verified_weights,
+    ensure_makehuman_base,
     fit_makehuman_mesh,
     load_makehuman_mesh,
     load_makehuman_skeleton,
@@ -126,6 +130,65 @@ class HumanoidMeshTests(unittest.TestCase):
         )
         self.assertIn("1f508f6083b2f823dab15de924b3bde72e08d77c9", MAKEHUMAN_BASE_URL)
         self.assertTrue(MAKEHUMAN_BASE_URL.endswith("/makehuman/data/3dobjs/base.obj"))
+
+
+    def test_local_mesh_discovery_accepts_only_verified_install_mesh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("fixture", encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    side_effect=lambda candidate: candidate == mesh_path,
+                ),
+            ):
+                self.assertEqual(_find_local_base_mesh(), mesh_path)
+
+    def test_local_mesh_discovery_ignores_unverified_install_mesh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("different revision", encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    return_value=False,
+                ),
+            ):
+                self.assertIsNone(_find_local_base_mesh())
+
+    def test_local_mesh_discovery_avoids_download(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "makehuman"
+            mesh_path = install / "data" / "3dobjs" / "base.obj"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("fixture", encoding="utf-8")
+            cache = Path(directory) / "cache"
+
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        MAKEHUMAN_DATA_ENV: str(install),
+                        "FREECAD_CLOTH_AVATAR_MESH": "",
+                        "FREECAD_CLOTH_AVATAR_CACHE": str(cache),
+                    },
+                ),
+                patch(
+                    "freecad_cloth.avatar.HumanoidMesh._verified",
+                    side_effect=lambda candidate: candidate == mesh_path,
+                ),
+                patch("freecad_cloth.avatar.HumanoidMesh._download") as download,
+            ):
+                self.assertEqual(ensure_makehuman_base(), mesh_path)
+                download.assert_not_called()
 
     def test_real_source_height_axis_is_makehuman_y_up_and_fits_to_z(self):
         source = load_makehuman_mesh()
