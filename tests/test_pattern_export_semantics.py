@@ -70,7 +70,24 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         element for element in svg_root.iter() if element.attrib.get("id") == "cut-perimeter"
     )
     assert cut_path.attrib["data-notch-ids"] == "notch-1"
-    assert "107.000000,62." in cut_path.attrib["d"]
+    coordinates = [
+        (float(x), float(y))
+        for x, y in re.findall(
+            r"(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)",
+            cut_path.attrib["d"],
+        )
+    ]
+    notch_apex = next(
+        index
+        for index, (x, _y) in enumerate(coordinates)
+        if abs(x - 107.0) < 1e-6
+        and abs(coordinates[index - 1][0] - 110.0) < 1e-6
+        and abs(coordinates[(index + 1) % len(coordinates)][0] - 110.0) < 1e-6
+    )
+    previous_y = coordinates[notch_apex - 1][1]
+    apex_y = coordinates[notch_apex][1]
+    following_y = coordinates[(notch_apex + 1) % len(coordinates)][1]
+    assert (previous_y - apex_y) * (following_y - apex_y) < 0
     assert not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter())
     assert 'data-mark-id="grain-1"' in svg
     assert from_svg_metadata(svg) == {
