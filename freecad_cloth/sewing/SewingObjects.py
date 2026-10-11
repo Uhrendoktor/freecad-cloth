@@ -174,9 +174,7 @@ def _native_edge(piece: object, edge: int) -> _NativeEdge | None:
     return None
 
 
-def _edge_polyline(
-    piece: object, edge: int, sample_count: int = 64
-) -> list[tuple[float, float]]:
+def _edge_polyline(piece: object, edge: int, sample_count: int = 64) -> list[tuple[float, float]]:
     """Return a local 2D polyline suitable for arc-length operations."""
     edge = int(edge)
     native = _native_edge(piece, edge)
@@ -198,9 +196,7 @@ def _polyline_length(points: Sequence[tuple[float, float]]) -> float:
     return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
 
 
-def _sample_polyline(
-    points: Sequence[tuple[float, float]], fraction: float
-) -> tuple[float, float]:
+def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> tuple[float, float]:
     """Sample a polyline at normalized arc length."""
     if not points:
         raise ValueError("cannot sample an empty edge")
@@ -243,8 +239,7 @@ def _seam_edge_index(piece: object, seam: object, prefix: str) -> int:
             # identity back through Sketch.SemanticEdgeIds before reading geometry.
             sketch = getattr(piece, "Sketch", None)
             semantic_ids = tuple(
-                str(value).strip()
-                for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+                str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
             )
             native_indices = [
                 index for index, identity in enumerate(semantic_ids) if identity == edge_id
