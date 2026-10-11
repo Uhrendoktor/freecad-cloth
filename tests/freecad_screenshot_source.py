@@ -1335,17 +1335,17 @@ def simulation():
     )
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
-    # Keep the shoulder/neck seam starts near the mannequin surface instead of
-    # spanning the full torso depth. The hems remain at the sampled front/back
-    # clearances; each panel tilts inward by 10 degrees toward the shoulder seam.
+    # The tilted upper panels move toward the mannequin; retain an extra measured
+    # offset so the step-zero separation check remains satisfied.
+    orientation_margin_mm = 26.0
     front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
     back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
 
     def target_relative_piece_placement(side):
         if side == "front":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance - orientation_margin_mm
         elif side == "back":
-            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
+            y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance + orientation_margin_mm
         else:
             raise ValueError("tunic target-relative side must be front or back")
         rotation = front_rot if side == "front" else back_rot
