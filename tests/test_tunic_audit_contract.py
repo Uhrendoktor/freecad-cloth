@@ -365,6 +365,14 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.06 * panel_width, 0.90 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.90 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
+    assert "neckline_scoop_depth = 0.08 * h" in debug
+    assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in debug
+    assert "if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug
+    assert "neckline_scoop_depth = 0.08 * float(garment_height)" in source
+    assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
+    assert "elif idx == 4:" in debug
+    assert "elif index == 4:" in source
+    assert "true U-shaped neckline" in source
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "shoulder_width + 105.0" in source

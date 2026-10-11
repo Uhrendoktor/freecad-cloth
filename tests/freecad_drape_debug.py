@@ -177,6 +177,8 @@ def _make_tunic_sketch(
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.58 * h
     shoulder_z = 0.90 * h
+    neckline_scoop_depth = 0.08 * h
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
@@ -189,6 +191,8 @@ def _make_tunic_sketch(
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError("debug tunic shoulders must fall outward from neckline")
+    if not (armhole_z < neckline_scoop_z < shoulder_z):
+        raise RuntimeError("debug tunic neckline must scoop below the shoulders and above the armholes")
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         raise RuntimeError("debug tunic armhole is too narrow")
     if shoulder_z - armhole_z < 0.20 * h:
@@ -214,6 +218,10 @@ def _make_tunic_sketch(
         elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
             midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
+            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+        elif idx == 4:
+            # Mirror the actual scooped neckline in the fast diagnostic.
+            midpoint = App.Vector(0.5 * (start[0] + end[0]), neckline_scoop_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
             midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)

@@ -829,6 +829,8 @@ def _make_tunic_sketch(
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.58 * float(garment_height)
     shoulder_z = 0.90 * float(garment_height)
+    neckline_scoop_depth = 0.08 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
@@ -843,6 +845,8 @@ def _make_tunic_sketch(
         raise RuntimeError(
             "canonical tunic shoulders must slope downward from neckline to shoulder tip"
         )
+    if not (armhole_z < neckline_scoop_z < shoulder_z):
+        raise RuntimeError("canonical tunic neckline scoop must cut below the shoulders and above the armholes")
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         raise RuntimeError("canonical tunic armhole opening is too narrow")
     if shoulder_z - armhole_z < 0.20 * float(garment_height):
@@ -870,6 +874,10 @@ def _make_tunic_sketch(
         elif index == 2:
             # Keep the open armholes at their authored inward-scooped size.
             midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
+            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+        elif index == 4:
+            # A true U-shaped neckline: the center arc cuts down into the panel.
+            midpoint = App.Vector(0.5 * (start[0] + end[0]), neckline_scoop_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
             midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
