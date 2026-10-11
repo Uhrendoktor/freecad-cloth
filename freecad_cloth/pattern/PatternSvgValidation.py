@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from math import ceil, isfinite
 from pathlib import Path
+from types import ModuleType
 from xml.etree import ElementTree
 
 
@@ -24,7 +25,7 @@ def _parse_mm_length(value: str, name: str) -> float:
     return length
 
 
-def _qt_modules():
+def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
     """Load the Qt SVG modules supported by FreeCAD without a module-level Qt dependency."""
     try:
         from PySide import QtCore, QtGui, QtSvg
