@@ -284,7 +284,9 @@ def run():
             if abs(hip_after - hip_before) < 1.0:
                 raise RuntimeError("viewport hip drag produced no persistent dimensional change")
             if _head_envelope(_mesh_points(avatar), head_cutoff) != head_before_hip:
-                raise RuntimeError("hip circumference edit changed the head geometry instead of staying local")
+                raise RuntimeError(
+                    "hip circumference edit changed the head geometry instead of staying local"
+                )
         finally:
             if dimension_recorder._started:
                 dimension_recorder.stop()
