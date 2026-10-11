@@ -71,7 +71,7 @@ def test_invalid_shape_values_are_rejected():
         except ValueError:
             pass
         else:
-            raise AssertionError("invalid shape value was accepted: {}".format(changes))
+            raise AssertionError(f"invalid shape value was accepted: {changes}")
 
 
 def test_skin_offset_changes_collision_geometry():
