@@ -75,7 +75,7 @@ class MakeHumanTargetTests(unittest.TestCase):
             target_dir = root / "torso"
             target_dir.mkdir()
             (target_dir / "measure-waist-circ-incr.target").write_text(
-                "0 0.1 0.2 0.3\\n", encoding="utf-8"
+                "0 0.1 0.2 0.3\n", encoding="utf-8"
             )
             reference = resolve_target("measure-waist-circ-incr", root)
             self.assertIsNotNone(reference)
@@ -90,7 +90,7 @@ class MakeHumanTargetTests(unittest.TestCase):
             target_dir = root / "torso"
             target_dir.mkdir()
             (target_dir / "measure-waist-circ-incr.target").write_text(
-                "0 0.1 0.2 -0.3\\n", encoding="utf-8"
+                "0 0.1 0.2 -0.3\n", encoding="utf-8"
             )
             reference = resolve_target("measure-waist-circ-incr", root)
             self.assertIsNotNone(reference)
