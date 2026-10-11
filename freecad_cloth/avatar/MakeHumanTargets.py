@@ -63,9 +63,7 @@ def parse_target(
             index = int(fields[0])
             first, second, third = float(fields[1]), float(fields[2]), float(fields[3])
             offset: Point = (
-                (first, -third, second)
-                if coordinate_format == "mpfb2"
-                else (first, second, third)
+                (first, -third, second) if coordinate_format == "mpfb2" else (first, second, third)
             )
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"{name}:{line_number}: invalid target row") from exc
@@ -121,9 +119,7 @@ def _load_target_cached(
             index = int(raw_index)
             first, second, third = (float(value) * 1e-3 for value in raw_vector)
             offset: Point = (
-                (first, -third, second)
-                if coordinate_format == "mpfb2"
-                else (first, second, third)
+                (first, -third, second) if coordinate_format == "mpfb2" else (first, second, third)
             )
             if index < 0 or not all(math.isfinite(value) for value in offset):
                 raise ValueError(f"{source}: archive target has invalid values: {archive_key}")
@@ -276,7 +272,9 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
             break
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
-            return TargetReference(path.resolve(), coordinate_format=_target_coordinate_format(base))
+            return TargetReference(
+                path.resolve(), coordinate_format=_target_coordinate_format(base)
+            )
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is not None:
         return TargetReference(
