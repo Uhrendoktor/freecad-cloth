@@ -46,17 +46,26 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def _curved_shape(line_length, curve_span, curve_height):
-    p0 = App.Vector(0, 0, 0)
-    p1 = App.Vector(float(line_length), 0, 0)
-    p2 = App.Vector(float(line_length), 40, 0)
-    p3 = App.Vector(float(line_length) - float(curve_span), 40, 0)
+def _curved_shape(line_length, curve_span, curve_height, x_offset=0.0):
+    x_offset = float(x_offset)
+    p0 = App.Vector(x_offset, 0, 0)
+    p1 = App.Vector(x_offset + float(line_length), 0, 0)
+    p2 = App.Vector(x_offset + float(line_length), 40, 0)
+    p3 = App.Vector(x_offset + float(line_length) - float(curve_span), 40, 0)
     curve = Part.BezierCurve()
     curve.setPoles(
         [
             p2,
-            App.Vector(float(line_length), 40 + float(curve_height), 0),
-            App.Vector(float(line_length) - float(curve_span), 40 + float(curve_height), 0),
+            App.Vector(
+                x_offset + float(line_length),
+                40 + float(curve_height),
+                0,
+            ),
+            App.Vector(
+                x_offset + float(line_length) - float(curve_span),
+                40 + float(curve_height),
+                0,
+            ),
             p3,
         ]
     )
@@ -71,8 +80,9 @@ def _curved_shape(line_length, curve_span, curve_height):
         )
     )
 
-
-def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0):
+def add_curved_piece(
+    doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
+):
     obj = doc.addObject("Part::Feature", name)
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
@@ -80,15 +90,16 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(
         curve_height
     )
+    x_offset = float(x_offset)
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
         [
-            (0.0, 0.0),
-            (float(line_length), 0.0),
-            (float(line_length), 40.0),
-            (float(line_length) - float(curve_span), 40.0),
+            (x_offset, 0.0),
+            (x_offset + float(line_length), 0.0),
+            (x_offset + float(line_length), 40.0),
+            (x_offset + float(line_length) - float(curve_span), 40.0),
         ]
     )
-    obj.Shape = _curved_shape(line_length, curve_span, curve_height)
+    obj.Shape = _curved_shape(line_length, curve_span, curve_height, x_offset=x_offset)
     return obj
 
 
@@ -728,8 +739,8 @@ try:
         [
             App.Vector(0, 40, 0),
             App.Vector(0, 160, 0),
-            App.Vector(-80, 160, 0),
-            App.Vector(-80, 40, 0),
+            App.Vector(-50, 160, 0),
+            App.Vector(-50, 40, 0),
         ]
     )
     probe_points = probe.toShape().discretize(Number=64)
@@ -741,9 +752,24 @@ try:
         curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length
     )
     curved_b = add_curved_piece(
-        doc, "CurvedB", "curved-b", b_line_length, curve_span=80.0, curve_height=120.0
+        doc,
+        "CurvedB",
+        "curved-b",
+        b_line_length,
+        curve_span=50.0,
+        curve_height=120.0,
+        x_offset=140.0,
     )
     doc.recompute()
+    assert curved_a.Shape.isValid() and not curved_a.Shape.isNull(), (
+        "CurvedA must be a valid, non-self-intersecting pattern face"
+    )
+    assert curved_b.Shape.isValid() and not curved_b.Shape.isNull(), (
+        "CurvedB must be a valid, non-self-intersecting pattern face"
+    )
+    assert float(curved_a.Shape.BoundBox.XMax) < float(curved_b.Shape.BoundBox.XMin), (
+        "curved seam-overlay fixtures must be spatially separated"
+    )
 
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
@@ -836,6 +862,23 @@ try:
     )
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
+
+    # Isolate the curved seam example from earlier smoke fixtures in this document.
+    # The screenshots and hover GIF should describe one pair of mating edges, not
+    # superimpose the curved pieces on the earlier rectangular examples.
+    overlay_visible_names = {
+        str(obj.Name) for obj in (curved_a, curved_b, curved_network, *curved_network.Seams)
+    }
+    overlay_visibility = []
+    for obj in doc.Objects:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is None:
+            continue
+        was_visible = bool(view_object.Visibility)
+        overlay_visibility.append((obj, was_visible))
+        view_object.Visibility = str(obj.Name) in overlay_visible_names
+    doc.recompute()
+
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
     active_workbench = Gui.activeWorkbench()
@@ -947,6 +990,12 @@ try:
     overlay_ids = [str(seam.SeamId) for seam in curved_network.Seams]
     save_seam_overlay_hover_animation(doc, overlay_ids, "seam-overlay-hover.gif")
     save_seam_overlay_options_evidence("seam-overlay-options.png")
+
+    for obj, was_visible in overlay_visibility:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None:
+            view_object.Visibility = was_visible
+    doc.recompute()
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
