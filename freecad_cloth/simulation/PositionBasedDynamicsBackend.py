@@ -88,7 +88,9 @@ class _NativePBDModel(Protocol):
         *,
         testMesh: bool,
         sdf: object,
-    ) -> _NativePBDRigidBody: ...
+    ) -> _NativePBDRigidBody:
+        _ = testMesh, sdf
+        raise NotImplementedError
 
 
 class _NativePBDSimulation(Protocol):
