@@ -382,6 +382,9 @@ def run():
     shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
     panel_width = max(420.0, shoulder_width + 105.0)
     hem_width = max(500.0, panel_width + 100.0)
+    # Match the canonical 10% horizontal ease used by the production visual fixture.
+    panel_width *= 1.10
+    hem_width *= 1.10
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
