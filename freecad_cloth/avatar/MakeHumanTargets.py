@@ -319,7 +319,7 @@ def apply_measurement_targets(
 
     breast_size = float(parameters.breast_size)
     if breast_size > 0:
-        breast_name = "breast/breast-dist-incr"
+        breast_name = "breast/breast-volume-vert-up"
         if resolve_target(breast_name, root):
             weights[breast_name] = breast_size
 
