@@ -190,6 +190,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-simulation-start" in source
+    assert 'configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))' in source
+    assert 'effective_substeps = int(getattr(active_backend, "_substeps", -1))' in source
+    assert "effective_substeps != configured_substeps" in source
+    assert "backend_substeps=%d configured_substeps=%d" in source
     assert "realtime-preview=passed backend=position-based-dynamics" in source
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"

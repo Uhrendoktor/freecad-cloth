@@ -375,9 +375,16 @@ timed_anchor = """    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
-    log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
+    configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))
+    effective_substeps = int(getattr(active_backend, "_substeps", -1))
+    if effective_substeps != configured_substeps:
+        raise RuntimeError(
+            "tunic PBD substeps differ from workflow configuration: "
+            "backend=%d configured=%d" % (effective_substeps, configured_substeps)
+        )
+    log("tunic-simulation-start particles=%d iterations=%d scene_substeps=%d backend_substeps=%d configured_substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
-        str(getattr(active_backend, "name", "")),
+        effective_substeps, configured_substeps, str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
     task_dock.hide(); events()
@@ -388,7 +395,7 @@ timed_anchor = """    from time import perf_counter
         simulation_panel.step(batch); doc.recompute(); events()
         view.viewAxonometric(); view.fitAll(); events()
         save_view("cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index, "mannequin drape step %d" % int(scene.Steps), "production tunic gravity progression")
-        log("tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (frame_index, int(scene.Steps), batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        log("tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d scene_substeps=%d backend_substeps=%d" % (frame_index, int(scene.Steps), batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps), int(getattr(active_backend, "_substeps", -1))))
     task_dock.show(); task_dock.raise_(); events()
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 """
