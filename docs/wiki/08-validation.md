@@ -34,7 +34,7 @@ Visual evidence supports human judgment, while automated checks make repeated cl
 | Pattern | Pattern screenshot | Pattern workbench/export smoke + screenshot source |
 | Sewing | Sewing screenshot | Sewing smoke/creation + garment E2E |
 | Fitting | Interactive Arrange screenshot | <code>freecad_interactive_arrange_acceptance.py</code> |
-| Avatar shape | Body-shape and 3D dimension editor screenshot + shape/dimension GIFs | <code>freecad_avatar_shape_editor_acceptance.py</code> + <code>tools/ci/validate_acceptance.py avatar-shape-editor</code> |
+| Avatar shape | Seven-profile mannequin gallery + body-shape/dimension editor screenshot and shape/dimension GIFs | <code>freecad_avatar_shape_editor_acceptance.py</code> + <code>tools/ci/validate_acceptance.py avatar-shape-editor</code> |
 | Pose | Native Pose Mode screenshot + geometry-only avatar six-side views | <code>freecad_avatar_pose_ui_acceptance.py</code> + avatar acceptance/screenshot |
 | Simulation | Cube/mannequin ladder + motion + turntables | PBD ladder, contact diagnostics, E2E and screenshot fixtures |
 | Diagnostics | Diagnostic map + six-side views | contact diagnostics + visual sanity/capture validation |
