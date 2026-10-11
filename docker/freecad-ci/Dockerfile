@@ -112,10 +112,17 @@ from pathlib import Path
 
 import anny
 import torch
-from anny.paths import get_anny_root_dir
 from clad_body.load.anny import build_anny_apose
 
-root = Path(get_anny_root_dir())
+# get_anny_root_dir() is available in newer Anny releases; in 0.5 the assets
+# are bundled directly beside anny.__init__.
+root = Path(anny.__file__).resolve().parent
+try:
+    from anny.paths import get_anny_root_dir
+except ImportError:
+    pass
+else:
+    root = Path(get_anny_root_dir())
 metadata = json.loads((root / "data/mpfb2/targets/target.json").read_text(encoding="utf-8"))
 terms = (
     "measure-bust-circ", "measure-underbust-circ", "measure-waist-circ",
