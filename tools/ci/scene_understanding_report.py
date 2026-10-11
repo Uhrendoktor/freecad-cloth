@@ -232,20 +232,31 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             failure_lines.append(line.strip())
 
     topology_records = list(topology_by_piece.values())
-    invalid_topology = [
-        record
-        for record in topology_records
-        if not bool(record["ir_valid"]) or not bool(record["draft_valid"])
-    ]
+    invalid_native = [record for record in topology_records if not bool(record["ir_valid"])]
+    invalid_derived = [record for record in topology_records if not bool(record["draft_valid"])]
+    invalid_geometry_by_piece = {
+        str(record["piece"]): record for record in (*invalid_native, *invalid_derived)
+    }
+    invalid_geometry = list(invalid_geometry_by_piece.values())
     failure_text = "\n".join(failure_lines)
-    failure_unknown = bool(failure_lines) and not invalid_topology
-    if invalid_topology:
+    failure_unknown = bool(failure_lines) and not invalid_geometry
+    if invalid_native:
         result = "blocked"
         failed_stage = "pattern_topology"
         last_completed_stage = "pattern_geometry_created"
         next_action = (
-            "Repair the native panel outline so it is a simple polygon. Inspect the two "
-            "reported crossing edges and local intersection coordinate. Do not change solver settings."
+            "Repair the authoritative native PatternIR boundary so it is a simple polygon. "
+            "Inspect the two reported crossing edges and local intersection coordinate. "
+            "Do not change placement or solver settings."
+        )
+    elif invalid_derived:
+        result = "blocked"
+        failed_stage = "pattern_representation"
+        last_completed_stage = "native_pattern_topology_validated"
+        next_action = (
+            "Repair the derived DraftingBoundary representation or its curve sampling. "
+            "The native PatternIR passed its validity check, so do not alter garment placement "
+            "or solver settings to compensate for a downstream representation mismatch."
         )
     elif has_scenario_pass and not failure_lines:
         result = "passed"
@@ -289,35 +300,50 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         pose_state = "not_observed"
     pattern_state = (
         "invalid"
-        if invalid_topology
+        if invalid_native
         else (
             "valid"
             if topology_records and all(bool(item["ir_valid"]) for item in topology_records)
             else "not_observed"
         )
     )
+    derived_state = (
+        "invalid"
+        if invalid_derived
+        else (
+            "valid"
+            if topology_records and all(bool(item["draft_valid"]) for item in topology_records)
+            else "not_observed"
+        )
+    )
     sewing_state = (
-        "generated_from_invalid_input"
-        if invalid_topology and sewing_image_present
+        "generated_from_invalid_pattern"
+        if invalid_geometry and sewing_image_present
         else "generated"
         if sewing_image_present
         else "not_reached_or_not_captured"
     )
-    if invalid_topology:
-        simulation_state = "not_reached"
+    if invalid_geometry:
+        simulation_state = (
+            "not_reached" if not has_simulation_start else "started_despite_invalid_pattern"
+        )
     elif has_simulation_start:
         simulation_state = "started"
     else:
         simulation_state = "not_observed"
-    if drape_records or drape_image_present:
+    if invalid_geometry and not has_simulation_start:
+        drape_state = "not_reached"
+    elif drape_records or drape_image_present:
         drape_state = "evidence_present"
-    elif invalid_topology or not has_simulation_start:
+    elif not has_simulation_start:
         drape_state = "not_reached_or_not_captured"
     else:
         drape_state = "started_but_final_evidence_missing"
 
     issues: list[dict[str, object]] = []
-    for topology in invalid_topology:
+    for topology in invalid_geometry:
+        native_invalid = not bool(topology["ir_valid"])
+        reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
         nearby = cast(list[dict[str, object]], topology["near_crossing"])
         touching = list(
             dict.fromkeys(
@@ -326,14 +352,28 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         )
         issues.append(
             {
-                "kind": "self_intersection",
+                "kind": (
+                    "self_intersection"
+                    if native_invalid and "Self-intersection" in reason
+                    else "invalid_native_pattern"
+                    if native_invalid
+                    else "invalid_derived_outline"
+                ),
                 "severity": "blocker",
                 "piece": topology["piece"],
-                "reason": topology["ir_reason"],
+                "reason": reason,
                 "edge_ids": touching,
                 "point_local_mm": topology["crossing_local_mm"],
-                "source": "PatternIR sampled boundary and polygon validity diagnostic",
-                "effect": "pattern, seam preview, and any later fitting derived from this outline are not valid fit evidence",
+                "source": (
+                    "PatternIR sampled native boundary"
+                    if native_invalid
+                    else "derived DraftingBoundary representation"
+                ),
+                "effect": (
+                    "native pattern, seam preview, and fitting are not valid evidence"
+                    if native_invalid
+                    else "the rendered/derived pattern boundary is not trustworthy even though native PatternIR is valid"
+                ),
             }
         )
 
@@ -390,6 +430,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             if topology_records or pattern_image_present
             else "not_observed",
             "pattern_topology": pattern_state,
+            "derived_pattern_representation": derived_state,
             "sewing_preview": sewing_state,
             "initial_placement": "measured" if placements_by_side else "not_observed",
             "simulation": simulation_state,
