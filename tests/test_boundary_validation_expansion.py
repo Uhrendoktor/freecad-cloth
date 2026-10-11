@@ -6,15 +6,15 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.common.ValidationModels import (
     CollisionSurfaceInput,
-    PBDStepInput,
-    PatternPieceInput,
-    SimulationMeshQualityInput,
     ParticleIndexInput,
     ParticlePairInput,
+    PatternPieceInput,
+    PBDStepInput,
+    SimulationMeshQualityInput,
 )
-from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
