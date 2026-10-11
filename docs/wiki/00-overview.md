@@ -13,13 +13,15 @@ This page is a visual map of the workflow; the user guide contains the step-by-s
 
 The intended workflow is a continuous garment-authoring loop:
 
-<strong>Pattern → Sewing → Fitting → Pose → Simulation → Diagnose → Edit → Rebuild</strong>
+<strong>Pattern → Sewing → Avatar shape & dimensions → Fitting → Pose → Simulation → Diagnose → Edit → Rebuild</strong>
 
-## The workflow in six views
+## Workflow evidence gallery
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Pattern stage" width="400"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Sewing stage" width="400"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Fitting stage" width="400"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose stage" width="400"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-shape-editor.png" alt="Avatar shape and dimension editor" width="400"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Fitting stage" width="400"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose stage" width="400"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Arranged garment" width="400"></p>
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Arranged garment" width="400"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Draped garment" width="400"></p>
 
@@ -29,6 +31,7 @@ The intended workflow is a continuous garment-authoring loop:
 | --- | --- | --- | --- |
 | Pattern | Draw/edit native Sketcher geometry | PatternPiece references + pattern metadata | Wrong or deleted source geometry |
 | Sewing | Select compatible semantic edges and commit seams | Seam identity, direction and correspondence | Stale edge reference or length mismatch |
+| Avatar shape | Adjust the body-shape blend and drag dimension handles | Shape parameters and measurements on the mannequin object | Confusing staged controls with committed body geometry |
 | Fitting | Drag pieces and snap to arrangement points | Saved piece placements / fitting state | Accidental placement or non-persistent UI-only arrangement |
 | Pose | Rotate mannequin joints directly | Skeleton pose / joint rotations | Uncommitted or asymmetrically corrupted pose |
 | Simulation | Select target/material/quality, then Run | Derived mesh and solver state | Stale target, unstable simulation, collision failure |
@@ -40,15 +43,17 @@ A good end-to-end result should be understandable without logs:
 
 1. The pattern reads as an editable garment source.
 2. The sewing view makes the seam relationship legible.
-3. The fitting view makes the intended garment placement obvious.
-4. Pose Mode makes mannequin manipulation obvious.
-5. The arranged garment clearly precedes draping.
-6. The final garment remains one coherent garment from multiple views.
+3. The avatar editor makes the selected shape and dimensions legible before fitting.
+4. The fitting view makes the intended garment placement obvious.
+5. Pose Mode makes mannequin manipulation obvious.
+6. The arranged garment clearly precedes draping.
+7. The final garment remains one coherent garment from multiple views.
 
 ## Follow the evidence
 
 - [Pattern](01-pattern.md)
 - [Sewing](02-sewing.md)
+- [Avatar shape and dimensions](09-avatar-shape.md)
 - [Fitting](03-fitting.md)
 - [Pose](04-pose.md)
 - [Simulation](05-simulation.md)
