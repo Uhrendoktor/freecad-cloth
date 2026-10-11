@@ -385,6 +385,25 @@ def _append_anchor(
     return True
 
 
+def surface_stroke_can_finish(
+    anchors: Sequence[SurfaceAnchor],
+    tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
+) -> bool:
+    """Return whether a stroke has three distinct vertices and a nearby closing sample."""
+    values = tuple(anchors)
+    if len(values) < 4:
+        return False
+    boundary = values[:-1]
+    unique = {
+        tuple(round(float(value), 6) for value in anchor.point)
+        for anchor in boundary
+    }
+    if len(unique) < 3:
+        return False
+    limit = max(0.0, float(tolerance_mm))
+    return _length(_sub(values[-1].point, values[0].point)) <= limit + 1e-9
+
+
 def close_surface_stroke(
     anchors: Sequence[SurfaceAnchor],
     tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
@@ -392,13 +411,15 @@ def close_surface_stroke(
     """Validate and normalize a closed surface boundary."""
     values = tuple(anchors)
     if len(values) < 4:
-        raise ValueError("close the surface boundary with at least three distinct points")
+        raise ValueError(
+            "surface boundary needs at least three distinct points and a closing sample"
+        )
     limit = max(0.0, float(tolerance_mm))
     distance = _length(_sub(values[-1].point, values[0].point))
     if distance > limit + 1e-9:
         raise ValueError(
             "surface boundary is open; return to the first surface point "
-            f"within {limit:.1f} mm before finishing"
+            f"within {limit:.1f} mm before finishing (current gap: {distance:.1f} mm)"
         )
     boundary = values[:-1]
     unique = {
@@ -545,6 +566,31 @@ class SurfacePenController:
     def _status(self, message):
         self.status_callback(str(message))
 
+    @property
+    def can_finish(self) -> bool:
+        """Return whether the current stroke meets the boundary-closure contract."""
+        return surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM)
+
+    def _stroke_status(self) -> str:
+        """Describe the current sample count and distance to the stroke start."""
+        if not self.anchors:
+            return "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+        distance = _length(_sub(self.anchors[-1].point, self.anchors[0].point))
+        if self.can_finish:
+            return (
+                f"Boundary closed: {len(self.anchors) - 1} boundary samples; "
+                f"gap {distance:.1f} mm. Finish Stroke → Pattern is ready."
+            )
+        if len(self.anchors) < 4:
+            return (
+                f"Surface stroke: {len(self.anchors)} samples. Add at least three distinct "
+                f"boundary points, then return within {self.CLOSE_DISTANCE_MM:.1f} mm of the start."
+            )
+        return (
+            f"Surface stroke: {len(self.anchors)} samples; endpoint gap {distance:.1f} mm. "
+            f"Return within {self.CLOSE_DISTANCE_MM:.1f} mm of the first point to close."
+        )
+
     def _pick(self, position):
         return pick_surface_point(self.view, int(position[0]), int(position[1]), self.target_source)
 
@@ -559,13 +605,21 @@ class SurfacePenController:
                 scene.removeChild(self._overlay)
             self._overlay = coin.SoSeparator()
             coords = coin.SoCoordinate3()
+            points = [anchor.point for anchor in self.anchors]
+            if (
+                len(points) >= 3
+                and _length(_sub(points[-1], points[0])) <= self.CLOSE_DISTANCE_MM
+            ):
+                # Preview the closing edge as soon as the pointer returns near the
+                # start. This is a viewport cue only; the stored anchors are unchanged.
+                points.append(points[0])
             coords.point.setValues(
                 0,
-                len(self.anchors),
-                [coin.SbVec3f(*anchor.point) for anchor in self.anchors],
+                len(points),
+                [coin.SbVec3f(*point) for point in points],
             )
             line = coin.SoLineSet()
-            line.numVertices.setValue(len(self.anchors))
+            line.numVertices.setValue(len(points))
             material = coin.SoBaseColor()
             material.rgb = (0.95, 0.55, 0.10)
             width = coin.SoDrawStyle()
@@ -602,8 +656,8 @@ class SurfacePenController:
             "SoLocation2Event", self._location_event
         )
         self._status(
-            "3D Pattern Pen: drag on the mannequin surface. Release to lift the pen; "
-            "use Finish Stroke to extract."
+            "3D Pattern Pen: drag on the visible target. Release to lift and continue; "
+            + self._stroke_status()
         )
 
     def deactivate(self):
@@ -632,7 +686,7 @@ class SurfacePenController:
         self._drawing = False
         self._last_screen = None
         self._update_overlay()
-        self._status("Surface stroke cleared.")
+        self._status("Surface stroke cleared. " + self._stroke_status())
 
     def _mouse_event(self, info):
         position = self._event_position(info)
@@ -651,12 +705,11 @@ class SurfacePenController:
             self._last_screen = position
             _append_anchor(self.anchors, anchor, self.SAMPLE_DISTANCE_MM)
             self._update_overlay()
+            self._status(self._stroke_status())
         elif state == "UP":
             self._drawing = False
             self._last_screen = None
-            self._status(
-                f"Surface stroke: {len(self.anchors)} samples. Continue drawing or Finish Stroke."
-            )
+            self._status(self._stroke_status())
 
     def _location_event(self, info):
         if not self._drawing:
@@ -675,14 +728,13 @@ class SurfacePenController:
         if _append_anchor(self.anchors, anchor, self.SAMPLE_DISTANCE_MM):
             self._last_screen = position
             self._update_overlay()
+            self._status(self._stroke_status())
 
     def finish(self, tolerance_mm=8.0, name=None):
         """Validate the stroke and create a native Sketcher-backed pattern piece."""
         if self._drawing:
             self._drawing = False
             self._last_screen = None
-        if len(self.anchors) < 3:
-            raise ValueError("draw at least three surface points before finishing")
         closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
         document = self.App.ActiveDocument
         if document is None:
@@ -752,6 +804,13 @@ class SurfacePenTaskPanel:
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.cancel_button)
         outer.addLayout(buttons)
+        self.controller.status_callback = self.update_status
+        self.update_status("Draw on the selected surface. Finish is enabled after a closed boundary is traced.")
+
+    def update_status(self, message):
+        """Show drawing guidance and enable extraction only for a closable boundary."""
+        self.status.setText(str(message))
+        self.finish_button.setEnabled(self.controller.can_finish)
 
     @staticmethod
     def _modules():
@@ -766,7 +825,7 @@ class SurfacePenTaskPanel:
         try:
             self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
-            self.status.setText(str(exc))
+            self.update_status(str(exc))
             return False
         self.accept()
         return True
@@ -810,7 +869,7 @@ def start_surface_pen():
         )
     controller = SurfacePenController(target, source)
     panel = SurfacePenTaskPanel(controller)
-    panel.controller.status_callback = panel.status.setText
+    panel.controller.status_callback = panel.update_status
     controller.activate()
     Gui.Control.showDialog(panel)
     return panel
@@ -827,5 +886,6 @@ __all__ = [
     "polygon_area_2d",
     "polygon_self_intersects",
     "simplify_polyline",
+    "surface_stroke_can_finish",
     "start_surface_pen",
 ]
