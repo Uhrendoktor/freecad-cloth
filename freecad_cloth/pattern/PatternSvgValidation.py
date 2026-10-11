@@ -2,8 +2,8 @@
 
 import math
 import re
+import types
 from pathlib import Path
-from types import ModuleType
 from xml.etree import ElementTree
 
 
@@ -21,7 +21,7 @@ def _parse_mm_length(value: str, name: str) -> float:
     return length
 
 
-def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
+def _qt_modules() -> tuple[types.ModuleType, types.ModuleType, types.ModuleType]:
     """Load the Qt SVG modules supported by FreeCAD without a module-level Qt dependency."""
     try:
         from PySide import QtCore, QtGui, QtSvg
