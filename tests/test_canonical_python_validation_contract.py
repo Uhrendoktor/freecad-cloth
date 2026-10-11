@@ -183,12 +183,8 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
 def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     source_path = ROOT / "tests" / "freecad_realtime_benchmark.py"
     parsed = ast.parse(source_path.read_text(encoding="utf-8"))
-    identifiers = {
-        node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)
-    }
-    attributes = {
-        node.attr for node in ast.walk(parsed) if isinstance(node, ast.Attribute)
-    }
+    identifiers = {node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)}
+    attributes = {node.attr for node in ast.walk(parsed) if isinstance(node, ast.Attribute)}
     assert "_Preview" in identifiers
     assert "_prepare" in identifiers
     assert "QEventLoop" in attributes
