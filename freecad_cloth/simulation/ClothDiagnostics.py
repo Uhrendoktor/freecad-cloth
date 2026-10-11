@@ -6,12 +6,12 @@ by GUI, export, or headless validation code.
 """
 
 from collections.abc import Sequence
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import sqrt
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
@@ -20,7 +20,6 @@ METRIC_DEFINITIONS = {
     "pressure": {"formula": "solver-provided per-face pressure", "units": "backend-native"},
 }
 
-
 def metric_definition(name: str) -> dict:
     """Provide the public metric definition operation."""
     key = str(name).strip().lower()
@@ -28,7 +27,6 @@ def metric_definition(name: str) -> dict:
         return dict(METRIC_DEFINITIONS[key])
     except KeyError as exc:
         raise ValueError(f"unknown diagnostic metric: {name}") from exc
-
 
 def export_payload(result: "DiagnosticResult") -> dict:
     """Return a deterministic, solver-neutral JSON-ready diagnostic payload."""
@@ -47,7 +45,6 @@ def export_payload(result: "DiagnosticResult") -> dict:
         "summary": summarize(result),
     }
 
-
 def export_json(result: "DiagnosticResult", path) -> dict:
     """Write deterministic diagnostic data without mutating the FreeCAD model."""
     import json
@@ -57,7 +54,6 @@ def export_json(result: "DiagnosticResult", path) -> dict:
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
         handle.write(content)
     return payload
-
 
 @pydantic_dataclass(frozen=True)
 class DiagnosticResult:
@@ -77,27 +73,22 @@ class DiagnosticResult:
         except AttributeError as exc:
             raise ValueError(f"unknown diagnostic metric: {name}") from exc
 
-
 def _distance(a: Point3, b: Point3) -> float:
     return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
-
 
 def _triangle_edges(vertices: Sequence[Point3], tri: Triangle):
     a, b, c = (vertices[int(i)] for i in tri)
     return _distance(a, b), _distance(b, c), _distance(c, a)
-
 
 def _safe_strain(current: float, rest: float) -> float:
     if rest <= 1e-12:
         return 0.0
     return current / rest - 1.0
 
-
 def _average_edge_strain(rest_vertices, current_vertices, tri: Triangle) -> float:
     rest = _triangle_edges(rest_vertices, tri)
     current = _triangle_edges(current_vertices, tri)
     return sum(_safe_strain(c, r) for r, c in zip(rest, current, strict=False)) / 3.0
-
 
 def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
     """Return a 0..1 fit score from target clearance.
@@ -111,7 +102,6 @@ def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
         return 1.0 if abs(float(clearance) - float(ideal)) <= 1e-12 else 0.0
     error = abs(float(clearance) - float(ideal))
     return max(0.0, min(1.0, 1.0 - error / tolerance))
-
 
 def analyze_mesh(
     rest_vertices: Sequence[Point3],
@@ -163,7 +153,6 @@ def analyze_mesh(
         minimum=min(values) if values else 0.0,
         maximum=max(values) if values else 0.0,
     )
-
 
 def summarize(result: DiagnosticResult) -> dict:
     """Return a compact UI/export summary for a diagnostic result."""
