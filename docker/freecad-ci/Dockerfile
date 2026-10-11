@@ -171,7 +171,7 @@ with torch.no_grad():
         pose_parameters=pose,
         phenotype_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in phenotypes.items()},
         local_changes_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in local_changes.items()},
-        pose_parameterization="root_relative_world",
+        pose_parameterization="local-bone",
         return_bone_ends=True,
     )
 vertex_count = int(output["vertices"].shape[1])
