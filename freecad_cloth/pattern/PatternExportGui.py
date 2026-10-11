@@ -42,6 +42,10 @@ class PatternExportTaskPanel:
         self.format = QtWidgets.QComboBox()
         self.format.addItems(("SVG", "DXF"))
         self.units = QtWidgets.QLineEdit("mm")
+        self.units.setReadOnly(True)
+        self.units.setToolTip(
+            "Pattern geometry is defined in millimetres. Unit conversion is not supported yet."
+        )
         self.curve_samples = QtWidgets.QSpinBox()
         self.curve_samples.setRange(2, 512)
         self.curve_samples.setValue(64)
@@ -58,7 +62,7 @@ class PatternExportTaskPanel:
         )
         self.status.setWordWrap(True)
         layout.addRow("Format", self.format)
-        layout.addRow("Units", self.units)
+        layout.addRow("Geometry unit (fixed)", self.units)
         layout.addRow("Curve samples", self.curve_samples)
         layout.addRow("Output", path_row)
         layout.addRow("Status", self.status)
