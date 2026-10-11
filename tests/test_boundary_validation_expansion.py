@@ -28,22 +28,18 @@ from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 def test_collision_surface_rejects_nonfinite_vertices_thickness_and_fractional_indices():
     with pytest.raises(ValidationError):
         CollisionSurfaceInput.model_validate(
-            {"vertices": ((0, 0, 0), (1, 0, 0), (0, math.nan, 0)),
-             "triangles": ((0, 1, 2),)}
+            {"vertices": ((0, 0, 0), (1, 0, 0), (0, math.nan, 0)), "triangles": ((0, 1, 2),)}
         )
     with pytest.raises(ValidationError):
         CollisionSurface(
             ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
-            ((0, 1, 2),), thickness=math.inf,
+            ((0, 1, 2),),
+            thickness=math.inf,
         ).validate()
     with pytest.raises(ValidationError):
-        surface_from_triangles(
-            ((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 1.5, 2),)
-        )
+        surface_from_triangles(((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 1.5, 2),))
     with pytest.raises(ValidationError):
-        surface_from_triangles(
-            ((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, True, 2),)
-        )
+        surface_from_triangles(((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, True, 2),))
 
 
 def test_freecad_collision_adapter_does_not_truncate_fractional_face_indices():
@@ -106,8 +102,7 @@ def test_solver_index_schemas_reject_coercion(index):
 def test_pattern_piece_and_ir_schemas_reject_nonfinite_geometry():
     with pytest.raises(ValidationError):
         PatternPieceInput.model_validate(
-            {"name": "piece", "id": "piece",
-             "outline": ((0, 0), (1, math.inf), (0, 1))}
+            {"name": "piece", "id": "piece", "outline": ((0, 0), (1, math.inf), (0, 1))}
         )
     with pytest.raises(ValueError):
         PatternPiece("piece", [(0, 0), (1, math.nan), (0, 1)], id="piece").validate()
@@ -119,8 +114,6 @@ def test_pattern_seam_rejects_unsupported_edge_reference_type():
         seam.validate()
 
 
-
-
 def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
     with pytest.raises(ValidationError):
         SimulationMeshQualityInput(start_height=math.nan, particle_distance=5.0)
@@ -128,6 +121,3 @@ def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
         SimulationMeshQualityInput(start_height=0.0, particle_distance=math.inf)
     with pytest.raises(ValidationError):
         quality_piece_mesh(SimpleNamespace(), math.nan, 5.0)
-
-
-
