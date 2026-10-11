@@ -4,6 +4,8 @@ from pathlib import Path
 from unittest import TestCase
 from xml.etree import ElementTree
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
@@ -222,6 +224,13 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
 
 
 def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Path) -> None:
+    from freecad_cloth.pattern.PatternSvgValidation import _qt_modules
+
+    try:
+        _qt_modules()
+    except RuntimeError as exc:
+        pytest.skip(f"QtSvg requires FreeCAD's Python runtime: {exc}")
+
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
     svg = to_svg(pattern, derived=derived)
