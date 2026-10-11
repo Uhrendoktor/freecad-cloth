@@ -118,7 +118,12 @@ def derive_cut_boundary(
     # continuous, validated outer perimeter instead of disconnected edge offsets.
     if len(set(effective_widths)) <= 1:
         cut_contour = tuple(
-            seam_allowance_outline(pattern, effective_widths[0], curve_samples=curve_samples)
+            seam_allowance_outline(
+                pattern,
+                effective_widths[0],
+                curve_samples=curve_samples,
+                miter_limit=miter_limit,
+            )
         )
     else:
         cut_contour = _join_variable_offset_edges(
