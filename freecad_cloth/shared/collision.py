@@ -1,11 +1,11 @@
 """Neutral solver-facing collision-surface value objects."""
 
 from collections.abc import Iterable
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from numbers import Real
 
-from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
 @pydantic_dataclass(frozen=True)
 class CollisionSurface:
@@ -45,7 +45,6 @@ class CollisionSurface:
         return CollisionSurface(
             self.vertices, self.triangles, self.region, float(thickness)
         ).validate()
-
 
 def surface_from_triangles(
     vertices: Iterable[Iterable[Real]],
