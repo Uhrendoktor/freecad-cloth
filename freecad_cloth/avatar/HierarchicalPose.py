@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.AnnyAvatarBackend import build_avatar_shape_mesh
+from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
     _bone_source_endpoints,
