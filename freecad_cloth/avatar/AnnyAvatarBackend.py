@@ -151,7 +151,7 @@ def _fit_anny_body(
     except ImportError as exc:
         raise AnnyAvatarBackendError(
             "Anny-backed mannequin generation requires 'clad-body[anny]'. "
-            "Install the avatar dependencies in the Python environment used by FreeCAD."
+            "Run `python -m pip install 'freecad-cloth[avatar]'` with the Python interpreter used by FreeCAD."
         ) from exc
 
     values = dict(measurements)
