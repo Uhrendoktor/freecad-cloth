@@ -151,12 +151,8 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
     )
     if provider_id == "makehuman-hm08":
         vertices, triangles, landmarks = generate_mesh(params)
-        source = "MakeHuman HM08 base mesh @ {}".format(
-            __import__(
-                "freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]
-            ).MAKEHUMAN_COMMIT
-        )
-        return vertices, triangles, landmarks, provider_id, source, "CC0"
+        source = "Anny parametric body model / clad-body measurements"
+        return vertices, triangles, landmarks, provider_id, source, "Apache-2.0 / CC0"
     if provider_id == "freecad-geometry":
         source_obj = (
             getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
