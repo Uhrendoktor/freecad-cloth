@@ -176,7 +176,7 @@ class SimulationTaskPanel:
         ):
             self._ensure_property(name, type_name, "Fabric", default)
         index = self.material.findText(str(getattr(self.scene, "MaterialPreset", "Cotton")))
-        self.material.setCurrentIndex(index if index >= 0 else 0)
+        self.material.setCurrentIndex(max(index, 0))
         self.stretch.setValue(float(getattr(self.scene, "StretchCompliance", 0.35)))
         self.bend.setValue(float(getattr(self.scene, "BendCompliance", 0.20)))
         self.density.setValue(float(getattr(self.scene, "ArealDensity", 0.01)))
