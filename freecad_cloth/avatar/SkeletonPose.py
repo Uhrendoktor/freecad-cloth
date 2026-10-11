@@ -203,7 +203,7 @@ class AffineTransform:
             m[6] * x + m[7] * y + m[8] * z + t[2],
         )
 
-    def inverse(self) -> "AffineTransform":
+    def inverse(self) -> AffineTransform:
         """Return the inverse of this rigid affine transform."""
         m = self.matrix
         inverse_matrix = (
