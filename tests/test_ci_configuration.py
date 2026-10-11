@@ -113,14 +113,17 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff():
     assert [run["id"] for run in stale] == [1, 2]
 
 
-def test_ruff_and_clone_gates_are_read_only_and_cover_changed_tests():
+def test_ruff_covers_every_tracked_python_file_without_auto_fixing():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
 
-    assert "python -m ruff format --check tools/ci" in quality
-    assert "python -m ruff format tools/ci\n" not in quality
-    assert "python -m ruff check --fix tools/ci" not in quality
-    assert "xargs -r python -m ruff check <" in quality
+    assert "git ls-files -z -- '*.py' '*.pyi'" in quality
+    assert 'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    assert "python -m ruff check --fix" not in quality
+    assert "xargs -r python -m ruff check <" not in quality
+    assert "pyright -p pyrightconfig.agent-strict.json" not in quality
+    assert "python tools/ci/check_pydantic_models.py" in quality
     assert 'path: "freecad_cloth tests tools/ci"' in workflow
