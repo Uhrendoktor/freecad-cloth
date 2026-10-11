@@ -7,19 +7,18 @@ values rather than being replaced by a second database/model.
 
 from dataclasses import field
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing import Union
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_finite_number
 
 Point = tuple[float, float]
 EdgeRef = Union[int, str]
 
-
 def _empty_points() -> list[Point]:
     """Create an explicitly typed empty point list."""
     return []
-
 
 def _empty_metadata() -> dict[str, object]:
     """Create an explicitly typed empty metadata mapping."""
@@ -55,7 +54,6 @@ class PatternPiece:
                 "id": self.id,
             }
         )
-
 
 @pydantic_dataclass(frozen=True)
 class Seam:
