@@ -7,7 +7,6 @@ piece/edge/seam contracts.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import field, replace
-
 from math import hypot
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
