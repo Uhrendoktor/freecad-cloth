@@ -377,7 +377,7 @@ try:
                 )
                 render_report_path = ROOT / "artifacts" / "pattern-export-svg-render.json"
                 render_report_path.write_text(
-                    json.dumps(render_report, sort_keys=True, indent=2) + "\\n",
+                    json.dumps(render_report, sort_keys=True, indent=2) + "\n",
                     encoding="utf-8",
                 )
                 record(
