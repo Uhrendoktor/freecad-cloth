@@ -4,7 +4,7 @@ import math
 import pathlib
 import re
 import types
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree
 
 
 _MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
@@ -53,8 +53,8 @@ def render_svg_for_validation(
         raise ValueError("SVG validation DPI must be an integer between 36 and 600")
 
     try:
-        root = ElementTree.fromstring(svg)
-    except ElementTree.ParseError as exc:
+        root = xml.etree.ElementTree.fromstring(svg)
+    except xml.etree.ElementTree.ParseError as exc:
         raise ValueError("SVG is not well-formed XML") from exc
     if root.tag.rsplit("}", 1)[-1] != "svg":
         raise ValueError("document root is not SVG")
