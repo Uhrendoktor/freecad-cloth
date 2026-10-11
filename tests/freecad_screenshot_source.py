@@ -952,6 +952,12 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
         for piece in pieces
     }
+    original_sketch_placements = {
+        piece.Sketch.Name: App.Placement(
+            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
+        )
+        for piece in pieces
+    }
     original_visibility = {}
     for obj in doc.Objects:
         view_object = getattr(obj, "ViewObject", None)
@@ -1045,12 +1051,6 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
     pieces = (front, back)
     original_piece_placements = {
         piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
-        for piece in pieces
-    }
-    original_sketch_placements = {
-        piece.Sketch.Name: App.Placement(
-            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
-        )
         for piece in pieces
     }
     original_visibility = {}
