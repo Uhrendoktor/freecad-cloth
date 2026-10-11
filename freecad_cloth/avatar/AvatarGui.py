@@ -116,6 +116,7 @@ class AvatarTaskPanel:
         content_layout = QtWidgets.QVBoxLayout(content)
         self._boxes = {}
         self._pose_boxes = {}
+        self._measurement_groups = []
         self._add_shape_group(content_layout)
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
@@ -315,6 +316,7 @@ class AvatarTaskPanel:
             layout.addRow(label, box)
             self._boxes[key] = box
         parent.addWidget(group)
+        self._measurement_groups.append(group)
 
     def _add_shape_group(self, parent):
         """Build compact macro-shape controls; precise dimensions stay below."""
@@ -515,6 +517,10 @@ class AvatarTaskPanel:
         """Disable MakeHuman-only controls for geometry-only provider surfaces."""
         is_human = self._provider_id() == "makehuman-hm08"
         self.shape_group.setEnabled(is_human)
+        for group in self._measurement_groups:
+            group.setEnabled(is_human)
+        self.skin_offset.setEnabled(is_human)
+        self.show_measurements.setEnabled(is_human)
         self.dimension_gizmo_toggle.setEnabled(is_human)
         if not is_human and self._dimension_controller is not None:
             self._dimension_controller.deactivate()
