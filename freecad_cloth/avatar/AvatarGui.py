@@ -6,6 +6,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
+from typing import ClassVar
 
 
 def _modules():
@@ -22,7 +23,7 @@ def _modules():
 class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
 
-    PROPERTY_MAP = {
+    PROPERTY_MAP: ClassVar[dict[str, str]] = {
         "height": "Height",
         "neck": "Neck",
         "shoulder": "Shoulder",
@@ -43,7 +44,7 @@ class AvatarTaskPanel:
         "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
-    SHAPE_PROPERTY_MAP = {"gender": "GenderBlend", "breast_size": "BreastSize"}
+    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {"gender": "GenderBlend", "breast_size": "BreastSize"}
     BODY = (
         ("height", "Height"),
         ("neck", "Neck circumference"),
