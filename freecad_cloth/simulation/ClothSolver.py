@@ -11,9 +11,14 @@ from math import dist, isfinite
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
-    DistanceConstraintInput, GridInput, ParticleIndexInput, ParticleInput,
-    ParticlePairInput, validate_finite_number,
+    DistanceConstraintInput,
+    GridInput,
+    ParticleIndexInput,
+    ParticleInput,
+    ParticlePairInput,
+    validate_finite_number,
 )
+
 
 @pydantic_dataclass
 class Particle:
@@ -29,12 +34,16 @@ class Particle:
             {"x": self.x, "y": self.y, "z": self.z, "inv_mass": self.inv_mass}
         )
         self.x, self.y, self.z, self.inv_mass = (
-            validated.x, validated.y, validated.z, validated.inv_mass
+            validated.x,
+            validated.y,
+            validated.z,
+            validated.inv_mass,
         )
 
     def position(self) -> tuple[float, float, float]:
         """Return the particle position."""
         return (self.x, self.y, self.z)
+
 
 @pydantic_dataclass(frozen=True)
 class DistanceConstraint:
@@ -54,12 +63,14 @@ class DistanceConstraint:
         object.__setattr__(self, "rest", validated.rest)
         object.__setattr__(self, "compliance", validated.compliance)
 
+
 def distance(a: Particle, b: Particle) -> float:
     """Return a finite Euclidean distance between two particles."""
     result = dist(a.position(), b.position())
     if not isfinite(result):
         raise ValueError("particle distance must be finite")
     return result
+
 
 class ClothSystem:
     """Solver-input model containing particles, structural constraints, seams and pins."""
@@ -108,7 +119,11 @@ class ClothSystem:
             {"width": width, "height": height, "nx": nx, "ny": ny, "origin": origin}
         )
         width, height, nx, ny, (ox, oy, oz) = (
-            spec.width, spec.height, spec.nx, spec.ny, spec.origin
+            spec.width,
+            spec.height,
+            spec.nx,
+            spec.ny,
+            spec.origin,
         )
         particles = [
             Particle(
