@@ -73,7 +73,10 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
 
     # get_anny_root_dir() was added in Anny 0.6; Anny 0.5 bundles assets
     # alongside its package. Keep the version-compatible fallback explicit.
-    root = Path(anny.__file__).resolve().parent
+    package_file = getattr(anny, "__file__", None)
+    if not package_file:
+        raise AnnyAvatarBackendError("Unable to resolve the installed Anny package path.")
+    root = Path(package_file).resolve().parent
     try:
         from anny.paths import get_anny_root_dir
     except ImportError:
