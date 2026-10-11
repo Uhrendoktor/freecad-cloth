@@ -761,7 +761,10 @@ class SurfacePenController:
         # Validate the same bounded planar contract before any persistent object
         # is created. Extraction itself repeats the target-signature check.
         patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
-        draft = _surface_stroke_object(document, self.target, anchors)
+        # Retain the closing sample in persisted state: extraction repeats the
+        # closure check on the serialized stroke before flattening it.
+        draft_anchors = (*anchors, self.anchors[-1])
+        draft = _surface_stroke_object(document, self.target, draft_anchors)
         draft.PlanarTolerance = float(tolerance_mm)
         draft.MaxDeviation = float(patch.max_deviation_mm)
         piece = extract_surface_draft_to_pattern(draft, tolerance_mm=tolerance_mm, name=name)
