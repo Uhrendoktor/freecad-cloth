@@ -138,6 +138,8 @@ class AvatarParameters:
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
+        object.__setattr__(self, "gender", float(self.gender))
+        object.__setattr__(self, "breast_size", float(self.breast_size))
         self.validate()
 
     def validate(self) -> None:
@@ -211,7 +213,7 @@ class AvatarParameters:
 
     @classmethod
     def from_json(cls, payload: str) -> AvatarParameters:
-        """Load avatar parameters and migrate schema-1 pose sentinels once."""
+        """Load avatar parameters and migrate legacy pose and shape defaults."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
