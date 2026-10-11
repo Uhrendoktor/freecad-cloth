@@ -164,6 +164,142 @@ def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, objec
     return records
 
 
+def _fit_assessment(metrics_payload: object) -> dict[str, object]:
+    """Screen garment vertical coverage separately from execution/contact success.
+
+    The shoulder reference currently comes from the audit's avatar-bounds heuristic,
+    not an authoritative anatomical landmark. Findings are therefore warnings for
+    review, never a proof of fit failure or a reason to tune the solver.
+    """
+    if not isinstance(metrics_payload, dict):
+        return {
+            "state": "not_assessed",
+            "reason": "drape-visual-metrics.json is absent or unavailable",
+            "findings": [],
+        }
+    metrics = cast(dict[str, object], metrics_payload)
+    panels_value = metrics.get("panels")
+    if not isinstance(panels_value, list):
+        return {
+            "state": "not_assessed",
+            "reason": "drape metrics do not contain a panel list",
+            "findings": [],
+        }
+
+    def finite_number(value: object) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, (float, int)):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+
+    hem_z = finite_number(metrics.get("hem_z"))
+    shoulder_z = finite_number(metrics.get("shoulder_z"))
+    target_height = finite_number(metrics.get("target_height"))
+    if hem_z is None or shoulder_z is None or target_height is None or target_height <= 0:
+        return {
+            "state": "not_assessed",
+            "reason": "required hem, shoulder-reference, or target-height measurement is missing",
+            "findings": [],
+        }
+
+    minimum_z: list[float] = []
+    maximum_z: list[float] = []
+    diagnostic_names: set[str] = set()
+    for raw_panel in panels_value:
+        if not isinstance(raw_panel, dict):
+            continue
+        panel = cast(dict[str, object], raw_panel)
+        bounds_value = panel.get("bounds")
+        if isinstance(bounds_value, list) and len(bounds_value) >= 6:
+            low = finite_number(bounds_value[4])
+            high = finite_number(bounds_value[5])
+            if low is not None and high is not None and low <= high:
+                minimum_z.append(low)
+                maximum_z.append(high)
+        diagnostics_value = panel.get("diagnostics")
+        if isinstance(diagnostics_value, list):
+            diagnostic_names.update(str(item) for item in diagnostics_value)
+    if not minimum_z or not maximum_z:
+        return {
+            "state": "not_assessed",
+            "reason": "no finite final panel Z bounds were available",
+            "findings": [],
+        }
+
+    observed_min_z = min(minimum_z)
+    observed_max_z = max(maximum_z)
+    # Five percent of avatar height is a review trigger, not an acceptance
+    # threshold. A named anatomical landmark should replace this proxy later.
+    review_threshold_mm = max(50.0, 0.05 * target_height)
+    top_below_reference_mm = max(0.0, shoulder_z - observed_max_z)
+    top_above_reference_mm = max(0.0, observed_max_z - shoulder_z)
+    hem_overshoot_mm = max(0.0, hem_z - observed_min_z)
+    hem_shortfall_mm = max(0.0, observed_min_z - hem_z)
+    findings: list[dict[str, object]] = []
+    if top_below_reference_mm > review_threshold_mm:
+        findings.append({
+            "kind": "cloth_top_below_shoulder_reference",
+            "severity": "warning",
+            "observed_mm": round(top_below_reference_mm, 3),
+            "review_threshold_mm": round(review_threshold_mm, 3),
+            "message": "highest final cloth point is materially below the estimated shoulder reference",
+        })
+    if top_above_reference_mm > review_threshold_mm:
+        findings.append({
+            "kind": "cloth_top_above_shoulder_reference",
+            "severity": "warning",
+            "observed_mm": round(top_above_reference_mm, 3),
+            "review_threshold_mm": round(review_threshold_mm, 3),
+            "message": "highest final cloth point is materially above the estimated shoulder reference",
+        })
+    if hem_overshoot_mm > review_threshold_mm:
+        findings.append({
+            "kind": "cloth_extends_below_expected_hem",
+            "severity": "warning",
+            "observed_mm": round(hem_overshoot_mm, 3),
+            "review_threshold_mm": round(review_threshold_mm, 3),
+            "message": "lowest final cloth point extends materially below the declared hem level",
+        })
+    if hem_shortfall_mm > review_threshold_mm:
+        findings.append({
+            "kind": "cloth_ends_above_expected_hem",
+            "severity": "warning",
+            "observed_mm": round(hem_shortfall_mm, 3),
+            "review_threshold_mm": round(review_threshold_mm, 3),
+            "message": "lowest final cloth point ends materially above the declared hem level",
+        })
+
+    state = "review_required" if findings or "below-hem-candidate" in diagnostic_names else "within_heuristic_tolerance"
+    return {
+        "state": state,
+        "method": "final panel world-space Z bounds compared with declared hem and bounding-box-derived shoulder reference",
+        "reference_levels_mm": {
+            "hem_z": hem_z,
+            "shoulder_z": shoulder_z,
+            "shoulder_reference_source": "avatar bounding-box heuristic, not an anatomical landmark",
+        },
+        "observed_final_panel_z_mm": {
+            "minimum": round(observed_min_z, 3),
+            "maximum": round(observed_max_z, 3),
+        },
+        "deviations_mm": {
+            "cloth_top_below_shoulder_reference": round(top_below_reference_mm, 3),
+            "cloth_top_above_shoulder_reference": round(top_above_reference_mm, 3),
+            "cloth_extends_below_expected_hem": round(hem_overshoot_mm, 3),
+            "cloth_ends_above_expected_hem": round(hem_shortfall_mm, 3),
+        },
+        "review_threshold_mm": round(review_threshold_mm, 3),
+        "findings": findings,
+        "other_diagnostics": sorted(diagnostic_names),
+        "interpretation_limit": "A bounds mismatch is a fit-review signal, not a definitive garment-fit verdict. Non-penetration and seam coherence do not establish body coverage or attachment.",
+        "next_action": (
+            "Inspect front/rear/left/right views and verify the garment top, hem, named body landmarks, and required attachment constraints. Keep geometry/contact thresholds unchanged."
+            if state == "review_required"
+            else "This bounds screen found no large vertical deviation, but does not certify coverage, fit, or attachment; inspect the multi-view screenshots and named landmarks."
+        ),
+    }
+
+
 def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
     """Build a machine-readable diagnosis using only the completed workflow files."""
     progress_text = (
