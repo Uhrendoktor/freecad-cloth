@@ -742,6 +742,11 @@ class AvatarTaskPanel:
             )
         )
 
+    def _fit_view(self):
+        """Fit the viewport on explicit user request, not every rebuild."""
+        if self.Gui.activeDocument():
+            self.Gui.activeDocument().activeView().fitAll()
+
     def accept(self):
         success = self._apply()
         if success and self._dimension_controller is not None:
