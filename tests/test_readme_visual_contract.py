@@ -121,7 +121,17 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     assert capture.index("close_task()") < capture.index('"cloth-pattern-design.png"')
     assert screenshot_source.rindex("capture_tunic_pattern_view(doc, front, back, hem_width)") > screenshot_source.index('front, front_outline = make_piece')
     assert "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)" in screenshot_source
-    assert "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit" in screenshot_source
+    assert (
+        "flat display copies of canonical Sketcher profiles with persistent source sketches "
+        "and seam references unchanged"
+    ) in screenshot_source
+    sewing_capture = screenshot_source.split("def capture_tunic_sewing_view(", 1)[1].split(
+        "\ndef simulation()", 1
+    )[0]
+    assert "VisualTunicFrontSewingPreviewSketch" in sewing_capture
+    assert "VisualTunicBackSewingPreviewSketch" in sewing_capture
+    assert "front.Sketch.Placement = front_placement" not in sewing_capture
+    assert "back.Sketch.Placement = back_placement" not in sewing_capture
     assert "def pattern_and_sewing(" not in screenshot_source
     for name in (
         "cloth-pattern-design.png",
