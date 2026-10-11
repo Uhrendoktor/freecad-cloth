@@ -5,7 +5,6 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
-
 import re
 
 
@@ -305,7 +304,9 @@ class SewingCreationTaskPanel:
     def toggle_viewport_picking(self):
         if self._viewport_picking:
             self._stop_viewport_picking()
-            self.feedback.setText("Viewport picking paused. Press Preview to review the selected edges.")
+            self.feedback.setText(
+                "Viewport picking paused. Press Preview to review the selected edges."
+            )
             self.feedback.setStyleSheet("")
             self.commit_button.setEnabled(False)
             return
@@ -314,7 +315,9 @@ class SewingCreationTaskPanel:
     def _start_viewport_picking(self):
         active = self.Gui.activeDocument()
         if active is None or active.activeView() is None:
-            self._show_error(RuntimeError("an active 3D view is required for viewport edge picking"))
+            self._show_error(
+                RuntimeError("an active 3D view is required for viewport edge picking")
+            )
             return
         if self.session.previewed:
             self.session._reset_preview()
@@ -376,7 +379,9 @@ class SewingCreationTaskPanel:
             hit = None
         candidate = viewport_edge_candidate(self.App.ActiveDocument, hit)
         if candidate is None:
-            self.feedback.setText("Pick an outline edge on a PatternPiece, not a face or sewing overlay.")
+            self.feedback.setText(
+                "Pick an outline edge on a PatternPiece, not a face or sewing overlay."
+            )
             self.feedback.setStyleSheet("")
             return
         obj, component = candidate
@@ -437,7 +442,8 @@ class SewingCreationTaskPanel:
             pass
         self._show_status(
             "Preview valid: %d document object(s) staged in one undo transaction. "
-            "Check the matching colored A/B labels, then Commit or Cancel." % len(self.session.created)
+            "Check the matching colored A/B labels, then Commit or Cancel."
+            % len(self.session.created)
         )
         return True
 
