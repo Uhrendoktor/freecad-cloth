@@ -135,7 +135,9 @@ def _shape_change_summary(
     # clad-body normalizes Anny output to Z-up; evaluate the two breast lobes
     # separately so sternum/cleavage movement cannot dominate the measurement.
     # The center exclusion removes the sternum; the outer limit excludes arms.
-    def front_lobe(points, side):
+    def front_lobe(
+        points: tuple[tuple[float, float, float], ...], side: float
+    ) -> tuple[float, ...]:
         return tuple(
             point[1]
             for point in points
@@ -144,7 +146,7 @@ def _shape_change_summary(
             and 25.0 <= side * point[0] <= 155.0
         )
 
-    side_deltas = {}
+    side_deltas: dict[str, float] = {}
     for side, name in ((-1.0, "left"), (1.0, "right")):
         before_lobe = front_lobe(bust_baseline, side)
         after_lobe = front_lobe(after, side)
