@@ -119,7 +119,7 @@ def _shape_change_summary(before, after, height_mm):
     """Measure changed torso geometry independently of native point order/count."""
     before_keys = {tuple(round(value, 1) for value in point) for point in before}
 
-    def key(point):
+    def key(point: tuple[float, float, float]) -> tuple[float, float, float]:
         return tuple(round(value, 1) for value in point)
 
     changed_positions = tuple(point for point in after if key(point) not in before_keys)
