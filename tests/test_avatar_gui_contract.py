@@ -75,13 +75,15 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
     assert self_value == 1800.0
     circumference = AvatarDimensionController._dragged_value(
-        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793,
-        (600.0, 1600.0)
+        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793, (600.0, 1600.0)
     )
     assert circumference == 1600.0
-    assert AvatarDimensionController._dragged_value(
-        1750.0, (0.0, -10.0), (0.0, -20.0), 1.0, (1200.0, 2300.0)
-    ) == 1800.0
+    assert (
+        AvatarDimensionController._dragged_value(
+            1750.0, (0.0, -10.0), (0.0, -20.0), 1.0, (1200.0, 2300.0)
+        )
+        == 1800.0
+    )
 
 
 def test_avatar_panel_keeps_legacy_pose_and_skeleton_paths_secondary():
