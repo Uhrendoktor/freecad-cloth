@@ -8,9 +8,9 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
 from freecad_cloth.avatar.HierarchicalPose import pose_world_state, transform_landmarks
 from freecad_cloth.avatar.HumanoidMesh import _bone_source_endpoints
 from freecad_cloth.avatar.SkeletonPose import (
-    AffineTransform,
     CONTROLLABLE_BONES,
     IDENTITY,
+    AffineTransform,
     JointRotation,
     _compose,
     apply_weighted_fk,
