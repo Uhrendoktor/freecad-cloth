@@ -221,7 +221,6 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     assert root.attrib["height"].endswith("mm")
 
 
-
 def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Path) -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
