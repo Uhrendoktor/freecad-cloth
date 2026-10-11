@@ -98,7 +98,7 @@ class AvatarStandingPoseTests(unittest.TestCase):
         self.assertAlmostEqual(actual[0][0], -actual[0][1], delta=2.0)
 
         # Arm rotation is in the sagittal plane; depth must remain unchanged.
-        for actual_depth, expected_depth in zip(actual[1], expected[1]):
+        for actual_depth, expected_depth in zip(actual[1], expected[1], strict=True):
             self.assertAlmostEqual(actual_depth, expected_depth, delta=2.0)
 
 
