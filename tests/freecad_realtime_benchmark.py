@@ -169,13 +169,7 @@ def main() -> None:
         )
         accounting_pass = tick_count == expected_ticks and frames_advanced == tick_count
         finite_pass = backend_finite and published_state_finite
-        passed = (
-            not timed_out
-            and profile_pass
-            and cadence_pass
-            and accounting_pass
-            and finite_pass
-        )
+        passed = not timed_out and profile_pass and cadence_pass and accounting_pass and finite_pass
 
         try:
             freecad_version = ".".join(str(part) for part in App.Version())
