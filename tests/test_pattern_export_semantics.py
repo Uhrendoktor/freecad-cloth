@@ -262,6 +262,7 @@ def test_svg_render_validation_rejects_physical_dimension_drift() -> None:
     with TestCase().assertRaisesRegex(ValueError, "physical width does not match its viewBox"):
         render_svg_for_validation(malformed)
 
+
 def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = add_notches(
