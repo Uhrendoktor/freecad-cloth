@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from math import atan2, cos, hypot, isfinite
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import Polygon
 
