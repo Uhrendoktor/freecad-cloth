@@ -822,7 +822,9 @@ def _section_circumference(
         if area > 1e-5 and perimeter > 1e-5:
             loops.append((area, perimeter, abs(centroid_x), width))
 
-    central = [item for item in loops if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)]
+    central = [
+        item for item in loops if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)
+    ]
     if not central:
         return 0.0
     # A body cross-section is the largest centered closed contour, not the
@@ -873,9 +875,7 @@ def _make_source_fitted_mapper(
         and resolve_target("macrodetails/gender/female", target_root)
         and resolve_target("macrodetails/gender/male", target_root)
     )
-    use_breast_target = bool(
-        target_root and resolve_target("breast/breast-dist-incr", target_root)
-    )
+    use_breast_target = bool(target_root and resolve_target("breast/breast-dist-incr", target_root))
     if use_gender_targets:
         # Authored gender targets provide the broad anatomical silhouette;
         # don't stack the procedural gender scale on top of those deltas.
