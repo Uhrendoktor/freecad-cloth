@@ -37,6 +37,10 @@ PROPERTY_MAP = {
     "front_waist": "Front_Waist",
     "back_waist": "Back_Waist",
 }
+SHAPE_PROPERTY_MAP = {
+    "gender": "GenderBlend",
+    "breast_size": "BreastSize",
+}
 POSE_PROPERTY_MAP = {
     "left_arm_angle": "LeftArmAngle",
     "right_arm_angle": "RightArmAngle",
@@ -104,7 +108,17 @@ def _parameters(obj):
         angles["right_elbow_angle"],
         tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
-    return AvatarParameters(values, float(obj.SkinOffset), pose)
+    shape_payload = {}
+    if payload:
+        try:
+            shape_payload = json.loads(payload).get("shape", {})
+        except (TypeError, ValueError):
+            pass
+    gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
+    breast_size = float(
+        getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
+    )
+    return AvatarParameters(values, float(obj.SkinOffset), pose, 3, gender, breast_size)
 
 
 def _mesh_data(vertices, triangles):
@@ -192,6 +206,9 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
         setattr(obj, property_name, params.measurements[name])
     obj.PosePreset = params.pose.preset
     obj.SkinOffset = params.skin_offset
+    for name, property_name in SHAPE_PROPERTY_MAP.items():
+        _set_prop(obj, "App::PropertyFloat", property_name, "Body shape", 0.5 if name == "gender" else 0.0)
+        setattr(obj, property_name, float(getattr(params, name)))
     for name, value in (
         ("left_arm_angle", params.pose.left_arm_angle),
         ("right_arm_angle", params.pose.right_arm_angle),
@@ -264,6 +281,8 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
         for name, value in DEFAULT_MEASUREMENTS.items():
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
+        _set_prop(obj, "App::PropertyFloat", "GenderBlend", "Body shape", 0.5)
+        _set_prop(obj, "App::PropertyFloat", "BreastSize", "Body shape", 0.0)
         _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
         _set_prop(
             obj,
@@ -302,6 +321,14 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         if not str(getattr(obj, "AvatarProviderId", "")):
             obj.AvatarProviderId = "makehuman-hm08"
         _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
+        _set_prop(
+            obj, "App::PropertyFloat", "GenderBlend", "Body shape",
+            float(getattr(obj, "GenderBlend", 0.5)),
+        )
+        _set_prop(
+            obj, "App::PropertyFloat", "BreastSize", "Body shape",
+            float(getattr(obj, "BreastSize", 0.0)),
+        )
         for name, prop in POSE_PROPERTY_MAP.items():
             _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
         for name, default in (
@@ -429,6 +456,9 @@ def set_avatar_pose(pose):
         current.measurements,
         current.skin_offset,
         Pose(str(pose)),
+        3,
+        current.gender,
+        current.breast_size,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -458,6 +488,9 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
             current.pose.right_elbow_angle,
             tuple(values.values()),
         ),
+        3,
+        current.gender,
+        current.breast_size,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -501,6 +534,9 @@ def set_avatar_skin_offset(offset):
         current.measurements,
         float(offset),
         current.pose,
+        3,
+        current.gender,
+        current.breast_size,
     )
     return apply_avatar_parameters(obj, candidate)
 
