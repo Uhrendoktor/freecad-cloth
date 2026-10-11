@@ -273,7 +273,9 @@ def _seam_lateral_snapshot(proxy, center_x):
                 raise RuntimeError("seam lateral diagnostic found an invalid solver particle index")
             offsets.append(0.5 * (x_value(positions[a]) + x_value(positions[b])) - float(center_x))
         if not offsets:
-            raise RuntimeError("seam lateral diagnostic found a seam without samples: " + str(seam_id))
+            raise RuntimeError(
+                "seam lateral diagnostic found a seam without samples: " + str(seam_id)
+            )
         snapshot[str(seam_id)] = {
             "mean_x_offset_mm": round(sum(offsets) / len(offsets), 3),
             "min_x_offset_mm": round(min(offsets), 3),
