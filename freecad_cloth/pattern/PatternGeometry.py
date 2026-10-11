@@ -18,6 +18,7 @@ from freecad_cloth.common.ValidationModels import (
 
 Point = tuple[float, float]
 
+
 @pydantic_dataclass(frozen=True)
 class LineSegment:
     """Public data model or service class for LineSegment."""
@@ -42,6 +43,7 @@ class LineSegment:
     def length(self) -> float:
         """Return the finite geometric length represented by this object."""
         return _distance(self.start, self.end)
+
 
 @pydantic_dataclass(frozen=True)
 class QuadraticBezier:
@@ -76,6 +78,7 @@ class QuadraticBezier:
         """Return sampled polyline points for this geometry."""
         samples = SampleCount(count=samples).count
         return [self.point(i / (samples - 1)) for i in range(samples)]
+
 
 @pydantic_dataclass(frozen=True)
 class PolylineSegment:
@@ -134,7 +137,9 @@ class PolylineSegment:
             raise ValueError("polyline length must be finite")
         return total
 
+
 Segment = LineSegment | QuadraticBezier | PolylineSegment
+
 
 class ParametricPattern:
     """Ordered closed boundary generated from explicit parameters.
@@ -203,6 +208,7 @@ class ParametricPattern:
                 raise ValueError("pattern segment lengths must be finite")
         return values
 
+
 def seam_allowance_outline(
     pattern: ParametricPattern,
     allowance: float,
@@ -257,6 +263,7 @@ def seam_allowance_outline(
         outline = [outline[0], *reversed(outline[1:])]
     return outline
 
+
 def signed_area(points: Sequence[Point]) -> float:
     """Return the signed shoelace area of a closed 2D polygon."""
     area = 0.5 * sum(
@@ -267,6 +274,7 @@ def signed_area(points: Sequence[Point]) -> float:
     if not isfinite(area):
         raise ValueError("pattern outline area must be finite")
     return area
+
 
 def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | None:
     ax, ay = a2[0] - a1[0], a2[1] - a1[1]
@@ -280,17 +288,20 @@ def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | No
     t = (cx * by - cy * bx) / denominator
     return _require_finite_point((a1[0] + t * ax, a1[1] + t * ay))
 
+
 def _lerp(start: float, end: float, fraction: float) -> float:
     """Interpolate robustly on [0, 1] and preserve extrapolation elsewhere."""
     if 0.0 <= fraction <= 1.0:
         return start * (1.0 - fraction) + end * fraction
     return start + (end - start) * fraction
 
+
 def _require_finite_point(point: Point) -> Point:
     """Reject non-finite values produced by otherwise finite arithmetic."""
     if not all(isfinite(value) for value in point):
         raise ValueError("computed geometry point must be finite")
     return point
+
 
 def rectangle(width: float, height: float) -> ParametricPattern:
     """Create a deterministic rectangular pattern from dimensions in mm."""
@@ -304,6 +315,7 @@ def rectangle(width: float, height: float) -> ParametricPattern:
             LineSegment("left", (0.0, height), (0.0, 0.0)),
         ]
     )
+
 
 def _distance(a: Point, b: Point) -> float:
     distance = hypot(a[0] - b[0], a[1] - b[1])
