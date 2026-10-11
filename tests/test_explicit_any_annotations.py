@@ -13,7 +13,7 @@ from tools.ci.validate_ci_structure import (
     TYPECHECK_COMMANDS,
     WORKFLOW,
     missing_typecheck_commands,
-    pyright_coverage_gaps,
+    pyright_coverage_contract_violations,
     ty_warnings_are_blocking,
 )
 
@@ -93,18 +93,32 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
     assert missing_typecheck_commands(tampered) == (command,)
 
 
-def test_pyright_coverage_includes_every_production_module() -> None:
-    """Require Pyright coverage to track the entire production tree."""
+def test_pyright_coverage_matches_the_reviewed_staged_inventory() -> None:
+    """Keep the reviewed include/exclude inventory stable until errors are triaged."""
     config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-    assert pyright_coverage_gaps(config_text) == ()
+    assert pyright_coverage_contract_violations(config_text) == ()
 
 
 def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
     """Catch future edits that silently reduce the Pyright include set."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth/simulation/ClothBackend.py"]
-    gaps = pyright_coverage_gaps(json.dumps(config))
-    assert "freecad_cloth/common/GarmentDocument.py" in gaps
+    violations = pyright_coverage_contract_violations(json.dumps(config))
+    assert violations == ("<Pyright include scope differs from the reviewed inventory>",)
+
+
+def test_typecheck_commands_must_be_standalone_blocking_steps() -> None:
+    """Reject a shell chain that can mask an earlier type-checker's nonzero status."""
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+    chained = workflow_text.replace(
+        "          python tools/ci/check_explicit_any_annotations.py\n"
+        "          pyright -p pyrightconfig.json",
+        "          python tools/ci/check_explicit_any_annotations.py && pyright -p pyrightconfig.json",
+        1,
+    )
+    missing = missing_typecheck_commands(chained)
+    assert "python tools/ci/check_explicit_any_annotations.py" in missing
+    assert "pyright -p pyrightconfig.json" in missing
 
 
 def test_ty_warning_diagnostics_are_blocking() -> None:
