@@ -69,6 +69,27 @@ class MakeHumanTargetTests(unittest.TestCase):
             with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
                 self.assertEqual(target_directory(), root.resolve() / "targets")
 
+    def test_mpfb2_target_tree_converts_blender_axis_order(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cloth-mpfb-target-") as directory:
+            root = Path(directory)
+            (root / "target.json").write_text("{}", encoding="utf-8")
+            target_dir = root / "torso"
+            target_dir.mkdir()
+            (target_dir / "measure-waist-circ-incr.target").write_text(
+                "0 0.1 0.2 -0.3\\n", encoding="utf-8"
+            )
+            reference = resolve_target("measure-waist-circ-incr", root)
+            self.assertIsNotNone(reference)
+            assert reference is not None
+            self.assertEqual(reference.coordinate_format, "mpfb2")
+            target = load_target(reference)
+            self.assertEqual(target.offsets, ((0, (0.1, 0.3, 0.2)),))
+            vertices = ((1.0, 2.0, 3.0),)
+            self.assertEqual(
+                apply_targets(vertices, {"measure-waist-circ-incr": 1.0}, root),
+                ((1.1, 2.3, 3.2),),
+            )
+
     def test_makehuman_targets_npz_archive_uses_native_coordinate_offsets(self) -> None:
         with tempfile.TemporaryDirectory(prefix="cloth-target-archive-") as directory:
             root = Path(directory)
