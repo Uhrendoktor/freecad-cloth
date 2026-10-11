@@ -197,7 +197,7 @@ class HumanoidMeshTests(unittest.TestCase):
                 mapper = _make_source_fitted_mapper(source_vertices, edited, 0.0)
                 edited_head = tuple(mapper(point) for point in head_vertices)
                 self.assertEqual(edited_head, baseline_head)
-                region_point = (1.0, region_levels[name], 0.5)
+                region_point = (0.2, region_levels[name], 0.5)
                 self.assertNotEqual(
                     mapper(region_point),
                     baseline_mapper(region_point),
