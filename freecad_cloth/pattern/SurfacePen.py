@@ -13,11 +13,11 @@ changing the viewport or PatternPiece authority boundaries.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import contextlib
+from dataclasses import dataclass
 import json
 import math
-from collections.abc import Sequence
-from dataclasses import dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
 
