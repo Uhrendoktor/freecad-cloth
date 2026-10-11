@@ -247,7 +247,7 @@ def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Pat
     assert report["ink_pixel_count"] > 100
     assert report["ink_bounds_px"][2] >= report["ink_bounds_px"][0]
     assert report["ink_bounds_px"][3] >= report["ink_bounds_px"][1]
-    assert png_path.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    assert png_path.read_bytes().startswith(bytes((137, 80, 78, 71, 13, 10, 26, 10)))
     assert report["png_path"] == str(png_path)
 
 
