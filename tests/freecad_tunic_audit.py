@@ -191,6 +191,8 @@ replacements = {
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.58 * float(garment_height)
     shoulder_z = 0.90 * float(garment_height)
+    neckline_scoop_depth = 0.08 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
@@ -205,6 +207,8 @@ replacements = {
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.58 * garment_height
     shoulder_z = 0.90 * garment_height
+    neckline_scoop_depth = 0.08 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
