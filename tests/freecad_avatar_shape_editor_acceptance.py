@@ -116,25 +116,38 @@ def _assert_camera_stable(before, after):
 
 
 def _shape_change_summary(before, after, height_mm):
-    """Measure changed torso vertices and forward motion of the bust surface."""
-    if len(before) != len(after):
-        raise RuntimeError("avatar shape rebuild changed mesh point count")
-    changed_vertices = 0
-    torso_changed_vertices = 0
-    front_projection_deltas = []
-    for old, new in zip(before, after, strict=True):
-        changed = max(abs(old[axis] - new[axis]) for axis in range(3)) > 0.1
-        changed_vertices += int(changed)
-        if 0.50 * height_mm <= old[2] <= 0.80 * height_mm:
-            torso_changed_vertices += int(changed)
-        if 0.64 * height_mm <= old[2] <= 0.73 * height_mm and old[1] > 0.0 and abs(old[0]) <= 160.0:
-            front_projection_deltas.append(new[1] - old[1])
-    if not front_projection_deltas:
+    """Measure changed torso geometry independently of native point order/count."""
+    before_keys = {tuple(round(value, 1) for value in point) for point in before}
+
+    def key(point):
+        return tuple(round(value, 1) for value in point)
+
+    changed_positions = tuple(point for point in after if key(point) not in before_keys)
+    torso_changed_vertices = sum(
+        1
+        for point in changed_positions
+        if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
+    )
+    before_front = tuple(
+        point[1]
+        for point in before
+        if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
+        and point[1] > 0.0
+        and abs(point[0]) <= 160.0
+    )
+    after_front = tuple(
+        point[1]
+        for point in after
+        if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
+        and point[1] > 0.0
+        and abs(point[0]) <= 160.0
+    )
+    if not before_front or not after_front:
         raise RuntimeError("no front-facing upper-torso vertices available for shape review")
     return {
-        "changed_vertices": changed_vertices,
+        "changed_vertices": len(changed_positions),
         "torso_changed_vertices": torso_changed_vertices,
-        "max_bust_projection_delta_mm": max(front_projection_deltas),
+        "max_bust_projection_delta_mm": max(after_front) - max(before_front),
     }
 
 
@@ -246,6 +259,7 @@ def run():
         avatar.Label = "Mannequin / Sewing Fit Example"
         doc.recompute()
         original_mesh = _mesh_points(avatar)
+        original_facets = len(avatar.Mesh.Facets)
         original_names = {str(obj.Name) for obj in doc.Objects}
 
         panel = AvatarTaskPanel(avatar)
@@ -310,6 +324,13 @@ def run():
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
                 raise RuntimeError("breast fullness did not persist to the FreeCAD avatar object")
             updated_mesh = _mesh_points(avatar)
+            updated_facets = len(avatar.Mesh.Facets)
+            if updated_facets != original_facets:
+                raise RuntimeError(
+                    "avatar shape rebuild changed facet count: {} -> {}".format(
+                        original_facets, updated_facets
+                    )
+                )
             shape_delta = _shape_change_summary(original_mesh, updated_mesh, float(avatar.Height))
             if shape_delta["changed_vertices"] == 0:
                 raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
