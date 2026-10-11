@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from typing import NamedTuple, cast
 
-from freecad_cloth.pattern.PatternGeometry import _distance, _lerp, _line_intersection, signed_area
+from freecad_cloth.pattern.PatternGeometry import (
+    _distance,
+    _lerp,
+    _line_intersection,
+    signed_area,
+)
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
 
@@ -106,7 +111,6 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     assert abs(result[0] - x) <= 1e-9
     assert abs(result[1] - y) <= 1e-9
     return result
-
 
 
 def polygon_area_orientation_contract(side: float) -> float:
