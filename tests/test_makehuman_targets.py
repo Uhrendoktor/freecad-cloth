@@ -113,6 +113,53 @@ class MakeHumanTargetTests(unittest.TestCase):
             assert reference is not None
             self.assertEqual(reference.path, (root / "targets.npz").resolve())
 
+
+    def test_torso_mapper_calibrates_named_waist_contour(self) -> None:
+        import math
+
+        source_vertices = []
+        ring_count = 24
+        for normalized_height in (0.56, 0.60):
+            source_y = normalized_height * 2.0 - 1.0
+            for index in range(ring_count):
+                angle = (2.0 * math.pi * index) / ring_count
+                source_vertices.append(
+                    (0.30 * math.cos(angle), source_y, 0.50 * math.sin(angle))
+                )
+        # Unconnected extrema define the HM08-wide calibration frame, while
+        # the closed rings represent a waist contour inside the trunk envelope.
+        source_vertices.extend(
+            ((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))
+        )
+        triangles = []
+        for index in range(ring_count):
+            following = (index + 1) % ring_count
+            lower_left = index
+            lower_right = following
+            upper_left = ring_count + index
+            upper_right = ring_count + following
+            triangles.extend(
+                (
+                    (lower_left, lower_right, upper_right),
+                    (lower_left, upper_right, upper_left),
+                )
+            )
+
+        parameters = AvatarParameters()
+        mapper = _make_source_fitted_mapper(
+            source_vertices, parameters, 0.0, source_triangles=triangles
+        )
+        fitted = tuple(mapper(point) for point in source_vertices)
+        actual = _section_circumference(
+            fitted,
+            triangles,
+            plane=parameters.measurement("height") * 0.58,
+            vertical_axis=2,
+            max_width=600.0,
+        )
+        self.assertGreater(actual, 0.0)
+        self.assertAlmostEqual(actual, parameters.measurement("waist"), delta=5.0)
+
     def test_mesh_section_returns_polygon_perimeter(self) -> None:
         vertices = (
             (-1.0, -2.0, 0.0),
