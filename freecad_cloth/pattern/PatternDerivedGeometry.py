@@ -335,5 +335,3 @@ def _offset_polyline(
             scale = min(width / cosine_half, width * miter_limit)
         result.append((point[0] + normal[0] * scale, point[1] + normal[1] * scale))
     return result
-
-
