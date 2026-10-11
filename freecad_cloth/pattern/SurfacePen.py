@@ -106,11 +106,15 @@ def _on_segment(a: Point2, b: Point2, p: Point2, tolerance: float = 1e-9) -> boo
 
 
 def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
-    values = (_orientation(a, b, c), _orientation(a, b, d), _orientation(c, d, a), _orientation(c, d, b))
+    values = (
+        _orientation(a, b, c),
+        _orientation(a, b, d),
+        _orientation(c, d, a),
+        _orientation(c, d, b),
+    )
     eps = 1e-9
-    if (
-        ((values[0] > eps and values[1] < -eps) or (values[0] < -eps and values[1] > eps))
-        and ((values[2] > eps and values[3] < -eps) or (values[2] < -eps and values[3] > eps))
+    if ((values[0] > eps and values[1] < -eps) or (values[0] < -eps and values[1] > eps)) and (
+        (values[2] > eps and values[3] < -eps) or (values[2] < -eps and values[3] > eps)
     ):
         return True
     return any(
@@ -339,7 +343,9 @@ def _hit_matches_target(view, x: int, y: int, target_source) -> bool:
     target_name = str(getattr(target_source, "Name", ""))
     target_label = str(getattr(target_source, "Label", ""))
     encoded = repr(info)
-    return bool(target_name and target_name in encoded) or bool(target_label and target_label in encoded)
+    return bool(target_name and target_name in encoded) or bool(
+        target_label and target_label in encoded
+    )
 
 
 def pick_surface_point(view, x: int, y: int, target_source) -> SurfaceAnchor | None:
@@ -357,7 +363,12 @@ def pick_surface_point(view, x: int, y: int, target_source) -> SurfaceAnchor | N
         picked = picker((int(x), int(y)))
     except (TypeError, ValueError, RuntimeError):
         try:
-            picked = picker((int(x), int(y),))
+            picked = picker(
+                (
+                    int(x),
+                    int(y),
+                )
+            )
         except (TypeError, ValueError, RuntimeError):
             return None
     if picked is None:
@@ -394,10 +405,7 @@ def surface_stroke_can_finish(
     if len(values) < 4:
         return False
     boundary = values[:-1]
-    unique = {
-        tuple(round(float(value), 6) for value in anchor.point)
-        for anchor in boundary
-    }
+    unique = {tuple(round(float(value), 6) for value in anchor.point) for anchor in boundary}
     if len(unique) < 3:
         return False
     limit = max(0.0, float(tolerance_mm))
@@ -431,7 +439,9 @@ def close_surface_stroke(
     return boundary
 
 
-def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], label="3D Surface Draft"):
+def create_surface_pen_object(
+    doc, target, anchors: Sequence[SurfaceAnchor], label="3D Surface Draft"
+):
     """Persist a finished surface draft as a rebuildable authoring object."""
     import FreeCAD as App
     import Part
@@ -440,27 +450,27 @@ def create_surface_pen_object(doc, target, anchors: Sequence[SurfaceAnchor], lab
     stored_values = (*values, values[0])
     obj = doc.addObject("Part::FeaturePython", doc.getUniqueObjectName("SurfacePatternDraft"))
     obj.Label = label
-    obj.addProperty("App::PropertyString", "AuthoringType", "3D Pattern").AuthoringType = (
-        "ClothPattern.SurfacePen"
-    )
+    obj.addProperty(
+        "App::PropertyString", "AuthoringType", "3D Pattern"
+    ).AuthoringType = "ClothPattern.SurfacePen"
     obj.addProperty("App::PropertyLinkGlobal", "Target", "3D Pattern").Target = target
-    obj.addProperty("App::PropertyString", "TargetSignature", "3D Pattern").TargetSignature = (
-        _target_signature(target)
-    )
+    obj.addProperty(
+        "App::PropertyString", "TargetSignature", "3D Pattern"
+    ).TargetSignature = _target_signature(target)
     obj.addProperty("App::PropertyString", "AnchorsJSON", "3D Pattern").AnchorsJSON = json.dumps(
         [anchor.to_json() for anchor in stored_values],
         sort_keys=True,
         separators=(",", ":"),
     )
     obj.addProperty("App::PropertyString", "Status", "State").Status = "Surface draft"
-    obj.addProperty("App::PropertyString", "FlatteningMode", "State").FlatteningMode = (
-        "PlanarProjectionMVP"
-    )
+    obj.addProperty(
+        "App::PropertyString", "FlatteningMode", "State"
+    ).FlatteningMode = "PlanarProjectionMVP"
     obj.addProperty("App::PropertyLength", "PlanarTolerance", "State").PlanarTolerance = 8.0
     obj.addProperty("App::PropertyLength", "MaxDeviation", "State").MaxDeviation = 0.0
-    obj.addProperty("App::PropertyLength", "ClosureTolerance", "State").ClosureTolerance = (
-        DEFAULT_CLOSE_DISTANCE_MM
-    )
+    obj.addProperty(
+        "App::PropertyLength", "ClosureTolerance", "State"
+    ).ClosureTolerance = DEFAULT_CLOSE_DISTANCE_MM
     points = [App.Vector(*anchor.point) for anchor in values]
     points.append(points[0])
     obj.Shape = Part.makePolygon(points)
@@ -494,9 +504,7 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("surface draft contains invalid anchor data") from exc
-    closure_tolerance = float(
-        getattr(surface_draft, "ClosureTolerance", DEFAULT_CLOSE_DISTANCE_MM)
-    )
+    closure_tolerance = float(getattr(surface_draft, "ClosureTolerance", DEFAULT_CLOSE_DISTANCE_MM))
     anchors = close_surface_stroke(anchors, closure_tolerance)
     patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
     surface_draft.PlanarTolerance = float(tolerance_mm)
@@ -574,7 +582,9 @@ class SurfacePenController:
     def _stroke_status(self) -> str:
         """Describe the current sample count and distance to the stroke start."""
         if not self.anchors:
-            return "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+            return (
+                "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+            )
         distance = _length(_sub(self.anchors[-1].point, self.anchors[0].point))
         if self.can_finish:
             return (
@@ -606,10 +616,7 @@ class SurfacePenController:
             self._overlay = coin.SoSeparator()
             coords = coin.SoCoordinate3()
             points = [anchor.point for anchor in self.anchors]
-            if (
-                len(points) >= 3
-                and _length(_sub(points[-1], points[0])) <= self.CLOSE_DISTANCE_MM
-            ):
+            if len(points) >= 3 and _length(_sub(points[-1], points[0])) <= self.CLOSE_DISTANCE_MM:
                 # Preview the closing edge as soon as the pointer returns near the
                 # start. This is a viewport cue only; the stored anchors are unchanged.
                 points.append(points[0])
@@ -649,9 +656,7 @@ class SurfacePenController:
         self.view = active.activeView()
         if self.view is None:
             raise RuntimeError("an active FreeCAD 3D view is required")
-        self._mouse_callback = self.view.addEventCallback(
-            "SoMouseButtonEvent", self._mouse_event
-        )
+        self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
         )
@@ -805,7 +810,9 @@ class SurfacePenTaskPanel:
         buttons.addWidget(self.cancel_button)
         outer.addLayout(buttons)
         self.controller.status_callback = self.update_status
-        self.update_status("Draw on the selected surface. Finish is enabled after a closed boundary is traced.")
+        self.update_status(
+            "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
+        )
 
     def update_status(self, message: str) -> None:
         """Show drawing guidance and enable extraction only for a closable boundary."""
