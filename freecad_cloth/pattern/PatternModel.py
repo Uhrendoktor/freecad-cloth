@@ -15,13 +15,16 @@ from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_fi
 Point = tuple[float, float]
 EdgeRef = Union[int, str]
 
+
 def _empty_points() -> list[Point]:
     """Create an explicitly typed empty point list."""
     return []
 
+
 def _empty_metadata() -> dict[str, object]:
     """Create an explicitly typed empty metadata mapping."""
     return {}
+
 
 @pydantic_dataclass
 class PatternPiece:
@@ -53,6 +56,7 @@ class PatternPiece:
                 "id": self.id,
             }
         )
+
 
 @pydantic_dataclass(frozen=True)
 class Seam:
