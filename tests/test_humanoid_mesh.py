@@ -204,6 +204,27 @@ class HumanoidMeshTests(unittest.TestCase):
                     f"{name} did not change its intended body region",
                 )
 
+    def test_torso_measurement_is_anisotropic_and_spares_distal_vertices(self):
+        levels = (0.0, 0.42, 0.50, 0.54, 0.58, 0.64, 0.69, 0.75, 0.80, 0.88, 0.90, 0.95, 1.0)
+        source_vertices = tuple(
+            (x, level, depth) for level in levels for x in (-1.0, 1.0) for depth in (-0.5, 0.5)
+        )
+        baseline = AvatarParameters()
+        edited = baseline.with_measurements(waist=baseline.measurement("waist") + 100.0)
+        base_map = _make_source_fitted_mapper(source_vertices, baseline, 0.0)
+        edited_map = _make_source_fitted_mapper(source_vertices, edited, 0.0)
+
+        torso = (0.3, 0.58, 0.25)
+        before, after = base_map(torso), edited_map(torso)
+        lateral_delta = abs(after[0] - before[0])
+        depth_delta = abs(after[1] - before[1])
+        self.assertGreater(lateral_delta, depth_delta * 1.5)
+
+        # At the same height, a point outside the canonical torso envelope is
+        # not pulled outward by a waist edit.
+        distal = (0.8, 0.58, 0.25)
+        self.assertEqual(edited_map(distal), base_map(distal))
+
     def test_fit_rejects_non_finite_results_from_extreme_finite_vertices(self):
         source = parse_obj("""
         v -1e308 -1e308 0
