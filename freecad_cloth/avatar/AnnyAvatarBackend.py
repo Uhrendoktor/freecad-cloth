@@ -184,6 +184,20 @@ def _fit_anny_body(
         all_phenotypes=True,
     ).to(dtype=torch.float32, device="cpu")
 
+    # Cloth's skin weights and authored joints index the unedited HM08 mesh.
+    # Do not silently fit against a reordered/filtered topology.
+    base_mesh_vertex_indices = getattr(model, "base_mesh_vertex_indices", None)
+    if base_mesh_vertex_indices is None:
+        raise AnnyAvatarBackendError(
+            "The installed Anny model does not expose its base-mesh vertex index map."
+        )
+    base_ids = base_mesh_vertex_indices.detach().cpu().tolist()
+    if base_ids[:MAKEHUMAN_BODY_VERTEX_COUNT] != list(range(MAKEHUMAN_BODY_VERTEX_COUNT)):
+        raise AnnyAvatarBackendError(
+            "Anny's selected topology does not preserve HM08 body vertex index order "
+            "required by Cloth's saved skeleton and skinning weights."
+        )
+
     missing_local_changes = set(local_values) - set(model.local_change_labels)
     if missing_local_changes:
         raise AnnyAvatarBackendError(
