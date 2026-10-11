@@ -55,7 +55,10 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only():
     from tools.ci import validate_acceptance
 
     assert set(validate_acceptance.CASES) == {
-        "avatar-pose", "avatar-shape-editor", "fitting", "surface-pen"
+        "avatar-pose",
+        "avatar-shape-editor",
+        "fitting",
+        "surface-pen",
     }
     assert len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == 4
     assert len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"]) == 2
