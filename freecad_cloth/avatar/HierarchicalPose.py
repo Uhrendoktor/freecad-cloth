@@ -9,7 +9,6 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landma
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
     _bone_source_endpoints,
-    _joint_point,
     _load_source_vertices,
     _make_source_fitted_mapper,
     _reoriented_triangles,
