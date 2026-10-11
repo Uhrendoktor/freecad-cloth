@@ -149,119 +149,69 @@ def render_body_shape_gallery(doc, view, avatar, output):
     from freecad_cloth.avatar.AvatarCommands import _rebuild
     from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
 
-    profiles = (
+    measurement_fields = (
+        "height",
+        "shoulder",
+        "chest",
+        "underbust",
+        "waist",
+        "high_hip",
+        "hip",
+        "upper_arm",
+        "thigh",
+    )
+    profile_rows = (
+        (
+            "Feminine form",
+            0.15,
+            0.55,
+            (1680, 420, 930, 810, 720, 900, 1030, 290, 535),
+        ),
+        (
+            "Masculine form",
+            0.90,
+            0.0,
+            (1800, 490, 1030, 900, 850, 930, 1010, 330, 570),
+        ),
+        (
+            "Slim",
+            0.30,
+            0.20,
+            (1700, 390, 820, 720, 650, 800, 890, 250, 470),
+        ),
+        (
+            "Plus-size",
+            0.25,
+            0.75,
+            (1680, 470, 1220, 1090, 1170, 1220, 1350, 400, 710),
+        ),
+        (
+            "Muscular",
+            0.85,
+            0.0,
+            (1800, 550, 1150, 1050, 780, 890, 990, 430, 640),
+        ),
+        (
+            "Tall",
+            0.30,
+            0.35,
+            (1950, 440, 970, 835, 790, 900, 1010, 300, 550),
+        ),
+        (
+            "Petite",
+            0.25,
+            0.35,
+            (1530, 415, 900, 790, 710, 860, 970, 285, 520),
+        ),
+    )
+    profiles = tuple(
         {
-            "name": "Feminine form",
-            "gender": 0.15,
-            "breast_size": 0.55,
-            "measurements": {
-                "height": 1680,
-                "shoulder": 420,
-                "chest": 930,
-                "underbust": 810,
-                "waist": 720,
-                "high_hip": 900,
-                "hip": 1030,
-                "upper_arm": 290,
-                "thigh": 535,
-            },
-        },
-        {
-            "name": "Masculine form",
-            "gender": 0.90,
-            "breast_size": 0.0,
-            "measurements": {
-                "height": 1800,
-                "shoulder": 490,
-                "chest": 1030,
-                "underbust": 900,
-                "waist": 850,
-                "high_hip": 930,
-                "hip": 1010,
-                "upper_arm": 330,
-                "thigh": 570,
-            },
-        },
-        {
-            "name": "Slim",
-            "gender": 0.30,
-            "breast_size": 0.20,
-            "measurements": {
-                "height": 1700,
-                "shoulder": 390,
-                "chest": 820,
-                "underbust": 720,
-                "waist": 650,
-                "high_hip": 800,
-                "hip": 890,
-                "upper_arm": 250,
-                "thigh": 470,
-            },
-        },
-        {
-            "name": "Plus-size",
-            "gender": 0.25,
-            "breast_size": 0.75,
-            "measurements": {
-                "height": 1680,
-                "shoulder": 470,
-                "chest": 1220,
-                "underbust": 1090,
-                "waist": 1170,
-                "high_hip": 1220,
-                "hip": 1350,
-                "upper_arm": 400,
-                "thigh": 710,
-            },
-        },
-        {
-            "name": "Muscular",
-            "gender": 0.85,
-            "breast_size": 0.0,
-            "measurements": {
-                "height": 1800,
-                "shoulder": 550,
-                "chest": 1150,
-                "underbust": 1050,
-                "waist": 780,
-                "high_hip": 890,
-                "hip": 990,
-                "upper_arm": 430,
-                "thigh": 640,
-            },
-        },
-        {
-            "name": "Tall",
-            "gender": 0.30,
-            "breast_size": 0.35,
-            "measurements": {
-                "height": 1950,
-                "shoulder": 440,
-                "chest": 970,
-                "underbust": 835,
-                "waist": 790,
-                "high_hip": 900,
-                "hip": 1010,
-                "upper_arm": 300,
-                "thigh": 550,
-            },
-        },
-        {
-            "name": "Petite",
-            "gender": 0.25,
-            "breast_size": 0.35,
-            "measurements": {
-                "height": 1530,
-                "shoulder": 415,
-                "chest": 900,
-                "underbust": 790,
-                "waist": 710,
-                "high_hip": 860,
-                "hip": 970,
-                "upper_arm": 285,
-                "thigh": 520,
-            },
-        },
+            "name": name,
+            "gender": gender,
+            "breast_size": breast_size,
+            "measurements": dict(zip(measurement_fields, values, strict=True)),
+        }
+        for name, gender, breast_size, values in profile_rows
     )
 
     output_path = Path(output)
