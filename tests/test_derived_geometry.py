@@ -57,8 +57,10 @@ def test_per_edge_allowance_produces_a_valid_joined_cut_contour() -> None:
     contour = derived.cut_contour
 
     assert Polygon(contour).is_valid
-    assert max(point[0] for point in contour) - min(point[0] for point in contour) == 115.0
-    assert max(point[1] for point in contour) - min(point[1] for point in contour) == 70.0
+    width = max(point[0] for point in contour) - min(point[0] for point in contour)
+    height = max(point[1] for point in contour) - min(point[1] for point in contour)
+    assert abs(width - 115.0) < 1e-6
+    assert abs(height - 70.0) < 1e-6
     assert contour[0] != contour[-1]
 
 
