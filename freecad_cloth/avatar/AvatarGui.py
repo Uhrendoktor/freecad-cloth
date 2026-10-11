@@ -627,7 +627,6 @@ class AvatarTaskPanel:
         self._update_shape_enabled()
         if self._dimension_controller is not None:
             self._dimension_controller.refresh()
-        self._fit_view()
         return True
 
     def _load_skeleton_pose(self):
@@ -744,6 +743,7 @@ class AvatarTaskPanel:
         )
 
     def _fit_view(self):
+        """Fit the viewport on explicit user request, not every rebuild."""
         if self.Gui.activeDocument():
             self.Gui.activeDocument().activeView().fitAll()
 

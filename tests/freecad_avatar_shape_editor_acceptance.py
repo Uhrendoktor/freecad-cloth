@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import math
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -72,6 +73,63 @@ def _mesh_points(avatar):
         (round(float(point.x), 4), round(float(point.y), 4), round(float(point.z), 4))
         for point in avatar.Mesh.Points
     )
+
+
+def _camera_signature(view):
+    """Capture camera framing only, excluding clipping-plane updates."""
+    camera_text = str(view.getCamera())
+    signature = {}
+    for name in ("position", "orientation", "focalDistance", "height", "heightAngle"):
+        match = re.search(
+            r"(?m)^\s*{}\s+([^\r\n]+)".format(re.escape(name)),
+            camera_text,
+        )
+        if match:
+            signature[name] = tuple(float(value) for value in match.group(1).split())
+    required = {"position", "orientation", "focalDistance"}
+    if not required.issubset(signature) or not ({"height", "heightAngle"} & signature.keys()):
+        raise RuntimeError("could not inspect the viewport camera framing")
+    return signature
+
+
+def _assert_camera_stable(before, after):
+    """Fail if an in-place mesh rebuild changes the active camera framing."""
+    if set(before) != set(after):
+        raise RuntimeError("camera framing fields changed during avatar rebuild")
+    for name, old_values in before.items():
+        new_values = after[name]
+        if len(old_values) != len(new_values) or any(
+            not math.isclose(old, new, rel_tol=0.0, abs_tol=1e-4)
+            for old, new in zip(old_values, new_values, strict=True)
+        ):
+            raise RuntimeError(
+                "avatar rebuild changed camera framing: {} {} -> {}".format(
+                    name, old_values, new_values
+                )
+            )
+
+
+def _shape_change_summary(before, after, height_mm):
+    """Measure changed torso vertices and forward motion of the bust surface."""
+    if len(before) != len(after):
+        raise RuntimeError("avatar shape rebuild changed mesh point count")
+    changed_vertices = 0
+    torso_changed_vertices = 0
+    front_projection_deltas = []
+    for old, new in zip(before, after, strict=True):
+        changed = max(abs(old[axis] - new[axis]) for axis in range(3)) > 0.1
+        changed_vertices += int(changed)
+        if 0.50 * height_mm <= old[2] <= 0.80 * height_mm:
+            torso_changed_vertices += int(changed)
+        if 0.64 * height_mm <= old[2] <= 0.73 * height_mm and old[1] > 0.0 and abs(old[0]) <= 160.0:
+            front_projection_deltas.append(new[1] - old[1])
+    if not front_projection_deltas:
+        raise RuntimeError("no front-facing upper-torso vertices available for shape review")
+    return {
+        "changed_vertices": changed_vertices,
+        "torso_changed_vertices": torso_changed_vertices,
+        "max_bust_projection_delta_mm": max(front_projection_deltas),
+    }
 
 
 def _capture_screen(path):
@@ -193,6 +251,8 @@ def run():
         view = active.activeView()
         view.viewIsometric()
         view.fitAll()
+        view.zoomIn()
+        view.zoomIn()
         _events()
 
         # The transient overlay must not create FreeCAD document objects.
@@ -204,6 +264,13 @@ def run():
             )
         if {str(obj.Name) for obj in doc.Objects} != original_names:
             raise RuntimeError("viewport dimension overlay created persistent document objects")
+
+        # Dimension rings are useful for the separate measurement-drag clip,
+        # but obscure the torso in a body-shape demonstration.
+        panel.dimension_gizmo_toggle.setChecked(False)
+        _events()
+        if controller.overlay is not None:
+            raise RuntimeError("dimension overlay remained visible for shape-edit recording")
 
         shape_recorder = UiGifRecorder(
             "artifacts/ui-gifs/avatar-shape-edit.gif",
@@ -224,19 +291,37 @@ def run():
             staged = panel._staged_parameters()
             if abs(staged.gender - 0.20) > 1e-6 or abs(staged.breast_size - 0.65) > 1e-6:
                 raise RuntimeError("body shape sliders did not stage their expected values")
+            camera_before_rebuild = _camera_signature(view)
             if not panel._apply():
                 raise RuntimeError("Apply & Rebuild rejected staged body-shape values")
             _events()
+            _assert_camera_stable(camera_before_rebuild, _camera_signature(view))
             shape_recorder.hold(750)
             if abs(float(avatar.GenderBlend) - 0.20) > 1e-6:
                 raise RuntimeError("gender blend did not persist to the FreeCAD avatar object")
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
                 raise RuntimeError("breast fullness did not persist to the FreeCAD avatar object")
-            if _mesh_points(avatar) == original_mesh:
+            updated_mesh = _mesh_points(avatar)
+            shape_delta = _shape_change_summary(original_mesh, updated_mesh, float(avatar.Height))
+            if shape_delta["changed_vertices"] == 0:
                 raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
+            if shape_delta["torso_changed_vertices"] == 0:
+                raise RuntimeError("body-shape rebuild did not change the torso region")
+            if shape_delta["max_bust_projection_delta_mm"] < 1.0:
+                raise RuntimeError(
+                    "breast fullness did not visibly move the front torso surface: "
+                    + repr(shape_delta)
+                )
         finally:
             if shape_recorder._started:
                 shape_recorder.stop()
+
+        # Re-enable viewport handles for the distinct waist-measurement clip.
+        panel.dimension_gizmo_toggle.setChecked(True)
+        _events()
+        controller = panel._dimension_controller
+        if controller is None or controller.view is None or controller.overlay is None:
+            raise RuntimeError("3D dimensions did not reactivate for waist-drag recording")
 
         # Record a distinct viewport-first circumference edit: drag the waist
         # handle, watch the ring/readout update, then commit via Apply & Rebuild.
@@ -263,9 +348,11 @@ def run():
             dimension_recorder.hold(700)
             if abs(float(panel._boxes["waist"].value()) - waist_staged) > 1e-6:
                 raise RuntimeError("viewport waist handle and numeric value diverged")
+            camera_before_waist_rebuild = _camera_signature(view)
             if not panel._apply():
                 raise RuntimeError("Apply & Rebuild rejected the staged waist measurement")
             _events()
+            _assert_camera_stable(camera_before_waist_rebuild, _camera_signature(view))
             dimension_recorder.hold(700)
             waist_after = float(avatar.Waist)
             if abs(waist_after - waist_staged) > 1e-6:
@@ -288,19 +375,32 @@ def run():
         Path("artifacts/avatar-shape-editor.log").write_text(
             "avatar-shape-editor=passed "
             "gender=0.20 breast_size=0.65 "
-            "waist_before={:.2f} waist_after={:.2f} "
+            "shape_changed_vertices={shape_changed} torso_changed_vertices={torso_changed} "
+            "max_bust_projection_delta_mm={bust_delta:.2f} "
+            "waist_before={waist_before:.2f} waist_after={waist_after:.2f} "
             "document_objects_overlay=transient "
-            "screenshot_opaque_pixels={} screenshot_distinct_rgb={}\n".format(
-                waist_before,
-                waist_after,
-                metrics["opaque_pixels"],
-                metrics["distinct_rgb"],
+            "screenshot_opaque_pixels={opaque} screenshot_distinct_rgb={distinct}\n".format(
+                shape_changed=shape_delta["changed_vertices"],
+                torso_changed=shape_delta["torso_changed_vertices"],
+                bust_delta=shape_delta["max_bust_projection_delta_mm"],
+                waist_before=waist_before,
+                waist_after=waist_after,
+                opaque=metrics["opaque_pixels"],
+                distinct=metrics["distinct_rgb"],
             ),
             encoding="utf-8",
         )
         print(
             "avatar-shape-editor=passed gender=0.20 breast_size=0.65 "
-            "waist_before={:.2f} waist_after={:.2f}".format(waist_before, waist_after),
+            "shape_changed_vertices={} torso_changed_vertices={} "
+            "max_bust_projection_delta_mm={:.2f} "
+            "waist_before={:.2f} waist_after={:.2f}".format(
+                shape_delta["changed_vertices"],
+                shape_delta["torso_changed_vertices"],
+                shape_delta["max_bust_projection_delta_mm"],
+                waist_before,
+                waist_after,
+            ),
             flush=True,
         )
         panel.reject()
