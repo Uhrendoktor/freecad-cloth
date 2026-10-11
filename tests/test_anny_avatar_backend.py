@@ -5,6 +5,14 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _adapt_clad_body_pose_alias,
     _initial_phenotypes,
     _measurement_local_change_labels,
+    build_avatar_rig_vertices,
+    build_avatar_shape_mesh,
+)
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
+from freecad_cloth.avatar.HumanoidMesh import (
+    MAKEHUMAN_BODY_VERTEX_COUNT,
+    _bone_source_endpoints,
+    load_makehuman_skeleton,
 )
 
 
@@ -47,3 +55,22 @@ def test_clad_body_legacy_pose_alias_is_translated_for_anny_forward() -> None:
 
     assert model.forward(pose_parameterization="root_relative_world") == "local-bone"
     assert model.forward(pose_parameterization="local-bone") == "local-bone"
+
+
+def test_fitted_rig_keeps_helper_vertices_without_exposing_them_as_body_surface() -> None:
+    parameters = AvatarParameters()
+    rig_vertices = build_avatar_rig_vertices(parameters)
+    body_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=False)
+    skeleton = load_makehuman_skeleton()
+
+    assert len(body_mesh.vertices) == MAKEHUMAN_BODY_VERTEX_COUNT
+    assert len(rig_vertices) > len(body_mesh.vertices)
+    referenced_indices = {
+        index
+        for bone in skeleton["bones"].values()
+        for joint_name in (bone["head"], bone["tail"])
+        for index in skeleton["joints"][joint_name]
+    }
+    assert any(index >= MAKEHUMAN_BODY_VERTEX_COUNT for index in referenced_indices)
+    for bone_name in skeleton["bones"]:
+        _bone_source_endpoints(rig_vertices, skeleton, bone_name)
