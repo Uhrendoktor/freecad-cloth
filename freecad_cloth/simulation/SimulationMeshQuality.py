@@ -32,6 +32,7 @@ def quality_piece_mesh(
         resolve_piece_ir,
     )
     from freecad_cloth.pattern.PatternMesh import refine_linear_boundary, triangulate
+
     if piece_ir is None:
         piece_ir = resolve_piece_ir(piece)
 
