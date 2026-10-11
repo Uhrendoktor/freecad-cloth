@@ -433,6 +433,7 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         return sum(points_inside_closed_mesh(points, vertices, triangles))
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
 
+
 def write_drape_metrics(
     panels,
     avatar,
@@ -443,7 +444,10 @@ def write_drape_metrics(
     proxy=None,
     collision_surface=None,
 ):
-    from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
+    from freecad_cloth.simulation.DrapeFailureClassifier import (
+        classify_drape,
+        summarize_classification,
+    )
     from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, summarize
     from freecad_cloth.common.MeshValidation import validate_mesh
 
@@ -665,7 +669,6 @@ def style_mesh(obj, label):
         pass
 
 
-
 def capture_tunic_pattern_view(doc, front, back, hem_width):
     """Capture the exact Sketcher profiles that are subsequently used by the 3D audit."""
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
@@ -700,9 +703,7 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         front_placement = App.Placement(
             App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
         )
-        back_placement = App.Placement(
-            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
-        )
+        back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
         front.Sketch.Placement = front_placement
         back.Placement = back_placement
@@ -769,7 +770,9 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
     if not seam_records:
-        raise RuntimeError("canonical tunic sewing view needs the simulation's semantic seam records")
+        raise RuntimeError(
+            "canonical tunic sewing view needs the simulation's semantic seam records"
+        )
 
     pieces = (front, back)
     original_piece_placements = {
@@ -1039,9 +1042,7 @@ def simulation():
             draft_valid = False
             draft_reason = "derived outline unavailable: %s" % type(exc).__name__
 
-        crossing_pattern = re.compile(
-            r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]"
-        )
+        crossing_pattern = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
         ir_crossing = crossing_pattern.search(ir_reason)
         draft_crossing = crossing_pattern.search(draft_reason)
         crossing_match = ir_crossing or draft_crossing
@@ -1125,8 +1126,7 @@ def simulation():
     if invalid_native is not None:
         raise RuntimeError(
             "canonical tunic PatternIR boundary is invalid before simulation: "
-            "piece=%s reason=%s"
-            % (invalid_native["piece"], invalid_native["ir_reason"])
+            "piece=%s reason=%s" % (invalid_native["piece"], invalid_native["ir_reason"])
         )
     invalid_derived = next(
         (record for record in topology_results if not bool(record["draft_valid"])),
@@ -1135,8 +1135,7 @@ def simulation():
     if invalid_derived is not None:
         raise RuntimeError(
             "canonical tunic derived pattern outline is invalid before simulation: "
-            "piece=%s reason=%s"
-            % (invalid_derived["piece"], invalid_derived["draft_reason"])
+            "piece=%s reason=%s" % (invalid_derived["piece"], invalid_derived["draft_reason"])
         )
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
@@ -1306,10 +1305,16 @@ def simulation():
             "simulation seam overlay is not rendering exact solver stitch pairs: "
             f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
         )
-    log("simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs" % sorted(rendered_seam_ids))
+    log(
+        "simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs"
+        % sorted(rendered_seam_ids)
+    )
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-    from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
+    from freecad_cloth.simulation.ClothDiagnosticsGui import (
+        DiagnosticsTaskPanel,
+        create_diagnostic_map,
+    )
 
     diagnostics_panel = DiagnosticsTaskPanel(scene)
     diagnostic_dock = show_task(
