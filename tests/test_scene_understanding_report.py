@@ -103,7 +103,7 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
     assert status["failed_stage"] == "pattern_topology"
     assert stages["pattern_topology"] == "invalid"
     assert stages["simulation"] == "not_reached"
-    assert stages["drape"] == "not_reached_or_not_captured"
+    assert stages["drape"] == "not_reached"
     issues = report["issues"]
     assert isinstance(issues, list) and len(issues) == 1
     issue = issues[0]
@@ -156,13 +156,21 @@ def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> No
     assert status["failed_stage"] is None
     assert report["issues"] == []
 
+
 def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> None:
     """The dossier must retain the full native curve rather than connecting only endpoints."""
     output_root = tmp_path / "docs" / "images" / "generated"
     output_root.mkdir(parents=True)
     boundaries = (
         ("sample-piece:edge:0", "line", 2, (0.0, 0.0), (0.0, 10.0), ((0.0, 0.0), (0.0, 10.0))),
-        ("sample-piece:edge:1", "arc", 4, (0.0, 10.0), (10.0, 10.0), ((0.0, 10.0), (3.0, 12.0), (7.0, 12.0), (10.0, 10.0))),
+        (
+            "sample-piece:edge:1",
+            "arc",
+            4,
+            (0.0, 10.0),
+            (10.0, 10.0),
+            ((0.0, 10.0), (3.0, 12.0), (7.0, 12.0), (10.0, 10.0)),
+        ),
         ("sample-piece:edge:2", "line", 2, (10.0, 10.0), (0.0, 0.0), ((10.0, 10.0), (0.0, 0.0))),
     )
     progress = output_root / "gui-progress.log"
