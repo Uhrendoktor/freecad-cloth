@@ -99,12 +99,14 @@ def points_inside_closed_mesh(
     triangles: Sequence[Triangle3],
     *,
     chunk_size: int = 32,
+    prefer_trimesh: bool = True,
 ) -> tuple[bool, ...]:
-    """Classify points with trimesh where available and a vectorized ray fallback.
+    """Classify points with optional Trimesh acceleration and a vectorized ray fallback.
 
     Pydantic validates finite coordinates and strict, in-range triangle indices once at
-    the boundary. The optional trimesh spatial-query backend is used only for watertight
-    meshes; missing acceleration dependencies fall back to the NumPy implementation.
+    the boundary. The native-host caller may bypass Trimesh acceleration when its
+    optional spatial-query backend is unsafe; NumPy ray parity retains the containment
+    check without changing its acceptance criterion.
     """
     validated_mesh = MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
     validated_points = validate_points3d(points)
@@ -118,21 +120,22 @@ def points_inside_closed_mesh(
     vertex_data = np.asarray(validated_mesh.vertices, dtype=np.float64)
     faces = np.asarray(validated_mesh.triangles, dtype=np.int64).reshape((-1, 3))
     point_data = np.asarray(validated_points, dtype=np.float64)
-    try:
-        import trimesh
+    if prefer_trimesh:
+        try:
+            import trimesh
 
-        mesh = trimesh.Trimesh(vertices=vertex_data, faces=faces, process=False)
-        if mesh.is_watertight:
-            try:
-                contained = mesh.contains(point_data)
-            except (ImportError, RuntimeError, ValueError):
-                # Trimesh's spatial-index backend is optional for diagnostics.
-                pass
-            else:
-                if len(contained) == len(validated_points):
-                    return tuple(bool(value) for value in contained)
-    except ImportError:
-        pass
+            mesh = trimesh.Trimesh(vertices=vertex_data, faces=faces, process=False)
+            if mesh.is_watertight:
+                try:
+                    contained = mesh.contains(point_data)
+                except (ImportError, RuntimeError, ValueError):
+                    # Trimesh's spatial-index backend is optional for diagnostics.
+                    pass
+                else:
+                    if len(contained) == len(validated_points):
+                        return tuple(bool(value) for value in contained)
+        except ImportError:
+            pass
 
     # Compatibility path for installations without trimesh/rtree or for open meshes.
     a = vertex_data[faces[:, 0]]

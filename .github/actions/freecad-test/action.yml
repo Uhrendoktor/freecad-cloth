@@ -102,7 +102,7 @@ runs:
     - name: Install project dependencies for evidence validators
       if: inputs.validate-command != ''
       shell: bash
-      run: timeout --signal=TERM --kill-after=5s 120s python -m pip install --disable-pip-version-check -e .
+      run: timeout --signal=TERM --kill-after=5s 120s python -m pip install --disable-pip-version-check -e . 'Pillow>=10,<13'
 
     - name: Verify evidence validator dependencies
       if: inputs.validate-command != ''
