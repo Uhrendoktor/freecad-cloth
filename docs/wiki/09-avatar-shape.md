@@ -42,9 +42,13 @@ The labelled lines, markers, and circumference rings are transient viewport over
 
 If a build cannot initialise the viewport interaction, use the numeric measurement fields. Imported FreeCAD geometry is a surface provider rather than a parametric human body, so its shape and measurement controls are disabled.
 
-## Scope and limitations
+## Shape deformation model and limitations
 
-The editor currently applies deterministic, localized procedural deformations to the bundled HM08 mannequin. It does not yet load the full MakeHuman target-morph library, and the gender blend is not a high-fidelity commercial avatar morph system. Cup-size-specific garment grading is not inferred from the breast-fullness slider; set bust and underbust circumferences as measurements and treat shape fullness as a separate visual/body-surface control.
+The HM08 shape fitter uses separate lateral and depth profiles for circumference changes instead of scaling each torso cross-section equally in both directions. Waist, hip, underbust, and chest changes are constrained by a stable soft torso envelope, while shoulder breadth and the gender blend use a separate shoulder-girdle envelope that tapers into the upper arms. This prevents a torso control from moving distal arm/hand vertices merely because they happen to share the same height in a pose.
+
+The skeleton and pose overlay also derive joint centers by fitting the authored joint vertices individually before averaging them. This is important because the body-shape mapping is nonlinear: mapping the average source point can place a joint somewhere different from the center of the fitted joint surface.
+
+These changes improve locality and reduce isotropic, sphere-like inflation, but they are an incremental procedural fitter, not a replacement for an authored morph-target system. The full MakeHuman target-morph library is still not integrated, and current measurement controls do not yet guarantee that every displayed circumference equals a mesh-intersection measurement. Exact contour-based measurement fitting and target-morph integration remain future work. Cup-size-specific garment grading is not inferred from the breast-fullness slider; set bust and underbust circumferences as measurements and treat shape fullness as a separate surface-shape control.
 
 When the mesh is rebuilt, fitting anchors are refreshed against the stable avatar mesh where possible. If an anchor is visibly marked stale or no longer follows the intended surface, recreate it before arranging fabric. Always review the actual garment-to-target relationship before running simulation.
 
