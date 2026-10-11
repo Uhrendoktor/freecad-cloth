@@ -64,7 +64,6 @@ class MakeHumanTargetTests(unittest.TestCase):
             with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
                 self.assertEqual(target_directory(), root.resolve() / "targets")
 
-
     def test_makehuman_targets_npz_archive_uses_native_coordinate_offsets(self) -> None:
         with tempfile.TemporaryDirectory(prefix="cloth-target-archive-") as directory:
             root = Path(directory)
@@ -89,9 +88,7 @@ class MakeHumanTargetTests(unittest.TestCase):
                 ((0, (0.1, -0.25, 0.3)), (2, (-0.1, 0.0, 0.5))),
             )
             vertices = ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0))
-            blended = apply_targets(
-                vertices, {"torso/measure-waist-circ-incr": 0.5}, root
-            )
+            blended = apply_targets(vertices, {"torso/measure-waist-circ-incr": 0.5}, root)
             self.assertEqual(blended[0], (1.05, 1.875, 3.15))
             self.assertEqual(blended[1], vertices[1])
             self.assertEqual(blended[2], (6.95, 8.0, 9.25))
@@ -106,7 +103,9 @@ class MakeHumanTargetTests(unittest.TestCase):
                 root / "targets.npz",
                 **{
                     "targets/torso/measure-waist-circ-incr.index": np.array([0]),
-                    "targets/torso/measure-waist-circ-incr.vector": np.array([[100, 0, 0]], dtype=np.int16),
+                    "targets/torso/measure-waist-circ-incr.vector": np.array(
+                        [[100, 0, 0]], dtype=np.int16
+                    ),
                 },
             )
             reference = resolve_target("torso/measure-waist-circ-incr", loose)
@@ -122,14 +121,10 @@ class MakeHumanTargetTests(unittest.TestCase):
             source_y = normalized_height * 2.0 - 1.0
             for index in range(ring_count):
                 angle = (2.0 * math.pi * index) / ring_count
-                source_vertices.append(
-                    (0.30 * math.cos(angle), source_y, 0.50 * math.sin(angle))
-                )
+                source_vertices.append((0.30 * math.cos(angle), source_y, 0.50 * math.sin(angle)))
         # Unconnected extrema define the HM08-wide calibration frame, while
         # the closed rings represent a waist contour inside the trunk envelope.
-        source_vertices.extend(
-            ((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))
-        )
+        source_vertices.extend(((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)))
         triangles = []
         for index in range(ring_count):
             following = (index + 1) % ring_count
@@ -171,10 +166,14 @@ class MakeHumanTargetTests(unittest.TestCase):
             (-1.0, 2.0, 1.0),
         )
         triangles = (
-            (0, 1, 5), (0, 5, 4),
-            (1, 2, 6), (1, 6, 5),
-            (2, 3, 7), (2, 7, 6),
-            (3, 0, 4), (3, 4, 7),
+            (0, 1, 5),
+            (0, 5, 4),
+            (1, 2, 6),
+            (1, 6, 5),
+            (2, 3, 7),
+            (2, 7, 6),
+            (3, 0, 4),
+            (3, 4, 7),
         )
         self.assertAlmostEqual(
             _section_circumference(vertices, triangles, plane=0.5, max_width=10.0),
