@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -37,14 +37,19 @@ class TargetReference:
 
     path: Path
     archive_key: str | None = None
+    coordinate_format: Literal["makehuman", "mpfb2"] = "makehuman"
 
 
-def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
-    """Parse a MakeHuman target's native X/Y/Z offsets and vertex indices.
+def parse_target(
+    text: str,
+    name: str = "<memory>",
+    coordinate_format: Literal["makehuman", "mpfb2"] = "makehuman",
+) -> MakeHumanTarget:
+    """Parse sparse target rows in native MakeHuman or MPFB2 coordinate order.
 
-    MakeHuman's own loader reads the three displacement columns in their
-    existing order. Do not rotate them into Blender coordinates here: the
-    workbench applies targets to the original Y-up MakeHuman source mesh.
+    MakeHuman source targets use native X/Y/Z offsets. MPFB2 stores equivalent
+    target rows as X/Z/-Y for its Blender-oriented HM08 mesh. The selected
+    format is inferred from the target-library layout by the resolver.
     """
     collected: dict[int, Point] = {}
     for line_number, raw in enumerate(str(text).splitlines(), start=1):
@@ -56,7 +61,12 @@ def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
             raise ValueError(f"{name}:{line_number}: target row needs four fields")
         try:
             index = int(fields[0])
-            offset: Point = (float(fields[1]), float(fields[2]), float(fields[3]))
+            first, second, third = float(fields[1]), float(fields[2]), float(fields[3])
+            offset: Point = (
+                (first, -third, second)
+                if coordinate_format == "mpfb2"
+                else (first, second, third)
+            )
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"{name}:{line_number}: invalid target row") from exc
         if index < 0:
@@ -74,7 +84,11 @@ def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
 
 @lru_cache(maxsize=256)
 def _load_target_cached(
-    path_text: str, modified_ns: int, size: int, archive_key: str | None
+    path_text: str,
+    modified_ns: int,
+    size: int,
+    archive_key: str | None,
+    coordinate_format: Literal["makehuman", "mpfb2"],
 ) -> MakeHumanTarget:
     del modified_ns, size
     source = Path(path_text)
@@ -84,7 +98,7 @@ def _load_target_cached(
                 payload = stream.read()
         else:
             payload = source.read_text(encoding="utf-8", errors="strict")
-        return parse_target(payload, source.as_posix())
+        return parse_target(payload, source.as_posix(), coordinate_format)
 
     import numpy as np
 
@@ -105,8 +119,12 @@ def _load_target_cached(
         merged: dict[int, Point] = {}
         for raw_index, raw_vector in zip(indices, vectors, strict=True):
             index = int(raw_index)
-            offset_values = tuple(float(value) * 1e-3 for value in raw_vector)
-            offset: Point = (offset_values[0], offset_values[1], offset_values[2])
+            first, second, third = (float(value) * 1e-3 for value in raw_vector)
+            offset: Point = (
+                (first, -third, second)
+                if coordinate_format == "mpfb2"
+                else (first, second, third)
+            )
             if index < 0 or not all(math.isfinite(value) for value in offset):
                 raise ValueError(f"{source}: archive target has invalid values: {archive_key}")
             prior = merged.get(index, (0.0, 0.0, 0.0))
@@ -125,11 +143,29 @@ def load_target(
     if isinstance(path, TargetReference):
         source = path.path.expanduser().resolve()
         archive_key = path.archive_key
+        coordinate_format = path.coordinate_format
     else:
         source = Path(path).expanduser().resolve()
         archive_key = None
+        coordinate_format = _target_coordinate_format(source.parent)
     stat = source.stat()
-    return _load_target_cached(source.as_posix(), stat.st_mtime_ns, stat.st_size, archive_key)
+    return _load_target_cached(
+        source.as_posix(),
+        stat.st_mtime_ns,
+        stat.st_size,
+        archive_key,
+        coordinate_format,
+    )
+
+
+def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
+    """Identify MPFB2 target packs by their metadata/layout conventions."""
+    for parent in (root, *root.parents):
+        if (parent / "target.json").is_file():
+            return "mpfb2"
+        if parent.name.casefold() in {"mpfb", "mpfb2"}:
+            return "mpfb2"
+    return "makehuman"
 
 
 def target_directory() -> Path | None:
@@ -240,7 +276,7 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
             break
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
-            return TargetReference(path.resolve())
+            return TargetReference(path.resolve(), coordinate_format=_target_coordinate_format(base))
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is not None:
         return TargetReference(Path(indexed_path))
@@ -256,7 +292,11 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
         if archive_key is None:
             archive_key = archive_targets.get(cleaned.removeprefix("targets/").casefold())
         if archive_key is not None:
-            return TargetReference(archive_path, archive_key)
+            return TargetReference(
+                archive_path,
+                archive_key,
+                _target_coordinate_format(base),
+            )
     return None
 
 
