@@ -310,7 +310,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: ./.github/actions/freecad-test
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
@@ -318,7 +318,7 @@ jobs:
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
