@@ -819,7 +819,7 @@ def _neckline_boundary_particles(
 
 
 def _make_tunic_sketch(
-    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.08
+    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.03
 ):
     import Part
     import Sketcher
@@ -827,9 +827,9 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.58 * float(garment_height)
-    shoulder_z = 0.90 * float(garment_height)
-    neckline_scoop_depth = 0.08 * float(garment_height)
+    armhole_z = 0.62 * float(garment_height)
+    shoulder_z = 0.94 * float(garment_height)
+    neckline_scoop_depth = 0.10 * float(garment_height)
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
@@ -1357,9 +1357,9 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    # Widen the neckline span while preserving its authored depth and shoulder geometry.
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.68, 0.06)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.68, 0.06)
+    # Widen and deepen the neckline; lift the shoulder seams over the mannequin's shoulders.
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)
 
     def log_tunic_outline_topology(piece):
         """Log the actual sampled boundary and crossing edges before sewing or draping."""

@@ -175,9 +175,9 @@ def _make_tunic_sketch(
     h = float(garment_height)
     neck_z = (1.0 - float(neckline_drop)) * h
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.58 * h
-    shoulder_z = 0.90 * h
-    neckline_scoop_depth = 0.08 * h
+    armhole_z = 0.62 * h
+    shoulder_z = 0.94 * h
+    neckline_scoop_depth = 0.10 * h
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.0, 0.0),
@@ -418,9 +418,9 @@ def run():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    # Mirror the wider canonical neckline in the lightweight diagnostic.
-    front, front_outline = make_piece("DebugTunicFront", front_y, 0.68, 0.06)
-    back, back_outline = make_piece("DebugTunicBack", back_y, 0.68, 0.06)
+    # Mirror the wider, deeper neckline and raised shoulders in the lightweight diagnostic.
+    front, front_outline = make_piece("DebugTunicFront", front_y, 0.72, 0.03)
+    back, back_outline = make_piece("DebugTunicBack", back_y, 0.72, 0.03)
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam
@@ -459,8 +459,8 @@ def run():
     def pin_indices(piece, outline, positions):
         x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (x_offset + 0.06 * panel_width, 0.90 * garment_height),
-            (x_offset + 0.94 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.06 * panel_width, 0.94 * garment_height),
+            (x_offset + 0.94 * panel_width, 0.94 * garment_height),
         )
         result = []
         available = list(range(len(positions)))

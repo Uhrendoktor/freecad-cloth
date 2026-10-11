@@ -189,9 +189,9 @@ replacements = {
     "hem_width = max(450.0, panel_width + 100.0)": "hem_width = max(500.0, panel_width + 100.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.58 * float(garment_height)
-    shoulder_z = 0.90 * float(garment_height)
-    neckline_scoop_depth = 0.08 * float(garment_height)
+    armhole_z = 0.62 * float(garment_height)
+    shoulder_z = 0.94 * float(garment_height)
+    neckline_scoop_depth = 0.10 * float(garment_height)
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
@@ -205,9 +205,9 @@ replacements = {
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.58 * garment_height
-    shoulder_z = 0.90 * garment_height
-    neckline_scoop_depth = 0.08 * float(garment_height)
+    armhole_z = 0.62 * garment_height
+    shoulder_z = 0.94 * garment_height
+    neckline_scoop_depth = 0.10 * float(garment_height)
     neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
@@ -223,7 +223,7 @@ replacements = {
     # Keep this armhole PR on the canonical upper edge. The source-rewrite harness
     # must not inject incompatible neckline variants from the separate #2664 experiment:
     # those diagonals cross the open armhole arcs.
-    'front, front_outline = make_piece("VisualTunicFront", "front", 0.68, 0.06)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.68, 0.06)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.68, 0.06); back, back_outline = make_piece("VisualTunicBack", "front", 0.68, 0.06)',
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.72, 0.03); back, back_outline = make_piece("VisualTunicBack", "front", 0.72, 0.03)',
     SEAM_SOURCE: SEAM_SOURCE,
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',

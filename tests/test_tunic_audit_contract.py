@@ -118,9 +118,9 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     ) in sketch_builder
     assert 'Sketcher.Constraint("Coincident"' not in sketch_builder
     assert "tunic armhole collapsed during Sketcher recompute" in sketch_builder
-    assert "armhole_z = 0.58 * float(garment_height)" in sketch_builder
+    assert "armhole_z = 0.62 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.74 * panel_width, armhole_z)" in sketch_builder
-    assert "shoulder_z = 0.90 * float(garment_height)" in sketch_builder
+    assert "shoulder_z = 0.94 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.94 * panel_width, shoulder_z)" in sketch_builder
     assert "if not (armhole_z < shoulder_z < neck_z)" in sketch_builder
     assert "shoulders must slope downward from neckline to shoulder tip" in sketch_builder
@@ -349,10 +349,11 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     )
     assert "SimulationQualityRuntimeV2" not in debug
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
+    assert "neckline_drop=0.03" in source
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
-    assert "armhole_z = 0.58 * h" in debug
-    assert "armhole_z = 0.58 * h" in debug
-    assert "shoulder_z = 0.90 * h" in debug
+    assert "armhole_z = 0.62 * h" in debug
+    assert "armhole_z = 0.62 * h" in debug
+    assert "shoulder_z = 0.94 * h" in debug
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug
     assert "shoulder_z - armhole_z < 0.20 * h" in debug
     assert "side_ease_mm = 4.0" in debug
@@ -362,15 +363,17 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.26 * panel_width, armhole_z)" in debug
     assert "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug
     assert "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug
-    assert "(x_offset + 0.06 * panel_width, 0.90 * garment_height)" in debug
-    assert "(x_offset + 0.94 * panel_width, 0.90 * garment_height)" in debug
+    assert "(x_offset + 0.06 * panel_width, 0.94 * garment_height)" in debug
+    assert "(x_offset + 0.94 * panel_width, 0.94 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
-    assert "neckline_scoop_depth = 0.08 * h" in debug
+    assert "neckline_scoop_depth = 0.10 * h" in debug
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in debug
     assert "if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug
-    assert "neckline_scoop_depth = 0.08 * float(garment_height)" in source
+    assert "neckline_scoop_depth = 0.10 * float(garment_height)" in source
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
-    assert "neckline_scoop_depth = 0.08 * float(garment_height)" in audit
+    assert "neckline_scoop_depth = 0.10 * float(garment_height)" in audit
+    assert 'make_piece("VisualTunicFront", "front", 0.72, 0.03)' in source
+    assert 'make_piece("VisualTunicBack", "back", 0.72, 0.03)' in source
     assert "elif idx == 4:" in debug
     assert "elif index == 4:" in source
     assert "true U-shaped neckline" in source
@@ -391,14 +394,14 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
     assert "hem_width = max(500.0, panel_width + 100.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, 0.68, 0.06)' in debug
+    assert 'make_piece("DebugTunicFront", front_y, 0.72, 0.03)' in debug
     assert "panel_width *= 1.10" in source
     assert "hem_width *= 1.10" in source
     assert "panel_width *= 1.10" in debug
     assert "hem_width *= 1.10" in debug
-    assert 'make_piece("DebugTunicBack", back_y, 0.68, 0.06)' in debug
-    assert 'make_piece("VisualTunicFront", "back", 0.68, 0.06)' in audit
-    assert 'make_piece("VisualTunicBack", "front", 0.68, 0.06)' in audit
+    assert 'make_piece("DebugTunicBack", back_y, 0.72, 0.03)' in debug
+    assert 'make_piece("VisualTunicFront", "back", 0.72, 0.03)' in audit
+    assert 'make_piece("VisualTunicBack", "front", 0.72, 0.03)' in audit
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
