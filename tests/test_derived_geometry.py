@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+from shapely.geometry import Polygon
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
@@ -47,6 +49,17 @@ def test_per_edge_override_and_curve_are_supported():
     derived = derive_cut_boundary(pattern, 2, {"right": 4}, curve_samples=8)
     assert derived.cut_boundary[1].points[0] == (14.0, 0.0)
     assert len(derived.cut_boundary[2].points) == 8
+
+
+def test_per_edge_allowance_produces_a_valid_joined_cut_contour():
+    pattern = rectangle(100.0, 60.0)
+    derived = derive_cut_boundary(pattern, 5.0, {"right": 10.0})
+    contour = derived.cut_contour
+
+    assert Polygon(contour).is_valid
+    assert max(point[0] for point in contour) - min(point[0] for point in contour) == 115.0
+    assert max(point[1] for point in contour) - min(point[1] for point in contour) == 70.0
+    assert contour[0] != contour[-1]
 
 
 def test_notches_use_stable_segment_ids_and_normalized_positions():
