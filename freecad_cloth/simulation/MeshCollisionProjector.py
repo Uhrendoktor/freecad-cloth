@@ -207,8 +207,13 @@ class MeshCollisionProjector:
         if bool(np.any(needs_projection)):
             active_corrected = active_points.copy()
             active_normals = np.zeros_like(active_points)
-            active_corrected[needs_projection] = nearest_points[needs_projection] + (
-                self.clearance_mm * outward[needs_projection]
+            # Correct only the signed normal distance. Snapping directly to a
+            # triangle edge/vertex removes tangential displacement and can collapse
+            # neighboring cloth faces when multiple particles share a closest edge.
+            correction_mm = self.clearance_mm - signed_distance[needs_projection]
+            active_corrected[needs_projection] = (
+                active_points[needs_projection]
+                + correction_mm[:, None] * outward[needs_projection]
             )
             active_normals[needs_projection] = outward[needs_projection]
             corrected[active_point_indices] = active_corrected

@@ -59,6 +59,20 @@ def test_projector_moves_inside_points_outside_closed_surface() -> None:
     )
 
 
+def test_projector_preserves_tangential_offsets_when_correcting_near_an_edge() -> None:
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    point = np.asarray(((-0.5, -0.5, 50.0),), dtype=np.float64)
+
+    projected, normals = projector.project(point)
+
+    assert np.isclose(np.linalg.norm(normals[0]), 1.0)
+    correction = projected[0] - point[0]
+    # Normal-only correction must not introduce an artificial tangential snap
+    # to the closest mesh edge, which can collapse cloth triangles.
+    assert np.isclose(np.linalg.norm(np.cross(correction, normals[0])), 0.0, atol=1e-8)
+    assert np.isclose(np.dot(correction, normals[0]), np.linalg.norm(correction))
+
+
 def test_projector_supports_reduced_preview_candidate_count() -> None:
     surface = _cube_surface()
     projector = MeshCollisionProjector(surface, clearance_mm=2.0, candidate_count=2)
