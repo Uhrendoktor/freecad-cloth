@@ -10,10 +10,11 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - `pydantic>=2.11,<3` for validated geometry, mesh, and seam inputs.
 - `scipy>=1.14,<2` for exact spatial-index nearest-vertex clearance.
 - `shapely>=2,<3` for GEOS-backed polygon simplicity checks.
+- The optional `avatar` extra (Anny + clad-body + PyTorch) for the built-in parametric mannequin and anthropometric measurement fitting.
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench. The built-in Anny mannequin requires the optional avatar extra; install it in that same embedded Python environment with `python -m pip install 'freecad-cloth[avatar]'` (or `python -m pip install -e '.[avatar]'` from the cloned source tree).
 
 ## User installation
 
@@ -41,14 +42,14 @@ Recommended first run:
 Install the development toolchain with:
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,avatar]"
 pre-commit install
 ```
 
-SciPy and Shapely are required dependencies for the core geometry pipeline and are installed with the main package. There is no separate geometry extra or runtime fallback path.
+SciPy and Shapely are required dependencies for the core geometry pipeline and are installed with the main package. The heavier Anny/PyTorch avatar runtime is separate so installations that do not use the built-in parametric mannequin need not download it.
 
 ```bash
-python -m pip install -e .
+python -m pip install -e '.[avatar]'
 ```
 
 The benchmark under `tools/benchmarks/benchmark_geometry_libraries.py` compares the required
