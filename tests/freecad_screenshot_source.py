@@ -804,7 +804,7 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.54 * float(garment_height)
+    armhole_z = 0.50 * float(garment_height)
     shoulder_z = 0.86 * float(garment_height)
     points = [
         (0.00, 0.00),

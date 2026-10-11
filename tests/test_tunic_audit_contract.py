@@ -118,7 +118,7 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     ) in sketch_builder
     assert 'Sketcher.Constraint("Coincident"' not in sketch_builder
     assert "tunic armhole collapsed during Sketcher recompute" in sketch_builder
-    assert "armhole_z = 0.54 * float(garment_height)" in sketch_builder
+    assert "armhole_z = 0.50 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.70 * panel_width, armhole_z)" in sketch_builder
     assert "shoulder_z = 0.86 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.94 * panel_width, shoulder_z)" in sketch_builder
@@ -342,8 +342,8 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "SimulationQualityRuntimeV2" not in debug
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
-    assert "armhole_z = 0.54 * h" in debug
-    assert "armhole_z = 0.54 * h" in debug
+    assert "armhole_z = 0.50 * h" in debug
+    assert "armhole_z = 0.50 * h" in debug
     assert "shoulder_z = 0.86 * h" in debug
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug
     assert "shoulder_z - armhole_z < 0.20 * h" in debug
