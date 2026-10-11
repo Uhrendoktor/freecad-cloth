@@ -1,4 +1,5 @@
 import sys
+import re
 from pathlib import Path
 from unittest import TestCase
 from xml.etree import ElementTree
@@ -176,18 +177,67 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
         element for element in sewing_group.iter() if element.tag.rsplit("}", 1)[-1] == "path"
     )
     cut_path = by_id["cut-perimeter"]
-    notch = by_id["notch-notch-1"]
     grainline = by_id["mark-grain-1"]
     text = next(element for element in elements if element.attrib.get("data-mark-id") == "grain-1")
 
-    for element in (sewing_path, cut_path, notch, grainline):
+    for element in (sewing_path, cut_path, grainline):
         assert element.attrib.get("stroke") == "#000000"
+    assert cut_path.attrib["data-notch-ids"] == "notch-1"
+    assert not any(element.attrib.get("id") == "notch-notch-1" for element in elements)
     assert sewing_path.attrib.get("fill") == "none"
     assert cut_path.attrib.get("fill") == "none"
     assert text.attrib.get("fill") == "#000000"
     assert text.attrib.get("font-size") == "3mm"
     assert root.attrib["width"].endswith("mm")
     assert root.attrib["height"].endswith("mm")
+
+
+
+def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
+    pattern = rectangle(100.0, 60.0)
+    derived = add_notches(
+        derive_cut_boundary(pattern, 5.0),
+        [Notch("right-notch", "right", 0.5, depth=3.0)],
+    )
+    svg = to_svg(pattern, derived=derived)
+    root = ElementTree.fromstring(svg)
+    cut_path = next(element for element in root.iter() if element.attrib.get("id") == "cut-perimeter")
+    coordinates = [
+        (float(x), float(y))
+        for x, y in re.findall(
+            r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)",
+            cut_path.attrib["d"],
+        )
+    ]
+
+    # Native apex (102, 30) is transformed by the -5 mm X and -5 mm Y origin.
+    apex_index = next(
+        index
+        for index, (x, y) in enumerate(coordinates)
+        if abs(x - 107.0) < 1e-6 and abs(y - 35.0) < 1e-6
+    )
+    previous = coordinates[apex_index - 1]
+    following = coordinates[(apex_index + 1) % len(coordinates)]
+    assert previous[0] == 110.0 and following[0] == 110.0
+    assert (previous[1] - 35.0) * (following[1] - 35.0) < 0
+    assert cut_path.attrib["data-notch-ids"] == "right-notch"
+
+    dxf = to_dxf(pattern, derived=derived)
+    cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+    assert "10\n102.000000\n20\n30.000000" in cut_section
+    assert "8\nMARK\n" not in cut_section
+
+
+def test_zero_allowance_notch_falls_inward_not_outward() -> None:
+    pattern = rectangle(100.0, 60.0)
+    derived = add_notches(
+        derive_cut_boundary(pattern, 0.0),
+        [Notch("right-notch", "right", 0.5, depth=3.0)],
+    )
+    dxf = to_dxf(pattern, derived=derived)
+    cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+    assert "10\n97.000000\n20\n30.000000" in cut_section
+    assert "10\n103.000000\n20\n30.000000" not in cut_section
 
 
 def test_export_rejects_units_that_would_relabel_without_conversion() -> None:
@@ -365,16 +415,16 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
         assert metadata["mark_ids"] == ["grain-front", "mark-front"]
 
         if fmt == "svg":
-            assert 'id="notch-notch-front"' in payload
+            assert 'data-notch-ids="notch-front"' in payload
             assert 'id="mark-grain-front"' in payload
             assert 'id="mark-mark-front"' in payload
-            assert 'data-segment="piece-front:edge:0" data-t="0.500000"' in payload
-            assert 'cx="55.000000" cy="65.000000"' in payload
+            assert '55.000000,67.000000' in payload
+            assert 'cx="55.000000" cy="65.000000"' not in payload
             assert 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload
         else:
             assert '"notch_ids":["notch-front"]' in payload
             assert '"mark_ids":["grain-front","mark-front"]' in payload
-            assert "10\n50.000000\n20\n3.000000" in payload
+            assert "10\n50.000000\n20\n-2.000000" in payload
             assert "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload
 
 
