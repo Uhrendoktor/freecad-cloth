@@ -2,7 +2,8 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from math import atan2, cos, hypot
+from math import atan2, cos, hypot, isfinite
+
 from shapely.geometry import Polygon
 
 from freecad_cloth.pattern.PatternGeometry import (
@@ -85,18 +86,18 @@ def derive_cut_boundary(
     miter_limit: float = 4.0,
 ) -> DerivedPattern:
     """Provide the public derive cut boundary operation."""
-    if width < 0:
-        raise ValueError("seam allowance width must be non-negative")
+    if not isfinite(width) or width < 0:
+        raise ValueError("seam allowance width must be finite and non-negative")
     if curve_samples < 2:
         raise ValueError("curve_samples must be at least 2")
-    if miter_limit < 1:
-        raise ValueError("miter_limit must be at least 1")
+    if not isfinite(miter_limit) or miter_limit < 1:
+        raise ValueError("miter_limit must be finite and at least 1")
     edge_widths = edge_widths or {}
     unknown = set(edge_widths) - set(pattern.by_id())
     if unknown:
         raise ValueError(f"unknown edge width IDs: {sorted(unknown)}")
-    if any(value < 0 for value in edge_widths.values()):
-        raise ValueError("seam allowance widths must be non-negative")
+    if any(not isfinite(value) or value < 0 for value in edge_widths.values()):
+        raise ValueError("seam allowance widths must be finite and non-negative")
     sampled = _sample_segments(pattern.segments, curve_samples)
     outline = [point for points in sampled for point in points[:-1]]
     orientation = signed_area(outline)
