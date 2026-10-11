@@ -141,8 +141,6 @@ def render_turntable(view, center, frame_dir, frame_count=72):
     log("turntable-pass frames=%d" % (frame_count + 1))
 
 
-
-
 def render_body_shape_gallery(doc, view, avatar, output):
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
