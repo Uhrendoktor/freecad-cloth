@@ -285,7 +285,7 @@ class AvatarTaskPanel:
         self.breast_slider.valueChanged.connect(self._shape_changed)
         self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
         self._dimension_controller = None
-        self._toggle_dimension_gizmo(self.dimension_gizmo_toggle.isChecked())
+        self._update_shape_enabled()
 
     def _open_pose_mode(self):
         if self.avatar is None:
@@ -741,7 +741,10 @@ class AvatarTaskPanel:
             self.Gui.activeDocument().activeView().fitAll()
 
     def accept(self):
-        return self._apply()
+        success = self._apply()
+        if success and self._dimension_controller is not None:
+            self._dimension_controller.deactivate()
+        return success
 
     def reject(self):
         if self._dimension_controller is not None:
