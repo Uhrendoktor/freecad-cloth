@@ -372,8 +372,7 @@ def _fit_anny_body(
     triangles: tuple[tuple[int, int, int], ...] = tuple(
         (int(face[0]), int(face[1]), int(face[2]))
         for face in fitted_body.faces
-        if len(face) == 3
-        and all(0 <= int(index) < MAKEHUMAN_BODY_VERTEX_COUNT for index in face)
+        if len(face) == 3 and all(0 <= int(index) < MAKEHUMAN_BODY_VERTEX_COUNT for index in face)
     )
     result = MeshData(vertices, triangles)
     try:
