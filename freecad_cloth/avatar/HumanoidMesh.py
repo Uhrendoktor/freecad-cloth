@@ -63,11 +63,13 @@ if TYPE_CHECKING:
 Point = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
+
 class BoneData(TypedDict):
     """Minimal authored bone fields used by the avatar fitting pipeline."""
 
     head: str
     tail: str
+
 
 class SkeletonData(TypedDict):
     """Authored MakeHuman joint index lists and their referencing bones."""
@@ -75,8 +77,10 @@ class SkeletonData(TypedDict):
     bones: dict[str, BoneData]
     joints: dict[str, list[int]]
 
+
 class HumanoidMeshError(RuntimeError):
     """Raised when the real humanoid mesh cannot be loaded or fitted."""
+
 
 @pydantic_dataclass(frozen=True)
 class MeshData:
@@ -115,11 +119,13 @@ class MeshData:
                 raise HumanoidMeshError("humanoid mesh contains an invalid face")
         return self
 
+
 def _default_cache_path() -> Path:
     configured = os.environ.get(CACHE_DIR_ENV, "").strip()
     if configured:
         return Path(configured).expanduser() / DEFAULT_CACHE_NAME
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_CACHE_NAME
+
 
 def _weights_cache_path() -> Path:
     configured = os.environ.get(CACHE_DIR_ENV, "").strip()
@@ -127,11 +133,13 @@ def _weights_cache_path() -> Path:
         return Path(configured).expanduser() / DEFAULT_WEIGHTS_NAME
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_WEIGHTS_NAME
 
+
 def _skeleton_cache_path() -> Path:
     configured = os.environ.get(CACHE_DIR_ENV, "").strip()
     if configured:
         return Path(configured).expanduser() / DEFAULT_SKELETON_NAME
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_SKELETON_NAME
+
 
 def _verified(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size <= 1024:
@@ -140,6 +148,7 @@ def _verified(path: Path) -> bool:
         return hashlib.sha256(path.read_bytes()).hexdigest() == MAKEHUMAN_BASE_SHA256
     except OSError:
         return False
+
 
 def _verified_weights(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size != MAKEHUMAN_WEIGHTS_SIZE:
@@ -174,6 +183,7 @@ def _verified_weights(path: Path) -> bool:
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
 
+
 def _valid_skeleton_payload(payload: object) -> bool:
     """Return whether a decoded skeleton has usable bone and joint references."""
     if not isinstance(payload, dict):
@@ -205,6 +215,7 @@ def _valid_skeleton_payload(payload: object) -> bool:
             return False
     return True
 
+
 def _verified_skeleton(path: Path) -> bool:
     if not path.is_file() or path.stat().st_size != MAKEHUMAN_SKELETON_SIZE:
         return False
@@ -213,6 +224,7 @@ def _verified_skeleton(path: Path) -> bool:
         return _valid_skeleton_payload(payload)
     except (OSError, UnicodeError, ValueError, TypeError, OverflowError):
         return False
+
 
 def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -235,6 +247,7 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
         with contextlib.suppress(OSError):
             os.unlink(temporary)
         raise
+
 
 def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
     """Return conventional MakeHuman install paths without scanning the whole disk."""
@@ -313,12 +326,14 @@ def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
             unique.append(candidate)
     return tuple(unique)
 
+
 def _find_local_base_mesh() -> Path | None:
     """Find a local copy only if its bytes match the pinned indexed HM08 mesh."""
     for candidate in _makehuman_base_mesh_candidates():
         if _verified(candidate):
             return candidate
     return None
+
 
 def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     """Resolve a human OBJ from an explicit path, local install, or pinned download."""
@@ -350,6 +365,7 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
         ) from exc
     return destination
 
+
 def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path:
     """Return the pinned MakeHuman default skinning weights."""
     override = os.environ.get(WEIGHTS_ENV, "").strip()
@@ -379,6 +395,7 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
             f"set {WEIGHTS_ENV} to a local MHW file or allow network access ({exc})"
         ) from exc
     return destination
+
 
 def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Path:
     """Return the pinned MakeHuman default authored skeleton."""
@@ -410,6 +427,7 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
         ) from exc
     return destination
 
+
 def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
     source = ensure_makehuman_base(path)
     try:
@@ -429,6 +447,7 @@ def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
             f"unable to parse MakeHuman source vertices {source}: {exc}"
         ) from exc
 
+
 @lru_cache(maxsize=4)
 def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     """Load and return the requested makehuman skeleton resource."""
@@ -440,6 +459,7 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     if not _valid_skeleton_payload(payload):
         raise HumanoidMeshError(f"MakeHuman skeleton has invalid bones or joints: {source}")
     return cast(SkeletonData, payload)
+
 
 def _joint_point(
     source_vertices: Sequence[Point],
@@ -465,6 +485,7 @@ def _joint_point(
         sum(point[2] for point in fitted) / count,
     )
 
+
 def _bone_source_endpoints(
     source_vertices: Sequence[Point],
     skeleton: SkeletonData,
@@ -479,6 +500,7 @@ def _bone_source_endpoints(
         _joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=mapper),
         _joint_point(source_vertices, skeleton["joints"][bone["tail"]], mapper=mapper),
     )
+
 
 def parse_obj(text: str) -> MeshData:
     """Parse HM08 and retain only its canonical visible body surface.
@@ -511,6 +533,7 @@ def parse_obj(text: str) -> MeshData:
     )
     return MeshData(body_vertices, body_triangles).validate()
 
+
 @lru_cache(maxsize=4)
 def load_makehuman_mesh(path: str | None = None) -> MeshData:
     """Load and return the requested makehuman mesh resource."""
@@ -520,8 +543,10 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
     except (OSError, UnicodeError, ValueError, HumanoidMeshError) as exc:
         raise HumanoidMeshError(f"unable to parse MakeHuman base mesh {source}: {exc}") from exc
 
+
 def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * max(0.0, min(1.0, t))
+
 
 def _smoothstep(a: float, b: float, x: float) -> float:
     if a == b:
@@ -529,9 +554,11 @@ def _smoothstep(a: float, b: float, x: float) -> float:
     t = max(0.0, min(1.0, (x - a) / (b - a)))
     return t * t * (3.0 - 2.0 * t)
 
+
 def _axis_bounds(vertices: Sequence[Point], axis: int) -> tuple[float, float]:
     values = [v[axis] for v in vertices]
     return min(values), max(values)
+
 
 def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
@@ -539,9 +566,11 @@ def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     span = max(1e-9, ymax - ymin)
     return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
 
+
 def _reoriented_triangles(triangles: Sequence[Triangle]) -> tuple[Triangle, ...]:
     """Reverse winding after the handedness-flipping Y/Z axis permutation."""
     return tuple((int(a), int(c), int(b)) for a, b, c in triangles)
+
 
 def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
     for i in range(len(profile) - 1):
@@ -551,6 +580,7 @@ def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
             return _lerp(s0, s1, _smoothstep(z0, z1, z))
     return profile[-1][1]
 
+
 def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
     """Return whether the authoritative dimensions are the canonical defaults."""
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
@@ -559,6 +589,7 @@ def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
         math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)
         for name, value in DEFAULT_MEASUREMENTS.items()
     )
+
 
 def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
     """Return proportional changes relative to the canonical mannequin dimensions."""
@@ -577,6 +608,7 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
         profile.append((z, max(0.75, min(1.35, ratio))))
     profile.extend(((0.75, 1.0), (1.0, 1.0)))
     return profile
+
 
 def _measurement_axis_profiles(
     parameters: AvatarParameters,
@@ -608,6 +640,7 @@ def _measurement_axis_profiles(
     depth.extend(((0.75, 1.0), (1.0, 1.0)))
     return lateral, depth
 
+
 def _gender_axis_profiles(
     parameters: AvatarParameters,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
@@ -636,6 +669,7 @@ def _gender_axis_profiles(
     ]
     return lateral, depth
 
+
 def _estimate_shoulder_pivots(
     vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
 ) -> dict[float, float]:
@@ -655,6 +689,7 @@ def _estimate_shoulder_pivots(
         medial = max(shoulder_half * 0.70, min(shoulder_half * 0.99, medial))
         pivots[side] = side * medial
     return pivots
+
 
 def _estimate_rest_arm_angles(
     vertices: Sequence[Point],
@@ -696,11 +731,13 @@ def _estimate_rest_arm_angles(
         result[side] = math.degrees(math.atan2(downward, radial_x))
     return result
 
+
 def _is_arm_bone(name: str, side: str) -> bool:
     if not name.endswith(side):
         return False
     base = name[:-2]
     return base.startswith(("upperarm", "lowerarm", "wrist", "hand", "finger", "thumb"))
+
 
 @lru_cache(maxsize=4)
 def load_makehuman_arm_weights(
@@ -733,6 +770,7 @@ def load_makehuman_arm_weights(
     except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
         raise HumanoidMeshError(f"unable to parse MakeHuman arm weights {source}: {exc}") from exc
 
+
 def load_makehuman_weights(
     vertex_count: int, path: str | None = None
 ) -> dict[str, tuple[tuple[int, float], ...]]:
@@ -759,6 +797,7 @@ def load_makehuman_weights(
         raise HumanoidMeshError(
             f"unable to parse MakeHuman skinning weights {source}: {exc}"
         ) from exc
+
 
 def _section_circumference(
     vertices: Sequence[Point],
@@ -882,6 +921,7 @@ def _section_circumference(
     # A body cross-section is the largest centered closed contour, not the
     # disconnected left/right arm or leg loops that can share its height.
     return max(central, key=lambda item: item[0])[1]
+
 
 def _make_source_fitted_mapper(
     source_vertices: Sequence[Point],
@@ -1077,6 +1117,7 @@ def _make_source_fitted_mapper(
 
     return transform
 
+
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
     source = apply_measurement_targets(_load_source_vertices(), parameters)
     skeleton = load_makehuman_skeleton()
@@ -1093,6 +1134,7 @@ def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[s
     if points[-1.0]["shoulder"][0] > points[1.0]["shoulder"][0]:
         points[-1.0], points[1.0] = points[1.0], points[-1.0]
     return points
+
 
 def fit_makehuman_mesh(
     mesh: MeshData,
@@ -1179,6 +1221,7 @@ def fit_makehuman_mesh(
         posed.append((x, y, z))
     return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles)).validate()
 
+
 def _arm_pose_weight(
     x: float,
     z: float,
@@ -1197,6 +1240,7 @@ def _arm_pose_weight(
     # the upper torso cutoff.
     vertical = _smoothstep(0.28, 0.34, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
+
 
 def build_humanoid_mesh(
     parameters: AvatarParameters, source_path: str | os.PathLike[str] | None = None
