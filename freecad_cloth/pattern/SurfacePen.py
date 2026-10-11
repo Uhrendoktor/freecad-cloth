@@ -15,7 +15,6 @@ from __future__ import annotations  # noqa: I001
 
 import collections.abc
 import contextlib
-import dataclasses
 import json
 import math
 
