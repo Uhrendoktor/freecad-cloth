@@ -6,6 +6,7 @@ from numbers import Real
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
+
 @dataclass(frozen=True)
 class CollisionSurface:
     """Immutable triangle surface consumed by collision-aware runtimes."""
@@ -33,7 +34,11 @@ class CollisionSurface:
         count = len(self.vertices)
         if not count:
             return (0.0, 0.0, 0.0)
-        return tuple(sum(vertex[i] for vertex in self.vertices) / count for i in range(3))
+        return (
+            sum(vertex[0] for vertex in self.vertices) / count,
+            sum(vertex[1] for vertex in self.vertices) / count,
+            sum(vertex[2] for vertex in self.vertices) / count,
+        )
 
     def with_thickness(self, thickness: float) -> "CollisionSurface":
         """Return the same surface with a different collision thickness."""

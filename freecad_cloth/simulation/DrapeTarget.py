@@ -96,15 +96,19 @@ def _shape_content_signature(shape):
             payload = exporter()
             if isinstance(payload, str):
                 payload = payload.encode("utf-8")
-            else:
+            elif isinstance(payload, (bytes, bytearray, memoryview)):
                 payload = bytes(payload)
+            else:
+                raise TypeError("BRep exporter must return text or bytes")
             return ("BRepHash", hashlib.sha256(payload).hexdigest())
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
-            return ("ShapeHash", int(hash_code()))
+            hash_value = hash_code()
+            if isinstance(hash_value, int) and not isinstance(hash_value, bool):
+                return ("ShapeHash", hash_value)
         except (TypeError, ValueError, RuntimeError):
             pass
     return ("Unknown",)

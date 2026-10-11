@@ -11,6 +11,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from math import isfinite
 
+from freecad_cloth.common.ValidationModels import validate_finite_number
+
 
 @dataclass(frozen=True)
 class SimulationQuality:
@@ -32,7 +34,7 @@ QUALITY_PRESETS = {
 def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     """Normalize FreeCAD/Python color representations to three RGB floats."""
     try:
-        values = tuple(float(item) for item in value)
+        values = tuple(validate_finite_number(item) for item in value)
     except (TypeError, ValueError):
         values = ()
     if len(values) < 3:
@@ -42,7 +44,7 @@ def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
         values = tuple(item / 255.0 for item in values)
     if any(not 0.0 <= item <= 1.0 for item in values):
         raise ValueError("color_rgb channels must be between 0 and 1 or 0 and 255")
-    return values
+    return values[0], values[1], values[2]
 
 
 @dataclass(frozen=True)

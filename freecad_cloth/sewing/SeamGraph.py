@@ -8,6 +8,7 @@ compatibility adapter, not a second seam representation.
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import isfinite
+from typing import cast
 
 from freecad_cloth.common.ValidationModels import (
     TransformMatrixInput,
@@ -292,7 +293,7 @@ class SeamGraph:
         values = tuple(raw_values)
         if len(values) < 2:
             raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
-        return values
+        return cast(tuple[int, ...], values)
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
