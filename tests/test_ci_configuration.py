@@ -120,7 +120,9 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing():
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
 
     assert "git ls-files -z -- '*.py' '*.pyi'" in quality
-    assert 'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    assert (
+        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    )
     assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
     assert "python -m ruff check --fix" not in quality
     assert "xargs -r python -m ruff check <" not in quality
