@@ -70,9 +70,7 @@ def _make_anny_rig_mapper(
             if 0 <= int(index) < len(source_vertices)
         ]
         fitted_points = [
-            rig_vertices[int(index)]
-            for index in indices
-            if 0 <= int(index) < len(rig_vertices)
+            rig_vertices[int(index)] for index in indices if 0 <= int(index) < len(rig_vertices)
         ]
         if source_points and fitted_points:
             source_centre = average(source_points)
