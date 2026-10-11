@@ -76,7 +76,9 @@ jobs:
           python tools/ci/timeout_contract.py
           python tools/ci/validate_ci_structure.py
           lint-imports
-          python tools/ci/check_explicit_any_annotations.py && pyright -p pyrightconfig.json && pyright -p pyrightconfig.agent-strict.json
+          python tools/ci/check_explicit_any_annotations.py
+          pyright -p pyrightconfig.json
+          pyright -p pyrightconfig.agent-strict.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
           ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
