@@ -321,7 +321,7 @@ jobs:
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@1418dfb31178a52e1c5d62022512a43ef1390061
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
