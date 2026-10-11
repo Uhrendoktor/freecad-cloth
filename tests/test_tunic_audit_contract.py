@@ -358,14 +358,14 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
     assert "shoulder_width + 100.0" in source
     assert "hem_width = max(450.0, panel_width + 90.0)" in source
-    assert "shoulder_span_ratio = 0.86 - 0.14" in audit
+    assert "shoulder_span_ratio = 0.94 - 0.06" in audit
     assert "clearance = max(20.0, 0.08 * body_depth)" in debug
     assert (
         '"clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);"'
         in audit
     )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
-    assert "shoulder_span_ratio = 0.86 - 0.14" in debug
+    assert "shoulder_span_ratio = 0.94 - 0.06" in debug
     assert "shoulder_width / shoulder_span_ratio + 20.0" in audit
     assert "hem_width = max(500.0, panel_width + 90.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
