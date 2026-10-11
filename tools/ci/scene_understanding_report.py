@@ -75,20 +75,21 @@ def _parse_topology(line: str) -> dict[str, object] | None:
     raw_boundaries = _literal_tuple(match.group(8))
     boundaries: list[dict[str, object]] = []
     for item in raw_boundaries:
-        if not isinstance(item, tuple) or len(item) != 5:
+        if not isinstance(item, tuple) or len(item) not in {5, 6}:
             continue
         edge_name = str(item[0])
         edge_match = re.search(r":edge:(\d+)$", edge_name)
-        boundaries.append(
-            {
-                "id": edge_name,
-                "edge_index": int(edge_match.group(1)) if edge_match else None,
-                "kind": str(item[1]),
-                "sample_count": int(item[2]),
-                "start_mm": _point(item[3]),
-                "end_mm": _point(item[4]),
-            }
-        )
+        boundary: dict[str, object] = {
+            "id": edge_name,
+            "edge_index": int(edge_match.group(1)) if edge_match else None,
+            "kind": str(item[1]),
+            "sample_count": int(item[2]),
+            "start_mm": _point(item[3]),
+            "end_mm": _point(item[4]),
+        }
+        if len(item) == 6 and isinstance(item[5], tuple):
+            boundary["samples_local_mm"] = [_point(point) for point in item[5]]
+        boundaries.append(boundary)
     raw_nearby = _literal_tuple(match.group(9))
     nearby: list[dict[str, object]] = []
     for item in raw_nearby:
@@ -476,8 +477,13 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             start = _point(boundary.get("start_mm"))
             end = _point(boundary.get("end_mm"))
             local_points = [start, end]
+            sampled_boundary = cast(list[list[float]], boundary.get("samples_local_mm", []))
             armhole = armholes.get(edge_index) if edge_index is not None else None
-            if str(boundary.get("kind")) == "arc" and isinstance(armhole, dict):
+            if len(sampled_boundary) >= 2:
+                local_points = sampled_boundary
+            elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
+                armhole, dict
+            ):
                 samples = cast(list[list[float]], armhole.get("samples_local_mm", []))
                 if len(samples) >= 2:
                     distance_forward = math.dist(samples[0], start)
