@@ -286,12 +286,19 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         )
 
     avatar_image_present = (
-        any("cloth-mannequin-near-t-pose.png" in name for name in screenshot_states)
-        or (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+        "cloth-mannequin-near-t-pose.png" in screenshot_states
+        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
     )
-    pattern_image_present = (output_root / "cloth-pattern-design.png").is_file()
-    sewing_image_present = (output_root / "cloth-sewing.png").is_file()
-    drape_image_present = any(output_root.glob("cloth-simulation-draped*.png"))
+    pattern_image_present = (
+        "cloth-pattern-design.png" in screenshot_states
+        and (output_root / "cloth-pattern-design.png").is_file()
+    )
+    sewing_image_present = (
+        "cloth-sewing.png" in screenshot_states and (output_root / "cloth-sewing.png").is_file()
+    )
+    drape_image_present = any(
+        name.startswith("cloth-simulation-draped") for name in screenshot_states
+    )
     if pose is not None and avatar_image_present:
         pose_state = "passed"
     elif pose is not None:
@@ -596,8 +603,16 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                     f'<text x="{origin_x:.3f}" y="637" font-size="13" font-family="sans-serif" fill="#cc2222">Crossing: ({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>',
                 ]
             )
-        valid = bool(record.get("ir_valid")) and bool(record.get("draft_valid"))
-        state = "VALID" if valid else "INVALID — SELF-INTERSECTION"
+        native_valid = bool(record.get("ir_valid"))
+        derived_valid = bool(record.get("draft_valid"))
+        valid = native_valid and derived_valid
+        state = (
+            "VALID"
+            if valid
+            else "INVALID — NATIVE PATTERN TOPOLOGY"
+            if not native_valid
+            else "INVALID — DERIVED OUTLINE REPRESENTATION"
+        )
         pieces_rendered.append(
             f'<text x="{origin_x:.3f}" y="26" font-size="17" font-weight="700" '
             f'font-family="sans-serif" fill="{title_color}">{html.escape(piece_name)}</text>'
