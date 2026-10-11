@@ -976,6 +976,102 @@ def simulation():
 
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+
+    def log_tunic_outline_topology(piece):
+        """Log the actual sampled boundary and crossing edges before sewing or draping."""
+        import ast
+        import re
+
+        from shapely.geometry import LineString, Point, Polygon
+        from shapely.validation import explain_validity
+
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+        piece_ir = resolve_piece_ir(piece)
+        outline = []
+        segments = []
+        boundary_summary = []
+        for boundary in piece_ir.boundaries:
+            samples = tuple(
+                (round(float(sample[0]), 6), round(float(sample[1]), 6))
+                for sample in boundary.samples
+            )
+            if len(samples) < 2:
+                raise RuntimeError(
+                    "pattern topology audit found a boundary with fewer than two samples: "
+                    "%s:%s" % (piece.Name, boundary.id)
+                )
+            boundary_summary.append(
+                (
+                    str(boundary.id),
+                    str(boundary.kind),
+                    len(samples),
+                    samples[0],
+                    samples[-1],
+                    samples,
+                )
+            )
+            outline.extend(samples[:-1])
+            segments.extend(
+                (str(boundary.id), start, end)
+                for start, end in zip(samples, samples[1:], strict=True)
+            )
+
+        ir_polygon = Polygon(outline)
+        ir_reason = explain_validity(ir_polygon)
+        try:
+            draft_points = tuple(
+                (float(point[0]), float(point[1]))
+                for point in ast.literal_eval(str(piece.DraftingBoundary))
+            )
+            draft_polygon = Polygon(draft_points)
+            draft_valid = bool(draft_polygon.is_valid)
+            draft_reason = explain_validity(draft_polygon)
+        except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+            draft_points = ()
+            draft_valid = False
+            draft_reason = "derived outline unavailable: %s" % type(exc).__name__
+
+        crossing_match = re.search(
+            r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]",
+            ir_reason,
+        )
+        if crossing_match is None:
+            nearby = ()
+        else:
+            crossing = Point(float(crossing_match.group(1)), float(crossing_match.group(2)))
+            distances = sorted(
+                (
+                    round(float(LineString((start, end)).distance(crossing)), 6),
+                    index,
+                    edge_id,
+                    start,
+                    end,
+                )
+                for index, (edge_id, start, end) in enumerate(segments)
+            )
+            nearby = tuple(distances[:8])
+
+        log(
+            "tunic-outline-topology piece=%s ir-valid=%s ir-reason=%s "
+            "draft-valid=%s draft-reason=%s ir-points=%d draft-points=%d "
+            "boundary-order=%r near-crossing=%r"
+            % (
+                piece.Name,
+                bool(ir_polygon.is_valid),
+                ir_reason,
+                draft_valid,
+                draft_reason,
+                len(outline),
+                len(draft_points),
+                tuple(boundary_summary),
+                nearby,
+            )
+        )
+
+    for piece in (front, back):
+        log_tunic_outline_topology(piece)
+
     capture_tunic_pattern_view(doc, front, back, hem_width)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
