@@ -235,8 +235,12 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     invalid_native = [record for record in topology_records if not bool(record["ir_valid"])]
     invalid_derived = [record for record in topology_records if not bool(record["draft_valid"])]
     invalid_geometry_by_piece = {
-        str(record["piece"]): record for record in (*invalid_native, *invalid_derived)
+        str(record["piece"]): record for record in invalid_derived
     }
+    # Preserve the earliest causal failure if native and derived outlines are both invalid.
+    invalid_geometry_by_piece.update(
+        {str(record["piece"]): record for record in invalid_native}
+    )
     invalid_geometry = list(invalid_geometry_by_piece.values())
     failure_text = "\n".join(failure_lines)
     failure_unknown = bool(failure_lines) and not invalid_geometry
@@ -402,7 +406,8 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
                 if float(item["distance_mm"]) <= 1e-6
             ],
         }
-        for record in invalid_topology
+        for record in invalid_geometry
+        if record["crossing_local_mm"] is not None
     ]
 
     return {
