@@ -1,6 +1,5 @@
 """Tests for repository Markdown link validation."""
 
-from pathlib import Path
 
 from tools.check_markdown_contract import ROOT, check, markdown_files
 
