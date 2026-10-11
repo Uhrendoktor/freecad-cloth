@@ -214,8 +214,7 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
     assert max(xs) - min(xs) == 110.0
     assert max(ys) - min(ys) == 70.0
     assert all(
-        contour[index] != contour[(index + 1) % len(contour)]
-        for index in range(len(contour))
+        contour[index] != contour[(index + 1) % len(contour)] for index in range(len(contour))
     )
     dxf = to_dxf(pattern, derived=derived)
     assert "8\nCUT\n" in dxf
