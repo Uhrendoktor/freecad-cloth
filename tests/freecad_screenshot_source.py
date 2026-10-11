@@ -804,8 +804,8 @@ def _make_tunic_sketch(
     sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.40 * float(garment_height)
-    shoulder_z = 0.86 * float(garment_height)
+    armhole_z = 0.56 * float(garment_height)
+    shoulder_z = 0.88 * float(garment_height)
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
@@ -1224,7 +1224,7 @@ def simulation():
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
     panel_width = max(420.0, shoulder_width + 100.0)
-    hem_width = max(450.0, panel_width + 80.0)
+    hem_width = max(450.0, panel_width + 90.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)
