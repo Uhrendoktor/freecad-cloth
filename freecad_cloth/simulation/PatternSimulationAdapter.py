@@ -7,6 +7,7 @@ compatibility path for documents without a native Sketcher authority.
 
 import ast
 from collections.abc import Mapping, Sequence
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
@@ -21,7 +22,6 @@ from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 CURVE_SAMPLES = 64
 
-
 @pydantic_dataclass(frozen=True)
 class ResolvedSimulationPattern:
     """Resolved PatternIR plus the originating FreeCAD PatternPiece objects."""
@@ -34,13 +34,11 @@ class ResolvedSimulationPattern:
         """Provide the public piece operation."""
         return self.pattern.piece(piece_id)
 
-
 def is_sketch_authoritative(piece) -> bool:
     # The persisted authority flag is itself part of the fail-closed contract:
     # a missing Sketch on a Sketcher-authoritative piece must not trigger legacy fallback.
     """Provide the public is sketch authoritative operation."""
     return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
-
 
 def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int = CURVE_SAMPLES):
     """Resolve document PatternPieces and canonical seams into one PatternIR."""
@@ -151,13 +149,11 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
     )
     return ResolvedSimulationPattern(pattern, piece_objects, signature)
 
-
 def resolve_piece_ir(piece, curve_samples: int = CURVE_SAMPLES):
     """Resolve one document PatternPiece for compatibility callers/tests."""
     if curve_samples < 2:
         raise ValueError("curve_samples must be at least 2")
     return _resolve_piece_ir(piece, curve_samples)
-
 
 def geometry_from_piece_ir(piece_ir):
     """Convert PatternIR boundaries into the existing ParametricPattern mesh input."""
@@ -169,7 +165,6 @@ def geometry_from_piece_ir(piece_ir):
         else:
             segments.append(PolylineSegment(str(boundary.id), points))
     return ParametricPattern(segments)
-
 
 def _resolve_piece_ir(piece, curve_samples):
     native = is_sketch_authoritative(piece)
@@ -205,7 +200,6 @@ def _resolve_piece_ir(piece, curve_samples):
         curve_samples=curve_samples,
     ).piece(model.id)
 
-
 def _piece_model(piece, *, native):
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     label = str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece_id)
@@ -217,7 +211,6 @@ def _piece_model(piece, *, native):
         grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
         id=piece_id,
     )
-
 
 def _legacy_outline(piece):
     """Explicit compatibility geometry for non-Sketcher PatternPieces only."""
@@ -237,7 +230,6 @@ def _legacy_outline(piece):
     width = float(piece.Width)
     height = float(piece.Height)
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
-
 
 def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
     native = is_sketch_authoritative(piece)
@@ -292,7 +284,6 @@ def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
     )
     return boundary.id
 
-
 def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute, native):
     stored = str(getattr(seam_obj, signature_attribute, "")).strip()
     if native and not stored.startswith("native-v1:"):
@@ -326,7 +317,6 @@ def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attri
     ).signature
     if current != stored:
         raise ChangedEdgeReference(f"semantic edge reference {edge_id} geometry/provenance changed")
-
 
 def _placement_signature(piece):
     placement = getattr(piece, "Placement", None)
