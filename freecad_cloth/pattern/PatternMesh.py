@@ -9,6 +9,7 @@ workbench's semantic boundary/provenance contract.
 
 from collections.abc import Sequence
 from math import ceil, hypot, isclose, isfinite
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
