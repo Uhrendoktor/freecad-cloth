@@ -824,6 +824,44 @@ def render_markdown(report: dict[str, object]) -> str:
         lines.append(
             f"| {stage_name.replace('_', ' ')} | {stages.get(stage_name, 'not_observed')} |"
         )
+    fit = _as_dict(report.get("fit_assessment"))
+    fit_state = str(fit.get("state", "not_assessed"))
+    fit_findings = _as_list(fit.get("findings"))
+    fit_deviations = _as_dict(fit.get("deviations_mm"))
+    fit_references = _as_dict(fit.get("reference_levels_mm"))
+    fit_observed = _as_dict(fit.get("observed_final_panel_z_mm"))
+    lines.extend(["", "## Fit and placement assessment", ""])
+    lines.append(f"**Screening state:** {fit_state.upper().replace('_', ' ')}")
+    if fit_state == "review_required":
+        lines.append(
+            "The execution and collision checks may have passed while garment coverage or vertical placement remains suspicious."
+        )
+        lines.append(
+            f"- Final panel Z range: {fit_observed.get('minimum')} to {fit_observed.get('maximum')} mm."
+        )
+        lines.append(
+            f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
+            f"{fit_references.get('shoulder_z')} mm ({fit_references.get('shoulder_reference_source', 'source unavailable')})."
+        )
+        for raw_finding in fit_findings:
+            if not isinstance(raw_finding, dict):
+                continue
+            finding = cast(dict[str, object], raw_finding)
+            lines.append(
+                f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
+                f"({finding.get('observed_mm')} mm; heuristic review threshold "
+                f"{finding.get('review_threshold_mm')} mm)."
+            )
+    elif fit_state == "within_heuristic_tolerance":
+        lines.append(
+            "No large vertical-bounds deviation exceeded the screening threshold. This is not a fit or attachment certification."
+        )
+    else:
+        lines.append(str(fit.get("reason", "No fit-alignment measurements were available.")))
+    if fit.get("interpretation_limit"):
+        lines.append(f"Limit: {fit.get('interpretation_limit')}")
+    lines.append(f"Next action: {fit.get('next_action', report.get('next_action'))}")
+
     issues = _as_list(report.get("issues"))
     lines.extend(["", "## Blocking geometry findings", ""])
     if issues:
@@ -850,7 +888,7 @@ def render_markdown(report: dict[str, object]) -> str:
         )
     else:
         lines.append(
-            "No invalid polygon was reported. This does not imply a successful fit; inspect the stage table and available measurements."
+            "No invalid polygon was reported. Topology validity is independent from body coverage, placement, and attachment."
         )
         lines.append(f"Next action: {report.get('next_action')}")
     lines.extend(["", "## Placement observations", ""])
