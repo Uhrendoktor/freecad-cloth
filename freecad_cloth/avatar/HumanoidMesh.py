@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
 
+from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
+
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
     "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
@@ -702,15 +704,154 @@ def load_makehuman_weights(
         ) from exc
 
 
+def _section_circumference(
+    vertices: Sequence[Point],
+    triangles: Sequence[Triangle],
+    plane: float,
+    vertical_axis: int = 2,
+    max_width: float | None = None,
+) -> float:
+    """Measure a closed mesh-section perimeter at a horizontal height plane.
+
+    Triangle/plane intersections form a graph of contour segments. The largest
+    centrally located closed loop is selected so disconnected limb sections do
+    not accidentally become the body circumference.
+    """
+    if vertical_axis not in (0, 1, 2):
+        raise ValueError("vertical_axis must be 0, 1, or 2")
+    axes = tuple(axis for axis in range(3) if axis != vertical_axis)
+    node_points: dict[tuple[int, int], tuple[float, float]] = {}
+    graph: dict[tuple[int, int], set[tuple[int, int]]] = {}
+    segment_seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
+
+    def node(point: tuple[float, float]) -> tuple[int, int]:
+        key = (round(point[0] * 10000), round(point[1] * 10000))
+        node_points.setdefault(key, point)
+        graph.setdefault(key, set())
+        return key
+
+    for tri in triangles:
+        if len(tri) != 3 or any(index < 0 or index >= len(vertices) for index in tri):
+            continue
+        tri_points = [vertices[index] for index in tri]
+        hits: dict[tuple[int, int], tuple[float, float]] = {}
+        for start, end in ((0, 1), (1, 2), (2, 0)):
+            first, second = tri_points[start], tri_points[end]
+            z0, z1 = first[vertical_axis], second[vertical_axis]
+            if (z0 < plane < z1) or (z1 < plane < z0):
+                fraction = (plane - z0) / (z1 - z0)
+            elif math.isclose(z0, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
+                z1, plane, rel_tol=0.0, abs_tol=1e-8
+            ):
+                fraction = 0.0
+            elif math.isclose(z1, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
+                z0, plane, rel_tol=0.0, abs_tol=1e-8
+            ):
+                fraction = 1.0
+            else:
+                continue
+            point = tuple(
+                first[axis] + fraction * (second[axis] - first[axis]) for axis in axes
+            )
+            key = (round(point[0] * 10000), round(point[1] * 10000))
+            hits.setdefault(key, point)
+        if len(hits) != 2:
+            continue
+        first_key, second_key = hits
+        if first_key == second_key:
+            continue
+        edge = tuple(sorted((first_key, second_key)))
+        if edge in segment_seen:
+            continue
+        segment_seen.add(edge)
+        node_points.setdefault(first_key, hits[first_key])
+        node_points.setdefault(second_key, hits[second_key])
+        graph.setdefault(first_key, set()).add(second_key)
+        graph.setdefault(second_key, set()).add(first_key)
+
+    if not graph:
+        return 0.0
+
+    loops: list[tuple[float, float, float, float]] = []
+    visited: set[tuple[int, int]] = set()
+    for seed in graph:
+        if seed in visited:
+            continue
+        component: set[tuple[int, int]] = set()
+        stack = [seed]
+        while stack:
+            current = stack.pop()
+            if current in component:
+                continue
+            component.add(current)
+            stack.extend(graph[current] - component)
+        visited.update(component)
+        if len(component) < 3 or any(len(graph[key]) != 2 for key in component):
+            continue
+        start = min(component)
+        ordered = [start]
+        previous: tuple[int, int] | None = None
+        current = start
+        closed = False
+        for _ in range(len(component) + 1):
+            options = sorted(key for key in graph[current] if key != previous)
+            if not options:
+                break
+            following = options[0]
+            if following == start:
+                closed = True
+                break
+            if following in ordered:
+                break
+            ordered.append(following)
+            previous, current = current, following
+        if not closed or len(ordered) < 3:
+            continue
+        points = [node_points[key] for key in ordered]
+        perimeter = sum(
+            math.hypot(
+                points[(index + 1) % len(points)][0] - point[0],
+                points[(index + 1) % len(points)][1] - point[1],
+            )
+            for index, point in enumerate(points)
+        )
+        twice_area = sum(
+            points[index][0] * points[(index + 1) % len(points)][1]
+            - points[(index + 1) % len(points)][0] * points[index][1]
+            for index in range(len(points))
+        )
+        area = abs(twice_area) * 0.5
+        centroid_x = sum(point[0] for point in points) / len(points)
+        width = max(point[0] for point in points) - min(point[0] for point in points)
+        if area > 1e-5 and perimeter > 1e-5:
+            loops.append((area, perimeter, abs(centroid_x), width))
+
+    central = [
+        item
+        for item in loops
+        if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)
+    ]
+    if not central:
+        return 0.0
+    # A body cross-section is the largest centered closed contour, not the
+    # disconnected left/right arm or leg loops that can share its height.
+    return max(central, key=lambda item: item[0])[1]
+
+
 def _make_source_fitted_mapper(
-    source_vertices: Sequence[Point], parameters: AvatarParameters, skin_offset: float
+    source_vertices: Sequence[Point],
+    parameters: AvatarParameters,
+    skin_offset: float,
+    source_triangles: Sequence[Triangle] | None = None,
 ) -> Callable[[Point], Point]:
     """Map source vertices using fixed calibration and localized dimensions.
 
     Axis calibration is pinned to the canonical body envelope. Measurement
     changes act only within their height bands so local edits cannot rescale
     unrelated regions such as the head. Skeleton callers use zero skin offset;
-    padding is reserved for the visible surface.
+    padding is reserved for the visible surface. When the source topology is
+    supplied, a section-contour pass iteratively calibrates the named torso
+    rings to their requested circumference in millimetres.
     """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
@@ -827,13 +968,61 @@ def _make_source_fitted_mapper(
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
 
+    if source_triangles:
+        # Apply damped corrections at the named profile nodes. Each iteration
+        # measures the actual deformed mesh contour, so target morphs, gender
+        # shape, anisotropic scaling, and the soft torso mask are all included.
+        profile_parameters = (
+            ("hip", 0.50, 1.25),
+            ("high_hip", 0.54, 1.20),
+            ("waist", 0.58, 1.30),
+            ("underbust", 0.64, 1.15),
+            ("chest", 0.69, 1.15),
+        )
+        for _iteration in range(7):
+            fitted_body = tuple(transform(point) for point in body)
+            max_relative_error = 0.0
+            for index, (name, normalized_height, lateral_exponent) in enumerate(
+                profile_parameters, start=1
+            ):
+                requested = float(parameters.measurement(name))
+                contour_limit = max(
+                    520.0,
+                    2.0 * _profile_scale(normalized_height, core_width_profile) + 250.0,
+                )
+                actual = _section_circumference(
+                    fitted_body,
+                    source_triangles,
+                    normalized_height * height_mm,
+                    vertical_axis=2,
+                    max_width=contour_limit,
+                )
+                if actual <= 1e-6 or requested <= 0.0:
+                    continue
+                relative_error = (requested - actual) / requested
+                max_relative_error = max(max_relative_error, abs(relative_error))
+                correction = max(0.70, min(1.43, requested / actual))
+                current_x = measurement_profile_x[index][1]
+                current_y = measurement_profile_y[index][1]
+                measurement_profile_x[index] = (
+                    normalized_height,
+                    max(0.45, min(2.25, current_x * correction**lateral_exponent)),
+                )
+                measurement_profile_y[index] = (
+                    normalized_height,
+                    max(0.45, min(2.25, current_y * correction ** (2.0 - lateral_exponent))),
+                )
+            if max_relative_error <= 0.002:
+                break
+
     return transform
 
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
-    source = _load_source_vertices()
+    source = apply_measurement_targets(_load_source_vertices(), parameters)
     skeleton = load_makehuman_skeleton()
-    transform = _make_source_fitted_mapper(source, parameters, 0.0)
+    triangles = load_makehuman_mesh().triangles
+    transform = _make_source_fitted_mapper(source, parameters, 0.0, source_triangles=triangles)
     points = {}
     for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
         shoulder = _bone_source_endpoints(
@@ -855,8 +1044,14 @@ def fit_makehuman_mesh(
     """Fit HM08 and pose arms using source-authored bones and skinning weights."""
     mesh.validate()
     height_mm = float(parameters.measurement("height"))
-    transform = _make_source_fitted_mapper(mesh.vertices, parameters, float(parameters.skin_offset))
-    fitted = tuple(transform(point) for point in mesh.vertices)
+    source_vertices = apply_measurement_targets(mesh.vertices, parameters)
+    transform = _make_source_fitted_mapper(
+        source_vertices,
+        parameters,
+        float(parameters.skin_offset),
+        source_triangles=mesh.triangles,
+    )
+    fitted = tuple(transform(point) for point in source_vertices)
 
     pose = parameters.pose
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
