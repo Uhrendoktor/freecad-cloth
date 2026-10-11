@@ -23,12 +23,7 @@ def _write_mesh(obj, positions, triangles):
     import Mesh
 
     native = Mesh.Mesh()
-    native.addFacets(
-        [
-            (positions[a], positions[b], positions[c])
-            for a, b, c in triangles
-        ]
-    )
+    native.addFacets([(positions[a], positions[b], positions[c]) for a, b, c in triangles])
     obj.Mesh = native
 
 
@@ -732,7 +727,12 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Draping", "Avatar source used by fitting workflows")
+    scene.addProperty(
+        "App::PropertyLinkGlobal",
+        "AvatarProxy",
+        "Draping",
+        "Avatar source used by fitting workflows",
+    )
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"
