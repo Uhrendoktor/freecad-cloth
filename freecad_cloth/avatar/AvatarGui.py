@@ -504,11 +504,11 @@ class AvatarTaskPanel:
         if value == 50:
             label = "Neutral"
         elif value < 50:
-            label = "Feminine {}%".format(100 - value * 2)
+            label = f"Feminine {100 - value * 2}%"
         else:
-            label = "Masculine {}%".format((value - 50) * 2)
+            label = f"Masculine {(value - 50) * 2}%"
         self.gender_value.setText(label)
-        self.breast_value.setText("{}%".format(int(self.breast_slider.value())))
+        self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
         self._update_shape_labels()
