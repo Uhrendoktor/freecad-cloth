@@ -360,7 +360,7 @@ def run():
     shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
     hem_z = float(hip_point.z)
     shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
-    panel_fit_ratio = 0.94 - 0.06
+    panel_fit_ratio = 0.96 - 0.04
     panel_width = max(420.0, shoulder_width / panel_fit_ratio + 35.0)
     hem_width = max(500.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)
