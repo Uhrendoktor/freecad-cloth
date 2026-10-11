@@ -12,7 +12,9 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
+    HumanoidMeshError,
     _bone_source_endpoints,
+    _load_source_vertices,
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
@@ -31,6 +33,62 @@ Mapper = Callable[[Point], Point]
 def _identity_point(point: Point) -> Point:
     """Preserve a library-fitted point in FreeCAD's millimetre coordinate frame."""
     return (float(point[0]), float(point[1]), float(point[2]))
+
+
+def _make_anny_rig_mapper(
+    source_vertices: tuple[Point, ...],
+    rig_vertices: tuple[Point, ...],
+    skeleton: dict,
+) -> Mapper:
+    """Map stable MakeHuman source points to the same indices in fitted Anny space."""
+    if len(source_vertices) != len(rig_vertices):
+        raise HumanoidMeshError(
+            "Anny's fitted vertices do not match the original MakeHuman rig index space."
+        )
+
+    def average(points: list[Point]) -> Point:
+        count = float(len(points))
+        return (
+            sum(point[0] for point in points) / count,
+            sum(point[1] for point in points) / count,
+            sum(point[2] for point in points) / count,
+        )
+
+    vertices_by_point: dict[Point, list[Point]] = {}
+    for source_point, fitted_point in zip(source_vertices, rig_vertices, strict=True):
+        key = _identity_point(source_point)
+        vertices_by_point.setdefault(key, []).append(_identity_point(fitted_point))
+    mapped_vertices = {
+        point: average(fitted_points) for point, fitted_points in vertices_by_point.items()
+    }
+
+    joint_centres: dict[Point, list[Point]] = {}
+    for indices in skeleton["joints"].values():
+        source_points = [
+            source_vertices[int(index)]
+            for index in indices
+            if 0 <= int(index) < len(source_vertices)
+        ]
+        fitted_points = [
+            rig_vertices[int(index)]
+            for index in indices
+            if 0 <= int(index) < len(rig_vertices)
+        ]
+        if source_points and fitted_points:
+            source_centre = average(source_points)
+            fitted_centre = average(fitted_points)
+            joint_centres.setdefault(source_centre, []).append(fitted_centre)
+    mapped_joint_centres = {
+        point: average(fitted_points) for point, fitted_points in joint_centres.items()
+    }
+
+    def map_point(point: Point) -> Point:
+        key = _identity_point(point)
+        if key in mapped_joint_centres:
+            return mapped_joint_centres[key]
+        return mapped_vertices.get(key, key)
+
+    return map_point
 
 
 LANDMARK_BONES = {
@@ -118,9 +176,10 @@ def pose_world_state(
     dict[str, AffineTransform],
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
-    source_vertices = build_avatar_rig_vertices(parameters)
-    mapper = _identity_point
+    source_vertices = _load_source_vertices()
+    rig_vertices = build_avatar_rig_vertices(parameters)
     skeleton = load_makehuman_skeleton()
+    mapper = _make_anny_rig_mapper(source_vertices, rig_vertices, skeleton)
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
         parameters, source_vertices, skeleton, mapper
     )
@@ -139,10 +198,11 @@ def _manual_pose_state(
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
     source_mesh = mesh
-    source_vertices = build_avatar_rig_vertices(parameters)
-    mapper = _identity_point
+    source_vertices = _load_source_vertices()
+    rig_vertices = build_avatar_rig_vertices(parameters)
     padded_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=True)
     skeleton = load_makehuman_skeleton()
+    mapper = _make_anny_rig_mapper(source_vertices, rig_vertices, skeleton)
     effective_rotations, effective_pivots, base_rotations, base_pivots = (
         _effective_pose_configuration(parameters, source_vertices, skeleton, mapper)
     )
