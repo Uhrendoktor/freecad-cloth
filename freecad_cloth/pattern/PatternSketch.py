@@ -8,7 +8,6 @@ endpoint connectivity for downstream sewing and simulation adapters.
 from collections.abc import Sequence
 
 
-
 def _piece_object(document, piece_id):
     return next(
         (obj for obj in document.Objects if getattr(obj, "PieceId", "") == str(piece_id)), None
