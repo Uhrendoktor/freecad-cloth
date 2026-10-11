@@ -133,11 +133,11 @@ def _simulation_source_signature(obj, pieces):
 def _piece_mesh(piece, start_height, piece_ir=None):
     import FreeCAD as App
 
+    from freecad_cloth.pattern.PatternMesh import triangulate
     from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
-    from freecad_cloth.pattern.PatternMesh import triangulate
 
     if piece_ir is None:
         piece_ir = resolve_piece_ir(piece)
@@ -359,7 +359,7 @@ def _ensure_state_properties(obj):
                 "App::PropertyString", "SimulationState", "State", "Simulation lifecycle state"
             )
         if not hasattr(obj, "SimulationState"):
-            setattr(obj, "SimulationState", "READY_FOR_SIMULATION")
+            obj.SimulationState = "READY_FOR_SIMULATION"
     if not hasattr(obj, "InvalidationReason"):
         add_property = getattr(obj, "addProperty", None)
         if callable(add_property):
@@ -370,7 +370,7 @@ def _ensure_state_properties(obj):
                 "Why simulation derived state is stale or invalid",
             )
         if not hasattr(obj, "InvalidationReason"):
-            setattr(obj, "InvalidationReason", "")
+            obj.InvalidationReason = ""
 
 
 def _set_simulation_state(obj, state, reason=""):
@@ -476,8 +476,8 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
-        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
         )
