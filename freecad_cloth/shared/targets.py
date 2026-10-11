@@ -2,7 +2,6 @@
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-
 @pydantic_dataclass(frozen=True)
 class DrapeTargetRef:
     """Persistable target identity; geometry itself remains owned by FreeCAD."""
