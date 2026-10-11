@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import replace
-
 from math import isfinite
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
