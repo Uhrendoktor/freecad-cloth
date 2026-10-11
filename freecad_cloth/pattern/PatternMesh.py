@@ -12,7 +12,6 @@ from math import ceil, hypot, isclose, isfinite
 
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
-
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
