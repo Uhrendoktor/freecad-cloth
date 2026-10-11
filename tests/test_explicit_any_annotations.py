@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tools.ci.check_explicit_any_annotations import explicit_any_violations
 from tools.ci.validate_ci_structure import (
+    PYRIGHT_CONFIG,
     TYPECHECK_COMMANDS,
     TY_CONFIG,
     WORKFLOW,
     missing_typecheck_commands,
+    pyright_coverage_gaps,
     ty_warnings_are_blocking,
 )
 
@@ -29,6 +33,27 @@ from tools.ci.validate_ci_structure import (
 def test_explicit_any_references_are_rejected(source: str) -> None:
     """Reject direct, renamed, qualified, wildcard, and type-alias Any usage."""
     assert explicit_any_violations(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "from typing import Any\ndef render(value: 'Any') -> 'list[Any]':\n    return [value]\n",
+        "import typing as t\ndef render(value: 't.Any') -> None:\n    return None\n",
+        "from typing import Any as Dynamic\ndef render(value: 'Dynamic') -> None:\n    return None\n",
+        "from typing import Any\ndef render(value): # type: (Any) -> Any\n    return value\n",
+        "from typing import Any\nvalue = 1 # type: Any\n",
+    ),
+)
+def test_stringified_annotations_and_type_comments_are_rejected(source: str) -> None:
+    """Inspect quoted forward references and legacy type comments as type syntax."""
+    assert explicit_any_violations(source)
+
+
+def test_ordinary_strings_are_not_parsed_as_type_syntax() -> None:
+    """Leave ordinary text strings alone even when they contain the token Any."""
+    source = "from typing import Any\nmessage = 'Any'\ncaption = 'typing.Any'\n"
+    assert explicit_any_violations(source) == ()
 
 
 def test_concrete_types_and_protocols_are_accepted() -> None:
@@ -66,6 +91,20 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
     assert missing_typecheck_commands(tampered) == (command,)
+
+
+def test_pyright_coverage_includes_every_production_module() -> None:
+    """Require Pyright coverage to track the entire production tree."""
+    config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
+    assert pyright_coverage_gaps(config_text) == ()
+
+
+def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
+    """Catch future edits that silently reduce the Pyright include set."""
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["include"] = ["freecad_cloth/simulation/ClothBackend.py"]
+    gaps = pyright_coverage_gaps(json.dumps(config))
+    assert "freecad_cloth/common/GarmentDocument.py" in gaps
 
 
 def test_ty_warning_diagnostics_are_blocking() -> None:
