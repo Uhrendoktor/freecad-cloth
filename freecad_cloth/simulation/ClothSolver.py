@@ -6,7 +6,7 @@ for tests and adapters while leaving one production simulation implementation.
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import dist, isfinite
 
 from freecad_cloth.common.ValidationModels import (
@@ -15,7 +15,7 @@ from freecad_cloth.common.ValidationModels import (
 )
 
 
-@dataclass
+@pydantic_dataclass
 class Particle:
     """Mutable particle input expressed in FreeCAD millimetres."""
 
@@ -37,7 +37,7 @@ class Particle:
         return (self.x, self.y, self.z)
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DistanceConstraint:
     """Distance constraint input passed to the native solver."""
 
