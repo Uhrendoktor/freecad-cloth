@@ -94,6 +94,7 @@ GROUPS = {
         "tests/test_seam_graph.py",
         "tests/test_workbench_icons.py",
         "tests/test_tunic_audit_contract.py",
+        "tests/test_scene_understanding_report.py",
         "tests/test_readme_visual_contract.py",
         "tests/test_sketcher_bootstrap_contract.py",
         "tests/test_canonical_python_validation_contract.py",

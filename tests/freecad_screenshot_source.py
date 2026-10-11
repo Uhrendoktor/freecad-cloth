@@ -55,10 +55,7 @@ def ensure_task_view_visible():
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
     for dock in window.findChildren(QtWidgets.QDockWidget):
-        if (
-            dock.objectName() == "Tasks"
-            or "task" in str(dock.windowTitle()).lower()
-        ):
+        if dock.objectName() == "Tasks" or "task" in str(dock.windowTitle()).lower():
             dock.show()
             dock.raise_()
             events()
@@ -238,13 +235,19 @@ def _camera_snapshot(view):
     return {
         "quaternion": [round(float(value), 9) for value in rotation.Q],
         "screen_right_world": [
-            round(float(right.x), 6), round(float(right.y), 6), round(float(right.z), 6)
+            round(float(right.x), 6),
+            round(float(right.y), 6),
+            round(float(right.z), 6),
         ],
         "screen_up_world": [
-            round(float(up.x), 6), round(float(up.y), 6), round(float(up.z), 6)
+            round(float(up.x), 6),
+            round(float(up.y), 6),
+            round(float(up.z), 6),
         ],
         "view_forward_world": [
-            round(float(forward.x), 6), round(float(forward.y), 6), round(float(forward.z), 6)
+            round(float(forward.x), 6),
+            round(float(forward.y), 6),
+            round(float(forward.z), 6),
         ],
     }
 
@@ -270,7 +273,9 @@ def _seam_lateral_snapshot(proxy, center_x):
                 raise RuntimeError("seam lateral diagnostic found an invalid solver particle index")
             offsets.append(0.5 * (x_value(positions[a]) + x_value(positions[b])) - float(center_x))
         if not offsets:
-            raise RuntimeError("seam lateral diagnostic found a seam without samples: " + str(seam_id))
+            raise RuntimeError(
+                "seam lateral diagnostic found a seam without samples: " + str(seam_id)
+            )
         snapshot[str(seam_id)] = {
             "mean_x_offset_mm": round(sum(offsets) / len(offsets), 3),
             "min_x_offset_mm": round(min(offsets), 3),
@@ -411,20 +416,23 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
             )
             if target_mesh.is_watertight:
                 states = target_mesh.contains(np.asarray(points, dtype=float))
-                log("penetration-check=trimesh contains points=%d triangles=%d" % (
-                    len(points), len(triangles)
-                ))
+                log(
+                    "penetration-check=trimesh contains points=%d triangles=%d"
+                    % (len(points), len(triangles))
+                )
                 return int(np.count_nonzero(states))
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
 
         from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-        log("penetration-check=numpy-ray-parity points=%d triangles=%d" % (
-            len(points), len(triangles)
-        ))
+        log(
+            "penetration-check=numpy-ray-parity points=%d triangles=%d"
+            % (len(points), len(triangles))
+        )
         return sum(points_inside_closed_mesh(points, vertices, triangles))
     raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+
 
 def write_drape_metrics(
     panels,
@@ -436,9 +444,12 @@ def write_drape_metrics(
     proxy=None,
     collision_surface=None,
 ):
-    from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
-    from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, summarize
     from freecad_cloth.common.MeshValidation import validate_mesh
+    from freecad_cloth.simulation.DrapeFailureClassifier import (
+        classify_drape,
+        summarize_classification,
+    )
+    from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, summarize
 
     avatar_vertices = _mesh_points(getattr(avatar, "Mesh", None))
     box = avatar.Mesh.BoundBox
@@ -658,7 +669,6 @@ def style_mesh(obj, label):
         pass
 
 
-
 def capture_tunic_pattern_view(doc, front, back, hem_width):
     """Capture the exact Sketcher profiles that are subsequently used by the 3D audit."""
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
@@ -693,9 +703,7 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         front_placement = App.Placement(
             App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
         )
-        back_placement = App.Placement(
-            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
-        )
+        back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
         front.Sketch.Placement = front_placement
         back.Placement = back_placement
@@ -762,7 +770,9 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
     if not seam_records:
-        raise RuntimeError("canonical tunic sewing view needs the simulation's semantic seam records")
+        raise RuntimeError(
+            "canonical tunic sewing view needs the simulation's semantic seam records"
+        )
 
     pieces = (front, back)
     original_piece_placements = {
@@ -794,9 +804,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         front_placement = App.Placement(
             App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
         )
-        back_placement = App.Placement(
-            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
-        )
+        back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
         front.Sketch.Placement = front_placement
         back.Placement = back_placement
@@ -886,8 +894,8 @@ def simulation():
         refresh_drape_target,
         target_status,
     )
-    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
+    from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     scene = create_quality_simulation_scene(doc)
@@ -976,6 +984,122 @@ def simulation():
 
     front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)
     back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)
+
+    def log_tunic_outline_topology(piece):
+        """Log the actual sampled boundary and crossing edges before sewing or draping."""
+        import ast
+        import re
+
+        from shapely.geometry import LineString, Point, Polygon
+        from shapely.validation import explain_validity
+
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+        piece_ir = resolve_piece_ir(piece)
+        outline = []
+        segments = []
+        boundary_summary = []
+        for boundary in piece_ir.boundaries:
+            samples = tuple(
+                (round(float(sample[0]), 6), round(float(sample[1]), 6))
+                for sample in boundary.samples
+            )
+            if len(samples) < 2:
+                raise RuntimeError(
+                    "pattern topology audit found a boundary with fewer than two samples: "
+                    "%s:%s" % (piece.Name, boundary.id)
+                )
+            boundary_summary.append(
+                (
+                    str(boundary.id),
+                    str(boundary.kind),
+                    len(samples),
+                    samples[0],
+                    samples[-1],
+                    samples,
+                )
+            )
+            outline.extend(samples[:-1])
+            segments.extend(
+                (str(boundary.id), start, end)
+                for start, end in zip(samples[:-1], samples[1:], strict=True)
+            )
+
+        ir_polygon = Polygon(outline)
+        ir_reason = explain_validity(ir_polygon)
+        try:
+            draft_points = tuple(
+                (float(point[0]), float(point[1]))
+                for point in ast.literal_eval(str(piece.DraftingBoundary))
+            )
+            draft_polygon = Polygon(draft_points)
+            draft_valid = bool(draft_polygon.is_valid)
+            draft_reason = explain_validity(draft_polygon)
+        except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+            draft_points = ()
+            draft_valid = False
+            draft_reason = "derived outline unavailable: %s" % type(exc).__name__
+
+        crossing_pattern = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
+        ir_crossing = crossing_pattern.search(ir_reason)
+        draft_crossing = crossing_pattern.search(draft_reason)
+        crossing_match = ir_crossing or draft_crossing
+        if crossing_match is None:
+            nearby = ()
+        else:
+            crossing = Point(float(crossing_match.group(1)), float(crossing_match.group(2)))
+            if ir_crossing is not None:
+                crossing_segments = segments
+            else:
+                crossing_segments = tuple(
+                    (
+                        str(boundary_summary[index][0])
+                        if index < len(boundary_summary)
+                        else "derived-edge:%d" % index,
+                        start,
+                        draft_points[(index + 1) % len(draft_points)],
+                    )
+                    for index, start in enumerate(draft_points)
+                )
+            distances = sorted(
+                (
+                    round(float(LineString((start, end)).distance(crossing)), 6),
+                    index,
+                    edge_id,
+                    start,
+                    end,
+                )
+                for index, (edge_id, start, end) in enumerate(crossing_segments)
+            )
+            nearby = tuple(distances[:8])
+
+        record = {
+            "piece": piece.Name,
+            "ir_valid": bool(ir_polygon.is_valid),
+            "ir_reason": ir_reason,
+            "draft_valid": draft_valid,
+            "draft_reason": draft_reason,
+        }
+        log(
+            "tunic-outline-topology piece=%s ir-valid=%s ir-reason=%s "
+            "draft-valid=%s draft-reason=%s ir-points=%d draft-points=%d "
+            "boundary-order=%r near-crossing=%r"
+            % (
+                piece.Name,
+                record["ir_valid"],
+                ir_reason,
+                draft_valid,
+                draft_reason,
+                len(outline),
+                len(draft_points),
+                tuple(boundary_summary),
+                nearby,
+            )
+        )
+        return record
+
+    topology_results = [log_tunic_outline_topology(piece) for piece in (front, back)]
+
     capture_tunic_pattern_view(doc, front, back, hem_width)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
     seam_records = []
@@ -993,6 +1117,24 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)
+    invalid_native = next(
+        (record for record in topology_results if not bool(record["ir_valid"])),
+        None,
+    )
+    if invalid_native is not None:
+        raise RuntimeError(
+            "canonical tunic PatternIR boundary is invalid before simulation: "
+            "piece=%s reason=%s" % (invalid_native["piece"], invalid_native["ir_reason"])
+        )
+    invalid_derived = next(
+        (record for record in topology_results if not bool(record["draft_valid"])),
+        None,
+    )
+    if invalid_derived is not None:
+        raise RuntimeError(
+            "canonical tunic derived pattern outline is invalid before simulation: "
+            "piece=%s reason=%s" % (invalid_derived["piece"], invalid_derived["draft_reason"])
+        )
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 24.0
@@ -1161,10 +1303,16 @@ def simulation():
             "simulation seam overlay is not rendering exact solver stitch pairs: "
             f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
         )
-    log("simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs" % sorted(rendered_seam_ids))
+    log(
+        "simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs"
+        % sorted(rendered_seam_ids)
+    )
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
         raise RuntimeError("draped tunic panel mesh is empty")
-    from freecad_cloth.simulation.ClothDiagnosticsGui import DiagnosticsTaskPanel, create_diagnostic_map
+    from freecad_cloth.simulation.ClothDiagnosticsGui import (
+        DiagnosticsTaskPanel,
+        create_diagnostic_map,
+    )
 
     diagnostics_panel = DiagnosticsTaskPanel(scene)
     diagnostic_dock = show_task(
