@@ -88,7 +88,7 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         "trimesh>=4,<6" \
         "scipy>=1.14,<2" \
         "shapely>=2,<3" \
-        "anny[warp]>=0.5,<0.6" \
+        "anny[warp]>=0.6,<0.7" \
         "clad-body[anny]>=0.6.1,<0.7" \
         pytest \
         hypothesis==6.168.3 \
@@ -102,7 +102,7 @@ SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
 EOF
 
 # Prebuild the unedited MakeHuman body topology and local-morph basis using
-# the same Anny 0.5 compatibility API used by the runtime backend.
+# the Anny legacy compatibility API supported by clad-body 0.6.1 used by the runtime backend.
 ENV ANNY_CACHE_DIR=/opt/freecad-cloth/cache/anny
 RUN mkdir -p "$ANNY_CACHE_DIR" && chmod 777 "$ANNY_CACHE_DIR" && \
     /opt/conda/envs/freecad/bin/python - <<'PY'
@@ -114,7 +114,7 @@ import anny
 import torch
 from clad_body.load.anny import build_anny_apose
 
-# get_anny_root_dir() is available in newer Anny releases; in 0.5 the assets
+# get_anny_root_dir() is the supported Anny 0.6 asset lookup; as a fallback the assets
 # are bundled directly beside anny.__init__.
 root = Path(anny.__file__).resolve().parent
 try:
