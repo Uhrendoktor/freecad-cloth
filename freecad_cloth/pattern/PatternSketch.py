@@ -5,6 +5,9 @@ identity and derived compatibility data; PatternIR preserves curve kind and
 endpoint connectivity for downstream sewing and simulation adapters.
 """
 
+from collections.abc import Sequence
+
+
 
 def _piece_object(document, piece_id):
     return next(
@@ -31,7 +34,9 @@ def _ensure_piece_properties(obj):
         obj.GeometryAuthority = ["PatternParameters", "Sketcher"]
 
 
-def _is_axis_aligned_rectangle(points, tolerance=1e-7):
+def _is_axis_aligned_rectangle(
+    points: Sequence[tuple[float, float]], tolerance: float = 1e-7
+) -> bool:
     """Return whether four points describe the four corners of an axis-aligned rectangle."""
     if len(points) != 4:
         return False
@@ -86,7 +91,9 @@ def _add_geometry(sketch, points):
     sketch.addConstraint(constraints)
 
 
-def _add_native_geometry(sketch, segments):
+def _add_native_geometry(
+    sketch: object, segments: Sequence[tuple[str, Sequence[tuple[float, float]]]]
+) -> None:
     """Add connected line/B-spline boundary segments to a native Sketcher sketch."""
     import FreeCAD as App
     import Part
@@ -117,7 +124,11 @@ def _add_native_geometry(sketch, segments):
     sketch.addConstraint(constraints)
 
 
-def create_sketch_for_piece(piece, document=None, geometry_segments=None):
+def create_sketch_for_piece(
+    piece,
+    document=None,
+    geometry_segments: Sequence[tuple[str, Sequence[tuple[float, float]]]] | None = None,
+):
     """Create or return the native Sketcher representation for ``piece``."""
     try:
         import FreeCAD as App
