@@ -345,7 +345,7 @@ def test_pdf_letter_page_size_and_layout_validation() -> None:
         to_pdf(pattern, overlap_mm=0.0)
 
 
-def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path) -> None:
+def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Path) -> None:
     class Piece:
         PatternType = "PatternPiece"
         Name = "Front"
