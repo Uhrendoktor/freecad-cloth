@@ -3,7 +3,6 @@
 import ast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.shared.seam_colors import apply_seam_colors
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
@@ -11,6 +10,7 @@ from freecad_cloth.pattern.SeamReference import (
     resolve_edge_reference,
     semantic_edge_id,
 )
+from freecad_cloth.shared.seam_colors import apply_seam_colors
 
 
 def _parse_points(value):
