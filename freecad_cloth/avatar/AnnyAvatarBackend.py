@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -143,7 +144,8 @@ def _fit_anny_body(
     """Fit an Anny body with the published differentiable measurements."""
     try:
         import torch
-        from clad_body.load.anny import build_anny_apose, load_anny_from_params, load_anny_from_verts
+        from anny import Anny, RigConfig, TopologyConfig
+        from clad_body.load.anny import build_anny_apose, load_anny_from_verts
         from clad_body.measure import measure_grad
     except ImportError as exc:
         raise AnnyAvatarBackendError(
@@ -152,10 +154,96 @@ def _fit_anny_body(
         ) from exc
 
     values = dict(measurements)
-    body = load_anny_from_params(
-        _initial_phenotypes(gender, breast_size),
-        device="cpu",
-        requires_grad=True,
+    initial_parameters = _initial_phenotypes(gender, breast_size)
+    local_values = initial_parameters.pop("_local_changes")
+    if not isinstance(local_values, dict):
+        raise AnnyAvatarBackendError("Anny local-change parameters were not resolved.")
+    phenotype_values = {
+        name: float(value)
+        for name, value in initial_parameters.items()
+        if isinstance(value, (int, float))
+    }
+
+    # Keep the original MakeHuman vertex index space: Cloth's persistent rig
+    # joints and skinning weights reference those authored HM08 vertex IDs.
+    rig = replace(
+        RigConfig.from_string("makehuman"),
+        bone_orientation="blender",
+        root_identity_orientation=True,
+    )
+    topology = replace(
+        TopologyConfig.from_string("makehuman"),
+        nudity_edits=False,
+        remove_unattached_vertices=False,
+        triangulate_faces=True,
+        eyes=False,
+        tongue=False,
+        submodel="body",
+    )
+    model = Anny(
+        rig=rig,
+        topology=topology,
+        local_changes=sorted(local_values),
+        phenotypes="all",
+        pose_parameterization="local-bone",
+    ).to(dtype=torch.float32, device="cpu")
+
+    base_vertex_indices = model.base_mesh_vertex_indices.detach().cpu().tolist()
+    expected_body_indices = list(range(MAKEHUMAN_BODY_VERTEX_COUNT))
+    if base_vertex_indices[:MAKEHUMAN_BODY_VERTEX_COUNT] != expected_body_indices:
+        raise AnnyAvatarBackendError(
+            "Anny's selected topology does not preserve the HM08 body vertex index order "
+            "required by Cloth's saved skeleton and skinning weights."
+        )
+
+    missing_local_changes = set(local_values) - set(model.local_change_labels)
+    if missing_local_changes:
+        raise AnnyAvatarBackendError(
+            "Anny is missing configured measurement morphs: "
+            + ", ".join(sorted(missing_local_changes))
+        )
+
+    phenotype_kwargs = {
+        name: torch.tensor(
+            [phenotype_values[name]], dtype=torch.float32, device="cpu", requires_grad=True
+        )
+        for name in model.phenotype_labels
+        if name in phenotype_values
+    }
+    missing_phenotypes = set(model.phenotype_labels) - set(phenotype_kwargs)
+    if missing_phenotypes:
+        raise AnnyAvatarBackendError(
+            "Anny requires phenotype controls that Cloth has not initialized: "
+            + ", ".join(sorted(missing_phenotypes))
+        )
+
+    local_kwargs = {
+        name: torch.tensor(
+            [float(local_values.get(name, 0.0))],
+            dtype=torch.float32,
+            device="cpu",
+            requires_grad=True,
+        )
+        for name in model.local_change_labels
+    }
+    device = torch.device("cpu")
+    pose = build_anny_apose(model, device)
+    with torch.no_grad():
+        initial_output = model(
+            pose_parameters=pose,
+            phenotype_kwargs=phenotype_kwargs,
+            local_changes_kwargs=local_kwargs,
+            pose_parameterization="root_relative_world",
+            return_bone_ends=True,
+        )
+    body = load_anny_from_verts(
+        initial_output["vertices"],
+        model,
+        phenotype_kwargs=phenotype_kwargs,
+        local_changes_kwargs=local_kwargs,
+        bone_heads=initial_output.get("bone_heads"),
+        bone_tails=initial_output.get("bone_tails"),
+        source="FreeCAD Cloth / Anny",
     )
 
     targets = tuple(
@@ -239,13 +327,17 @@ def _fit_anny_body(
                     value.clamp_(-1.0, 1.0)
 
     model = body.model
+    if body.phenotype_kwargs is None:
+        raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
+    if body.local_changes_kwargs is None:
+        raise AnnyAvatarBackendError("Anny did not preserve the fitted morph tensors.")
     first_parameter = next(iter(body.phenotype_kwargs.values()))
     pose = build_anny_apose(model, first_parameter.device)
     with torch.no_grad():
         output = model(
             pose_parameters=pose,
             phenotype_kwargs=body.phenotype_kwargs,
-            local_changes_kwargs=body.local_changes_kwargs or {},
+            local_changes_kwargs=body.local_changes_kwargs,
             pose_parameterization="root_relative_world",
             return_bone_ends=True,
         )
@@ -253,7 +345,7 @@ def _fit_anny_body(
         output["vertices"],
         model,
         phenotype_kwargs=body.phenotype_kwargs,
-        local_changes_kwargs=body.local_changes_kwargs or {},
+        local_changes_kwargs=body.local_changes_kwargs,
         bone_heads=output.get("bone_heads"),
         bone_tails=output.get("bone_tails"),
         source="FreeCAD Cloth / Anny",
