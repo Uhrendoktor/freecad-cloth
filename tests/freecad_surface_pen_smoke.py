@@ -25,6 +25,7 @@ from freecad_cloth.pattern.SurfacePen import (
     SurfaceAnchor,
     SurfacePenController,
     SurfacePenTaskPanel,
+    create_surface_pen_object,
     extract_surface_draft_to_pattern,
 )
 
@@ -121,6 +122,9 @@ def main() -> None:
 
         controller = SurfacePenController(target, target)
         panel = SurfacePenTaskPanel(controller)
+        # Keep this acceptance path on the original drag-based interaction.
+        # Point placement and curve-point extraction are exercised below as well.
+        panel.input_mode_combo.setCurrentText("Freehand trace")
         controller.activate()
         Gui.Control.showDialog(panel)
         _events()
@@ -182,6 +186,23 @@ def main() -> None:
         _events()
         _capture("surface-pen-pattern.png")
         _record_frame(4)
+
+        # A curve point between two corners must survive extraction as native
+        # Sketcher B-spline geometry rather than being reduced to a line chain.
+        curve_anchors = (
+            SurfaceAnchor((10.0, 10.0, 20.0), (0.0, 0.0, 1.0), "corner"),
+            SurfaceAnchor((60.0, 0.0, 20.0), (0.0, 0.0, 1.0), "curve"),
+            SurfaceAnchor((110.0, 10.0, 20.0), (0.0, 0.0, 1.0), "corner"),
+            SurfaceAnchor((110.0, 70.0, 20.0), (0.0, 0.0, 1.0), "corner"),
+            SurfaceAnchor((10.0, 70.0, 20.0), (0.0, 0.0, 1.0), "corner"),
+            SurfaceAnchor((10.5, 10.2, 20.0), (0.0, 0.0, 1.0), "corner"),
+        )
+        curve_draft = create_surface_pen_object(doc, target, curve_anchors)
+        curve_piece = extract_surface_draft_to_pattern(curve_draft)
+        curve_geometry = tuple(curve_piece.Sketch.Geometry)
+        assert len(curve_geometry) == 4
+        assert any("bsplinecurve" in type(geometry).__name__.lower() for geometry in curve_geometry)
+        assert str(curve_piece.GeometryAuthority) == "Sketcher"
 
         # Changing the source geometry must invalidate the persisted draft rather
         # than silently reusing coordinates sampled from an older target.
