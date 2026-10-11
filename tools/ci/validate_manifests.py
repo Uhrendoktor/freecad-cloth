@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
 
@@ -103,6 +104,47 @@ def validate_turntables() -> None:
     print("turntables=passed")
 
 
+def _validate_realtime_metrics(data: dict) -> None:
+    """Validate either legacy or schema-versioned realtime metrics without weakening gates."""
+    if "schema_version" not in data:
+        # Retain the existing contract for historical metric artifacts.
+        if (
+            not data["finite"]
+            or data["mean_frame_ms"] > data["frame_budget_ms"]
+            or data["p95_frame_ms"] > 50.0
+        ):
+            raise SystemExit(f"tunic: realtime performance gate failed: {data}")
+        return
+
+    budget = data.get("frame_budget_ms")
+    mean_interval = data.get("mean_frame_interval_ms")
+    p95_interval = data.get("p95_frame_interval_ms")
+    numeric_values = (budget, mean_interval, p95_interval)
+    if (
+        data.get("schema_version") != 1
+        or data.get("backend") != "position-based-dynamics"
+        or data.get("fixture") != "two-panel-tunic-pattern"
+        or data.get("backend_finite") is not True
+        or data.get("published_state_finite") is not True
+        or data.get("timed_out") is not False
+        or not isinstance(data.get("measured_intervals"), int)
+        or data["measured_intervals"] < 120
+        or not isinstance(data.get("warmup_frames_requested"), int)
+        or data["warmup_frames_requested"] < 30
+        or data.get("observed_ticks") != data.get("expected_ticks")
+        or data.get("frames_advanced") != data.get("observed_ticks")
+        or any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in numeric_values
+        )
+        or mean_interval > budget
+        or p95_interval > budget
+    ):
+        raise SystemExit(f"tunic: realtime performance gate failed: {data}")
+
+
 def _validate_tunic(require_canonical_e2e: bool) -> None:
     """Validate tunic evidence produced by either the canonical or production audit."""
     generated = Path("docs/images/generated")
@@ -111,12 +153,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     if not progress.is_file() or not metrics.is_file():
         raise SystemExit("tunic: required evidence is missing")
     data = json.loads(metrics.read_text(encoding="utf-8"))
-    if (
-        not data["finite"]
-        or data["mean_frame_ms"] > data["frame_budget_ms"]
-        or data["p95_frame_ms"] > 50.0
-    ):
-        raise SystemExit(f"tunic: realtime performance gate failed: {data}")
+    _validate_realtime_metrics(data)
     text = progress.read_text(encoding="utf-8")
     markers = (
         "scenario-pass",
