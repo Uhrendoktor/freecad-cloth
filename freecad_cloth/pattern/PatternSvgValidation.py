@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import math
 import re
-from math import ceil, isfinite
 from pathlib import Path
 from types import ModuleType
 from xml.etree import ElementTree
@@ -18,7 +18,7 @@ def _parse_mm_length(value: str, name: str) -> float:
     if match is None:
         raise ValueError(f"SVG {name} must be expressed in millimetres")
     length = float(match.group(1))
-    if not isfinite(length) or length <= 0.0:
+    if not math.isfinite(length) or length <= 0.0:
         raise ValueError(f"SVG {name} must be finite and positive")
     return length
 
@@ -73,7 +73,7 @@ def render_svg_for_validation(
         viewbox = tuple(float(value) for value in viewbox_values)
     except ValueError as exc:
         raise ValueError("SVG viewBox must contain four finite numbers") from exc
-    if not all(isfinite(value) for value in viewbox):
+    if not all(math.isfinite(value) for value in viewbox):
         raise ValueError("SVG viewBox must contain four finite numbers")
     view_x, view_y, view_width, view_height = viewbox
     if abs(view_x) > 1e-8 or abs(view_y) > 1e-8:
@@ -92,8 +92,8 @@ def render_svg_for_validation(
         raise ValueError("QtSvg could not independently render the SVG document")
 
     # Round upward so the raster never represents less than the declared physical extent.
-    pixel_width = max(1, ceil(width_mm * dpi / 25.4))
-    pixel_height = max(1, ceil(height_mm * dpi / 25.4))
+    pixel_width = max(1, math.ceil(width_mm * dpi / 25.4))
+    pixel_height = max(1, math.ceil(height_mm * dpi / 25.4))
     image_format = QtGui.QImage.Format_ARGB32
     image = QtGui.QImage(pixel_width, pixel_height, image_format)
     if image.isNull():
