@@ -332,6 +332,7 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence():
 def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     debug = (ROOT / "tests" / "freecad_drape_debug.py").read_text(encoding="utf-8")
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
 
     # Keep the diagnostic A/B garment aligned to current production geometry/scene APIs.
     assert (
