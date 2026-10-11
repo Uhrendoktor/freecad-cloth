@@ -255,6 +255,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
             float(profile["breast_size"]),
         )
         _rebuild(avatar, params=params)
+        # Rebuild reapplies the application's CAD wireframe style; use solid
+        # shading for this silhouette comparison only.
+        avatar.ViewObject.DisplayMode = "Shaded"
+        avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
         avatar.Label = "Avatar example: " + profile["name"]
         doc.recompute()
 
