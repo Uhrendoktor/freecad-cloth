@@ -432,16 +432,16 @@ def validate_finite_number(value: object) -> float:
     return FiniteScalar(value=cast(FiniteNumber, value)).value
 
 
-def validate_point2d(value: Iterable[Real]) -> Point2D:
+def validate_point2d(value: object) -> Point2D:
     """Validate and normalize one two-dimensional point."""
     return Point2DAdapter.validate_python(value)
 
 
-def validate_points2d(values: Iterable[Iterable[Real]]) -> tuple[Point2D, ...]:
+def validate_points2d(values: Iterable[object]) -> tuple[Point2D, ...]:
     """Validate and normalize a sequence of two-dimensional points."""
     return Points2DAdapter.validate_python(values)
 
 
-def validate_points3d(values: Iterable[Iterable[Real]]) -> tuple[Point3D, ...]:
+def validate_points3d(values: Iterable[object]) -> tuple[Point3D, ...]:
     """Validate and normalize a sequence of three-dimensional points."""
     return Points3DAdapter.validate_python(values)
