@@ -13,6 +13,7 @@ from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
 
+
 def maximum_box_penetration(
     points: Sequence[Point3],
     bounds: tuple[float, float, float, float, float, float],
@@ -37,6 +38,7 @@ def maximum_box_penetration(
         default=0.0,
     )
 
+
 @pydantic_dataclass(frozen=True)
 class DrapeVisualMetrics:
     """Public data model or service class for DrapeVisualMetrics."""
@@ -51,6 +53,7 @@ class DrapeVisualMetrics:
     finite: bool
     state: str
 
+
 def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
     if not vertices:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -59,6 +62,7 @@ def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, flo
     zs = [float(v[2]) for v in vertices]
     return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
 
+
 def _centroid(vertices: Sequence[Point3]) -> Point3:
     count = float(len(vertices))
     return (
@@ -66,6 +70,7 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
         sum(float(v[1]) for v in vertices) / count,
         sum(float(v[2]) for v in vertices) / count,
     )
+
 
 def minimum_vertex_distance(
     source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
@@ -81,11 +86,13 @@ def minimum_vertex_distance(
 
     return nearest_target_clearance(source, target)
 
+
 def point_inside_closed_mesh(
     point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle3]
 ) -> bool:
     """Return whether one validated point is inside a closed triangle mesh."""
     return points_inside_closed_mesh((point,), vertices, triangles)[0]
+
 
 def points_inside_closed_mesh(
     points: Sequence[Point3],
@@ -167,6 +174,7 @@ def points_inside_closed_mesh(
         results[start : start + len(chunk)] = np.count_nonzero(hits, axis=1) % 2 == 1
     return tuple(bool(value) for value in results)
 
+
 def seam_correspondence_gap(
     boundary_a: Sequence[Point3],
     boundary_b: Sequence[Point3],
@@ -210,6 +218,7 @@ def seam_correspondence_gap(
         gap = dist(point_a, point_b)
         maximum = max(maximum, gap)
     return maximum
+
 
 def inspect_drape(
     garment_vertices: Sequence[Point3],
@@ -284,6 +293,7 @@ def inspect_drape(
         state,
     )
 
+
 def summarize(metrics: DrapeVisualMetrics) -> dict:
     """Provide the public summarize operation."""
     return {
@@ -298,6 +308,7 @@ def summarize(metrics: DrapeVisualMetrics) -> dict:
         "finite": metrics.finite,
     }
 
+
 _FATAL_VISUAL_STATES = frozenset({"detached-candidate"})
 _FATAL_VISUAL_DIAGNOSTICS = frozenset(
     {
@@ -306,6 +317,7 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset(
         "below-hem-candidate",
     }
 )
+
 
 def assert_drape_diagnostics(
     records: Sequence[dict], *, allowed_diagnostics: Sequence[str] = ()
@@ -328,6 +340,7 @@ def assert_drape_diagnostics(
             )
     if failures:
         raise RuntimeError("drape visual acceptance failed closed: " + "; ".join(failures))
+
 
 def mesh_shape_sanity(
     vertices: Sequence[Point3], triangles: Sequence[Triangle3]
