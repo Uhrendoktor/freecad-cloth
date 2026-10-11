@@ -19,6 +19,7 @@ ARTIFACT_ROOTS = (
     Path("avatar-shape-editor"),
     Path("interactive-arrange"),
     Path("sewing"),
+    Path("surface-pen"),
 )
 
 
@@ -59,6 +60,17 @@ def build_tunic_gif() -> None:
     )
 
 
+def build_surface_pen_gif() -> None:
+    """Build a Surface Pen interaction GIF from real FreeCAD UI captures."""
+    from build_visual_gifs import build, image_tool
+
+    root = Path("surface-pen")
+    frames = sorted(root.glob("surface-pen-frame-*.png"))
+    if len(frames) != 4:
+        raise SystemExit(f"surface-pen: expected 4 captured workflow frames, got {len(frames)}")
+    build(image_tool(), frames, root / "surface-pen-workflow.gif", "80")
+
+
 def main() -> int:
     """Publish and validate the repository visual evidence inventory."""
     parser = argparse.ArgumentParser()
@@ -76,6 +88,7 @@ def main() -> int:
     source_root = Path.cwd()
     expected = documented_assets(source_root)
     build_tunic_gif()
+    build_surface_pen_gif()
 
     worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "cloth-screenshot-publish"
     shutil.rmtree(worktree, ignore_errors=True)
