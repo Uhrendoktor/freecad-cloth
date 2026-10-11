@@ -8,7 +8,6 @@ from xml.etree import ElementTree
 
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry import Polygon
-
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
