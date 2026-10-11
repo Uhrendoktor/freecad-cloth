@@ -422,12 +422,12 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
     assert "hem_width = max(500.0, panel_width + 100.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, front_rot, 0.72, 0.03)' in debug
+    assert 'make_piece("DebugTunicFront", front_y, "front", 0.72, 0.03)' in debug
     assert "panel_width *= 1.10" in source
     assert "hem_width *= 1.10" in source
     assert "panel_width *= 1.10" in debug
     assert "hem_width *= 1.10" in debug
-    assert 'make_piece("DebugTunicBack", back_y, back_rot, 0.72, 0.03)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, "back", 0.72, 0.03)' in debug
     assert 'make_piece("VisualTunicFront", "back", 0.72, 0.03)' in audit
     assert 'make_piece("VisualTunicBack", "front", 0.72, 0.03)' in audit
 
