@@ -29,6 +29,7 @@ GROUPS = {
         "tests/test_avatar_standing_pose.py",
         "tests/test_backend_authority.py",
         "tests/test_collision_surface.py",
+        "tests/test_mesh_collision_projector.py",
         "tests/test_command_adapter.py",
         "tests/test_derived_geometry.py",
         "tests/test_drape_failure_classifier.py",

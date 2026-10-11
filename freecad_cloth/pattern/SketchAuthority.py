@@ -6,11 +6,12 @@ kind and connectivity; the legacy PatternPiece outline is only a derived
 sampling used by older mesh/GUI paths until those consumers are migrated.
 """
 
+from freecad_cloth.pattern.PatternIR import PieceIR
+from freecad_cloth.pattern.PatternModel import PatternPiece
 
-def _piece_model(obj):
+
+def _piece_model(obj: object) -> PatternPiece:
     import ast
-
-    from freecad_cloth.pattern.PatternModel import PatternPiece
 
     try:
         outline = [
@@ -33,7 +34,7 @@ def _piece_model(obj):
     )
 
 
-def _resolve_sketch_ir(obj):
+def _resolve_sketch_ir(obj: object) -> PieceIR:
     from freecad_cloth.pattern.PatternIR import PatternIR
     from freecad_cloth.sewing.SeamGraph import SeamGraph
 
@@ -43,10 +44,17 @@ def _resolve_sketch_ir(obj):
     return PatternIR.from_sketches(graph, {piece.id: obj.Sketch}, curve_samples=64).piece(piece.id)
 
 
-def _sampled_outline(piece_ir):
+def _sampled_outline(piece_ir: PieceIR) -> list[tuple[float, float]]:
+    """Flatten ordered native boundary samples into a closed-outline polygon.
+
+    Boundary samples include both endpoints; omit each edge's final endpoint
+    because the following edge starts at that same vertex. Keeping every
+    intermediate sample is essential for arcs and other curved Sketcher edges.
+    """
     return [
-        (float(boundary.samples[0][0]), float(boundary.samples[0][1]))
+        (float(sample[0]), float(sample[1]))
         for boundary in piece_ir.boundaries
+        for sample in boundary.samples[:-1]
     ]
 
 
@@ -55,7 +63,7 @@ class SketchAuthorityProxy:
 
     Type = "ClothPatternPieceSketchAuthority"
 
-    def execute(self, obj):
+    def execute(self, obj: object) -> None:
         """Recompute the FreeCAD object from its current source properties."""
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
@@ -95,7 +103,7 @@ class SketchAuthorityProxy:
                 pass
 
 
-def attach(obj, sketch):
+def attach(obj: object, sketch: object) -> object:
     """Attach ``sketch`` as the persistent geometry authority of ``obj``."""
     if "Sketch" not in obj.PropertiesList:
         obj.addProperty("App::PropertyLink", "Sketch", "Cloth")

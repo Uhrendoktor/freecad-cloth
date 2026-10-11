@@ -352,8 +352,11 @@ jobs:
           observation-label: Tunic pattern-to-fitting scene diagnostics
           observation-files: >-
             summary=scene-understanding.json;visual=scene-understanding.svg
+          # 8 mm bounds native SDF cost; 5 mm target thickness still controls clearance, and exact mesh projection retains the zero-penetration gate.
           environment: |
-            CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_SUBSTEPS=16
+            CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
@@ -517,3 +520,4 @@ jobs:
             CLOTH_BENCHMARK_OUTPUT=artifacts/benchmark.json
             CLOTH_BENCHMARK_REPEATS=7
       - run: test -s artifacts/benchmark.json
+      - run: python3 tools/ci/validate_realtime_benchmark.py artifacts/benchmark.json

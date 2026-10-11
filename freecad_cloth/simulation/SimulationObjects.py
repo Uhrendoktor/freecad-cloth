@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,11 +20,35 @@ def _mesh_object(doc, name, label):
     return obj
 
 
+@lru_cache(maxsize=64)
+def _indexed_mesh_topology(
+    triangles: tuple[tuple[int, int, int], ...],
+) -> tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]:
+    """Cache the compact local topology for one panel's particle-index triangles."""
+    vertex_indices = tuple(sorted({index for triangle in triangles for index in triangle}))
+    remap = {index: local for local, index in enumerate(vertex_indices)}
+    faces = tuple(tuple(remap[index] for index in triangle) for triangle in triangles)
+    return vertex_indices, faces
+
+
 def _write_mesh(obj, positions, triangles):
+    import FreeCAD as App
     import Mesh
 
+    topology = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    if not topology:
+        obj.Mesh = Mesh.Mesh()
+        return
+
+    # FreeCAD's indexed constructor builds shared vertices and triangle indices
+    # directly. Cache the mapping because panel topology is fixed across preview
+    # frames, then update only the current solver coordinates.
+    vertex_indices, faces = _indexed_mesh_topology(topology)
+    vertices = [App.Vector(*positions[index]) for index in vertex_indices]
+    # The face indices originate from validated panel topology. Avoid repeating
+    # the constructor's manifold check on every transient preview mesh rebuild.
     native = Mesh.Mesh()
-    native.addFacets([(positions[a], positions[b], positions[c]) for a, b, c in triangles])
+    native.addFacets((vertices, list(faces)), False)
     obj.Mesh = native
 
 

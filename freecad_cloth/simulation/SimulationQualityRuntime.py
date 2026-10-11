@@ -6,6 +6,7 @@ proxy. It is the only quality runtime implementation.
 
 import weakref
 from math import ceil
+from typing import cast
 
 from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
 from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
@@ -170,7 +171,16 @@ class QualitySimulationProxy:
 
     def _publish_state(self, obj, base):
         """Write the already-solved particle state to the display objects."""
-        positions = base.backend.positions()
+        snapshot = getattr(base.backend, "positions_and_finite", None)
+        if callable(snapshot):
+            snapshot_result = snapshot()
+            positions, finite_state = cast(
+                tuple[tuple[tuple[float, float, float], ...], bool],
+                snapshot_result,
+            )
+        else:
+            positions = base.backend.positions()
+            finite_state = base.backend.finite()
         from freecad_cloth.simulation.SimulationObjects import _write_mesh
 
         for panel in getattr(obj, "DrapePanels", ()):
@@ -179,7 +189,7 @@ class QualitySimulationProxy:
         obj.Steps = int(base.last_steps)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
-        obj.FiniteState = base.backend.finite()
+        obj.FiniteState = finite_state
 
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
@@ -218,7 +228,6 @@ class QualitySimulationProxy:
 
     def _build_pattern_scene(self, obj, pieces, signature):
         """Use the authoritative base scene builder with quality tessellation."""
-        from freecad_cloth.simulation import SimulationObjects
         from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 
         base = self._base_or_restore()

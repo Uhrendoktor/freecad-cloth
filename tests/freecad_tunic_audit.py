@@ -19,19 +19,95 @@ os.environ["CLOTH_TUNIC_AUDIT_RUN_AVATAR_ACCEPTANCE"] = "1"
 # Preserve the canonical workflow's PBD substep budget. The audit must not secretly
 # multiply the configured simulation cost behind the workflow's back.
 
-SEAM_SOURCE = """    for edge_a, edge_b, seam_id in ((2, 2, "TunicRightShoulder"), (5, 5, "TunicLeftShoulder")):
-        seam = Seam(
-            str(front.PieceId),
-            edge_a,
-            str(back.PieceId),
-            edge_b,
-            id=seam_id,
-            alignment="uniform",
-            stitch_group="TunicAssembly",
-        )
-        add_seam(doc, seam)
-        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
-        seam_records.append((seam_obj, front, back))"""
+SEAM_SOURCE = """    # Use semantic edge IDs and keep the two curved armholes (edges 2 and 6)
+    # open. Only the two side seams and two shoulder seams are joined.
+    front_edge_ids = tuple(
+        str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ()
+    )
+    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
+    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
+        raise RuntimeError("canonical tunic sketches have no complete semantic edge map")
+    required_indices = (1, 3, 5, 7)
+    if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
+        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+
+    from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+    for piece, edge_ids in ((front, front_edge_ids), (back, back_edge_ids)):
+        piece_ir = resolve_piece_ir(piece)
+        boundary_by_id = {str(boundary.id): boundary for boundary in piece_ir.boundaries}
+        for edge_index, inward in ((2, -1.0), (6, 1.0)):
+            boundary = boundary_by_id.get(edge_ids[edge_index])
+            if boundary is None or boundary.kind != "arc" or len(boundary.samples) < 8:
+                raise RuntimeError(
+                    "canonical garment armhole was not preserved as a sampled native curve: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            start_point = boundary.samples[0]
+            end_point = boundary.samples[-1]
+            vertical_span = float(end_point[1]) - float(start_point[1])
+            if abs(vertical_span) <= 1e-9:
+                raise RuntimeError(
+                    "canonical garment armhole endpoints do not define a vertical chord: "
+                    "piece=%s edge=%s" % (piece.Name, edge_ids[edge_index])
+                )
+            scoop_depth = max(
+                inward
+                * (
+                    float(sample[0])
+                    - (
+                        float(start_point[0])
+                        + (float(sample[1]) - float(start_point[1]))
+                        / vertical_span
+                        * (float(end_point[0]) - float(start_point[0]))
+                    )
+                )
+                for sample in boundary.samples[1:-1]
+            )
+            if scoop_depth <= 0.02 * float(panel_width):
+                deviations = tuple(
+                    float(sample[0])
+                    - (
+                        float(start_point[0])
+                        + (float(sample[1]) - float(start_point[1]))
+                        / vertical_span
+                        * (float(end_point[0]) - float(start_point[0]))
+                    )
+                    for sample in boundary.samples[1:-1]
+                )
+                native_geometry = piece.Sketch.Geometry[edge_index]
+                log(
+                    "tunic-armhole-debug piece=%s edge=%s native=%s range=%s "
+                    "start=(%.3f,%.3f) end=(%.3f,%.3f) x-deviation=[%.3f,%.3f] "
+                    "signed-inward=%.3f"
+                    % (
+                        piece.Name,
+                        edge_ids[edge_index],
+                        type(native_geometry).__name__,
+                        tuple(float(value) for value in boundary.parameter_range),
+                        float(start_point[0]),
+                        float(start_point[1]),
+                        float(end_point[0]),
+                        float(end_point[1]),
+                        min(deviations),
+                        max(deviations),
+                        float(scoop_depth),
+                    )
+                )
+                raise RuntimeError(
+                    "canonical garment armhole curve has insufficient inward clearance: "
+                    "piece=%s edge=%s scoop-mm=%.2f"
+                    % (piece.Name, edge_ids[edge_index], scoop_depth)
+                )
+
+    seam_specs = (
+        (front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False),
+        (front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False),
+        (front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False),
+        (front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False),
+    )
+    seam_records = []
+    for edge_a_id, edge_b_id, seam_id, reversed_b in seam_specs:"""
 
 POSE_SOURCE = """    target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
@@ -110,53 +186,48 @@ replacements = {
     # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
     # depth extrema are dominated by hands in the near-T pose and can pull the stitched
     # panels through the body; the silhouette filter excludes those outliers.
-    "panel_width = max(420.0, shoulder_width + 100.0)": "shoulder_span_ratio = 0.86 - 0.14; panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)",
-    "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(500.0, panel_width + 80.0)",
+    "hem_width = max(450.0, panel_width + 100.0)": "hem_width = max(500.0, panel_width + 100.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
+    x_offset = 0.5 * (float(hem_width) - float(panel_width))
+    armhole_z = 0.62 * float(garment_height)
+    shoulder_z = 0.94 * float(garment_height)
+    neckline_scoop_depth = 0.12 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (neckline_ratio * panel_width, neck_z),
-        ((1.0 - neckline_ratio) * panel_width, neck_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.00, 0.82 * garment_height),
+        (x_offset + 0.74 * panel_width, armhole_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + neckline_ratio * panel_width, neck_z),
+        (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.26 * panel_width, armhole_z),
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.88 * garment_height
-    shoulder_z = 0.98 * garment_height
+    armhole_z = 0.62 * garment_height
+    shoulder_z = 0.94 * garment_height
+    neckline_scoop_depth = 0.12 * float(garment_height)
+    neckline_scoop_z = neck_z - neckline_scoop_depth
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + panel_width, armhole_z),
-        (x_offset + 0.86 * panel_width, shoulder_z),
+        (x_offset + 0.74 * panel_width, armhole_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.14 * panel_width, shoulder_z),
-        (x_offset, armhole_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.26 * panel_width, armhole_z),
     ]
-    center_x = 0.5 * float(hem_width)
-    for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
-        if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
-            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
 """,
-    'front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.10)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.07)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.78, 0.18); back, back_outline = make_piece("VisualTunicBack", "front", 0.76, 0.12)',
-    SEAM_SOURCE: '    front_edge_ids = tuple(str(value) for value in getattr(front.Sketch, "SemanticEdgeIds", ()) or ())\n'
-    '    back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())\n'
-    "    required_indices = (1, 2, 6, 7)\n"
-    '    if len(front_edge_ids) < 8 or len(back_edge_ids) < 8 or any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices): raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")\n'
-    '    seam_specs = ((front_edge_ids[1], back_edge_ids[1], "TunicRightSide"),(front_edge_ids[2], back_edge_ids[2], "TunicRightShoulder"),(front_edge_ids[6], back_edge_ids[6], "TunicLeftShoulder"),(front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"))\n'
-    "    for edge_a_id, edge_b_id, seam_id in seam_specs:\n"
-    '        seam = Seam(str(front.PieceId), edge_a_id, str(back.PieceId), edge_b_id, id=seam_id, alignment="uniform", stitch_group="TunicAssembly")\n'
-    "        add_seam(doc, seam)\n"
-    '        seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)\n'
-    '        if str(getattr(seam_obj, "EdgeAId", "")) != edge_a_id or str(getattr(seam_obj, "EdgeBId", "")) != edge_b_id: raise RuntimeError("canonical tunic seam %s did not retain authored semantic edge IDs" % seam_id)\n'
-    "        seam_records.append((seam_obj, front, back))",
+    # Keep this armhole PR on the canonical upper edge. The source-rewrite harness
+    # must not inject incompatible neckline variants from the separate #2664 experiment:
+    # those diagonals cross the open armhole arcs.
+    'front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)\n    back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)': 'front, front_outline = make_piece("VisualTunicFront", "back", 0.72, 0.03); back, back_outline = make_piece("VisualTunicBack", "front", 0.72, 0.03)',
+    SEAM_SOURCE: SEAM_SOURCE,
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
-    "scene.SolverIterations = 8": 'scene.ParticleDistance = 32.0; scene.SolverIterations = 4; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-32 iterations-4 substeps-env");',
+    "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 4; log("tunic-solver=particle-distance-24 iterations-8 substeps=4");',
     """    def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
@@ -238,7 +309,9 @@ OUTLINE_MARGIN_HELPER = '''def _projected_point_within_outline_margin(x, z, poin
 '''
 
 
-source = source.replace("\ndef simulation():", "\n" + OUTLINE_MARGIN_HELPER + "def simulation():", 1)
+source = source.replace(
+    "\ndef simulation():", "\n" + OUTLINE_MARGIN_HELPER + "def simulation():", 1
+)
 if "_projected_point_within_outline_margin" not in source:
     raise RuntimeError("tunic placement silhouette helper was not installed")
 
@@ -306,20 +379,107 @@ timed_anchor = """    from time import perf_counter
     simulation_started = perf_counter()
     active_backend = scene.Proxy._base_or_restore().backend
     active_collision = getattr(active_backend, "_collision_surface", None)
-    log("tunic-simulation-start particles=%d iterations=%d substeps=%d backend=%s collision_triangles=%d" % (
+    if active_collision is None:
+        raise RuntimeError("tunic PBD backend has no active mannequin collision surface")
+    from math import ceil as _ceil
+    collision_voxel_mm = float(getattr(active_backend, "_collision_voxel_mm", -1.0))
+    collision_configured_tolerance_mm = float(
+        getattr(active_backend, "_collision_configured_tolerance_mm", -1.0)
+    )
+    collision_effective_tolerance_mm = float(
+        getattr(active_backend, "_collision_effective_tolerance_mm", -1.0)
+    )
+    collision_target_thickness_mm = float(getattr(active_collision, "thickness", 0.0))
+    collision_sdf_resolution = tuple(
+        int(value)
+        for value in (getattr(active_backend, "_collision_sdf_resolution", ()) or ())
+    )
+    collision_spans_mm = tuple(
+        max(float(vertex[axis]) for vertex in active_collision.vertices)
+        - min(float(vertex[axis]) for vertex in active_collision.vertices)
+        for axis in range(3)
+    )
+    expected_sdf_resolution = tuple(
+        max(16, min(256, int(_ceil((span + 200.0) / 8.0))))
+        for span in collision_spans_mm
+    )
+    if abs(collision_target_thickness_mm - 5.0) > 1e-6:
+        raise RuntimeError(
+            "tunic mannequin collision thickness must be 5 mm, got %.3f"
+            % collision_target_thickness_mm
+        )
+    if abs(collision_voxel_mm - 8.0) > 1e-6:
+        raise RuntimeError(
+            "tunic PBD SDF voxel size must be 8 mm, got %.3f" % collision_voxel_mm
+        )
+    if abs(collision_configured_tolerance_mm - 2.0) > 1e-6:
+        raise RuntimeError(
+            "tunic configured PBD collision tolerance must be 2 mm, got %.3f"
+            % collision_configured_tolerance_mm
+        )
+    expected_effective_tolerance_mm = max(
+        collision_configured_tolerance_mm,
+        collision_target_thickness_mm,
+        0.5 * collision_voxel_mm,
+    )
+    if abs(collision_effective_tolerance_mm - expected_effective_tolerance_mm) > 1e-6:
+        raise RuntimeError("tunic PBD effective collision tolerance does not match its inputs")
+    if collision_sdf_resolution != expected_sdf_resolution:
+        raise RuntimeError(
+            "tunic PBD SDF resolution %r does not match configured 8 mm voxel resolution %r"
+            % (collision_sdf_resolution, expected_sdf_resolution)
+        )
+    log(
+        "tunic-collision-config target-thickness-mm=%.2f voxel-mm=%.2f "
+        "configured-tolerance-mm=%.2f effective-tolerance-mm=%.2f "
+        "sdf-resolution=%dx%dx%d span-mm=%.2fx%.2fx%.2f"
+        % (
+            collision_target_thickness_mm,
+            collision_voxel_mm,
+            collision_configured_tolerance_mm,
+            collision_effective_tolerance_mm,
+            *collision_sdf_resolution,
+            *collision_spans_mm,
+        )
+    )
+    configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))
+    effective_substeps = int(getattr(active_backend, "_substeps", -1))
+    if effective_substeps != configured_substeps:
+        raise RuntimeError(
+            "tunic PBD substeps differ from workflow configuration: "
+            "backend=%d configured=%d" % (effective_substeps, configured_substeps)
+        )
+    log("tunic-simulation-start particles=%d iterations=%d scene_substeps=%d backend_substeps=%d configured_substeps=%d backend=%s collision_triangles=%d" % (
         int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
-        str(getattr(active_backend, "name", "")),
+        effective_substeps, configured_substeps, str(getattr(active_backend, "name", "")),
         0 if active_collision is None else len(active_collision.triangles),
     ))
     task_dock.hide(); events()
     view.setCameraType("Orthographic"); view.viewAxonometric(); view.fitAll(); events()
     save_view("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend as _PBDBackend
+    _backend_step = _PBDBackend.step
+    _backend_step_count = {"count": 0}
+    def _trace_backend_step(backend, dt, iterations=8, gravity=(0.0, 0.0, -9810.0), surface=None):
+        _backend_step_count["count"] += 1
+        step_call = _backend_step_count["count"]
+        simulated_step = ((step_call - 1) // effective_substeps) + 1
+        step_started = perf_counter()
+        log("tunic-pbd-substep-start call=%d simulated_step=%d" % (
+            step_call, simulated_step,
+        ))
+        result = _backend_step(backend, dt, iterations, gravity, surface)
+        log("tunic-pbd-substep-end call=%d simulated_step=%d elapsed_ms=%.1f" % (
+            step_call, simulated_step, 1000.0 * (perf_counter() - step_started),
+        ))
+        return result
+    _PBDBackend.step = _trace_backend_step
     for frame_index, batch in enumerate((10,10,10,10,10,10,10,10,10), start=1):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
         view.viewAxonometric(); view.fitAll(); events()
         save_view("cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index, "mannequin drape step %d" % int(scene.Steps), "production tunic gravity progression")
-        log("tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d substeps=%d" % (frame_index, int(scene.Steps), batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps)))
+        log("tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f particles=%d iterations=%d scene_substeps=%d backend_substeps=%d" % (frame_index, int(scene.Steps), batch, 1000.0 * (perf_counter() - batch_started), 1000.0 * (perf_counter() - simulation_started), int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps), int(getattr(active_backend, "_substeps", -1))))
     task_dock.show(); task_dock.raise_(); events()
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
 """
@@ -331,6 +491,7 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
+    seam_gap_records = []
     for seam, piece_a, piece_b in seam_records:
         expected_a = f"{piece_a.PieceId}:edge:"
         expected_b = f"{piece_b.PieceId}:edge:"
@@ -338,14 +499,33 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
         edge_b_id = str(getattr(seam, "EdgeBId", ""))
         if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
             raise RuntimeError("authoritative tunic seam lost semantic edge identity")
-        pairs = tuple(stitch_pairs_by_seam.get(str(seam.SeamId), ()))
+        seam_id = str(seam.SeamId)
+        pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
         if not pairs:
             raise RuntimeError("authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId)
+        pair_gaps = []
         for ga, gb in pairs:
             a = simulated_positions[int(ga)]
             b = simulated_positions[int(gb)]
-            seam_gaps.append(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5)
-    max_seam_gap = max(seam_gaps) if seam_gaps else 0.0
+            gap = ((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5
+            seam_gaps.append(gap)
+            pair_gaps.append((gap, int(ga), int(gb), tuple(a), tuple(b)))
+        worst_gap, worst_a, worst_b, worst_pa, worst_pb = max(
+            pair_gaps, key=lambda item: item[0]
+        )
+        mean_gap = sum(item[0] for item in pair_gaps) / len(pair_gaps)
+        seam_gap_records.append((seam_id, worst_gap))
+        log("authoritative-seam-gap seam=%s count=%d max-mm=%.2f mean-mm=%.2f worst-pair=(%d,%d) a=(%.2f,%.2f,%.2f) b=(%.2f,%.2f,%.2f) delta=(%.2f,%.2f,%.2f)" % (
+            seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b,
+            worst_pa[0], worst_pa[1], worst_pa[2], worst_pb[0], worst_pb[1], worst_pb[2],
+            worst_pa[0]-worst_pb[0], worst_pa[1]-worst_pb[1], worst_pa[2]-worst_pb[2],
+        ))
+        for sample_index, (gap, ga, gb, point_a, point_b) in enumerate(pair_gaps):
+            log("authoritative-seam-sample seam=%s sample=%d pair=(%d,%d) gap-mm=%.2f delta=(%.2f,%.2f,%.2f)" % (
+                seam_id, sample_index, ga, gb, gap,
+                point_a[0]-point_b[0], point_a[1]-point_b[1], point_a[2]-point_b[2],
+            ))
+    max_seam_gap = max((gap for _seam_id, gap in seam_gap_records), default=0.0)
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
 """

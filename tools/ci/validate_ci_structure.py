@@ -43,7 +43,6 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/pattern/PatternModel.py",
     "freecad_cloth/pattern/PatternPdfExport.py",
     "freecad_cloth/pattern/PatternSvgValidation.py",
-    "freecad_cloth/avatar/MakeHumanTargets.py",
     "freecad_cloth/sewing/SeamGraph.py",
     "freecad_cloth/sewing/SewingCorrespondence.py",
     "freecad_cloth/simulation/ClothBackend.py",
@@ -53,6 +52,8 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/SimulationObjects.py",
     "freecad_cloth/simulation/SimulationQualityRuntime.py",
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
+    "freecad_cloth/simulation/MeshCollisionProjector.py",
+    "freecad_cloth/avatar/MakeHumanTargets.py",
 )
 PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Gui.py",

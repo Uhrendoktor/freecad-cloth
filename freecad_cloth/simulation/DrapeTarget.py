@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import CollisionSurface
 
+DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
+
 
 @dataclass(frozen=True)
 class DrapeTargetSpec:
