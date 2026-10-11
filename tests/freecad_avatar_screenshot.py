@@ -213,6 +213,11 @@ def render_body_shape_gallery(doc, view, avatar, output):
         for name, gender, breast_size, values in profile_rows
     )
 
+    # The main six-side audit uses CAD edge lines; the gallery should compare silhouettes.
+    avatar.ViewObject.DisplayMode = "Shaded"
+    avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+    doc.recompute()
+
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     frame_dir = output_path.parent / ".avatar-body-shape-gallery-frames"
