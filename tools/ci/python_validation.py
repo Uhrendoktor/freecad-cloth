@@ -74,6 +74,7 @@ GROUPS = {
         "tests/test_avatar_pose_gui_contract.py",
         "tests/test_humanoid_mesh.py",
         "tests/test_makehuman_targets.py",
+        "tests/test_anny_avatar_backend.py",
         "tests/test_freecad_objects.py",
         "tests/test_freecad_gui_startup_contract.py",
         "tests/test_drape_gui.py",
