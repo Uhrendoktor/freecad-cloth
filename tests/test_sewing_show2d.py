@@ -4,13 +4,13 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SeamOverlay import (
     _label_anchor,
-    _simulation_seam_geometry,
     _side_segments,
+    _simulation_seam_geometry,
     seam_display_labels,
 )
+from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
     apply_seam_colors,
