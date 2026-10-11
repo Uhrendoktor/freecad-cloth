@@ -132,9 +132,7 @@ def validate_metrics(payload: object) -> list[str]:
             else:
                 minimum_samples = frames
             if samples is None or samples < minimum_samples:
-                errors.append(
-                    f"stage_timings.{name}.samples must be >= {minimum_samples}"
-                )
+                errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
             for metric_name in ("mean_ms", "p95_ms", "max_ms"):
                 value = _number(stage.get(metric_name))
                 if value is None or value < 0.0:
