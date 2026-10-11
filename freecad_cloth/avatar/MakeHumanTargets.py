@@ -11,7 +11,7 @@ import gzip
 import math
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -23,7 +23,7 @@ Point = tuple[float, float, float]
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class MakeHumanTarget:
     """Sparse vertex offsets read from a MakeHuman target."""
 
@@ -31,7 +31,7 @@ class MakeHumanTarget:
     offsets: tuple[tuple[int, Point], ...]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class TargetReference:
     """Address a loose target file or one target inside a targets.npz archive."""
 
