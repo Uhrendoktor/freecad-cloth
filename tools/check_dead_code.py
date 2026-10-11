@@ -36,10 +36,7 @@ def main() -> int:
     candidates = [Path(value) for value in sys.argv[1:]]
     if not candidates:
         candidates = [
-            path
-            for root in ALLOWED_ROOTS
-            if root.exists()
-            for path in root.rglob("*.py")
+            path for root in ALLOWED_ROOTS if root.exists() for path in root.rglob("*.py")
         ]
     paths = tuple(str(path) for path in candidates if path.is_file() and allowed(path))
     if not paths:
