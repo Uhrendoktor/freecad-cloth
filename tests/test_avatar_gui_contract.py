@@ -75,7 +75,7 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
     assert self_value == 1800.0
     circumference = AvatarDimensionController._dragged_value(
-        900.0, (10.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793,
+        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793,
         (600.0, 1600.0)
     )
     assert circumference == 1600.0
