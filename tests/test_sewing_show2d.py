@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -94,8 +95,8 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     piece = SimpleNamespace(PatternType="PatternPiece")
 
     class Selection:
-        added = []
-        cleared = 0
+        added: ClassVar[list[object]] = []
+        cleared: ClassVar[int] = 0
 
         @classmethod
         def clearSelection(cls):
