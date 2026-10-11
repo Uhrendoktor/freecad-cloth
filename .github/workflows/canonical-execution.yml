@@ -1,7 +1,6 @@
 name: Canonical execution
 run-name: Canonical execution
 # CI iteration policy: gather the complete matrix before each repair batch.
-# Temporary provenance audit instrumentation; remove after reviewing the scan.
 on:
   push:
     branches: [main]
@@ -57,86 +56,6 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Temporary full-repository provenance sweep
-        run: |
-          git clone --quiet --depth 1 https://github.com/tabler/tabler-icons.git "$RUNNER_TEMP/tabler-icons"
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          import re
-          import subprocess
-          import xml.etree.ElementTree as ET
-
-          tracked = subprocess.run(
-              ["git", "ls-files", "-z"], check=True, capture_output=True
-          ).stdout.decode().split("\0")
-          marker = re.compile(
-              r"pawe[lł]|pawan|kuna|tabler|chatgpt|openai|anthropic|claude|"
-              r"john doe|jane doe|lorem ipsum|example\.com",
-              re.IGNORECASE,
-          )
-          attribution = re.compile(
-              r"copyright|©|@author|\bauthor\b|written by|created by|maintainer|"
-              r"attribution|third[ -]party|source:\s*https?://|license notice",
-              re.IGNORECASE,
-          )
-          full_name = re.compile(
-              r"\b[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[’'-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?"
-              r"\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+\b"
-          )
-          print("=== REPOSITORY-WIDE ATTRIBUTION / CONTAMINATION HITS ===")
-          scanned = 0
-          for raw in tracked:
-              if not raw:
-                  continue
-              path = Path(raw)
-              try:
-                  data = path.read_bytes()
-                  if b"\0" in data or len(data) > 2_000_000:
-                      continue
-                  text = data.decode("utf-8")
-              except (OSError, UnicodeError):
-                  continue
-              scanned += 1
-              for number, line in enumerate(text.splitlines(), 1):
-                  if marker.search(line) or (
-                      attribution.search(line)
-                      and (full_name.search(line) or "http://" in line or "https://" in line)
-                  ):
-                      print(f"{path}:{number}: {line.strip()[:260]}")
-          print(f"SCANNED_TRACKED_TEXT_FILES={scanned}")
-
-          def path_signature(svg_path):
-              try:
-                  root = ET.parse(svg_path).getroot()
-              except (ET.ParseError, OSError):
-                  return None
-              paths = []
-              for element in root.iter():
-                  if element.tag.rsplit("}", 1)[-1] == "path" and "d" in element.attrib:
-                      paths.append(" ".join(element.attrib["d"].split()))
-              return tuple(paths) if paths else None
-
-          upstream_root = Path(os.environ["RUNNER_TEMP"]) / "tabler-icons" / "icons" / "outline"
-          upstream = {}
-          for svg in upstream_root.glob("*.svg"):
-              signature = path_signature(svg)
-              if signature:
-                  upstream.setdefault(signature, []).append(svg.name)
-          print("=== EXACT TABLER OUTLINE PATH-DATA MATCHES ===")
-          svg_count = 0
-          for svg in sorted(Path(".").rglob("*.svg")):
-              if ".git" in svg.parts:
-                  continue
-              sig = path_signature(svg)
-              if not sig:
-                  continue
-              svg_count += 1
-              matches = upstream.get(sig, [])
-              if matches:
-                  print(f"{svg}: {', '.join(matches)}")
-          print(f"SCANNED_REPO_SVGS={svg_count}")
-          PY
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
