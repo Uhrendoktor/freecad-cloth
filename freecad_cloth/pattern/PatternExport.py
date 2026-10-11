@@ -1,7 +1,7 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from html import escape
 from math import cos, hypot, radians, sin
 from pathlib import Path
@@ -45,7 +45,7 @@ def _validate_units(units: str) -> str:
     return "mm"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class _ResolvedNotchCut:
     """Geometric cut-insertion plan for one semantic notch."""
 
