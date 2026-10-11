@@ -190,7 +190,7 @@ replacements = {
     "hem_width = max(450.0, panel_width + 80.0)": "hem_width = max(500.0, panel_width + 80.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.50 * float(garment_height)
+    armhole_z = 0.40 * float(garment_height)
     shoulder_z = 0.86 * float(garment_height)
     points = [
         (0.00, 0.00),
@@ -204,7 +204,7 @@ replacements = {
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.50 * garment_height
+    armhole_z = 0.40 * garment_height
     shoulder_z = 0.86 * garment_height
     points = [
         (0.00, 0.00),

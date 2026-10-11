@@ -170,7 +170,7 @@ def _make_tunic_sketch(
     h = float(garment_height)
     neck_z = (1.0 - float(neckline_drop)) * h
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.50 * h
+    armhole_z = 0.40 * h
     shoulder_z = 0.86 * h
     points = [
         (0.0, 0.0),
