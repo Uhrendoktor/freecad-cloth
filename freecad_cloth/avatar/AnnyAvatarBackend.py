@@ -391,9 +391,7 @@ def _fit_anny_body(
             break
         measurement_loss = torch.stack(
             [
-                (
-                    ((actual[key] - local_target_values[key]) / local_target_values[key].clamp_min(1.0))
-                )
+                ((actual[key] - local_target_values[key]) / local_target_values[key].clamp_min(1.0))
                 ** 2
                 for _name, key, _target in non_hip_targets
             ]
