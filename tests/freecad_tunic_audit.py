@@ -509,11 +509,22 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
             b = simulated_positions[int(gb)]
             gap = ((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)**0.5
             seam_gaps.append(gap)
-            pair_gaps.append((gap, int(ga), int(gb)))
-        worst_gap, worst_a, worst_b = max(pair_gaps, key=lambda item: item[0])
+            pair_gaps.append((gap, int(ga), int(gb), tuple(a), tuple(b)))
+        worst_gap, worst_a, worst_b, worst_pa, worst_pb = max(
+            pair_gaps, key=lambda item: item[0]
+        )
         mean_gap = sum(item[0] for item in pair_gaps) / len(pair_gaps)
         seam_gap_records.append((seam_id, worst_gap))
-        log("authoritative-seam-gap seam=%s count=%d max-mm=%.2f mean-mm=%.2f worst-pair=(%d,%d)" % (seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b))
+        log("authoritative-seam-gap seam=%s count=%d max-mm=%.2f mean-mm=%.2f worst-pair=(%d,%d) a=(%.2f,%.2f,%.2f) b=(%.2f,%.2f,%.2f) delta=(%.2f,%.2f,%.2f)" % (
+            seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b,
+            worst_pa[0], worst_pa[1], worst_pa[2], worst_pb[0], worst_pb[1], worst_pb[2],
+            worst_pa[0]-worst_pb[0], worst_pa[1]-worst_pb[1], worst_pa[2]-worst_pb[2],
+        ))
+        for sample_index, (gap, ga, gb, point_a, point_b) in enumerate(pair_gaps):
+            log("authoritative-seam-sample seam=%s sample=%d pair=(%d,%d) gap-mm=%.2f delta=(%.2f,%.2f,%.2f)" % (
+                seam_id, sample_index, ga, gb, gap,
+                point_a[0]-point_b[0], point_a[1]-point_b[1], point_a[2]-point_b[2],
+            ))
     max_seam_gap = max((gap for _seam_id, gap in seam_gap_records), default=0.0)
     if max_seam_gap > 35.0: raise RuntimeError("authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap)
     log("authoritative-seam-max-gap-mm=%.2f seam-ids=%s" % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records)))
