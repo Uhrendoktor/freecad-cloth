@@ -583,7 +583,7 @@ def write_drape_metrics(
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-def _arc_through_midpoint(Part, start, end, midpoint):
+def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
     """Build a minor native circular arc through an explicit on-arc point."""
     import math
 
@@ -603,7 +603,7 @@ def _arc_through_midpoint(Part, start, end, midpoint):
     if not math.isfinite(radius) or radius <= 1e-9:
         raise RuntimeError("tunic armhole circle has an invalid radius")
 
-    def curve_value(curve, parameter_value):
+    def curve_value(curve: object, parameter_value: float) -> object:
         getter = getattr(curve, "valueAt", None)
         if not callable(getter):
             getter = getattr(curve, "value", None)
@@ -632,7 +632,7 @@ def _arc_through_midpoint(Part, start, end, midpoint):
             (float(quarter_point.y) - center_y) / radius,
         )
 
-        def parameter(point_x, point_y, axis_x=axis_x, axis_y=axis_y):
+        def parameter(point_x: float, point_y: float, axis_x: tuple[float, float] = axis_x, axis_y: tuple[float, float] = axis_y) -> float:
             dx = point_x - center_x
             dy = point_y - center_y
             return (
@@ -686,7 +686,7 @@ def _arc_through_midpoint(Part, start, end, midpoint):
     return arc
 
 
-def _polyline_distance_fraction(point, samples):
+def _polyline_distance_fraction(point: tuple[float, float], samples: tuple[tuple[float, float], ...]) -> tuple[float, float]:
     """Return nearest 2D polyline distance and its normalized arc-length position."""
     import math
 
@@ -719,8 +719,12 @@ def _polyline_distance_fraction(point, samples):
 
 
 def _neckline_boundary_particles(
-    piece, boundary, piece_indices, boundary_chains, particle_positions
-):
+    piece: object,
+    boundary: object,
+    piece_indices: object,
+    boundary_chains: object,
+    particle_positions: object,
+) -> tuple[tuple[int, ...], str, float]:
     """Resolve neckline mesh particles from semantic endpoints, with geometric fallback."""
     import math
 
@@ -1325,8 +1329,9 @@ def simulation():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.64, 0.06)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.64, 0.06)
+    # Widen the neckline span while preserving its authored depth and shoulder geometry.
+    front, front_outline = make_piece("VisualTunicFront", "front", 0.68, 0.06)
+    back, back_outline = make_piece("VisualTunicBack", "back", 0.68, 0.06)
 
     def log_tunic_outline_topology(piece):
         """Log the actual sampled boundary and crossing edges before sewing or draping."""

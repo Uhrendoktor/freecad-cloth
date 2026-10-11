@@ -50,7 +50,7 @@ def test_concave_polygon_triangulates():
     assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
 
 
-def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints():
+def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints() -> None:
     pattern = ParametricPattern(
         [
             LineSegment("bottom", (0, 0), (100, 0)),

@@ -19,7 +19,7 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
     assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
 
 
-def test_canonical_tunic_uses_arrangement_points_target_collision_and_unpinned_neckline_diagnostics():
+def test_canonical_tunic_uses_arrangement_points_target_collision_and_unpinned_neckline_diagnostics() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "ArrangementPoint.from_string" in source
     assert 'shoulder_left = arrangement_world("shoulder_left")' in source
@@ -97,7 +97,7 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
     assert "authoritative-seam-gap seam=%s" in source
 
 
-def test_canonical_tunic_has_two_curved_open_armholes():
+def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "elif index == 2:" in source
     assert "elif index == 6:" in source
@@ -291,7 +291,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
 
-def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
+def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     inside_check = source.split("def _inside_target_count(", 1)[1].split(
         "\ndef write_drape_metrics(", 1
@@ -312,7 +312,7 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host():
     assert "np.einsum" in sanity
 
 
-def test_penetration_evidence_stays_on_numpy_path_in_freecad_host():
+def test_penetration_evidence_stays_on_numpy_path_in_freecad_host() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit = source.split("def write_drape_metrics(", 1)[1].split("\ndef _arc_through_midpoint(", 1)[
         0
@@ -383,10 +383,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
     assert "hem_width = max(500.0, panel_width + 100.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
-    assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.06)' in debug
-    assert 'make_piece("VisualTunicFront", "back", 0.64, 0.06)' in audit
-    assert 'make_piece("VisualTunicBack", "front", 0.64, 0.06)' in audit
+    assert 'make_piece("DebugTunicFront", front_y, 0.68, 0.06)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, 0.68, 0.06)' in debug
+    assert 'make_piece("VisualTunicFront", "back", 0.68, 0.06)' in audit
+    assert 'make_piece("VisualTunicBack", "front", 0.68, 0.06)' in audit
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
@@ -396,7 +396,7 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
 
 
-def test_canonical_tunic_fixture_blocks_every_authored_segment():
+def test_canonical_tunic_fixture_blocks_every_authored_segment() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     start = source.index("def _make_tunic_sketch(")
     end = source.index("\ndef _adopt_sketch(", start)

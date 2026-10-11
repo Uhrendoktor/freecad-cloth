@@ -20,7 +20,7 @@ class LineSegment:
         self.EndPoint = Point(*end)
 
 
-def test_sketch_authority_outline_preserves_intermediate_curve_samples():
+def test_sketch_authority_outline_preserves_intermediate_curve_samples() -> None:
     from freecad_cloth.pattern.SketchAuthority import _sampled_outline
 
     piece_ir = type(

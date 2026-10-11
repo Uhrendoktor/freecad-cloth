@@ -60,7 +60,7 @@ def close_task():
         pass
 
 
-def _arc_through_midpoint(Part, start, end, midpoint):
+def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
     """Build a minor native circular arc through an explicit on-arc point."""
     import math
 
@@ -80,7 +80,7 @@ def _arc_through_midpoint(Part, start, end, midpoint):
     if not math.isfinite(radius) or radius <= 1e-9:
         raise RuntimeError("tunic armhole circle has an invalid radius")
 
-    def curve_value(curve, parameter_value):
+    def curve_value(curve: object, parameter_value: float) -> object:
         getter = getattr(curve, "valueAt", None)
         if not callable(getter):
             getter = getattr(curve, "value", None)
@@ -109,7 +109,7 @@ def _arc_through_midpoint(Part, start, end, midpoint):
             (float(quarter_point.y) - center_y) / radius,
         )
 
-        def parameter(point_x, point_y, axis_x=axis_x, axis_y=axis_y):
+        def parameter(point_x: float, point_y: float, axis_x: tuple[float, float] = axis_x, axis_y: tuple[float, float] = axis_y) -> float:
             dx = point_x - center_x
             dy = point_y - center_y
             return (
@@ -400,8 +400,9 @@ def run():
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    front, front_outline = make_piece("DebugTunicFront", front_y, 0.64, 0.06)
-    back, back_outline = make_piece("DebugTunicBack", back_y, 0.64, 0.06)
+    # Mirror the wider canonical neckline in the lightweight diagnostic.
+    front, front_outline = make_piece("DebugTunicFront", front_y, 0.68, 0.06)
+    back, back_outline = make_piece("DebugTunicBack", back_y, 0.68, 0.06)
     for edge_a, edge_b, seam_id in SEAMS:
         from freecad_cloth.pattern.PatternModel import Seam
         from freecad_cloth.pattern.PatternObjects import add_seam

@@ -50,7 +50,7 @@ class DrapeVisualSanityTests(unittest.TestCase):
         points = ((0.1, 0.1, 0.1), (1.1, 0.1, 0.1))
         self.assertEqual(points_inside_closed_mesh(points, vertices, triangles), (True, False))
 
-    def test_bulk_containment_can_bypass_trimesh_acceleration(self):
+    def test_bulk_containment_can_bypass_trimesh_acceleration(self) -> None:
         vertices = (
             (0.0, 0.0, 0.0),
             (1.0, 0.0, 0.0),
