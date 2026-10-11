@@ -893,14 +893,28 @@ class SurfacePenTaskPanel:
 
         instructions = QtWidgets.QLabel(
             "<b>3D Pattern Pen</b><br>"
-            "Drag on the visible mannequin surface to trace a closed piece. "
-            "Lift the mouse to continue the same stroke."
+            "Point placement: click to add corners. A Curve point between two corners "
+            "creates a smooth B-spline segment. Freehand trace remains available for "
+            "drag-based sampling."
         )
         instructions.setWordWrap(True)
         outer.addWidget(instructions)
         self.form.setMaximumWidth(380)
 
         controls = QtWidgets.QFormLayout()
+        self.input_mode_combo = QtWidgets.QComboBox()
+        self.input_mode_combo.addItems(["Point placement", "Freehand trace"])
+        self.input_mode_combo.currentTextChanged.connect(self._input_mode_changed)
+        controls.addRow("Input mode", self.input_mode_combo)
+
+        self.point_kind_combo = QtWidgets.QComboBox()
+        self.point_kind_combo.addItems(["Corner point", "Curve point"])
+        self.point_kind_combo.setToolTip(
+            "A curve point is interpolated between the neighboring corner points."
+        )
+        self.point_kind_combo.currentTextChanged.connect(self._point_kind_changed)
+        controls.addRow("Point type", self.point_kind_combo)
+
         self.tolerance = QtWidgets.QDoubleSpinBox()
         self.tolerance.setRange(0.5, 100.0)
         self.tolerance.setDecimals(1)
@@ -925,9 +939,18 @@ class SurfacePenTaskPanel:
         buttons.addWidget(self.cancel_button)
         outer.addLayout(buttons)
         self.controller.status_callback = self.update_status
-        self.update_status(
-            "Draw on the selected surface. Finish is enabled after a closed boundary is traced."
-        )
+        self._input_mode_changed(self.input_mode_combo.currentText())
+        self._point_kind_changed(self.point_kind_combo.currentText())
+        self.update_status(self.controller._stroke_status())
+
+    def _input_mode_changed(self, value: str) -> None:
+        """Switch the viewport between click-to-place and drag-to-trace modes."""
+        self.controller.set_input_mode(value)
+        self.point_kind_combo.setEnabled(self.controller.input_mode == "point")
+
+    def _point_kind_changed(self, value: str) -> None:
+        """Set the kind assigned to the next point placed on the target."""
+        self.controller.set_point_kind(value)
 
     def update_status(self, message: str) -> None:
         """Show drawing guidance and enable extraction only for a closable boundary."""
