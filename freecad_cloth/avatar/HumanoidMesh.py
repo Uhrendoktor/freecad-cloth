@@ -725,6 +725,8 @@ def _make_source_fitted_mapper(
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
 
+    return transform
+
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
     source = _load_source_vertices()
