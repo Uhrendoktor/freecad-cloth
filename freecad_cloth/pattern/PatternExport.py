@@ -26,6 +26,14 @@ def _dim(value):
     return f"{float(value):g}"
 
 
+def _validate_units(units):
+    """Require millimetres, the canonical unit of Cloth pattern geometry."""
+    normalized = str(units).strip().lower()
+    if normalized != "mm":
+        raise ValueError("units must be 'mm'; pattern coordinates are defined in millimetres")
+    return "mm"
+
+
 def _sampled_sewing(pattern, curve_samples):
     points = pattern.sampled_outline(curve_samples)
     if not points:
@@ -60,17 +68,36 @@ def to_svg(
     seam_allowance: float = 0.0,
 ) -> str:
     """Provide the public to svg operation."""
-    if not units.strip():
-        raise ValueError("units must not be empty")
+    units = _validate_units(units)
     sewing = _sampled_sewing(pattern, curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern:
         raise ValueError("derived pattern belongs to a different sewing boundary")
     cut_edges = derived.cut_boundary if derived is not None else ()
+    cut_contour = derived.cut_contour if derived is not None else ()
     xs = [p[0] for p in sewing]
     ys = [p[1] for p in sewing]
-    for edge in cut_edges:
-        xs.extend(p[0] for p in edge.points)
-        ys.extend(p[1] for p in edge.points)
+    if cut_contour:
+        xs.extend(point[0] for point in cut_contour)
+        ys.extend(point[1] for point in cut_contour)
+    else:
+        for edge in cut_edges:
+            xs.extend(p[0] for p in edge.points)
+            ys.extend(p[1] for p in edge.points)
+    if derived is not None:
+        for notch in derived.notches:
+            x, y = notch_point(pattern, notch)
+            radius = max(0.5, notch.depth / 4)
+            xs.extend((x - radius, x + radius))
+            ys.extend((y - radius, y + radius))
+        for mark in derived.marks:
+            x, y = mark_point(pattern, mark)
+            half = mark.length / 2
+            dx, dy = cos(radians(mark.angle)) * half, sin(radians(mark.angle)) * half
+            xs.extend((x - dx, x + dx))
+            ys.extend((y - dy, y + dy))
+            if mark.text:
+                xs.append(x + max(2.0, len(mark.text) * 1.8))
+                ys.extend((y - 1.0, y + 2.0))
     min_x, max_x, min_y, max_y = min(xs), max(xs), min(ys), max(ys)
     width, height = max_x - min_x, max_y - min_y
     if width <= 0 or height <= 0:
@@ -94,21 +121,19 @@ def to_svg(
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{_dim(width)}{escape(units)}" height="{_dim(height)}{escape(units)}" viewBox="0 0 {_fmt(width)} {_fmt(height)}" data-units="{escape(units, quote=True)}" data-edge-ids="{edge_ids}" data-piece-id="{escape(str(piece_id), quote=True)}">',
         f"  <metadata>{escape(metadata)}</metadata>",
-        f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none"/></g>',
+        f'  <g id="sewing-boundary" data-edge-ids="{edge_ids}"><path d="{path(sewing)}" fill="none" stroke="#000000" stroke-width="0.2" stroke-dasharray="2 1" stroke-linecap="round" stroke-linejoin="round"/></g>',
     ]
-    if cut_edges:
-        lines.append('  <g id="cut-boundary">')
-        for edge in cut_edges:
-            lines.append(
-                f'    <path id="cut-{escape(edge.id, quote=True)}" d="{path(edge.points, False)}" fill="none"/>'
-            )
-        lines.append("  </g>")
+    if cut_edges or cut_contour:
+        cut_points = cut_contour or tuple(point for edge in cut_edges for point in edge.points)
+        lines.append(
+            f'  <g id="cut-boundary"><path id="cut-perimeter" d="{path(cut_points, True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
+        )
     if derived is not None and (derived.notches or derived.marks):
         lines.append('  <g id="construction-marks">')
         for notch in derived.notches:
             x, y = xy(notch_point(pattern, notch))
             lines.append(
-                f'    <circle id="notch-{escape(notch.id, quote=True)}" cx="{_fmt(x)}" cy="{_fmt(y)}" r="{_fmt(max(0.5, notch.depth / 4))}" data-segment="{escape(notch.segment_id, quote=True)}" data-t="{_fmt(notch.t)}"/>'
+                f'    <circle id="notch-{escape(notch.id, quote=True)}" cx="{_fmt(x)}" cy="{_fmt(y)}" r="{_fmt(max(0.5, notch.depth / 4))}" fill="none" stroke="#000000" stroke-width="0.2" data-segment="{escape(notch.segment_id, quote=True)}" data-t="{_fmt(notch.t)}"/>'
             )
         for mark in derived.marks:
             x, y = xy(mark_point(pattern, mark))
@@ -116,11 +141,11 @@ def to_svg(
             half = mark.length / 2
             dx, dy = cos(angle) * half, -sin(angle) * half
             lines.append(
-                f'    <line id="mark-{escape(mark.id, quote=True)}" x1="{_fmt(x - dx)}" y1="{_fmt(y - dy)}" x2="{_fmt(x + dx)}" y2="{_fmt(y + dy)}" data-kind="{escape(mark.kind, quote=True)}" data-segment="{escape(mark.segment_id, quote=True)}" data-t="{_fmt(mark.t)}"/>'
+                f'    <line id="mark-{escape(mark.id, quote=True)}" x1="{_fmt(x - dx)}" y1="{_fmt(y - dy)}" x2="{_fmt(x + dx)}" y2="{_fmt(y + dy)}" fill="none" stroke="#000000" stroke-width="0.2" stroke-linecap="round" data-kind="{escape(mark.kind, quote=True)}" data-segment="{escape(mark.segment_id, quote=True)}" data-t="{_fmt(mark.t)}"/>'
             )
             if mark.text:
                 lines.append(
-                    f'    <text x="{_fmt(x)}" y="{_fmt(y)}" data-mark-id="{escape(mark.id, quote=True)}">{escape(mark.text)}</text>'
+                    f'    <text x="{_fmt(x)}" y="{_fmt(y)}" fill="#000000" font-family="sans-serif" font-size="3mm" data-mark-id="{escape(mark.id, quote=True)}">{escape(mark.text)}</text>'
                 )
         lines.append("  </g>")
     lines.append("</svg>")
@@ -137,8 +162,7 @@ def to_dxf(
     seam_allowance: float = 0.0,
 ) -> str:
     """Provide the public to dxf operation."""
-    if not units.strip():
-        raise ValueError("units must not be empty")
+    units = _validate_units(units)
     sewing = _sampled_sewing(pattern, curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern:
         raise ValueError("derived pattern belongs to a different sewing boundary")
@@ -155,8 +179,11 @@ def to_dxf(
 
     polyline(sewing, "SEWING", True)
     if derived is not None:
-        for edge in derived.cut_boundary:
-            polyline(edge.points, "CUT", False)
+        cut_contour = derived.cut_contour or tuple(
+            point for edge in derived.cut_boundary for point in edge.points
+        )
+        if cut_contour:
+            polyline(cut_contour, "CUT", True)
         for notch in derived.notches:
             x, y = notch_point(pattern, notch)
             polyline([(x, y), (x, y + notch.depth)], "MARK", False)
@@ -175,6 +202,10 @@ def to_dxf(
         "SECTION",
         "2",
         "HEADER",
+        "9",
+        "$INSUNITS",
+        "70",
+        "4",
         "9",
         "$COMMENT",
         "1",
@@ -389,8 +420,7 @@ def export_pattern_piece(
     normalized_format = str(format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
         raise ValueError("format must be 'svg' or 'dxf'")
-    if not str(units).strip():
-        raise ValueError("units must not be empty")
+    units = _validate_units(units)
     pattern = pattern_from_pattern_piece(piece, curve_samples=curve_samples)
     seam_ids = _piece_seams(piece)
     allowance = max(0.0, float(getattr(piece, "SeamAllowance", 0.0)))
