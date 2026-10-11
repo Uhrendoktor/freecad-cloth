@@ -391,14 +391,16 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             try:
                 from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
+                projector_candidate_count = 2 if self._substeps <= 1 else 4
                 self._collision_projector = MeshCollisionProjector(
                     collision_surface,
                     clearance_mm=effective_tolerance_mm,
+                    candidate_count=projector_candidate_count,
                 )
                 print(
                     "cloth-pbd-position-projection ready "
                     f"clearance_mm={effective_tolerance_mm:.2f} "
-                    f"candidate_triangles={min(32, len(collision_surface.triangles))}",
+                    f"candidate_triangles={min(projector_candidate_count, len(collision_surface.triangles))}",
                     flush=True,
                 )
             except ValueError as exc:
@@ -554,6 +556,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
         corrected_mm, outward_normals = projector.project(positions_mm)
+        if not bool(np.any(outward_normals)):
+            return
         from freecad_cloth.simulation.MeshCollisionProjector import project_stitched_pairs
 
         corrected_mm, outward_normals = project_stitched_pairs(

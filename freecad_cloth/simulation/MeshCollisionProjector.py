@@ -19,12 +19,19 @@ from freecad_cloth.shared.collision import CollisionSurface
 class MeshCollisionProjector:
     """Project points to the exterior clearance shell of a closed triangle mesh."""
 
-    def __init__(self, surface: CollisionSurface, clearance_mm: float) -> None:
+    def __init__(
+        self,
+        surface: CollisionSurface,
+        clearance_mm: float,
+        candidate_count: int = 4,
+    ) -> None:
         """Prepare outward-facing triangles and a spatial index for the target mesh."""
         if not np.isfinite(clearance_mm) or clearance_mm <= 0.0:
             raise ValueError("collision projection clearance must be positive and finite")
         if len(surface.vertices) < 4 or len(surface.triangles) < 4:
             raise ValueError("collision projection requires a closed triangle mesh")
+        if candidate_count < 1:
+            raise ValueError("collision projection candidate count must be positive")
 
         self.clearance_mm = float(clearance_mm)
         self._vertices = np.asarray(surface.vertices, dtype=np.float64)
@@ -74,10 +81,10 @@ class MeshCollisionProjector:
         self._centroids = np.mean(triangles, axis=1)
         self._tree = KDTree(self._centroids)
         # Target triangles in the packaged humanoid mesh are locally dense and
-        # consistently sized; a small centroid neighborhood bounds the per-frame
-        # vectorized point-to-triangle work. Exterior projection and zero-penetration
-        # acceptance remain authoritative in the production audit.
-        self._candidate_count = min(4, len(self._triangles))
+        # consistently sized. Fast preview uses two nearby faces to limit per-frame
+        # work; production draping uses four and remains subject to exact zero-
+        # penetration acceptance. This count controls candidate cost, not clearance.
+        self._candidate_count = min(int(candidate_count), len(self._triangles))
         triangle_radius_mm = float(
             np.linalg.norm(triangles - self._centroids[:, None, :], axis=2).max()
         )
@@ -236,6 +243,11 @@ def project_stitched_pairs(
         raise ValueError("stitched collision normals must match the position array")
     if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
         raise ValueError("stitched collision positions and normals must be finite")
+
+    # Contact-free steps are common in a preview. Avoid rebuilding stitch
+    # connectivity when no particle was projected.
+    if not bool(np.any(normals)):
+        return corrected, normals
 
     particle_count = len(corrected)
     pinned = {int(index) for index in pinned_indices}

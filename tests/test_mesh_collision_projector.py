@@ -59,6 +59,27 @@ def test_projector_moves_inside_points_outside_closed_surface() -> None:
     )
 
 
+def test_projector_supports_reduced_preview_candidate_count() -> None:
+    surface = _cube_surface()
+    projector = MeshCollisionProjector(surface, clearance_mm=2.0, candidate_count=2)
+    points = np.asarray(((50.0, 50.0, 50.0), (-0.5, 50.0, 50.0)), dtype=np.float64)
+
+    projected, normals = projector.project(points)
+
+    assert np.all(np.isfinite(projected))
+    assert np.allclose(np.linalg.norm(normals, axis=1), 1.0)
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(point),),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )[0]
+        for point in projected
+    )
+
+
 def test_projector_enforces_clearance_and_leaves_distant_points_unchanged() -> None:
     surface = _cube_surface()
     projector = MeshCollisionProjector(surface, clearance_mm=2.0)
