@@ -22,6 +22,7 @@ from freecad_cloth.pattern.PatternExport import (
     from_pdf_metadata,
     from_svg_metadata,
 )
+from freecad_cloth.pattern.PatternSvgValidation import render_svg_for_validation
 
 LOG_PATH = Path(
     os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log")
@@ -368,6 +369,29 @@ try:
                     raise RuntimeError("SVG export lost persisted construction-mark coordinates")
                 if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline coordinates")
+                preview_png = ROOT / "artifacts" / "pattern-export-svg-preview.png"
+                render_report = render_svg_for_validation(
+                    output,
+                    dpi=144,
+                    output_path=preview_png,
+                )
+                render_report_path = ROOT / "artifacts" / "pattern-export-svg-render.json"
+                render_report_path.write_text(
+                    json.dumps(render_report, sort_keys=True, indent=2) + "\\n",
+                    encoding="utf-8",
+                )
+                record(
+                    "svg-render=passed renderer={} physical_mm={}x{} raster_px={}x{} ink_pixels={}".format(
+                        render_report["renderer"],
+                        render_report["physical_width_mm"],
+                        render_report["physical_height_mm"],
+                        render_report["raster_width_px"],
+                        render_report["raster_height_px"],
+                        render_report["ink_pixel_count"],
+                    )
+                )
+                record(f"svg-preview-artifact={preview_png}")
+                record(f"svg-render-report-artifact={render_report_path}")
             elif export_format == "DXF":
                 output = first.decode("utf-8")
                 if f'"notch_ids":["{notch_id}"]' not in output:
