@@ -280,11 +280,13 @@ def _fit_anny_body(
         (parameter_name, key, float(values[parameter_name]) / 10.0)
         for parameter_name, key in MEASUREMENT_FIELDS
     )
-    global_targets = tuple(target for target in targets if target[0] in {"height", "inseam"})
+    # Keep global shape fitting independent of hip-only edits while retaining
+    # the other measurements that define the whole-body silhouette.
+    global_targets = tuple(target for target in targets if target[0] != "hip")
     local_targets = tuple(target for target in targets if target[0] not in {"height", "inseam"})
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
-    global_phenotype_names = {"height", "proportions"}
+    global_phenotype_names = {"height", "weight", "muscle", "proportions"}
     missing_global_phenotypes = global_phenotype_names - set(body.phenotype_kwargs)
     if missing_global_phenotypes:
         raise AnnyAvatarBackendError(
@@ -294,9 +296,11 @@ def _fit_anny_body(
     if not global_targets or not local_targets:
         raise AnnyAvatarBackendError("Anny measurement fitting has an empty target group.")
 
-    # Fit global proportions only to height and inseam first. Circumference errors
-    # must not change the whole-body phenotypes: doing so moved head/neck/shoulder
-    # anchors when an otherwise unrelated hip measurement changed.
+    # Hold the non-hip measurement target set fixed so hip edits cannot bias
+    # the global controls that determine head, neck, shoulder and arm positions.
+    initial_global_values = {
+        name: body.phenotype_kwargs[name].detach().clone() for name in global_phenotype_names
+    }
     global_parameters = [
         value for name, value in body.phenotype_kwargs.items() if name in global_phenotype_names
     ]
@@ -320,7 +324,7 @@ def _fit_anny_body(
         ]
         if float(torch.stack(relative_errors).max().detach()) <= _FIT_TOLERANCE:
             break
-        loss = torch.stack(
+        measurement_loss = torch.stack(
             [
                 (
                     (actual[key] - global_target_values[key])
@@ -330,6 +334,13 @@ def _fit_anny_body(
                 for _name, key, _target in global_targets
             ]
         ).mean()
+        phenotype_penalty = torch.stack(
+            [
+                (body.phenotype_kwargs[name] - initial_global_values[name]).square().mean()
+                for name in global_phenotype_names
+            ]
+        ).sum()
+        loss = measurement_loss + 0.002 * phenotype_penalty
         loss.backward()
         global_optimizer.step()
         with torch.no_grad():
