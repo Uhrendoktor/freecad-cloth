@@ -68,6 +68,8 @@ class MakeHumanTargetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="cloth-target-archive-") as directory:
             root = Path(directory)
             archive = root / "targets.npz"
+            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
+                self.assertEqual(target_directory(), root.resolve())
             np.savez_compressed(
                 archive,
                 **{
@@ -116,7 +118,7 @@ class MakeHumanTargetTests(unittest.TestCase):
     def test_torso_mapper_calibrates_named_waist_contour(self) -> None:
         source_vertices = []
         ring_count = 24
-        for normalized_height in (0.56, 0.60):
+        for normalized_height in (0.579, 0.581):
             source_y = normalized_height * 2.0 - 1.0
             for index in range(ring_count):
                 angle = (2.0 * math.pi * index) / ring_count
