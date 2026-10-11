@@ -289,8 +289,15 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             ["standing", "sewing", "sitting", "t_pose"],
         )
         obj.PosePreset = "standing"
+        default_pose = Pose("standing")
         for name, prop in POSE_PROPERTY_MAP.items():
-            _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
+            _set_prop(
+                obj,
+                "App::PropertyAngle",
+                prop,
+                "Pose",
+                float(getattr(default_pose, name)),
+            )
         _set_prop(
             obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
         )
@@ -332,8 +339,16 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             "Body shape",
             float(getattr(obj, "BreastSize", 0.0)),
         )
+        default_pose = Pose(str(getattr(obj, "PosePreset", "standing")))
         for name, prop in POSE_PROPERTY_MAP.items():
-            _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
+            if not hasattr(obj, prop):
+                _set_prop(
+                    obj,
+                    "App::PropertyAngle",
+                    prop,
+                    "Pose",
+                    float(getattr(default_pose, name)),
+                )
         for name, default in (
             ("AvatarMeshProvider", ""),
             ("AvatarMeshSource", ""),
