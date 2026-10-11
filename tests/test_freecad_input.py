@@ -82,4 +82,4 @@ def test_visual_asset_inventory_has_live_ci_producers():
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "visual-asset-contract=passed documented_and_generated=36" in result.stdout
+    assert "visual-asset-contract=passed documented_and_generated=39" in result.stdout
