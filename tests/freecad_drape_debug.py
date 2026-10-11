@@ -202,9 +202,7 @@ def _make_tunic_sketch(
             side_mid_z = 0.35 * h
             side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
             side_chord_x = start[0] + side_fraction * (end[0] - start[0])
-            midpoint = App.Vector(
-                side_chord_x + 0.04 * float(panel_width), side_mid_z, 0
-            )
+            midpoint = App.Vector(side_chord_x + 0.04 * float(panel_width), side_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 2:
             # Give the armhole meaningful vertical depth and inward sweep.
@@ -217,9 +215,7 @@ def _make_tunic_sketch(
             side_mid_z = 0.35 * h
             side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
             side_chord_x = start[0] + side_fraction * (end[0] - start[0])
-            midpoint = App.Vector(
-                side_chord_x - 0.04 * float(panel_width), side_mid_z, 0
-            )
+            midpoint = App.Vector(side_chord_x - 0.04 * float(panel_width), side_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
