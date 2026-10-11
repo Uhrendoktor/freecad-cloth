@@ -1,6 +1,7 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 
 import json
+from contextlib import suppress
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
@@ -110,10 +111,8 @@ def _parameters(obj):
     )
     shape_payload = {}
     if payload:
-        try:
+        with suppress(TypeError, ValueError):
             shape_payload = json.loads(payload).get("shape", {})
-        except (TypeError, ValueError):
-            pass
     gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
     breast_size = float(
         getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
