@@ -163,7 +163,8 @@ def main() -> None:
         _record_frame(3)
         _capture("surface-pen.png")
 
-        assert panel.finish()
+        if not panel.finish():
+            raise AssertionError(f"Surface Pen extraction failed: {panel.status.text()}")
         pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
         assert len(pieces) == 1
         piece = pieces[0]
