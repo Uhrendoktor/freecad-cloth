@@ -50,7 +50,12 @@ def test_gender_and_breast_controls_persist_and_change_geometry():
 
 
 def test_invalid_shape_values_are_rejected():
-    for changes in ({"gender": -0.01}, {"gender": 1.01}, {"breast_size": -0.01}, {"breast_size": 1.01}):
+    for changes in (
+        {"gender": -0.01},
+        {"gender": 1.01},
+        {"breast_size": -0.01},
+        {"breast_size": 1.01},
+    ):
         try:
             AvatarParameters(**changes)
         except ValueError:
