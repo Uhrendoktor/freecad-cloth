@@ -31,13 +31,30 @@ def _indexed_mesh_topology(
     return vertex_indices, faces
 
 
+# FreeCAD mesh features are identified by document/object name. Caching this
+# signature lets preview frames update existing point coordinates without
+# re-triangulating an unchanged panel.
+_MESH_OBJECT_TOPOLOGY: dict[tuple[str, str], tuple[tuple[int, int, int], ...]] = {}
+
+
+def _mesh_object_key(obj):
+    document = getattr(obj, "Document", None)
+    document_name = getattr(document, "Name", None)
+    object_name = getattr(obj, "Name", None)
+    if document_name and object_name:
+        return str(document_name), str(object_name)
+    return "object", str(id(obj))
+
+
 def _write_mesh(obj, positions, triangles):
     import FreeCAD as App
     import Mesh
 
     topology = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    object_key = _mesh_object_key(obj)
     if not topology:
         obj.Mesh = Mesh.Mesh()
+        _MESH_OBJECT_TOPOLOGY.pop(object_key, None)
         return
 
     # FreeCAD's indexed constructor builds shared vertices and triangle indices
@@ -45,11 +62,34 @@ def _write_mesh(obj, positions, triangles):
     # frames, then update only the current solver coordinates.
     vertex_indices, faces = _indexed_mesh_topology(topology)
     vertices = [App.Vector(*positions[index]) for index in vertex_indices]
+    native = getattr(obj, "Mesh", None)
+    if (
+        _MESH_OBJECT_TOPOLOGY.get(object_key) == topology
+        and native is not None
+        and getattr(native, "CountPoints", -1) == len(vertex_indices)
+        and getattr(native, "CountFacets", -1) == len(faces)
+    ):
+        set_point = getattr(native, "setPoint", None)
+        if callable(set_point):
+            try:
+                for index, point in enumerate(vertices):
+                    set_point(index, point)
+                obj.Mesh = native
+                return
+            except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+                # Fall back to a complete native mesh if this FreeCAD build does
+                # not support editing all indexed points in place.
+                pass
+
     # The face indices originate from validated panel topology. Avoid repeating
     # the constructor's manifold check on every transient preview mesh rebuild.
     native = Mesh.Mesh()
     native.addFacets((vertices, list(faces)), False)
     obj.Mesh = native
+    _MESH_OBJECT_TOPOLOGY[object_key] = topology
+    if len(_MESH_OBJECT_TOPOLOGY) > 256:
+        _MESH_OBJECT_TOPOLOGY.clear()
+        _MESH_OBJECT_TOPOLOGY[object_key] = topology
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
