@@ -86,7 +86,6 @@ select = [
   "PERF",
   "PGH",
   "PIE",
-  "PT",
   "RET",
   "RUF",
   "SIM",
@@ -99,7 +98,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Assertions are appropriate in tests, where they are the primary test oracle.
+# FreeCAD acceptance scripts and many legacy tests intentionally use unittest rather than pytest assertions.
 "tests/**/*.py" = ["S101"]
 
 [tool.ruff.format]
