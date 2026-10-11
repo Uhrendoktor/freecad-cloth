@@ -438,9 +438,9 @@ def _cached_fitted_body(
     return _fit_anny_body(measurements, gender, breast_size)
 
 
-def _fitted_body_for(parameters: AvatarParameters) -> tuple[
-    MeshData, tuple[tuple[float, float, float], ...]
-]:
+def _fitted_body_for(
+    parameters: AvatarParameters,
+) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Return the cached visible surface and complete rig-indexed fitted vertices."""
     key = tuple(
         sorted((str(name), float(value)) for name, value in parameters.measurements.items())
