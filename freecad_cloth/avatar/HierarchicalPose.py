@@ -58,10 +58,12 @@ def _arm_pose_configuration(
         ("upperarm01.L", "wrist.L"),
         ("upperarm01.R", "wrist.R"),
     ):
-        shoulder_source, _ = _bone_source_endpoints(source_vertices, skeleton, bone_name)
-        wrist_source, _ = _bone_source_endpoints(source_vertices, skeleton, wrist_bone)
-        shoulder = mapper(shoulder_source)
-        wrist = mapper(wrist_source)
+        shoulder, _ = _bone_source_endpoints(
+            source_vertices, skeleton, bone_name, mapper=mapper
+        )
+        wrist, _ = _bone_source_endpoints(
+            source_vertices, skeleton, wrist_bone, mapper=mapper
+        )
         side = -1.0 if shoulder[0] < 0.0 else 1.0
         desired = float(
             parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle
