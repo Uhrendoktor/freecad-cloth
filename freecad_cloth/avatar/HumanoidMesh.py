@@ -742,7 +742,12 @@ def _make_source_fitted_mapper(
         z_mm = normalized_z * height_mm
         # A smooth front-surface bulge acts as an intuitive bust-size control.
         # The neutral default (zero) is geometry-identical to the pinned HM08 base.
-        breast_size = float(parameters.breast_size)
+        # Feminine gender blend introduces a modest natural breast baseline;
+        # the independent control adds projection regardless of the blend.
+        breast_size = min(
+            1.0,
+            float(parameters.breast_size) + max(0.0, 0.5 - float(parameters.gender)) * 1.2,
+        )
         if breast_size > 0.0:
             front_weight = _smoothstep(-18.0, 28.0, y_mm)
             vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.033) ** 2)
