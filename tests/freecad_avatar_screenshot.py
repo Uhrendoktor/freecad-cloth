@@ -155,9 +155,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.15,
             "breast_size": 0.55,
             "measurements": {
-                "height": 1680, "shoulder": 420, "chest": 930, "underbust": 810,
-                "waist": 720, "high_hip": 900, "hip": 1030,
-                "upper_arm": 290, "thigh": 535,
+                "height": 1680,
+                "shoulder": 420,
+                "chest": 930,
+                "underbust": 810,
+                "waist": 720,
+                "high_hip": 900,
+                "hip": 1030,
+                "upper_arm": 290,
+                "thigh": 535,
             },
         },
         {
@@ -165,9 +171,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.90,
             "breast_size": 0.0,
             "measurements": {
-                "height": 1800, "shoulder": 490, "chest": 1030, "underbust": 900,
-                "waist": 850, "high_hip": 930, "hip": 1010,
-                "upper_arm": 330, "thigh": 570,
+                "height": 1800,
+                "shoulder": 490,
+                "chest": 1030,
+                "underbust": 900,
+                "waist": 850,
+                "high_hip": 930,
+                "hip": 1010,
+                "upper_arm": 330,
+                "thigh": 570,
             },
         },
         {
@@ -175,9 +187,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.30,
             "breast_size": 0.20,
             "measurements": {
-                "height": 1700, "shoulder": 390, "chest": 820, "underbust": 720,
-                "waist": 650, "high_hip": 800, "hip": 890,
-                "upper_arm": 250, "thigh": 470,
+                "height": 1700,
+                "shoulder": 390,
+                "chest": 820,
+                "underbust": 720,
+                "waist": 650,
+                "high_hip": 800,
+                "hip": 890,
+                "upper_arm": 250,
+                "thigh": 470,
             },
         },
         {
@@ -185,9 +203,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.25,
             "breast_size": 0.75,
             "measurements": {
-                "height": 1680, "shoulder": 470, "chest": 1220, "underbust": 1090,
-                "waist": 1170, "high_hip": 1220, "hip": 1350,
-                "upper_arm": 400, "thigh": 710,
+                "height": 1680,
+                "shoulder": 470,
+                "chest": 1220,
+                "underbust": 1090,
+                "waist": 1170,
+                "high_hip": 1220,
+                "hip": 1350,
+                "upper_arm": 400,
+                "thigh": 710,
             },
         },
         {
@@ -195,9 +219,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.85,
             "breast_size": 0.0,
             "measurements": {
-                "height": 1800, "shoulder": 550, "chest": 1150, "underbust": 1050,
-                "waist": 780, "high_hip": 890, "hip": 990,
-                "upper_arm": 430, "thigh": 640,
+                "height": 1800,
+                "shoulder": 550,
+                "chest": 1150,
+                "underbust": 1050,
+                "waist": 780,
+                "high_hip": 890,
+                "hip": 990,
+                "upper_arm": 430,
+                "thigh": 640,
             },
         },
         {
@@ -205,9 +235,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.30,
             "breast_size": 0.35,
             "measurements": {
-                "height": 1950, "shoulder": 440, "chest": 970, "underbust": 835,
-                "waist": 790, "high_hip": 900, "hip": 1010,
-                "upper_arm": 300, "thigh": 550,
+                "height": 1950,
+                "shoulder": 440,
+                "chest": 970,
+                "underbust": 835,
+                "waist": 790,
+                "high_hip": 900,
+                "hip": 1010,
+                "upper_arm": 300,
+                "thigh": 550,
             },
         },
         {
@@ -215,9 +251,15 @@ def render_body_shape_gallery(doc, view, avatar, output):
             "gender": 0.25,
             "breast_size": 0.35,
             "measurements": {
-                "height": 1530, "shoulder": 415, "chest": 900, "underbust": 790,
-                "waist": 710, "high_hip": 860, "hip": 970,
-                "upper_arm": 285, "thigh": 520,
+                "height": 1530,
+                "shoulder": 415,
+                "chest": 900,
+                "underbust": 790,
+                "waist": 710,
+                "high_hip": 860,
+                "hip": 970,
+                "upper_arm": 285,
+                "thigh": 520,
             },
         },
     )
@@ -233,8 +275,6 @@ def render_body_shape_gallery(doc, view, avatar, output):
     view.viewRear()
     view.fitAll()
     events()
-    from pivy import coin
-
     camera = view.getCameraNode()
     initial = avatar.Mesh.BoundBox
     initial_center = App.Vector(
@@ -289,9 +329,11 @@ def render_body_shape_gallery(doc, view, avatar, output):
         """Load a readable annotation font with a portable fallback."""
         candidates = (
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            if bold
+            else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
-            if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+            if bold
+            else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
         )
         for candidate in candidates:
             try:
