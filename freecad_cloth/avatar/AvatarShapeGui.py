@@ -262,10 +262,7 @@ class AvatarDimensionController:
                 marker.addChild(coord)
                 marker.addChild(points)
                 self.overlay.addChild(marker)
-                if key == "height":
-                    value = float(m["height"])
-                else:
-                    value = float(m[key])
+                value = float(m["height"]) if key == "height" else float(m[key])
                 self._add_label(coin, point, "{}  {:.0f} mm".format(item["label"], value), color)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             # Numeric fields remain available if a FreeCAD build lacks a Coin API.
