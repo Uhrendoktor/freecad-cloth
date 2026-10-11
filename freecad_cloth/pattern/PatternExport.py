@@ -28,11 +28,14 @@ from freecad_cloth.pattern.PatternGeometry import (
     signed_area,
 )
 
+
 def _fmt(value):
     return f"{float(value):.6f}"
 
+
 def _dim(value):
     return f"{float(value):g}"
+
 
 def _validate_units(units: str) -> str:
     """Require millimetres, the canonical unit of Cloth pattern geometry."""
@@ -40,6 +43,7 @@ def _validate_units(units: str) -> str:
     if normalized != "mm":
         raise ValueError("units must be 'mm'; pattern coordinates are defined in millimetres")
     return "mm"
+
 
 @pydantic_dataclass(frozen=True)
 class _ResolvedNotchCut:
@@ -52,6 +56,7 @@ class _ResolvedNotchCut:
     right_point: Point
     apex: Point
     half_width: float
+
 
 def _project_point_onto_polyline(point: Point, points: list[Point]) -> tuple[Point, float, float]:
     """Project a point to a polyline and return (projection, arclength, distance)."""
@@ -84,6 +89,7 @@ def _project_point_onto_polyline(point: Point, points: list[Point]) -> tuple[Poi
         raise ValueError("cannot project onto a degenerate polyline")
     return best_point, best_measure, best_distance
 
+
 def _polyline_point_at(points: list[Point], distance: float) -> Point:
     """Interpolate a point at an arclength on a polyline."""
     if len(points) < 2:
@@ -102,6 +108,7 @@ def _polyline_point_at(points: list[Point], distance: float) -> Point:
         travelled += length
     return points[-1]
 
+
 def _interior_normal(pattern: ParametricPattern, notch: Notch) -> Point:
     """Find the sewing-side normal, including zero-allowance and curved edges."""
     segment = pattern.by_id()[notch.segment_id]
@@ -114,6 +121,7 @@ def _interior_normal(pattern: ParametricPattern, notch: Notch) -> Point:
         raise ValueError(f"cannot determine notch orientation on edge {notch.segment_id}")
     orientation = signed_area(pattern.sampled_outline(32))
     return (-dy / length, dx / length) if orientation > 0 else (dy / length, -dx / length)
+
 
 def _cut_contour_with_notches(
     pattern: ParametricPattern, derived: DerivedPattern
@@ -231,11 +239,13 @@ def _cut_contour_with_notches(
         raise ValueError("notches produce an invalid cut contour")
     return tuple(result)
 
+
 def _sampled_sewing(pattern, curve_samples):
     points = pattern.sampled_outline(curve_samples)
     if not points:
         raise ValueError("pattern has no outline")
     return points
+
 
 def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0):
     data = {"version": 1, "units": units, "edge_ids": [s.id for s in pattern.segments]}
@@ -252,6 +262,7 @@ def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allow
         data["notch_ids"] = [str(value.id) for value in derived.notches]
         data["mark_ids"] = [str(value.id) for value in derived.marks]
     return data
+
 
 def to_svg(
     pattern: ParametricPattern,
@@ -340,6 +351,7 @@ def to_svg(
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
 
+
 def to_dxf(
     pattern: ParametricPattern,
     curve_samples: int = 32,
@@ -405,6 +417,7 @@ def to_dxf(
     lines += ["0", "ENDSEC", "0", "EOF", ""]
     return "\n".join(lines)
 
+
 def to_pdf(
     pattern: ParametricPattern,
     curve_samples: int = 32,
@@ -434,11 +447,13 @@ def to_pdf(
         overlap_mm=overlap_mm,
     )
 
+
 def from_pdf_metadata(pdf: bytes) -> dict:
     """Read deterministic cloth-pattern metadata from a tiled PDF."""
     from freecad_cloth.pattern.PatternPdfExport import from_pdf_metadata as read_metadata
 
     return read_metadata(pdf)
+
 
 def validate_pdf_export(
     pattern: ParametricPattern,
@@ -471,6 +486,7 @@ def validate_pdf_export(
         overlap_mm=overlap_mm,
     )
 
+
 def from_dxf_metadata(dxf: str) -> dict:
     """Provide the public from dxf metadata operation."""
     marker = "$COMMENT\n1\n"
@@ -481,6 +497,7 @@ def from_dxf_metadata(dxf: str) -> dict:
     if data.get("version") != 1 or not data.get("edge_ids"):
         raise ValueError("unsupported or incomplete cloth-pattern metadata")
     return data
+
 
 def from_svg_metadata(svg: str) -> dict:
     """Read the semantic metadata embedded by :func:`to_svg`."""
@@ -498,6 +515,7 @@ def from_svg_metadata(svg: str) -> dict:
     if data.get("version") != 1 or not data.get("edge_ids"):
         raise ValueError("unsupported or incomplete cloth-pattern metadata")
     return data
+
 
 def validate_export(
     pattern: ParametricPattern,
@@ -530,6 +548,7 @@ def validate_export(
         from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
     )
     return {"format": normalized_format, "valid": True, "metadata": metadata}
+
 
 def validate_svg_export(
     pattern: ParametricPattern,
@@ -565,6 +584,7 @@ def validate_svg_export(
     )
     return result
 
+
 def _piece_seams(piece):
     doc = getattr(piece, "Document", None)
     if doc is None:
@@ -586,6 +606,7 @@ def _piece_seams(piece):
             )
         seams.append(seam_id)
     return tuple(sorted(set(seams)))
+
 
 def _piece_construction_marks(piece, pattern):
     """Materialize persisted native construction marks into the export model."""
@@ -633,6 +654,7 @@ def _piece_construction_marks(piece, pattern):
         tuple(sorted(notches, key=lambda value: value.id)),
         tuple(sorted(marks, key=lambda value: value.id)),
     )
+
 
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
     """Build a deterministic derived export pattern from the authoritative piece."""
@@ -688,6 +710,7 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
             for index, point in enumerate(points)
         ]
     )
+
 
 def export_pattern_piece(
     piece,
