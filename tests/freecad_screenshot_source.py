@@ -837,10 +837,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if index == 2:
             # Shape the open armhole as a smooth inward scoop.
-            midpoint = App.Vector(x_offset + 0.67 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.69 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.33 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.31 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
