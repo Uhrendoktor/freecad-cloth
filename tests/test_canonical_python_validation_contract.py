@@ -133,6 +133,19 @@ def _valid_realtime_benchmark_metrics() -> dict[str, object]:
         "p95_frame_interval_ms": 18.2,
         "mean_callback_ms": 5.1,
         "p95_callback_ms": 6.3,
+        "stage_timings": {
+            "advance_preview_frame": {
+                "samples": 120,
+                "mean_ms": 8.0,
+                "p95_ms": 9.0,
+                "max_ms": 10.0,
+            },
+            "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
+            "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
+            "mesh_write": {"samples": 240, "mean_ms": 4.0, "p95_ms": 5.0, "max_ms": 6.0},
+            "overlay_schedule": {"samples": 60, "mean_ms": 0.1, "p95_ms": 0.2, "max_ms": 0.3},
+            "viewport_redraw": {"samples": 120, "mean_ms": 3.0, "p95_ms": 4.0, "max_ms": 5.0},
+        },
         "profile": {
             "quality_preset": "Fast",
             "particle_distance_mm": 40.0,
@@ -173,6 +186,19 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     assert "profile.pbd_substeps must be 1" in errors
 
 
+def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
+    from tools.ci.validate_realtime_benchmark import validate_metrics
+
+    metrics = _valid_realtime_benchmark_metrics()
+    stages = metrics["stage_timings"]
+    assert isinstance(stages, dict)
+    del stages["viewport_redraw"]
+
+    errors = validate_metrics(metrics)
+
+    assert "stage_timings.viewport_redraw must be a JSON object" in errors
+
+
 def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> None:
     from tools.ci.validate_realtime_benchmark import validate_metrics
 
@@ -196,6 +222,9 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     assert "connect" in attributes
     assert "WARMUP_FRAMES" in identifiers
     assert "FRAMES" in identifiers
+    assert "stage_timings" in identifiers
+    assert "solver_step" in identifiers
+    assert "viewport_redraw" in identifiers
     assert "validate_realtime_benchmark.py" in (
         ROOT / ".github" / "workflows" / "canonical-execution.yml"
     ).read_text(encoding="utf-8")
