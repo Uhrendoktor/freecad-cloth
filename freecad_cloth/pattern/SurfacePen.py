@@ -11,7 +11,7 @@ surface-parameterization backend can replace the flattening helper without
 changing the viewport or PatternPiece authority boundaries.
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import collections.abc
 import contextlib
