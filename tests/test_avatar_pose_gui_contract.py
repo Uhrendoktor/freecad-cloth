@@ -48,10 +48,7 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     from pathlib import Path
 
     source = (
-        Path(__file__).resolve().parents[1]
-        / "freecad_cloth"
-        / "avatar"
-        / "AvatarPoseGui.py"
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarPoseGui.py"
     ).read_text(encoding="utf-8")
     assert 'coin.SoType.fromName("SoRotationDragger")' in source
     assert 'coin.SoType.fromName("SoRotatorGeometry2")' in source
@@ -67,10 +64,7 @@ def test_avatar_panel_initializes_preset_loading_guard_before_loading():
     from pathlib import Path
 
     source = (
-        Path(__file__).resolve().parents[1]
-        / "freecad_cloth"
-        / "avatar"
-        / "AvatarGui.py"
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarGui.py"
     ).read_text(encoding="utf-8")
     initialization = source.split("def __init__(self, avatar=None):", 1)[1].split(
         "def _open_pose_mode", 1
