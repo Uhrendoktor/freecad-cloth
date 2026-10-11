@@ -6,7 +6,9 @@ piece/edge/seam contracts.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import field, replace
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import hypot
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
@@ -17,7 +19,7 @@ from freecad_cloth.sewing.SeamGraph import SeamGraph
 Point3 = tuple[float, float, float]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class BoundaryIR:
     """Resolved boundary with stable identity and native curve kind.
 
@@ -52,7 +54,7 @@ class BoundaryIR:
         )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class PieceIR:
     """One garment panel in solver-neutral local coordinates."""
 
@@ -77,7 +79,7 @@ class PieceIR:
             raise ValueError("seam allowance cannot be negative")
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SeamIR:
     """Sewing relationship after raw edge indices have been resolved."""
 
@@ -113,7 +115,7 @@ class SeamIR:
             raise ValueError("unsupported sewing alignment")
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class PatternIR:
     """Complete solver-neutral garment snapshot."""
 
