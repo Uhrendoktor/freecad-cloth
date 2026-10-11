@@ -201,7 +201,7 @@ def test_export_rejects_units_that_would_relabel_without_conversion():
 
 def test_dxf_declares_millimetres_in_standard_header():
     dxf = to_dxf(_curved_pattern())
-    assert "\\$INSUNITS\\n70\\n4\\n" in dxf
+    assert "$INSUNITS\n70\n4\n" in dxf
     assert from_dxf_metadata(dxf)["units"] == "mm"
 
 
@@ -219,9 +219,10 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent():
         for index in range(len(contour))
     )
     dxf = to_dxf(pattern, derived=derived)
-    assert "8\\nCUT\\n" in dxf
-    cut_section = dxf.split("8\\nCUT\\n", 1)[1].split("0\\nENDSEC", 1)[0]
-    assert "70\\n1\\n" in cut_section
+    assert "8\nCUT\n" in dxf
+    cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+    assert "70\n1\n" in cut_section
+
 
 def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     class Piece:
