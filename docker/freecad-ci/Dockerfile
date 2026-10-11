@@ -108,10 +108,13 @@ ENV ANNY_CACHE_DIR=/opt/freecad-cloth/cache/anny
 RUN mkdir -p "$ANNY_CACHE_DIR" && chmod 777 "$ANNY_CACHE_DIR" && \
     /opt/conda/envs/freecad/bin/python - <<'PY'
 import json
+from dataclasses import replace
 from pathlib import Path
 
+import torch
+from anny import Anny, RigConfig, TopologyConfig
 from anny.paths import get_anny_root_dir
-from clad_body.load.anny import load_anny_from_params
+from clad_body.load.anny import build_anny_apose
 
 root = Path(get_anny_root_dir())
 metadata = json.loads((root / "data/mpfb2/targets/target.json").read_text(encoding="utf-8"))
@@ -134,15 +137,44 @@ for group, group_data in metadata.items():
                 labels.add(positive)
 if "breast-volume-vert-up" not in labels:
     raise SystemExit("Anny breast morph target is missing from the installed assets")
-params = {
-    "gender": 0.5, "age": 0.667, "muscle": 0.5, "weight": 0.5,
-    "height": 0.5, "proportions": 0.5, "cupsize": 0.5, "firmness": 0.5,
-    "african": 1 / 3, "asian": 1 / 3, "caucasian": 1 / 3,
-    "_local_changes": {name: 0.0 for name in sorted(labels)},
-}
-body = load_anny_from_params(params, device="cpu")
+rig = replace(
+    RigConfig.from_string("makehuman"),
+    bone_orientation="blender",
+    root_identity_orientation=True,
+)
+topology = replace(
+    TopologyConfig.from_string("makehuman"),
+    nudity_edits=False,
+    remove_unattached_vertices=False,
+    triangulate_faces=True,
+    eyes=False,
+    tongue=False,
+    submodel="body",
+)
+model = Anny(
+    rig=rig,
+    topology=topology,
+    local_changes=sorted(labels),
+    phenotypes="all",
+    pose_parameterization="local-bone",
+).to(dtype=torch.float32, device="cpu")
+base_ids = model.base_mesh_vertex_indices.detach().cpu().tolist()
+if base_ids[:13380] != list(range(13380)):
+    raise SystemExit("Anny topology does not preserve the legacy HM08 body vertex index order")
+phenotypes = {name: 0.5 for name in model.phenotype_labels}
+phenotypes.update({"gender": 0.5, "age": 0.667, "african": 1 / 3, "asian": 1 / 3, "caucasian": 1 / 3})
+local_changes = {name: 0.0 for name in model.local_change_labels}
+pose = build_anny_apose(model, torch.device("cpu"))
+with torch.no_grad():
+    output = model(
+        pose_parameters=pose,
+        phenotype_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in phenotypes.items()},
+        local_changes_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in local_changes.items()},
+        pose_parameterization="root_relative_world",
+        return_bone_ends=True,
+    )
 print(
-    f"anny-prewarm=passed vertices={body.n_vertices} faces={body.n_faces} "
+    f"anny-prewarm=passed vertices={output['vertices'].shape[1]} faces={model.faces.shape[0]} "
     f"local-change-targets={len(labels)} cache={__import__('os').environ['ANNY_CACHE_DIR']}",
     flush=True,
 )
