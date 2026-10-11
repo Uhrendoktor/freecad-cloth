@@ -377,6 +377,8 @@ class AvatarFittingTests(unittest.TestCase):
             original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
+            avatar.GenderBlend = 0.25
+            avatar.BreastSize = 0.75
             rebuild_avatar()
             rebuilt_mesh = tuple(
                 (round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3))
@@ -401,6 +403,8 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
+            self.assertAlmostEqual(float(restored.GenderBlend), 0.25)
+            self.assertAlmostEqual(float(restored.BreastSize), 0.75)
             self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
             self.assertGreater(int(restored.Mesh.CountPoints), 100)
