@@ -836,7 +836,9 @@ def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[s
     transform = _make_source_fitted_mapper(source, parameters, 0.0)
     points = {}
     for physical_side, suffix in ((-1.0, ".L"), (1.0, ".R")):
-        shoulder = _bone_source_endpoints(source, skeleton, "upperarm01" + suffix, mapper=transform)[0]
+        shoulder = _bone_source_endpoints(
+            source, skeleton, "upperarm01" + suffix, mapper=transform
+        )[0]
         wrist = _bone_source_endpoints(source, skeleton, "wrist" + suffix, mapper=transform)[0]
         points[physical_side] = {"shoulder": shoulder, "wrist": wrist}
 
