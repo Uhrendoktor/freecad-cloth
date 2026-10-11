@@ -11,8 +11,10 @@ import math
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+
 class AvatarVisualSanityError(ValueError):
     """Raised when avatar geometry cannot satisfy visual acceptance invariants."""
+
 
 @pydantic_dataclass(frozen=True)
 class AvatarVisualSanity:
@@ -28,6 +30,7 @@ class AvatarVisualSanity:
     def state(self) -> str:
         """Return the current state summary."""
         return "Valid"
+
 
 def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_lateral_height_ratio=0.9):
     """Return machine-checkable bounds/scale facts for an avatar mesh.
