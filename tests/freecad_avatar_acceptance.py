@@ -83,6 +83,7 @@ def run_acceptance():
     path = None
     try:
         import Part
+
         _progress("part-imported")
         source = doc.addObject("Part::Feature", "ProviderAcceptanceBody")
         _progress("document-created")
@@ -132,8 +133,7 @@ def run_acceptance():
             raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
         if not panel._apply():
             raise RuntimeError(
-                "manual skeleton joint edit was not applied; "
-                f"status={panel.status.text()!r}"
+                f"manual skeleton joint edit was not applied; status={panel.status.text()!r}"
             )
         _progress("manual-pose-applied")
         _close_task()
@@ -151,7 +151,9 @@ def run_acceptance():
             if "|" in str(item)
         }
         if posed_landmarks.get("wrist_left") == baseline_landmarks.get("wrist_left"):
-            raise RuntimeError("manual skeleton rotation did not update the persisted wrist landmark")
+            raise RuntimeError(
+                "manual skeleton rotation did not update the persisted wrist landmark"
+            )
         if target_status(target)["state"] != "stale":
             raise RuntimeError(
                 "manual skeleton edit did not deterministically invalidate DrapeTarget"
@@ -163,8 +165,7 @@ def run_acceptance():
         panel._reset_skeleton_pose()
         if not panel._apply():
             raise RuntimeError(
-                "manual skeleton reset was not applied; "
-                f"status={panel.status.text()!r}"
+                f"manual skeleton reset was not applied; status={panel.status.text()!r}"
             )
         _progress("manual-pose-reset")
         _close_task()
@@ -190,8 +191,7 @@ def run_acceptance():
             raise RuntimeError("task panel did not show the staged FreeCAD provider source")
         if not panel._apply():
             raise RuntimeError(
-                "avatar provider swap was not applied; "
-                f"status={panel.status.text()!r}"
+                f"avatar provider swap was not applied; status={panel.status.text()!r}"
             )
         _progress("provider-swap-applied")
         _close_task()
@@ -214,10 +214,7 @@ def run_acceptance():
         _show_panel(panel)
         panel.pose.setCurrentText("sewing")
         if not panel._apply():
-            raise RuntimeError(
-                "avatar pose edit was not applied; "
-                f"status={panel.status.text()!r}"
-            )
+            raise RuntimeError(f"avatar pose edit was not applied; status={panel.status.text()!r}")
         _progress("pose-edit-applied")
         _close_task()
         _progress("pose-edit-task-closed")
