@@ -8,9 +8,9 @@ FreeCAD Cloth has three cooperating native workbenches:
 
 ## Production 2D export
 
-In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Export is read-only: source PatternPiece/Sketch state is not mutated.
+In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Geometry units are fixed to millimetres; other unit labels are rejected until coordinate conversion is implemented. SVG output uses explicit visible line styles, and a single closed cut contour is emitted for the seam allowance. Export is read-only: source PatternPiece/Sketch state is not mutated.
 
-Exports fail closed when the selected piece has missing native geometry or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output.
+Exports fail closed when the selected piece has missing native geometry, invalid cut-contour geometry, or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output. These vector exports are not yet a paginated home-print PDF workflow; tiled PDF, cut-edge notch geometry and rendered/physical print validation remain follow-up work.
 
 ## User workflow
 
