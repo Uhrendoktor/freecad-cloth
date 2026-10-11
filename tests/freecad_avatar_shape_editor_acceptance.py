@@ -299,7 +299,10 @@ def run():
                 raise RuntimeError("body shape sliders did not stage their expected values")
             camera_before_rebuild = _camera_signature(view)
             if not panel._apply():
-                raise RuntimeError("Apply & Rebuild rejected staged body-shape values")
+                raise RuntimeError(
+                    "Apply & Rebuild rejected staged body-shape values: "
+                    + str(panel.status.text())
+                )
             _events()
             _assert_camera_stable(camera_before_rebuild, _camera_signature(view))
             shape_recorder.hold(750)

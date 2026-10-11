@@ -280,78 +280,122 @@ def _fit_anny_body(
         (parameter_name, key, float(values[parameter_name]) / 10.0)
         for parameter_name, key in MEASUREMENT_FIELDS
     )
-    optimized_phenotypes = {"height", "weight", "muscle", "proportions"}
+    global_targets = tuple(
+        target for target in targets if target[0] in {"height", "inseam"}
+    )
+    local_targets = tuple(
+        target for target in targets if target[0] not in {"height", "inseam"}
+    )
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
+    global_phenotype_names = {"height", "proportions"}
+    missing_global_phenotypes = global_phenotype_names - set(body.phenotype_kwargs)
+    if missing_global_phenotypes:
+        raise AnnyAvatarBackendError(
+            "Anny is missing the global fit controls: "
+            + ", ".join(sorted(missing_global_phenotypes))
+        )
+    if not global_targets or not local_targets:
+        raise AnnyAvatarBackendError("Anny measurement fitting has an empty target group.")
 
-    optimizer_parameters: list[torch.Tensor] = []
-    initial_values: dict[tuple[str, str], torch.Tensor] = {}
+    # Fit global proportions only to height and inseam first. Circumference errors
+    # must not change the whole-body phenotypes: doing so moved head/neck/shoulder
+    # anchors when an otherwise unrelated hip measurement changed.
+    global_parameters = [
+        value
+        for name, value in body.phenotype_kwargs.items()
+        if name in global_phenotype_names
+    ]
     for name, value in body.phenotype_kwargs.items():
-        trainable = name in optimized_phenotypes
-        value.requires_grad_(trainable)
-        if trainable:
-            optimizer_parameters.append(value)
-            initial_values[("phenotype", name)] = value.detach().clone()
+        value.requires_grad_(name in global_phenotype_names)
+    for value in body.local_changes_kwargs.values():
+        value.requires_grad_(False)
+
+    global_optimizer = torch.optim.Adam(global_parameters, lr=0.035)
+    global_target_keys = [key for _name, key, _target in global_targets]
+    global_target_values = {
+        key: torch.tensor(target, dtype=torch.float32)
+        for _name, key, target in global_targets
+    }
+    for _step in range(_FIT_STEPS):
+        global_optimizer.zero_grad(set_to_none=True)
+        actual = measure_grad(body, only=global_target_keys)
+        relative_errors = [
+            (actual[key] - global_target_values[key]).abs()
+            / global_target_values[key].clamp_min(1.0)
+            for _name, key, _target in global_targets
+        ]
+        if float(torch.stack(relative_errors).max().detach()) <= _FIT_TOLERANCE:
+            break
+        loss = torch.stack(
+            [
+                (
+                    (actual[key] - global_target_values[key])
+                    / global_target_values[key].clamp_min(1.0)
+                )
+                ** 2
+                for _name, key, _target in global_targets
+            ]
+        ).mean()
+        loss.backward()
+        global_optimizer.step()
+        with torch.no_grad():
+            for name in global_phenotype_names:
+                body.phenotype_kwargs[name].clamp_(0.0, 1.0)
+
+    # Freeze global phenotypes and fit the local measurement morphs separately.
+    # This keeps local circumference requests from being "solved" by changing
+    # body height, weight, muscle, or overall proportions.
+    for value in body.phenotype_kwargs.values():
+        value.requires_grad_(False)
 
     breast_names = {_BREAST_LOCAL_CHANGE}
-    for name, value in (body.local_changes_kwargs or {}).items():
+    local_parameters = []
+    for name, value in body.local_changes_kwargs.items():
         trainable = name not in breast_names
         value.requires_grad_(trainable)
         if trainable:
-            optimizer_parameters.append(value)
-            initial_values[("local", name)] = value.detach().clone()
+            local_parameters.append(value)
+    if not local_parameters:
+        raise AnnyAvatarBackendError("Anny exposes no trainable local measurement morphs.")
 
-    if not optimizer_parameters:
-        raise AnnyAvatarBackendError("Anny exposes no trainable shape parameters.")
-
-    optimizer = torch.optim.Adam(optimizer_parameters, lr=0.035)
-    target_keys = [key for _name, key, _target in targets]
-    target_values = {
-        key: torch.tensor(target, dtype=torch.float32) for _name, key, target in targets
+    local_optimizer = torch.optim.Adam(local_parameters, lr=0.035)
+    local_target_keys = [key for _name, key, _target in local_targets]
+    local_target_values = {
+        key: torch.tensor(target, dtype=torch.float32)
+        for _name, key, target in local_targets
     }
-
     for _step in range(_FIT_STEPS):
-        optimizer.zero_grad(set_to_none=True)
-        actual = measure_grad(body, only=target_keys)
+        local_optimizer.zero_grad(set_to_none=True)
+        actual = measure_grad(body, only=local_target_keys)
         relative_errors = [
-            (actual[key] - target_values[key]).abs() / target_values[key].clamp_min(1.0)
-            for _name, key, _target in targets
+            (actual[key] - local_target_values[key]).abs()
+            / local_target_values[key].clamp_min(1.0)
+            for _name, key, _target in local_targets
         ]
-        max_error = float(torch.stack(relative_errors).max().detach())
-        if max_error <= _FIT_TOLERANCE:
+        if float(torch.stack(relative_errors).max().detach()) <= _FIT_TOLERANCE:
             break
-
         measurement_loss = torch.stack(
             [
-                ((actual[key] - target_values[key]) / target_values[key].clamp_min(1.0)) ** 2
-                for _name, key, _target in targets
+                (
+                    (actual[key] - local_target_values[key])
+                    / local_target_values[key].clamp_min(1.0)
+                )
+                ** 2
+                for _name, key, _target in local_targets
             ]
         ).mean()
-
-        # Prefer the requested measurements while discouraging unnecessarily
-        # extreme global phenotypes and local target weights.
-        phenotype_penalty = torch.zeros((), dtype=torch.float32)
-        local_penalty = torch.zeros((), dtype=torch.float32)
-        for (kind, _name), initial in initial_values.items():
-            current = (
-                body.phenotype_kwargs[_name]
-                if kind == "phenotype"
-                else body.local_changes_kwargs[_name]
-            )
-            penalty = (current - initial).square().mean()
-            if kind == "phenotype":
-                phenotype_penalty = phenotype_penalty + penalty
-            else:
-                local_penalty = local_penalty + current.square().mean()
-        loss = measurement_loss + 0.002 * phenotype_penalty + 0.0005 * local_penalty
+        local_penalties = [
+            value.square().mean()
+            for name, value in body.local_changes_kwargs.items()
+            if name not in breast_names
+        ]
+        local_penalty = torch.stack(local_penalties).mean()
+        loss = measurement_loss + 0.0005 * local_penalty
         loss.backward()
-        optimizer.step()
-
+        local_optimizer.step()
         with torch.no_grad():
-            for name in optimized_phenotypes:
-                if name in body.phenotype_kwargs:
-                    body.phenotype_kwargs[name].clamp_(0.0, 1.0)
-            for name, value in (body.local_changes_kwargs or {}).items():
+            for name, value in body.local_changes_kwargs.items():
                 if name not in breast_names:
                     value.clamp_(-1.0, 1.0)
 

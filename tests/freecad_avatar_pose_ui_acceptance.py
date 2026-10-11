@@ -448,9 +448,6 @@ def run():
         "actual-mesh-bounds="
         + repr(_point_bounds((point.x, point.y, point.z) for point in actual_points))
     )
-    if len(actual_points) != len(expected_mesh.vertices):
-        raise RuntimeError("Pose Mode mesh vertex count does not match the authored FK mesh")
-
     # First prove the public generator and independent FK builder agree before
     # crossing into FreeCAD's native Mesh representation.
     generated_records = _point_records(generated_vertices, precision=7)
@@ -460,10 +457,44 @@ def run():
             "Public avatar mesh generator differs from the independent authored FK result"
         )
 
+    # FreeCAD's Mesh storage can coalesce coincident coordinates that remain
+    # duplicated in the provider's indexed triangle mesh. Compare distinct
+    # positions first, then match them within the native-coordinate tolerance.
     actual_values = tuple((point.x, point.y, point.z) for point in actual_points)
+
+    def unique_positions(points):
+        unique = {}
+        for point in points:
+            key = tuple(round(float(value), 5) for value in point)
+            unique.setdefault(key, key)
+        return tuple(unique.values())
+
+    expected_unique = unique_positions(expected_mesh.vertices)
+    actual_unique = unique_positions(actual_values)
+    progress(
+        "mesh-fk-point-count raw_expected=%d raw_actual=%d distinct_expected=%d distinct_actual=%d"
+        % (
+            len(expected_mesh.vertices),
+            len(actual_values),
+            len(expected_unique),
+            len(actual_unique),
+        )
+    )
+    if len(actual_unique) != len(expected_unique):
+        raise RuntimeError(
+            "Pose Mode native mesh has %d distinct points; expected %d from the authored FK mesh "
+            "(raw expected=%d, raw actual=%d)"
+            % (
+                len(actual_unique),
+                len(expected_unique),
+                len(expected_mesh.vertices),
+                len(actual_values),
+            )
+        )
+
     max_vertex_error, mismatch = _match_native_points(
-        expected_mesh.vertices,
-        actual_values,
+        expected_unique,
+        actual_unique,
         tolerance=0.002,
     )
     progress(
