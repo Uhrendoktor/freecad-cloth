@@ -75,6 +75,14 @@ def _mesh_points(avatar):
     )
 
 
+def _head_envelope(points, cutoff):
+    """Return a stable geometric signature of the mannequin head region."""
+    selected = tuple(sorted(point for point in points if point[2] >= cutoff))
+    if len(selected) < 10:
+        raise RuntimeError("too few mannequin vertices in the head envelope for a locality check")
+    return selected
+
+
 def _camera_signature(view):
     """Capture camera framing only, excluding clipping-plane updates."""
     camera_text = str(view.getCamera())
@@ -316,14 +324,14 @@ def run():
             if shape_recorder._started:
                 shape_recorder.stop()
 
-        # Re-enable viewport handles for the distinct waist-measurement clip.
+        # Re-enable viewport handles for the distinct hip-measurement clip.
         panel.dimension_gizmo_toggle.setChecked(True)
         _events()
         controller = panel._dimension_controller
         if controller is None or controller.view is None or controller.overlay is None:
-            raise RuntimeError("3D dimensions did not reactivate for waist-drag recording")
+            raise RuntimeError("3D dimensions did not reactivate for hip-drag recording")
 
-        # Record a distinct viewport-first circumference edit: drag the waist
+        # Record a distinct viewport-first circumference edit: drag the hip
         # handle, watch the ring/readout update, then commit via Apply & Rebuild.
         from pivy import coin
 
@@ -337,28 +345,35 @@ def run():
             show_cursor=False,
         )
         dimension_recorder.start()
+        before_hip_mesh = _mesh_points(avatar)
+        head_cutoff = max(point[2] for point in before_hip_mesh) * 0.88
+        head_before_hip = _head_envelope(before_hip_mesh, head_cutoff)
         try:
             dimension_recorder.hold(450)
-            waist_before, waist_staged = _drag_dimension_handle(
+            hip_before, hip_staged = _drag_dimension_handle(
                 controller,
                 coin,
-                "waist",
+                "hip",
                 pixels=5.0,
             )
             dimension_recorder.hold(700)
-            if abs(float(panel._boxes["waist"].value()) - waist_staged) > 1e-6:
-                raise RuntimeError("viewport waist handle and numeric value diverged")
-            camera_before_waist_rebuild = _camera_signature(view)
+            if abs(float(panel._boxes["hip"].value()) - hip_staged) > 1e-6:
+                raise RuntimeError("viewport hip handle and numeric value diverged")
+            camera_before_hip_rebuild = _camera_signature(view)
             if not panel._apply():
-                raise RuntimeError("Apply & Rebuild rejected the staged waist measurement")
+                raise RuntimeError("Apply & Rebuild rejected the staged hip measurement")
             _events()
-            _assert_camera_stable(camera_before_waist_rebuild, _camera_signature(view))
+            _assert_camera_stable(camera_before_hip_rebuild, _camera_signature(view))
             dimension_recorder.hold(700)
-            waist_after = float(avatar.Waist)
-            if abs(waist_after - waist_staged) > 1e-6:
-                raise RuntimeError("viewport waist drag was not persisted on rebuild")
-            if abs(waist_after - waist_before) < 1.0:
-                raise RuntimeError("viewport waist drag produced no persistent dimensional change")
+            hip_after = float(avatar.Hip)
+            if abs(hip_after - hip_staged) > 1e-6:
+                raise RuntimeError("viewport hip drag was not persisted on rebuild")
+            if abs(hip_after - hip_before) < 1.0:
+                raise RuntimeError("viewport hip drag produced no persistent dimensional change")
+            if _head_envelope(_mesh_points(avatar), head_cutoff) != head_before_hip:
+                raise RuntimeError(
+                    "hip circumference edit changed the head geometry instead of staying local"
+                )
         finally:
             if dimension_recorder._started:
                 dimension_recorder.stop()
@@ -377,14 +392,14 @@ def run():
             "gender=0.20 breast_size=0.65 "
             "shape_changed_vertices={shape_changed} torso_changed_vertices={torso_changed} "
             "max_bust_projection_delta_mm={bust_delta:.2f} "
-            "waist_before={waist_before:.2f} waist_after={waist_after:.2f} "
+            "hip_before={hip_before:.2f} hip_after={hip_after:.2f} "
             "document_objects_overlay=transient "
             "screenshot_opaque_pixels={opaque} screenshot_distinct_rgb={distinct}\n".format(
                 shape_changed=shape_delta["changed_vertices"],
                 torso_changed=shape_delta["torso_changed_vertices"],
                 bust_delta=shape_delta["max_bust_projection_delta_mm"],
-                waist_before=waist_before,
-                waist_after=waist_after,
+                hip_before=hip_before,
+                hip_after=hip_after,
                 opaque=metrics["opaque_pixels"],
                 distinct=metrics["distinct_rgb"],
             ),
@@ -394,12 +409,12 @@ def run():
             "avatar-shape-editor=passed gender=0.20 breast_size=0.65 "
             "shape_changed_vertices={} torso_changed_vertices={} "
             "max_bust_projection_delta_mm={:.2f} "
-            "waist_before={:.2f} waist_after={:.2f}".format(
+            "hip_before={:.2f} hip_after={:.2f}".format(
                 shape_delta["changed_vertices"],
                 shape_delta["torso_changed_vertices"],
                 shape_delta["max_bust_projection_delta_mm"],
-                waist_before,
-                waist_after,
+                hip_before,
+                hip_after,
             ),
             flush=True,
         )
