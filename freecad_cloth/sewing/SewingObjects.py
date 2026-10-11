@@ -86,7 +86,7 @@ def _outline_points(piece: object) -> list[tuple[float, float]]:
                     return points
             except (ValueError, SyntaxError, TypeError, IndexError):
                 pass
-    width, height = float(getattr(piece, "Width")), float(getattr(piece, "Height"))
+    width, height = float(piece.Width), float(piece.Height)
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
@@ -248,8 +248,8 @@ def _seam_edge_index(piece: object, seam: object, prefix: str) -> int:
                 from freecad_cloth.pattern.SeamReference import MissingEdgeReference
 
                 raise MissingEdgeReference(
-                    "semantic seam edge {} must resolve to exactly one native Sketcher edge; "
-                    "found {}".format(edge_id, len(native_indices))
+                    f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
+                    f"found {len(native_indices)}"
                 )
             return native_indices[0]
         return int(record["ordinal"])
@@ -326,14 +326,14 @@ def _alignment_placement(piece_a: object, piece_b: object, seam: object) -> obje
     a0, a1 = _edge_points(
         piece_a,
         _resolved_edge(piece_a, seam, "A"),
-        float(getattr(seam, "StartA")),
-        float(getattr(seam, "EndA")),
+        float(seam.StartA),
+        float(seam.EndA),
     )
     b0, b1 = _edge_points(
         piece_b,
         _resolved_edge(piece_b, seam, "B"),
-        float(getattr(seam, "StartB")),
-        float(getattr(seam, "EndB")),
+        float(seam.StartB),
+        float(seam.EndB),
     )
     if bool(getattr(seam, "ReversedB", False)):
         b0, b1 = b1, b0
@@ -363,10 +363,10 @@ def _seam_correspondence(
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
     a_points = _edge_samples(
-        piece_a, edge_a, float(getattr(seam, "StartA")), float(getattr(seam, "EndA")), count
+        piece_a, edge_a, float(seam.StartA), float(seam.EndA), count
     )
     b_points = _edge_samples(
-        piece_b, edge_b, float(getattr(seam, "StartB")), float(getattr(seam, "EndB")), count
+        piece_b, edge_b, float(seam.StartB), float(seam.EndB), count
     )
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
@@ -483,7 +483,7 @@ def add_sewing_operation(
     )
     obj.addProperty(
         "App::PropertyPlacement", "AssemblyPlacementB", "Assembly"
-    ).AssemblyPlacementB = getattr(piece_b, "Placement")
+    ).AssemblyPlacementB = piece_b.Placement
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty(
         "App::PropertyFloat", "RelativeTolerance", "Validation"
