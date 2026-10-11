@@ -57,6 +57,14 @@ def _set_prop(obj, kind, name, group, value):
     setattr(obj, name, value)
 
 
+def _ensure_pose_preset_property(obj):
+    """Upgrade the saved preset enumeration without losing the user's current choice."""
+    current = str(getattr(obj, "PosePreset", "standing"))
+    presets = ["standing", "sewing", "sitting", "t_pose"]
+    _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", presets)
+    obj.PosePreset = current if current in presets else "standing"
+
+
 def _parameters(obj):
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
     preset = str(getattr(obj, "PosePreset", "standing"))
@@ -258,7 +266,11 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
         _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
         _set_prop(
-            obj, "App::PropertyEnumeration", "PosePreset", "Pose", ["standing", "sewing", "sitting"]
+            obj,
+            "App::PropertyEnumeration",
+            "PosePreset",
+            "Pose",
+            ["standing", "sewing", "sitting", "t_pose"],
         )
         obj.PosePreset = "standing"
         for name, prop in POSE_PROPERTY_MAP.items():
@@ -285,6 +297,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
         _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
         _set_prop(obj, "App::PropertyLink", "DrapeTarget", "Collision", None)
     else:
+        _ensure_pose_preset_property(obj)
         _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
         if not str(getattr(obj, "AvatarProviderId", "")):
             obj.AvatarProviderId = "makehuman-hm08"
@@ -355,6 +368,7 @@ def rebuild_avatar():
     obj = _avatar(doc)
     if obj is None:
         raise ValueError("create a Cloth Avatar first")
+    _ensure_pose_preset_property(obj)
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
@@ -365,6 +379,7 @@ def edit_avatar():
     if doc is None:
         doc = App.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
+    _ensure_pose_preset_property(obj)
     from freecad_cloth.avatar.AvatarGui import show_avatar_task
 
     return show_avatar_task(obj)
@@ -378,6 +393,7 @@ def pose_avatar():
     if doc is None:
         doc = App.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
+    _ensure_pose_preset_property(obj)
     from freecad_cloth.avatar.AvatarPoseGui import show_avatar_pose_task
 
     return show_avatar_pose_task(obj)
@@ -405,18 +421,14 @@ def set_avatar_pose(pose):
     if doc is None:
         raise ValueError("open a document before changing avatar pose")
     obj = _avatar(doc) or create_avatar()
+    _ensure_pose_preset_property(obj)
     current = _parameters(obj)
+    # Choosing a named preset means starting from that pose's canonical baseline,
+    # just as the Pose Mode buttons do; do not carry unrelated manual rotations over.
     candidate = AvatarParameters(
         current.measurements,
         current.skin_offset,
-        Pose(
-            str(pose),
-            current.pose.left_arm_angle,
-            current.pose.right_arm_angle,
-            current.pose.left_elbow_angle,
-            current.pose.right_elbow_angle,
-            current.pose.joint_rotations,
-        ),
+        Pose(str(pose)),
     )
     return apply_avatar_parameters(obj, candidate)
 

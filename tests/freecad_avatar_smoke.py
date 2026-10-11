@@ -56,9 +56,19 @@ def main():
     assert mesh_signature(avatar) != original_mesh
     assert list(avatar.ArrangementPoints) == expected_arrangement
     assert target_status(avatar.DrapeTarget)["state"] == "ready"
+    # Simulate a document created before T-pose existed, then verify that the
+    # normal setter upgrades the enum and applies each preset's canonical angles.
+    avatar.PosePreset = ["standing", "sewing", "sitting"]
+    avatar.PosePreset = "standing"
+    set_avatar_pose("t_pose")
+    assert avatar.PosePreset == "t_pose"
+    assert abs(float(avatar.LeftArmAngle) - 12.0) < 1e-9
+    assert abs(float(avatar.RightArmAngle) - 12.0) < 1e-9
     set_avatar_pose("sewing")
-    set_avatar_skin_offset(6.0)
     assert avatar.PosePreset == "sewing"
+    assert abs(float(avatar.LeftArmAngle) - 55.0) < 1e-9
+    assert abs(float(avatar.RightArmAngle) - 55.0) < 1e-9
+    set_avatar_skin_offset(6.0)
     assert abs(float(avatar.SkinOffset) - 6.0) < 1e-9
     assert avatar.CollisionProxy is not None
     assert avatar.DrapeTarget is not None

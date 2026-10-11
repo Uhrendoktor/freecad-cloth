@@ -53,6 +53,21 @@ def test_pose_round_trip_is_persistent_and_validated():
         raise AssertionError("invalid pose was accepted")
 
 
+def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope():
+    t_pose = AvatarParameters(pose=Pose("t_pose"))
+    standing = AvatarParameters(pose=Pose("standing"))
+    assert (t_pose.pose.left_arm_angle, t_pose.pose.right_arm_angle) == (12.0, 12.0)
+    assert AvatarParameters.from_json(t_pose.to_json()) == t_pose
+
+    def x_bounds(params):
+        xs = [float(point[0]) for point in generate_mesh(params)[0]]
+        return min(xs), max(xs)
+
+    horizontal, relaxed = x_bounds(t_pose), x_bounds(standing)
+    assert horizontal[0] < relaxed[0] - 100.0
+    assert horizontal[1] > relaxed[1] + 100.0
+
+
 def test_invalid_measurements_are_rejected():
     try:
         AvatarParameters().with_measurements(underbust=1200, chest=1000)

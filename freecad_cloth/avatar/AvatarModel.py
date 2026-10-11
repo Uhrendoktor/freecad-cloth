@@ -39,7 +39,12 @@ DEFAULT_MEASUREMENTS = {
 }
 
 
-DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0}
+DEFAULT_POSE_ARM_ANGLES = {
+    "standing": 70.0,
+    "sewing": 55.0,
+    "sitting": 25.0,
+    "t_pose": 12.0,
+}
 
 
 LIMITS = {
@@ -75,18 +80,20 @@ class Pose:
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
     joint_rotations: tuple[JointRotation, ...] = ()
-    VALID_PRESETS = ("standing", "sewing", "sitting")
+    VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
         object.__setattr__(
-            self, "left_arm_angle",
+            self,
+            "left_arm_angle",
             default_angle if self.left_arm_angle is None else float(self.left_arm_angle),
         )
         object.__setattr__(
-            self, "right_arm_angle",
+            self,
+            "right_arm_angle",
             default_angle if self.right_arm_angle is None else float(self.right_arm_angle),
         )
         object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
@@ -249,7 +256,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         if params.pose.preset == "sitting"
         else (leg_x, 0.0, knee_z),
     }
-    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
+    arm_defaults = {"t_pose": 12.0, "standing": 12.0, "sewing": 55.0, "sitting": 25.0}
     default = arm_defaults[params.pose.preset]
     wrists = {}
     for side, angle_value, elbow_value, label in (

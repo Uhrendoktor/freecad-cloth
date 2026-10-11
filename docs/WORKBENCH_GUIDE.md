@@ -14,6 +14,12 @@ Exports fail closed when the selected piece has missing native geometry or inval
 
 ## User workflow
 
+### Avatar creation and import
+
+In **Cloth Simulation → Avatar & Fitting**, use **Create Avatar** for the bundled MakeHuman mannequin, **Edit Avatar** for measurements/provider settings, and **Pose Avatar** for direct joint posing. These entry points are also retained in **Cloth Sewing → Fitting & Avatar**.
+
+To use custom geometry, import a supported model through FreeCAD’s **File → Import**, select the imported body or mesh, open **Edit Avatar**, choose **FreeCAD geometry**, click **Use selected FreeCAD object**, and **Apply & Rebuild**. This provider reuses the selected geometry as a surface; it does not bring across the source model’s rig or animation. Interactive skeleton posing remains available for the MakeHuman provider.
+
 ### 1. Pattern
 
 Create at least two PatternPieces. Use the native Sketcher representation for editable dimensions, constraints and curves. To start a piece from the mannequin, use **Cloth Pattern → 3D Pattern Pen**. Drag on the visible target surface, lift and continue as needed, then use **Finish Stroke → Pattern**. The MVP only extracts a boundary whose maximum surface deviation from a local plane stays within the task-panel limit (8 mm by default). Curved patches beyond that limit are rejected; this is intentional until a general surface-parameterization/flattening backend is added. The extracted result is an ordinary native Sketcher source attached to the new PatternPiece. The normal Cloth Pattern authoring/editing commands are Sketcher-backed (`ClothPattern_CreatePieceWithSketch`, `ClothPattern_CreateFromSketch`, and `ClothPattern_EditSketch`); `ClothPattern_EditPiece` exposes persistent garment metadata and an explicit **Edit native Sketch…** action rather than a second geometry editor. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing. The normal Cloth Pattern authoring/editing commands are Sketcher-backed (`ClothPattern_CreatePieceWithSketch`, `ClothPattern_CreateFromSketch`, and `ClothPattern_EditSketch`); `ClothPattern_EditPiece` exposes persistent garment metadata and an explicit **Edit native Sketch…** action rather than a second geometry editor. Add seam allowance, notches, grainline and internal-mark metadata as needed. Recompute and validate before sewing.

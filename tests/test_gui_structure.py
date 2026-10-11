@@ -10,16 +10,12 @@ from pathlib import Path
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
 from freecad_cloth.avatar.AvatarPoseGui import SkeletonPoseController
-from freecad_cloth.pattern import PatternCommands
-from freecad_cloth.sewing.workbench import (
-    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-    TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS,
-    ClothSewingWorkbench,
-    _validate_sewing_command_groups,
-)
-from freecad_cloth.simulation import SimulationCommands
 from freecad_cloth.gui import ClothWorkbenchBase
-
+from freecad_cloth.pattern import PatternCommands
+from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
+from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS as SEWING_TOOLBAR_COMMANDS
+from freecad_cloth.sewing.workbench import ClothSewingWorkbench, _validate_sewing_command_groups
+from freecad_cloth.simulation import SimulationCommands
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -123,7 +119,9 @@ def test_workbench_registration_is_idempotent():
     try:
         workbench = ClothSewingWorkbench()
         calls = []
-        workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
+        workbench.appendToolbar = lambda name, commands: calls.append(
+            ("toolbar", name, list(commands))
+        )
         workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
         workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
         first_calls = list(calls)
@@ -163,6 +161,26 @@ def test_public_command_surfaces_preserve_authoring_boundaries():
         "ClothFitting_EditAvatar",
         "ClothFitting_PoseAvatar",
     } <= set(AvatarCommands.COMMANDS)
+
+
+def test_simulation_workbench_exposes_avatar_entrypoints(monkeypatch):
+    import freecad_cloth.simulation.DrapeCommands as DrapeCommands
+    from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench
+
+    monkeypatch.setattr(DrapeCommands, "register_gui_commands", lambda: True)
+    workbench = ClothSimulationWorkbench()
+    registered = []
+    workbench.register = lambda groups: registered.extend(groups)
+
+    workbench.Initialize()
+
+    assert registered[0] == ("Avatar & Fitting", AVATAR_ENTRY_COMMANDS)
+    assert AVATAR_ENTRY_COMMANDS == (
+        "ClothFitting_CreateAvatar",
+        "ClothFitting_EditAvatar",
+        "ClothFitting_PoseAvatar",
+    )
+    assert registered[1][0] == "Simulation"
 
 
 def test_avatar_gui_schema_matches_authoritative_command_mapping():

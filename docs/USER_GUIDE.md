@@ -2,13 +2,23 @@
 
 This guide follows one garment from editable 2D source to a draped 3D result. It assumes FreeCAD Cloth is installed and a FreeCAD document is open. For the manual-install directory and Python-runtime requirements, see [Installation](INSTALLATION.md).
 
-If this is your first run, start with the [Blanket over Cube example](EXAMPLES.md#1-blanket-over-cube) before adding sewing and a mannequin. It is easier to diagnose a simple target than a complete garment.
+For your first complete garment, follow the tunic workflow below. Keep [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) as a separate diagnostic exercise when you need to isolate the basic drape, pinning, or collision path.
 
 ## The complete workflow
 
 **Pattern → Sewing → Fitting → Pose (optional) → Simulation → Diagnosis → Edit → Rebuild**
 
 The screenshots and recordings are optional visual aids. Each procedure below describes the required action and the result to verify without relying on animation.
+
+## 0. Create or import an avatar
+
+The simplest supported human target is the bundled MakeHuman mannequin.
+
+1. Switch the workbench selector to **Cloth Simulation**.
+2. Choose **Avatar & Fitting → Create Avatar** to create the mannequin. Use **Edit Avatar** for body measurements or **Pose Avatar** to pose it. The same commands remain available under **Cloth Sewing → Fitting & Avatar** for existing users.
+3. For an existing 3D body, use FreeCAD’s **File → Import** to bring a supported model into the document. Select the imported object in the tree or viewport, open **Avatar & Fitting → Edit Avatar**, choose **FreeCAD geometry**, press **Use selected FreeCAD object**, then **Apply & Rebuild**.
+
+**Important limitation:** the FreeCAD-geometry provider consumes the imported surface as geometry; it does not import or retarget an external skeleton, skin weights, or animation. Use the bundled MakeHuman provider for the current interactive joint posing and mannequin landmarks. A generic imported surface can be used as collision/fitting geometry, but it is not equivalent to a rigged human avatar.
 
 ## 1. Create the 2D pattern source
 
@@ -59,12 +69,12 @@ Use Pose Mode when the garment needs a different body position. You can skip thi
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin joint and editing its rotation in Pose Mode" width="820"></p>
 
 1. Open Pose Mode for the mannequin.
-2. Choose a starting preset if one is appropriate.
+2. Choose **T-pose** for near-horizontal arms and easier proportion/placement inspection, **Standing** for the normal relaxed stance, **Sewing** for a raised-arm working pose, or **Sitting** for seated fit exploration.
 3. Select the joint in the viewport and drag its rotation gizmo. Enable **Mirror** or **5° Snap** only when those constraints match the intended pose.
 4. Use **Joint list** or **Exact angles** for crowded views or precise values.
 5. Apply and rebuild the pose; use Cancel when the staged edit should be discarded.
 
-**Verify the result:** the mannequin shows the intended pose after the edit is applied and remains correct after saving/reopening the FCStd document. Rebuild target-dependent state before simulation. See [Pose Mode](wiki/04-pose.md).
+**Verify the result:** the mannequin shows the intended pose after the edit is applied and remains correct after saving/reopening the FCStd document. The T-pose is a fitting baseline, not a claim that imported geometry has become rigged. Rebuild target-dependent state before simulation. See [Pose Mode](wiki/04-pose.md).
 
 ## 5. Run the cloth simulation
 
