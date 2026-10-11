@@ -4,7 +4,9 @@ from freecad_cloth.common.ValidationModels import validate_finite_number
 from freecad_cloth.shared.collision import CollisionSurface
 
 
-def surface_from_freecad(obj: object, deflection: float = 1.0, thickness: float = 0.0) -> CollisionSurface:
+def surface_from_freecad(
+    obj: object, deflection: float = 1.0, thickness: float = 0.0
+) -> CollisionSurface:
     """Convert a FreeCAD mesh or shape into a deterministic collision surface."""
     deflection = validate_finite_number(deflection)
     thickness = validate_finite_number(thickness)
