@@ -101,19 +101,17 @@ Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
 EOF
 
-# Prebuild Anny's MakeHuman-compatible rig and the same local-change basis used
-# by the Cloth adapter. Each GUI acceptance container then reuses the cache
-# instead of rebuilding the parametric body model on every fresh container.
+# Prebuild the unedited MakeHuman body topology and local-morph basis using
+# the same Anny 0.5 compatibility API used by the runtime backend.
 ENV ANNY_CACHE_DIR=/opt/freecad-cloth/cache/anny
 RUN mkdir -p "$ANNY_CACHE_DIR" && chmod 777 "$ANNY_CACHE_DIR" && \
     /opt/conda/envs/freecad/bin/python - <<'PY'
 import json
-from dataclasses import replace
+import os
 from pathlib import Path
 
+import anny
 import torch
-from anny import Anny
-from anny.models.model_data import RigConfig, TopologyConfig
 from anny.paths import get_anny_root_dir
 from clad_body.load.anny import build_anny_apose
 
@@ -138,45 +136,41 @@ for group, group_data in metadata.items():
                 labels.add(positive)
 if "breast-volume-vert-up" not in labels:
     raise SystemExit("Anny breast morph target is missing from the installed assets")
-rig = replace(
-    RigConfig.from_string("makehuman"),
-    bone_orientation="blender",
-    root_identity_orientation=True,
-)
-topology = replace(
-    TopologyConfig.from_string("makehuman"),
-    nudity_edits=False,
+model = anny.create_fullbody_model(
+    rig="default",
+    topology="makehuman",
+    local_changes=sorted(labels),
     remove_unattached_vertices=False,
     triangulate_faces=True,
-    eyes=False,
-    tongue=False,
-    submodel="body",
-)
-model = Anny(
-    rig=rig,
-    topology=topology,
-    local_changes=sorted(labels),
-    phenotypes="all",
-    pose_parameterization="local-bone",
+    pose_parameterization="root_relative_world",
+    bone_orientation="blender-rootidentity",
+    all_phenotypes=True,
 ).to(dtype=torch.float32, device="cpu")
-base_ids = model.base_mesh_vertex_indices.detach().cpu().tolist()
-if base_ids[:13380] != list(range(13380)):
-    raise SystemExit("Anny topology does not preserve the legacy HM08 body vertex index order")
+missing = set(labels) - set(model.local_change_labels)
+if missing:
+    raise SystemExit(f"Anny missing configured morphs: {sorted(missing)}")
+pose = build_anny_apose(model, torch.device("cpu"))
 phenotypes = {name: 0.5 for name in model.phenotype_labels}
 phenotypes.update({"gender": 0.5, "age": 0.667, "african": 1 / 3, "asian": 1 / 3, "caucasian": 1 / 3})
 local_changes = {name: 0.0 for name in model.local_change_labels}
-pose = build_anny_apose(model, torch.device("cpu"))
 with torch.no_grad():
     output = model(
         pose_parameters=pose,
         phenotype_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in phenotypes.items()},
         local_changes_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in local_changes.items()},
-        pose_parameterization="local-bone",
+        pose_parameterization="root_relative_world",
         return_bone_ends=True,
     )
+vertex_count = int(output["vertices"].shape[1])
+if vertex_count < 13380:
+    raise SystemExit(f"Anny did not preserve the HM08 body vertex prefix: {vertex_count}")
+faces = model.faces.detach().cpu().numpy()
+visible_faces = ((faces >= 0) & (faces < 13380)).all(axis=1)
+if not visible_faces.any():
+    raise SystemExit("Anny topology has no triangles in the canonical HM08 body prefix")
 print(
-    f"anny-prewarm=passed vertices={output['vertices'].shape[1]} faces={model.faces.shape[0]} "
-    f"local-change-targets={len(labels)} cache={__import__('os').environ['ANNY_CACHE_DIR']}",
+    f"anny-prewarm=passed vertices={vertex_count} faces={int(visible_faces.sum())} "
+    f"local-change-targets={len(labels)} cache={os.environ['ANNY_CACHE_DIR']}",
     flush=True,
 )
 PY
