@@ -58,7 +58,7 @@ def test_pattern_construction_and_dxf_export():
     assert (
         'id="sewing-boundary"' in svg
         and 'id="cut-boundary"' in svg
-        and 'id="notch-waist"' in svg
+        and 'data-notch-ids="waist"' in svg
         and 'data-kind="Grainline"' in svg
     )
     dxf = to_dxf(pattern, derived=derived)
