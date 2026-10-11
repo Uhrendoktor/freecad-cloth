@@ -864,6 +864,8 @@ class SurfacePenController:
                 for index, point in enumerate(simplified)
             )
         # Validate the same bounded planar contract before any persistent object
+        # is created. Extraction repeats the target-signature check.
+        patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
         # Retain the closing sample in persisted state: extraction repeats the
         # closure check on the serialized stroke before flattening it.
         draft_anchors = (*anchors, self.anchors[-1])
