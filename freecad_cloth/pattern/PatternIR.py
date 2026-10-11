@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from math import hypot
 
+from freecad_cloth.common.ValidationModels import validate_finite_number
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
@@ -273,9 +274,14 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
 
 def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     if isinstance(segment, LineSegment):
-        samples = (tuple((*segment.start, 0.0)), tuple((*segment.end, 0.0)))
+        samples: tuple[Point3, ...] = (
+            (segment.start[0], segment.start[1], 0.0),
+            (segment.end[0], segment.end[1], 0.0),
+        )
         return BoundaryIR(segment.id, "line", samples)
-    samples = tuple(tuple((*point, 0.0)) for point in segment.polyline(curve_samples))
+    samples = tuple(
+        (point[0], point[1], 0.0) for point in segment.polyline(curve_samples)
+    )
     return BoundaryIR(segment.id, "curve", samples)
 
 
@@ -499,7 +505,7 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
 
 def _native_parameter(native, name: str, default: float) -> float:
     value = getattr(native, name, default)
-    return float(value() if callable(value) else value)
+    return validate_finite_number(value() if callable(value) else value)
 
 
 def _native_value(native, parameter: float):
