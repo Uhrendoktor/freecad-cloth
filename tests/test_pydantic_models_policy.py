@@ -22,12 +22,7 @@ def test_stdlib_dataclass_decorator_is_rejected() -> None:
 
 def test_aliased_stdlib_dataclass_decorator_is_rejected() -> None:
     """Resolve aliases for both the decorator and its module."""
-    source = (
-        "import dataclasses as dc\n"
-        "@dc.dataclass(frozen=True)\n"
-        "class Record:\n"
-        "    value: int\n"
-    )
+    source = "import dataclasses as dc\n@dc.dataclass(frozen=True)\nclass Record:\n    value: int\n"
     assert standard_dataclass_decorators(source, "sample.py")
 
 
@@ -61,7 +56,12 @@ def test_freecad_exception_requires_a_serialization_incompatibility_reason(
     monkeypatch.setattr(
         check_pydantic_models,
         "FREECAD_SERIALIZATION_EXCEPTIONS",
-        {path: ("Performance overhead", "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason")},
+        {
+            path: (
+                "Performance overhead",
+                "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason",
+            )
+        },
     )
     assert not serialization_exception_is_justified(path)
 
