@@ -32,7 +32,12 @@ def _invalid_topology_log() -> str:
     )
 
 
-def _armhole_log(index: int, start: tuple[float, float], end: tuple[float, float], samples: tuple[tuple[float, float], ...]) -> str:
+def _armhole_log(
+    index: int,
+    start: tuple[float, float],
+    end: tuple[float, float],
+    samples: tuple[tuple[float, float], ...],
+) -> str:
     """Format a native armhole sample record."""
     bounds = (
         min(point[0] for point in samples),
