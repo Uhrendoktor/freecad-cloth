@@ -8,7 +8,11 @@ from unittest.mock import patch
 
 import numpy as np
 
-from freecad_cloth.avatar.HumanoidMesh import _make_source_fitted_mapper, _section_circumference
+from freecad_cloth.avatar.AvatarModel import AvatarParameters
+from freecad_cloth.avatar.HumanoidMesh import (
+    _make_source_fitted_mapper,
+    _section_circumference,
+)
 from freecad_cloth.avatar.MakeHumanTargets import (
     TARGETS_ENV,
     apply_targets,
