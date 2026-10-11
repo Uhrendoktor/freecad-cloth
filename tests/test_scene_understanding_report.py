@@ -188,7 +188,7 @@ def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> N
     assert isinstance(arc, dict)
     assert arc["samples_local_mm"] == [[0.0, 10.0], [3.0, 12.0], [7.0, 12.0], [10.0, 10.0]]
     svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
-    assert "3.000,12.000" in svg
+    assert "36.100,591.600" in svg
 
 
 def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> None:
