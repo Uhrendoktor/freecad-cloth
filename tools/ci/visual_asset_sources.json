@@ -7,6 +7,12 @@
         "tests/freecad_interactive_arrange_acceptance.py"
       ]
     },
+    "avatar-body-shape-gallery.png": {
+      "artifact": "readme-turntables",
+      "producers": [
+        "tests/freecad_avatar_screenshot.py"
+      ]
+    },
     "avatar-dimension-drag.gif": {
       "artifact": "avatar-shape-editor",
       "producers": [
