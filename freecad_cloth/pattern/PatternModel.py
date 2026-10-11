@@ -6,7 +6,6 @@ values rather than being replaced by a second database/model.
 """
 
 from dataclasses import field
-
 from typing import Union
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
