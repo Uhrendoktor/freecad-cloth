@@ -46,13 +46,15 @@ The **3D Pattern Pen** traces a closed boundary on a visible mannequin or Cloth 
 ### Trace a boundary and create the pattern
 
 1. Open a document containing the intended mannequin or Cloth target. Select that target when the document contains more than one supported target.
-2. Switch to **Cloth Pattern → 3D Pattern Pen**. The task panel opens and the 3D view accepts strokes on the target.
-3. Hold the left mouse button and drag over the visible target surface. Release to lift the pen; draw another segment to continue the same boundary.
-4. Return the endpoint to within **6 mm** of the first sample. The orange viewport line previews the closing edge, the status explains the endpoint gap, and **Finish Stroke → Pattern** becomes enabled only when the boundary has at least three distinct vertices and can be closed.
-5. Set **Planar deviation limit** (8 mm by default), then choose **Finish Stroke → Pattern**. This checks the boundary and its distance from a deterministic local plane before creating the persistent draft and pattern piece.
-6. Inspect the resulting Sketcher geometry, then save the FCStd document. The sketch—not the sampled surface stroke—is the editable geometry authority.
+2. Switch to **Cloth Pattern → 3D Pattern Pen**. **Point placement** is the default input mode; the 3D view accepts clicks on the target surface.
+3. Choose **Corner point** for a sharp boundary vertex. Choose **Curve point** to add a point that the generated B-spline segment will pass through between its neighboring corner points. Consecutive corner points remain straight lines. Place at least three corner points for a closed pattern boundary.
+4. To sketch the boundary yourself using Sketcher, choose **Reference points**. Click at least three points in boundary order. **Create Sketcher Points** creates a native sketch with construction points and opens it for editing; connect the points with native lines, arcs, or B-splines and constrain the resulting outline.
+5. To retain the drag-based interaction, switch **Input mode** to **Freehand trace**. Drag on the surface and release to lift the pen; another drag continues the same boundary. Freehand traces currently produce a polyline boundary.
+6. For Point placement or Freehand trace, return the endpoint to within **6 mm** of the first point. The orange viewport line previews the closing edge and the status explains the gap. **Finish Stroke → Pattern** becomes enabled once the boundary closes and Point placement has at least three corners.
+7. Set **Planar deviation limit** (8 mm by default), then choose **Finish Stroke → Pattern**. This validates the boundary and its distance from a deterministic local plane before creating the persistent draft and pattern piece.
+8. Inspect the resulting native Sketcher geometry, then save the FCStd document. The sketch—not the sampled surface anchors—is the editable geometry authority.
 
-The recording below captures the real FreeCAD UI through the open task panel, an unfinished stroke, a closed boundary, and the extracted Sketcher result. Its stages are captured by the native FreeCAD acceptance fixture; the animation is not a hand-drawn illustration.
+The recording below captures the real FreeCAD UI in **Freehand trace** mode through an unfinished stroke, a closed boundary, and the extracted Sketcher result. Point placement is the default interactive mode; the animation documents the retained drag-based alternative. Its stages are captured by the native FreeCAD acceptance fixture, not a hand-drawn illustration.
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/surface-pen-workflow.gif" alt="FreeCAD Surface Pen progressing from its task panel through an incomplete stroke and closed outline to the resulting Sketcher pattern" width="900"></p>
 
@@ -74,7 +76,11 @@ The current MVP projects the sampled boundary onto one deterministic local plane
 | Situation | Expected behavior |
 | --- | --- |
 | Boundary is still open | Finish stays disabled; return near the first sample or choose **Clear** and redraw. |
-| Fewer than three distinct boundary vertices | Finish stays disabled until enough points have been sampled. |
+| Fewer than three distinct boundary vertices or fewer than three corner points in Point placement mode | Finish stays disabled until the boundary has enough authored corners. |
+| Curve points with no three corner points | Finish stays disabled; a surface boundary needs at least three corners. |
+| Reference points mode has fewer than three points | Create Sketcher Points stays disabled. |
+| Reference points mode | Finish creates construction points and opens a native Sketcher sketch; connect them with ordinary Sketcher geometry. |
+| Freehand trace mode | Existing drag-to-sample interaction remains available and produces straight Sketcher segments. |
 | Flattened outline self-intersects or has negligible area | Extraction is rejected rather than creating a misleading piece. |
 | Maximum deviation exceeds the limit | Extraction is rejected with the measured deviation and configured limit. Increase the limit only if a less-faithful planar approximation is acceptable; otherwise trace a flatter patch. |
 | Target source changed after tracing | The draft is marked stale; redraw on the current target. |
