@@ -15,7 +15,7 @@ import math
 import os
 import tempfile
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
@@ -83,7 +83,7 @@ class HumanoidMeshError(RuntimeError):
     """Raised when the real humanoid mesh cannot be loaded or fitted."""
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class MeshData:
     """Public data model or service class for MeshData."""
 
