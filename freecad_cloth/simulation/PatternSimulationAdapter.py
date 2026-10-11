@@ -7,7 +7,7 @@ compatibility path for documents without a native Sketcher authority.
 
 import ast
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 from freecad_cloth.pattern.PatternIR import PatternIR, SeamIR
@@ -22,7 +22,7 @@ from freecad_cloth.sewing.SeamGraph import SeamGraph
 CURVE_SAMPLES = 64
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class ResolvedSimulationPattern:
     """Resolved PatternIR plus the originating FreeCAD PatternPiece objects."""
 
