@@ -115,6 +115,10 @@ def _valid_realtime_benchmark_metrics() -> dict[str, object]:
     return {
         "schema_version": 1,
         "backend": "position-based-dynamics",
+        "fixture": "two-panel-tunic-pattern",
+        "particles": 480,
+        "panel_count": 2,
+        "collision_triangles": 240,
         "frame_budget_ms": FRAME_BUDGET_MS,
         "frames_requested": 120,
         "warmup_frames_requested": 30,
