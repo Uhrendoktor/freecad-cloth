@@ -802,7 +802,7 @@ class SurfacePenController:
         self._update_overlay()
         self._status("Surface stroke cleared. " + self._stroke_status())
 
-    def _place_point(self, anchor):
+    def _place_point(self, anchor: SurfaceAnchor) -> bool:
         """Append one deliberate boundary point and accept a near-start click as closure."""
         placed = SurfaceAnchor(anchor.point, anchor.normal, self.point_kind)
         if (
@@ -813,7 +813,7 @@ class SurfacePenController:
             return True
         return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
 
-    def _place_reference_point(self, anchor):
+    def _place_reference_point(self, anchor: SurfaceAnchor) -> bool:
         """Append one reference point without treating proximity to the start as closure."""
         placed = SurfaceAnchor(anchor.point, anchor.normal, "corner")
         return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
@@ -868,7 +868,7 @@ class SurfacePenController:
             self._update_overlay()
             self._status(self._stroke_status())
 
-    def _finish_reference_points(self, document, tolerance_mm):
+    def _finish_reference_points(self, document: object, tolerance_mm: float) -> object:
         """Create a native Sketcher sketch containing flattened construction points."""
         import Part
 
