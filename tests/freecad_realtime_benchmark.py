@@ -9,6 +9,7 @@ import os
 import platform
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import FreeCAD as App
@@ -140,6 +141,50 @@ def _percentile(values: list[float], fraction: float) -> float | None:
     return ordered[max(0, min(len(ordered) - 1, rank))]
 
 
+
+
+class _TimedGuiView:
+    """Forward FreeCAD view calls while recording the synchronous viewport redraw cost."""
+
+    def __init__(self, view: object, record_stage: Callable[[str, float], None]) -> None:
+        self._view = view
+        self._record_stage = record_stage
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._view, name)
+
+    def redraw(self) -> None:
+        started_at = time.perf_counter()
+        try:
+            getattr(self._view, "redraw")()
+        finally:
+            self._record_stage("viewport_redraw", started_at)
+
+
+class _TimedGuiDocument:
+    """Forward active-document calls and instrument the active view returned to preview."""
+
+    def __init__(self, document: object, record_stage: Callable[[str, float], None]) -> None:
+        self._document = document
+        self._record_stage = record_stage
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._document, name)
+
+    def activeView(self) -> _TimedGuiView:
+        view = getattr(self._document, "activeView")()
+        return _TimedGuiView(view, self._record_stage)
+
+
+def _timing_summary(values: list[float]) -> dict[str, float | int | None]:
+    """Summarize a timing stage without treating missing samples as zero cost."""
+    return {
+        "samples": len(values),
+        "mean_ms": sum(values) / len(values) if values else None,
+        "p95_ms": _percentile(values, 0.95),
+        "max_ms": max(values) if values else None,
+    }
+
 def main() -> None:
     """Exercise the real Qt preview timer and gate its sustained frame interval."""
     if FRAMES < 120:
@@ -165,6 +210,7 @@ def main() -> None:
     doc = App.newDocument("ClothRealtimeBenchmark")
     preview = None
     deadline = None
+    patches: list[tuple[object, str, object]] = []
     try:
         init_gui = ROOT / "InitGui.py"
         exec(
@@ -182,17 +228,104 @@ def main() -> None:
         if backend is None:
             raise RuntimeError("Realtime preview did not initialize its solver backend")
 
+        stage_names = (
+            "advance_preview_frame",
+            "solver_step",
+            "state_publish",
+            "mesh_write",
+            "overlay_schedule",
+            "viewport_redraw",
+        )
+        stage_timings: dict[str, list[float]] = {name: [] for name in stage_names}
+        tick_count = 0
+        in_tick = False
+
+        def record_stage(name: str, started_at: float) -> None:
+            if in_tick and tick_count >= WARMUP_FRAMES:
+                stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
+
+        from freecad_cloth.sewing import SeamOverlay as seam_overlay
+        from freecad_cloth.simulation import SimulationObjects as simulation_objects
+
+        original_advance = proxy.advance_preview_frame
+        original_publish = proxy._publish_state
+        original_solver_step = backend.step
+        original_mesh_write = simulation_objects._write_mesh
+        original_overlay_schedule = seam_overlay.schedule_seam_overlay_refresh
+        original_active_document = Gui.activeDocument
+
+        def timed_advance(obj: object) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_advance(obj)
+            finally:
+                record_stage("advance_preview_frame", started_at)
+
+        def timed_publish(obj: object, state: object) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_publish(obj, state)
+            finally:
+                record_stage("state_publish", started_at)
+
+        def timed_solver_step(
+            dt: float,
+            iterations: int,
+            gravity: tuple[float, float, float],
+            surface: object | None = None,
+        ) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_solver_step(dt, iterations, gravity, surface)
+            finally:
+                record_stage("solver_step", started_at)
+
+        def timed_mesh_write(obj: object, positions: object, triangles: object) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_mesh_write(obj, positions, triangles)
+            finally:
+                record_stage("mesh_write", started_at)
+
+        def timed_overlay_schedule(document: object | None = None) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_overlay_schedule(document)
+            finally:
+                record_stage("overlay_schedule", started_at)
+
+        def timed_active_document() -> _TimedGuiDocument | None:
+            active_document = original_active_document()
+            if active_document is None:
+                return None
+            return _TimedGuiDocument(active_document, record_stage)
+
+        for owner, name, replacement, original in (
+            (proxy, "advance_preview_frame", timed_advance, original_advance),
+            (proxy, "_publish_state", timed_publish, original_publish),
+            (backend, "step", timed_solver_step, original_solver_step),
+            (simulation_objects, "_write_mesh", timed_mesh_write, original_mesh_write),
+            (
+                seam_overlay,
+                "schedule_seam_overlay_refresh",
+                timed_overlay_schedule,
+                original_overlay_schedule,
+            ),
+            (Gui, "activeDocument", timed_active_document, original_active_document),
+        ):
+            setattr(owner, name, replacement)
+            patches.append((owner, name, original))
+
         active_preview = _Preview(scene)
         preview = active_preview
         timer = active_preview.timer
-        # This fresh timer has only the production tick connected; replace it with an instrumented call.
+        # This fresh timer has only the instrumented production callback connected.
         try:
             timer.timeout.disconnect()
         except (RuntimeError, TypeError) as exc:
             raise RuntimeError("Could not instrument the production preview timer") from exc
 
         event_loop = qt_core.QEventLoop()
-        tick_count = 0
         last_tick_at: float | None = None
         frame_intervals_ms: list[float] = []
         callback_costs_ms: list[float] = []
@@ -200,8 +333,13 @@ def main() -> None:
         timed_out = False
 
         def timed_tick() -> None:
+            nonlocal in_tick
             started_at = time.perf_counter()
-            active_preview.tick()
+            in_tick = True
+            try:
+                active_preview.tick()
+            finally:
+                in_tick = False
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count >= WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
@@ -316,6 +454,10 @@ def main() -> None:
             "mean_callback_ms": mean_callback_ms,
             "p95_callback_ms": p95_callback_ms,
             "max_callback_ms": max_callback_ms,
+            "stage_timings": {
+                name: _timing_summary(samples) for name, samples in stage_timings.items()
+            },
+            "seam_overlay_enabled": bool(getattr(seam_overlay, "_OVERLAY_ENABLED", False)),
             "backend_finite": backend_finite,
             "published_state_finite": published_state_finite,
             "timed_out": timed_out,
@@ -340,6 +482,9 @@ def main() -> None:
         if preview is not None:
             with contextlib.suppress(Exception):
                 preview.stop(restore=False)
+        for owner, name, original in reversed(patches):
+            with contextlib.suppress(Exception):
+                setattr(owner, name, original)
         with contextlib.suppress(Exception):
             App.closeDocument(doc.Name)
         with contextlib.suppress(Exception):
