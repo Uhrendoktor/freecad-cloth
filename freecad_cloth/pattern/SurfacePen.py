@@ -149,7 +149,9 @@ def polygon_self_intersects(points: collections.abc.Sequence[Point2]) -> bool:
     return False
 
 
-def simplify_polyline(points: collections.abc.Sequence[Point3], tolerance_mm: float = 1.0) -> tuple[Point3, ...]:
+def simplify_polyline(
+    points: collections.abc.Sequence[Point3], tolerance_mm: float = 1.0
+) -> tuple[Point3, ...]:
     """Simplify a spatial polyline with a deterministic RDP pass."""
     values = tuple(_as_point3(point) for point in points)
     if len(values) <= 2:
