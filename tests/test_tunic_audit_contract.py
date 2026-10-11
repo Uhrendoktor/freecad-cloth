@@ -351,15 +351,9 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "neck_z = (1.0 - float(neckline_drop)) * h" in debug
     assert "neckline_drop=0.03" in source
     assert "shoulder_headroom_mm = 20.0" in source
-    assert (
-        "garment_height = max(560.0, "
-        "(shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
-    )
+    assert "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
     assert "shoulder_headroom_mm = 20.0" in debug
-    assert (
-        "garment_height = max(560.0, "
-        "(shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
-    )
+    assert "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
     assert "x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug
     assert "armhole_z = 0.62 * h" in debug
     assert "armhole_z = 0.62 * h" in debug
