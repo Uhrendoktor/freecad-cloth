@@ -8,7 +8,7 @@ Use this editor to prepare a mannequin for pattern fitting and sewing. It separa
 
 **What this clip shows:** the shape sliders are staged, then **Apply & Rebuild** updates the bare mannequin mesh. It is **not a cloth simulation**: there is no garment in this clip and no drape solver is running. See the [simulation guide](05-simulation.md) for cloth behavior.
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the mannequin waist circumference handle to stage a new measurement, then applying and rebuilding the body" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the mannequin hip circumference handle to stage a local measurement, then applying and rebuilding the body" width="900"></p>
 
 ## Compare example body shapes
 
