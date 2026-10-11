@@ -207,7 +207,9 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
     obj.PosePreset = params.pose.preset
     obj.SkinOffset = params.skin_offset
     for name, property_name in SHAPE_PROPERTY_MAP.items():
-        _set_prop(obj, "App::PropertyFloat", property_name, "Body shape", 0.5 if name == "gender" else 0.0)
+        _set_prop(
+            obj, "App::PropertyFloat", property_name, "Body shape", 0.5 if name == "gender" else 0.0
+        )
         setattr(obj, property_name, float(getattr(params, name)))
     for name, value in (
         ("left_arm_angle", params.pose.left_arm_angle),
@@ -322,11 +324,17 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             obj.AvatarProviderId = "makehuman-hm08"
         _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
         _set_prop(
-            obj, "App::PropertyFloat", "GenderBlend", "Body shape",
+            obj,
+            "App::PropertyFloat",
+            "GenderBlend",
+            "Body shape",
             float(getattr(obj, "GenderBlend", 0.5)),
         )
         _set_prop(
-            obj, "App::PropertyFloat", "BreastSize", "Body shape",
+            obj,
+            "App::PropertyFloat",
+            "BreastSize",
+            "Body shape",
             float(getattr(obj, "BreastSize", 0.0)),
         )
         for name, prop in POSE_PROPERTY_MAP.items():
