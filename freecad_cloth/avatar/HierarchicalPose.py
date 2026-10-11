@@ -65,9 +65,7 @@ def _arm_pose_configuration(
         wrist = mapper(wrist_source)
         side = -1.0 if shoulder[0] < 0.0 else 1.0
         desired = float(
-            parameters.pose.left_arm_angle
-            if side < 0.0
-            else parameters.pose.right_arm_angle
+            parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle
         )
         radial = max(1e-9, side * (wrist[0] - shoulder[0]))
         downward = max(0.0, shoulder[2] - wrist[2])
