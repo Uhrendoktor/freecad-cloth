@@ -686,8 +686,7 @@ def _make_source_fitted_mapper(
             0.80,
             min(
                 1.25,
-                parameters.measurement("shoulder")
-                / float(DEFAULT_MEASUREMENTS["shoulder"]),
+                parameters.measurement("shoulder") / float(DEFAULT_MEASUREMENTS["shoulder"]),
             ),
         )
 
