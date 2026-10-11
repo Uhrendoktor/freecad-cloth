@@ -106,6 +106,7 @@ def _write_mesh(obj, positions, triangles):
         _MESH_OBJECT_BUFFERS[object_key] = buffer
         _MESH_OBJECT_TOPOLOGY[object_key] = topology
 
+
 def _write_grid_mesh(obj, positions, indices, nx, ny):
     triangles = []
     for j in range(ny - 1):
