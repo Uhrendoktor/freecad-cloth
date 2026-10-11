@@ -417,7 +417,6 @@ def to_dxf(
 
 
 
-
 def to_pdf(
     pattern: ParametricPattern,
     curve_samples: int = 32,
@@ -485,6 +484,7 @@ def validate_pdf_export(
         margin_mm=margin_mm,
         overlap_mm=overlap_mm,
     )
+
 
 def from_dxf_metadata(dxf: str) -> dict:
     """Provide the public from dxf metadata operation."""

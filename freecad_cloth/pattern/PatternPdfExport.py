@@ -97,8 +97,7 @@ def _document_bytes(
             + b"\nendstream"
         )
     objects[font_id] = (
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
-        b"/Encoding /WinAnsiEncoding >>"
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
     )
     objects[info_id] = (
         b"<< /Title "
@@ -218,9 +217,7 @@ def to_pdf(
         bound_points.extend(((x - dx, y - dy), (x + dx, y + dy)))
         mark_layout.append((mark, x, y, dx, dy))
         if mark.text:
-            bound_points.extend(
-                ((x, y - 1.0), (x + max(2.0, len(mark.text) * 1.8), y + 2.0))
-            )
+            bound_points.extend(((x, y - 1.0), (x + max(2.0, len(mark.text) * 1.8), y + 2.0)))
     if not bound_points:
         raise ValueError("pattern has no geometry to export")
     if any(not isfinite(value) for point in bound_points for value in point):
@@ -237,9 +234,7 @@ def to_pdf(
     columns = _tile_count(extent_width, usable_width, stride_x)
     rows = _tile_count(extent_height, usable_height, stride_y)
     page_count = columns * rows
-    metadata = _metadata(
-        pattern, normalized_units, piece_id, seam_ids, derived, seam_allowance
-    )
+    metadata = _metadata(pattern, normalized_units, piece_id, seam_ids, derived, seam_allowance)
     metadata.update(
         {
             "format": "pdf",

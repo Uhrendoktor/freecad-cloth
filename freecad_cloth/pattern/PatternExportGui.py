@@ -89,9 +89,7 @@ class PatternExportTaskPanel:
         self._pdf_overlap_label.setVisible(is_pdf)
         current = self.path.text().strip()
         if current:
-            suffix = {"svg": ".svg", "dxf": ".dxf", "pdf": ".pdf"}.get(
-                str(value).lower(), ".svg"
-            )
+            suffix = {"svg": ".svg", "dxf": ".dxf", "pdf": ".pdf"}.get(str(value).lower(), ".svg")
             if Path(current).suffix.lower() in {".svg", ".dxf", ".pdf"}:
                 self.path.setText(str(Path(current).with_suffix(suffix)))
 

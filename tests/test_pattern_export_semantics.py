@@ -269,7 +269,6 @@ def test_zero_allowance_notch_falls_inward_not_outward() -> None:
     assert "10\n103.000000\n20\n30.000000" not in cut_section
 
 
-
 def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
@@ -303,14 +302,17 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     assert metadata["paper_size"] == "A4"
     assert metadata["page_count"] == 1
     assert metadata["notch_ids"] == ["right-notch"]
-    assert validate_pdf_export(
-        pattern,
-        first,
-        derived=derived,
-        piece_id="front",
-        seam_ids=("front-back",),
-        seam_allowance=5.0,
-    )["valid"] is True
+    assert (
+        validate_pdf_export(
+            pattern,
+            first,
+            derived=derived,
+            piece_id="front",
+            seam_ids=("front-back",),
+            seam_allowance=5.0,
+        )["valid"]
+        is True
+    )
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative"):
         validate_pdf_export(pattern, first + b"tampered")
 
