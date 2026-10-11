@@ -117,10 +117,7 @@ def render_svg_for_validation(
         raise RuntimeError("SVG render validation requires NumPy for raster inspection") from exc
 
     bits = image.bits()
-    if hasattr(image, "sizeInBytes"):
-        byte_count = image.sizeInBytes()
-    else:
-        byte_count = image.byteCount()
+    byte_count = image.sizeInBytes() if hasattr(image, "sizeInBytes") else image.byteCount()
     if hasattr(bits, "setsize"):
         bits.setsize(byte_count)
     raw = bytes(bits)
