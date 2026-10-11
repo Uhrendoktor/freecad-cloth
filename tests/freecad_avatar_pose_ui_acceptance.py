@@ -24,7 +24,6 @@ from tests.support.freecad_input import (
 )
 
 
-
 def _runtime_diagnostics():
     import importlib.metadata
     import re
@@ -45,10 +44,7 @@ def _runtime_diagnostics():
         try:
             data = Path(path).read_bytes()
             return sorted(
-                {
-                    match.decode("ascii")
-                    for match in re.findall(rb"swig_runtime_data([0-9]+)", data)
-                }
+                {match.decode("ascii") for match in re.findall(rb"swig_runtime_data([0-9]+)", data)}
             )
         except (OSError, TypeError, ValueError):
             return []
@@ -58,13 +54,7 @@ def _runtime_diagnostics():
         root = Path(root_name)
         if not root.exists():
             continue
-        candidates.extend(
-            sorted(
-                path
-                for path in root.rglob("*FreeCADGui*.so*")
-                if path.is_file()
-            )
-        )
+        candidates.extend(sorted(path for path in root.rglob("*FreeCADGui*.so*") if path.is_file()))
     info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
 
     try:
@@ -121,6 +111,7 @@ def _runtime_diagnostics():
     except Exception as exc:
         info["runtime_error"] = repr(exc)
     return info
+
 
 def _events():
     try:
@@ -207,10 +198,7 @@ def _bounds(mesh):
 
 
 def _point_bounds(points):
-    values = tuple(
-        (float(point[0]), float(point[1]), float(point[2]))
-        for point in points
-    )
+    values = tuple((float(point[0]), float(point[1]), float(point[2])) for point in points)
     if not values:
         return None
     return tuple(
@@ -235,9 +223,7 @@ def _point_records(points, precision=3):
 def _match_native_points(expected_points, actual_points, tolerance=0.002):
     """Match points one-to-one within native mesh precision, independent of ordering."""
     buckets = defaultdict(list)
-    actual_values = tuple(
-        tuple(float(value) for value in point) for point in actual_points
-    )
+    actual_values = tuple(tuple(float(value) for value in point) for point in actual_points)
     for index, point in enumerate(actual_values):
         key = tuple(int(value // tolerance) for value in point)
         buckets[key].append((index, point))
@@ -255,9 +241,7 @@ def _match_native_points(expected_points, actual_points, tolerance=0.002):
             for actual_index, actual in buckets.get(neighbor_key, ()):
                 if actual_index in matched:
                     continue
-                error = sum(
-                    (actual[axis] - expected[axis]) ** 2 for axis in range(3)
-                ) ** 0.5
+                error = sum((actual[axis] - expected[axis]) ** 2 for axis in range(3)) ** 0.5
                 if error < best_error:
                     best_index, best_point, best_error = (
                         actual_index,
@@ -339,18 +323,15 @@ def run():
                     getattr(AvatarModel.generate_mesh.__code__, "co_firstlineno", None),
                 ),
                 "HierarchicalPose.generate_hierarchical_mesh": (
-                    getattr(HierarchicalPose.generate_hierarchical_mesh.__code__, "co_firstlineno", None),
+                    getattr(
+                        HierarchicalPose.generate_hierarchical_mesh.__code__, "co_firstlineno", None
+                    ),
                 ),
             }
         )
     )
     generated_vertices, _, _ = AvatarModel.generate_mesh(panel._staged_parameters())
-    progress(
-        "generated-mesh-bounds="
-        + repr(
-            _point_bounds(generated_vertices)
-        )
-    )
+    progress("generated-mesh-bounds=" + repr(_point_bounds(generated_vertices)))
     before_params = panel._staged_parameters()
     progress(
         "staged-params-before-dialog="
@@ -416,10 +397,7 @@ def run():
         raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
     if panel.controller.gizmo is None:
         raise RuntimeError("Pose Mode did not create a usable pose control")
-    progress(
-        "pivy-coin-loaded-before-capability=%s"
-        % ("pivy.coin" in sys.modules)
-    )
+    progress("pivy-coin-loaded-before-capability=%s" % ("pivy.coin" in sys.modules))
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
     progress(
@@ -434,11 +412,13 @@ def run():
     )
     if fallback:
         raise RuntimeError(
-            "Pose Mode did not activate the native Coin/Pivy viewport path: "
-            + str(runtime_error)
+            "Pose Mode did not activate the native Coin/Pivy viewport path: " + str(runtime_error)
         )
     gizmo_mode = panel.controller.gizmo_mode or "unknown"
-    if panel.controller.gizmo_mode != "native" or panel.controller.gizmo_style != "axis-rings-cones":
+    if (
+        panel.controller.gizmo_mode != "native"
+        or panel.controller.gizmo_style != "axis-rings-cones"
+    ):
         raise RuntimeError(
             "Pose Mode did not install the required native axis-ring/cone gizmo "
             f"(mode={gizmo_mode!r}, style={getattr(panel.controller, 'gizmo_style', None)!r}, "
@@ -470,9 +450,7 @@ def run():
         + repr(_point_bounds((point.x, point.y, point.z) for point in actual_points))
     )
     if len(actual_points) != len(expected_mesh.vertices):
-        raise RuntimeError(
-            "Pose Mode mesh vertex count does not match the authored FK mesh"
-        )
+        raise RuntimeError("Pose Mode mesh vertex count does not match the authored FK mesh")
 
     # First prove the public generator and independent FK builder agree before
     # crossing into FreeCAD's native Mesh representation.
@@ -483,9 +461,7 @@ def run():
             "Public avatar mesh generator differs from the independent authored FK result"
         )
 
-    actual_values = tuple(
-        (point.x, point.y, point.z) for point in actual_points
-    )
+    actual_values = tuple((point.x, point.y, point.z) for point in actual_points)
     max_vertex_error, mismatch = _match_native_points(
         expected_mesh.vertices,
         actual_values,
@@ -583,9 +559,7 @@ def run():
         wait_until(
             lambda: (
                 panel._staged_joint_rotations.get("upperarm01.L") is not None
-                and abs(
-                    float(panel._staged_joint_rotations["upperarm01.L"].y) - 35.0
-                ) < 1e-4
+                and abs(float(panel._staged_joint_rotations["upperarm01.L"].y) - 35.0) < 1e-4
             ),
             description="keyboard-edited upper-arm joint rotation",
         )
@@ -596,7 +570,6 @@ def run():
     finally:
         if recorder._started:
             recorder.stop()
-
 
     before = _bounds(avatar.Mesh)
     panel._stage_joint_rotation(
@@ -675,10 +648,7 @@ try:
 except BaseException as exc:
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-pose-ui.log").write_text(
-        "avatar-pose-ui=failed\n"
-        + repr(exc)
-        + "\n"
-        + traceback.format_exc(),
+        "avatar-pose-ui=failed\n" + repr(exc) + "\n" + traceback.format_exc(),
         encoding="utf-8",
     )
     print("avatar-pose-ui=failed", exc, flush=True)
