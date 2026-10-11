@@ -20,6 +20,7 @@ from freecad_cloth.common.ValidationModels import (
 from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
+
 @pydantic_dataclass(frozen=True)
 class Transform3D:
     """Rigid-free assembly transform represented by a 4x4 row-major matrix."""
@@ -77,6 +78,7 @@ class Transform3D:
         )
         return validate_points3d((result,))[0]
 
+
 @pydantic_dataclass(frozen=True)
 class SeamPair:
     """Canonical seam plus non-semantic stitch presentation metadata."""
@@ -130,6 +132,7 @@ class SeamPair:
             raise ValueError("stitch group disagrees with canonical seam metadata")
         if self.alignment != self.seam.alignment:
             raise ValueError("alignment disagrees with canonical seam metadata")
+
 
 @pydantic_dataclass
 class SeamGraph:
@@ -293,6 +296,7 @@ class SeamGraph:
         if len(values) < 2:
             raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
         return cast(tuple[int, ...], values)
+
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
     span = end - start
