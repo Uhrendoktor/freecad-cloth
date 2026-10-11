@@ -130,7 +130,9 @@ def main() -> int:
     try:
         payload = json.loads(args.metrics.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"realtime-benchmark=failed reason=unreadable-metrics error={exc}") from exc
+        raise SystemExit(
+            f"realtime-benchmark=failed reason=unreadable-metrics error={exc}"
+        ) from exc
 
     errors = validate_metrics(payload)
     if errors:
