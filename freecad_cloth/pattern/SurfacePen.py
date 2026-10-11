@@ -981,7 +981,9 @@ class SurfacePenTaskPanel:
 
         controls = QtWidgets.QFormLayout()
         self.input_mode_combo = QtWidgets.QComboBox()
-        self.input_mode_combo.addItems(["Point placement", "Freehand trace"])
+        self.input_mode_combo.addItems(
+            ["Point placement", "Freehand trace", "Reference points"]
+        )
         self.input_mode_combo.currentTextChanged.connect(self._input_mode_changed)
         controls.addRow("Input mode", self.input_mode_combo)
 
@@ -1022,9 +1024,13 @@ class SurfacePenTaskPanel:
         self.update_status(self.controller._stroke_status())
 
     def _input_mode_changed(self, value: str) -> None:
-        """Switch the viewport between click-to-place and drag-to-trace modes."""
+        """Switch between boundary authoring, freehand tracing, and reference points."""
         self.controller.set_input_mode(value)
         self.point_kind_combo.setEnabled(self.controller.input_mode == "point")
+        if self.controller.input_mode == "references":
+            self.finish_button.setText("Create Sketcher Points")
+        else:
+            self.finish_button.setText("Finish Stroke → Pattern")
 
     def _point_kind_changed(self, value: str) -> None:
         """Set the kind assigned to the next point placed on the target."""
@@ -1044,13 +1050,21 @@ class SurfacePenTaskPanel:
         return __import__("FreeCAD"), __import__("FreeCADGui"), QtWidgets
 
     def finish(self):
-        """Finish extraction using the task-panel planar tolerance."""
+        """Finish the selected Surface Pen mode using the task-panel planar tolerance."""
         try:
-            self.controller.finish(float(self.tolerance.value()))
+            result = self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
             self.update_status(f"Could not create pattern: {exc}")
             return False
+        open_reference_sketch = (
+            str(getattr(result, "SurfaceAuthoring", ""))
+            == "ClothPattern.SurfacePen.ReferencePoints"
+        )
         self.accept()
+        if open_reference_sketch:
+            active = self.controller.Gui.activeDocument()
+            if active is not None:
+                active.setEdit(result.Name)
         return True
 
     def accept(self):
