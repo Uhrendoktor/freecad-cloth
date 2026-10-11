@@ -6,6 +6,7 @@ from numbers import Real
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
 
+
 @dataclass(frozen=True)
 class CollisionSurface:
     """Immutable triangle surface consumed by collision-aware runtimes."""
