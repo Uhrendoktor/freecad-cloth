@@ -342,10 +342,10 @@ jobs:
           observation-label: Tunic pattern-to-fitting scene diagnostics
           observation-files: >-
             summary=scene-understanding.json;visual=scene-understanding.svg
-          # Fine SDF resolution is scoped to this zero-penetration audit only.
+          # Intermediate SDF resolution is scoped to this zero-penetration audit only.
           environment: |
             CLOTH_PBD_SUBSTEPS=16
-            CLOTH_PBD_COLLISION_VOXEL_MM=4.0
+            CLOTH_PBD_COLLISION_VOXEL_MM=6.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
