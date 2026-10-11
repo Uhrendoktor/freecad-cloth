@@ -430,10 +430,7 @@ def close_surface_stroke(
             f"within {limit:.1f} mm before finishing (current gap: {distance:.1f} mm)"
         )
     boundary = values[:-1]
-    unique = {
-        tuple(round(float(value), 6) for value in anchor.point)
-        for anchor in boundary
-    }
+    unique = {tuple(round(float(value), 6) for value in anchor.point) for anchor in boundary}
     if len(unique) < 3:
         raise ValueError("surface boundary needs at least three distinct points")
     return boundary
