@@ -9,10 +9,9 @@ workbench's semantic boundary/provenance contract.
 
 from collections.abc import Sequence
 from math import ceil, hypot, isclose, isfinite
-
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
