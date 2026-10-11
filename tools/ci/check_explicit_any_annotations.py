@@ -164,10 +164,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         type_comment = getattr(node, "type_comment", None)
         if isinstance(type_comment, str):
             roots = _type_comment_roots(type_comment)
-            if any(
-                _contains_explicit_any(root, any_names, typing_modules)
-                for root in roots
-            ):
+            if any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
                 violations.append(
                     f"{filename}:{getattr(node, 'lineno', 1)}: type comment references explicit Any; "
                     "use a concrete type, object with narrowing, or a Protocol"
