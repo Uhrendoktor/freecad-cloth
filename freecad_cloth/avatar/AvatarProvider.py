@@ -12,7 +12,6 @@ from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import surface_from_triangles
 
-
 @pydantic_dataclass(frozen=True)
 class AvatarProviderInfo:
     """Persistent identity presented by the avatar UI/document layer."""
@@ -20,7 +19,6 @@ class AvatarProviderInfo:
     provider_id: str
     display_name: str
     fidelity: str
-
 
 class AvatarProvider:
     """Minimal provider protocol consumed by fitting and target adapters."""
@@ -42,7 +40,6 @@ class AvatarProvider:
     def landmarks(self):
         """Return the semantic avatar landmarks."""
         raise NotImplementedError
-
 
 class ParametricAvatarProvider(AvatarProvider):
     """Built-in anthropometric provider backed by the real MakeHuman mesh."""
@@ -69,10 +66,8 @@ class ParametricAvatarProvider(AvatarProvider):
         """Return the semantic avatar landmarks."""
         return self._service.landmarks()
 
-
 # Descriptive alias for callers that should not depend on the legacy class name.
 HumanoidMeshAvatarProvider = ParametricAvatarProvider
-
 
 class FreeCADGeometryAvatarProvider(AvatarProvider):
     """Adapter for an imported/native FreeCAD body without a hard dependency.
@@ -111,7 +106,6 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
     def landmarks(self):
         """Return the semantic avatar landmarks."""
         return ()
-
 
 def provider_from_target(
     source, target_type="FreeCAD Geometry", parameters=None, deflection=1.0, thickness=0.0
