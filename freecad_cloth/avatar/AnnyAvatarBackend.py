@@ -546,12 +546,14 @@ def _fitted_body_for(
     measurement_values = {
         str(name): float(value) for name, value in parameters.measurements.items()
     }
-    if not fit_hip:
-        # The hip-specific morph is a surface-shaping control, not a skeleton
-        # control. Normalize this cache key so hip-only edits reuse the same rig.
-        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
-        measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
+    default_hip = float(DEFAULT_MEASUREMENTS["hip"])
+    if not fit_hip or abs(measurement_values["hip"] - default_hip) <= 1e-9:
+        # At the default circumference the hip-specific fit is exactly neutral.
+        # Reuse the rig-fit cache instead of rerunning the costly whole-body fit.
+        measurement_values["hip"] = default_hip
+        fit_hip = False
     key = tuple(sorted(measurement_values.items()))
     return _cached_fitted_body(
         key, float(parameters.gender), float(parameters.breast_size), fit_hip
