@@ -182,7 +182,7 @@ replacements = {
     pose_view.fitAll()
     events()
     save("cloth-mannequin-near-t-pose.png", "Mannequin near-T pose before cloth", "FK pose verified by shoulder-to-wrist geometry before draping")""",
-    "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
+    "clearance = max(10.0, 0.05 * body_depth)": "clearance = max(10.0, 0.05 * body_depth);",
     # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
     # depth extrema are dominated by hands in the near-T pose and can pull the stitched
     # panels through the body; the silhouette filter excludes those outliers.
