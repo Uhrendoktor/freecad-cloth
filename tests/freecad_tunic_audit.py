@@ -457,6 +457,21 @@ timed_anchor = """    from time import perf_counter
     task_dock.hide(); events()
     view.setCameraType("Orthographic"); view.viewAxonometric(); view.fitAll(); events()
     save_view("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
+    _backend_step = active_backend.step
+    _backend_step_count = {"count": 0}
+    def _trace_backend_step(dt, iterations, gravity, surface=None):
+        _backend_step_count["count"] += 1
+        step_call = _backend_step_count["count"]
+        step_started = perf_counter()
+        log("tunic-pbd-substep-start call=%d target_scene_step=%d" % (
+            step_call, int(scene.Steps) + 1,
+        ))
+        result = _backend_step(dt, iterations, gravity, surface)
+        log("tunic-pbd-substep-end call=%d elapsed_ms=%.1f" % (
+            step_call, 1000.0 * (perf_counter() - step_started),
+        ))
+        return result
+    active_backend.step = _trace_backend_step
     for frame_index, batch in enumerate((10,10,10,10,10,10,10,10,10), start=1):
         batch_started = perf_counter()
         simulation_panel.step(batch); doc.recompute(); events()
