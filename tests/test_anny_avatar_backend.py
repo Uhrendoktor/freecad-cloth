@@ -19,9 +19,7 @@ def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
 
 def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None:
     phenotype = _initial_phenotypes(0.5, 0.5)
-    scalar_controls = [
-        value for value in phenotype.values() if isinstance(value, float)
-    ]
+    scalar_controls = [value for value in phenotype.values() if isinstance(value, float)]
     assert all(0.0 <= value <= 1.0 for value in scalar_controls)
     assert len({name for name, _measurement in MEASUREMENT_FIELDS}) == len(MEASUREMENT_FIELDS)
     assert len({measurement for _name, measurement in MEASUREMENT_FIELDS}) == len(
