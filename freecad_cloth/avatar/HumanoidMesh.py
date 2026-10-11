@@ -525,8 +525,6 @@ def _measurement_axis_profiles(
     preserve a plausible cross-section. Exponents sum to two so the average
     first-order cross-section scale remains close to the requested ratio.
     """
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
-
     bands = (
         ("hip", 0.50, 1.25),
         ("high_hip", 0.54, 1.20),
@@ -534,16 +532,13 @@ def _measurement_axis_profiles(
         ("underbust", 0.64, 1.15),
         ("chest", 0.69, 1.15),
     )
+    # Reuse the canonical per-measurement ratios so clamping and band placement
+    # stay identical for both the legacy profile and its anisotropic version.
+    ratios = _measurement_profile(parameters)
     lateral = [(0.42, 1.0)]
     depth = [(0.42, 1.0)]
-    for name, height, lateral_exponent in bands:
-        ratio = max(
-            0.75,
-            min(
-                1.35,
-                parameters.measurement(name) / float(DEFAULT_MEASUREMENTS[name]),
-            ),
-        )
+    for index, (_name, height, lateral_exponent) in enumerate(bands, start=1):
+        ratio = ratios[index][1]
         lateral.append((height, ratio**lateral_exponent))
         depth.append((height, ratio ** (2.0 - lateral_exponent)))
     lateral.extend(((0.75, 1.0), (1.0, 1.0)))
@@ -752,6 +747,21 @@ def _make_source_fitted_mapper(
             ),
         )
 
+    core_width_profile = [
+        (0.42, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.50, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.54, float(DEFAULT_MEASUREMENTS["high_hip"]) * 1.10 / (2.0 * math.pi)),
+        (0.58, float(DEFAULT_MEASUREMENTS["waist"]) * 1.10 / (2.0 * math.pi)),
+        (0.64, float(DEFAULT_MEASUREMENTS["underbust"]) * 1.10 / (2.0 * math.pi)),
+        (0.69, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+        (0.75, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
+        (0.83, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+        (1.00, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
+    ]
+    # Keep this mask fixed to the canonical shoulder location. Changing the
+    # shoulder measurement must not make the influence envelope swallow hands.
+    shoulder_half = float(DEFAULT_MEASUREMENTS["shoulder"]) / 2.0
+
     def transform(point: Point) -> Point:
         x, y, z = point
         normalized_z = (y - ymin) / y_span
@@ -772,17 +782,6 @@ def _make_source_fitted_mapper(
         # dimensions deliberately do not depend on the edited measurements,
         # preventing the influence mask from expanding into the arms as the
         # user changes chest or waist values.
-        core_width_profile = [
-            (0.42, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
-            (0.50, float(DEFAULT_MEASUREMENTS["hip"]) * 1.10 / (2.0 * math.pi)),
-            (0.54, float(DEFAULT_MEASUREMENTS["high_hip"]) * 1.10 / (2.0 * math.pi)),
-            (0.58, float(DEFAULT_MEASUREMENTS["waist"]) * 1.10 / (2.0 * math.pi)),
-            (0.64, float(DEFAULT_MEASUREMENTS["underbust"]) * 1.10 / (2.0 * math.pi)),
-            (0.69, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
-            (0.75, float(DEFAULT_MEASUREMENTS["chest"]) * 1.10 / (2.0 * math.pi)),
-            (0.83, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
-            (1.00, float(DEFAULT_MEASUREMENTS["chest"]) * 0.80 / (2.0 * math.pi)),
-        ]
         core_half_width = _profile_scale(normalized_z, core_width_profile)
         core_influence = 1.0 - _smoothstep(
             core_half_width, core_half_width + 45.0, abs(base_x_mm)
@@ -799,7 +798,6 @@ def _make_source_fitted_mapper(
         shoulder_rise = _smoothstep(0.67, 0.75, normalized_z)
         shoulder_fall = 1.0 - _smoothstep(0.80, 0.88, normalized_z)
         shoulder_blend = shoulder_rise * shoulder_fall
-        shoulder_half = float(parameters.measurement("shoulder")) / 2.0
         shoulder_envelope = 1.0 - _smoothstep(
             shoulder_half + 10.0, shoulder_half + 75.0, abs(base_x_mm)
         )
