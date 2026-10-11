@@ -233,3 +233,36 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     assert "validate_realtime_benchmark.py" in (
         ROOT / ".github" / "workflows" / "canonical-execution.yml"
     ).read_text(encoding="utf-8")
+
+
+def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
+    from tools.ci.validate_manifests import _validate_realtime_metrics
+
+    _validate_realtime_metrics(_valid_realtime_benchmark_metrics())
+
+
+def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> None:
+    from tools.ci.validate_realtime_benchmark import FRAME_BUDGET_MS
+    from tools.ci.validate_manifests import _validate_realtime_metrics
+
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["p95_frame_interval_ms"] = FRAME_BUDGET_MS + 0.1
+
+    with pytest.raises(SystemExit, match="realtime performance gate failed"):
+        _validate_realtime_metrics(metrics)
+
+
+def test_tunic_manifest_gate_preserves_the_legacy_metrics_contract() -> None:
+    from tools.ci.validate_manifests import _validate_realtime_metrics
+
+    legacy_metrics = {
+        "finite": True,
+        "mean_frame_ms": 16.0,
+        "frame_budget_ms": 33.3333333333,
+        "p95_frame_ms": 45.0,
+    }
+    _validate_realtime_metrics(legacy_metrics)
+
+    legacy_metrics["p95_frame_ms"] = 50.1
+    with pytest.raises(SystemExit, match="realtime performance gate failed"):
+        _validate_realtime_metrics(legacy_metrics)
