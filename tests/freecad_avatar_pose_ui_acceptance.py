@@ -2,11 +2,11 @@
 
 import faulthandler
 import os
-from collections import defaultdict
-from itertools import product
 import sys
 import time
 import traceback
+from collections import defaultdict
+from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
