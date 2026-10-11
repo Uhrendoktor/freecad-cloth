@@ -338,8 +338,12 @@ try:
 
             output = first.decode("utf-8")
             if export_format == "SVG":
-                if f'id="notch-{notch_id}"' not in output:
-                    raise RuntimeError("SVG export lost persisted notch identity/geometry")
+                if f'data-notch-ids="{notch_id}"' not in output:
+                    raise RuntimeError("SVG cut perimeter lost persisted notch identity")
+                if "55.000000,67.000000" not in output:
+                    raise RuntimeError("SVG cut perimeter lost inward notch geometry")
+                if 'cx="55.000000" cy="65.000000"' in output:
+                    raise RuntimeError("SVG export still emits a decorative sewing-line notch circle")
                 if f'id="mark-{grainline_id}"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline identity/geometry")
                 if f'id="mark-{mark_id}"' not in output or 'data-kind="InternalMark"' not in output:
@@ -348,8 +352,6 @@ try:
                     )
                 if f'data-segment="{edge_id}" data-t="0.500000"' not in output:
                     raise RuntimeError("SVG export lost persisted semantic mark reference")
-                if 'cx="55.000000" cy="65.000000"' not in output:
-                    raise RuntimeError("SVG export lost persisted notch coordinates")
                 if 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted construction-mark coordinates")
                 if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
@@ -362,8 +364,9 @@ try:
                 )
                 if f'"mark_ids":{expected_mark_ids}' not in output:
                     raise RuntimeError("DXF export lost persisted mark identity")
-                if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
-                    raise RuntimeError("DXF export lost persisted notch coordinates")
+                cut_section = output.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+                if "10\n50.000000\n20\n-2.000000" not in cut_section:
+                    raise RuntimeError("DXF CUT perimeter lost inward notch geometry")
                 if "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" not in output:
                     raise RuntimeError("DXF export lost persisted construction-mark coordinates")
                 if "10\n32.000000\n20\n0.000000\n10\n68.000000\n20\n0.000000" not in output:
