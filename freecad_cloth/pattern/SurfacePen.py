@@ -782,13 +782,14 @@ class SurfacePenTaskPanel:
         self.form = QtWidgets.QWidget()
         outer = QtWidgets.QVBoxLayout(self.form)
 
-        outer.addWidget(
-            QtWidgets.QLabel(
-                "<b>3D Pattern Pen</b><br>"
-                "Drag directly on the visible mannequin surface to trace a closed piece. "
-                "Lift the mouse to continue later; the same stroke is accumulated."
-            )
+        instructions = QtWidgets.QLabel(
+            "<b>3D Pattern Pen</b><br>"
+            "Drag on the visible mannequin surface to trace a closed piece. "
+            "Lift the mouse to continue the same stroke."
         )
+        instructions.setWordWrap(True)
+        outer.addWidget(instructions)
+        self.form.setMaximumWidth(380)
 
         controls = QtWidgets.QFormLayout()
         self.tolerance = QtWidgets.QDoubleSpinBox()
@@ -837,7 +838,7 @@ class SurfacePenTaskPanel:
         try:
             self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
-            self.update_status(str(exc))
+            self.update_status(f"Could not create pattern: {exc}")
             return False
         self.accept()
         return True
