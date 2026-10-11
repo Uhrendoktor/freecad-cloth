@@ -973,7 +973,7 @@ class SurfacePenTaskPanel:
             "<b>3D Pattern Pen</b><br>"
             "Point placement: click to add corners. A Curve point between two corners "
             "creates a smooth B-spline segment. Freehand trace remains available for "
-            "drag-based sampling."
+            "drag-based sampling. Reference points creates construction points to connect in Sketcher."
         )
         instructions.setWordWrap(True)
         outer.addWidget(instructions)
@@ -1054,7 +1054,7 @@ class SurfacePenTaskPanel:
         try:
             result = self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
-            self.update_status(f"Could not create pattern: {exc}")
+            self.update_status(f"Could not finish Surface Pen: {exc}")
             return False
         open_reference_sketch = (
             str(getattr(result, "SurfaceAuthoring", ""))
