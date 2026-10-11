@@ -439,7 +439,7 @@ jobs:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@3bd8306b79b4274695176829edd7b750a0d8390d
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@f63948fe20421061904324bcef128a4fcfc69965
         with:
           source-sha: ${{ github.sha }}
           repository: ${{ github.repository }}
