@@ -346,6 +346,7 @@ jobs:
           environment: |
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=3.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
