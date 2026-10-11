@@ -182,10 +182,7 @@ class HumanoidMeshTests(unittest.TestCase):
     def test_local_measurements_do_not_rescale_the_head_or_each_other(self):
         levels = (0.0, 0.42, 0.50, 0.54, 0.58, 0.64, 0.69, 0.75, 0.80, 0.88, 0.90, 0.95, 1.0)
         source_vertices = tuple(
-            (x, level, depth)
-            for level in levels
-            for x in (-1.0, 1.0)
-            for depth in (-0.5, 0.5)
+            (x, level, depth) for level in levels for x in (-1.0, 1.0) for depth in (-0.5, 0.5)
         )
         baseline = AvatarParameters()
         baseline_mapper = _make_source_fitted_mapper(source_vertices, baseline, 0.0)
