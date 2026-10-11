@@ -135,7 +135,9 @@ def test_nearest_preset_and_preset_change_update_deflection():
 def test_missing_target_disables_apply_and_reports_action():
     panel = _panel()
     panel.target = None
-    panel.apply_button = SimpleNamespace(setEnabled=lambda value: setattr(panel, "_apply_enabled", value))
+    panel.apply_button = SimpleNamespace(
+        setEnabled=lambda value: setattr(panel, "_apply_enabled", value)
+    )
 
     panel.doc = SimpleNamespace()
     panel._load()
@@ -195,8 +197,7 @@ def test_staged_preview_status_is_diagnostic_only():
     panel = _panel()
     panel._preview_status()
     assert (
-        panel.status.text
-        == "Staged target edits. Apply & Refresh to rebuild collision geometry; "
+        panel.status.text == "Staged target edits. Apply & Refresh to rebuild collision geometry; "
         "Cancel leaves the document unchanged."
     )
 
@@ -215,7 +216,9 @@ def test_reject_closes_active_dialog():
     calls = []
     panel.Gui = SimpleNamespace(
         activeDocument=lambda: object(),
-        Control=SimpleNamespace(activeDialog=lambda: object(), closeDialog=lambda: calls.append("close")),
+        Control=SimpleNamespace(
+            activeDialog=lambda: object(), closeDialog=lambda: calls.append("close")
+        ),
     )
 
     assert panel.reject() is True
