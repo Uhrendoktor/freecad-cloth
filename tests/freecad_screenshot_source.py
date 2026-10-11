@@ -235,13 +235,19 @@ def _camera_snapshot(view):
     return {
         "quaternion": [round(float(value), 9) for value in rotation.Q],
         "screen_right_world": [
-            round(float(right.x), 6), round(float(right.y), 6), round(float(right.z), 6)
+            round(float(right.x), 6),
+            round(float(right.y), 6),
+            round(float(right.z), 6),
         ],
         "screen_up_world": [
-            round(float(up.x), 6), round(float(up.y), 6), round(float(up.z), 6)
+            round(float(up.x), 6),
+            round(float(up.y), 6),
+            round(float(up.z), 6),
         ],
         "view_forward_world": [
-            round(float(forward.x), 6), round(float(forward.y), 6), round(float(forward.z), 6)
+            round(float(forward.x), 6),
+            round(float(forward.y), 6),
+            round(float(forward.z), 6),
         ],
     }
 
