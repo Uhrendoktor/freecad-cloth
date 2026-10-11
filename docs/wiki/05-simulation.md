@@ -18,6 +18,12 @@ Before running the solver, make sure the target is valid/current and the garment
 
 **Verify the result:** motion is finite and connected, seams remain coherent, and the final geometry has no severe penetration, explosion, collapse, or rigid-sheet behavior. After pattern, seam, pose, fitting, or target edits, refresh/rebuild invalidated derived state before running again.
 
+## Realtime preview performance budget
+
+The realtime preview uses a deliberately coarse **Fast** profile (particle spacing of at least 40 mm, one solver iteration, one scene substep, and one native PBD substep). The canonical benchmark runs the actual preview timer callback through a Qt event loop, discards at least 30 warm-up ticks, and measures at least 120 consecutive frame intervals. Both the mean and 95th-percentile interval must stay at or below 33.33 ms (30 FPS), with finite solver and published scene state and one simulation step per timer tick.
+
+The benchmark records callback time and machine/runtime context in `artifacts/freecad-realtime/metrics.json`; CI independently validates that artifact. The CI renderer is software-rendered, so this is reproducible evidence for the tested coarse-preview path, not a universal hardware certification. Arbitrary garment resolutions and **Final**-quality runs remain separate workloads; their correctness thresholds must not be weakened to make a realtime benchmark pass.
+
 
 ## What the feature is
 
