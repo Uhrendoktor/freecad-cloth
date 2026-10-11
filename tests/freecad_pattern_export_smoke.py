@@ -343,7 +343,9 @@ try:
                 if "55.000000,67.000000" not in output:
                     raise RuntimeError("SVG cut perimeter lost inward notch geometry")
                 if 'cx="55.000000" cy="65.000000"' in output:
-                    raise RuntimeError("SVG export still emits a decorative sewing-line notch circle")
+                    raise RuntimeError(
+                        "SVG export still emits a decorative sewing-line notch circle"
+                    )
                 if f'id="mark-{grainline_id}"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline identity/geometry")
                 if f'id="mark-{mark_id}"' not in output or 'data-kind="InternalMark"' not in output:
