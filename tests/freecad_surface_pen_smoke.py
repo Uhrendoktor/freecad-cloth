@@ -1,5 +1,6 @@
 """Native FreeCAD Surface Pen acceptance, screenshot, and staged-workflow capture."""
 
+import contextlib
 import os
 import sys
 import time
@@ -202,15 +203,11 @@ def main() -> None:
         print("surface-pen-native-smoke=passed", flush=True)
     finally:
         if controller is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 controller.deactivate()
-            except (AttributeError, RuntimeError):
-                pass
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             if Gui.Control.activeDialog() is not None:
                 Gui.Control.closeDialog()
-        except (AttributeError, RuntimeError):
-            pass
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)
 
