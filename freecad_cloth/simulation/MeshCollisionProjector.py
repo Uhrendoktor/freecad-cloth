@@ -7,8 +7,6 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial import KDTree
