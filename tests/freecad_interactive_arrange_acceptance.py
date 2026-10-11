@@ -521,7 +521,11 @@ def run():
     if len(posed_triangles) != len(rest_triangles):
         raise RuntimeError("avatar skeleton edit unexpectedly changed mesh facet count")
 
-    def facet_centroid(vertices, triangles, facet_index):
+    def facet_centroid(
+        vertices: tuple[tuple[float, float, float], ...],
+        triangles: tuple[tuple[int, int, int], ...],
+        facet_index: int,
+    ) -> tuple[float, float, float]:
         triangle = triangles[facet_index]
         return tuple(
             sum(vertices[vertex][axis] for vertex in triangle) / 3.0
