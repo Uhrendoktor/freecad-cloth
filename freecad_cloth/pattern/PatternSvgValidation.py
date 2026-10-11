@@ -9,9 +9,7 @@ from types import ModuleType
 from xml.etree import ElementTree
 
 
-_MM_LENGTH = re.compile(
-    r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$"
-)
+_MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
 
 
 def _parse_mm_length(value: str, name: str) -> float:
@@ -33,7 +31,9 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
         try:
             from PySide2 import QtCore, QtGui, QtSvg
         except ImportError as exc:
-            raise RuntimeError("independent SVG validation requires FreeCAD's QtSvg modules") from exc
+            raise RuntimeError(
+                "independent SVG validation requires FreeCAD's QtSvg modules"
+            ) from exc
     return QtCore, QtGui, QtSvg
 
 
