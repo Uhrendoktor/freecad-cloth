@@ -68,11 +68,11 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     except ImportError as exc:
         raise AnnyAvatarBackendError(
             "Anny is required for parametric mannequin generation; install "
-            "'anny[warp]>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
+            "'anny>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
         ) from exc
 
-    # get_anny_root_dir() was added in Anny 0.6; Anny 0.5 bundles assets
-    # alongside its package. Keep the version-compatible fallback explicit.
+    # Anny 0.6 provides get_anny_root_dir(); keep a package-relative fallback
+    # for installations that omit the helper.
     package_file = getattr(anny, "__file__", None)
     if not package_file:
         raise AnnyAvatarBackendError("Unable to resolve the installed Anny package path.")
@@ -158,8 +158,8 @@ def _fit_anny_body(
         from clad_body.measure import measure_grad
     except ImportError as exc:
         raise AnnyAvatarBackendError(
-            "Anny-backed mannequin generation requires 'anny[warp]>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7'. "
-            "Run `python -m pip install 'anny[warp]>=0.6,<0.7' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
+            "Anny-backed mannequin generation requires 'anny>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7'. "
+            "Run `python -m pip install 'anny>=0.6,<0.7' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
         ) from exc
 
     values = dict(measurements)

@@ -88,7 +88,7 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         "trimesh>=4,<6" \
         "scipy>=1.14,<2" \
         "shapely>=2,<3" \
-        "anny[warp]>=0.6,<0.7" \
+        "anny>=0.6,<0.7" \
         "clad-body[anny]>=0.6.1,<0.7" \
         pytest \
         hypothesis==6.168.3 \
@@ -114,8 +114,8 @@ import anny
 import torch
 from clad_body.load.anny import build_anny_apose
 
-# get_anny_root_dir() is the supported Anny 0.6 asset lookup; as a fallback the assets
-# are bundled directly beside anny.__init__.
+# Anny 0.6 provides get_anny_root_dir(); the package-relative fallback supports
+# distributions that omit the helper.
 root = Path(anny.__file__).resolve().parent
 try:
     from anny.paths import get_anny_root_dir
