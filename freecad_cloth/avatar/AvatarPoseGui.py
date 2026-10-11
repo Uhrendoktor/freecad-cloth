@@ -1210,6 +1210,9 @@ class AvatarPoseTaskPanel:
             measurements,
             float(getattr(self.avatar, "SkinOffset", 0.0)),
             current_pose,
+            3,
+            float(getattr(self.avatar, "GenderBlend", 0.5)),
+            float(getattr(self.avatar, "BreastSize", 0.0)),
         )
 
     @staticmethod
@@ -1278,6 +1281,9 @@ class AvatarPoseTaskPanel:
                         params.pose.right_elbow_angle,
                         params.pose.joint_rotations,
                     ),
+                    3,
+                    params.gender,
+                    params.breast_size,
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
