@@ -20,7 +20,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
 
-from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
+from freecad_cloth.avatar.MakeHumanTargets import (
+    apply_measurement_targets,
+    resolve_target,
+    target_directory,
+)
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
@@ -863,6 +867,20 @@ def _make_source_fitted_mapper(
     height_mm = float(parameters.measurement("height"))
     measurement_profile_x, measurement_profile_y = _measurement_axis_profiles(parameters)
     gender_profile_x, gender_profile_y = _gender_axis_profiles(parameters)
+    target_root = target_directory()
+    use_gender_targets = bool(
+        target_root
+        and resolve_target("macrodetails/gender/female", target_root)
+        and resolve_target("macrodetails/gender/male", target_root)
+    )
+    use_breast_target = bool(
+        target_root and resolve_target("breast/breast-dist-incr", target_root)
+    )
+    if use_gender_targets:
+        # Authored gender targets provide the broad anatomical silhouette;
+        # don't stack the procedural gender scale on top of those deltas.
+        gender_profile_x = [(height, 1.0) for height, _scale in gender_profile_x]
+        gender_profile_y = [(height, 1.0) for height, _scale in gender_profile_y]
     if _is_default_measurement_shape(parameters):
         shoulder_scale = 1.0
     else:
@@ -943,10 +961,13 @@ def _make_source_fitted_mapper(
         # Keep the authored breast control local to the chest. Its broader,
         # flatter influence gives a less spherical silhouette than a narrow
         # isotropic bump and does not affect unrelated limb vertices.
-        breast_size = min(
-            1.0,
-            float(parameters.breast_size) + max(0.0, 0.5 - float(parameters.gender)) * 1.2,
+        fallback_breast_size = 0.0 if use_breast_target else float(parameters.breast_size)
+        fallback_gender_fullness = (
+            0.0
+            if use_gender_targets
+            else max(0.0, 0.5 - float(parameters.gender)) * 1.2
         )
+        breast_size = min(1.0, fallback_breast_size + fallback_gender_fullness)
         if breast_size > 0.0 and 0.60 <= normalized_z <= 0.76 and abs(base_x_mm) < 190.0:
             front_weight = _smoothstep(-18.0, 28.0, y_mm)
             vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
