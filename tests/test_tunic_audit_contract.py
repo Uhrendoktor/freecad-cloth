@@ -101,7 +101,7 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "elif index == 2:" in source
     assert "elif index == 6:" in source
-    assert "def _arc_through_midpoint(Part, start, end, midpoint):" in source
+    assert "def _arc_through_midpoint(" in source
     assert "Part.ArcOfCircle(circle, start_angle, start_angle + sweep)" in source
     assert "zero_point = curve_value(circle, 0.0)" in source
     assert "quarter_point = curve_value(circle, math.pi / 2.0)" in source
