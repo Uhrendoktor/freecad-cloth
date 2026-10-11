@@ -107,6 +107,22 @@ def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
     assert violations == ("<Pyright include scope differs from the reviewed inventory>",)
 
 
+def test_new_production_modules_cannot_escape_pyright_scope() -> None:
+    """Require new modules to be included in Pyright or intentionally excluded."""
+    config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
+
+    assert pyright_coverage_contract_violations(
+        config_text,
+        ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/NewSimulationGui.py"),
+    ) == ()
+    assert pyright_coverage_contract_violations(
+        config_text, ("freecad_cloth/pattern/NewPatternFeature.py",)
+    ) == (
+        "<new Python module is outside Pyright include/exclude scope: "
+        "freecad_cloth/pattern/NewPatternFeature.py>",
+    )
+
+
 def test_typecheck_commands_must_be_standalone_blocking_steps() -> None:
     """Reject a shell chain that can mask an earlier type-checker's nonzero status."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")

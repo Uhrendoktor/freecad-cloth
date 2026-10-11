@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
+import os
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -73,7 +76,53 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
     return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
 
 
-def pyright_coverage_contract_violations(config_text: str) -> tuple[str, ...]:
+def _pyright_path_is_included(path: str, include: list[str]) -> bool:
+    """Return whether a source path is covered by one include entry."""
+    normalized = Path(path).as_posix()
+    for entry in include:
+        target = Path(entry).as_posix()
+        if normalized == target:
+            return True
+        if not target.endswith(".py") and normalized.startswith(target.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
+    """Return whether a source path is covered by a declared exclusion pattern."""
+    return any(fnmatch.fnmatchcase(Path(path).as_posix(), pattern) for pattern in exclude)
+
+
+def added_production_python_modules(base: str) -> tuple[str, ...]:
+    """Find new production Python modules added relative to a pull request base."""
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--diff-filter=A",
+            "--no-renames",
+            f"origin/{base}...HEAD",
+            "--",
+            "freecad_cloth",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return tuple(
+        sorted(
+            Path(path).as_posix()
+            for path in result.stdout.splitlines()
+            if path.endswith(".py")
+        )
+    )
+
+
+def pyright_coverage_contract_violations(
+    config_text: str,
+    added_modules: tuple[str, ...] = (),
+) -> tuple[str, ...]:
     """Require the reviewed staged Pyright include/exclude inventory to remain intact.
 
     The current production tree has a large pre-existing type-error backlog.
@@ -94,7 +143,19 @@ def pyright_coverage_contract_violations(config_text: str) -> tuple[str, ...]:
         return ("<Pyright exclude scope differs from the reviewed inventory>",)
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
-    return tuple(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
+    if missing_paths:
+        return tuple(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
+
+    uncovered_modules = tuple(
+        path
+        for path in added_modules
+        if not _pyright_path_is_included(path, include)
+        and not _pyright_path_is_excluded(path, exclude)
+    )
+    return tuple(
+        f"<new Python module is outside Pyright include/exclude scope: {path}>"
+        for path in uncovered_modules
+    )
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
@@ -124,8 +185,10 @@ def main() -> int:
             "canonical workflow is missing standalone blocking type-check commands: "
             + ", ".join(missing_typecheck)
         )
+    base_ref = os.environ.get("BASE_REF") or os.environ.get("GITHUB_BASE_REF")
+    added_modules = added_production_python_modules(base_ref) if base_ref else ()
     coverage_violations = pyright_coverage_contract_violations(
-        PYRIGHT_CONFIG.read_text(encoding="utf-8")
+        PYRIGHT_CONFIG.read_text(encoding="utf-8"), added_modules
     )
     if coverage_violations:
         raise SystemExit(
