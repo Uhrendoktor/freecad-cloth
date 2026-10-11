@@ -60,6 +60,7 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
         command for _name, group in SEWING_COMMAND_GROUPS for command in group
     ) | set(fitting.COMMANDS) | set(avatar.COMMANDS)
 
+
 def test_workbench_package_metadata_matches_registration_surface():
     import xml.etree.ElementTree as ET
 
@@ -72,8 +73,7 @@ def test_workbench_package_metadata_matches_registration_surface():
     assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
     content = root.find(namespace + "content")
     declared = {
-        item.findtext(namespace + "classname")
-        for item in content.findall(namespace + "workbench")
+        item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
     }
     assert declared == {
         "ClothPatternWorkbench",
