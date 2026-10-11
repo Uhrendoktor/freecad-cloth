@@ -145,7 +145,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
     from freecad_cloth.avatar.AvatarCommands import _rebuild
-    from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS, AvatarParameters, Pose
 
     measurement_fields = (
         "height",
