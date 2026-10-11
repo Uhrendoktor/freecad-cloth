@@ -1,8 +1,8 @@
-"""MakeHuman HM08 morph-target parsing and application.
+"""MakeHuman HM08 sparse morph-target parsing and application.
 
-Target files contain sparse vertex offsets, not standalone meshes. This module
-keeps target assets external (they have their own distribution/licensing) while
-supporting the complete target-file format for a matching HM08 base mesh.
+Target files contain sparse per-vertex displacements. The assets remain
+external because MakeHuman distributes them separately from this workbench.
+Both loose targets and MakeHuman's targets.npz archive are supported.
 """
 
 from __future__ import annotations
@@ -25,17 +25,26 @@ TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
 
 @dataclass(frozen=True)
 class MakeHumanTarget:
-    """Sparse vertex offsets read from a MakeHuman target file."""
+    """Sparse vertex offsets read from a MakeHuman target."""
 
     name: str
     offsets: tuple[tuple[int, Point], ...]
 
 
-def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
-    """Parse sparse X-Z-Y offsets into HM08 source-axis X/Y/Z coordinates.
+@dataclass(frozen=True)
+class TargetReference:
+    """Address a loose target file or one target inside a targets.npz archive."""
 
-    Target rows store vertex index, X offset, Z offset, and sign-inverted Y
-    offset. The source mesh uses MakeHuman's native Y-up coordinates.
+    path: Path
+    archive_key: str | None = None
+
+
+def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
+    """Parse a MakeHuman target's native X/Y/Z offsets and vertex indices.
+
+    MakeHuman's own loader reads the three displacement columns in their
+    existing order. Do not rotate them into Blender coordinates here: the
+    workbench applies targets to the original Y-up MakeHuman source mesh.
     """
     collected: dict[int, Point] = {}
     for line_number, raw in enumerate(str(text).splitlines(), start=1):
@@ -47,14 +56,11 @@ def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
             raise ValueError(f"{name}:{line_number}: target row needs four fields")
         try:
             index = int(fields[0])
-            dx = float(fields[1])
-            dz = float(fields[2])
-            dy = -float(fields[3])
+            offset: Point = (float(fields[1]), float(fields[2]), float(fields[3]))
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"{name}:{line_number}: invalid target row") from exc
         if index < 0:
             raise ValueError(f"{name}:{line_number}: vertex index must be non-negative")
-        offset = (dx, dy, dz)
         if not all(math.isfinite(value) for value in offset):
             raise ValueError(f"{name}:{line_number}: offsets must be finite")
         prior = collected.get(index, (0.0, 0.0, 0.0))
@@ -67,30 +73,73 @@ def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
 
 
 @lru_cache(maxsize=256)
-def _load_target_cached(path: str, modified_ns: int, size: int) -> MakeHumanTarget:
+def _load_target_cached(
+    path_text: str, modified_ns: int, size: int, archive_key: str | None
+) -> MakeHumanTarget:
     del modified_ns, size
-    source = Path(path)
-    if source.name.endswith(".gz"):
-        with gzip.open(source, "rt", encoding="utf-8", errors="strict") as stream:
-            payload = stream.read()
+    source = Path(path_text)
+    if archive_key is None:
+        if source.name.endswith(".gz"):
+            with gzip.open(source, "rt", encoding="utf-8", errors="strict") as stream:
+                payload = stream.read()
+        else:
+            payload = source.read_text(encoding="utf-8", errors="strict")
+        return parse_target(payload, source.as_posix())
+
+    import numpy as np
+
+    with np.load(source, allow_pickle=False) as archive:
+        index_key = f"{archive_key}.index"
+        vector_key = f"{archive_key}.vector"
+        if index_key not in archive or vector_key not in archive:
+            raise ValueError(f"{source}: archive target is incomplete: {archive_key}")
+        indices = archive[index_key]
+        vectors = archive[vector_key]
+        if (
+            indices.ndim != 1
+            or vectors.ndim != 2
+            or vectors.shape[0] != indices.shape[0]
+            or vectors.shape[1] != 3
+        ):
+            raise ValueError(f"{source}: archive target has invalid array shapes: {archive_key}")
+        merged: dict[int, Point] = {}
+        for raw_index, raw_vector in zip(indices, vectors, strict=True):
+            index = int(raw_index)
+            offset: Point = tuple(float(value) * 1e-3 for value in raw_vector)  # type: ignore[assignment]
+            if index < 0 or not all(math.isfinite(value) for value in offset):
+                raise ValueError(f"{source}: archive target has invalid values: {archive_key}")
+            prior = merged.get(index, (0.0, 0.0, 0.0))
+            merged[index] = (
+                prior[0] + offset[0],
+                prior[1] + offset[1],
+                prior[2] + offset[2],
+            )
+    return MakeHumanTarget(
+        f"{source.as_posix()}::{archive_key}", tuple(sorted(merged.items()))
+    )
+
+
+def load_target(
+    path: str | os.PathLike[str] | TargetReference,
+) -> MakeHumanTarget:
+    """Load a loose, gzip-compressed, or archived target."""
+    if isinstance(path, TargetReference):
+        source = path.path.expanduser().resolve()
+        archive_key = path.archive_key
     else:
-        payload = source.read_text(encoding="utf-8", errors="strict")
-    return parse_target(payload, source.as_posix())
-
-
-def load_target(path: str | os.PathLike[str]) -> MakeHumanTarget:
-    """Load a plain or gzip-compressed target, invalidating cache on file change."""
-    source = Path(path).expanduser().resolve()
+        source = Path(path).expanduser().resolve()
+        archive_key = None
     stat = source.stat()
-    return _load_target_cached(source.as_posix(), stat.st_mtime_ns, stat.st_size)
+    return _load_target_cached(
+        source.as_posix(), stat.st_mtime_ns, stat.st_size, archive_key
+    )
 
 
 def target_directory() -> Path | None:
-    """Resolve a compatible MakeHuman/MPFB2 target library, if installed.
+    """Find installed MakeHuman target files or a data directory with targets.npz.
 
-    Set FREECAD_CLOTH_MAKEHUMAN_TARGETS to a target directory, a data directory,
-    or a checkout of makehuman-assets. Target files are not vendored because
-    they are distributed separately from code.
+    Set FREECAD_CLOTH_MAKEHUMAN_TARGETS to a targets directory, a MakeHuman
+    data directory, or a checkout of makehuman-assets to select another library.
     """
     candidates: list[Path] = []
     configured = os.environ.get(TARGETS_ENV, "").strip()
@@ -102,11 +151,21 @@ def target_directory() -> Path | None:
     home = Path.home()
     candidates.extend(
         (
+            home / "Documents" / "makehuman" / "v1py3" / "data" / "targets",
+            home / "Documents" / "makehuman" / "v1py3" / "data",
+            home / "makehuman" / "v1py3" / "data" / "targets",
+            home / "makehuman" / "v1py3" / "data",
+            home / "Documents" / "MakeHuman" / "v1py3" / "data" / "targets",
+            home / "Library" / "Application Support" / "MakeHuman" / "v1py3" / "data",
             home / ".makehuman" / "data" / "targets",
             home / ".makehuman" / "v1py3" / "data" / "targets",
             home / ".cache" / "freecad-cloth" / "makehuman-targets",
+            Path("/usr/share/makehuman-community/data/targets"),
+            Path("/usr/share/makehuman-community/data"),
             Path("/usr/share/makehuman/data/targets"),
+            Path("/usr/share/makehuman/data"),
             Path("/usr/local/share/makehuman/data/targets"),
+            Path("/usr/local/share/makehuman/data"),
         )
     )
     seen: set[str] = set()
@@ -115,13 +174,16 @@ def target_directory() -> Path | None:
         if key in seen:
             continue
         seen.add(key)
-        if candidate.is_dir():
-            # Official assets are organized into nested anatomical folders.
-            # Check shallow paths first, then recursively for checkout layouts.
-            if any(candidate.glob("*.target*")) or any(candidate.glob("*/*.target*")):
-                return candidate.resolve()
-            if any(candidate.rglob("*.target*")):
-                return candidate.resolve()
+        if not candidate.is_dir():
+            continue
+        if (candidate / "targets.npz").is_file():
+            return candidate.resolve()
+        # Loose target trees are generally shallow, but recurse to support
+        # packaged installations that add a vendor directory around targets.
+        if any(candidate.glob("*.target*")) or any(candidate.glob("*/*.target*")):
+            return candidate.resolve()
+        if any(candidate.rglob("*.target*")):
+            return candidate.resolve()
     return None
 
 
@@ -139,7 +201,27 @@ def _target_index(root_text: str) -> dict[str, str]:
     return index
 
 
-def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Path | None:
+@lru_cache(maxsize=16)
+def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[str, str]:
+    del modified_ns, size
+    import numpy as np
+
+    index: dict[str, str] = {}
+    with np.load(path_text, allow_pickle=False) as archive:
+        for key in archive.files:
+            if not key.endswith(".index"):
+                continue
+            target_name = key[:-len(".index")]
+            if target_name.startswith("targets/"):
+                target_name = target_name[len("targets/"):]
+            index.setdefault(target_name.casefold(), key[:-len(".index")])
+            index.setdefault(Path(target_name).name.casefold(), key[:-len(".index")])
+    return index
+
+
+def resolve_target(
+    name: str, root: str | os.PathLike[str] | None = None
+) -> TargetReference | None:
     """Resolve a target by relative path or basename, with or without extension."""
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None or not base.is_dir():
@@ -153,9 +235,24 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Pat
             break
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
-            return path.resolve()
-    indexed = _target_index(base.as_posix()).get(cleaned.casefold())
-    return Path(indexed) if indexed is not None else None
+            return TargetReference(path.resolve())
+    indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
+    if indexed_path is not None:
+        return TargetReference(Path(indexed_path))
+    archive_path = base / "targets.npz"
+    if archive_path.is_file():
+        stat = archive_path.stat()
+        archive_targets = _archive_target_index(
+            archive_path.as_posix(), stat.st_mtime_ns, stat.st_size
+        )
+        archive_key = archive_targets.get(cleaned.casefold())
+        if archive_key is None:
+            archive_key = archive_targets.get(
+                cleaned.removeprefix("targets/").casefold()
+            )
+        if archive_key is not None:
+            return TargetReference(archive_path, archive_key)
+    return None
 
 
 def apply_targets(
@@ -165,8 +262,8 @@ def apply_targets(
 ) -> tuple[Point, ...]:
     """Blend sparse target deltas onto vertices without changing topology.
 
-    Target indices outside the supplied mesh are ignored: HM08's source OBJ
-    includes helper vertices after the visible 13,380-vertex body surface.
+    Target indices outside the supplied mesh are ignored because HM08's source
+    OBJ may contain helper vertices after the visible body surface.
     """
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None:
@@ -195,11 +292,11 @@ def apply_targets(
 def apply_measurement_targets(
     vertices: Sequence[Point], parameters: AvatarParameters
 ) -> tuple[Point, ...]:
-    """Apply compatible body targets before exact circumference fitting.
+    """Apply compatible MakeHuman targets before exact circumference fitting.
 
     Directional measurement targets improve local anatomy; the mesh fitter then
-    corrects their final circumference in millimetres. Target shape quality is
-    additive and does not override numeric measurements.
+    corrects torso circumference contours in millimetres. Target shape quality
+    is additive and does not override numeric torso measurements.
     """
     root = target_directory()
     if root is None:
@@ -234,10 +331,9 @@ def apply_measurement_targets(
         ("ankle", "measure-ankle-circ"),
         ("neck", "measure-neck-circ"),
     )
-    measurement = parameters.measurement
     for parameter_name, target_base in measurement_targets:
         default = float(DEFAULT_MEASUREMENTS[parameter_name])
-        desired = float(measurement(parameter_name))
+        desired = float(parameters.measurement(parameter_name))
         if math.isclose(desired, default, rel_tol=0.0, abs_tol=1e-9):
             continue
         direction = "incr" if desired > default else "decr"
