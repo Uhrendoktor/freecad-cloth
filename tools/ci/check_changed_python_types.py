@@ -159,9 +159,7 @@ def main() -> int:
         for rule, previous_count, current_count in annotation_regressions(
             current_counts, previous_counts
         ):
-            regressions.append(
-                f"{path}: {rule} increased from {previous_count} to {current_count}"
-            )
+            regressions.append(f"{path}: {rule} increased from {previous_count} to {current_count}")
 
     if regressions:
         print("changed-python-annotations=failed", file=sys.stderr)
