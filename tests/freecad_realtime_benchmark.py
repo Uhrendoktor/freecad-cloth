@@ -104,8 +104,8 @@ def _add_tunic_preview_fixture(doc, scene) -> None:
     back = make_piece("RealtimeTunicBack", center_y + clearance)
     for edge_a, edge_b, seam_id in (
         (1, 1, "RealtimeRightSide"),
-        (2, 2, "RealtimeRightShoulder"),
-        (6, 6, "RealtimeLeftShoulder"),
+        (3, 3, "RealtimeRightShoulder"),
+        (5, 5, "RealtimeLeftShoulder"),
         (7, 7, "RealtimeLeftSide"),
     ):
         add_seam(
