@@ -4,6 +4,8 @@
 
 The image above is the dedicated Pose Mode interaction fixture. It is captured from the active FreeCAD window after the viewport is fitted and painted, with the left shoulder selected so the native three-axis Coin3D rotation gizmo with cone tips and spherical pivot is visible.
 
+Before posing, set proportions and garment-facing measurements in the [Avatar shape and dimensions editor](09-avatar-shape.md). Shape editing changes body surface proportions and named measurement values; Pose Mode changes joint rotations. They are separate controls and are usually most useful in that order.
+
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-front.png" alt="Mannequin front view" width="280"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-rear.png" alt="Mannequin rear view" width="280"></p>
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-left.png" alt="Mannequin left view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-right.png" alt="Mannequin right view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-top.png" alt="Mannequin top view" width="200"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-avatar-bottom.png" alt="Mannequin bottom view" width="200"></p>
