@@ -302,7 +302,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
 
     panel_width = 420
     image_height = 560
-    label_height = 84
+    label_height = 90
     panel_height = image_height + label_height
     gutter = 20
     margin = 28
@@ -350,11 +350,22 @@ def render_body_shape_gallery(doc, view, avatar, output):
             round(measurements["hip"] / 10),
         )
         draw.text(
-            (x + panel_width // 2, label_y + 34),
+            (x + panel_width // 2, label_y + 32),
             detail,
             anchor="mt",
             font=font(14),
             fill=(76, 91, 111),
+        )
+        control_detail = "Gender blend %d%%  ·  breast fullness %d%%" % (
+            round(float(profile["gender"]) * 100),
+            round(float(profile["breast_size"]) * 100),
+        )
+        draw.text(
+            (x + panel_width // 2, label_y + 55),
+            control_detail,
+            anchor="mt",
+            font=font(13),
+            fill=(94, 109, 127),
         )
 
     gallery.save(output_path, format="PNG", optimize=True)
