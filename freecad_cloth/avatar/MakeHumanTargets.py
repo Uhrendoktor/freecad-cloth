@@ -226,7 +226,9 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
     return index
 
 
-def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
+def resolve_target(
+    name: str, root: str | os.PathLike[str] | None = None
+) -> TargetReference | None:
     """Resolve a target by relative path or basename, with or without extension."""
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None or not base.is_dir():
