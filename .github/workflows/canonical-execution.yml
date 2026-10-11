@@ -69,8 +69,9 @@ jobs:
           set -euo pipefail
           python -m compileall -q tests tools/ci
           git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
-          xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
+          xargs -0 -r python -m ruff format < "$RUNNER_TEMP/python-files.zlist"
           xargs -0 -r python -m ruff check --fix --unsafe-fixes < "$RUNNER_TEMP/python-files.zlist" || true
+          xargs -0 -r python -m ruff format < "$RUNNER_TEMP/python-files.zlist"
           mkdir -p "$RUNNER_TEMP/ruff-unsafe-fixed"
           git diff --name-only -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/ruff-unsafe-fixed-files.zlist"
           while IFS= read -r -d '' file; do
