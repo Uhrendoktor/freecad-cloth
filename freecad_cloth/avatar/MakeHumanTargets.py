@@ -253,8 +253,7 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
             if not key.endswith(".index"):
                 continue
             target_name = key[: -len(".index")]
-            if target_name.startswith("targets/"):
-                target_name = target_name[len("targets/") :]
+            target_name = target_name.removeprefix("targets/")
             index.setdefault(target_name.casefold(), key[: -len(".index")])
             index.setdefault(Path(target_name).name.casefold(), key[: -len(".index")])
     return index
