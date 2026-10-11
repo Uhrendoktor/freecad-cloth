@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,14 +20,30 @@ def _mesh_object(doc, name, label):
     return obj
 
 
+@lru_cache(maxsize=64)
+def _indexed_mesh_topology(triangles):
+    """Cache the compact local topology for one panel's particle-index triangles."""
+    vertex_indices = tuple(sorted({index for triangle in triangles for index in triangle}))
+    remap = {index: local for local, index in enumerate(vertex_indices)}
+    faces = tuple(tuple(remap[index] for index in triangle) for triangle in triangles)
+    return vertex_indices, faces
+
+
 def _write_mesh(obj, positions, triangles):
+    import FreeCAD as App
     import Mesh
 
-    # Passing the flat vertex stream lets Mesh.Mesh bulk-build topology once.
-    # Avoid allocating a nested tuple for every face on every preview tick.
-    vertices = [positions[index] for triangle in triangles for index in triangle]
-    native = Mesh.Mesh(vertices) if vertices else Mesh.Mesh()
-    obj.Mesh = native
+    topology = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    if not topology:
+        obj.Mesh = Mesh.Mesh()
+        return
+
+    # FreeCAD's indexed constructor builds shared vertices and triangle indices
+    # directly. Cache the mapping because panel topology is fixed across preview
+    # frames, then update only the current solver coordinates.
+    vertex_indices, faces = _indexed_mesh_topology(topology)
+    vertices = [App.Vector(*positions[index]) for index in vertex_indices]
+    obj.Mesh = Mesh.Mesh((vertices, list(faces)))
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
