@@ -288,11 +288,15 @@ def _cached_fitted_body(
     return _fit_anny_body(measurements, gender, breast_size)
 
 
-def build_avatar_shape_mesh(parameters: AvatarParameters) -> MeshData:
+def build_avatar_shape_mesh(
+    parameters: AvatarParameters,
+    *,
+    include_skin_offset: bool = True,
+) -> MeshData:
     """Return a cached Anny mannequin in millimetres and its native triangulation."""
     key = tuple(sorted((str(name), float(value)) for name, value in parameters.measurements.items()))
     mesh = _cached_fitted_body(key, float(parameters.gender), float(parameters.breast_size))
-    if parameters.skin_offset <= 0:
+    if not include_skin_offset or parameters.skin_offset <= 0:
         return mesh
 
     # Preserve Cloth's optional collision/surface padding using trimesh's native
