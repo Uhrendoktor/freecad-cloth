@@ -7,6 +7,7 @@ from typing import Protocol
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+
 class DrapeMetrics(Protocol):
     """Describe the metric attributes consumed by the evidence classifier."""
 
@@ -17,6 +18,7 @@ class DrapeMetrics(Protocol):
     lateral_span_ratio: float
     target_vertex_clearance: float | None
 
+
 STATES = (
     "empty",
     "nonfinite",
@@ -26,12 +28,14 @@ STATES = (
     "structurally-plausible",
 )
 
+
 @pydantic_dataclass(frozen=True)
 class DrapeClassification:
     """Evidence classification; never a claim of physical correctness."""
 
     state: str
     reasons: tuple[str, ...]
+
 
 def classify_drape(
     metrics: DrapeMetrics,
@@ -71,6 +75,7 @@ def classify_drape(
         return DrapeClassification(state, tuple(reasons))
     reasons.append("no failure evidence detected by the available metrics")
     return DrapeClassification("structurally-plausible", tuple(reasons))
+
 
 def summarize_classification(classification: DrapeClassification) -> Mapping[str, object]:
     """Return stable JSON-ready evidence for acceptance artifacts."""
