@@ -8,6 +8,14 @@ Use this editor to prepare a mannequin for pattern fitting and sewing. It separa
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the mannequin waist circumference handle to stage a new measurement, then applying and rebuilding the body" width="900"></p>
 
+## Compare example body shapes
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-body-shape-gallery.png" alt="Seven real FreeCAD HM08 mannequin renders showing feminine, masculine, slim, plus-size, muscular, tall, and petite example body shapes at a shared orthographic scale" width="1000"></p>
+
+The gallery is rendered from the bundled HM08 mannequin mesh using the existing **Gender blend**, **Breast fullness**, and measurement inputs. Camera scale stays fixed across all seven views, so body height and breadth remain comparable. Each card shows its height, waist, hip, and shape-control values.
+
+These are **example parameter combinations**, not named presets available in a preset menu. To create a similar silhouette, enter the displayed blend/fullness values, then adjust height, chest, waist, hip, shoulder, upper-arm, and thigh measurements to the intended wearer. Use the measurements as a starting point rather than assuming the example proportions fit every person or garment.
+
 ## Prepare a mannequin for sewing
 
 Before you start, open a document that contains the built-in MakeHuman mannequin. For the current procedural shape controls, select that provider rather than an imported FreeCAD surface.
