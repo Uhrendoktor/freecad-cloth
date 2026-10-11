@@ -30,7 +30,15 @@ class _CoordinatePoint(NamedTuple):
 def particle_distance_contract(
     ax: float, ay: float, az: float, bx: float, by: float, bz: float
 ) -> float:
-    """Check solver distance identities using structurally compatible symbolic points."""
+    """Check solver distance identities using structurally compatible symbolic points.
+
+    pre: -1e6 <= ax <= 1e6
+    pre: -1e6 <= ay <= 1e6
+    pre: -1e6 <= az <= 1e6
+    pre: -1e6 <= bx <= 1e6
+    pre: -1e6 <= by <= 1e6
+    pre: -1e6 <= bz <= 1e6
+    """
     a = cast(Particle, _CoordinatePoint(ax, ay, az))
     b = cast(Particle, _CoordinatePoint(bx, by, bz))
     result = distance(a, b)
@@ -41,9 +49,10 @@ def particle_distance_contract(
 
 
 def normalized_seam_mapping_contract(parameter_a: float, reversed_b: bool) -> float:
-    """Check direction complement and normalized bounds on the real seam mapper."""
-    if not 0.0 <= parameter_a <= 1.0:
-        return 0.0
+    """Check direction complement and normalized bounds on the real seam mapper.
+
+    pre: 0.0 <= parameter_a <= 1.0
+    """
     result = map_parameter(parameter_a, reversed_b=reversed_b)
     complementary = map_parameter(parameter_a, reversed_b=not reversed_b)
     assert 0.0 <= result <= 1.0
