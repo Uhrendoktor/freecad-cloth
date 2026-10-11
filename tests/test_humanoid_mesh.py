@@ -204,7 +204,7 @@ class HumanoidMeshTests(unittest.TestCase):
                     f"{name} did not change its intended body region",
                 )
 
-    def test_torso_measurement_is_anisotropic_and_spares_distal_vertices(self):
+    def test_torso_measurement_is_anisotropic_and_spares_distal_vertices(self) -> None:
         levels = (0.0, 0.42, 0.50, 0.54, 0.58, 0.64, 0.69, 0.75, 0.80, 0.88, 0.90, 0.95, 1.0)
         source_vertices = tuple(
             (x, level, depth) for level in levels for x in (-1.0, 1.0) for depth in (-0.5, 0.5)
