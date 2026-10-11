@@ -554,9 +554,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
         corrected_mm, outward_normals = projector.project(positions_mm)
-        moved_indices = np.flatnonzero(
-            np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7
-        )
+        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
         pinned = set(self._pin_indices)
         for raw_index in moved_indices:
             index = int(raw_index)
