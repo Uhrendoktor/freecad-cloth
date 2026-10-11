@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import dist, isfinite
 from statistics import median
 
@@ -38,7 +38,7 @@ def maximum_box_penetration(
     )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DrapeVisualMetrics:
     """Public data model or service class for DrapeVisualMetrics."""
 
