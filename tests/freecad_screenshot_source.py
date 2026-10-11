@@ -632,7 +632,12 @@ def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: ob
             (float(quarter_point.y) - center_y) / radius,
         )
 
-        def parameter(point_x: float, point_y: float, axis_x: tuple[float, float] = axis_x, axis_y: tuple[float, float] = axis_y) -> float:
+        def parameter(
+            point_x: float,
+            point_y: float,
+            axis_x: tuple[float, float] = axis_x,
+            axis_y: tuple[float, float] = axis_y,
+        ) -> float:
             dx = point_x - center_x
             dy = point_y - center_y
             return (
@@ -686,7 +691,9 @@ def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: ob
     return arc
 
 
-def _polyline_distance_fraction(point: tuple[float, float], samples: tuple[tuple[float, float], ...]) -> tuple[float, float]:
+def _polyline_distance_fraction(
+    point: tuple[float, float], samples: tuple[tuple[float, float], ...]
+) -> tuple[float, float]:
     """Return nearest 2D polyline distance and its normalized arc-length position."""
     import math
 
