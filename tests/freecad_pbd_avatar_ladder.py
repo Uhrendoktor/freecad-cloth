@@ -42,7 +42,7 @@ import FreeCAD as App
 
 _boot("import-FreeCAD-complete")
 # Keep this import after the checkpoint so slow GUI startup remains diagnosable.
-import FreeCADGui as Gui  # noqa: I001
+import FreeCADGui as Gui
 
 _boot("import-FreeCADGui-complete")
 _boot("import-Part-complete")
@@ -131,7 +131,6 @@ def _surface_signed_clearance(
             trace(f"after-trimesh-contains result={inside}")
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             trace(f"trimesh-contains-fallback exception={exc!r}")
-            pass
     result = (float(-unsigned if inside else unsigned), float(unsigned))
     trace(f"complete signed={result[0]} unsigned={result[1]}")
     return result
