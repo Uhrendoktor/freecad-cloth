@@ -234,7 +234,7 @@ def _fit_anny_body(
             pose_parameters=pose,
             phenotype_kwargs=phenotype_kwargs,
             local_changes_kwargs=local_kwargs,
-            pose_parameterization="root_relative_world",
+            pose_parameterization="local-bone",
             return_bone_ends=True,
         )
     body = load_anny_from_verts(
@@ -339,7 +339,7 @@ def _fit_anny_body(
             pose_parameters=pose,
             phenotype_kwargs=body.phenotype_kwargs,
             local_changes_kwargs=body.local_changes_kwargs,
-            pose_parameterization="root_relative_world",
+            pose_parameterization="local-bone",
             return_bone_ends=True,
         )
     fitted_body = load_anny_from_verts(
