@@ -803,7 +803,7 @@ class SurfacePenController:
         self._status("Surface stroke cleared. " + self._stroke_status())
 
     def _place_point(self, anchor):
-        """Append one deliberate point and accept a near-start click as closure."""
+        """Append one deliberate boundary point and accept a near-start click as closure."""
         placed = SurfaceAnchor(anchor.point, anchor.normal, self.point_kind)
         if (
             len(self.anchors) >= 3
@@ -811,6 +811,11 @@ class SurfacePenController:
         ):
             self.anchors.append(placed)
             return True
+        return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
+
+    def _place_reference_point(self, anchor):
+        """Append one reference point without treating proximity to the start as closure."""
+        placed = SurfaceAnchor(anchor.point, anchor.normal, "corner")
         return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
 
     def _mouse_event(self, info):
@@ -826,8 +831,11 @@ class SurfacePenController:
             if anchor is None:
                 self._status("Pointer is not over the selected mannequin surface.")
                 return
-            if self.input_mode == "point":
-                self._place_point(anchor)
+            if self.input_mode in {"point", "references"}:
+                if self.input_mode == "references":
+                    self._place_reference_point(anchor)
+                else:
+                    self._place_point(anchor)
                 self._update_overlay()
                 self._status(self._stroke_status())
                 return
@@ -860,8 +868,57 @@ class SurfacePenController:
             self._update_overlay()
             self._status(self._stroke_status())
 
+    def _finish_reference_points(self, document, tolerance_mm):
+        """Create a native Sketcher sketch containing flattened construction points."""
+        import Part
+
+        if len(self.anchors) < 3:
+            raise ValueError("reference-point mode needs at least three points")
+        patch = flatten_surface_patch(
+            [anchor.point for anchor in self.anchors], tolerance_mm
+        )
+        points = list(patch.points)
+        min_x = min(point[0] for point in points)
+        min_y = min(point[1] for point in points)
+        shifted = [
+            (round(x - min_x, 6), round(y - min_y, 6))
+            for x, y in points
+        ]
+        sketch = document.addObject(
+            "Sketcher::SketchObject",
+            document.getUniqueObjectName("SurfaceReferencePoints"),
+        )
+        sketch.Label = "Surface Reference Points"
+        sketch.addProperty("App::PropertyString", "SurfaceAuthoring", "3D Authoring")
+        sketch.SurfaceAuthoring = "ClothPattern.SurfacePen.ReferencePoints"
+        sketch.addProperty("App::PropertyLinkGlobal", "SurfaceTarget", "3D Authoring")
+        sketch.SurfaceTarget = self.target
+        sketch.addProperty(
+            "App::PropertyString", "SurfaceTargetSignature", "3D Authoring"
+        )
+        sketch.SurfaceTargetSignature = _target_signature(self.target)
+        sketch.addProperty("App::PropertyString", "SurfaceAnchorsJSON", "3D Authoring")
+        sketch.SurfaceAnchorsJSON = json.dumps(
+            [anchor.to_json() for anchor in self.anchors],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        sketch.addProperty("App::PropertyLength", "PlanarTolerance", "3D Authoring")
+        sketch.PlanarTolerance = float(tolerance_mm)
+        sketch.addProperty("App::PropertyLength", "MaxDeviation", "3D Authoring")
+        sketch.MaxDeviation = float(patch.max_deviation_mm)
+        for x, y in shifted:
+            sketch.addGeometry(Part.Point(self.App.Vector(x, y, 0)), True)
+        document.recompute()
+        self.clear()
+        self._status(
+            f"Created native Sketcher reference-point sketch with {len(shifted)} points. "
+            "Connect the construction points with native Sketcher geometry."
+        )
+        return sketch
+
     def finish(self, tolerance_mm=8.0, name=None):
-        """Validate the stroke and create a native Sketcher-backed pattern piece."""
+        """Finish the active Surface Pen mode and create its native Sketcher result."""
         if self._drawing:
             self._drawing = False
             self._last_screen = None
@@ -869,6 +926,8 @@ class SurfacePenController:
         document = self.App.ActiveDocument
         if document is None:
             raise RuntimeError("an active document is required")
+        if self.input_mode == "references":
+            return self._finish_reference_points(document, tolerance_mm)
         if self.input_mode == "point":
             anchors = closed
         else:
