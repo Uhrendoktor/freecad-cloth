@@ -107,9 +107,7 @@ def _parse_topology(line: str) -> dict[str, object] | None:
     draft_reason = match.group(5)
     crossing_match = _CROSSING_RE.search(ir_reason) or _CROSSING_RE.search(draft_reason)
     crossing = (
-        [float(crossing_match.group(1)), float(crossing_match.group(2))]
-        if crossing_match
-        else None
+        [float(crossing_match.group(1)), float(crossing_match.group(2))] if crossing_match else None
     )
     return {
         "piece": match.group(1),
@@ -234,7 +232,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
 
     topology_records = list(topology_by_piece.values())
     invalid_topology = [
-        record for record in topology_records if not bool(record["ir_valid"]) or not bool(record["draft_valid"])
+        record
+        for record in topology_records
+        if not bool(record["ir_valid"]) or not bool(record["draft_valid"])
     ]
     failure_text = "\n".join(failure_lines)
     failure_unknown = bool(failure_lines) and not invalid_topology
@@ -250,11 +250,17 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         result = "passed"
         failed_stage = None
         last_completed_stage = "drape" if drape_records else "simulation"
-        next_action = "Review final multi-view fit and keep the same strict geometry and collision gates."
+        next_action = (
+            "Review final multi-view fit and keep the same strict geometry and collision gates."
+        )
     elif failure_lines:
         result = "failed"
-        failed_stage = "unknown_from_available_markers" if failure_unknown else "simulation_or_later"
-        last_completed_stage = "simulation_started" if has_simulation_start else "last_observed_stage"
+        failed_stage = (
+            "unknown_from_available_markers" if failure_unknown else "simulation_or_later"
+        )
+        last_completed_stage = (
+            "simulation_started" if has_simulation_start else "last_observed_stage"
+        )
         next_action = (
             "Use the failure log and the last completed stage to localize the first failing invariant "
             "before changing any parameter."
@@ -263,11 +269,14 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         result = "incomplete"
         failed_stage = None
         last_completed_stage = "unknown"
-        next_action = "Inspect available workflow output; the progress log did not record a terminal stage."
+        next_action = (
+            "Inspect available workflow output; the progress log did not record a terminal stage."
+        )
 
-    avatar_image_present = any(
-        "cloth-mannequin-near-t-pose.png" in name for name in screenshot_states
-    ) or (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+    avatar_image_present = (
+        any("cloth-mannequin-near-t-pose.png" in name for name in screenshot_states)
+        or (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+    )
     pattern_image_present = (output_root / "cloth-pattern-design.png").is_file()
     sewing_image_present = (output_root / "cloth-sewing.png").is_file()
     drape_image_present = any(output_root.glob("cloth-simulation-draped*.png"))
@@ -277,8 +286,14 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         pose_state = "measured_but_image_not_found"
     else:
         pose_state = "not_observed"
-    pattern_state = "invalid" if invalid_topology else (
-        "valid" if topology_records and all(bool(item["ir_valid"]) for item in topology_records) else "not_observed"
+    pattern_state = (
+        "invalid"
+        if invalid_topology
+        else (
+            "valid"
+            if topology_records and all(bool(item["ir_valid"]) for item in topology_records)
+            else "not_observed"
+        )
     )
     sewing_state = (
         "generated_from_invalid_input"
@@ -305,9 +320,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         nearby = cast(list[dict[str, object]], topology["near_crossing"])
         touching = list(
             dict.fromkeys(
-                str(item["edge_id"])
-                for item in nearby
-                if float(item["distance_mm"]) <= 1e-6
+                str(item["edge_id"]) for item in nearby if float(item["distance_mm"]) <= 1e-6
             )
         )
         issues.append(
@@ -372,7 +385,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         },
         "stages": {
             "mannequin_pose": pose_state,
-            "pattern_construction": "captured" if topology_records or pattern_image_present else "not_observed",
+            "pattern_construction": "captured"
+            if topology_records or pattern_image_present
+            else "not_observed",
             "pattern_topology": pattern_state,
             "sewing_preview": sewing_state,
             "initial_placement": "measured" if placements_by_side else "not_observed",
@@ -467,7 +482,9 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                 if len(samples) >= 2:
                     distance_forward = math.dist(samples[0], start)
                     distance_reverse = math.dist(samples[-1], start)
-                    local_points = samples if distance_forward <= distance_reverse else list(reversed(samples))
+                    local_points = (
+                        samples if distance_forward <= distance_reverse else list(reversed(samples))
+                    )
             edge_shapes.append((edge_index, local_points, str(boundary.get("id", ""))))
             if coords and math.dist(coords[-1], local_points[0]) <= 1e-5:
                 coords.extend(local_points[1:])
@@ -491,7 +508,10 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             )
         crossing_edge_colors: dict[int, str] = {}
         for raw_nearby in _as_list(record.get("near_crossing")):
-            if not isinstance(raw_nearby, dict) or float(raw_nearby.get("distance_mm", math.inf)) > 1e-6:
+            if (
+                not isinstance(raw_nearby, dict)
+                or float(raw_nearby.get("distance_mm", math.inf)) > 1e-6
+            ):
                 continue
             edge_match = re.search(r":edge:(\d+)$", str(raw_nearby.get("edge_id", "")))
             if edge_match:
@@ -540,7 +560,9 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>'
         )
         if not valid:
-            crossing_labels = ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
+            crossing_labels = (
+                ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
+            )
             pieces_rendered.append(
                 f'<text x="{origin_x:.3f}" y="68" font-size="11" font-family="sans-serif" fill="#364152">'
                 f"Highlighted crossing edges: {html.escape(crossing_labels)}</text>"
@@ -592,7 +614,9 @@ def render_markdown(report: dict[str, object]) -> str:
         "simulation",
         "drape",
     ):
-        lines.append(f"| {stage_name.replace('_', ' ')} | {stages.get(stage_name, 'not_observed')} |")
+        lines.append(
+            f"| {stage_name.replace('_', ' ')} | {stages.get(stage_name, 'not_observed')} |"
+        )
     issues = _as_list(report.get("issues"))
     lines.extend(["", "## Blocking geometry findings", ""])
     if issues:
@@ -606,15 +630,21 @@ def render_markdown(report: dict[str, object]) -> str:
                 if isinstance(point, list) and len(point) >= 2
                 else "not reported"
             )
-            edge_ids = ", ".join(str(value) for value in _as_list(issue.get("edge_ids"))) or "not resolved"
+            edge_ids = (
+                ", ".join(str(value) for value in _as_list(issue.get("edge_ids"))) or "not resolved"
+            )
             lines.append(
                 f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** {issue.get('reason')}. "
                 f"Crossing at local {point_text}; related edges: {edge_ids}."
             )
             lines.append(f"  - Effect: {issue.get('effect')}.")
-        lines.append("- **Next action:** repair the pattern boundary; do not tune collision, timestep, or solver iterations.")
+        lines.append(
+            "- **Next action:** repair the pattern boundary; do not tune collision, timestep, or solver iterations."
+        )
     else:
-        lines.append("No invalid polygon was reported. This does not imply a successful fit; inspect the stage table and available measurements.")
+        lines.append(
+            "No invalid polygon was reported. This does not imply a successful fit; inspect the stage table and available measurements."
+        )
         lines.append(f"Next action: {report.get('next_action')}")
     lines.extend(["", "## Placement observations", ""])
     panels = _as_dict(placement.get("panels"))
@@ -681,7 +711,9 @@ def write_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
 def main() -> int:
     """Run as a best-effort post-FreeCAD reporter; absence of logs is reported, not hidden."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--progress", type=Path, default=Path("docs/images/generated/gui-progress.log"))
+    parser.add_argument(
+        "--progress", type=Path, default=Path("docs/images/generated/gui-progress.log")
+    )
     parser.add_argument("--output-root", type=Path, default=Path("docs/images/generated"))
     parser.add_argument("--workspace", type=Path, default=Path.cwd())
     args = parser.parse_args()
