@@ -875,7 +875,7 @@ def _make_source_fitted_mapper(
         and resolve_target("macrodetails/gender/female", target_root)
         and resolve_target("macrodetails/gender/male", target_root)
     )
-    use_breast_target = bool(target_root and resolve_target("breast/breast-dist-incr", target_root))
+    use_breast_target = bool(target_root and resolve_target("breast/breast-volume-vert-up", target_root))
     if use_gender_targets:
         # Authored gender targets provide the broad anatomical silhouette;
         # don't stack the procedural gender scale on top of those deltas.
