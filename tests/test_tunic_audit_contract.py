@@ -299,12 +299,9 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() ->
     assert "Trimesh/Rtree's native contains query" in inside_check
     assert "target_mesh.contains" not in inside_check
     assert "import trimesh" not in inside_check
-    assert (
-        "chunk_size=4" in inside_check
+    assert "chunk_size=4" in inside_check
     assert "points_inside_closed_mesh(" in inside_check
     assert "prefer_trimesh=False" in inside_check
-        in inside_check
-    )
     assert "penetration-check=numpy-ray-parity" in inside_check
     sanity = (ROOT / "freecad_cloth" / "simulation" / "DrapeVisualSanity.py").read_text(
         encoding="utf-8"
