@@ -752,8 +752,7 @@ def _make_source_fitted_mapper(
             front_weight = _smoothstep(-18.0, 28.0, y_mm)
             vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.033) ** 2)
             lateral_weight = max(
-                math.exp(-0.5 * ((x_mm - center_x) / 43.0) ** 2)
-                for center_x in (-72.0, 72.0)
+                math.exp(-0.5 * ((x_mm - center_x) / 43.0) ** 2) for center_x in (-72.0, 72.0)
             )
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
