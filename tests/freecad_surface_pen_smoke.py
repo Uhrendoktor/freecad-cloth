@@ -24,7 +24,6 @@ from freecad_cloth.pattern.SurfacePen import (
     SurfaceAnchor,
     SurfacePenController,
     SurfacePenTaskPanel,
-    create_surface_pen_object,
     extract_surface_draft_to_pattern,
 )
 
