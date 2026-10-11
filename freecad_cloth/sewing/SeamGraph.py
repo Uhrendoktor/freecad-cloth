@@ -6,7 +6,9 @@ compatibility adapter, not a second seam representation.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import field, replace
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import isfinite
 from typing import cast
 
@@ -19,7 +21,7 @@ from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Transform3D:
     """Rigid-free assembly transform represented by a 4x4 row-major matrix."""
 
@@ -77,7 +79,7 @@ class Transform3D:
         return validate_points3d((result,))[0]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SeamPair:
     """Canonical seam plus non-semantic stitch presentation metadata."""
 
@@ -132,7 +134,7 @@ class SeamPair:
             raise ValueError("alignment disagrees with canonical seam metadata")
 
 
-@dataclass
+@pydantic_dataclass
 class SeamGraph:
     """Validated seam graph for a set of pattern pieces."""
 
