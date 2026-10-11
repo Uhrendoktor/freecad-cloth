@@ -10,11 +10,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import replace
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import isfinite
 
-from freecad_cloth.common.ValidationModels import validate_finite_number
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.common.ValidationModels import validate_finite_number
 
 @pydantic_dataclass(frozen=True)
 class SimulationQuality:
@@ -25,13 +25,11 @@ class SimulationQuality:
     solver_iterations: int
     substeps: int
 
-
 QUALITY_PRESETS = {
     "Fast": SimulationQuality("Fast", 8.0, 4, 1),
     "Balanced": SimulationQuality("Balanced", 4.0, 8, 1),
     "Final": SimulationQuality("Final", 2.0, 16, 2),
 }
-
 
 def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     """Normalize FreeCAD/Python color representations to three RGB floats."""
@@ -47,7 +45,6 @@ def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     if any(not 0.0 <= item <= 1.0 for item in values):
         raise ValueError("color_rgb channels must be between 0 and 1 or 0 and 255")
     return values[0], values[1], values[2]
-
 
 @pydantic_dataclass(frozen=True)
 class FabricMaterial:
@@ -91,14 +88,12 @@ class FabricMaterial:
         """Provide the public mass per area kg mm2 operation."""
         return self.density_g_m2 * 1e-9
 
-
 def preset(name: str) -> SimulationQuality:
     """Provide the public preset operation."""
     try:
         return QUALITY_PRESETS[str(name)]
     except KeyError as exc:
         raise ValueError(f"unknown simulation quality preset: {name!r}") from exc
-
 
 def apply_quality(
     quality: SimulationQuality | str,
@@ -113,7 +108,6 @@ def apply_quality(
         solver_iterations=q.solver_iterations if iterations is None else int(iterations),
         substeps=q.substeps if substeps is None else int(substeps),
     )
-
 
 def solver_parameters(
     quality: SimulationQuality, material: FabricMaterial
