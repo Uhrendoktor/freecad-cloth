@@ -524,8 +524,10 @@ def parse_obj(text: str) -> MeshData:
                 index = int(token.split("/", 1)[0])
                 index = len(vertices) + index if index < 0 else index - 1
                 indices.append(index)
-            for i in range(1, len(indices) - 1):
-                triangles.append((indices[0], indices[i], indices[i + 1]))
+            triangles.extend(
+                (indices[0], indices[i], indices[i + 1])
+                for i in range(1, len(indices) - 1)
+            )
 
     body_vertices = tuple(vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     body_triangles = tuple(
