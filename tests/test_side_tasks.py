@@ -8,7 +8,6 @@ from freecad_cloth.avatar.AvatarCollision import (
     AvatarSpec,
     CollisionSurface,
 )
-from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     PatternMark,
@@ -24,6 +23,7 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
 )
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
+from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
 
 def test_svg_units_and_stable_ids():
