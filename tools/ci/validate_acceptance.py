@@ -14,6 +14,14 @@ CASES = {
     "avatar-pose": Path("artifacts/avatar-pose-mode.png"),
     "avatar-shape-editor": Path("artifacts/avatar-shape-editor.png"),
     "fitting": Path("artifacts/interactive-arrange.png"),
+    "surface-pen": Path("artifacts/surface-pen.png"),
+}
+
+REQUIRED_FRAMES = {
+    "surface-pen": tuple(
+        Path(f"artifacts/surface-pen-frame-{index:02d}.png")
+        for index in range(1, 5)
+    ),
 }
 
 REQUIRED_GIFS = {
@@ -52,6 +60,22 @@ def main() -> int:
         if not gif.is_file() or not gif.stat().st_size:
             raise SystemExit(f"missing acceptance GIF: {gif}")
         print(f"{args.case}-gif=validated path={gif} bytes={gif.stat().st_size}")
+
+    for frame in REQUIRED_FRAMES.get(args.case, ()):
+        if not frame.is_file() or not frame.stat().st_size:
+            raise SystemExit(f"missing acceptance animation frame: {frame}")
+        frame_metrics = validate_png_capture(
+            frame,
+            expected_width=1280,
+            expected_height=720,
+            min_nonwhite_pixels=500,
+            min_distinct_rgb=16,
+            min_opaque_pixels=500,
+        )
+        print(
+            f"{args.case}-frame=validated path={frame} "
+            f"nonwhite_pixels={frame_metrics['nonwhite_pixels']}"
+        )
 
     print(
         f"{args.case}-screenshot=validated "
