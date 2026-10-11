@@ -10,6 +10,7 @@ model.
 import bisect
 import math
 from collections.abc import Iterable
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
@@ -20,7 +21,6 @@ STATUS_VALID = "valid"
 STATUS_REVERSED = "reversed"
 STATUS_LENGTH_MISMATCH = "length_mismatch"
 STATUS_INVALID_RANGE = "invalid_range"
-
 
 @pydantic_dataclass(frozen=True)
 class CorrespondenceReport:
@@ -61,7 +61,6 @@ class CorrespondenceReport:
             "recovery": self.recovery,
         }
 
-
 def correspondence_status_label(report: CorrespondenceReport) -> str:
     """Return the shared persisted Status label for sewing objects."""
     if report.status in {STATUS_VALID, STATUS_REVERSED}:
@@ -72,7 +71,6 @@ def correspondence_status_label(report: CorrespondenceReport) -> str:
         return "Invalid range"
     return "Invalid"
 
-
 def correspondence_recovery(status: str) -> str:
     """Return deterministic recovery guidance for a correspondence status."""
     return {
@@ -82,10 +80,8 @@ def correspondence_recovery(status: str) -> str:
         STATUS_INVALID_RANGE: "reset the seam ranges or edit them to a positive normalized interval",
     }.get(str(status), "inspect the seam reference before accepting")
 
-
 def _range_is_valid(start: float, end: float) -> bool:
     return math.isfinite(start) and math.isfinite(end) and 0.0 <= start < end <= 1.0
-
 
 def analyze_correspondence(
     length_a: float,
@@ -160,7 +156,6 @@ def analyze_correspondence(
         float(ratio),
         False,
     )
-
 
 def arc_length_vertex_indices(
     values: Iterable[int],
@@ -251,7 +246,6 @@ def arc_length_vertex_indices(
 
     return tuple(values[index] for index in result)
 
-
 def map_parameter(
     parameter_a: float,
     start_a: float = 0.0,
@@ -273,7 +267,6 @@ def map_parameter(
     if reversed_b:
         local = 1.0 - local
     return start_b + local * (end_b - start_b)
-
 
 def correspondence_samples(
     count: int,
