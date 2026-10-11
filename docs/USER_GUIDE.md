@@ -20,6 +20,12 @@ The simplest supported human target is the bundled MakeHuman mannequin.
 
 **Important limitation:** the FreeCAD-geometry provider consumes the imported surface as geometry; it does not import or retarget an external skeleton, skin weights, or animation. Use the bundled MakeHuman provider for the current interactive joint posing and mannequin landmarks. A generic imported surface can be used as collision/fitting geometry, but it is not equivalent to a rigged human avatar.
 
+### Edit body shape and dimensions
+
+Open **Avatar & Fitting → Edit Avatar**. In **Body shape**, adjust the feminine-to-masculine proportion blend and breast fullness; the exact values and all measurements remain editable in the task panel. For viewport-first editing, keep **3D Dimensions** enabled and drag the highlighted handles for total height, shoulder breadth, chest, waist or hip. Chest, waist and hip show circumference rings; dragging a handle stages the corresponding millimetre value. The viewport controls are transient and do not create document geometry.
+
+Use **Apply & Rebuild** to commit the staged body parameters and regenerate the mannequin and fitting landmarks. Cancel discards staged edits. Shape controls apply to the built-in MakeHuman mannequin only; they are disabled for the FreeCAD-geometry provider, whose imported surface is not parametrically deformed.
+
 ## 1. Create the 2D pattern source
 
 In the **Cloth Pattern** workbench, author the outline in native Sketcher geometry or open an existing Sketcher sketch. Create a PatternPiece from that sketch; add garment metadata such as grainline, notches, internal marks, or seam allowance when needed.
