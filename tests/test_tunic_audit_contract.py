@@ -410,6 +410,16 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
         in audit
     )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
+    # Tilting the panels must preserve step-zero separation at the existing 20.8 mm gate.
+    assert "orientation_margin_mm = 26.0" in source
+    assert "clearance - orientation_margin_mm" in source
+    assert "clearance + orientation_margin_mm" in source
+    assert "orientation_margin_mm = 26.0" in debug
+    assert "front_y = box.YMax + clearance + orientation_margin_mm" in debug
+    assert "back_y = box.YMin - clearance - orientation_margin_mm" in debug
+    assert "orientation_margin_mm = 26.0" in audit
+    assert "target_front_y - clearance - orientation_margin_mm" in audit
+    assert "target_back_y + clearance + orientation_margin_mm" in audit
     # Start front/back panels outside the mannequin but converge their shoulder edges,
     # reducing stitch-driven traversal through the upper torso without touching PBD settings.
     assert "front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)" in source
