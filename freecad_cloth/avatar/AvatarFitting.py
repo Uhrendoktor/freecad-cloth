@@ -18,6 +18,7 @@ _DEFAULT_MEASUREMENTS = {
     "shoulder": 420.0,
 }
 
+
 @pydantic_dataclass(frozen=True)
 class BodyMeasurements:
     """Public data model or service class for BodyMeasurements."""
@@ -58,6 +59,7 @@ class BodyMeasurements:
         result.validate()
         return result
 
+
 @pydantic_dataclass(frozen=True)
 class PiecePlacement:
     """Public data model or service class for PiecePlacement."""
@@ -86,6 +88,7 @@ class PiecePlacement:
         result = cls(piece_id, coords, float(rotation))
         result.validate()
         return result
+
 
 @pydantic_dataclass(frozen=True)
 class ArrangementPoint:
@@ -165,6 +168,7 @@ class ArrangementPoint:
         result.validate()
         return result
 
+
 @pydantic_dataclass(frozen=True)
 class BoundingVolume:
     """Named axis-aligned avatar volume used for deterministic fitting metadata."""
@@ -200,6 +204,7 @@ class BoundingVolume:
         )
         result.validate()
         return result
+
 
 @pydantic_dataclass(frozen=True)
 class FittingScene:
