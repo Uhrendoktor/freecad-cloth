@@ -50,7 +50,9 @@ def _write_mesh(obj, positions, triangles):
     import FreeCAD as App
     import Mesh
 
-    topology = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
+    topology = tuple(
+        (int(triangle[0]), int(triangle[1]), int(triangle[2])) for triangle in triangles
+    )
     object_key = _mesh_object_key(obj)
     if not topology:
         obj.Mesh = Mesh.Mesh()
