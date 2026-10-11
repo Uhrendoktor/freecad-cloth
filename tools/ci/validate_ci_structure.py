@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
+PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
 TY_CONFIG = ROOT / "ty.toml"
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
@@ -29,6 +30,7 @@ REQUIRED = (
     ROOT / "tools/ci/check_artifact_budget.py",
     ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/timeout_contract.py",
+    ROOT / "tools/ci/check_pydantic_models.py",
 )
 
 # Stage semantic type checking deliberately: these paths form the reviewed
@@ -45,6 +47,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/pattern/PatternSvgValidation.py",
     "freecad_cloth/sewing/SeamGraph.py",
     "freecad_cloth/sewing/SewingCorrespondence.py",
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
     "freecad_cloth/simulation/ClothBackend.py",
     "freecad_cloth/simulation/ClothSolver.py",
     "freecad_cloth/simulation/DrapeTarget.py",
@@ -64,9 +67,17 @@ PYRIGHT_EXPECTED_EXCLUDE = (
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
-    "pyright -p pyrightconfig.agent-strict.json",
     "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
     "python tools/ci/check_changed_python_types.py",
+)
+
+PYTHON_POLICY_COMMANDS = (
+    "python tools/ci/check_pydantic_models.py",
+)
+
+RUFF_COMMANDS = (
+    "xargs -0 -r python -m ruff format --check < \"$RUNNER_TEMP/python-files.zlist\"",
+    "xargs -0 -r python -m ruff check < \"$RUNNER_TEMP/python-files.zlist\"",
 )
 
 
@@ -78,6 +89,12 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
+
+
+def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
+    """Return required data-model policy gates missing from the canonical workflow."""
+    command_lines = {line.strip() for line in workflow_text.splitlines()}
+    return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
 
 
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
@@ -185,6 +202,24 @@ def main() -> int:
             "canonical workflow is missing standalone blocking type-check commands: "
             + ", ".join(missing_typecheck)
         )
+    missing_python_policies = missing_python_policy_commands(text)
+    if missing_python_policies:
+        raise SystemExit(
+            "canonical workflow is missing standalone Python policy commands: "
+            + ", ".join(missing_python_policies)
+        )
+    if PYRIGHT_LEGACY_CONFIG.exists():
+        raise SystemExit("duplicate Pyright config must be removed; maintain only pyrightconfig.json")
+    try:
+        pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise SystemExit("pyrightconfig.json must be valid JSON") from error
+    if pyright_config.get("typeCheckingMode") != "strict":
+        raise SystemExit("pyrightconfig.json must use typeCheckingMode=strict")
+    command_lines = {line.strip() for line in text.splitlines()}
+    missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+    if missing_ruff:
+        raise SystemExit("canonical workflow must run Ruff over every tracked Python file: " + ", ".join(missing_ruff))
     base_ref = os.environ.get("BASE_REF") or os.environ.get("GITHUB_BASE_REF")
     added_modules = added_production_python_modules(base_ref) if base_ref else ()
     coverage_violations = pyright_coverage_contract_violations(
