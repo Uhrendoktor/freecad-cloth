@@ -113,7 +113,6 @@ class MakeHumanTargetTests(unittest.TestCase):
             assert reference is not None
             self.assertEqual(reference.path, (root / "targets.npz").resolve())
 
-
     def test_torso_mapper_calibrates_named_waist_contour(self) -> None:
         source_vertices = []
         ring_count = 24
