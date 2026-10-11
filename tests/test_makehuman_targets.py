@@ -15,6 +15,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
 )
 from freecad_cloth.avatar.MakeHumanTargets import (
     TARGETS_ENV,
+    apply_measurement_targets,
     apply_targets,
     load_target,
     parse_target,
@@ -118,6 +119,22 @@ class MakeHumanTargetTests(unittest.TestCase):
             self.assertIsNotNone(reference)
             assert reference is not None
             self.assertEqual(reference.path, (root / "targets.npz").resolve())
+
+    def test_breast_fullness_uses_volume_target(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cloth-breast-target-") as directory:
+            root = Path(directory)
+            target_dir = root / "breast"
+            target_dir.mkdir()
+            (target_dir / "breast-volume-vert-up.target").write_text(
+                "0 0.2 0.1 -0.2\\n", encoding="utf-8"
+            )
+            parameters = AvatarParameters(gender=0.5, breast_size=0.5)
+            vertices = ((1.0, 2.0, 3.0),)
+            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
+                fitted = apply_measurement_targets(vertices, parameters)
+            self.assertAlmostEqual(fitted[0][0], 1.1)
+            self.assertAlmostEqual(fitted[0][1], 2.05)
+            self.assertAlmostEqual(fitted[0][2], 2.9)
 
     def test_torso_mapper_calibrates_named_waist_contour(self) -> None:
         source_vertices = []
