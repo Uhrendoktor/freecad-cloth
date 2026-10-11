@@ -290,13 +290,15 @@ class AvatarFittingTests(unittest.TestCase):
             original_chest = float(avatar.Chest)
             original_pose = str(avatar.JointPoseJSON)
             candidate = current.with_measurements(chest=original_chest + 80.0)
-            with mock.patch.object(
-                AvatarCommands,
-                "_provider_geometry",
-                side_effect=RuntimeError("synthetic geometry failure"),
+            with (
+                mock.patch.object(
+                    AvatarCommands,
+                    "_provider_geometry",
+                    side_effect=RuntimeError("synthetic geometry failure"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
-                    AvatarCommands.apply_avatar_parameters(avatar, candidate)
+                AvatarCommands.apply_avatar_parameters(avatar, candidate)
             self.assertEqual(float(avatar.Chest), original_chest)
             self.assertEqual(str(avatar.JointPoseJSON), original_pose)
             rebuilt_mesh = tuple(
