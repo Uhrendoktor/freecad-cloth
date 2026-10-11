@@ -64,14 +64,23 @@ class AnnyAvatarBackendError(RuntimeError):
 def _measurement_local_change_labels() -> tuple[str, ...]:
     """Return only relevant local modifiers present in the installed Anny assets."""
     try:
-        from anny.paths import get_anny_root_dir
+        import anny
     except ImportError as exc:
         raise AnnyAvatarBackendError(
             "Anny is required for parametric mannequin generation; install "
             "'anny[warp]>=0.5,<0.6' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
         ) from exc
 
-    metadata_path = Path(get_anny_root_dir()) / "data" / "mpfb2" / "targets" / "target.json"
+    # get_anny_root_dir() was added in Anny 0.6; Anny 0.5 bundles assets
+    # alongside its package. Keep the version-compatible fallback explicit.
+    root = Path(anny.__file__).resolve().parent
+    try:
+        from anny.paths import get_anny_root_dir
+    except ImportError:
+        pass
+    else:
+        root = Path(get_anny_root_dir())
+    metadata_path = root / "data" / "mpfb2" / "targets" / "target.json"
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError) as exc:
