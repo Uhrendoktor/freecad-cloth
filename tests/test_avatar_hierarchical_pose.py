@@ -17,6 +17,19 @@ class AvatarHierarchicalPoseTests(unittest.TestCase):
         vertices = ((0.0, 0.0, 0.0), (2.0, 4.0, 6.0))
         self.assertEqual(_joint_point(vertices, [0, 1]), (1.0, 2.0, 3.0))
 
+    def test_joint_point_averages_fitted_vertices_for_nonlinear_maps(self):
+        vertices = ((0.0, 0.0, 0.0), (2.0, 4.0, 6.0))
+
+        def nonlinear_map(point):
+            return (point[0], point[1] ** 2, point[2])
+
+        # Fitting the average source point would produce y=4. Fitting each
+        # authored vertex before averaging correctly produces y=(0 + 16) / 2.
+        self.assertEqual(
+            _joint_point(vertices, [0, 1], mapper=nonlinear_map),
+            (1.0, 8.0, 3.0),
+        )
+
     def test_bone_endpoints_follow_authored_skeleton(self):
         vertices = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0))
         skeleton = {
