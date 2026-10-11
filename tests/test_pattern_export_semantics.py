@@ -218,7 +218,8 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     assert sewing_path.attrib.get("fill") == "none"
     assert cut_path.attrib.get("fill") == "none"
     assert text.attrib.get("fill") == "#000000"
-    assert text.attrib.get("font-size") == "3mm"
+    # The viewBox coordinates are millimetres, so font-size must be unitless.
+    assert text.attrib.get("font-size") == "3"
     assert root.attrib["width"].endswith("mm")
     assert root.attrib["height"].endswith("mm")
 

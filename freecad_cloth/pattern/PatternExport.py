@@ -343,8 +343,9 @@ def to_svg(
                 f'    <line id="mark-{escape(mark.id, quote=True)}" x1="{_fmt(x - dx)}" y1="{_fmt(y - dy)}" x2="{_fmt(x + dx)}" y2="{_fmt(y + dy)}" fill="none" stroke="#000000" stroke-width="0.2" stroke-linecap="round" data-kind="{escape(mark.kind, quote=True)}" data-segment="{escape(mark.segment_id, quote=True)}" data-t="{_fmt(mark.t)}"/>'
             )
             if mark.text:
+                # The viewBox user unit is one millimetre; an explicit "mm" suffix is scaled twice.
                 lines.append(
-                    f'    <text x="{_fmt(x)}" y="{_fmt(y)}" fill="#000000" font-family="sans-serif" font-size="3mm" data-mark-id="{escape(mark.id, quote=True)}">{escape(mark.text)}</text>'
+                    f'    <text x="{_fmt(x)}" y="{_fmt(y)}" fill="#000000" font-family="sans-serif" font-size="3" data-mark-id="{escape(mark.id, quote=True)}">{escape(mark.text)}</text>'
                 )
         lines.append("  </g>")
     lines.append("</svg>")
