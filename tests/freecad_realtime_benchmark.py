@@ -11,6 +11,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -141,10 +142,22 @@ def _percentile(values: list[float], fraction: float) -> float | None:
     return ordered[max(0, min(len(ordered) - 1, rank))]
 
 
+class _RedrawView(Protocol):
+    """Expose the FreeCAD viewport redraw operation needed by the benchmark."""
+
+    def redraw(self) -> None: ...
+
+
+class _ActiveViewDocument(Protocol):
+    """Expose the active-view operation needed by the benchmark."""
+
+    def activeView(self) -> _RedrawView: ...
+
+
 class _TimedGuiView:
     """Forward FreeCAD view calls while recording the synchronous viewport redraw cost."""
 
-    def __init__(self, view: object, record_stage: Callable[[str, float], None]) -> None:
+    def __init__(self, view: _RedrawView, record_stage: Callable[[str, float], None]) -> None:
         self._view = view
         self._record_stage = record_stage
 
@@ -154,7 +167,7 @@ class _TimedGuiView:
     def redraw(self) -> None:
         started_at = time.perf_counter()
         try:
-            getattr(self._view, "redraw")()
+            self._view.redraw()
         finally:
             self._record_stage("viewport_redraw", started_at)
 
@@ -162,7 +175,7 @@ class _TimedGuiView:
 class _TimedGuiDocument:
     """Forward active-document calls and instrument the active view returned to preview."""
 
-    def __init__(self, document: object, record_stage: Callable[[str, float], None]) -> None:
+    def __init__(self, document: _ActiveViewDocument, record_stage: Callable[[str, float], None]) -> None:
         self._document = document
         self._record_stage = record_stage
 
@@ -170,7 +183,7 @@ class _TimedGuiDocument:
         return getattr(self._document, name)
 
     def activeView(self) -> _TimedGuiView:
-        view = getattr(self._document, "activeView")()
+        view = self._document.activeView()
         return _TimedGuiView(view, self._record_stage)
 
 
