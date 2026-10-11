@@ -128,6 +128,7 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "shoulder_z - armhole_z < 0.20 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in sketch_builder
+    # The wider arc stays below the shoulder-to-neckline edge; .69/.31 self-intersects.
     assert "x_offset + 0.71 * panel_width, armhole_mid_z" in sketch_builder
     assert "x_offset + 0.29 * panel_width, armhole_mid_z" in sketch_builder
     assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
