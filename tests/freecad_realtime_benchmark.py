@@ -28,6 +28,106 @@ WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
 
 
+def _add_tunic_preview_fixture(doc, scene) -> None:
+    """Build two authored, sewn tunic panels so preview timing covers garment-scale meshes."""
+    import Part
+    import Sketcher
+
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+
+    avatar = getattr(getattr(scene, "AvatarProxy", None), "SourceObject", None)
+    if avatar is None or not hasattr(avatar, "Mesh"):
+        raise RuntimeError("Realtime preview fixture requires the production avatar mesh")
+    bounds = avatar.Mesh.BoundBox
+    body_width = float(bounds.XMax - bounds.XMin)
+    body_depth = float(bounds.YMax - bounds.YMin)
+    body_height = float(bounds.ZMax - bounds.ZMin)
+    panel_width = max(420.0, body_width + 100.0)
+    hem_width = panel_width + 80.0
+    garment_height = max(600.0, body_height * 0.40)
+    hem_z = float(bounds.ZMin) + body_height * 0.28
+    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
+    center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
+    clearance = max(60.0, 0.75 * body_depth)
+    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
+    neckline_z = 0.90 * garment_height
+    points = (
+        (0.0, 0.0),
+        (hem_width, 0.0),
+        (panel_width, 0.82 * garment_height),
+        (0.86 * panel_width, 0.97 * garment_height),
+        (0.64 * panel_width, neckline_z),
+        (0.36 * panel_width, neckline_z),
+        (0.14 * panel_width, 0.97 * garment_height),
+        (0.0, 0.82 * garment_height),
+    )
+
+    def make_piece(name: str, y: float):
+        sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
+        sketch.addGeometry(
+            [
+                Part.LineSegment(
+                    App.Vector(points[index][0], points[index][1], 0.0),
+                    App.Vector(points[(index + 1) % len(points)][0],
+                               points[(index + 1) % len(points)][1], 0.0),
+                )
+                for index in range(len(points))
+            ],
+            False,
+        )
+        sketch.addConstraint(
+            [
+                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
+                for index in range(len(points))
+            ]
+        )
+        doc.recompute()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(sketch)
+        piece = create_pattern_piece_from_selected_sketch(
+            name=name,
+            allowance=10.0,
+            grainline=0.0,
+        )
+        piece.Label = name
+        piece.Placement = App.Placement(
+            App.Vector(center_x - hem_width / 2.0, y, hem_z),
+            rotation,
+        )
+        piece.Sketch.Placement = piece.Placement
+        piece.Sketch.ViewObject.Visibility = False
+        return piece
+
+    front = make_piece("RealtimeTunicFront", center_y - clearance)
+    back = make_piece("RealtimeTunicBack", center_y + clearance)
+    for edge_a, edge_b, seam_id in (
+        (1, 1, "RealtimeRightSide"),
+        (2, 2, "RealtimeRightShoulder"),
+        (6, 6, "RealtimeLeftShoulder"),
+        (7, 7, "RealtimeLeftSide"),
+    ):
+        add_seam(
+            doc,
+            Seam(
+                str(front.PieceId),
+                edge_a,
+                str(back.PieceId),
+                edge_b,
+                id=seam_id,
+                alignment="uniform",
+                stitch_group="RealtimePreviewBenchmark",
+            ),
+        )
+    Gui.Selection.clearSelection()
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    scene.ClothPieces = [front, back]
+    scene.StartHeight = 0.0
+    scene.TimeStep = 1.0 / 60.0
+
+
 def _percentile(values: list[float], fraction: float) -> float | None:
     """Return a nearest-rank percentile, or None when no samples were collected."""
     if not values:
@@ -71,6 +171,7 @@ def main() -> None:
         )
         Gui.updateGui()
         scene = create_quality_simulation_scene(doc)
+        _add_tunic_preview_fixture(doc, scene)
         _prepare(scene)
 
         proxy = scene.Proxy
@@ -146,6 +247,10 @@ def main() -> None:
         backend_finite = bool(backend.finite())
         published_state_finite = bool(getattr(scene, "FiniteState", False))
         expected_ticks = WARMUP_FRAMES + FRAMES
+        panels = tuple(getattr(scene, "DrapePanels", ()))
+        collision_surface = getattr(backend, "solver_collision_surface", None)
+        particle_count = len(backend.positions())
+        collision_triangles = len(getattr(collision_surface, "triangles", ()))
         profile = {
             "quality_preset": str(scene.QualityPreset),
             "particle_distance_mm": float(scene.ParticleDistance),
@@ -153,6 +258,11 @@ def main() -> None:
             "solver_substeps": int(scene.SolverSubsteps),
             "pbd_substeps": int(getattr(backend, "_substeps", 1)),
         }
+        fixture_pass = (
+            particle_count >= 100
+            and len(panels) == 2
+            and collision_triangles > 0
+        )
         profile_pass = (
             profile["quality_preset"] == "Fast"
             and profile["particle_distance_mm"] >= 40.0
@@ -169,7 +279,14 @@ def main() -> None:
         )
         accounting_pass = tick_count == expected_ticks and frames_advanced == tick_count
         finite_pass = backend_finite and published_state_finite
-        passed = not timed_out and profile_pass and cadence_pass and accounting_pass and finite_pass
+        passed = (
+            not timed_out
+            and fixture_pass
+            and profile_pass
+            and cadence_pass
+            and accounting_pass
+            and finite_pass
+        )
 
         try:
             freecad_version = ".".join(str(part) for part in App.Version())
@@ -179,6 +296,10 @@ def main() -> None:
         result = {
             "schema_version": 1,
             "backend": getattr(backend, "name", "unknown"),
+            "fixture": "two-panel-tunic-pattern",
+            "particles": particle_count,
+            "panel_count": len(panels),
+            "collision_triangles": collision_triangles,
             "target_fps": TARGET_FPS,
             "frame_budget_ms": FRAME_BUDGET_MS,
             "frames_requested": FRAMES,
