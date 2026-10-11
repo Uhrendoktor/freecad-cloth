@@ -60,9 +60,7 @@ def set_drape_target_source(scene, source, thickness=2.0, deflection=1.0):
         else "FreeCAD Geometry"
     )
     if target is None:
-        target = create_drape_target(
-            doc, source, target_type, float(deflection), float(thickness)
-        )
+        target = create_drape_target(doc, source, target_type, float(deflection), float(thickness))
     else:
         target.CollisionDeflection = float(deflection)
         target.CollisionThickness = float(thickness)

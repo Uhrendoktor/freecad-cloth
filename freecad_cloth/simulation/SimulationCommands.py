@@ -167,6 +167,7 @@ def simulation_status():
     finite = bool(getattr(scene, "FiniteState", True))
     target = _find_drape_target(doc)
     from freecad_cloth.simulation.DrapeTarget import target_status
+
     target_info = target_status(target)
     target_info = {
         "blocked": target_info["state"]
