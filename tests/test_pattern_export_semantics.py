@@ -192,7 +192,6 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     assert root.attrib["height"].endswith("mm")
 
 
-
 def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = add_notches(
@@ -201,7 +200,9 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     )
     svg = to_svg(pattern, derived=derived)
     root = ElementTree.fromstring(svg)
-    cut_path = next(element for element in root.iter() if element.attrib.get("id") == "cut-perimeter")
+    cut_path = next(
+        element for element in root.iter() if element.attrib.get("id") == "cut-perimeter"
+    )
     coordinates = [
         (float(x), float(y))
         for x, y in re.findall(
@@ -418,7 +419,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
             assert 'data-notch-ids="notch-front"' in payload
             assert 'id="mark-grain-front"' in payload
             assert 'id="mark-mark-front"' in payload
-            assert '55.000000,67.000000' in payload
+            assert "55.000000,67.000000" in payload
             assert 'cx="55.000000" cy="65.000000"' not in payload
             assert 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload
         else:
