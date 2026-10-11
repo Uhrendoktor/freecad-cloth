@@ -142,7 +142,9 @@ class MeshCollisionProjector:
         edge_bc = c - b
         edge_ca = a - c
 
-        def closest_on_edge(start: np.ndarray, edge: np.ndarray) -> np.ndarray:
+        def closest_on_edge(
+            start: npt.NDArray[np.float64], edge: npt.NDArray[np.float64]
+        ) -> npt.NDArray[np.float64]:
             start_to_point = p - start
             edge_length_squared = np.einsum("nkd,nkd->nk", edge, edge)
             parameter = np.divide(
@@ -166,7 +168,7 @@ class MeshCollisionProjector:
             "nked,nked->nke", p[:, :, None, :] - edge_points, p[:, :, None, :] - edge_points
         )
         closest_edge_index = np.argmin(edge_distances, axis=2)
-        row_indices = np.arange(points.shape[0])[:, None]
+        row_indices = np.arange(active_points.shape[0])[:, None]
         candidate_slots = np.arange(self._candidate_count)[None, :]
         projected_edge = edge_points[row_indices, candidate_slots, closest_edge_index]
         closest = np.where(barycentric_inside[:, :, None], projected_plane, projected_edge)
