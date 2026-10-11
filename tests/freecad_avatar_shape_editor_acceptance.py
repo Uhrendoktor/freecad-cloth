@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
-import os
 import sys
 import traceback
 from pathlib import Path
@@ -306,10 +306,8 @@ def run():
         doc.recompute()
     finally:
         if Gui.Control.activeDialog():
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError):
                 Gui.Control.closeDialog()
-            except (AttributeError, RuntimeError):
-                pass
         if App.ActiveDocument is not None and App.ActiveDocument.Name == doc.Name:
             App.closeDocument(doc.Name)
 
