@@ -5,7 +5,8 @@ import json
 import pytest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
-from freecad_cloth.avatar.HierarchicalPose import transform_landmarks
+from freecad_cloth.avatar.HierarchicalPose import pose_world_state, transform_landmarks
+from freecad_cloth.avatar.HumanoidMesh import _bone_source_endpoints
 from freecad_cloth.avatar.SkeletonPose import (
     CONTROLLABLE_BONES,
     AffineTransform,
@@ -17,6 +18,21 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_to_json,
     _compose,
 )
+
+
+def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes():
+    baseline = AvatarParameters()
+    hip_changed = baseline.with_measurements(hip=baseline.measurement("hip") + 120.0)
+    padded = AvatarParameters(skin_offset=8.0)
+    source, skeleton, baseline_mapper, _ = pose_world_state(baseline)
+
+    for variant in (hip_changed, padded):
+        variant_source, variant_skeleton, variant_mapper, _ = pose_world_state(variant)
+        assert variant_skeleton == skeleton
+        for bone_name in ("head", "neck01", "spine05", "clavicle.L"):
+            for point in _bone_source_endpoints(source, skeleton, bone_name):
+                assert baseline_mapper(point) == pytest.approx(variant_mapper(point))
+        assert variant_source == source
 
 
 def test_joint_rotation_bounds_and_mirror():
