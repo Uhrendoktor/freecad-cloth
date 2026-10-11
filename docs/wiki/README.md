@@ -12,7 +12,7 @@ This wiki-style manual is organised around reader tasks. Start with setup if you
 | Fix a missing workbench, invalid seam, wrong arrangement, or stale simulation | [Troubleshooting](../TROUBLESHOOTING.md) |
 | Find user-facing command behavior | [Workbench guide](../WORKBENCH_GUIDE.md) |
 
-The recommended learning sequence is **Sketcher pattern → semantic seams → fitting arrangement → optional mannequin pose → simulation → multi-view diagnosis**. Start with a simple collision target before adding a complete garment or mannequin.
+The recommended learning sequence is **Sketcher pattern → semantic seams → avatar shape and dimensions → fitting arrangement → optional mannequin pose → simulation → multi-view diagnosis**. Set up the human target before fitting fabric. Start with a simple collision target when diagnosing basic cloth behavior.
 
 ## Follow the workflow
 
@@ -22,10 +22,11 @@ The overview shows the complete sequence and the resulting visual states. Each s
 | --- | --- | --- |
 | 1. Pattern | [Author a pattern piece](01-pattern.md) | Native Sketcher-backed geometry |
 | 2. Sewing | [Create and inspect seams](02-sewing.md) | Seam assignment and A/B identity |
-| 3. Fitting | [Arrange and snap pieces](03-fitting.md) | Drag preview and committed placement |
-| 4. Pose | [Pose the mannequin](04-pose.md) | Joint selection and rotation gizmo |
-| 5. Simulation | [Run a cloth simulation](05-simulation.md) | Arranged garment, motion, and final drape |
-| 6. Diagnosis | [Inspect the result](06-diagnostics.md) | Diagnostic map and six-side audit |
+| 3. Avatar shape | [Edit body shape and dimensions](09-avatar-shape.md) | Shape sliders, measurement rings, and staged dimension drag |
+| 4. Fitting | [Arrange and snap pieces](03-fitting.md) | Drag preview and committed placement |
+| 5. Pose | [Pose the mannequin](04-pose.md) | Joint selection and rotation gizmo |
+| 6. Simulation | [Run a cloth simulation](05-simulation.md) | Arranged garment, motion, and final drape |
+| 7. Diagnosis | [Inspect the result](06-diagnostics.md) | Diagnostic map and six-side audit |
 
 ## Understand and audit the result
 
