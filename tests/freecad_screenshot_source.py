@@ -1104,13 +1104,27 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
                 edge_b_id = str(getattr(seam, "EdgeBId", ""))
                 sketch_a = getattr(piece_a, "Sketch", None)
                 sketch_b = getattr(piece_b, "Sketch", None)
-                ids_a = tuple(str(value) for value in (getattr(sketch_a, "SemanticEdgeIds", ()) or ()))
-                ids_b = tuple(str(value) for value in (getattr(sketch_b, "SemanticEdgeIds", ()) or ()))
-                seam_diagnostics.append((
-                    seam_id, status, bool(shape_is_null), edge_a_id, edge_b_id,
-                    tuple(index for index, value in enumerate(ids_a) if value == edge_a_id),
-                    tuple(index for index, value in enumerate(ids_b) if value == edge_b_id),
-                ))
+                ids_a = tuple(
+                    str(value) for value in (getattr(sketch_a, "SemanticEdgeIds", ()) or ())
+                )
+                ids_b = tuple(
+                    str(value) for value in (getattr(sketch_b, "SemanticEdgeIds", ()) or ())
+                )
+                seam_diagnostics.append(
+                    (
+                        seam_id,
+                        status,
+                        bool(shape_is_null),
+                        edge_a_id,
+                        edge_b_id,
+                        tuple(
+                            index for index, value in enumerate(ids_a) if value == edge_a_id
+                        ),
+                        tuple(
+                            index for index, value in enumerate(ids_b) if value == edge_b_id
+                        ),
+                    )
+                )
         if invalid_seams:
             raise RuntimeError(
                 "canonical tunic has invalid semantic seams before Sewing capture: "
