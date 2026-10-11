@@ -335,7 +335,7 @@ jobs:
             artifacts/freecad-realtime/**
             artifacts/pypbd-provenance.txt
           environment: |
-            CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:

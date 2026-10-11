@@ -177,6 +177,8 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert "SolverSubsteps = 1" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in workflow
+    tunic_workflow = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
+    assert "CLOTH_PBD_SUBSTEPS=16" in tunic_workflow
     assert 'os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source
     assert "CLOTH_PBD_SUBSTEPS: 8" in workflow
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
