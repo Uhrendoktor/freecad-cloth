@@ -23,6 +23,7 @@ from freecad_cloth.pattern.PatternExport import (
     to_svg,
     validate_export,
     validate_pdf_export,
+    validate_svg_export,
 )
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -219,6 +220,48 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     assert root.attrib["width"].endswith("mm")
     assert root.attrib["height"].endswith("mm")
 
+
+
+def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Path) -> None:
+    pattern = rectangle(100.0, 60.0)
+    derived = derive_cut_boundary(pattern, 5.0)
+    svg = to_svg(pattern, derived=derived)
+    png_path = tmp_path / "rendered-pattern.png"
+
+    result = validate_svg_export(
+        pattern,
+        svg,
+        derived=derived,
+        dpi=144,
+        output_path=png_path,
+    )
+
+    assert result["valid"] is True
+    report = result["render"]
+    assert report["valid"] is True
+    assert report["renderer"] == "QtSvg"
+    assert report["physical_width_mm"] == 110.0
+    assert report["physical_height_mm"] == 70.0
+    assert report["viewbox"] == [0.0, 0.0, 110.0, 70.0]
+    assert report["raster_width_px"] == 624
+    assert report["raster_height_px"] == 397
+    assert report["ink_pixel_count"] > 100
+    assert report["ink_bounds_px"][2] >= report["ink_bounds_px"][0]
+    assert report["ink_bounds_px"][3] >= report["ink_bounds_px"][1]
+    assert png_path.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    assert report["png_path"] == str(png_path)
+
+
+def test_svg_render_validation_rejects_physical_dimension_drift() -> None:
+    from freecad_cloth.pattern.PatternSvgValidation import render_svg_for_validation
+
+    svg = to_svg(rectangle(100.0, 60.0))
+    root = ElementTree.fromstring(svg)
+    original_width = root.attrib["width"]
+    malformed = svg.replace(f'width="{original_width}"', 'width="101mm"', 1)
+
+    with TestCase().assertRaisesRegex(ValueError, "physical width does not match its viewBox"):
+        render_svg_for_validation(malformed)
 
 def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     pattern = rectangle(100.0, 60.0)
