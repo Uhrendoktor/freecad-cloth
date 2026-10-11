@@ -11,6 +11,7 @@
 | Example ladder | [EXAMPLES.md](EXAMPLES.md) contains basic and advanced paths |
 | Python quality | canonical non-GUI test set and compileall pass |
 | Native FreeCAD GUI | Xvfb workbench smoke tests pass |
+| Realtime preview performance | Fast-profile benchmark records >= 120 measured timer intervals; mean and p95 are <= 33.33 ms with finite state and exact tick/step accounting |
 | Sewing visuals | semantic seams render in 2D and 3D with deterministic colors |
 | Simulation geometry | drape metrics, connected-component checks and mesh spike/footprint sanity pass |
 | Turntable integrity | 73-frame arranged and final-drape turntables pass |
