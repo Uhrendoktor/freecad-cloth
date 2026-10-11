@@ -1091,6 +1091,8 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             seam.ViewObject.Visibility = True
         doc.recompute()
 
+        from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+
         invalid_seams = []
         seam_diagnostics = []
         for seam, piece_a, piece_b in seam_records:
@@ -1098,10 +1100,21 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             status = str(getattr(seam, "Status", ""))
             shape = getattr(seam, "Shape", None)
             shape_is_null = getattr(shape, "isNull", lambda: True)()
+            edge_a_id = str(getattr(seam, "EdgeAId", ""))
+            edge_b_id = str(getattr(seam, "EdgeBId", ""))
+            reference_errors = []
+            for prefix, piece, edge_id, signature in (
+                ("A", piece_a, edge_a_id, str(getattr(seam, "EdgeASignature", ""))),
+                ("B", piece_b, edge_b_id, str(getattr(seam, "EdgeBSignature", ""))),
+            ):
+                try:
+                    _resolve_document_edge(piece, edge_id, signature)
+                except Exception as exc:
+                    reference_errors.append(
+                        (prefix, type(exc).__name__, str(exc))
+                    )
             if status != "Valid" or shape_is_null:
                 invalid_seams.append(seam_id)
-                edge_a_id = str(getattr(seam, "EdgeAId", ""))
-                edge_b_id = str(getattr(seam, "EdgeBId", ""))
                 sketch_a = getattr(piece_a, "Sketch", None)
                 sketch_b = getattr(piece_b, "Sketch", None)
                 ids_a = tuple(
@@ -1123,6 +1136,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
                         tuple(
                             index for index, value in enumerate(ids_b) if value == edge_b_id
                         ),
+                        tuple(reference_errors),
                     )
                 )
         if invalid_seams:
