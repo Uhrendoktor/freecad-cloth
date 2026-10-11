@@ -228,15 +228,23 @@ replacements = {
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
     "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 4; log("tunic-solver=particle-distance-24 iterations-8 substeps=4");',
-    """    def target_relative_piece_placement(side):
+    """    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
+    back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
+
+    def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
         else:
             raise ValueError("tunic target-relative side must be front or back")
-        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
-""": """    panel_origin_x = x_mid - hem_width / 2.0
+        rotation = front_rot if side == "front" else back_rot
+        return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rotation)
+""": """    front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)
+    back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)
+    log("tunic-panel-orientation front-deg=80 back-deg=100")
+
+    panel_origin_x = x_mid - hem_width / 2.0
     torso_half_width = max(80.0, 0.30 * shoulder_width)
 
     def target_relative_piece_placement(side, outline):
@@ -269,7 +277,8 @@ replacements = {
                 x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
             )
         )
-        return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
+        rotation = front_rot if side == "front" else back_rot
+        return App.Placement(App.Vector(panel_origin_x, y, hem_z), rotation)
 """,
     "piece.Placement = target_relative_piece_placement(side)": "piece.Placement = target_relative_piece_placement(side, outline)",
     "upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))": "upper_margin = 0.17 * max(1.0, float(shoulder_z) - float(hem_z))",
