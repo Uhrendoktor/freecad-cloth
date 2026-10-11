@@ -7,10 +7,11 @@ import ctypes.util
 import io
 import os
 import time
+from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from types import ModuleType, TracebackType
-from typing import TYPE_CHECKING, Callable, Protocol, TypeAlias, cast
+from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PillowImage
@@ -241,11 +242,11 @@ def _x_button_number(QtCore: ModuleType, button: QtInputValue | None) -> int:
             return 2
         if name in {"BUTTON3", "RIGHT"}:
             return 3
-    if button is None or button == getattr(QtCore.Qt, "LeftButton"):
+    if button is None or button == QtCore.Qt.LeftButton:
         return 1
-    if button == getattr(QtCore.Qt, "MiddleButton"):
+    if button == QtCore.Qt.MiddleButton:
         return 2
-    if button == getattr(QtCore.Qt, "RightButton"):
+    if button == QtCore.Qt.RightButton:
         return 3
     raise ValueError("unsupported X11 mouse button: " + repr(button))
 
@@ -320,8 +321,8 @@ def _button_and_modifiers(
     QtCore: ModuleType, button: QtInputValue | None, modifiers: QtInputValue | None
 ) -> tuple[QtInputValue, QtInputValue]:
     """Resolve default Qt mouse button and modifier values across Qt bindings."""
-    resolved_button = getattr(QtCore.Qt, "LeftButton") if button is None else button
-    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    resolved_button = QtCore.Qt.LeftButton if button is None else button
+    resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
     return cast(QtInputValue, resolved_button), cast(QtInputValue, resolved_modifiers)
 
 
@@ -392,7 +393,7 @@ def click_viewport(
 ) -> None:
     """Inject a native viewport click; use semantic selection APIs in unsupported Pivy builds."""
     QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
-    modifiers = getattr(QtCore.Qt, "ControlModifier") if additive else None
+    modifiers = QtCore.Qt.ControlModifier if additive else None
     mouse_press(widget, position, button=button, modifiers=modifiers)
     mouse_release(widget, position, button=button)
     app = QtWidgets.QApplication.instance()
@@ -470,7 +471,7 @@ def key_press(
 ) -> None:
     """Inject a keyboard press event into the focused widget."""
     QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
-    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
     QtTest.QTest.keyPress(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
 
 
@@ -492,11 +493,11 @@ def type_text(
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
-    QtTest.QTest.keyClicks(widget, str(text), getattr(QtCore.Qt, "NoModifier"), max(0, delay_ms))
+    QtTest.QTest.keyClicks(widget, str(text), QtCore.Qt.NoModifier, max(0, delay_ms))
     if press_enter:
         enter_key = getattr(QtCore.Qt, "Key_Enter", None)
         if enter_key is None:
-            enter_key = getattr(QtCore.Qt, "Key_Return")
+            enter_key = QtCore.Qt.Key_Return
         QtTest.QTest.keyClick(widget, enter_key, delay=max(0, delay_ms))
     if app is not None:
         app.processEvents()
@@ -511,7 +512,7 @@ def key_release(
 ) -> None:
     """Inject a keyboard release event into the focused widget."""
     QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
-    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
     QtTest.QTest.keyRelease(widget, _resolve_key(QtCore, key), resolved_modifiers, max(0, delay_ms))
 
 
@@ -525,7 +526,7 @@ def key_click(
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
         raise RuntimeError("cannot send keyboard input to a hidden or disabled widget")
-    resolved_modifiers = getattr(QtCore.Qt, "NoModifier") if modifiers is None else modifiers
+    resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
     window = widget.window()
     if window is not None:
         raise_window = getattr(window, "raise_", None)
@@ -598,7 +599,7 @@ def write_gif(
         frames = [frames[0], frames[0].copy()]
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    adaptive = getattr(getattr(Image, "Palette", Image), "ADAPTIVE")
+    adaptive = getattr(Image, "Palette", Image).ADAPTIVE
     converted = [
         frame.convert("RGB").convert("P", palette=adaptive, colors=max_colors) for frame in frames
     ]
@@ -710,7 +711,7 @@ class UiGifRecorder:
                 )
         width = max(1, int(frame.width * self.scale))
         height = max(1, int(frame.height * self.scale))
-        resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+        resampling = getattr(Image, "Resampling", Image).LANCZOS
         if frame.size != (width, height):
             frame = frame.resize((width, height), resampling)
         self.frames.append(frame)
