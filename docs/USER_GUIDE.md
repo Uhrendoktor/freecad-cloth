@@ -6,7 +6,7 @@ For your first complete garment, follow the tunic workflow below. Keep [Blanket 
 
 ## The complete workflow
 
-**Pattern → Sewing → Fitting → Pose (optional) → Simulation → Diagnosis → Edit → Rebuild**
+**Pattern → Sewing → Avatar shape and dimensions → Fitting → Pose (optional) → Simulation → Diagnosis → Edit → Rebuild**
 
 The screenshots and recordings are optional visual aids. Each procedure below describes the required action and the result to verify without relying on animation.
 
@@ -22,9 +22,14 @@ The simplest supported human target is the bundled MakeHuman mannequin.
 
 ### Edit body shape and dimensions
 
-Open **Avatar & Fitting → Edit Avatar**. In **Body shape**, adjust the feminine-to-masculine proportion blend and breast fullness; the exact values and all measurements remain editable in the task panel. For viewport-first editing, keep **3D Dimensions** enabled and drag the highlighted handles for total height, shoulder breadth, chest, waist or hip. Chest, waist and hip show circumference rings; dragging a handle stages the corresponding millimetre value. The viewport controls are transient and do not create document geometry.
+Do this before arranging pattern pieces so their target reflects the intended body proportions. Open **Avatar & Fitting → Edit Avatar** (also available under **Cloth Sewing → Fitting & Avatar**).
 
-Use **Apply & Rebuild** to commit the staged body parameters and regenerate the mannequin and fitting landmarks. Cancel discards staged edits. Shape controls apply to the built-in MakeHuman mannequin only; they are disabled for the FreeCAD-geometry provider, whose imported surface is not parametrically deformed.
+1. In **Body shape**, move **Gender blend** from feminine through neutral to masculine to adjust broad proportions. Set **Breast fullness** independently when extra front projection is needed.
+2. Keep **3D Dimensions** enabled and drag the viewport handles for height, shoulder breadth, chest, waist, or hip. The chest, waist, and hip rings represent circumferences. The task-panel **Body measurements** and **Proportions** fields remain available for precise values.
+3. Review the staged readouts, then choose **Apply & Rebuild**. The operation commits shape values and rebuilds the mannequin and derived fitting landmarks; Cancel discards uncommitted edits.
+4. Save and reopen the FCStd document before continuing. Inspect front, rear, and side silhouettes and confirm the named measurement properties are still correct. If a fitting anchor becomes stale after any change, recreate it before snapping fabric.
+
+See the [Avatar shape and dimensions tutorial](wiki/09-avatar-shape.md) for the illustrated walkthrough and [Prepare a mannequin for sewing](EXAMPLES.md#3-prepare-a-mannequin-for-sewing) for a small reproducible example. The current shape controls apply to the bundled MakeHuman mannequin only. An imported FreeCAD surface is used as geometry and is not parametrically reshaped.
 
 ## 1. Create the 2D pattern source
 
