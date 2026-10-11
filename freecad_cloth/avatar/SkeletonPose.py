@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from collections.abc import Callable, Iterable, Mapping
 from typing import NotRequired, TypedDict
 
+
 class JointRotationInput(TypedDict):
     """Dictionary input accepted by the persistent joint-rotation API."""
 
@@ -205,9 +206,15 @@ class AffineTransform:
         """Return the inverse of this rigid affine transform."""
         m = self.matrix
         inverse_matrix = (
-            m[0], m[3], m[6],
-            m[1], m[4], m[7],
-            m[2], m[5], m[8],
+            m[0],
+            m[3],
+            m[6],
+            m[1],
+            m[4],
+            m[7],
+            m[2],
+            m[5],
+            m[8],
         )
         tx, ty, tz = self.translation
         inverse_translation = (
