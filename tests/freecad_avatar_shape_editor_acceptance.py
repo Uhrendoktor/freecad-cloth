@@ -89,7 +89,7 @@ def _camera_signature(view):
     signature = {}
     for name in ("position", "orientation", "focalDistance", "height", "heightAngle"):
         match = re.search(
-            r"(?m)^\s*{}\s+([^\r\n]+)".format(re.escape(name)),
+            rf"(?m)^\s*{re.escape(name)}\s+([^\r\n]+)",
             camera_text,
         )
         if match:
@@ -111,9 +111,7 @@ def _assert_camera_stable(before, after):
             for old, new in zip(old_values, new_values, strict=True)
         ):
             raise RuntimeError(
-                "avatar rebuild changed camera framing: {} {} -> {}".format(
-                    name, old_values, new_values
-                )
+                f"avatar rebuild changed camera framing: {name} {old_values} -> {new_values}"
             )
 
 
