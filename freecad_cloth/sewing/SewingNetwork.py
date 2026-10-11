@@ -7,7 +7,7 @@ sub-ranges of an edge, so the same machinery handles free sewing and 1:1,
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingCorrespondence import (
@@ -16,7 +16,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
 )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SewingMember:
     """One directed segment participating in a sewing relationship."""
 
