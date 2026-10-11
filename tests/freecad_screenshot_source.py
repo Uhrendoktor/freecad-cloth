@@ -55,10 +55,7 @@ def ensure_task_view_visible():
     if window is None:
         raise RuntimeError("FreeCAD main window is unavailable")
     for dock in window.findChildren(QtWidgets.QDockWidget):
-        if (
-            dock.objectName() == "Tasks"
-            or "task" in str(dock.windowTitle()).lower()
-        ):
+        if dock.objectName() == "Tasks" or "task" in str(dock.windowTitle()).lower():
             dock.show()
             dock.raise_()
             events()
