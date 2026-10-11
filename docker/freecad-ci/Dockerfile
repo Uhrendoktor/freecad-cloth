@@ -112,7 +112,8 @@ from dataclasses import replace
 from pathlib import Path
 
 import torch
-from anny import Anny, RigConfig, TopologyConfig
+from anny import Anny
+from anny.models.model_data import RigConfig, TopologyConfig
 from anny.paths import get_anny_root_dir
 from clad_body.load.anny import build_anny_apose
 
