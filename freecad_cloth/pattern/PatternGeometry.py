@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable, Sequence
 from math import hypot, isfinite
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.errors import GEOSException
 from shapely.geometry import Polygon
