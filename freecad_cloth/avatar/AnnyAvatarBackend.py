@@ -173,8 +173,8 @@ def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
-) -> MeshData:
-    """Fit an Anny body with the published differentiable measurements."""
+) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
+    """Fit an Anny body and preserve every indexed vertex for rig anchors."""
     try:
         import anny
         import torch
@@ -393,18 +393,23 @@ def _fit_anny_body(
             f"received {len(all_vertices)}."
         )
 
-    # Anny retains unreferenced HM08 helper vertices so its rig index map stays
-    # compatible with MakeHuman. Cloth must expose only the canonical visible
-    # body surface: the first 13,380 vertices and triangles whose three indices
-    # refer to that body prefix, matching parse_obj()'s existing mesh contract.
-    vertices: tuple[tuple[float, float, float], ...] = tuple(
+    # The fitted Anny array retains the complete source-index space, including
+    # unreferenced HM08 helper vertices used by the authored MakeHuman skeleton.
+    # These vertices are necessary for rig joint anchors but must not be shown
+    # as anatomy: the public surface remains the first 13,380 body vertices.
+    rig_vertices: tuple[tuple[float, float, float], ...] = tuple(
         (
-            float(all_vertices[index][0]) * 1000.0,
-            float(all_vertices[index][1]) * 1000.0,
-            float(all_vertices[index][2]) * 1000.0,
+            float(vertex[0]) * 1000.0,
+            float(vertex[1]) * 1000.0,
+            float(vertex[2]) * 1000.0,
         )
-        for index in range(MAKEHUMAN_BODY_VERTEX_COUNT)
+        for vertex in all_vertices
     )
+    if len(base_ids) != len(rig_vertices) or base_ids != list(range(len(base_ids))):
+        raise AnnyAvatarBackendError(
+            "Anny's full vertex index map does not preserve the original HM08 rig index space."
+        )
+    vertices = rig_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT]
     triangles: tuple[tuple[int, int, int], ...] = tuple(
         (int(face[0]), int(face[1]), int(face[2]))
         for face in fitted_body.faces
@@ -420,7 +425,7 @@ def _fit_anny_body(
         result.validate()
     except (TypeError, ValueError, RuntimeError) as exc:
         raise AnnyAvatarBackendError(f"Anny produced an invalid body mesh: {exc}") from exc
-    return result
+    return result, rig_vertices
 
 
 @lru_cache(maxsize=16)
@@ -428,9 +433,27 @@ def _cached_fitted_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
-) -> MeshData:
-    """Cache fitted rest-pose bodies so Pose Mode doesn't refit per viewport event."""
+) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
+    """Cache fitted surface and full rig vertices so viewport events do not refit."""
     return _fit_anny_body(measurements, gender, breast_size)
+
+
+def _fitted_body_for(parameters: AvatarParameters) -> tuple[
+    MeshData, tuple[tuple[float, float, float], ...]
+]:
+    """Return the cached visible surface and complete rig-indexed fitted vertices."""
+    key = tuple(
+        sorted((str(name), float(value)) for name, value in parameters.measurements.items())
+    )
+    return _cached_fitted_body(key, float(parameters.gender), float(parameters.breast_size))
+
+
+def build_avatar_rig_vertices(
+    parameters: AvatarParameters,
+) -> tuple[tuple[float, float, float], ...]:
+    """Return all fitted Anny vertices in millimetres for legacy rig joint indices."""
+    _mesh, rig_vertices = _fitted_body_for(parameters)
+    return rig_vertices
 
 
 def build_avatar_shape_mesh(
@@ -439,10 +462,7 @@ def build_avatar_shape_mesh(
     include_skin_offset: bool = True,
 ) -> MeshData:
     """Return a cached Anny mannequin in millimetres and its native triangulation."""
-    key = tuple(
-        sorted((str(name), float(value)) for name, value in parameters.measurements.items())
-    )
-    mesh = _cached_fitted_body(key, float(parameters.gender), float(parameters.breast_size))
+    mesh, _rig_vertices = _fitted_body_for(parameters)
     if not include_skin_offset or parameters.skin_offset <= 0:
         return mesh
 
