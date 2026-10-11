@@ -14,6 +14,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
@@ -54,7 +58,11 @@ def parse_target(text: str, name: str = "<memory>") -> MakeHumanTarget:
         if not all(math.isfinite(value) for value in offset):
             raise ValueError(f"{name}:{line_number}: offsets must be finite")
         prior = collected.get(index, (0.0, 0.0, 0.0))
-        collected[index] = tuple(prior[axis] + offset[axis] for axis in range(3))
+        collected[index] = (
+            prior[0] + offset[0],
+            prior[1] + offset[1],
+            prior[2] + offset[2],
+        )
     return MakeHumanTarget(str(name), tuple(sorted(collected.items())))
 
 
@@ -88,7 +96,9 @@ def target_directory() -> Path | None:
     configured = os.environ.get(TARGETS_ENV, "").strip()
     if configured:
         base = Path(configured).expanduser()
-        candidates.extend((base / "targets", base / "data" / "targets", base / "base" / "targets", base))
+        candidates.extend(
+            (base / "targets", base / "data" / "targets", base / "base" / "targets", base)
+        )
     home = Path.home()
     candidates.extend(
         (
@@ -135,6 +145,8 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Pat
     if base is None or not base.is_dir():
         return None
     cleaned = str(name).replace("\\", "/").strip().lstrip("/")
+    if ".." in Path(cleaned).parts:
+        return None
     for suffix in (".target.gz", ".target"):
         if cleaned.endswith(suffix):
             cleaned = cleaned[:-len(suffix)]
@@ -180,7 +192,9 @@ def apply_targets(
     return tuple((point[0], point[1], point[2]) for point in mutable)
 
 
-def apply_measurement_targets(vertices: Sequence[Point], parameters: object) -> tuple[Point, ...]:
+def apply_measurement_targets(
+    vertices: Sequence[Point], parameters: AvatarParameters
+) -> tuple[Point, ...]:
     """Apply compatible body targets before exact circumference fitting.
 
     Directional measurement targets improve local anatomy; the mesh fitter then
@@ -194,14 +208,14 @@ def apply_measurement_targets(vertices: Sequence[Point], parameters: object) -> 
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     weights: dict[str, float] = {}
-    gender = float(getattr(parameters, "gender", 0.5))
+    gender = float(parameters.gender)
     female_name = "macrodetails/gender/female"
     male_name = "macrodetails/gender/male"
     if resolve_target(female_name, root) and resolve_target(male_name, root):
         weights[female_name] = 1.0 - gender
         weights[male_name] = gender
 
-    breast_size = float(getattr(parameters, "breast_size", 0.0))
+    breast_size = float(parameters.breast_size)
     if breast_size > 0:
         breast_name = "breast/breast-dist-incr"
         if resolve_target(breast_name, root):
@@ -220,7 +234,7 @@ def apply_measurement_targets(vertices: Sequence[Point], parameters: object) -> 
         ("ankle", "measure-ankle-circ"),
         ("neck", "measure-neck-circ"),
     )
-    measurement = getattr(parameters, "measurement")
+    measurement = parameters.measurement
     for parameter_name, target_base in measurement_targets:
         default = float(DEFAULT_MEASUREMENTS[parameter_name])
         desired = float(measurement(parameter_name))
