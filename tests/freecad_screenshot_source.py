@@ -952,12 +952,6 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         piece.Name: App.Placement(piece.Placement.Base, piece.Placement.Rotation)
         for piece in pieces
     }
-    original_sketch_placements = {
-        piece.Sketch.Name: App.Placement(
-            piece.Sketch.Placement.Base, piece.Sketch.Placement.Rotation
-        )
-        for piece in pieces
-    }
     original_visibility = {}
     for obj in doc.Objects:
         view_object = getattr(obj, "ViewObject", None)
@@ -1066,10 +1060,12 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             original_visibility[obj.Name] = bool(view_object.Visibility)
 
     sewing = None
+    preview_sketches = []
     gap = max(80.0, 0.15 * float(hem_width))
     try:
-        # Reuse the exact native Sketcher sources used by the drape. Only their
-        # placements and visibility change for the flat Sewing-workbench capture.
+        # Keep the semantic source sketches at their authored placements: moving a
+        # Sketcher object changes the geometry/provenance fingerprints used by persistent
+        # seam references. Duplicate only the display geometry for this flat screenshot.
         for obj in doc.Objects:
             view_object = getattr(obj, "ViewObject", None)
             if view_object is not None and hasattr(view_object, "Visibility"):
@@ -1080,13 +1076,26 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         )
         back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
-        front.Sketch.Placement = front_placement
         back.Placement = back_placement
-        back.Sketch.Placement = back_placement
         front.ViewObject.Visibility = False
         back.ViewObject.Visibility = False
-        front.Sketch.ViewObject.Visibility = True
-        back.Sketch.ViewObject.Visibility = True
+
+        import Sketcher
+
+        for piece, placement, preview_name in (
+            (front, front_placement, "VisualTunicFrontSewingPreviewSketch"),
+            (back, back_placement, "VisualTunicBackSewingPreviewSketch"),
+        ):
+            preview = doc.addObject("Sketcher::SketchObject", preview_name)
+            preview.addGeometry(list(piece.Sketch.Geometry), False)
+            preview.addConstraint(
+                [Sketcher.Constraint("Block", index) for index in range(len(preview.Geometry))]
+            )
+            preview.Placement = placement
+            preview.Label = preview_name
+            preview.ViewObject.Visibility = True
+            preview_sketches.append(preview)
+
         for seam, _piece_a, _piece_b in seam_records:
             seam.ViewObject.Visibility = True
         doc.recompute()
@@ -1170,7 +1179,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         save(
             "cloth-sewing.png",
             "Sewing Workbench canonical tunic",
-            "same native Sketcher profiles and semantic seams used by the canonical 3D tunic audit",
+            "flat display copies of canonical Sketcher profiles with persistent source sketches and seam references unchanged",
         )
         log(
             "canonical-tunic-sewing=passed front=%s back=%s seam-ids=%s"
@@ -1184,9 +1193,11 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         close_task()
         if sewing is not None:
             sewing.ViewObject.Visibility = False
+        for preview in preview_sketches:
+            if doc.getObject(preview.Name) is not None:
+                doc.removeObject(preview.Name)
         for piece in pieces:
             piece.Placement = original_piece_placements[piece.Name]
-            piece.Sketch.Placement = original_sketch_placements[piece.Sketch.Name]
         for obj in doc.Objects:
             if obj.Name in original_visibility:
                 obj.ViewObject.Visibility = original_visibility[obj.Name]
