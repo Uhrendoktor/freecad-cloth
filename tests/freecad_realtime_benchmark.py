@@ -154,7 +154,7 @@ def main() -> None:
     except ImportError:
         from PySide2 import QtWidgets
 
-    from freecad_cloth.simulation.RealtimePreview import _Preview, _prepare, _qt
+    from freecad_cloth.simulation.RealtimePreview import _prepare, _Preview, _qt
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     qt_core = _qt()
