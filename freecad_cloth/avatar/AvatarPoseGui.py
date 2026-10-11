@@ -860,7 +860,12 @@ class SkeletonPoseController:
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
-    PRESETS = (("standing", "Standing"), ("sewing", "Sewing"), ("sitting", "Sitting"))
+    PRESETS = (
+        ("t_pose", "T-pose"),
+        ("standing", "Standing"),
+        ("sewing", "Sewing"),
+        ("sitting", "Sitting"),
+    )
 
     def __init__(self, avatar=None):
         App, Gui, QtCore, QtWidgets = _modules()
@@ -1205,6 +1210,9 @@ class AvatarPoseTaskPanel:
             measurements,
             float(getattr(self.avatar, "SkinOffset", 0.0)),
             current_pose,
+            3,
+            float(getattr(self.avatar, "GenderBlend", 0.5)),
+            float(getattr(self.avatar, "BreastSize", 0.0)),
         )
 
     @staticmethod
@@ -1273,6 +1281,9 @@ class AvatarPoseTaskPanel:
                         params.pose.right_elbow_angle,
                         params.pose.joint_rotations,
                     ),
+                    3,
+                    params.gender,
+                    params.breast_size,
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)

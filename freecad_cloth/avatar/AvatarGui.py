@@ -43,6 +43,7 @@ class AvatarTaskPanel:
         "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
+    SHAPE_PROPERTY_MAP = {"gender": "GenderBlend", "breast_size": "BreastSize"}
     BODY = (
         ("height", "Height"),
         ("neck", "Neck circumference"),
@@ -74,7 +75,10 @@ class AvatarTaskPanel:
     )
     PROVIDERS = (
         ("makehuman-hm08", "MakeHuman HM08 humanoid mesh"),
-        ("freecad-geometry", "FreeCAD body / imported geometry"),
+        (
+            "freecad-geometry",
+            "Imported surface only; no skeleton, skin weights, or animation are imported",
+        ),
     )
 
     def __init__(self, avatar=None):
@@ -90,6 +94,15 @@ class AvatarTaskPanel:
         title.setStyleSheet("font-weight: bold; font-size: 14px;")
         title_row.addWidget(title)
         title_row.addStretch(1)
+        self.dimension_gizmo_toggle = QtWidgets.QToolButton()
+        self.dimension_gizmo_toggle.setText("3D Dimensions")
+        self.dimension_gizmo_toggle.setCheckable(True)
+        self.dimension_gizmo_toggle.setChecked(True)
+        self.dimension_gizmo_toggle.setToolTip(
+            "Show transient viewport handles for height, shoulder breadth, chest, waist and hip. "
+            "Drag a handle to stage a dimension; Apply & Rebuild commits it."
+        )
+        title_row.addWidget(self.dimension_gizmo_toggle)
         self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
         self.pose_mode_button.setToolTip(
             "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
@@ -103,6 +116,8 @@ class AvatarTaskPanel:
         content_layout = QtWidgets.QVBoxLayout(content)
         self._boxes = {}
         self._pose_boxes = {}
+        self._measurement_groups = []
+        self._add_shape_group(content_layout)
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
 
@@ -115,23 +130,20 @@ class AvatarTaskPanel:
         provider_row = QtWidgets.QHBoxLayout()
         for key, label in self.PROVIDERS:
             button = QtWidgets.QToolButton()
-            button.setText(
-                "MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry"
-            )
+            button.setText("MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry")
             button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolTip(label)
             self.provider_group.addButton(button)
             self.provider_buttons[key] = button
             provider_row.addWidget(button)
-            button.clicked.connect(
-                lambda checked=False, value=key: self._provider_changed(value)
-            )
+            button.clicked.connect(lambda checked=False, value=key: self._provider_changed(value))
         provider_row.addStretch(1)
         provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
         self.provider_source.setToolTip(
-            "Select a body or mesh in the 3D view, then stage it as the FreeCAD geometry provider."
+            "Select an imported body or mesh in the 3D view. This uses its surface only; "
+            "the source skeleton, skin weights, and animation are not imported."
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
@@ -142,7 +154,7 @@ class AvatarTaskPanel:
         pose = QtWidgets.QGroupBox("Pose")
         pose_layout = QtWidgets.QFormLayout(pose)
         self.pose = QtWidgets.QComboBox()
-        self.pose.addItems(("standing", "sewing", "sitting"))
+        self.pose.addItems(("standing", "sewing", "sitting", "t_pose"))
         self.pose.setToolTip("Choose the saved fitting pose.")
         pose_layout.addRow("Preset", self.pose)
         for key, label in self.POSE_FIELDS:
@@ -270,6 +282,11 @@ class AvatarTaskPanel:
         self.rebuild_button.clicked.connect(self._apply)
         self.fit_button.clicked.connect(self._fit_view)
         self.pose_mode_button.clicked.connect(self._open_pose_mode)
+        self.gender_slider.valueChanged.connect(self._shape_changed)
+        self.breast_slider.valueChanged.connect(self._shape_changed)
+        self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
+        self._dimension_controller = None
+        self._update_shape_enabled()
 
     def _open_pose_mode(self):
         if self.avatar is None:
@@ -299,6 +316,64 @@ class AvatarTaskPanel:
             layout.addRow(label, box)
             self._boxes[key] = box
         parent.addWidget(group)
+        self._measurement_groups.append(group)
+
+    def _add_shape_group(self, parent):
+        """Build compact macro-shape controls; precise dimensions stay below."""
+        _, _, QtWidgets = _modules()
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+
+        group = QtWidgets.QGroupBox("Body shape")
+        layout = QtWidgets.QFormLayout(group)
+
+        gender_row = QtWidgets.QHBoxLayout()
+        gender_row.addWidget(QtWidgets.QLabel("Feminine"))
+        self.gender_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.gender_slider.setRange(0, 100)
+        self.gender_slider.setSingleStep(1)
+        self.gender_slider.setPageStep(10)
+        self.gender_slider.setToolTip(
+            "Blend body proportions from feminine (0) through neutral (50) to masculine (100)."
+        )
+        gender_row.addWidget(self.gender_slider, 1)
+        gender_row.addWidget(QtWidgets.QLabel("Masculine"))
+        gender_container = QtWidgets.QWidget()
+        gender_container.setLayout(gender_row)
+        self.gender_value = QtWidgets.QLabel("Neutral")
+        self.gender_value.setMinimumWidth(90)
+        gender_value_row = QtWidgets.QHBoxLayout()
+        gender_value_row.addWidget(gender_container, 1)
+        gender_value_row.addWidget(self.gender_value)
+        gender_wrapper = QtWidgets.QWidget()
+        gender_wrapper.setLayout(gender_value_row)
+        layout.addRow("Gender blend", gender_wrapper)
+
+        breast_row = QtWidgets.QHBoxLayout()
+        breast_row.addWidget(QtWidgets.QLabel("Less"))
+        self.breast_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.breast_slider.setRange(0, 100)
+        self.breast_slider.setSingleStep(1)
+        self.breast_slider.setPageStep(10)
+        self.breast_slider.setToolTip(
+            "Stage additional breast projection from the neutral base shape (0–100%)."
+        )
+        breast_row.addWidget(self.breast_slider, 1)
+        breast_row.addWidget(QtWidgets.QLabel("More"))
+        breast_container = QtWidgets.QWidget()
+        breast_container.setLayout(breast_row)
+        self.breast_value = QtWidgets.QLabel("0%")
+        self.breast_value.setMinimumWidth(90)
+        breast_value_row = QtWidgets.QHBoxLayout()
+        breast_value_row.addWidget(breast_container, 1)
+        breast_value_row.addWidget(self.breast_value)
+        breast_wrapper = QtWidgets.QWidget()
+        breast_wrapper.setLayout(breast_value_row)
+        layout.addRow("Breast fullness", breast_wrapper)
+        parent.addWidget(group)
+        self.shape_group = group
 
     def _load(self):
         if self.avatar is None:
@@ -314,6 +389,13 @@ class AvatarTaskPanel:
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
+        self.gender_slider.blockSignals(True)
+        self.gender_slider.setValue(round(100.0 * float(getattr(self.avatar, "GenderBlend", 0.5))))
+        self.gender_slider.blockSignals(False)
+        self.breast_slider.blockSignals(True)
+        self.breast_slider.setValue(round(100.0 * float(getattr(self.avatar, "BreastSize", 0.0))))
+        self.breast_slider.blockSignals(False)
+        self._update_shape_labels()
         current_provider = str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08"))
         if current_provider not in self.provider_buttons:
             current_provider = "makehuman-hm08"
@@ -362,6 +444,7 @@ class AvatarTaskPanel:
     def _provider_changed(self, provider_id):
         self._dirty = True
         self._refresh_provider_source()
+        self._update_shape_enabled()
         self._refresh_status(
             "Avatar provider change is staged. Apply & Rebuild to swap the body source."
         )
@@ -379,6 +462,7 @@ class AvatarTaskPanel:
         self._provider_source_object = selection[0]
         self._dirty = True
         self._refresh_provider_source()
+        self._update_shape_enabled()
         self._refresh_status(
             "Provider source staged: {}. Apply & Rebuild to use it.".format(
                 getattr(selection[0], "Label", selection[0].Name)
@@ -399,9 +483,7 @@ class AvatarTaskPanel:
                 getattr(source, "Label", getattr(source, "Name", "FreeCAD object"))
             )
         self.provider_source_label.setText(text)
-        self.provider_source.setEnabled(
-            self._provider_id() == "freecad-geometry"
-        )
+        self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
     def _preset_changed(self, preset):
         if self._loading:
@@ -416,11 +498,64 @@ class AvatarTaskPanel:
             box.blockSignals(False)
         self._staged_changed()
 
+    def _update_shape_labels(self):
+        """Keep slider readouts explicit, including the neutral gender midpoint."""
+        value = int(self.gender_slider.value())
+        if value == 50:
+            label = "Neutral"
+        elif value < 50:
+            label = "Feminine {}%".format(100 - value * 2)
+        else:
+            label = "Masculine {}%".format((value - 50) * 2)
+        self.gender_value.setText(label)
+        self.breast_value.setText("{}%".format(int(self.breast_slider.value())))
+
+    def _shape_changed(self, _value=None):
+        self._update_shape_labels()
+        self._staged_changed()
+
+    def _update_shape_enabled(self):
+        """Disable MakeHuman-only controls for geometry-only provider surfaces."""
+        is_human = self._provider_id() == "makehuman-hm08"
+        self.shape_group.setEnabled(is_human)
+        for group in self._measurement_groups:
+            group.setEnabled(is_human)
+        self.skin_offset.setEnabled(is_human)
+        self.show_measurements.setEnabled(is_human)
+        self.dimension_gizmo_toggle.setEnabled(is_human)
+        if not is_human and self._dimension_controller is not None:
+            self._dimension_controller.deactivate()
+        elif is_human and self.dimension_gizmo_toggle.isChecked():
+            self._toggle_dimension_gizmo(True)
+
+    def _toggle_dimension_gizmo(self, enabled):
+        """Attach or remove transient dimension handles in the active viewport."""
+        if not enabled or self.avatar is None or self._provider_id() != "makehuman-hm08":
+            if self._dimension_controller is not None:
+                self._dimension_controller.deactivate()
+            return
+        if self._dimension_controller is None:
+            try:
+                from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+
+                self._dimension_controller = AvatarDimensionController(self)
+            except (ImportError, RuntimeError, TypeError, ValueError):
+                self.status.setText(
+                    "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+                )
+                return
+        if not self._dimension_controller.activate():
+            self.status.setText(
+                "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+            )
+
     def _staged_changed(self):
         self._dirty = True
         self._refresh_status(
             "Unsaved mannequin edits are staged. Apply & Rebuild to update the body."
         )
+        if self._dimension_controller is not None:
+            self._dimension_controller.refresh()
 
     def _staged_parameters(self):
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
@@ -449,6 +584,9 @@ class AvatarTaskPanel:
                 pose.right_elbow_angle,
                 tuple(self._staged_joint_rotations.values()),
             ),
+            3,
+            self.gender_slider.value() / 100.0,
+            self.breast_slider.value() / 100.0,
         )
 
     def _apply(self):
@@ -486,7 +624,9 @@ class AvatarTaskPanel:
         self._update_landmarks()
         self._refresh_provider_source()
         self._refresh_status("Mannequin rebuilt from applied persistent parameters.")
-        self._fit_view()
+        self._update_shape_enabled()
+        if self._dimension_controller is not None:
+            self._dimension_controller.refresh()
         return True
 
     def _load_skeleton_pose(self):
@@ -603,13 +743,19 @@ class AvatarTaskPanel:
         )
 
     def _fit_view(self):
+        """Fit the viewport on explicit user request, not every rebuild."""
         if self.Gui.activeDocument():
             self.Gui.activeDocument().activeView().fitAll()
 
     def accept(self):
-        return self._apply()
+        success = self._apply()
+        if success and self._dimension_controller is not None:
+            self._dimension_controller.deactivate()
+        return success
 
     def reject(self):
+        if self._dimension_controller is not None:
+            self._dimension_controller.deactivate()
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
         return True

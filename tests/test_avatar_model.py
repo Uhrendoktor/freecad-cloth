@@ -35,6 +35,45 @@ def test_measurement_change_changes_geometry_without_mutating_source():
     assert generate_mesh(params)[0] != generate_mesh(wider)[0]
 
 
+def test_hip_circumference_does_not_change_leg_stance_landmarks():
+    params = AvatarParameters()
+    wider_hip = params.with_measurements(hip=params.measurement("hip") + 120.0)
+    baseline_landmarks = {item.name: item.position for item in generate_mesh(params)[2]}
+    wider_landmarks = {item.name: item.position for item in generate_mesh(wider_hip)[2]}
+
+    for name in ("knee_left", "knee_right", "ankle_left", "ankle_right"):
+        assert wider_landmarks[name] == baseline_landmarks[name]
+
+
+def test_gender_and_breast_controls_persist_and_change_geometry():
+    neutral = AvatarParameters()
+    feminine = AvatarParameters(gender=0.0)
+    masculine = AvatarParameters(gender=1.0)
+    fuller = AvatarParameters(breast_size=1.0)
+
+    assert AvatarParameters.from_json(feminine.to_json()) == feminine
+    assert AvatarParameters.from_json(fuller.to_json()) == fuller
+    assert neutral.with_measurements(waist=780).gender == neutral.gender
+    assert neutral.with_measurements(waist=780).breast_size == neutral.breast_size
+    assert generate_mesh(feminine)[0] != generate_mesh(masculine)[0]
+    assert generate_mesh(neutral)[0] != generate_mesh(fuller)[0]
+
+
+def test_invalid_shape_values_are_rejected():
+    for changes in (
+        {"gender": -0.01},
+        {"gender": 1.01},
+        {"breast_size": -0.01},
+        {"breast_size": 1.01},
+    ):
+        try:
+            AvatarParameters(**changes)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid shape value was accepted: {}".format(changes))
+
+
 def test_skin_offset_changes_collision_geometry():
     base = AvatarParameters(skin_offset=0)
     padded = AvatarParameters(skin_offset=8)
@@ -51,6 +90,21 @@ def test_pose_round_trip_is_persistent_and_validated():
         assert "unsupported avatar pose" in str(exc)
     else:
         raise AssertionError("invalid pose was accepted")
+
+
+def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope():
+    t_pose = AvatarParameters(pose=Pose("t_pose"))
+    standing = AvatarParameters(pose=Pose("standing"))
+    assert (t_pose.pose.left_arm_angle, t_pose.pose.right_arm_angle) == (12.0, 12.0)
+    assert AvatarParameters.from_json(t_pose.to_json()) == t_pose
+
+    def x_bounds(params):
+        xs = [float(point[0]) for point in generate_mesh(params)[0]]
+        return min(xs), max(xs)
+
+    horizontal, relaxed = x_bounds(t_pose), x_bounds(standing)
+    assert horizontal[0] < relaxed[0] - 100.0
+    assert horizontal[1] > relaxed[1] + 100.0
 
 
 def test_invalid_measurements_are_rejected():

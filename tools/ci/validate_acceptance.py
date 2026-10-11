@@ -12,10 +12,15 @@ if str(ROOT) not in sys.path:
 
 CASES = {
     "avatar-pose": Path("artifacts/avatar-pose-mode.png"),
+    "avatar-shape-editor": Path("artifacts/avatar-shape-editor.png"),
     "fitting": Path("artifacts/interactive-arrange.png"),
 }
 
 REQUIRED_GIFS = {
+    "avatar-shape-editor": (
+        Path("artifacts/ui-gifs/avatar-shape-edit.gif"),
+        Path("artifacts/ui-gifs/avatar-dimension-drag.gif"),
+    ),
     "fitting": (
         Path("artifacts/ui-gifs/arrangement-anchor.gif"),
         Path("artifacts/ui-gifs/interactive-arrange.gif"),

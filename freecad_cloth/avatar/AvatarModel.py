@@ -39,7 +39,12 @@ DEFAULT_MEASUREMENTS = {
 }
 
 
-DEFAULT_POSE_ARM_ANGLES = {"standing": 70.0, "sewing": 55.0, "sitting": 25.0}
+DEFAULT_POSE_ARM_ANGLES = {
+    "standing": 70.0,
+    "sewing": 55.0,
+    "sitting": 25.0,
+    "t_pose": 12.0,
+}
 
 
 LIMITS = {
@@ -75,18 +80,20 @@ class Pose:
     left_elbow_angle: float = 0.0
     right_elbow_angle: float = 0.0
     joint_rotations: tuple[JointRotation, ...] = ()
-    VALID_PRESETS = ("standing", "sewing", "sitting")
+    VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
         object.__setattr__(
-            self, "left_arm_angle",
+            self,
+            "left_arm_angle",
             default_angle if self.left_arm_angle is None else float(self.left_arm_angle),
         )
         object.__setattr__(
-            self, "right_arm_angle",
+            self,
+            "right_arm_angle",
             default_angle if self.right_arm_angle is None else float(self.right_arm_angle),
         )
         object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
@@ -119,17 +126,25 @@ class AvatarParameters:
     # remains a target setting rather than a visible layer on the avatar.
     skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
-    schema_version: int = 2
+    schema_version: int = 3
+    # 0 = feminine, 0.5 = neutral, 1 = masculine. This is a body-shape
+    # blend, not a claim about identity; downstream geometry uses it as one
+    # normalized morphology control.
+    gender: float = 0.5
+    # Additional breast projection beyond the neutral base shape, 0..1.
+    breast_size: float = 0.0
 
     def __post_init__(self) -> None:
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
+        object.__setattr__(self, "gender", float(self.gender))
+        object.__setattr__(self, "breast_size", float(self.breast_size))
         self.validate()
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.schema_version != 2:
+        if self.schema_version != 3:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
@@ -146,6 +161,10 @@ class AvatarParameters:
             raise ValueError("inseam must be shorter than height")
         if not 0 <= float(self.skin_offset) <= 50:
             raise ValueError("skin offset must be between 0 and 50 mm")
+        if not 0.0 <= float(self.gender) <= 1.0:
+            raise ValueError("gender blend must be between 0 (feminine) and 1 (masculine)")
+        if not 0.0 <= float(self.breast_size) <= 1.0:
+            raise ValueError("breast size must be between 0 and 1")
         if not isinstance(self.pose, Pose):
             raise TypeError("pose must be a Pose")
         self.pose.validate()
@@ -160,7 +179,9 @@ class AvatarParameters:
         """Return a copy with updated body measurements."""
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
-        return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
+        return AvatarParameters(
+            values, self.skin_offset, self.pose, self.schema_version, self.gender, self.breast_size
+        )
 
     def to_json(self) -> str:
         """Serialize this object to JSON."""
@@ -169,6 +190,10 @@ class AvatarParameters:
             {
                 "schema_version": self.schema_version,
                 "units": "mm",
+                "shape": {
+                    "gender": float(self.gender),
+                    "breast_size": float(self.breast_size),
+                },
                 "measurements": dict(sorted(self.measurements.items())),
                 "skin_offset": float(self.skin_offset),
                 "pose": {
@@ -188,12 +213,12 @@ class AvatarParameters:
 
     @classmethod
     def from_json(cls, payload: str) -> AvatarParameters:
-        """Load avatar parameters and migrate schema-1 pose sentinels once."""
+        """Load avatar parameters and migrate legacy pose and shape defaults."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
         source_version = int(data.get("schema_version", 1))
-        if source_version not in (1, 2):
+        if source_version not in (1, 2, 3):
             raise ValueError("unsupported avatar schema version")
         p = data.get("pose", {})
         preset = str(p.get("preset", "standing"))
@@ -225,7 +250,15 @@ class AvatarParameters:
                 )
             ),
         )
-        return cls(data.get("measurements", {}), float(data.get("skin_offset", 0)), pose, 2)
+        shape = data.get("shape", {}) if source_version >= 3 else {}
+        return cls(
+            data.get("measurements", {}),
+            float(data.get("skin_offset", 0)),
+            pose,
+            3,
+            float(shape.get("gender", 0.5)),
+            float(shape.get("breast_size", 0.0)),
+        )
 
 
 def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
@@ -239,7 +272,8 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     knee_z = max(300.0, float(m["ankle"]) / 2.0 + float(m["inseam"]) * 0.52)
     ankle_z = float(m["ankle"]) / 2.0
     shoulder_half = float(m["shoulder"]) / 2.0
-    leg_x = max(55.0, float(m["hip"]) / (2.0 * 3.141592653589793) * 0.42)
+    # Hip circumference changes the pelvis envelope, not the leg stance width.
+    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * 3.141592653589793) * 0.42)
     side_y = 230.0 if params.pose.preset == "sitting" else 0.0
     knees = {
         "left": (-leg_x, side_y, pelvis_z - 15.0)
@@ -249,7 +283,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         if params.pose.preset == "sitting"
         else (leg_x, 0.0, knee_z),
     }
-    arm_defaults = {"standing": 12.0, "sewing": 55.0, "sitting": 25.0}
+    arm_defaults = {"t_pose": 12.0, "standing": 12.0, "sewing": 55.0, "sitting": 25.0}
     default = arm_defaults[params.pose.preset]
     wrists = {}
     for side, angle_value, elbow_value, label in (

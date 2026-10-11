@@ -54,7 +54,8 @@ def test_canonical_python_job_executes_pytest_contract_modules():
 def test_gui_acceptance_validator_uses_visual_artifacts_only():
     from tools.ci import validate_acceptance
 
-    assert set(validate_acceptance.CASES) == {"avatar-pose", "fitting"}
+    assert set(validate_acceptance.CASES) == {"avatar-pose", "avatar-shape-editor", "fitting"}
+    assert len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"]) == 2
     assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
 
 

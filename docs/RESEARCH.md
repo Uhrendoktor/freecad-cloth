@@ -160,7 +160,7 @@ Cloth UI mapping:
    mapping.
 6. Exact Euler values remain behind a collapsed Exact angles drawer as a precision
    and accessibility fallback.
-7. Presets provide Standing, Sewing and Sitting starting points.
+7. Presets provide T-pose, Standing, Sewing and Sitting starting points.
 8. The joint list is collapsed by default and retained as a recovery/recognition
    path for crowded views or builds without viewport picking.
 9. Apply/Rebuild and Cancel preserve the existing staged/persistent document
@@ -363,3 +363,50 @@ a new closure marker can be checked in real FreeCAD viewport captures.
 - CLO — [3D preferences](https://support.clo3d.com/hc/en-us/articles/360001547168-3D): documents unified versus divided move/rotate gizmos and configurable arrangement-point size.
 
 These references describe observed software behavior and recommendations; the concrete colors and dimensions above are Cloth-specific choices, not claims of exact Blender or CLO parity.
+
+
+## Avatar onboarding, pose presets, and guided garment journey (2026-10-11)
+
+### Findings from the current UI audit
+
+- Avatar creation/edit/pose commands already exist, but users must discover them under **Cloth Sewing → Fitting & Avatar**. The simulation workflow also needs a first-class entry point so users can begin from the workbench where they expect to fit and drape a garment.
+- The built-in MakeHuman provider is a posed, landmark-aware human target. The **FreeCAD geometry** provider accepts selected imported geometry as a surface but does not import a source rig, skin weights, or motion data. The UI and onboarding must make this difference explicit instead of implying arbitrary OBJ/FBX files become rigged characters.
+- Pose Mode currently offers Standing, Sewing, and Sitting. A near-horizontal **T-pose** is also valuable for assessing shoulder span and garment placement; the current model represents that posture with approximately 12° arm settings in its mannequin convention.
+- A tunic is the strongest beginner narrative because it exercises pattern authoring, semantic seams, fitting anchors, pose, material/quality choices, simulation and diagnosis. The blanket remains a separate, lower-complexity test for collision and pinning issues.
+- Animation evidence needs accurate labeling. The existing README GIFs are produced by several task-specific acceptance fixtures; they are not yet a single continuous run in one saved tunic document. Fitting-anchor and interactive-arrange clips use tunic panels, while the sewing and pose clips isolate their respective UI flows. Keep that limitation explicit until a single-document GUI journey fixture exists.
+
+### CLO and Blender interaction patterns
+
+| Reference | Observed pattern | Design implication for Cloth |
+| --- | --- | --- |
+| [CLO: Avatar Open/Add/Save](https://support.clo3d.com/hc/en-us/articles/115002687268-Avatar-AVT-Open-Add-Save) | A visible File → Open/Add → Avatar path, with a format and load-type choice rather than a hidden provider property. | Expose avatar create/edit/pose actions in the workbench used for fitting; state exactly what the provider can consume. |
+| [CLO: OBJ import](https://support.clo3d.com/hc/en-us/articles/115000494107-3D-File-OBJ-Import-Export) | OBJ import explicitly distinguishes loading as an avatar, trim, or garment. The help warns that arrangement points are properly generated for A/T-posed avatars and that imported unrigged OBJs cannot be posed like native rigged avatars. | Name the imported-geometry path as geometry-only and avoid promising skeleton/pose import; prefer a T-pose baseline for fitting inspection. |
+| [CLO: Pose Open/Save](https://support.clo3d.com/hc/en-us/articles/115002687328-Pose-POS-HPOS-Open-Save) | Named pose library plus explicit pose-only versus pose-and-joint-translation semantics. | Use clearly named, task-oriented presets and keep the distinction between a pose preset and body-size/provider settings. Saving/loading arbitrary user pose assets remains future work. |
+| [Blender: Pose Library](https://docs.blender.org/manual/en/5.0/animation/armatures/posing/editing/pose_library.html) | Pose assets are named reusable actions, can have preview images, and are organized through the Asset Browser. | Design the presets as an expandable library concept; a compact row of familiar named actions is a useful first step before a full asset browser. |
+| [Blender: Asset Browser](https://docs.blender.org/manual/en/5.0/editors/asset_browser.html) and [Workspaces](https://docs.blender.org/manual/en/5.0/interface/window_system/workspaces.html) | Assets are discoverable in an explicit browser, while workspaces group common task-specific tools and layouts. | Keep Cloth’s workbenches purpose-specific and reduce entry-point hunting by exposing a small Avatar & Fitting group in Cloth Simulation. Do not replicate Blender’s full asset infrastructure in this bounded change. |
+
+### Implemented UX decisions
+
+1. Register **Create Avatar**, **Edit Avatar**, and **Pose Avatar** under **Cloth Simulation → Avatar & Fitting**, while retaining the legacy Cloth Sewing entry points.
+2. Add the T-pose to the data model, the editable avatar preset enumeration, and the viewport-first Pose Mode button row. Keep Standing, Sewing and Sitting unchanged for existing users.
+3. Update the user guide with the exact standard UI path: built-in MakeHuman creation, then—when appropriate—FreeCAD File → Import, selecting the imported object, choosing FreeCAD geometry, using the selected object and applying/rebuilding. Explain that this does not transfer a skeleton or animation.
+4. Make the tunic the recommended human-scale learning journey and preserve the blanket as a deliberate diagnostic case.
+5. Be explicit that today’s task GIFs are not yet one continuous interaction recording. A future integrated capture should begin with a new document and carry one persistent tunic through Sketcher-backed pattern creation, seam preview/commit, fitting/arrangement, preset/joint posing, simulation settings, run, diagnosis and save/reload. It should assert the same document/PatternPiece/Seam IDs across stages, and the canonical workflow must regenerate its evidence rather than hand-edit GIFs.
+
+### Visual and interaction principles
+
+- **One obvious first action:** make avatar creation visible where the garment will be fitted.
+- **Distinct provider semantics:** a rigged mannequin and a generic imported surface must not look interchangeable in copy or status labels.
+- **Recognizable starting poses:** use succinct labeled preset buttons; reserve the viewport for direct joint manipulation and precision values for the collapsed fallback.
+- **One garment story:** teach the tunic from first editable pattern to final diagnosis; keep clips useful as local references but do not describe unrelated fixtures as a continuous session.
+- **Recovery over decoration:** Apply/Rebuild, Cancel, reset and stale-target guidance matter more than adding controls that do not carry persistent document meaning.
+
+## Parametric mannequin shape editor
+
+CLO3D separates **Adjust Size** from **Adjust Shape**: garment-facing dimensions such as bust/chest, underbust, waist and hip coexist with shape controls such as breast height/spacing and other body adjustments. Its cup-size workflow derives the bust/underbust difference rather than treating cup size as an unrelated number. This suggests keeping true circumferences authoritative while exposing distinct shape controls in the same editor. Reference: [CLO3D — Adjust Avatar Size](https://support.clo3d.com/hc/en-us/articles/33854094900633-Adjust-Avatar-Size).
+
+MakeHuman provides macro controls for gender, age, muscle, weight, height and proportions, backed by per-vertex target morphs. MPFB2 brings this workflow into Blender and exposes many such body targets and shape controls. Reference: [MakeHuman — Modeling the body](https://static.makehumancommunity.org/makehuman/docs/modeling_the_body.html) and [MPFB2 documentation](https://mpfb.readthedocs.io/).
+
+FreeCAD Cloth keeps the same separation: the gender blend changes localized body proportions; breast fullness is an independent shape control; height, circumference and length values remain named millimetre measurements. The viewport handles are transient Coin overlay geometry and stage edits in the existing task panel; Apply & Rebuild remains the only commit boundary. They deliberately do not add document objects or reuse Surface Pen callbacks.
+
+**Scope note:** the current integration uses a deterministic, localized procedural shape deformation on the pinned HM08 base mesh. It does not yet import MakeHuman's complete library of target-morph files, so breast and gender controls are useful parametric fitting controls rather than a claim of full CLO3D/MakeHuman morph fidelity. The saved parameter schema is migrated forward with neutral defaults for existing documents.

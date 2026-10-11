@@ -2,7 +2,7 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Finished garment draped over the FreeCAD mannequin" width="900"></p>
 
-<p align="center"><strong>Pattern → Sewing → Fitting → Pose → Simulation → Diagnosis</strong></p>
+<p align="center"><strong>Pattern → Sewing → Avatar shape → Fitting → Pose → Simulation → Diagnosis</strong></p>
 
 FreeCAD Cloth adds a native garment workflow to FreeCAD. Use the **Cloth Pattern** workbench to author editable 2D pieces, **Cloth Sewing** to define persistent seam relationships, and **Cloth Simulation** to arrange, drape, and inspect the garment.
 
@@ -19,11 +19,11 @@ FreeCAD Cloth adds a native garment workflow to FreeCAD. Use the **Cloth Pattern
 
 ## See the interactions
 
-These recordings are generated from the current FreeCAD UI acceptance fixtures. Each feature guide explains the same interaction in text, including what to check when the result differs.
+These recordings are generated from real FreeCAD UI acceptance fixtures and are ordered as a workflow reference: sewing, avatar sizing, fitting anchors, panel arrangement, and mannequin posing. They are task-focused captures rather than one continuous recording from a single saved document; the production tunic audit validates the integrated garment path separately. Each feature guide explains the interaction and what to check when the result differs.
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Selecting two pattern edges, reviewing a seam preview, and committing the seam" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/arrangement-anchor.gif" alt="Naming and creating front and back surface snap points on the FreeCAD mannequin" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging the tunic front and back panels onto their mannequin snap points and releasing to commit both placements" width="235"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin joint and changing its rotation in Pose Mode" width="235"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/seam-assignment.gif" alt="Selecting two pattern edges, reviewing a seam preview, and committing the seam" width="205"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-shape-edit.gif" alt="Editing body-shape sliders and rebuilding the bare mannequin mesh; not a cloth-draping simulation" width="205"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the hip circumference handle to stage and commit a local measurement change" width="205"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.gif" alt="Dragging the tunic front and back panels onto their mannequin snap points and releasing to commit both placements" width="205"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/pose-joint-rotation.gif" alt="Selecting a mannequin joint and changing its rotation in Pose Mode" width="205"></p>
 
-<p align="center"><a href="docs/wiki/02-sewing.md">Create a seam</a> · <a href="docs/wiki/03-fitting.md">Arrange pieces</a> · <a href="docs/wiki/04-pose.md">Pose the mannequin</a></p>
+<p align="center"><a href="docs/wiki/02-sewing.md">Create a seam</a> · <a href="docs/wiki/09-avatar-shape.md">Edit body shape and dimensions</a> · <a href="docs/wiki/03-fitting.md">Arrange pieces</a> · <a href="docs/wiki/04-pose.md">Pose the mannequin</a></p>
 
 ## The workflow in six views
 
@@ -31,7 +31,9 @@ This gallery gives a static overview of each major stage; the recordings above s
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-pattern-design.png" alt="Pattern authoring stage with native Sketcher-backed garment pieces" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-sewing.png" alt="Sewing stage showing authored pattern pieces and semantic seam relationships" width="430"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange task panel and garment placement in the viewport" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode with visible mannequin joint overlay and selected rotation gizmo" width="430"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-shape-editor.png" alt="Avatar shape and dimension editor with body measurements and viewport handles" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/interactive-arrange.png" alt="Interactive Arrange task panel and garment placement in the viewport" width="430"></p>
+
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode with visible mannequin joint overlay and selected rotation gizmo" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="430"></p>
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-arranged.png" alt="Sewn garment arranged around the mannequin before simulation" width="430"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/cloth-simulation-draped.png" alt="Final garment draped over the mannequin after simulation" width="430"></p>
 
@@ -41,6 +43,7 @@ This gallery gives a static overview of each major stage; the recordings above s
 | --- | --- | --- |
 | Pattern | Build on native Sketcher geometry and add garment semantics, notches, marks, and grainlines | [Pattern authoring](docs/wiki/01-pattern.md) |
 | Sewing | Pick matching edges, inspect A/B identity and direction, and commit validated seams | [Sewing and correspondence](docs/wiki/02-sewing.md) |
+| Avatar shape | Adjust body proportions and garment-facing dimensions directly in the viewport | [Avatar shape and dimensions](docs/wiki/09-avatar-shape.md) |
 | Fitting | Place pieces directly in the viewport and use arrangement snapping | [Direct fitting](docs/wiki/03-fitting.md) |
 | Pose | Rotate mannequin joints, use symmetry, and enter exact angles when needed | [Pose Mode](docs/wiki/04-pose.md) |
 | Simulation | Choose a target, material, quality, and pinning mode before running cloth | [Cloth simulation](docs/wiki/05-simulation.md) |
@@ -51,8 +54,8 @@ For the complete route, start with the [workflow overview](docs/wiki/00-overview
 ## First-run recommendation
 
 1. Check supported versions and install the workbench using [Installation](docs/INSTALLATION.md).
-2. Start with the simple **Blanket over Cube** path described in [Examples](docs/EXAMPLES.md). It isolates pattern, target, pinning, and collision behavior from garment complexity.
-3. Continue with the [User guide](docs/USER_GUIDE.md), then use the [Tunic example](docs/EXAMPLES.md#2-tunic) for the full pattern-to-drape path.
+2. Follow the [end-to-end user guide](docs/USER_GUIDE.md) with the **Tunic** example as the main pattern-to-drape journey.
+3. Use [Blanket over Cube](docs/EXAMPLES.md#1-blanket-over-cube) when you specifically need to isolate pattern, target, pinning, or collision behavior from garment complexity.
 
 The exact manual-install directory, embedded-Python dependencies, and replacement procedure are documented in Installation. Do not assume that the Python interpreter used by your system shell is the same interpreter embedded in FreeCAD.
 

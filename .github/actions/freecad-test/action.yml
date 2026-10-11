@@ -39,6 +39,10 @@ inputs:
     description: Optional repository command run after the FreeCAD test.
     required: false
     default: ""
+  scene-report-command:
+    description: Optional artifact-only report command that must run even if the FreeCAD process fails.
+    required: false
+    default: ""
   artifact-name:
     description: Optional artifact name to upload after validation.
     required: false
@@ -90,6 +94,16 @@ runs:
           --log-file /workspace/${{ inputs.log-file }}
           --test-script /workspace/${{ inputs.test-script }}
           --test-args "${{ inputs.test-args }}"
+
+    - name: Build artifact-only scene-understanding report
+      if: ${{ always() && inputs.scene-report-command != '' }}
+      shell: bash
+      env:
+        SCENE_REPORT_COMMAND: ${{ inputs.scene-report-command }}
+        OBSERVATION_COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        OBSERVATION_TEST_SCRIPT: ${{ inputs.test-script }}
+        OBSERVATION_IMAGE: ${{ inputs.image }}
+      run: bash -lc "$SCENE_REPORT_COMMAND"
 
     - name: Set up Python for evidence validators
       if: inputs.validate-command != ''

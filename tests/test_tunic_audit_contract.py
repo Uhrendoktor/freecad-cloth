@@ -410,3 +410,37 @@ def test_canonical_tunic_fixture_blocks_every_authored_segment():
     )
     assert expected_constraint in fixture
     assert 'Sketcher.Constraint("Coincident"' not in fixture
+
+def test_tunic_scene_dossier_logs_sampled_topology_before_simulation():
+    """The actual CI fixture must emit geometry evidence before downstream evaluation."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    simulation = source.split("def simulation():", 1)[1]
+    topology_audit = simulation.index("def log_tunic_outline_topology(piece):")
+    sample_resolution = simulation.index("resolve_piece_ir(piece)", topology_audit)
+    pattern_view = simulation.index(
+        "capture_tunic_pattern_view(doc, front, back, hem_width)", topology_audit
+    )
+    sewing_view = simulation.index(
+        "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)",
+        pattern_view,
+    )
+    native_gate = simulation.index(
+        "canonical tunic PatternIR boundary is invalid before simulation", sewing_view
+    )
+    simulation_start = simulation.index("scene.StartHeight = 0.0", native_gate)
+
+    assert (
+        topology_audit
+        < sample_resolution
+        < pattern_view
+        < sewing_view
+        < native_gate
+        < simulation_start
+    )
+    assert '"boundary-order=%r near-crossing=%r"' in simulation
+    assert "samples," in simulation
+    # Keep geometric validity guards in FreeCAD, but keep report classification on the host.
+    assert "canonical tunic derived pattern outline is invalid before simulation" in simulation
+    assert "fit_assessment" not in simulation
+    assert "review_required" not in simulation
+    assert 'status["result"]' not in simulation

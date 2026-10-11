@@ -13,6 +13,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     HumanoidMeshError,
     MeshData,
     _load_source_vertices,
+    _make_source_fitted_mapper,
     _map_makehuman_axes,
     _reoriented_triangles,
     _verified_skeleton,
@@ -177,6 +178,31 @@ class HumanoidMeshTests(unittest.TestCase):
             max(v[0] for v in fitted.vertices) - min(v[0] for v in fitted.vertices), 905.0
         )
         self.assertEqual(fitted.triangles, _reoriented_triangles(source.triangles))
+
+    def test_local_measurements_do_not_rescale_the_head_or_each_other(self):
+        levels = (0.0, 0.42, 0.50, 0.54, 0.58, 0.64, 0.69, 0.75, 0.80, 0.88, 0.90, 0.95, 1.0)
+        source_vertices = tuple(
+            (x, level, depth) for level in levels for x in (-1.0, 1.0) for depth in (-0.5, 0.5)
+        )
+        baseline = AvatarParameters()
+        baseline_mapper = _make_source_fitted_mapper(source_vertices, baseline, 0.0)
+        head_vertices = tuple(point for point in source_vertices if point[1] >= 0.90)
+        baseline_head = tuple(baseline_mapper(point) for point in head_vertices)
+        region_levels = {"hip": 0.50, "waist": 0.58, "chest": 0.69, "shoulder": 0.77}
+        deltas = {"hip": 120.0, "waist": 100.0, "chest": 100.0, "shoulder": 50.0}
+
+        for name, delta in deltas.items():
+            with self.subTest(measurement=name):
+                edited = baseline.with_measurements(**{name: baseline.measurement(name) + delta})
+                mapper = _make_source_fitted_mapper(source_vertices, edited, 0.0)
+                edited_head = tuple(mapper(point) for point in head_vertices)
+                self.assertEqual(edited_head, baseline_head)
+                region_point = (1.0, region_levels[name], 0.5)
+                self.assertNotEqual(
+                    mapper(region_point),
+                    baseline_mapper(region_point),
+                    f"{name} did not change its intended body region",
+                )
 
     def test_fit_rejects_non_finite_results_from_extreme_finite_vertices(self):
         source = parse_obj("""

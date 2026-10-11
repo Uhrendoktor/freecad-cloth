@@ -3,14 +3,22 @@ import unittest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose, generate_mesh
 from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
-from freecad_cloth.avatar.HumanoidMesh import fit_makehuman_mesh, load_makehuman_arm_weights, load_makehuman_mesh
+from freecad_cloth.avatar.HumanoidMesh import (
+    fit_makehuman_mesh,
+    load_makehuman_arm_weights,
+    load_makehuman_mesh,
+)
 
 
 class AvatarStandingPoseTests(unittest.TestCase):
     def test_presets_have_explicit_arm_defaults_without_sentinels(self):
         self.assertEqual((Pose().left_arm_angle, Pose().right_arm_angle), (70.0, 70.0))
-        self.assertEqual((Pose("sewing").left_arm_angle, Pose("sewing").right_arm_angle), (55.0, 55.0))
-        self.assertEqual((Pose("sitting").left_arm_angle, Pose("sitting").right_arm_angle), (25.0, 25.0))
+        self.assertEqual(
+            (Pose("sewing").left_arm_angle, Pose("sewing").right_arm_angle), (55.0, 55.0)
+        )
+        self.assertEqual(
+            (Pose("sitting").left_arm_angle, Pose("sitting").right_arm_angle), (25.0, 25.0)
+        )
         self.assertEqual(Pose("standing", 12.0, 12.0).left_arm_angle, 12.0)
 
     def test_schema_one_sentinels_are_migrated_at_load(self):
@@ -22,12 +30,23 @@ class AvatarStandingPoseTests(unittest.TestCase):
             "pose": {"preset": "standing", "left_arm_angle": 12, "right_arm_angle": 12},
         }
         migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual(migrated.schema_version, 2)
-        self.assertEqual((migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (70.0, 70.0))
+        self.assertEqual(migrated.schema_version, 3)
+        self.assertEqual((migrated.gender, migrated.breast_size), (0.5, 0.0))
+        self.assertEqual(
+            (migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (70.0, 70.0)
+        )
 
         legacy["pose"]["preset"] = "sewing"
         migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual((migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (55.0, 55.0))
+        self.assertEqual(
+            (migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (55.0, 55.0)
+        )
+
+        legacy_v2 = dict(legacy)
+        legacy_v2["schema_version"] = 2
+        migrated_v2 = AvatarParameters.from_json(json.dumps(legacy_v2))
+        self.assertEqual(migrated_v2.schema_version, 3)
+        self.assertEqual((migrated_v2.gender, migrated_v2.breast_size), (0.5, 0.0))
 
     def test_generator_and_builder_share_the_same_fk_mesh(self):
         params = AvatarParameters()
@@ -79,7 +98,7 @@ class AvatarStandingPoseTests(unittest.TestCase):
         self.assertAlmostEqual(actual[0][0], -actual[0][1], delta=2.0)
 
         # Arm rotation is in the sagittal plane; depth must remain unchanged.
-        for actual_depth, expected_depth in zip(actual[1], expected[1]):
+        for actual_depth, expected_depth in zip(actual[1], expected[1], strict=True):
             self.assertAlmostEqual(actual_depth, expected_depth, delta=2.0)
 
 

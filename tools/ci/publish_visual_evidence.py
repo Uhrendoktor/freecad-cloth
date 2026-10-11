@@ -16,6 +16,7 @@ ARTIFACT_ROOTS = (
     Path("turntables"),
     Path("blanket"),
     Path("avatar-pose-ui"),
+    Path("avatar-shape-editor"),
     Path("interactive-arrange"),
     Path("sewing"),
 )

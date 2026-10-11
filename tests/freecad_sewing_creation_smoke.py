@@ -18,19 +18,19 @@ import Part
 from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # registers network commands
-from tests.support.freecad_input import (
-    UiGifRecorder,
-    _qt_modules,
-    click_widget,
-    focus_main_window,
-)
-from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
     set_seam_highlights_enabled,
     set_seam_overlay_respect_depth,
+)
+from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    _qt_modules,
+    click_widget,
+    focus_main_window,
 )
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
@@ -46,17 +46,26 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def _curved_shape(line_length, curve_span, curve_height):
-    p0 = App.Vector(0, 0, 0)
-    p1 = App.Vector(float(line_length), 0, 0)
-    p2 = App.Vector(float(line_length), 40, 0)
-    p3 = App.Vector(float(line_length) - float(curve_span), 40, 0)
+def _curved_shape(line_length, curve_span, curve_height, x_offset=0.0):
+    x_offset = float(x_offset)
+    p0 = App.Vector(x_offset, 0, 0)
+    p1 = App.Vector(x_offset + float(line_length), 0, 0)
+    p2 = App.Vector(x_offset + float(line_length), 40, 0)
+    p3 = App.Vector(x_offset + float(line_length) - float(curve_span), 40, 0)
     curve = Part.BezierCurve()
     curve.setPoles(
         [
             p2,
-            App.Vector(float(line_length), 40 + float(curve_height), 0),
-            App.Vector(float(line_length) - float(curve_span), 40 + float(curve_height), 0),
+            App.Vector(
+                x_offset + float(line_length),
+                40 + float(curve_height),
+                0,
+            ),
+            App.Vector(
+                x_offset + float(line_length) - float(curve_span),
+                40 + float(curve_height),
+                0,
+            ),
             p3,
         ]
     )
@@ -72,7 +81,9 @@ def _curved_shape(line_length, curve_span, curve_height):
     )
 
 
-def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0):
+def add_curved_piece(
+    doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
+):
     obj = doc.addObject("Part::Feature", name)
     obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
     obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
@@ -80,21 +91,20 @@ def add_curved_piece(doc, name, piece_id, line_length, curve_span=80.0, curve_he
     obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(
         curve_height
     )
+    x_offset = float(x_offset)
     obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
         [
-            (0.0, 0.0),
-            (float(line_length), 0.0),
-            (float(line_length), 40.0),
-            (float(line_length) - float(curve_span), 40.0),
+            (x_offset, 0.0),
+            (x_offset + float(line_length), 0.0),
+            (x_offset + float(line_length), 40.0),
+            (x_offset + float(line_length) - float(curve_span), 40.0),
         ]
     )
-    obj.Shape = _curved_shape(line_length, curve_span, curve_height)
+    obj.Shape = _curved_shape(line_length, curve_span, curve_height, x_offset=x_offset)
     return obj
 
 
-def add_rectangular_piece(
-    doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0
-):
+def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0):
     """Create a standard Part feature carrying the sewing workflow's piece contract."""
     obj = doc.addObject("Part::Feature", name)
     obj.Label = name
@@ -109,9 +119,7 @@ def add_rectangular_piece(
         (x_offset + float(width), float(height)),
         (x_offset, float(height)),
     ]
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
-        outline
-    )
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(outline)
     # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
     # returns a face whose native Edge1..Edge4 order does not match this boundary.
     vertices = [App.Vector(x, y, 0.0) for x, y in outline]
@@ -273,8 +281,8 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
     """Capture real viewport frames while hover labels and highlights change."""
     from PIL import Image
 
-    from tests.support.freecad_input import write_gif
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+    from tests.support.freecad_input import write_gif
 
     identities = sorted({str(value).strip() for value in seam_ids if str(value).strip()})
     assert identities, "seam overlay animation requires at least one semantic seam ID"
@@ -335,7 +343,7 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
             )
             with Image.open(frame_path) as image_frame:
                 rgb = image_frame.convert("RGB")
-                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                resampling = getattr(Image, "Resampling", Image).LANCZOS
                 frames.append(rgb.resize((640, 360), resampling).copy())
 
         output = LOG_PATH.parent / "ui-gifs" / filename
@@ -393,7 +401,6 @@ def wait_for_task_close():
         loop.exec()
         QtWidgets.QApplication.processEvents()
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
-
 
 
 def select_edges(*items):
@@ -503,14 +510,18 @@ try:
                 "seam-assignment GIF fixture has empty pattern geometry: " + piece.Label
             )
         if not bool(piece.ViewObject.Visibility):
-            raise RuntimeError(
-                "seam-assignment GIF fixture is not visible: " + piece.Label
-            )
+            raise RuntimeError("seam-assignment GIF fixture is not visible: " + piece.Label)
         # Shape.BoundBox is already in the placed/world coordinate system here.
-        world_bounds.append((
-            float(box.XMin), float(box.YMin), float(box.ZMin),
-            float(box.XMax), float(box.YMax), float(box.ZMax),
-        ))
+        world_bounds.append(
+            (
+                float(box.XMin),
+                float(box.YMin),
+                float(box.ZMin),
+                float(box.XMax),
+                float(box.YMax),
+                float(box.ZMax),
+            )
+        )
     xmin = min(value[0] for value in world_bounds)
     ymin = min(value[1] for value in world_bounds)
     xmax = max(value[3] for value in world_bounds)
@@ -558,8 +569,13 @@ try:
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
         "height=%.2f viewport=%dx%d"
         % (
-            xmin, ymin, xmax, ymax, float(camera_match.group(1)),
-            int(view_width), int(view_height),
+            xmin,
+            ymin,
+            xmax,
+            ymax,
+            float(camera_match.group(1)),
+            int(view_width),
+            int(view_height),
         )
     )
 
@@ -640,14 +656,10 @@ try:
     )
     picker._viewport_callback = None
     picker._viewport_picking = True
-    picker._viewport_mouse_event(
-        {"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)}
-    )
+    picker._viewport_mouse_event({"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)})
     assert len(picker._viewport_picks) == 1
     assert "Side A" in picker.feedback.text()
-    picker._viewport_mouse_event(
-        {"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)}
-    )
+    picker._viewport_mouse_event({"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)})
     assert any(getattr(obj, "SeamId", "") for obj in picker.session.created)
     assert "Seam preview shown" in picker.feedback.text()
     assert picker.commit_button.isEnabled()
@@ -728,8 +740,8 @@ try:
         [
             App.Vector(0, 40, 0),
             App.Vector(0, 160, 0),
-            App.Vector(-80, 160, 0),
-            App.Vector(-80, 40, 0),
+            App.Vector(-50, 160, 0),
+            App.Vector(-50, 40, 0),
         ]
     )
     probe_points = probe.toShape().discretize(Number=64)
@@ -741,9 +753,24 @@ try:
         curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length
     )
     curved_b = add_curved_piece(
-        doc, "CurvedB", "curved-b", b_line_length, curve_span=80.0, curve_height=120.0
+        doc,
+        "CurvedB",
+        "curved-b",
+        b_line_length,
+        curve_span=50.0,
+        curve_height=120.0,
+        x_offset=140.0,
     )
     doc.recompute()
+    assert curved_a.Shape.isValid() and not curved_a.Shape.isNull(), (
+        "CurvedA must be a valid, non-self-intersecting pattern face"
+    )
+    assert curved_b.Shape.isValid() and not curved_b.Shape.isNull(), (
+        "CurvedB must be a valid, non-self-intersecting pattern face"
+    )
+    assert float(curved_a.Shape.BoundBox.XMax) < float(curved_b.Shape.BoundBox.XMin), (
+        "curved seam-overlay fixtures must be spatially separated"
+    )
 
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
@@ -827,6 +854,7 @@ try:
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-recompute=passed identity-stable=true")
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     apply_seam_colors(doc.Objects)
     refreshed_network = next(
         obj
@@ -836,10 +864,31 @@ try:
     )
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
+
+    # Isolate the curved seam example from earlier smoke fixtures in this document.
+    # The screenshots and hover GIF should describe one pair of mating edges, not
+    # superimpose the curved pieces on the earlier rectangular examples.
+    overlay_visible_names = {
+        str(obj.Name) for obj in (curved_a, curved_b, curved_network, *curved_network.Seams)
+    }
+    overlay_visibility = []
+    for obj in doc.Objects:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is None:
+            continue
+        was_visible = bool(view_object.Visibility)
+        overlay_visibility.append((obj, was_visible))
+        view_object.Visibility = str(obj.Name) in overlay_visible_names
+    doc.recompute()
+
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
     active_workbench = Gui.activeWorkbench()
-    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    active_name = (
+        str(active_workbench.name())
+        if callable(getattr(active_workbench, "name", None))
+        else str(active_workbench)
+    )
     assert "pattern" in active_name.lower(), (
         "seam overlay acceptance requires the Cloth Pattern workbench to be active"
     )
@@ -859,7 +908,11 @@ try:
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
     active_workbench = Gui.activeWorkbench()
-    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    active_name = (
+        str(active_workbench.name())
+        if callable(getattr(active_workbench, "name", None))
+        else str(active_workbench)
+    )
     assert "sewing" in active_name.lower(), (
         "seam overlay acceptance requires the Cloth Sewing workbench to be active"
     )
@@ -929,7 +982,7 @@ try:
         "seam-overlay-sewing-3d.png",
         hovered_seam_id=str(visual_seam.SeamId),
     )
-    assert "ClothSemanticSeamOverlay" == str(overlay.root.getName().getString())
+    assert str(overlay.root.getName().getString()) == "ClothSemanticSeamOverlay"
     record("seam-viewport-overlay-sewing-3d=passed labels=paired-A-B")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(visual_seam)
@@ -947,6 +1000,12 @@ try:
     overlay_ids = [str(seam.SeamId) for seam in curved_network.Seams]
     save_seam_overlay_hover_animation(doc, overlay_ids, "seam-overlay-hover.gif")
     save_seam_overlay_options_evidence("seam-overlay-options.png")
+
+    for obj, was_visible in overlay_visibility:
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None:
+            view_object.Visibility = was_visible
+    doc.recompute()
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
     relationship_id = str(curved_network.RelationshipId)
@@ -1041,6 +1100,7 @@ finally:
     if recorder is not None and recorder._started:
         with contextlib.suppress(Exception):
             from tests.support.freecad_input import release_all_input
+
             release_all_input()
             recorder.stop()
     with contextlib.suppress(Exception):

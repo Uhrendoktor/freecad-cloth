@@ -34,6 +34,7 @@ Visual evidence supports human judgment, while automated checks make repeated cl
 | Pattern | Pattern screenshot | Pattern workbench/export smoke + screenshot source |
 | Sewing | Sewing screenshot | Sewing smoke/creation + garment E2E |
 | Fitting | Interactive Arrange screenshot | <code>freecad_interactive_arrange_acceptance.py</code> |
+| Avatar shape | Seven-profile mannequin gallery + body-shape/dimension editor screenshot and shape/dimension GIFs | <code>freecad_avatar_shape_editor_acceptance.py</code> + <code>tools/ci/validate_acceptance.py avatar-shape-editor</code> |
 | Pose | Native Pose Mode screenshot + geometry-only avatar six-side views | <code>freecad_avatar_pose_ui_acceptance.py</code> + avatar acceptance/screenshot |
 | Simulation | Cube/mannequin ladder + motion + turntables | PBD ladder, contact diagnostics, E2E and screenshot fixtures |
 | Diagnostics | Diagnostic map + six-side views | contact diagnostics + visual sanity/capture validation |
@@ -52,6 +53,8 @@ A valid visual fixture must:
 6. be reproducible enough for human comparison.
 
 Pose Mode has an additional interaction-evidence requirement: the published Pose screenshot must be captured after the main window and 3D view are painted, must contain the visible joint overlay and selected-joint gizmo, and must use either the native Coin3D gizmo or the supported visual FreeCAD-geometry fallback. The fallback does not claim direct drag rotation, but it must remain visibly identifiable and usable through the joint selector and precision controls.
+
+The avatar shape-editor evidence also checks that the transient overlay is not persisted as a document object, body-shape controls alter the generated mannequin after Apply & Rebuild, and a viewport circumference-handle edit stages and commits its matching measurement. Two separate GIFs cover macro-shape editing and direct dimension manipulation so neither behavior is inferred from a static screenshot alone.
 
 ## Human review order
 
