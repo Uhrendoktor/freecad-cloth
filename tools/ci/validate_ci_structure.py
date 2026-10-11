@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import fnmatch
+import json
+import os
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
+PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 TY_CONFIG = ROOT / "ty.toml"
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
@@ -26,18 +31,127 @@ REQUIRED = (
     ROOT / "tools/ci/timeout_contract.py",
 )
 
+# Stage semantic type checking deliberately: these paths form the reviewed
+# blocking Pyright inventory. Add modules here only after their diagnostics
+# have been triaged. Changed-file annotation ratcheting still covers every
+# Python file, including GUI/command surfaces outside this inventory.
+PYRIGHT_EXPECTED_INCLUDE = (
+    "freecad_cloth/common",
+    "freecad_cloth/shared",
+    "freecad_cloth/pattern/PatternGeometry.py",
+    "freecad_cloth/pattern/PatternIR.py",
+    "freecad_cloth/pattern/PatternModel.py",
+    "freecad_cloth/sewing/SeamGraph.py",
+    "freecad_cloth/sewing/SewingCorrespondence.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py",
+    "freecad_cloth/simulation/DrapeTarget.py",
+    "freecad_cloth/simulation/SimulationQuality.py",
+    "freecad_cloth/simulation/SimulationObjects.py",
+    "freecad_cloth/simulation/SimulationQualityRuntime.py",
+    "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
+)
+PYRIGHT_EXPECTED_EXCLUDE = (
+    "**/*Gui.py",
+    "**/*Commands.py",
+    "**/workbench.py",
+)
 
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
     "pyright -p pyrightconfig.agent-strict.json",
     "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
+    "python tools/ci/check_changed_python_types.py",
 )
 
 
 def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required blocking type-gate commands missing from the canonical workflow."""
-    return tuple(command for command in TYPECHECK_COMMANDS if command not in workflow_text)
+    """Return required blocking type gates not present as standalone shell commands.
+
+    Exact-line matching is intentional: a failing command inside an AND chain
+    can be exempt from Bash errexit handling, allowing CI to continue.
+    """
+    command_lines = {line.strip() for line in workflow_text.splitlines()}
+    return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
+
+
+def _pyright_path_is_included(path: str, include: list[str]) -> bool:
+    """Return whether a source path is covered by one include entry."""
+    normalized = Path(path).as_posix()
+    for entry in include:
+        target = Path(entry).as_posix()
+        if normalized == target:
+            return True
+        if not target.endswith(".py") and normalized.startswith(target.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
+    """Return whether a source path is covered by a declared exclusion pattern."""
+    return any(fnmatch.fnmatchcase(Path(path).as_posix(), pattern) for pattern in exclude)
+
+
+def added_production_python_modules(base: str) -> tuple[str, ...]:
+    """Find new production Python modules added relative to a pull request base."""
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--diff-filter=A",
+            "--no-renames",
+            f"origin/{base}...HEAD",
+            "--",
+            "freecad_cloth",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return tuple(
+        sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py"))
+    )
+
+
+def pyright_coverage_contract_violations(
+    config_text: str,
+    added_modules: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    """Require the reviewed staged Pyright include/exclude inventory to remain intact.
+
+    The current production tree has a large pre-existing type-error backlog.
+    Semantic coverage is widened incrementally; changing the scope requires an
+    explicit inventory update alongside diagnostic triage. Every changed Python
+    file is independently subject to the annotation-debt non-regression gate.
+    """
+    try:
+        config = json.loads(config_text)
+    except json.JSONDecodeError:
+        return ("<invalid pyrightconfig.json>",)
+
+    include = config.get("include")
+    exclude = config.get("exclude", [])
+    if include != list(PYRIGHT_EXPECTED_INCLUDE):
+        return ("<Pyright include scope differs from the reviewed inventory>",)
+    if exclude != list(PYRIGHT_EXPECTED_EXCLUDE):
+        return ("<Pyright exclude scope differs from the reviewed inventory>",)
+
+    missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
+    if missing_paths:
+        return tuple(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
+
+    uncovered_modules = tuple(
+        path
+        for path in added_modules
+        if not _pyright_path_is_included(path, include)
+        and not _pyright_path_is_excluded(path, exclude)
+    )
+    return tuple(
+        f"<new Python module is outside Pyright include/exclude scope: {path}>"
+        for path in uncovered_modules
+    )
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
@@ -64,8 +178,18 @@ def main() -> int:
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
-            "canonical workflow is missing required type-check gates: "
+            "canonical workflow is missing standalone blocking type-check commands: "
             + ", ".join(missing_typecheck)
+        )
+    base_ref = os.environ.get("BASE_REF") or os.environ.get("GITHUB_BASE_REF")
+    added_modules = added_production_python_modules(base_ref) if base_ref else ()
+    coverage_violations = pyright_coverage_contract_violations(
+        PYRIGHT_CONFIG.read_text(encoding="utf-8"), added_modules
+    )
+    if coverage_violations:
+        raise SystemExit(
+            "Pyright coverage inventory changed without an explicit staged update: "
+            + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
         raise SystemExit("ty.toml must set [terminal].error-on-warning = true")

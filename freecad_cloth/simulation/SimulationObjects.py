@@ -1,5 +1,12 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
 
 
@@ -16,12 +23,7 @@ def _write_mesh(obj, positions, triangles):
     import Mesh
 
     native = Mesh.Mesh()
-    native.addFacets(
-        [
-            (positions[a], positions[b], positions[c])
-            for a, b, c in triangles
-        ]
-    )
+    native.addFacets([(positions[a], positions[b], positions[c]) for a, b, c in triangles])
     obj.Mesh = native
 
 
@@ -131,11 +133,11 @@ def _simulation_source_signature(obj, pieces):
 def _piece_mesh(piece, start_height, piece_ir=None):
     import FreeCAD as App
 
+    from freecad_cloth.pattern.PatternMesh import triangulate
     from freecad_cloth.simulation.PatternSimulationAdapter import (
         geometry_from_piece_ir,
         resolve_piece_ir,
     )
-    from freecad_cloth.pattern.PatternMesh import triangulate
 
     if piece_ir is None:
         piece_ir = resolve_piece_ir(piece)
@@ -357,7 +359,7 @@ def _ensure_state_properties(obj):
                 "App::PropertyString", "SimulationState", "State", "Simulation lifecycle state"
             )
         if not hasattr(obj, "SimulationState"):
-            setattr(obj, "SimulationState", "READY_FOR_SIMULATION")
+            obj.SimulationState = "READY_FOR_SIMULATION"
     if not hasattr(obj, "InvalidationReason"):
         add_property = getattr(obj, "addProperty", None)
         if callable(add_property):
@@ -368,7 +370,7 @@ def _ensure_state_properties(obj):
                 "Why simulation derived state is stale or invalid",
             )
         if not hasattr(obj, "InvalidationReason"):
-            setattr(obj, "InvalidationReason", "")
+            obj.InvalidationReason = ""
 
 
 def _set_simulation_state(obj, state, reason=""):
@@ -384,7 +386,7 @@ class SimulationProxy:
     Type = "ClothSimulation"
 
     def __init__(self):
-        self.backend = None
+        self.backend: PositionBasedDynamicsBackend | None = None
         self.panel_indices = {}
         self.panel_triangles = {}
         self.panel_boundary_edges = {}
@@ -434,22 +436,25 @@ class SimulationProxy:
                 or int(obj.Steps) < int(getattr(self, "last_steps", 0))
             ):
                 self._build(obj, signature)
+            backend = self.backend
+            if backend is None:
+                raise RuntimeError("simulation backend was not initialized after rebuild")
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):
-                    self.backend.step(
+                    backend.step(
                         float(obj.TimeStep),
                         int(obj.Iterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         self.collision_surface,
                     )
                 self.last_steps = steps
-            positions = self.backend.positions()
+            positions = backend.positions()
             for panel in getattr(obj, "DrapePanels", ()):
                 _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
-            obj.SimulatedTime = self.backend.time
+            obj.SimulatedTime = backend.time
             obj.ParticleCount = len(positions)
-            obj.FiniteState = self.backend.finite()
+            obj.FiniteState = backend.finite()
         except ValueError as exc:
             message = str(exc)
             if message.startswith("cannot simulate invalid seam "):
@@ -471,8 +476,8 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
-        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
+        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
         )
@@ -722,7 +727,12 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Draping", "Avatar source used by fitting workflows")
+    scene.addProperty(
+        "App::PropertyLinkGlobal",
+        "AvatarProxy",
+        "Draping",
+        "Avatar source used by fitting workflows",
+    )
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"
