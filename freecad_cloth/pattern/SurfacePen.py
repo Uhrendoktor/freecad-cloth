@@ -547,6 +547,7 @@ class SurfacePenController:
     SAMPLE_PIXEL_THRESHOLD = 4.0
     SAMPLE_DISTANCE_MM = 3.0
     CLOSE_DISTANCE_MM = DEFAULT_CLOSE_DISTANCE_MM
+    OVERLAY_OFFSET_MM = 0.25
 
     def __init__(self, target, target_source, status_callback=None):
         self.App, self.Gui = self._modules()
@@ -612,7 +613,12 @@ class SurfacePenController:
                 scene.removeChild(self._overlay)
             self._overlay = coin.SoSeparator()
             coords = coin.SoCoordinate3()
-            points = [anchor.point for anchor in self.anchors]
+            # Lift display geometry slightly above the picked surface to avoid
+            # depth-buffer flicker. The persisted world-space anchors stay exact.
+            points = [
+                _add(anchor.point, _scale(anchor.normal, self.OVERLAY_OFFSET_MM))
+                for anchor in self.anchors
+            ]
             if len(points) >= 3 and _length(_sub(points[-1], points[0])) <= self.CLOSE_DISTANCE_MM:
                 # Preview the closing edge as soon as the pointer returns near the
                 # start. This is a viewport cue only; the stored anchors are unchanged.
