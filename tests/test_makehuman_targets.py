@@ -2,10 +2,10 @@ import gzip
 import os
 import tempfile
 import unittest
-
-import numpy as np
 from pathlib import Path
 from unittest.mock import patch
+
+import numpy as np
 
 from freecad_cloth.avatar.HumanoidMesh import _section_circumference
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -19,7 +19,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
 
 
 class MakeHumanTargetTests(unittest.TestCase):
-    def test_target_parser_restores_makehuman_axis_order_and_y_sign(self) -> None:
+    def test_target_parser_preserves_makehuman_native_axis_order(self) -> None:
         target = parse_target(
             "# basemesh hm08\n0 0.125 -0.25 0.5\n2 -1.0 0.0 -0.75\n",
             "example.target",
@@ -94,6 +94,24 @@ class MakeHumanTargetTests(unittest.TestCase):
             self.assertEqual(blended[0], (1.05, 1.875, 3.15))
             self.assertEqual(blended[1], vertices[1])
             self.assertEqual(blended[2], (6.95, 8.0, 9.25))
+
+    def test_target_lookup_falls_back_to_sibling_archive_for_partial_loose_tree(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cloth-target-fallback-") as directory:
+            root = Path(directory)
+            loose = root / "targets"
+            loose.mkdir()
+            (loose / "custom.target").write_text("0 1 0 0\n", encoding="utf-8")
+            np.savez_compressed(
+                root / "targets.npz",
+                **{
+                    "targets/torso/measure-waist-circ-incr.index": np.array([0]),
+                    "targets/torso/measure-waist-circ-incr.vector": np.array([[100, 0, 0]], dtype=np.int16),
+                },
+            )
+            reference = resolve_target("torso/measure-waist-circ-incr", loose)
+            self.assertIsNotNone(reference)
+            assert reference is not None
+            self.assertEqual(reference.path, (root / "targets.npz").resolve())
 
     def test_mesh_section_returns_polygon_perimeter(self) -> None:
         vertices = (
