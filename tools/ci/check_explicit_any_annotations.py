@@ -47,14 +47,11 @@ def _contains_explicit_any(
                 nested = None
             if nested is not None:
                 pending.append(nested)
-        elif (
-            (isinstance(current, ast.Name) and current.id in any_names)
-            or (
-                isinstance(current, ast.Attribute)
-                and current.attr == "Any"
-                and isinstance(current.value, ast.Name)
-                and current.value.id in typing_modules
-            )
+        elif (isinstance(current, ast.Name) and current.id in any_names) or (
+            isinstance(current, ast.Attribute)
+            and current.attr == "Any"
+            and isinstance(current.value, ast.Name)
+            and current.value.id in typing_modules
         ):
             return True
         pending.extend(ast.iter_child_nodes(current))
