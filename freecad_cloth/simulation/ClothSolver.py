@@ -6,14 +6,14 @@ for tests and adapters while leaving one production simulation implementation.
 """
 
 from collections.abc import Iterable
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from math import dist, isfinite
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
     DistanceConstraintInput, GridInput, ParticleIndexInput, ParticleInput,
     ParticlePairInput, validate_finite_number,
 )
-
 
 @pydantic_dataclass
 class Particle:
@@ -36,7 +36,6 @@ class Particle:
         """Return the particle position."""
         return (self.x, self.y, self.z)
 
-
 @pydantic_dataclass(frozen=True)
 class DistanceConstraint:
     """Distance constraint input passed to the native solver."""
@@ -55,14 +54,12 @@ class DistanceConstraint:
         object.__setattr__(self, "rest", validated.rest)
         object.__setattr__(self, "compliance", validated.compliance)
 
-
 def distance(a: Particle, b: Particle) -> float:
     """Return a finite Euclidean distance between two particles."""
     result = dist(a.position(), b.position())
     if not isfinite(result):
         raise ValueError("particle distance must be finite")
     return result
-
 
 class ClothSystem:
     """Solver-input model containing particles, structural constraints, seams and pins."""
