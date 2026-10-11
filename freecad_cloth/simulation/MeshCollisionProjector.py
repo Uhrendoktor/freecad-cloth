@@ -145,17 +145,15 @@ class MeshCollisionProjector:
             "nked,nked->nke", p[:, :, None, :] - edge_points, p[:, :, None, :] - edge_points
         )
         closest_edge_index = np.argmin(edge_distances, axis=2)
-        projected_edge = np.take_along_axis(
-            edge_points, closest_edge_index[:, :, None, None], axis=2
-        )[:, :, 0, :]
+        row_indices = np.arange(points.shape[0])[:, None]
+        candidate_slots = np.arange(self._candidate_count)[None, :]
+        projected_edge = edge_points[row_indices, candidate_slots, closest_edge_index]
         closest = np.where(barycentric_inside[:, :, None], projected_plane, projected_edge)
         squared_distance = np.einsum("nkd,nkd->nk", p - closest, p - closest)
 
         nearest_candidate = np.argmin(squared_distance, axis=1)
         row_indices = np.arange(points.shape[0])
         nearest_points = closest[row_indices, nearest_candidate]
-        nearest_face_ids = candidate_triangles[row_indices, nearest_candidate, :]
-        del nearest_face_ids  # normals are indexed by the selected candidate slot below
         nearest_face_slots = np.asarray(candidate_ids, dtype=np.int64)[
             row_indices, nearest_candidate
         ]
