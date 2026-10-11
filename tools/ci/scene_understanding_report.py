@@ -528,6 +528,13 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
+    fit_assessment = _fit_assessment(metrics_payload)
+    # A successful FreeCAD script is execution evidence, not proof of fit. Keep
+    # the execution stages intact while surfacing a separate fit-review outcome.
+    if result == "passed" and fit_assessment.get("state") == "review_required":
+        result = "review_required"
+        next_action = str(fit_assessment.get("next_action", next_action))
+
     crossings = [
         {
             "piece": record["piece"],
@@ -599,6 +606,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "drape_metrics_from_log": drape_records,
             "drape_metrics_json": metrics_payload,
         },
+        "fit_assessment": fit_assessment,
         "issues": issues,
         "next_action": next_action,
         "evidence": {
