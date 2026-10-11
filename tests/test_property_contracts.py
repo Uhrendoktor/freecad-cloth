@@ -77,24 +77,12 @@ def test_solver_distance_avoids_intermediate_square_overflow() -> None:
 
 
 @given(
-    parameter_a=st.floats(
-        min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-    ),
-    parameter_b=st.floats(
-        min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-    ),
-    start_a=st.floats(
-        min_value=0.0, max_value=0.9, allow_nan=False, allow_infinity=False
-    ),
-    span_a=st.floats(
-        min_value=0.001, max_value=1.0, allow_nan=False, allow_infinity=False
-    ),
-    start_b=st.floats(
-        min_value=0.0, max_value=0.9, allow_nan=False, allow_infinity=False
-    ),
-    span_b=st.floats(
-        min_value=0.001, max_value=1.0, allow_nan=False, allow_infinity=False
-    ),
+    parameter_a=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+    parameter_b=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+    start_a=st.floats(min_value=0.0, max_value=0.9, allow_nan=False, allow_infinity=False),
+    span_a=st.floats(min_value=0.001, max_value=1.0, allow_nan=False, allow_infinity=False),
+    start_b=st.floats(min_value=0.0, max_value=0.9, allow_nan=False, allow_infinity=False),
+    span_b=st.floats(min_value=0.001, max_value=1.0, allow_nan=False, allow_infinity=False),
     reversed_b=st.booleans(),
 )
 def test_seam_parameter_mapping_preserves_bounds_and_direction(
