@@ -110,9 +110,7 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     return tuple(sorted(selected))
 
 
-def _initial_phenotypes(
-    gender: float, breast_size: float
-) -> dict[str, float | dict[str, float]]:
+def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | dict[str, float]]:
     """Translate Cloth's UI controls into Anny's published phenotype convention."""
     return {
         # Anny's gender endpoints are male=0 and female=1; Cloth uses the
@@ -278,8 +276,7 @@ def _fit_anny_body(
     optimizer = torch.optim.Adam(optimizer_parameters, lr=0.035)
     target_keys = [key for _name, key, _target in targets]
     target_values = {
-        key: torch.tensor(target, dtype=torch.float32)
-        for _name, key, target in targets
+        key: torch.tensor(target, dtype=torch.float32) for _name, key, target in targets
     }
 
     for _step in range(_FIT_STEPS):
@@ -402,7 +399,9 @@ def build_avatar_shape_mesh(
     include_skin_offset: bool = True,
 ) -> MeshData:
     """Return a cached Anny mannequin in millimetres and its native triangulation."""
-    key = tuple(sorted((str(name), float(value)) for name, value in parameters.measurements.items()))
+    key = tuple(
+        sorted((str(name), float(value)) for name, value in parameters.measurements.items())
+    )
     mesh = _cached_fitted_body(key, float(parameters.gender), float(parameters.breast_size))
     if not include_skin_offset or parameters.skin_offset <= 0:
         return mesh
