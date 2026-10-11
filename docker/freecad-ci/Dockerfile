@@ -101,4 +101,51 @@ Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
 EOF
 
+# Prebuild Anny's MakeHuman-compatible rig and the same local-change basis used
+# by the Cloth adapter. Each GUI acceptance container then reuses the cache
+# instead of rebuilding the parametric body model on every fresh container.
+ENV ANNY_CACHE_DIR=/opt/freecad-cloth/cache/anny
+RUN mkdir -p "$ANNY_CACHE_DIR" && chmod 777 "$ANNY_CACHE_DIR" && \
+    /opt/conda/envs/freecad/bin/python - <<'PY'
+import json
+from pathlib import Path
+
+from anny.paths import get_anny_root_dir
+from clad_body.load.anny import load_anny_from_params
+
+root = Path(get_anny_root_dir())
+metadata = json.loads((root / "data/mpfb2/targets/target.json").read_text(encoding="utf-8"))
+terms = (
+    "measure-bust-circ", "measure-underbust-circ", "measure-waist-circ",
+    "measure-hips-circ", "measure-upperarm-circ", "measure-thigh-circ",
+    "measure-knee-circ", "measure-calf-circ", "measure-neck-circ",
+    "measure-shoulder-dist", "torso-scale-horiz", "breast-volume-vert-up",
+)
+labels = set()
+for group, group_data in metadata.items():
+    if group == "genitals" or not isinstance(group_data, dict):
+        continue
+    for category in group_data.get("categories", []):
+        opposites = category.get("opposites", {})
+        for side in ("left", "right", "unsided"):
+            positive = opposites.get(f"positive-{side}", "")
+            negative = opposites.get(f"negative-{side}", "")
+            if positive and negative and any(term in positive for term in terms):
+                labels.add(positive)
+if "breast-volume-vert-up" not in labels:
+    raise SystemExit("Anny breast morph target is missing from the installed assets")
+params = {
+    "gender": 0.5, "age": 0.667, "muscle": 0.5, "weight": 0.5,
+    "height": 0.5, "proportions": 0.5, "cupsize": 0.5, "firmness": 0.5,
+    "african": 1 / 3, "asian": 1 / 3, "caucasian": 1 / 3,
+    "_local_changes": {name: 0.0 for name in sorted(labels)},
+}
+body = load_anny_from_params(params, device="cpu")
+print(
+    f"anny-prewarm=passed vertices={body.n_vertices} faces={body.n_faces} "
+    f"local-change-targets={len(labels)} cache={__import__('os').environ['ANNY_CACHE_DIR']}",
+    flush=True,
+)
+PY
+
 ENV PYTHONPATH=/workspace
