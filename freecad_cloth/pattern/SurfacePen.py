@@ -807,7 +807,7 @@ class SurfacePenTaskPanel:
         self.controller.status_callback = self.update_status
         self.update_status("Draw on the selected surface. Finish is enabled after a closed boundary is traced.")
 
-    def update_status(self, message):
+    def update_status(self, message: str) -> None:
         """Show drawing guidance and enable extraction only for a closable boundary."""
         self.status.setText(str(message))
         self.finish_button.setEnabled(self.controller.can_finish)
