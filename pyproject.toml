@@ -63,19 +63,44 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+respect-gitignore = true
+force-exclude = true
 
 [tool.ruff.lint]
+# Broad, production-oriented static checks; only formatter conflicts and
+# FreeCAD-required host imports are excluded.
 select = [
-  "E7",
-  "E9",
+  "E",
   "F",
+  "W",
   "I",
-  "B",
-  "SIM",
-  "PGH003",
+  "A",
   "ANN401",
+  "B",
+  "BLE",
+  "C4",
+  "DTZ",
+  "FURB",
+  "G",
+  "LOG",
+  "PERF",
+  "PGH",
+  "PIE",
+  "PT",
+  "RET",
+  "RUF",
+  "SIM",
+  "UP",
+  "YTT",
 ]
-ignore = ["E501", "E402"]
+ignore = [
+  "E402",
+  "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Assertions are appropriate in tests, where they are the primary test oracle.
+"tests/**/*.py" = ["S101"]
 
 [tool.ruff.format]
 docstring-code-format = true
