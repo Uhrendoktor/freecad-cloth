@@ -155,3 +155,73 @@ def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> No
     assert status["result"] == "passed"
     assert status["failed_stage"] is None
     assert report["issues"] == []
+
+def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> None:
+    """The dossier must retain the full native curve rather than connecting only endpoints."""
+    output_root = tmp_path / "docs" / "images" / "generated"
+    output_root.mkdir(parents=True)
+    boundaries = (
+        ("sample-piece:edge:0", "line", 2, (0.0, 0.0), (0.0, 10.0), ((0.0, 0.0), (0.0, 10.0))),
+        ("sample-piece:edge:1", "arc", 4, (0.0, 10.0), (10.0, 10.0), ((0.0, 10.0), (3.0, 12.0), (7.0, 12.0), (10.0, 10.0))),
+        ("sample-piece:edge:2", "line", 2, (10.0, 10.0), (0.0, 0.0), ((10.0, 10.0), (0.0, 0.0))),
+    )
+    progress = output_root / "gui-progress.log"
+    progress.write_text(
+        "tunic-outline-topology piece=Sampled ir-valid=True ir-reason=Valid Geometry "
+        "draft-valid=True draft-reason=Valid Geometry ir-points=6 draft-points=3 "
+        f"boundary-order={boundaries!r} near-crossing=()\n"
+        "scenario-pass\n",
+        encoding="utf-8",
+    )
+
+    report = write_report(progress, output_root, tmp_path)
+
+    pattern = report["pattern"]
+    assert isinstance(pattern, dict)
+    pieces = pattern["pieces"]
+    assert isinstance(pieces, list) and len(pieces) == 1
+    piece = pieces[0]
+    assert isinstance(piece, dict)
+    boundary_order = piece["boundary_order"]
+    assert isinstance(boundary_order, list)
+    arc = boundary_order[1]
+    assert isinstance(arc, dict)
+    assert arc["samples_local_mm"] == [[0.0, 10.0], [3.0, 12.0], [7.0, 12.0], [10.0, 10.0]]
+    svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
+    assert "3.000,12.000" in svg
+
+
+def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> None:
+    """A valid native pattern must not be described as an invalid PatternIR topology."""
+    output_root = tmp_path / "docs" / "images" / "generated"
+    output_root.mkdir(parents=True)
+    boundaries = (
+        ("derived-piece:edge:0", "line", 2, (0.0, 0.0), (1.0, 0.0)),
+        ("derived-piece:edge:1", "line", 2, (1.0, 0.0), (0.0, 1.0)),
+        ("derived-piece:edge:2", "line", 2, (0.0, 1.0), (0.0, 0.0)),
+    )
+    nearby = ((0.0, 1, "derived-piece:edge:1", (1.0, 0.0), (0.0, 1.0)),)
+    progress = output_root / "gui-progress.log"
+    progress.write_text(
+        "tunic-outline-topology piece=Derived ir-valid=True ir-reason=Valid Geometry "
+        "draft-valid=False draft-reason=Self-intersection[0.5 0.5] ir-points=3 draft-points=3 "
+        f"boundary-order={boundaries!r} near-crossing={nearby!r}\n"
+        "scenario-fail exception=RuntimeError('derived pattern outline is invalid')\n",
+        encoding="utf-8",
+    )
+
+    report = write_report(progress, output_root, tmp_path)
+
+    status = report["status"]
+    stages = report["stages"]
+    assert isinstance(status, dict) and isinstance(stages, dict)
+    assert status["result"] == "blocked"
+    assert status["failed_stage"] == "pattern_representation"
+    assert stages["pattern_topology"] == "valid"
+    assert stages["derived_pattern_representation"] == "invalid"
+    assert stages["simulation"] == "not_reached"
+    issue = report["issues"][0]
+    assert isinstance(issue, dict)
+    assert issue["kind"] == "invalid_derived_outline"
+    assert issue["source"] == "derived DraftingBoundary representation"
+
