@@ -170,17 +170,17 @@ def _make_tunic_sketch(
     h = float(garment_height)
     neck_z = (1.0 - float(neckline_drop)) * h
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
-    armhole_z = 0.50 * h
+    armhole_z = 0.54 * h
     shoulder_z = 0.86 * h
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + 0.62 * panel_width, armhole_z),
+        (x_offset + 0.70 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.38 * panel_width, armhole_z),
+        (x_offset + 0.30 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError("debug tunic shoulders must fall outward from neckline")
@@ -200,10 +200,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if idx == 2:
             # Give the armhole meaningful vertical depth and inward sweep.
-            midpoint = App.Vector(x_offset + 0.63 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.67 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.37 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.33 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
