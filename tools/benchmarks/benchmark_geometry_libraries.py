@@ -49,6 +49,7 @@ def _reference_clearance(garment: Sequence[Point3], target: Sequence[Point3]) ->
 
 def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
     """Former tolerance-aware segment predicate, retained only as a benchmark oracle."""
+
     def cross(a: Point, b: Point, c: Point) -> float:
         return ((b[0] - a[0]) * (c[1] - a[1])) - ((b[1] - a[1]) * (c[0] - a[0]))
 
@@ -79,8 +80,7 @@ def _time_clearance(count: int) -> None:
 
     if not isclose(accelerated, reference, rel_tol=1e-9, abs_tol=1e-9):
         raise AssertionError(
-            f"clearance mismatch for {count}x{count} points: "
-            f"{accelerated!r} != {reference!r}"
+            f"clearance mismatch for {count}x{count} points: {accelerated!r} != {reference!r}"
         )
     print(
         f"clearance vertices={count}x{count} "
@@ -104,8 +104,7 @@ def _time_outline(count: int) -> None:
 
     if accelerated != reference:
         raise AssertionError(
-            f"outline predicate mismatch for {count} vertices: "
-            f"{accelerated!r} != {reference!r}"
+            f"outline predicate mismatch for {count} vertices: {accelerated!r} != {reference!r}"
         )
     print(
         f"outline vertices={count} "
