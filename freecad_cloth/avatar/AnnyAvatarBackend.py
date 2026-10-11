@@ -68,7 +68,7 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     except ImportError as exc:
         raise AnnyAvatarBackendError(
             "Anny is required for parametric mannequin generation; install "
-            "'anny[warp]>=0.5,<0.6' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
+            "'anny[warp]>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
         ) from exc
 
     # get_anny_root_dir() was added in Anny 0.6; Anny 0.5 bundles assets
@@ -158,8 +158,8 @@ def _fit_anny_body(
         from clad_body.measure import measure_grad
     except ImportError as exc:
         raise AnnyAvatarBackendError(
-            "Anny-backed mannequin generation requires 'anny[warp]>=0.5,<0.6' and 'clad-body[anny]>=0.6.1,<0.7'. "
-            "Run `python -m pip install 'anny[warp]>=0.5,<0.6' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
+            "Anny-backed mannequin generation requires 'anny[warp]>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7'. "
+            "Run `python -m pip install 'anny[warp]>=0.6,<0.7' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
         ) from exc
 
     values = dict(measurements)
@@ -173,7 +173,7 @@ def _fit_anny_body(
         if isinstance(value, (int, float))
     }
 
-    # Use Anny 0.5's compatibility factory, also used by clad-body's loader.
+    # Use Anny's compatibility factory, also used by clad-body's loader.
     # "makehuman" disables Anny's nudity edits; retaining unattached vertices
     # preserves the source HM08 vertex indices used by Cloth's saved rig/weights.
     model = anny.create_fullbody_model(
