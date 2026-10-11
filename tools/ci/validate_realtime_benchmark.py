@@ -41,6 +41,17 @@ def validate_metrics(payload: object) -> list[str]:
     if metrics.get("backend") != "position-based-dynamics":
         errors.append("backend must be position-based-dynamics")
 
+    if metrics.get("fixture") != "two-panel-tunic-pattern":
+        errors.append("fixture must be two-panel-tunic-pattern")
+    particles = _integer(metrics.get("particles"))
+    if particles is None or particles < 100:
+        errors.append("particles must be an integer >= 100 for garment-scale coverage")
+    if _integer(metrics.get("panel_count")) != 2:
+        errors.append("panel_count must be 2")
+    collision_triangles = _integer(metrics.get("collision_triangles"))
+    if collision_triangles is None or collision_triangles < 1:
+        errors.append("collision_triangles must be a positive integer")
+
     frames = _integer(metrics.get("frames_requested"))
     warmup = _integer(metrics.get("warmup_frames_requested"))
     intervals = _integer(metrics.get("measured_intervals"))
