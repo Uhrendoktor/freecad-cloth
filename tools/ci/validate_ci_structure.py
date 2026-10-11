@@ -110,13 +110,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
         capture_output=True,
         text=True,
     )
-    return tuple(
-        sorted(
-            Path(path).as_posix()
-            for path in result.stdout.splitlines()
-            if path.endswith(".py")
-        )
-    )
+    return tuple(sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py")))
 
 
 def pyright_coverage_contract_violations(
