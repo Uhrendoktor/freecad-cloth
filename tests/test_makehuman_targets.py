@@ -108,8 +108,6 @@ class MakeHumanTargetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="cloth-target-archive-") as directory:
             root = Path(directory)
             archive = root / "targets.npz"
-            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
-                self.assertEqual(target_directory(), root.resolve())
             np.savez_compressed(
                 archive,
                 **{
@@ -121,6 +119,8 @@ class MakeHumanTargetTests(unittest.TestCase):
                     ),
                 },
             )
+            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
+                self.assertEqual(target_directory(), root.resolve())
             reference = resolve_target("torso/measure-waist-circ-incr", root)
             self.assertIsNotNone(reference)
             assert reference is not None
