@@ -65,7 +65,15 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     )
     assert 'data-piece-id="bodice-front"' in svg
     assert 'data-edge-ids="bottom right armhole left"' in svg
-    assert 'id="notch-notch-1"' in svg
+    svg_root = ElementTree.fromstring(svg)
+    cut_path = next(
+        element for element in svg_root.iter() if element.attrib.get("id") == "cut-perimeter"
+    )
+    assert cut_path.attrib["data-notch-ids"] == "notch-1"
+    assert "107.000000,62." in cut_path.attrib["d"]
+    assert not any(
+        element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter()
+    )
     assert 'data-mark-id="grain-1"' in svg
     assert from_svg_metadata(svg) == {
         "version": 1,
@@ -97,6 +105,8 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
     }
+    cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+    assert "10\n102.000000\n20\n30.000000" in cut_section
 
 
 def test_legacy_export_metadata_remains_compatible():
