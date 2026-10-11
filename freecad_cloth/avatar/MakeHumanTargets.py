@@ -24,12 +24,14 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
 
+
 @pydantic_dataclass(frozen=True)
 class MakeHumanTarget:
     """Sparse vertex offsets read from a MakeHuman target."""
 
     name: str
     offsets: tuple[tuple[int, Point], ...]
+
 
 @pydantic_dataclass(frozen=True)
 class TargetReference:
@@ -38,6 +40,7 @@ class TargetReference:
     path: Path
     archive_key: str | None = None
     coordinate_format: Literal["makehuman", "mpfb2"] = "makehuman"
+
 
 def parse_target(
     text: str,
@@ -77,6 +80,7 @@ def parse_target(
             prior[2] + offset[2],
         )
     return MakeHumanTarget(str(name), tuple(sorted(collected.items())))
+
 
 @lru_cache(maxsize=256)
 def _load_target_cached(
@@ -129,6 +133,7 @@ def _load_target_cached(
             )
     return MakeHumanTarget(f"{source.as_posix()}::{archive_key}", tuple(sorted(merged.items())))
 
+
 def load_target(
     path: str | os.PathLike[str] | TargetReference,
 ) -> MakeHumanTarget:
@@ -150,6 +155,7 @@ def load_target(
         coordinate_format,
     )
 
+
 def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
     """Identify MPFB2 target packs by their metadata/layout conventions."""
     for parent in (root, *root.parents):
@@ -158,6 +164,7 @@ def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
         if parent.name.casefold() in {"mpfb", "mpfb2"}:
             return "mpfb2"
     return "makehuman"
+
 
 def target_directory() -> Path | None:
     """Find installed MakeHuman target files or a data directory with targets.npz.
@@ -220,6 +227,7 @@ def target_directory() -> Path | None:
             return candidate.resolve()
     return None
 
+
 @lru_cache(maxsize=16)
 def _target_index(root_text: str) -> dict[str, str]:
     root = Path(root_text)
@@ -232,6 +240,7 @@ def _target_index(root_text: str) -> dict[str, str]:
         index.setdefault(target_name.casefold(), path.as_posix())
         index.setdefault(Path(target_name).name.casefold(), path.as_posix())
     return index
+
 
 @lru_cache(maxsize=16)
 def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[str, str]:
@@ -249,6 +258,7 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
             index.setdefault(target_name.casefold(), key[: -len(".index")])
             index.setdefault(Path(target_name).name.casefold(), key[: -len(".index")])
     return index
+
 
 def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
     """Resolve a target by relative path or basename, with or without extension."""
@@ -291,6 +301,7 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
             )
     return None
 
+
 def apply_targets(
     vertices: Sequence[Point],
     weights: Mapping[str, float],
@@ -323,6 +334,7 @@ def apply_targets(
             point[1] += weight * offset[1]
             point[2] += weight * offset[2]
     return tuple((point[0], point[1], point[2]) for point in mutable)
+
 
 def apply_measurement_targets(
     vertices: Sequence[Point], parameters: AvatarParameters
