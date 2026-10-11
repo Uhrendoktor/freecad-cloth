@@ -180,10 +180,6 @@ def run():
         avatar = create_avatar(attach_collision=False, doc=doc, object_name="ShapeEditorMannequin")
         avatar.Label = "Mannequin / Sewing Fit Example"
         doc.recompute()
-        original_measurements = {
-            key: float(getattr(avatar, property_name))
-            for key, property_name in AvatarTaskPanel.PROPERTY_MAP.items()
-        }
         original_mesh = _mesh_points(avatar)
         original_names = {str(obj.Name) for obj in doc.Objects}
 
@@ -323,10 +319,7 @@ try:
 except BaseException as exc:
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-shape-editor.log").write_text(
-        "avatar-shape-editor=failed\n"
-        + repr(exc)
-        + "\n"
-        + traceback.format_exc(),
+        "avatar-shape-editor=failed\n" + repr(exc) + "\n" + traceback.format_exc(),
         encoding="utf-8",
     )
     print("avatar-shape-editor=failed", exc, flush=True)
