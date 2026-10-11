@@ -147,9 +147,9 @@ def main() -> None:
         raise ValueError("CLOTH_REALTIME_TIMEOUT_MS must be at least 1000")
 
     try:
-        from PySide2 import QtWidgets
-    except ImportError:
         from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
     from freecad_cloth.simulation.RealtimePreview import _Preview, _prepare, _qt
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
