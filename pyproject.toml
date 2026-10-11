@@ -64,7 +64,7 @@ pythonpath = ["."]
 target-version = "py312"
 line-length = 100
 respect-gitignore = true
-force-exclude = true
+force-exclude = false
 
 [tool.ruff.lint]
 # Broad, production-oriented static checks; only formatter conflicts and
