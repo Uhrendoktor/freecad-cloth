@@ -411,6 +411,7 @@ def test_canonical_tunic_fixture_blocks_every_authored_segment():
     assert expected_constraint in fixture
     assert 'Sketcher.Constraint("Coincident"' not in fixture
 
+
 def test_tunic_scene_dossier_logs_sampled_topology_before_simulation():
     """The actual CI fixture must emit geometry evidence before downstream evaluation."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
