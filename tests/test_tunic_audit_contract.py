@@ -126,7 +126,7 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "shoulders must slope downward from neckline to shoulder tip" in sketch_builder
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in sketch_builder
     assert "shoulder_z - armhole_z < 0.20 * float(garment_height)" in sketch_builder
-    assert "side_ease_mm = 6.0" in sketch_builder
+    assert "side_ease_mm = 4.0" in sketch_builder
     assert "if index == 1:" in sketch_builder
     assert "elif index == 7:" in sketch_builder
     assert "0.5 * (start[0] + end[0]) + side_ease_mm" in sketch_builder
@@ -134,8 +134,8 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.26 * panel_width, armhole_z)" in sketch_builder
     # Keep the inward-scooped arc inside the shoulder line; .73/.27 self-intersects.
-    assert "x_offset + 0.75 * panel_width, armhole_mid_z" in sketch_builder
-    assert "x_offset + 0.25 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.741 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.259 * panel_width, armhole_mid_z" in sketch_builder
     assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
     assert 'boundary.kind != "arc" or len(boundary.samples) < 8' in source
     assert "armhole curve has insufficient inward clearance" in source
@@ -352,13 +352,13 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "shoulder_z = 0.90 * h" in debug
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug
     assert "shoulder_z - armhole_z < 0.20 * h" in debug
-    assert "side_ease_mm = 6.0" in debug
+    assert "side_ease_mm = 4.0" in debug
     assert "if idx == 1:" in debug
     assert "elif idx == 7:" in debug
     assert "(x_offset + 0.74 * panel_width, armhole_z)" in debug
     assert "(x_offset + 0.26 * panel_width, armhole_z)" in debug
-    assert "midpoint = App.Vector(x_offset + 0.75 * panel_width, armhole_mid_z, 0)" in debug
-    assert "midpoint = App.Vector(x_offset + 0.25 * panel_width, armhole_mid_z, 0)" in debug
+    assert "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug
+    assert "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug
     assert "(x_offset + 0.06 * panel_width, 0.90 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.90 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug

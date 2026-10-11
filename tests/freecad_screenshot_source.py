@@ -832,7 +832,7 @@ def _make_tunic_sketch(
     # The armholes are free, inward-scooped edges. They must not be sewn shut.
     geometry = []
     armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
-    side_ease_mm = 6.0
+    side_ease_mm = 4.0
     for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
@@ -846,10 +846,10 @@ def _make_tunic_sketch(
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 2:
             # Keep the open armholes at their authored inward-scooped size.
-            midpoint = App.Vector(x_offset + 0.75 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.25 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 7:
             midpoint = App.Vector(

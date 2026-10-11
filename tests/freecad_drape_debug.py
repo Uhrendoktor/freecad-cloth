@@ -194,7 +194,7 @@ def _make_tunic_sketch(
             raise RuntimeError("debug tunic profile lost canonical bilateral symmetry")
     sketch = doc.addObject("Sketcher::SketchObject", name)
     armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
-    side_ease_mm = 6.0
+    side_ease_mm = 4.0
     for idx, start in enumerate(points):
         end = points[(idx + 1) % len(points)]
         start_vector = App.Vector(start[0], start[1], 0)
@@ -208,10 +208,10 @@ def _make_tunic_sketch(
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
-            midpoint = App.Vector(x_offset + 0.75 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.25 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 7:
             midpoint = App.Vector(
