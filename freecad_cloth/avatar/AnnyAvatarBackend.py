@@ -202,7 +202,7 @@ def _fit_anny_body(
     # preserves the source HM08 vertex indices used by Cloth's saved rig/weights.
     model = anny.create_fullbody_model(
         rig="default",
-        topology="makehuman",
+        topology="makehuman-tris",
         local_changes=sorted(local_values),
         remove_unattached_vertices=False,
         triangulate_faces=True,
@@ -381,6 +381,11 @@ def _fit_anny_body(
     )
 
     all_vertices = fitted_body.vertices
+    fitted_faces = fitted_body.faces
+    if len(fitted_faces.shape) != 2 or fitted_faces.shape[1] != 3:
+        raise AnnyAvatarBackendError(
+            "Anny's MakeHuman topology must be triangulated; expected a face array of shape (N, 3)."
+        )
     if len(all_vertices) < MAKEHUMAN_BODY_VERTEX_COUNT:
         raise AnnyAvatarBackendError(
             "The installed Anny topology is incompatible with the MakeHuman rig: "
@@ -405,6 +410,11 @@ def _fit_anny_body(
         for face in fitted_body.faces
         if len(face) == 3 and all(0 <= int(index) < MAKEHUMAN_BODY_VERTEX_COUNT for index in face)
     )
+    if len(triangles) < 20_000:
+        raise AnnyAvatarBackendError(
+            "Anny produced too few triangles for the visible HM08 body surface: "
+            f"expected at least 20000, received {len(triangles)}."
+        )
     result = MeshData(vertices, triangles)
     try:
         result.validate()

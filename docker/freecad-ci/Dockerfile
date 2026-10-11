@@ -145,7 +145,7 @@ if "breast-volume-vert-up" not in labels:
     raise SystemExit("Anny breast morph target is missing from the installed assets")
 model = anny.create_fullbody_model(
     rig="default",
-    topology="makehuman",
+    topology="makehuman-tris",
     local_changes=sorted(labels),
     remove_unattached_vertices=False,
     triangulate_faces=True,
@@ -178,11 +178,16 @@ vertex_count = int(output["vertices"].shape[1])
 if vertex_count < 13380:
     raise SystemExit(f"Anny did not preserve the HM08 body vertex prefix: {vertex_count}")
 faces = model.faces.detach().cpu().numpy()
+if faces.ndim != 2 or faces.shape[1] != 3:
+    raise SystemExit(f"Anny topology must be triangulated; received faces shape {faces.shape}")
 visible_faces = ((faces >= 0) & (faces < 13380)).all(axis=1)
-if not visible_faces.any():
-    raise SystemExit("Anny topology has no triangles in the canonical HM08 body prefix")
+visible_face_count = int(visible_faces.sum())
+if visible_face_count < 20000:
+    raise SystemExit(
+        f"Anny has too few triangles in the canonical HM08 body prefix: {visible_face_count}"
+    )
 print(
-    f"anny-prewarm=passed vertices={vertex_count} faces={int(visible_faces.sum())} "
+    f"anny-prewarm=passed vertices={vertex_count} faces={visible_face_count} "
     f"local-change-targets={len(labels)} cache={os.environ['ANNY_CACHE_DIR']}",
     flush=True,
 )
