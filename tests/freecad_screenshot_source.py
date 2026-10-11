@@ -416,9 +416,10 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
             )
             if target_mesh.is_watertight:
                 states = target_mesh.contains(np.asarray(points, dtype=float))
-                log("penetration-check=trimesh contains points=%d triangles=%d" % (
-                    len(points), len(triangles)
-                ))
+                log(
+                    "penetration-check=trimesh contains points=%d triangles=%d"
+                    % (len(points), len(triangles))
+                )
                 return int(np.count_nonzero(states))
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
