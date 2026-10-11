@@ -144,7 +144,8 @@ def _fit_anny_body(
     """Fit an Anny body with the published differentiable measurements."""
     try:
         import torch
-        from anny import Anny, RigConfig, TopologyConfig
+        from anny import Anny
+        from anny.models.model_data import RigConfig, TopologyConfig
         from clad_body.load.anny import build_anny_apose, load_anny_from_verts
         from clad_body.measure import measure_grad
     except ImportError as exc:
