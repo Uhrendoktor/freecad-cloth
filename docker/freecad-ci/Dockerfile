@@ -153,6 +153,12 @@ model = anny.create_fullbody_model(
     bone_orientation="blender-rootidentity",
     all_phenotypes=True,
 ).to(dtype=torch.float32, device="cpu")
+base_mesh_vertex_indices = getattr(model, "base_mesh_vertex_indices", None)
+if base_mesh_vertex_indices is None:
+    raise SystemExit("Anny model does not expose its base-mesh vertex index map")
+base_ids = base_mesh_vertex_indices.detach().cpu().tolist()
+if base_ids[:13380] != list(range(13380)):
+    raise SystemExit("Anny topology does not preserve legacy HM08 body vertex index order")
 missing = set(labels) - set(model.local_change_labels)
 if missing:
     raise SystemExit(f"Anny missing configured morphs: {sorted(missing)}")
