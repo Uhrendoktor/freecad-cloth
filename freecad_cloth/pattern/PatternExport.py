@@ -3,8 +3,8 @@
 import json
 from dataclasses import dataclass
 from html import escape
-from pathlib import Path
 from math import cos, hypot, radians, sin
+from pathlib import Path
 from xml.etree import ElementTree
 
 from shapely.geometry import Point as ShapelyPoint
