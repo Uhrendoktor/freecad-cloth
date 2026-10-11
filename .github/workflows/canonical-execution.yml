@@ -321,7 +321,7 @@ jobs:
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
 
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@1418dfb31178a52e1c5d62022512a43ef1390061
+      - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -337,6 +337,11 @@ jobs:
             artifacts/tunic-audit/**
             artifacts/freecad-realtime/**
             artifacts/pypbd-provenance.txt
+          scene-report-command: python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated
+          observation-root: docs/images/generated
+          observation-label: Tunic pattern-to-fitting scene diagnostics
+          observation-files: >-
+            summary=scene-understanding.json;visual=scene-understanding.svg
           environment: |
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
