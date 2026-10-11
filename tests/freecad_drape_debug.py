@@ -200,10 +200,10 @@ def _make_tunic_sketch(
         end_vector = App.Vector(end[0], end[1], 0)
         if idx == 2:
             # Give the armhole meaningful vertical depth and inward sweep.
-            midpoint = App.Vector(x_offset + 0.69 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.31 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
@@ -360,7 +360,7 @@ def run():
     shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
     hem_z = float(hip_point.z)
     shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
-    shoulder_span_ratio = 0.86 - 0.14
+    shoulder_span_ratio = 0.94 - 0.06
     panel_width = max(420.0, shoulder_width / shoulder_span_ratio + 20.0)
     hem_width = max(500.0, panel_width + 80.0)
     garment_height = max(560.0, shoulder_z - hem_z)

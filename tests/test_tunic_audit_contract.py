@@ -128,8 +128,8 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "shoulder_z - armhole_z < 0.20 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in sketch_builder
-    assert "x_offset + 0.69 * panel_width, armhole_mid_z" in sketch_builder
-    assert "x_offset + 0.31 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.71 * panel_width, armhole_mid_z" in sketch_builder
+    assert "x_offset + 0.29 * panel_width, armhole_mid_z" in sketch_builder
     assert "for edge_index, inward in ((2, -1.0), (6, 1.0))" in source
     assert 'boundary.kind != "arc" or len(boundary.samples) < 8' in source
     assert "armhole curve has insufficient inward clearance" in source
@@ -347,13 +347,15 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "shoulder_z - armhole_z < 0.20 * h" in debug
     assert "(x_offset + 0.70 * panel_width, armhole_z)" in debug
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in debug
-    assert "midpoint = App.Vector(x_offset + 0.69 * panel_width, armhole_mid_z, 0)" in debug
-    assert "midpoint = App.Vector(x_offset + 0.31 * panel_width, armhole_mid_z, 0)" in debug
+    assert "midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)" in debug
+    assert "midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)" in debug
     assert "(x_offset + 0.06 * panel_width, 0.86 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.86 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "shoulder_width / shoulder_span_ratio + 20.0" in debug
+    assert "shoulder_span_ratio = 0.94 - 0.06" in debug
+    assert "shoulder_span_ratio = 0.94 - 0.06" in audit
     assert "hem_width = max(500.0, panel_width + 80.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
     assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.06)' in debug
