@@ -23,12 +23,10 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
 
-
 Point3 = tuple[float, float, float]
 Vector3 = Point3
 Point2 = tuple[float, float]
 DEFAULT_CLOSE_DISTANCE_MM = 6.0
-
 
 def _as_point3(value) -> Point3:
     try:
@@ -39,10 +37,8 @@ def _as_point3(value) -> Point3:
         pass
     return (float(value.x), float(value.y), float(value.z))
 
-
 def _dot(a: Vector3, b: Vector3) -> float:
     return sum(float(x) * float(y) for x, y in zip(a, b, strict=False))
-
 
 def _cross(a: Vector3, b: Vector3) -> Vector3:
     return (
@@ -51,29 +47,23 @@ def _cross(a: Vector3, b: Vector3) -> Vector3:
         float(a[0]) * float(b[1]) - float(a[1]) * float(b[0]),
     )
 
-
 def _sub(a: Point3, b: Point3) -> Vector3:
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
 
 def _add(a: Point3, b: Vector3) -> Point3:
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
-
 def _scale(a: Vector3, value: float) -> Vector3:
     return (a[0] * value, a[1] * value, a[2] * value)
 
-
 def _length(a: Vector3) -> float:
     return math.sqrt(_dot(a, a))
-
 
 def _normalize(a: Vector3) -> Vector3:
     length = _length(a)
     if length <= 1e-12:
         raise ValueError("surface points do not define a usable direction")
     return _scale(a, 1.0 / length)
-
 
 def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
     if not points:
@@ -85,7 +75,6 @@ def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
         sum(point[2] for point in points) / count,
     )
 
-
 def polygon_area_2d(points: collections.abc.Sequence[Point2]) -> float:
     """Return the signed polygon area in square millimetres."""
     if len(points) < 3:
@@ -95,17 +84,14 @@ def polygon_area_2d(points: collections.abc.Sequence[Point2]) -> float:
         for a, b in zip(points, (*points[1:], points[0]), strict=False)
     )
 
-
 def _orientation(a: Point2, b: Point2, c: Point2) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
 
 def _on_segment(a: Point2, b: Point2, p: Point2, tolerance: float = 1e-9) -> bool:
     return (
         min(a[0], b[0]) - tolerance <= p[0] <= max(a[0], b[0]) + tolerance
         and min(a[1], b[1]) - tolerance <= p[1] <= max(a[1], b[1]) + tolerance
     )
-
 
 def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
     values = (
@@ -129,7 +115,6 @@ def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
         )
     )
 
-
 def polygon_self_intersects(points: collections.abc.Sequence[Point2]) -> bool:
     """Return True when a non-adjacent polygon edge pair intersects."""
     count = len(points)
@@ -149,7 +134,6 @@ def polygon_self_intersects(points: collections.abc.Sequence[Point2]) -> bool:
             ):
                 return True
     return False
-
 
 def simplify_polyline(
     points: collections.abc.Sequence[Point3], tolerance_mm: float = 1.0
@@ -188,7 +172,6 @@ def simplify_polyline(
         return left[:-1] + right
 
     return rdp(values)
-
 
 def surface_segments_from_anchor_kinds(
     points: collections.abc.Sequence[Point2],
@@ -238,7 +221,6 @@ def surface_segments_from_anchor_kinds(
             segments.append(("line", (values[start_index], values[end_index])))
     return tuple(segments)
 
-
 @pydantic_dataclass(frozen=True)
 class SurfaceAnchor:
     """A picked target-space point with its surface normal and authoring intent.
@@ -268,8 +250,7 @@ class SurfaceAnchor:
             raise ValueError(f"unsupported surface anchor point type: {kind}")
         return cls(_as_point3(value["point"]), _as_point3(value["normal"]), kind)
 
-
-@dataclasses.dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class FlattenedSurfacePatch:
     """2D result of the bounded MVP surface-to-plane projection."""
 
@@ -293,7 +274,6 @@ class FlattenedSurfacePatch:
                 f"{self.max_deviation_mm:.2f} mm deviation exceeds {limit:.2f} mm tolerance"
             )
         return self
-
 
 def flatten_surface_patch(
     points: collections.abc.Sequence[Point3],
@@ -350,11 +330,9 @@ def flatten_surface_patch(
     patch = FlattenedSurfacePatch(tuple(points_2d), center, normal, float(max_deviation))
     return patch.validate(tolerance_mm)
 
-
 def _target_source(target):
     source = getattr(target, "SourceObject", None)
     return source if source is not None else target
-
 
 def _target_signature(target) -> str:
     source = _target_source(target)
@@ -368,7 +346,6 @@ def _target_signature(target) -> str:
         )
     except (AttributeError, TypeError, ValueError, RuntimeError):
         return str(getattr(target, "Name", ""))
-
 
 def _surface_target_from_document(doc, Gui):
     selection = tuple(Gui.Selection.getSelection()) if Gui is not None else ()
@@ -389,7 +366,6 @@ def _surface_target_from_document(doc, Gui):
             return obj, obj
     return None, None
 
-
 def _hit_matches_target(view, x: int, y: int, target_source) -> bool:
     """Guard surface picking against unrelated visible geometry."""
     try:
@@ -404,7 +380,6 @@ def _hit_matches_target(view, x: int, y: int, target_source) -> bool:
     return bool(target_name and target_name in encoded) or bool(
         target_label and target_label in encoded
     )
-
 
 def pick_surface_point(view, x: int, y: int, target_source) -> SurfaceAnchor | None:
     """Pick a world-space point and normal from the selected surface target."""
@@ -442,7 +417,6 @@ def pick_surface_point(view, x: int, y: int, target_source) -> SurfaceAnchor | N
         return None
     return SurfaceAnchor(point, normal)
 
-
 def _append_anchor(
     anchors: list[SurfaceAnchor],
     anchor: SurfaceAnchor,
@@ -452,7 +426,6 @@ def _append_anchor(
         return False
     anchors.append(anchor)
     return True
-
 
 def surface_stroke_can_finish(
     anchors: collections.abc.Sequence[SurfaceAnchor],
@@ -468,7 +441,6 @@ def surface_stroke_can_finish(
         return False
     limit = max(0.0, float(tolerance_mm))
     return _length(_sub(values[-1].point, values[0].point)) <= limit + 1e-9
-
 
 def close_surface_stroke(
     anchors: collections.abc.Sequence[SurfaceAnchor],
@@ -492,7 +464,6 @@ def close_surface_stroke(
     if len(unique) < 3:
         raise ValueError("surface boundary needs at least three distinct points")
     return boundary
-
 
 def create_surface_pen_object(
     doc, target, anchors: collections.abc.Sequence[SurfaceAnchor], label="3D Surface Draft"
@@ -531,7 +502,6 @@ def create_surface_pen_object(
     obj.Shape = Part.makePolygon(points)
     return obj
 
-
 def _add_surface_provenance(piece, surface_draft):
     if "SurfaceDraft" not in piece.PropertiesList:
         piece.addProperty("App::PropertyLinkGlobal", "SurfaceDraft", "3D Authoring")
@@ -539,7 +509,6 @@ def _add_surface_provenance(piece, surface_draft):
     if "SurfaceAuthoring" not in piece.PropertiesList:
         piece.addProperty("App::PropertyString", "SurfaceAuthoring", "3D Authoring")
     piece.SurfaceAuthoring = "ClothPattern.SurfacePen"
-
 
 def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None):
     """Create a native Sketcher-backed PatternPiece from a persisted surface draft."""
@@ -595,10 +564,8 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
     doc.recompute()
     return obj
 
-
 def _surface_stroke_object(doc, target, anchors):
     return create_surface_pen_object(doc, target, anchors)
-
 
 class SurfacePenController:
     """Interactive viewport controller for the Cloth 3D Pattern Pen."""
@@ -950,7 +917,6 @@ class SurfacePenController:
         )
         return piece
 
-
 class SurfacePenTaskPanel:
     """Small native FreeCAD task panel controlling the viewport pen."""
 
@@ -1079,7 +1045,6 @@ class SurfacePenTaskPanel:
             from PySide2 import QtWidgets
         return QtWidgets.QDialogButtonBox.NoButton
 
-
 def start_surface_pen():
     """Start the public Cloth Pattern 3D Surface Pen command."""
     import FreeCAD as App
@@ -1099,7 +1064,6 @@ def start_surface_pen():
     controller.activate()
     Gui.Control.showDialog(panel)
     return panel
-
 
 __all__ = [
     "FlattenedSurfacePatch",
