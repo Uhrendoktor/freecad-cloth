@@ -175,12 +175,12 @@ def _make_tunic_sketch(
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + 0.70 * panel_width, armhole_z),
+        (x_offset + 0.74 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.30 * panel_width, armhole_z),
+        (x_offset + 0.26 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError("debug tunic shoulders must fall outward from neckline")
@@ -208,10 +208,10 @@ def _make_tunic_sketch(
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
-            midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.75 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.25 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 7:
             midpoint = App.Vector(
