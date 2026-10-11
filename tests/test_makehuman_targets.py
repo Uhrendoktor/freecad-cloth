@@ -126,7 +126,7 @@ class MakeHumanTargetTests(unittest.TestCase):
             target_dir = root / "breast"
             target_dir.mkdir()
             (target_dir / "breast-volume-vert-up.target").write_text(
-                "0 0.2 0.1 -0.2\\n", encoding="utf-8"
+                "0 0.2 0.1 -0.2\n", encoding="utf-8"
             )
             parameters = AvatarParameters(gender=0.5, breast_size=0.5)
             vertices = ((1.0, 2.0, 3.0),)
