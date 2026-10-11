@@ -518,35 +518,47 @@ def run():
     rest_vertices, rest_triangles = _mesh_snapshot(avatar)
     set_avatar_joint("upperarm01.L", y=30.0)
     posed_vertices, posed_triangles = _mesh_snapshot(avatar)
-    if posed_triangles != rest_triangles:
-        raise RuntimeError("avatar skeleton edit unexpectedly changed mesh triangle connectivity")
+    if len(posed_triangles) != len(rest_triangles):
+        raise RuntimeError("avatar skeleton edit unexpectedly changed mesh facet count")
 
+    def facet_centroid(vertices, triangles, facet_index):
+        triangle = triangles[facet_index]
+        return tuple(
+            sum(vertices[vertex][axis] for vertex in triangle) / 3.0
+            for axis in range(3)
+        )
+
+    # FreeCAD may renumber the shared Mesh.Topology vertex array after a
+    # deformation. FacetN is the persisted anchor key, so compare each facet's
+    # centroid by facet ordinal rather than comparing incidental vertex indices.
     moved_triangle_index = max(
         range(len(rest_triangles)),
         key=lambda index: sum(
-            sum(
-                (posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2
-                for axis in range(3)
+            (
+                facet_centroid(posed_vertices, posed_triangles, index)[axis]
+                - facet_centroid(rest_vertices, rest_triangles, index)[axis]
             )
-            for vertex in rest_triangles[index]
+            ** 2
+            for axis in range(3)
         ),
     )
-    moved_triangle = rest_triangles[moved_triangle_index]
+    rest_centroid = facet_centroid(rest_vertices, rest_triangles, moved_triangle_index)
+    posed_centroid = facet_centroid(posed_vertices, posed_triangles, moved_triangle_index)
     movement_score = sum(
-        sum((posed_vertices[vertex][axis] - rest_vertices[vertex][axis]) ** 2 for axis in range(3))
-        for vertex in moved_triangle
+        (posed_centroid[axis] - rest_centroid[axis]) ** 2 for axis in range(3)
     )
     if movement_score <= 1e-4:
-        raise RuntimeError("manual skeleton edit did not deform any avatar surface triangle")
+        raise RuntimeError("manual skeleton edit did not deform any avatar surface facet")
 
     set_avatar_joint("upperarm01.L", y=0.0)
     reset_vertices, reset_triangles = _mesh_snapshot(avatar)
-    if reset_triangles != rest_triangles:
-        raise RuntimeError("reset avatar pose changed surface triangle connectivity")
+    if len(reset_triangles) != len(rest_triangles):
+        raise RuntimeError("reset avatar pose changed surface facet count")
     triangle_weights = (0.2, 0.3, 0.5)
+    reset_triangle = reset_triangles[moved_triangle_index]
     local_pick = tuple(
         sum(
-            reset_vertices[moved_triangle[index]][axis] * triangle_weights[index]
+            reset_vertices[reset_triangle[index]][axis] * triangle_weights[index]
             for index in range(3)
         )
         for axis in range(3)

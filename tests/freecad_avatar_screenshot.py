@@ -243,49 +243,57 @@ def render_body_shape_gallery(doc, view, avatar, output):
     camera.height = camera_height
 
     frames = []
-    for index, profile in enumerate(profiles):
-        measurements = dict(DEFAULT_MEASUREMENTS)
-        measurements.update(profile["measurements"])
-        params = AvatarParameters(
-            measurements,
-            float(getattr(avatar, "SkinOffset", 3.0)),
-            Pose("standing"),
-            3,
-            float(profile["gender"]),
-            float(profile["breast_size"]),
-        )
-        _rebuild(avatar, params=params)
-        # Rebuild reapplies the application's CAD wireframe style; use solid
-        # shading for this silhouette comparison only.
-        avatar.ViewObject.DisplayMode = "Shaded"
-        avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
-        if hasattr(avatar.ViewObject, "SpecularColor"):
-            avatar.ViewObject.SpecularColor = (0.15, 0.15, 0.15)
-        if hasattr(avatar.ViewObject, "Shininess"):
-            avatar.ViewObject.Shininess = 5.0
-        avatar.Label = "Avatar example: " + profile["name"]
-        doc.recompute()
+    from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
 
-        bounds = avatar.Mesh.BoundBox
-        center = App.Vector(
-            0.5 * (bounds.XMin + bounds.XMax),
-            0.5 * (bounds.YMin + bounds.YMax),
-            0.5 * (bounds.ZMin + bounds.ZMax),
-        )
-        target = coin.SbVec3f(center.x, center.y, center.z)
-        camera.position = target + base_offset
-        camera.pointAt(target, coin.SbVec3f(0.0, 0.0, 1.0))
-        camera.height = camera_height
-        events()
+    original_fit_steps = anny_backend._FIT_STEPS
+    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+    try:
+        for index, profile in enumerate(profiles):
+            measurements = dict(DEFAULT_MEASUREMENTS)
+            measurements.update(profile["measurements"])
+            params = AvatarParameters(
+                measurements,
+                float(getattr(avatar, "SkinOffset", 3.0)),
+                Pose("standing"),
+                3,
+                float(profile["gender"]),
+                float(profile["breast_size"]),
+            )
+            _rebuild(avatar, params=params)
+            # Rebuild reapplies the application's CAD wireframe style; use solid
+            # shading for this silhouette comparison only.
+            avatar.ViewObject.DisplayMode = "Shaded"
+            avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+            if hasattr(avatar.ViewObject, "SpecularColor"):
+                avatar.ViewObject.SpecularColor = (0.15, 0.15, 0.15)
+            if hasattr(avatar.ViewObject, "Shininess"):
+                avatar.ViewObject.Shininess = 5.0
+            avatar.Label = "Avatar example: " + profile["name"]
+            doc.recompute()
 
-        frame_path = frame_dir / ("%02d.png" % index)
-        view.saveImage(str(frame_path), 420, 560, "White")
-        if not frame_path.is_file() or frame_path.stat().st_size < 3000:
-            raise RuntimeError("body-shape frame missing or suspiciously small: " + str(frame_path))
-        with Image.open(frame_path) as source:
-            if source.size != (420, 560):
-                raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
-            frames.append(source.convert("RGB").copy())
+            bounds = avatar.Mesh.BoundBox
+            center = App.Vector(
+                0.5 * (bounds.XMin + bounds.XMax),
+                0.5 * (bounds.YMin + bounds.YMax),
+                0.5 * (bounds.ZMin + bounds.ZMax),
+            )
+            target = coin.SbVec3f(center.x, center.y, center.z)
+            camera.position = target + base_offset
+            camera.pointAt(target, coin.SbVec3f(0.0, 0.0, 1.0))
+            camera.height = camera_height
+            events()
+
+            frame_path = frame_dir / ("%02d.png" % index)
+            view.saveImage(str(frame_path), 420, 560, "White")
+            if not frame_path.is_file() or frame_path.stat().st_size < 3000:
+                raise RuntimeError("body-shape frame missing or suspiciously small: " + str(frame_path))
+            with Image.open(frame_path) as source:
+                if source.size != (420, 560):
+                    raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
+                frames.append(source.convert("RGB").copy())
+
+    finally:
+        anny_backend._FIT_STEPS = original_fit_steps
 
     def font(size, bold=False):
         """Load a readable annotation font with a portable fallback."""
