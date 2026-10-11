@@ -7,7 +7,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
 )
 
 
-def test_cloth_gender_slider_is_translated_to_anny_convention():
+def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
     feminine = _initial_phenotypes(gender=0.0, breast_size=0.25)
     masculine = _initial_phenotypes(gender=1.0, breast_size=0.75)
 
@@ -17,7 +17,7 @@ def test_cloth_gender_slider_is_translated_to_anny_convention():
     assert masculine["_local_changes"]["breast-volume-vert-up"] == 0.75
 
 
-def test_shape_controls_are_not_mixed_into_anthropometric_measurements():
+def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None:
     phenotype = _initial_phenotypes(0.5, 0.5)
     scalar_controls = [
         value for value in phenotype.values() if isinstance(value, float)
@@ -29,7 +29,7 @@ def test_shape_controls_are_not_mixed_into_anthropometric_measurements():
     )
 
 
-def test_selected_local_morphs_exist_in_installed_anny_assets():
+def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
     labels = _measurement_local_change_labels()
 
     assert "breast-volume-vert-up" in labels
