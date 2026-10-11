@@ -17,7 +17,12 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
-from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+from freecad_cloth.pattern.PatternExport import (
+    from_dxf_metadata,
+    from_pdf_metadata,
+    from_svg_metadata,
+)
+from freecad_cloth.pattern.PatternSvgValidation import render_svg_for_validation
 
 LOG_PATH = Path(
     os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log")
@@ -293,8 +298,10 @@ try:
         )
 
         results = {}
-        readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
-        for export_format in ("SVG", "DXF"):
+        readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata, "PDF": from_pdf_metadata}
+        preview_pdf = ROOT / "artifacts" / "pattern-export-print-preview.pdf"
+        preview_pdf.parent.mkdir(parents=True, exist_ok=True)
+        for export_format in ("SVG", "DXF", "PDF"):
             path_a = output_dir / ("piece." + export_format.lower())
             path_b = output_dir / ("piece-second." + export_format.lower())
 
@@ -322,7 +329,11 @@ try:
             if first != second:
                 raise RuntimeError(export_format + " export is not byte-deterministic")
 
-            metadata = readers[export_format](first.decode("utf-8"))
+            metadata = (
+                readers[export_format](first)
+                if export_format == "PDF"
+                else readers[export_format](first.decode("utf-8"))
+            )
             if metadata.get("piece_id") != piece_id:
                 raise RuntimeError(export_format + " export lost piece identity")
             if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
@@ -336,10 +347,16 @@ try:
             if metadata.get("mark_ids") != sorted([grainline_id, mark_id]):
                 raise RuntimeError(export_format + " export lost persisted mark identity")
 
-            output = first.decode("utf-8")
             if export_format == "SVG":
-                if f'id="notch-{notch_id}"' not in output:
-                    raise RuntimeError("SVG export lost persisted notch identity/geometry")
+                output = first.decode("utf-8")
+                if f'data-notch-ids="{notch_id}"' not in output:
+                    raise RuntimeError("SVG cut perimeter lost persisted notch identity")
+                if "55.000000,67.000000" not in output:
+                    raise RuntimeError("SVG cut perimeter lost inward notch geometry")
+                if 'cx="55.000000" cy="65.000000"' in output:
+                    raise RuntimeError(
+                        "SVG export still emits a decorative sewing-line notch circle"
+                    )
                 if f'id="mark-{grainline_id}"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline identity/geometry")
                 if f'id="mark-{mark_id}"' not in output or 'data-kind="InternalMark"' not in output:
@@ -348,13 +365,35 @@ try:
                     )
                 if f'data-segment="{edge_id}" data-t="0.500000"' not in output:
                     raise RuntimeError("SVG export lost persisted semantic mark reference")
-                if 'cx="55.000000" cy="65.000000"' not in output:
-                    raise RuntimeError("SVG export lost persisted notch coordinates")
                 if 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted construction-mark coordinates")
                 if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline coordinates")
-            else:
+                preview_png = ROOT / "artifacts" / "pattern-export-svg-preview.png"
+                render_report = render_svg_for_validation(
+                    output,
+                    dpi=144,
+                    output_path=preview_png,
+                )
+                render_report_path = ROOT / "artifacts" / "pattern-export-svg-render.json"
+                render_report_path.write_text(
+                    json.dumps(render_report, sort_keys=True, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                record(
+                    "svg-render=passed renderer={} physical_mm={}x{} raster_px={}x{} ink_pixels={}".format(
+                        render_report["renderer"],
+                        render_report["physical_width_mm"],
+                        render_report["physical_height_mm"],
+                        render_report["raster_width_px"],
+                        render_report["raster_height_px"],
+                        render_report["ink_pixel_count"],
+                    )
+                )
+                record(f"svg-preview-artifact={preview_png}")
+                record(f"svg-render-report-artifact={render_report_path}")
+            elif export_format == "DXF":
+                output = first.decode("utf-8")
                 if f'"notch_ids":["{notch_id}"]' not in output:
                     raise RuntimeError("DXF export lost persisted notch identity")
                 expected_mark_ids = json.dumps(
@@ -362,12 +401,22 @@ try:
                 )
                 if f'"mark_ids":{expected_mark_ids}' not in output:
                     raise RuntimeError("DXF export lost persisted mark identity")
-                if "10\n50.000000\n20\n0.000000\n10\n50.000000\n20\n3.000000" not in output:
-                    raise RuntimeError("DXF export lost persisted notch coordinates")
+                cut_section = output.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
+                if "10\n50.000000\n20\n-2.000000" not in cut_section:
+                    raise RuntimeError("DXF CUT perimeter lost inward notch geometry")
                 if "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" not in output:
                     raise RuntimeError("DXF export lost persisted construction-mark coordinates")
                 if "10\n32.000000\n20\n0.000000\n10\n68.000000\n20\n0.000000" not in output:
                     raise RuntimeError("DXF export lost persisted grainline coordinates")
+            else:
+                if b"/MediaBox [0 0 595.27559 841.88976]" not in first:
+                    raise RuntimeError("PDF export lost the A4 page size")
+                if first.count(b"25 mm CALIBRATION SQUARE") != metadata.get("page_count"):
+                    raise RuntimeError("PDF export lost page calibration marks")
+                if b"Print at ACTUAL SIZE / 100%" not in first:
+                    raise RuntimeError("PDF export lost the print-at-100% warning")
+                preview_pdf.write_bytes(first)
+                record(f"pdf-preview-artifact={preview_pdf}")
 
             results[export_format] = len(first)
 
@@ -415,8 +464,8 @@ try:
         record("stale-mark-guard=passed")
 
         record(
-            "pattern-export=passed formats=SVG,DXF bytes={},{}".format(
-                results["SVG"], results["DXF"]
+            "pattern-export=passed formats=SVG,DXF,PDF bytes={},{},{}".format(
+                results["SVG"], results["DXF"], results["PDF"]
             )
         )
 

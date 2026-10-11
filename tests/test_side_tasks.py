@@ -8,7 +8,6 @@ from freecad_cloth.avatar.AvatarCollision import (
     AvatarSpec,
     CollisionSurface,
 )
-from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     PatternMark,
@@ -24,6 +23,7 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
 )
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
+from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
 
 def test_svg_units_and_stable_ids():
@@ -58,7 +58,7 @@ def test_pattern_construction_and_dxf_export():
     assert (
         'id="sewing-boundary"' in svg
         and 'id="cut-boundary"' in svg
-        and 'id="notch-waist"' in svg
+        and 'data-notch-ids="waist"' in svg
         and 'data-kind="Grainline"' in svg
     )
     dxf = to_dxf(pattern, derived=derived)

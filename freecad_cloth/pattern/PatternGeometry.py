@@ -210,7 +210,10 @@ class ParametricPattern:
 
 
 def seam_allowance_outline(
-    pattern: ParametricPattern, allowance: float, curve_samples: int = 32
+    pattern: ParametricPattern,
+    allowance: float,
+    curve_samples: int = 32,
+    miter_limit: float = 5.0,
 ) -> list[Point]:
     """Return a valid cut-line offset using GEOS polygon buffering.
 
@@ -220,6 +223,8 @@ def seam_allowance_outline(
     """
     options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
     allowance, curve_samples = options.allowance, options.curve_samples
+    if not isfinite(miter_limit) or miter_limit < 1.0:
+        raise ValueError("miter limit must be finite and at least 1")
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
         raise ValueError("pattern needs at least three outline points")
@@ -233,7 +238,7 @@ def seam_allowance_outline(
     if source.is_empty or not source.is_valid or source.area <= 0.0:
         raise ValueError("pattern outline must be a valid simple polygon")
     try:
-        offset = source.buffer(allowance, join_style="mitre", mitre_limit=5.0)
+        offset = source.buffer(allowance, join_style="mitre", mitre_limit=miter_limit)
     except GEOSException as exc:
         raise ValueError("seam allowance offset failed") from exc
     if offset.is_empty or not offset.is_valid or offset.geom_type != "Polygon" or offset.interiors:
