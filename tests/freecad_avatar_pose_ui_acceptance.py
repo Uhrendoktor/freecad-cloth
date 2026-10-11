@@ -436,12 +436,13 @@ def run():
         )
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
         raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    from freecad_cloth.avatar.AnnyAvatarBackend import build_avatar_shape_mesh
     from freecad_cloth.avatar.HierarchicalPose import _manual_pose_state
-    from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
 
+    pose_parameters = panel._staged_parameters()
     expected_mesh, _ = _manual_pose_state(
-        panel._staged_parameters(),
-        load_makehuman_mesh(),
+        pose_parameters,
+        build_avatar_shape_mesh(pose_parameters, include_skin_offset=False),
     )
     actual_points = tuple(avatar.Mesh.Points)
     progress("expected-mesh-bounds=" + repr(_point_bounds(expected_mesh.vertices)))
