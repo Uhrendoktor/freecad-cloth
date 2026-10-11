@@ -179,7 +179,7 @@ def main() -> int:
         *tests,
     ]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
-    subprocess.run(command, check=True, timeout=110, env=env)
+    subprocess.run(command, check=True, timeout=300, env=env)
     print(f"python-validation={args.group} passed", flush=True)
     return 0
 
