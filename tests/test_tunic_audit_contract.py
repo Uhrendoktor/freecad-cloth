@@ -371,6 +371,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "neckline_scoop_depth = 0.08 * float(garment_height)" in source
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
     assert "neckline_scoop_depth = 0.08 * float(garment_height)" in audit
+    assert "torso_half_width = max(80.0, 0.48 * panel_width)" in audit
     assert "elif idx == 4:" in debug
     assert "elif index == 4:" in source
     assert "true U-shaped neckline" in source

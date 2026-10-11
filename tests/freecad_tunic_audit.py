@@ -183,9 +183,8 @@ replacements = {
     events()
     save("cloth-mannequin-near-t-pose.png", "Mannequin near-T pose before cloth", "FK pose verified by shoulder-to-wrist geometry before draping")""",
     "clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);",
-    # Use torso-local depth samples and a centered shoulder/neck outline. Full-mesh
-    # depth extrema are dominated by hands in the near-T pose and can pull the stitched
-    # panels through the body; the silhouette filter excludes those outliers.
+    # Use the authored shoulder/armhole silhouette for depth sampling, while excluding
+    # remote hands through the outline-margin predicate below.
     "hem_width = max(450.0, panel_width + 100.0)": "hem_width = max(500.0, panel_width + 100.0)",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
@@ -237,7 +236,9 @@ replacements = {
             raise ValueError("tunic target-relative side must be front or back")
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
 """: """    panel_origin_x = x_mid - hem_width / 2.0
-    torso_half_width = max(80.0, 0.30 * shoulder_width)
+    # Include the full authored shoulder extent plus its existing outline margin.
+    # The prior torso-only band omitted actual target surfaces where penetration was measured.
+    torso_half_width = max(80.0, 0.48 * panel_width)
 
     def target_relative_piece_placement(side, outline):
         projected_target_ys = [
@@ -263,7 +264,7 @@ replacements = {
             raise ValueError("tunic target-relative side must be front or back")
         log(
             "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
-            "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+            "panel-y=%.2f clearance-mm=%.2f silhouette-x=[%.2f, %.2f] projected-vertices=%d"
             % (
                 side, target_front_y, target_back_y, y, clearance,
                 x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
