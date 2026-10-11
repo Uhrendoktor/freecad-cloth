@@ -203,21 +203,17 @@ def test_viewport_picker_accepts_only_pattern_piece_edges():
     seam = SimpleNamespace(Name="Seam1", Label="Seam", SeamId="seam-1")
     document = SimpleNamespace(Objects=[first, second, seam])
 
-    assert viewport_edge_candidate(
-        document, {"Object": "PatternA", "Component": "Edge3"}
-    ) == (first, "Edge3")
-    assert viewport_edge_candidate(
-        document, {"Object": "Back", "Component": "Edge2"}
-    ) == (second, "Edge2")
-    assert viewport_edge_candidate(
-        document, {"Object": "PatternA", "Component": "Face1"}
-    ) is None
-    assert viewport_edge_candidate(
-        document, {"Object": "Seam1", "Component": "Edge1"}
-    ) is None
-    assert viewport_edge_candidate(
-        document, {"Object": "Missing", "Component": "Edge1"}
-    ) is None
+    assert viewport_edge_candidate(document, {"Object": "PatternA", "Component": "Edge3"}) == (
+        first,
+        "Edge3",
+    )
+    assert viewport_edge_candidate(document, {"Object": "Back", "Component": "Edge2"}) == (
+        second,
+        "Edge2",
+    )
+    assert viewport_edge_candidate(document, {"Object": "PatternA", "Component": "Face1"}) is None
+    assert viewport_edge_candidate(document, {"Object": "Seam1", "Component": "Edge1"}) is None
+    assert viewport_edge_candidate(document, {"Object": "Missing", "Component": "Edge1"}) is None
 
 
 def test_simulation_seam_geometry_uses_authoritative_particle_pair_provenance():
@@ -261,5 +257,3 @@ def test_seam_side_overlay_creates_edge_direction_and_notch_strokes():
     short_segments = _side_segments(two_points)
     assert short_segments[0] == list(two_points)
     assert len(short_segments) >= 3
-
-
