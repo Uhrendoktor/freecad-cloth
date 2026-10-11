@@ -30,8 +30,8 @@ def standard_dataclass_decorators(
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
             for alias in node.names:
-                if alias.name == "dataclass":
-                    dataclass_names.add(alias.asname or alias.name)
+                if alias.name == "dataclass" or alias.name == "*":
+                    dataclass_names.add(alias.asname or "dataclass")
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "dataclasses":
