@@ -835,25 +835,12 @@ def _make_tunic_sketch(
     for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
         start_vector = App.Vector(start[0], start[1], 0)
         end_vector = App.Vector(end[0], end[1], 0)
-        if index == 1:
-            # Add modest ease through the side/waist without moving either armhole endpoint.
-            side_mid_z = 0.35 * float(garment_height)
-            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
-            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
-            midpoint = App.Vector(side_chord_x + 0.04 * float(panel_width), side_mid_z, 0)
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
-        elif index == 2:
-            # Shape the open armhole as a smooth inward scoop.
+        if index == 2:
+            # Keep the open armholes at their authored inward-scooped size.
             midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         elif index == 6:
             midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
-        elif index == 7:
-            side_mid_z = 0.35 * float(garment_height)
-            side_fraction = (side_mid_z - start[1]) / (end[1] - start[1])
-            side_chord_x = start[0] + side_fraction * (end[0] - start[0])
-            midpoint = App.Vector(side_chord_x - 0.04 * float(panel_width), side_mid_z, 0)
             geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
@@ -1285,8 +1272,8 @@ def simulation():
     shoulder_z = (shoulder_left.z + shoulder_right.z) / 2.0
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
-    panel_width = max(420.0, shoulder_width + 100.0)
-    hem_width = max(450.0, panel_width + 90.0)
+    panel_width = max(420.0, shoulder_width + 105.0)
+    hem_width = max(450.0, panel_width + 100.0)
     garment_height = max(560.0, shoulder_z - hem_z)
     body_depth = max(120.0, min(260.0, y_span))
     clearance = max(20.0, 0.08 * body_depth)

@@ -99,13 +99,8 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed():
 
 def test_canonical_tunic_has_two_curved_open_armholes():
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    assert "if index == 1:" in source
     assert "elif index == 2:" in source
     assert "elif index == 6:" in source
-    assert "elif index == 7:" in source
-    assert "side_mid_z = 0.35 * float(garment_height)" in source
-    assert "side_chord_x + 0.04 * float(panel_width)" in source
-    assert "side_chord_x - 0.04 * float(panel_width)" in source
     assert "def _arc_through_midpoint(Part, start, end, midpoint):" in source
     assert "Part.ArcOfCircle(circle, start_angle, start_angle + sweep)" in source
     assert "zero_point = curve_value(circle, 0.0)" in source
@@ -355,19 +350,16 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.70 * panel_width, armhole_z)" in debug
     assert "(x_offset + 0.30 * panel_width, armhole_z)" in debug
     assert "midpoint = App.Vector(x_offset + 0.71 * panel_width, armhole_mid_z, 0)" in debug
-    assert "side_mid_z = 0.35 * h" in debug
-    assert "side_chord_x + 0.04 * float(panel_width)" in debug
-    assert "side_chord_x - 0.04 * float(panel_width)" in debug
     assert "midpoint = App.Vector(x_offset + 0.29 * panel_width, armhole_mid_z, 0)" in debug
     assert "(x_offset + 0.06 * panel_width, 0.88 * garment_height)" in debug
     assert "(x_offset + 0.94 * panel_width, 0.88 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
-    assert "panel_width = max(420.0, shoulder_width + 100.0)" in debug
+    assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "shoulder_width + 100.0" in source
-    assert "hem_width = max(450.0, panel_width + 90.0)" in source
+    assert "hem_width = max(450.0, panel_width + 100.0)" in source
     assert "shoulder_span_ratio" not in audit
-    assert '"panel_width = max(420.0, shoulder_width + 100.0)":' not in audit
+    assert '"panel_width = max(420.0, shoulder_width + 105.0)":' not in audit
     assert "clearance = max(20.0, 0.08 * body_depth)" in debug
     assert (
         '"clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);"'
@@ -375,8 +367,10 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
     assert "panel_width = max(420.0, shoulder_width + 100.0)" in debug
-    assert "panel_width = max(420.0, shoulder_width + 100.0)" not in audit
-    assert "hem_width = max(500.0, panel_width + 90.0)" in debug
+    assert "panel_width = max(420.0, shoulder_width + 105.0)" in source
+    assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
+    assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
+    assert "hem_width = max(500.0, panel_width + 100.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.64, 0.06)' in debug
     assert 'make_piece("DebugTunicBack", back_y, 0.64, 0.06)' in debug
     assert 'make_piece("VisualTunicFront", "back", 0.64, 0.06)' in audit
