@@ -20,12 +20,12 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 In addition to the normal lint/test gates, the development environment enforces deterministic safeguards for multi-agent reliability:
 
-- Blocking CI runs Pyright in standard mode for the configured broad core profile and strict mode for selected deterministic core modules.
+- Blocking CI runs one Pyright configuration in strict mode across the reviewed headless/core inventory; duplicate standard/strict configurations are prohibited.
 - A syntax-aware AST policy gate blocks explicit `Any` references across Python source, including type aliases and variable/class annotations that Ruff ANN401 does not inspect.
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
-- CrossHair symbolically checks a small, explicitly curated pure-math contract surface; Pydantic schemas validate the boundary preconditions those contracts assume.
-- Numeric geometry boundaries use Pydantic v2 models with finite coordinates, integer-only mesh indices, and explicit cross-field invariants. See [Numeric validation and mathematical contracts](MATH_VALIDATION.md).
+- CrossHair symbolically checks curated contracts that exercise production pure-math and correspondence functions; its time budget is bounded, and unsupported FreeCAD/OCCT/native surfaces remain covered by executable tests instead.
+- Pydantic v2 validates numeric boundaries with finite coordinates, strict mesh indices, and cross-field invariants. Production data-carrier dataclasses use `pydantic.dataclasses.dataclass`; a blocking AST policy rejects unchecked standard-library dataclasses unless a narrowly documented FreeCAD document-serialization incompatibility is proven. See [Numeric validation and mathematical contracts](MATH_VALIDATION.md).
 - ast-grep runs syntax-aware repository rules for prohibited production patterns and validates those rules with positive/negative fixtures.
 - ty runs as a blocking type-check gate on the deterministic three-module core profile; warning-level diagnostics fail CI.
 - Pull-request CI rejects newly introduced Python clones across production code, tests, and CI tooling while tolerating legacy duplication.
@@ -38,7 +38,7 @@ These checks complement the architecture contracts rather than replacing them. D
 
 Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
 
-CI keeps Ruff checks read-only: formatting and lint are blocking across `tools/ci`, and the configured Ruff lint rules also run on every changed Python file in pull requests. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs both the configured broad standard Pyright profile and the curated strict profile as blocking checks. The `ty` gate fails on warning-level diagnostics for the curated three-module core profile, so unresolved type warnings cannot silently pass. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi` file, including loaders, workbenches, production modules, tests, and tooling. The same `pyproject.toml` rule set is used locally and in CI. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs one strict Pyright profile as a blocking check. The `ty` gate fails on warning-level diagnostics for the curated three-module core profile, so unresolved type warnings cannot silently pass. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
 
 ## Documentation contract
 
@@ -125,7 +125,7 @@ The canonical workflow is intentionally parallel: runner readiness and the Posit
 
 Runtime rules:
 
-- Run `ruff format tools/ci` before the lint/static checks on every workflow invocation, so formatter-only failures are corrected within the same run.
+- Run Ruff format checks and lint read-only over every tracked Python file on every quality-gate invocation; the workflow must report style errors rather than silently rewriting the checkout.
 - Pull immutable, content-derived CI images only when they are not already present on a warm self-hosted runner. Hosted runners will naturally take the pull path.
 - The PBD image build publishes the image; downstream jobs are responsible for pulling it. The builder does not perform a second verification pull because that would duplicate the network transfer on an otherwise disposable runner.
 - Superseded workflow runs are cancelled whenever their triggering ref is not `refs/heads/main`; main runs, including the push produced by a merged PR, are never cancelled by concurrency.
