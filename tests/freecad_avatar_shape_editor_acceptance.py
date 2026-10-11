@@ -336,6 +336,7 @@ def run():
                     )
                 )
             from dataclasses import replace as replace_parameters
+
             from freecad_cloth.avatar.AvatarModel import generate_mesh
 
             committed_parameters = panel._staged_parameters()
