@@ -105,7 +105,8 @@ def _load_target_cached(
         merged: dict[int, Point] = {}
         for raw_index, raw_vector in zip(indices, vectors, strict=True):
             index = int(raw_index)
-            offset: Point = tuple(float(value) * 1e-3 for value in raw_vector)  # type: ignore[assignment]
+            offset_values = tuple(float(value) * 1e-3 for value in raw_vector)
+            offset: Point = (offset_values[0], offset_values[1], offset_values[2])
             if index < 0 or not all(math.isfinite(value) for value in offset):
                 raise ValueError(f"{source}: archive target has invalid values: {archive_key}")
             prior = merged.get(index, (0.0, 0.0, 0.0))
@@ -166,6 +167,8 @@ def target_directory() -> Path | None:
             Path("/usr/share/makehuman/data"),
             Path("/usr/local/share/makehuman/data/targets"),
             Path("/usr/local/share/makehuman/data"),
+            Path("/Applications/MakeHuman.app/Contents/Resources/data/targets"),
+            Path("/Applications/MakeHuman.app/Contents/Resources/data"),
         )
     )
     seen: set[str] = set()
@@ -239,8 +242,10 @@ def resolve_target(
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is not None:
         return TargetReference(Path(indexed_path))
-    archive_path = base / "targets.npz"
-    if archive_path.is_file():
+    archive_candidates = (base / "targets.npz", base.parent / "targets.npz")
+    for archive_path in archive_candidates:
+        if not archive_path.is_file():
+            continue
         stat = archive_path.stat()
         archive_targets = _archive_target_index(
             archive_path.as_posix(), stat.st_mtime_ns, stat.st_size
