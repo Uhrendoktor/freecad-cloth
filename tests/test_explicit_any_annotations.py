@@ -9,9 +9,9 @@ import pytest
 from tools.ci.check_explicit_any_annotations import explicit_any_violations
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
+    PYTHON_POLICY_COMMANDS,
     TY_CONFIG,
     TYPECHECK_COMMANDS,
-    PYTHON_POLICY_COMMANDS,
     WORKFLOW,
     missing_python_policy_commands,
     missing_typecheck_commands,
