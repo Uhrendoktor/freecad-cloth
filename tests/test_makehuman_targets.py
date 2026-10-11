@@ -1,4 +1,5 @@
 import gzip
+import math
 import os
 import tempfile
 import unittest
@@ -7,7 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from freecad_cloth.avatar.HumanoidMesh import _section_circumference
+from freecad_cloth.avatar.HumanoidMesh import _make_source_fitted_mapper, _section_circumference
 from freecad_cloth.avatar.MakeHumanTargets import (
     TARGETS_ENV,
     apply_targets,
@@ -115,8 +116,6 @@ class MakeHumanTargetTests(unittest.TestCase):
 
 
     def test_torso_mapper_calibrates_named_waist_contour(self) -> None:
-        import math
-
         source_vertices = []
         ring_count = 24
         for normalized_height in (0.56, 0.60):
