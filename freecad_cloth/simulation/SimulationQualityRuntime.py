@@ -6,6 +6,7 @@ proxy. It is the only quality runtime implementation.
 
 import weakref
 from math import ceil
+from typing import cast
 
 from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
 from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
@@ -172,7 +173,11 @@ class QualitySimulationProxy:
         """Write the already-solved particle state to the display objects."""
         snapshot = getattr(base.backend, "positions_and_finite", None)
         if callable(snapshot):
-            positions, finite_state = snapshot()
+            snapshot_result = snapshot()
+            positions, finite_state = cast(
+                tuple[tuple[tuple[float, float, float], ...], bool],
+                snapshot_result,
+            )
         else:
             positions = base.backend.positions()
             finite_state = base.backend.finite()
