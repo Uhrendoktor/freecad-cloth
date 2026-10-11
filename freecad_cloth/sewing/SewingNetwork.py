@@ -7,6 +7,7 @@ sub-ranges of an edge, so the same machinery handles free sewing and 1:1,
 """
 
 from collections.abc import Iterable, Sequence
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternModel import Seam
@@ -14,7 +15,6 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     correspondence_status_label,
 )
-
 
 @pydantic_dataclass(frozen=True)
 class SewingMember:
@@ -34,7 +34,6 @@ class SewingMember:
         if not 0.0 <= float(self.start) < float(self.end) <= 1.0:
             raise ValueError("sewing member range must be normalized with positive extent")
 
-
 def _member_length(member: SewingMember, edge_lengths) -> float:
     """Resolve a member's physical edge length from a mapping or callback."""
     if callable(edge_lengths):
@@ -46,7 +45,6 @@ def _member_length(member: SewingMember, edge_lengths) -> float:
         raise ValueError("sewing member edge length must be positive")
     return length * (float(member.end) - float(member.start))
 
-
 def _breakpoints(lengths: Sequence[float]) -> list[float]:
     total = sum(lengths)
     if total <= 0.0:
@@ -56,7 +54,6 @@ def _breakpoints(lengths: Sequence[float]) -> list[float]:
         points.append(points[-1] + float(length) / total)
     points[-1] = 1.0
     return points
-
 
 def build_mn_seams(
     relationship_id: str,
@@ -150,7 +147,6 @@ def build_mn_seams(
         seam.validate()
     return tuple(seams)
 
-
 def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
     """Build an edge-length mapping from FreeCAD pattern objects."""
     from freecad_cloth.sewing.SewingObjects import _edge_length
@@ -162,7 +158,6 @@ def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
             raise ValueError(f"unknown pattern piece: {member.piece_id}")
         result[(member.piece_id, member.edge)] = _edge_length(piece, member.edge)
     return result
-
 
 def _network_lengths(seams):
     """Resolve physical lengths for persisted seam document objects."""
@@ -188,7 +183,6 @@ def _network_lengths(seams):
         total_b += _seam_length(piece_b, seam, "B")
     return total_a, total_b
 
-
 def network_invalid_reason(seams):
     """Return a deterministic user-facing reason when a member seam is invalid."""
     invalid = []
@@ -200,7 +194,6 @@ def network_invalid_reason(seams):
     if invalid:
         return "Invalid member seam(s): " + "; ".join(invalid)
     return ""
-
 
 class SewingNetworkProxy:
     """Recomputable validation summary for a persisted M:N relationship."""
@@ -271,7 +264,6 @@ class SewingNetworkProxy:
             obj.CorrespondenceRecovery = report.recovery
         if hasattr(obj, "CorrespondenceSeverity"):
             obj.CorrespondenceSeverity = report.severity
-
 
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     """Persist an M:N relationship as one editable FreeCAD network object."""
