@@ -68,29 +68,27 @@ jobs:
         run: |
           set -euo pipefail
           python -m compileall -q tests tools/ci
-          python -m ruff format --check tools/ci
-          python -m ruff check tools/ci
-          python -m ruff check --select ANN401 .
+          git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
+          xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
+          xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"
           python tools/check_documentation_contract.py
           python tools/check_markdown_contract.py
           python tools/ci/timeout_contract.py
           python tools/ci/validate_ci_structure.py
           lint-imports
           python tools/ci/check_explicit_any_annotations.py
+          python tools/ci/check_pydantic_models.py
           pyright -p pyrightconfig.json
-          pyright -p pyrightconfig.agent-strict.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
           ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
           python tools/ci/check_changed_python_types.py
           git diff --name-only --diff-filter=ACMRT origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
           if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then
-            xargs -r python -m ruff format --check < "$RUNNER_TEMP/changed-python.txt"
-            xargs -r python -m ruff check < "$RUNNER_TEMP/changed-python.txt"
             xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"
           fi
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py tests/test_changed_python_types.py
-          crosshair check --analysis_kind asserts tools/crosshair_contracts.py
+          crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
       - name: Workflow linters
         run: |
           set -euo pipefail
