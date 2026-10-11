@@ -121,7 +121,7 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "armhole_z = 0.58 * float(garment_height)" in sketch_builder
     assert "(x_offset + 0.74 * panel_width, armhole_z)" in sketch_builder
     assert "shoulder_z = 0.90 * float(garment_height)" in sketch_builder
-    assert "(x_offset + 0.93 * panel_width, shoulder_z)" in sketch_builder
+    assert "(x_offset + 0.94 * panel_width, shoulder_z)" in sketch_builder
     assert "if not (armhole_z < shoulder_z < neck_z)" in sketch_builder
     assert "shoulders must slope downward from neckline to shoulder tip" in sketch_builder
     assert "points[3][0] - points[2][0] < 0.15 * float(panel_width)" in sketch_builder
@@ -131,7 +131,7 @@ def test_canonical_tunic_has_two_curved_open_armholes():
     assert "elif index == 7:" in sketch_builder
     assert "0.5 * (start[0] + end[0]) + side_ease_mm" in sketch_builder
     assert "0.5 * (start[0] + end[0]) - side_ease_mm" in sketch_builder
-    assert "(x_offset + 0.07 * panel_width, shoulder_z)" in sketch_builder
+    assert "(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder
     assert "(x_offset + 0.26 * panel_width, armhole_z)" in sketch_builder
     # Keep the inward-scooped arc inside the shoulder line; .73/.27 self-intersects.
     assert "x_offset + 0.741 * panel_width, armhole_mid_z" in sketch_builder
@@ -180,7 +180,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     )
     assert "ParticleDistance = 24.0" in source
     assert "SolverIterations = 8" in source
-    assert "SolverSubsteps = 1" in source
+    assert "SolverSubsteps = 4" in source
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow
     assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in workflow
     tunic_workflow = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
@@ -282,7 +282,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry():
     assert "TunicLeftShoulder" in audit
     assert "ParticleDistance = 24.0" in audit
     assert "SolverIterations = 8" in audit
-    assert "SolverSubsteps = 1" in audit
+    assert "SolverSubsteps = 4" in audit
     assert "tunic-simulation-start" in audit
     assert "realtime-preview=passed backend=position-based-dynamics" in audit
 
@@ -359,8 +359,8 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "(x_offset + 0.26 * panel_width, armhole_z)" in debug
     assert "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug
     assert "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug
-    assert "(x_offset + 0.07 * panel_width, 0.90 * garment_height)" in debug
-    assert "(x_offset + 0.93 * panel_width, 0.90 * garment_height)" in debug
+    assert "(x_offset + 0.06 * panel_width, 0.90 * garment_height)" in debug
+    assert "(x_offset + 0.94 * panel_width, 0.90 * garment_height)" in debug
     assert "if not (armhole_z < shoulder_z < neck_z)" in debug
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug

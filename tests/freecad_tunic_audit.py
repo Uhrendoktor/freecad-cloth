@@ -195,10 +195,10 @@ replacements = {
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.93 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.07 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
@@ -209,10 +209,10 @@ replacements = {
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.93 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.07 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
 """,
@@ -223,7 +223,7 @@ replacements = {
     SEAM_SOURCE: SEAM_SOURCE,
     "scene.FabricFriction = 0.75": "scene.FabricFriction = 0.85;",
     "scene.TimeStep = 1.0 / 120.0": 'scene.TimeStep = 1.0 / 240.0; log("tunic-time-step=1/240s for 90-step free-drape audit");',
-    "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 1; log("tunic-solver=particle-distance-24 iterations-8 substeps-env");',
+    "scene.SolverIterations = 8": 'scene.ParticleDistance = 24.0; scene.SolverIterations = 8; scene.SolverSubsteps = 4; log("tunic-solver=particle-distance-24 iterations-8 substeps=4");',
     """    def target_relative_piece_placement(side):
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance

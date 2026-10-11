@@ -176,10 +176,10 @@ def _make_tunic_sketch(
         (0.0, 0.0),
         (hem_width, 0.0),
         (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.93 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
-        (x_offset + 0.07 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
@@ -440,8 +440,8 @@ def run():
     def pin_indices(piece, outline, positions):
         x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (x_offset + 0.07 * panel_width, 0.90 * garment_height),
-            (x_offset + 0.93 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.06 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.94 * panel_width, 0.90 * garment_height),
         )
         result = []
         available = list(range(len(positions)))

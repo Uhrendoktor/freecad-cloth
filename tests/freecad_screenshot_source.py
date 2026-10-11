@@ -810,10 +810,10 @@ def _make_tunic_sketch(
         (0.00, 0.00),
         (hem_width, 0.00),
         (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.93 * panel_width, shoulder_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.07 * panel_width, shoulder_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
