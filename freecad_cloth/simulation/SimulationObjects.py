@@ -1,5 +1,12 @@
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
 
 
@@ -384,7 +391,7 @@ class SimulationProxy:
     Type = "ClothSimulation"
 
     def __init__(self):
-        self.backend = None
+        self.backend: PositionBasedDynamicsBackend | None = None
         self.panel_indices = {}
         self.panel_triangles = {}
         self.panel_boundary_edges = {}
@@ -434,22 +441,25 @@ class SimulationProxy:
                 or int(obj.Steps) < int(getattr(self, "last_steps", 0))
             ):
                 self._build(obj, signature)
+            backend = self.backend
+            if backend is None:
+                raise RuntimeError("simulation backend was not initialized after rebuild")
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):
-                    self.backend.step(
+                    backend.step(
                         float(obj.TimeStep),
                         int(obj.Iterations),
                         (float(obj.GravityX), float(obj.GravityY), float(obj.GravityZ)),
                         self.collision_surface,
                     )
                 self.last_steps = steps
-            positions = self.backend.positions()
+            positions = backend.positions()
             for panel in getattr(obj, "DrapePanels", ()):
                 _write_mesh(panel, positions, self.panel_triangles.get(panel.Name, ()))
-            obj.SimulatedTime = self.backend.time
+            obj.SimulatedTime = backend.time
             obj.ParticleCount = len(positions)
-            obj.FiniteState = self.backend.finite()
+            obj.FiniteState = backend.finite()
         except ValueError as exc:
             message = str(exc)
             if message.startswith("cannot simulate invalid seam "):
