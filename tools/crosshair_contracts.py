@@ -7,13 +7,27 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 
 from __future__ import annotations
 
-from freecad_cloth.pattern.PatternGeometry import _lerp, _line_intersection
+from typing import NamedTuple, cast
+
+from freecad_cloth.pattern.PatternGeometry import _distance, _lerp, _line_intersection, signed_area
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
 
 
-def particle_distance_contract(a: Particle, b: Particle) -> float:
-    """Check metric identities against the production solver-input distance."""
+class _CoordinatePoint(NamedTuple):
+    """Structural point used to avoid symbolic execution inside Pydantic validation."""
+
+    x: float
+    y: float
+    z: float
+
+
+def particle_distance_contract(
+    ax: float, ay: float, az: float, bx: float, by: float, bz: float
+) -> float:
+    """Check solver distance identities using structurally compatible symbolic points."""
+    a = cast(Particle, _CoordinatePoint(ax, ay, az))
+    b = cast(Particle, _CoordinatePoint(bx, by, bz))
     result = distance(a, b)
     assert result >= 0.0
     assert distance(a, a) == 0.0
@@ -91,4 +105,33 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     assert result is not None
     assert abs(result[0] - x) <= 1e-9
     assert abs(result[1] - y) <= 1e-9
+    return result
+
+
+
+def polygon_area_orientation_contract(side: float) -> float:
+    """Check polygon signed area scales quadratically and flips under orientation reversal.
+
+    pre: 0.0 <= side <= 1e6
+    """
+    square = ((0.0, 0.0), (side, 0.0), (side, side), (0.0, side))
+    reversed_square = tuple(reversed(square))
+    area = signed_area(square)
+    reversed_area = signed_area(reversed_square)
+    assert area == side * side
+    assert reversed_area == -area
+    return area
+
+
+def point_distance_contract(x: float, y: float) -> float:
+    """Check the production Euclidean distance is non-negative and symmetric.
+
+    pre: -1e100 <= x <= 1e100
+    pre: -1e100 <= y <= 1e100
+    """
+    result = _distance((0.0, 0.0), (x, y))
+    assert result >= 0.0
+    assert result == _distance((x, y), (0.0, 0.0))
+    if x == 0.0 and y == 0.0:
+        assert result == 0.0
     return result
