@@ -126,7 +126,13 @@ class AvatarParameters:
     # remains a target setting rather than a visible layer on the avatar.
     skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
-    schema_version: int = 2
+    schema_version: int = 3
+    # 0 = feminine, 0.5 = neutral, 1 = masculine. This is a body-shape
+    # blend, not a claim about identity; downstream geometry uses it as one
+    # normalized morphology control.
+    gender: float = 0.5
+    # Additional breast projection beyond the neutral base shape, 0..1.
+    breast_size: float = 0.0
 
     def __post_init__(self) -> None:
         values = dict(DEFAULT_MEASUREMENTS)
@@ -136,7 +142,7 @@ class AvatarParameters:
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.schema_version != 2:
+        if self.schema_version != 3:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
@@ -153,6 +159,10 @@ class AvatarParameters:
             raise ValueError("inseam must be shorter than height")
         if not 0 <= float(self.skin_offset) <= 50:
             raise ValueError("skin offset must be between 0 and 50 mm")
+        if not 0.0 <= float(self.gender) <= 1.0:
+            raise ValueError("gender blend must be between 0 (feminine) and 1 (masculine)")
+        if not 0.0 <= float(self.breast_size) <= 1.0:
+            raise ValueError("breast size must be between 0 and 1")
         if not isinstance(self.pose, Pose):
             raise TypeError("pose must be a Pose")
         self.pose.validate()
@@ -167,7 +177,9 @@ class AvatarParameters:
         """Return a copy with updated body measurements."""
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
-        return AvatarParameters(values, self.skin_offset, self.pose, self.schema_version)
+        return AvatarParameters(
+            values, self.skin_offset, self.pose, self.schema_version, self.gender, self.breast_size
+        )
 
     def to_json(self) -> str:
         """Serialize this object to JSON."""
@@ -176,6 +188,10 @@ class AvatarParameters:
             {
                 "schema_version": self.schema_version,
                 "units": "mm",
+                "shape": {
+                    "gender": float(self.gender),
+                    "breast_size": float(self.breast_size),
+                },
                 "measurements": dict(sorted(self.measurements.items())),
                 "skin_offset": float(self.skin_offset),
                 "pose": {
@@ -200,7 +216,7 @@ class AvatarParameters:
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
         source_version = int(data.get("schema_version", 1))
-        if source_version not in (1, 2):
+        if source_version not in (1, 2, 3):
             raise ValueError("unsupported avatar schema version")
         p = data.get("pose", {})
         preset = str(p.get("preset", "standing"))
@@ -232,7 +248,15 @@ class AvatarParameters:
                 )
             ),
         )
-        return cls(data.get("measurements", {}), float(data.get("skin_offset", 0)), pose, 2)
+        shape = data.get("shape", {}) if source_version >= 3 else {}
+        return cls(
+            data.get("measurements", {}),
+            float(data.get("skin_offset", 0)),
+            pose,
+            3,
+            float(shape.get("gender", 0.5)),
+            float(shape.get("breast_size", 0.0)),
+        )
 
 
 def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
