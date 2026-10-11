@@ -44,7 +44,7 @@ class PatternExportTaskPanel:
         self.pdf_paper_size = QtWidgets.QComboBox()
         self.pdf_paper_size.addItems(("A4", "Letter"))
         self.pdf_overlap = QtWidgets.QDoubleSpinBox()
-        self.pdf_overlap.setRange(0.0, 80.0)
+        self.pdf_overlap.setRange(8.0, 80.0)
         self.pdf_overlap.setDecimals(1)
         self.pdf_overlap.setSingleStep(1.0)
         self.pdf_overlap.setValue(10.0)

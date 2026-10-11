@@ -6,7 +6,7 @@ import base64
 import json
 from math import ceil, cos, isfinite, radians, sin
 
-from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, mark_point
+from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
@@ -189,8 +189,8 @@ def to_pdf(
     overlap = float(overlap_mm)
     if not isfinite(margin) or margin < 5.0:
         raise ValueError("PDF margin must be finite and at least 5 mm")
-    if not isfinite(overlap) or overlap < 0.0:
-        raise ValueError("PDF overlap must be finite and non-negative")
+    if not isfinite(overlap) or overlap < 8.0:
+        raise ValueError("PDF overlap must be finite and at least 8 mm for registration marks")
 
     content_left = margin
     content_bottom = margin + _FOOTER_MM
@@ -209,7 +209,7 @@ def to_pdf(
     cut = _cut_contour_with_notches(pattern, derived) if derived is not None else ()
     marks = tuple(derived.marks) if derived is not None else ()
     bound_points: list[Point] = [*sewing, *cut]
-    mark_layout: list[tuple[object, float, float, float, float]] = []
+    mark_layout: list[tuple[PatternMark, float, float, float, float]] = []
     for mark in marks:
         x, y = mark_point(pattern, mark)
         half = float(mark.length) / 2.0

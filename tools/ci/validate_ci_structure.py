@@ -41,6 +41,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/pattern/PatternGeometry.py",
     "freecad_cloth/pattern/PatternIR.py",
     "freecad_cloth/pattern/PatternModel.py",
+    "freecad_cloth/pattern/PatternPdfExport.py",
     "freecad_cloth/avatar/MakeHumanTargets.py",
     "freecad_cloth/sewing/SeamGraph.py",
     "freecad_cloth/sewing/SewingCorrespondence.py",
