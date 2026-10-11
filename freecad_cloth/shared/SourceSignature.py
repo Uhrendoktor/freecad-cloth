@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 
 
 def _point_coordinates(point):
@@ -68,19 +69,28 @@ def _shape_content_signature(shape, deflection=1.0):
     tessellate = getattr(shape, "tessellate", None)
     if callable(tessellate):
         try:
-            vertices, triangles = tessellate(float(deflection))
-            return (
-                "TessellatedShape",
-                len(vertices),
-                len(triangles),
-                _digest_surface(vertices, triangles),
-            )
+            tessellation = tessellate(float(deflection))
+            if (
+                isinstance(tessellation, tuple)
+                and len(tessellation) == 2
+                and isinstance(tessellation[0], Sequence)
+                and isinstance(tessellation[1], Sequence)
+            ):
+                vertices, triangles = tessellation
+                return (
+                    "TessellatedShape",
+                    len(vertices),
+                    len(triangles),
+                    _digest_surface(vertices, triangles),
+                )
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
-            return ("ShapeHash", int(hash_code()))
+            hash_value = hash_code()
+            if isinstance(hash_value, int) and not isinstance(hash_value, bool):
+                return ("ShapeHash", hash_value)
         except (TypeError, ValueError, RuntimeError):
             pass
     return ("Unknown",)
