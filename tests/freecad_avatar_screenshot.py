@@ -239,7 +239,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
     center_coin = coin.SbVec3f(initial_center.x, initial_center.y, initial_center.z)
     base_position = coin.SbVec3f(camera.position.getValue())
     base_offset = base_position - center_coin
-    camera_height = 2200.0
+    camera_height = 1550.0
     camera.height = camera_height
 
     frames = []
@@ -259,6 +259,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
         # shading for this silhouette comparison only.
         avatar.ViewObject.DisplayMode = "Shaded"
         avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+        if hasattr(avatar.ViewObject, "SpecularColor"):
+            avatar.ViewObject.SpecularColor = (0.15, 0.15, 0.15)
+        if hasattr(avatar.ViewObject, "Shininess"):
+            avatar.ViewObject.Shininess = 5.0
         avatar.Label = "Avatar example: " + profile["name"]
         doc.recompute()
 
