@@ -19,6 +19,8 @@ import dataclasses
 import json
 import math
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 from freecad_cloth.shared.SourceSignature import source_signature
 
 
@@ -237,7 +239,7 @@ def surface_segments_from_anchor_kinds(
     return tuple(segments)
 
 
-@dataclasses.dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SurfaceAnchor:
     """A picked target-space point with its surface normal and authoring intent.
 
