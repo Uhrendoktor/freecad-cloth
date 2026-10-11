@@ -220,10 +220,7 @@ try:
     os._exit(0)
 except BaseException as exc:
     (ARTIFACTS / "surface-pen.log").write_text(
-        "surface-pen-native-smoke=failed\n"
-        + repr(exc)
-        + "\n"
-        + traceback.format_exc(),
+        "surface-pen-native-smoke=failed\n" + repr(exc) + "\n" + traceback.format_exc(),
         encoding="utf-8",
     )
     print("surface-pen-native-smoke=failed", repr(exc), flush=True)
