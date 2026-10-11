@@ -527,10 +527,7 @@ def run():
         facet_index: int,
     ) -> tuple[float, float, float]:
         triangle = triangles[facet_index]
-        return tuple(
-            sum(vertices[vertex][axis] for vertex in triangle) / 3.0
-            for axis in range(3)
-        )
+        return tuple(sum(vertices[vertex][axis] for vertex in triangle) / 3.0 for axis in range(3))
 
     # FreeCAD may renumber the shared Mesh.Topology vertex array after a
     # deformation. FacetN is the persisted anchor key, so compare each facet's
@@ -548,9 +545,7 @@ def run():
     )
     rest_centroid = facet_centroid(rest_vertices, rest_triangles, moved_triangle_index)
     posed_centroid = facet_centroid(posed_vertices, posed_triangles, moved_triangle_index)
-    movement_score = sum(
-        (posed_centroid[axis] - rest_centroid[axis]) ** 2 for axis in range(3)
-    )
+    movement_score = sum((posed_centroid[axis] - rest_centroid[axis]) ** 2 for axis in range(3))
     if movement_score <= 1e-4:
         raise RuntimeError("manual skeleton edit did not deform any avatar surface facet")
 
