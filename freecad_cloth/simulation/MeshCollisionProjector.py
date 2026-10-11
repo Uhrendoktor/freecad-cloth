@@ -73,7 +73,9 @@ class MeshCollisionProjector:
         )
         self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
 
-    def project(self, points_mm: npt.ArrayLike) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    def project(
+        self, points_mm: npt.ArrayLike
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Return corrected world-mm positions and outward normals for moved points.
 
         Zero rows in the returned normal array mark positions that did not require a
@@ -131,12 +133,7 @@ class MeshCollisionProjector:
         w = (d00 * d21 - d01 * d20) / safe_denominator
         u = 1.0 - v - w
         projected_plane = a + v[:, :, None] * ab + w[:, :, None] * ac
-        barycentric_inside = (
-            (u >= -1e-10)
-            & (v >= -1e-10)
-            & (w >= -1e-10)
-            & (denominator > 1e-18)
-        )
+        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
 
         edge_ab = ab
         edge_bc = c - b
