@@ -21,7 +21,7 @@ The overview shows the complete sequence and the resulting visual states. Each s
 
 | Stage | Guide | Visual evidence |
 | --- | --- | --- |
-| 1. Pattern | [Author a pattern piece](01-pattern.md) | Native Sketcher-backed geometry |
+| 1. Pattern | [Author a pattern piece](01-pattern.md) | Native Sketcher geometry plus Surface Pen task-panel screenshot, closure-to-extraction GIF, and extracted sketch |
 | 2. Sewing | [Create and inspect seams](02-sewing.md) | Seam assignment and A/B identity |
 | 3. Avatar shape | [Edit body shape and dimensions](09-avatar-shape.md) | Seven rendered body-shape examples, shape sliders, measurement rings, and staged dimension drag |
 | 4. Fitting | [Arrange and snap pieces](03-fitting.md) | Drag preview and committed placement |
