@@ -10,7 +10,7 @@ model.
 import bisect
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
     ArcLengthSamplingInput, CorrespondenceAnalysisInput, CorrespondenceSamplesInput,
@@ -22,7 +22,7 @@ STATUS_LENGTH_MISMATCH = "length_mismatch"
 STATUS_INVALID_RANGE = "invalid_range"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class CorrespondenceReport:
     """Deterministic validation result for a pair of seam ranges."""
 
