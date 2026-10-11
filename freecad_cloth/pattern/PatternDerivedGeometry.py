@@ -228,7 +228,6 @@ def _join_variable_offset_edges(
         previous_index = (index - 1) % count
         previous = cut_edges[previous_index].points
         current = cut_edges[index].points
-        previous_source = sampled[previous_index]
         current_source = sampled[index]
         previous_end = previous[-1]
         current_start = current[0]
