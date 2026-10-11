@@ -498,6 +498,22 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
     return profile
 
 
+def _gender_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
+    """Return localized width changes for the feminine/masculine blend."""
+    delta = max(-0.5, min(0.5, float(parameters.gender) - 0.5))
+    # Feminine-side shapes gain pelvis width and a narrower waist/shoulder line;
+    # masculine-side shapes reverse those localized offsets.
+    return [
+        (0.0, 1.0),
+        (0.42, 1.0),
+        (0.50, 1.0 - 0.16 * delta),
+        (0.58, 1.0 + 0.10 * delta),
+        (0.69, 1.0 + 0.04 * delta),
+        (0.77, 1.0 + 0.14 * delta),
+        (1.0, 1.0),
+    ]
+
+
 def _estimate_shoulder_pivots(
     vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
 ) -> dict[float, float]:
@@ -674,6 +690,7 @@ def _make_source_fitted_mapper(
         if _is_default_measurement_shape(parameters)
         else _measurement_profile(parameters)
     )
+    gender_profile = _gender_profile(parameters)
     if _is_default_measurement_shape(parameters):
         shoulder_scale = 1.0
     else:
@@ -689,6 +706,7 @@ def _make_source_fitted_mapper(
         x, y, z = point
         normalized_z = (y - ymin) / y_span
         torso_scale = _profile_scale(normalized_z, torso_profile)
+        torso_scale *= _profile_scale(normalized_z, gender_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
         x_mm = x * height_mm / y_span * torso_scale * lateral_scale
@@ -710,6 +728,7 @@ def _make_source_fitted_mapper(
         x, y, z = point
         normalized_z = (y - ymin) / y_span
         torso_scale = _profile_scale(normalized_z, torso_profile)
+        torso_scale *= _profile_scale(normalized_z, gender_profile)
         shoulder_blend = _smoothstep(0.67, 0.79, normalized_z)
         lateral_scale = _lerp(1.0, shoulder_scale, shoulder_blend)
         x_mm = x * height_mm / y_span * torso_scale * lateral_scale
@@ -718,7 +737,25 @@ def _make_source_fitted_mapper(
         if radius > 1e-9 and skin_offset:
             x_mm += x_mm / radius * skin_offset
             y_mm += y_mm / radius * skin_offset
-        return (x_mm * scale_x, y_mm * scale_y, normalized_z * height_mm)
+        x_mm *= scale_x
+        y_mm *= scale_y
+        z_mm = normalized_z * height_mm
+        # A smooth front-surface bulge acts as an intuitive bust-size control.
+        # The neutral default (zero) is geometry-identical to the pinned HM08 base.
+        # Feminine gender blend introduces a modest natural breast baseline;
+        # the independent control adds projection regardless of the blend.
+        breast_size = min(
+            1.0,
+            float(parameters.breast_size) + max(0.0, 0.5 - float(parameters.gender)) * 1.2,
+        )
+        if breast_size > 0.0:
+            front_weight = _smoothstep(-18.0, 28.0, y_mm)
+            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.033) ** 2)
+            lateral_weight = max(
+                math.exp(-0.5 * ((x_mm - center_x) / 43.0) ** 2) for center_x in (-72.0, 72.0)
+            )
+            y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
+        return (x_mm, y_mm, z_mm)
 
     return transform
 

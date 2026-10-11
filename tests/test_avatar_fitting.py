@@ -50,7 +50,6 @@ class AvatarFittingTests(unittest.TestCase):
         )
         _FittingProxy().execute(obj)
 
-
     def test_fitting_proxy_rejects_invalid_persisted_state(self):
         from freecad_cloth.avatar.FittingCommands import _FittingProxy
 
@@ -291,13 +290,15 @@ class AvatarFittingTests(unittest.TestCase):
             original_chest = float(avatar.Chest)
             original_pose = str(avatar.JointPoseJSON)
             candidate = current.with_measurements(chest=original_chest + 80.0)
-            with mock.patch.object(
-                AvatarCommands,
-                "_provider_geometry",
-                side_effect=RuntimeError("synthetic geometry failure"),
+            with (
+                mock.patch.object(
+                    AvatarCommands,
+                    "_provider_geometry",
+                    side_effect=RuntimeError("synthetic geometry failure"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
-                    AvatarCommands.apply_avatar_parameters(avatar, candidate)
+                AvatarCommands.apply_avatar_parameters(avatar, candidate)
             self.assertEqual(float(avatar.Chest), original_chest)
             self.assertEqual(str(avatar.JointPoseJSON), original_pose)
             rebuilt_mesh = tuple(
@@ -377,6 +378,8 @@ class AvatarFittingTests(unittest.TestCase):
             original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
+            avatar.GenderBlend = 0.25
+            avatar.BreastSize = 0.75
             rebuild_avatar()
             rebuilt_mesh = tuple(
                 (round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3))
@@ -401,6 +404,8 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
+            self.assertAlmostEqual(float(restored.GenderBlend), 0.25)
+            self.assertAlmostEqual(float(restored.BreastSize), 0.75)
             self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
             self.assertGreater(int(restored.Mesh.CountPoints), 100)
@@ -450,9 +455,10 @@ def test_fitting_stage_status_reports_saved_arrangement_state():
     simulation = type("Simulation", (), {"Document": doc})()
 
     message, reset_available = fitting_stage_status(simulation)
-    assert message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    assert (
+        message == "Assigned | 2 pieces assigned | 1/2 saved placement(s) | 3 arrangement point(s)"
+    )
     assert reset_available is True
-
 
 
 if __name__ == "__main__":

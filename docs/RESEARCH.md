@@ -400,3 +400,13 @@ These references describe observed software behavior and recommendations; the co
 - **Recognizable starting poses:** use succinct labeled preset buttons; reserve the viewport for direct joint manipulation and precision values for the collapsed fallback.
 - **One garment story:** teach the tunic from first editable pattern to final diagnosis; keep clips useful as local references but do not describe unrelated fixtures as a continuous session.
 - **Recovery over decoration:** Apply/Rebuild, Cancel, reset and stale-target guidance matter more than adding controls that do not carry persistent document meaning.
+
+## Parametric mannequin shape editor
+
+CLO3D separates **Adjust Size** from **Adjust Shape**: garment-facing dimensions such as bust/chest, underbust, waist and hip coexist with shape controls such as breast height/spacing and other body adjustments. Its cup-size workflow derives the bust/underbust difference rather than treating cup size as an unrelated number. This suggests keeping true circumferences authoritative while exposing distinct shape controls in the same editor. Reference: [CLO3D — Adjust Avatar Size](https://support.clo3d.com/hc/en-us/articles/33854094900633-Adjust-Avatar-Size).
+
+MakeHuman provides macro controls for gender, age, muscle, weight, height and proportions, backed by per-vertex target morphs. MPFB2 brings this workflow into Blender and exposes many such body targets and shape controls. Reference: [MakeHuman — Modeling the body](https://static.makehumancommunity.org/makehuman/docs/modeling_the_body.html) and [MPFB2 documentation](https://mpfb.readthedocs.io/).
+
+FreeCAD Cloth keeps the same separation: the gender blend changes localized body proportions; breast fullness is an independent shape control; height, circumference and length values remain named millimetre measurements. The viewport handles are transient Coin overlay geometry and stage edits in the existing task panel; Apply & Rebuild remains the only commit boundary. They deliberately do not add document objects or reuse Surface Pen callbacks.
+
+**Scope note:** the current integration uses a deterministic, localized procedural shape deformation on the pinned HM08 base mesh. It does not yet import MakeHuman's complete library of target-morph files, so breast and gender controls are useful parametric fitting controls rather than a claim of full CLO3D/MakeHuman morph fidelity. The saved parameter schema is migrated forward with neutral defaults for existing documents.
