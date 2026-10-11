@@ -111,10 +111,13 @@ def test_new_production_modules_cannot_escape_pyright_scope() -> None:
     """Require new modules to be included in Pyright or intentionally excluded."""
     config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
 
-    assert pyright_coverage_contract_violations(
-        config_text,
-        ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/NewSimulationGui.py"),
-    ) == ()
+    assert (
+        pyright_coverage_contract_violations(
+            config_text,
+            ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/NewSimulationGui.py"),
+        )
+        == ()
+    )
     assert pyright_coverage_contract_violations(
         config_text, ("freecad_cloth/pattern/NewPatternFeature.py",)
     ) == (
