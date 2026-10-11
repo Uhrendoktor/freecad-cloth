@@ -115,7 +115,12 @@ def _assert_camera_stable(before, after):
             )
 
 
-def _shape_change_summary(before, after, height_mm, breast_reference=None):
+def _shape_change_summary(
+    before: tuple[tuple[float, float, float], ...],
+    after: tuple[tuple[float, float, float], ...],
+    height_mm: float,
+    breast_reference: tuple[tuple[float, float, float], ...] | None = None,
+) -> dict[str, float | int]:
     """Measure changed torso geometry independently of native point order/count."""
     before_keys = {tuple(round(value, 1) for value in point) for point in before}
 
