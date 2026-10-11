@@ -1,6 +1,7 @@
 name: Canonical execution
 run-name: Canonical execution
 # CI iteration policy: gather the complete matrix before each repair batch.
+# Temporary provenance audit instrumentation; remove after reviewing the scan.
 on:
   push:
     branches: [main]
