@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -141,9 +140,8 @@ def _fit_anny_body(
 ) -> MeshData:
     """Fit an Anny body with the published differentiable measurements."""
     try:
+        import anny
         import torch
-        from anny import Anny
-        from anny.models.model_data import RigConfig, TopologyConfig
         from clad_body.load.anny import build_anny_apose, load_anny_from_verts
         from clad_body.measure import measure_grad
     except ImportError as exc:
@@ -163,37 +161,19 @@ def _fit_anny_body(
         if isinstance(value, (int, float))
     }
 
-    # Keep the original MakeHuman vertex index space: Cloth's persistent rig
-    # joints and skinning weights reference those authored HM08 vertex IDs.
-    rig = replace(
-        RigConfig.from_string("makehuman"),
-        bone_orientation="blender",
-        root_identity_orientation=True,
-    )
-    topology = replace(
-        TopologyConfig.from_string("makehuman"),
-        nudity_edits=False,
+    # Use Anny 0.5's compatibility factory, also used by clad-body's loader.
+    # "makehuman" disables Anny's nudity edits; retaining unattached vertices
+    # preserves the source HM08 vertex indices used by Cloth's saved rig/weights.
+    model = anny.create_fullbody_model(
+        rig="default",
+        topology="makehuman",
+        local_changes=sorted(local_values),
         remove_unattached_vertices=False,
         triangulate_faces=True,
-        eyes=False,
-        tongue=False,
-        submodel="body",
-    )
-    model = Anny(
-        rig=rig,
-        topology=topology,
-        local_changes=sorted(local_values),
-        phenotypes="all",
-        pose_parameterization="local-bone",
+        pose_parameterization="root_relative_world",
+        bone_orientation="blender-rootidentity",
+        all_phenotypes=True,
     ).to(dtype=torch.float32, device="cpu")
-
-    base_vertex_indices = model.base_mesh_vertex_indices.detach().cpu().tolist()
-    expected_body_indices = list(range(MAKEHUMAN_BODY_VERTEX_COUNT))
-    if base_vertex_indices[:MAKEHUMAN_BODY_VERTEX_COUNT] != expected_body_indices:
-        raise AnnyAvatarBackendError(
-            "Anny's selected topology does not preserve the HM08 body vertex index order "
-            "required by Cloth's saved skeleton and skinning weights."
-        )
 
     missing_local_changes = set(local_values) - set(model.local_change_labels)
     if missing_local_changes:
@@ -232,7 +212,7 @@ def _fit_anny_body(
             pose_parameters=pose,
             phenotype_kwargs=phenotype_kwargs,
             local_changes_kwargs=local_kwargs,
-            pose_parameterization="local-bone",
+            pose_parameterization="root_relative_world",
             return_bone_ends=True,
         )
     body = load_anny_from_verts(
@@ -336,7 +316,7 @@ def _fit_anny_body(
             pose_parameters=pose,
             phenotype_kwargs=body.phenotype_kwargs,
             local_changes_kwargs=body.local_changes_kwargs,
-            pose_parameterization="local-bone",
+            pose_parameterization="root_relative_world",
             return_bone_ends=True,
         )
     fitted_body = load_anny_from_verts(
