@@ -296,4 +296,3 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation():
     assert "samples," in simulation
     # Report classification belongs to the host-side dossier.
     assert "invalid_derived" not in simulation
-
