@@ -92,7 +92,7 @@ def _mesh_surface_pick(target, x_fraction, z_fraction, side):
     )
     triangle_index, x, y, z = chosen
     world = target.Placement.multVec(App.Vector(x, y, z))
-    return world, "Facet{}".format(int(triangle_index) + 1)
+    return world, f"Facet{int(triangle_index) + 1}"
 
 
 def _create_demo_tunic_piece(
@@ -556,7 +556,7 @@ def run():
         "SkeletonSurfaceAnchor",
         avatar,
         world_pick,
-        subelement="Facet{}".format(moved_triangle_index + 1),
+        subelement=f"Facet{moved_triangle_index + 1}",
     )
     records = [json.loads(value) for value in scene.ArrangementAnchorData]
     mesh_anchor_record = next(
