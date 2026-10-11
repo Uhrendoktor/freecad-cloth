@@ -348,9 +348,7 @@ class SeamProxy:
             pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
 
-        obj.Shape = build_seam_visual_shape(
-            piece_a, piece_b, obj, sample_count=5, world_space=True
-        )
+        obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
 
     def onDocumentRestored(self, obj):
         """Reapply canonical seam colors after FreeCAD restores a document proxy."""
