@@ -264,3 +264,23 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     assert "drape-metrics=" in source[:gate]
     assert "gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]
+
+def test_tunic_scene_dossier_logs_sampled_topology_before_simulation():
+    """The actual CI fixture must emit geometry evidence before downstream evaluation."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    simulation = source.split("def simulation():", 1)[1]
+    topology_audit = simulation.index("def log_tunic_outline_topology(piece):")
+    sample_resolution = simulation.index("resolve_piece_ir(piece)", topology_audit)
+    pattern_view = simulation.index("capture_tunic_pattern_view(doc, front, back, hem_width)", topology_audit)
+    sewing_view = simulation.index(
+        "capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)",
+        pattern_view,
+    )
+    native_gate = simulation.index("canonical tunic PatternIR boundary is invalid before simulation", sewing_view)
+    simulation_start = simulation.index("scene.StartHeight = 0.0", native_gate)
+
+    assert topology_audit < sample_resolution < pattern_view < sewing_view < native_gate < simulation_start
+    assert '"boundary-order=%r near-crossing=%r"' in simulation
+    assert "samples," in simulation
+    assert "invalid_derived" not in simulation  # Report classification belongs to the host-side dossier.
+
