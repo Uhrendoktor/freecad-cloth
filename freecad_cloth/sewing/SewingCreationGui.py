@@ -331,7 +331,7 @@ class SewingCreationTaskPanel:
         except (AttributeError, RuntimeError, TypeError) as exc:
             self._viewport_view = None
             self._viewport_callback = None
-            self._show_error(RuntimeError("viewport edge picking could not start: {}".format(exc)))
+            self._show_error(RuntimeError(f"viewport edge picking could not start: {exc}"))
             return
         self._viewport_picking = True
         self.viewport_pick_button.setText("Stop viewport picking")
@@ -416,7 +416,7 @@ class SewingCreationTaskPanel:
 
     def _show_error(self, exc):
         self.feedback.setText(
-            f"Preview rejected: {str(exc)}. Adjust the selection, then press Preview again."
+            f"Preview rejected: {exc!s}. Adjust the selection, then press Preview again."
         )
         self.feedback.setStyleSheet("font-weight: bold;")
         self.commit_button.setEnabled(False)
