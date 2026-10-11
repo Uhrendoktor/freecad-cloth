@@ -744,9 +744,7 @@ def _section_circumference(
                 fraction = 1.0
             else:
                 continue
-            point = tuple(
-                first[axis] + fraction * (second[axis] - first[axis]) for axis in axes
-            )
+            point = tuple(first[axis] + fraction * (second[axis] - first[axis]) for axis in axes)
             key = (round(point[0] * 10000), round(point[1] * 10000))
             hits.setdefault(key, point)
         if len(hits) != 2:
@@ -820,11 +818,7 @@ def _section_circumference(
         if area > 1e-5 and perimeter > 1e-5:
             loops.append((area, perimeter, abs(centroid_x), width))
 
-    central = [
-        item
-        for item in loops
-        if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)
-    ]
+    central = [item for item in loops if item[2] <= 100.0 and (max_width is None or item[3] <= max_width)]
     if not central:
         return 0.0
     # A body cross-section is the largest centered closed contour, not the
