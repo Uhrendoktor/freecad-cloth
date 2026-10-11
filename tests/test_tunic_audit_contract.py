@@ -195,6 +195,12 @@ def test_pbd_ci_image_is_pinned_and_preinstalled():
     assert "/opt/pypbd-provenance.txt" in dockerfile
     assert "pbd_validation_image:" in workflow
     assert "FREECAD_PBD_IMAGE" in workflow
+    assert "makehuman-hm08-base.obj" in dockerfile
+    assert (
+        "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj" in dockerfile
+    )
+    assert "1f508f6083b2f823dab15de924b3bde72e08d77c9/makehuman/data/3dobjs/base.obj" in dockerfile
+    assert "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c" in dockerfile
     assert "CLOTH_CI_ENABLE_PBD: 1" in workflow
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     assert "image: ${{ env.FREECAD_PBD_IMAGE }}" in gui

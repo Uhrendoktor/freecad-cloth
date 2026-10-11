@@ -37,6 +37,40 @@ for scan_root in (root / "lib", root / "lib" / "python3.12" / "site-packages"):
                 print("freecad-binary=" + str(candidate) + " swig=" + ",".join(matches), flush=True)
 PY
 
+
+# Bake the pinned HM08 source mesh into each CI image. The checksum protects
+# skeleton/weight vertex indexing, and the inherited environment prevents every
+# fresh validation container from fetching the same mesh again.
+RUN /opt/conda/envs/freecad/bin/python - <<'PY'
+from hashlib import sha256
+from pathlib import Path
+from urllib.request import Request, urlopen
+
+url = (
+    "https://raw.githubusercontent.com/makehumancommunity/makehuman/"
+    "1f508f6083b2f823dab15de924b3bde72e08d77c9/makehuman/data/3dobjs/base.obj"
+)
+expected_sha256 = "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
+destination = Path("/opt/freecad-cloth/assets/makehuman-hm08-base.obj")
+destination.parent.mkdir(parents=True, exist_ok=True)
+request = Request(url, headers={"User-Agent": "freecad-cloth-ci/1"})
+with urlopen(request, timeout=60) as response:
+    payload = response.read()
+actual_sha256 = sha256(payload).hexdigest()
+if actual_sha256 != expected_sha256:
+    raise SystemExit(
+        f"pinned MakeHuman base mesh checksum mismatch: {actual_sha256}"
+    )
+destination.write_bytes(payload)
+print(
+    f"bundled-makehuman-base={destination} sha256={actual_sha256} "
+    f"bytes={len(payload)}",
+    flush=True,
+)
+PY
+
+ENV FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj
+
 # Keep the Pivy build shipped with the FreeCAD image. Rebuilding it inside
 # this image is not reliable because the image does not expose a standalone
 # SWIG build toolchain even though FreeCAD embeds the SWIG runtime.

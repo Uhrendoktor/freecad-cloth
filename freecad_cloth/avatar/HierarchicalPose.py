@@ -16,6 +16,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
+from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
 from freecad_cloth.avatar.SkeletonPose import (
     AffineTransform,
     JointRotation,
@@ -58,10 +59,8 @@ def _arm_pose_configuration(
         ("upperarm01.L", "wrist.L"),
         ("upperarm01.R", "wrist.R"),
     ):
-        shoulder_source, _ = _bone_source_endpoints(source_vertices, skeleton, bone_name)
-        wrist_source, _ = _bone_source_endpoints(source_vertices, skeleton, wrist_bone)
-        shoulder = mapper(shoulder_source)
-        wrist = mapper(wrist_source)
+        shoulder, _ = _bone_source_endpoints(source_vertices, skeleton, bone_name, mapper=mapper)
+        wrist, _ = _bone_source_endpoints(source_vertices, skeleton, wrist_bone, mapper=mapper)
         side = -1.0 if shoulder[0] < 0.0 else 1.0
         desired = float(
             parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle
@@ -114,8 +113,11 @@ def pose_world_state(
     dict[str, AffineTransform],
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
-    source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
+    source_vertices = apply_measurement_targets(_load_source_vertices(), parameters)
+    source_mesh = load_makehuman_mesh()
+    mapper = _make_source_fitted_mapper(
+        source_vertices, parameters, 0.0, source_triangles=source_mesh.triangles
+    )
     skeleton = load_makehuman_skeleton()
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
         parameters, source_vertices, skeleton, mapper
@@ -134,10 +136,16 @@ def _manual_pose_state(
     tuple[dict[str, AffineTransform], dict[str, AffineTransform]],
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
-    source_vertices = _load_source_vertices()
-    mapper = _make_source_fitted_mapper(source_vertices, parameters, 0.0)
+    source_vertices = apply_measurement_targets(_load_source_vertices(), parameters)
+    source_mesh_vertices = apply_measurement_targets(mesh.vertices, parameters)
+    mapper = _make_source_fitted_mapper(
+        source_vertices, parameters, 0.0, source_triangles=mesh.triangles
+    )
     mesh_mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, float(parameters.skin_offset)
+        source_vertices,
+        parameters,
+        float(parameters.skin_offset),
+        source_triangles=mesh.triangles,
     )
     skeleton = load_makehuman_skeleton()
     effective_rotations, effective_pivots, base_rotations, base_pivots = (
@@ -153,7 +161,7 @@ def _manual_pose_state(
         effective_rotations,
         rotation_pivots=effective_pivots,
     )
-    rest_vertices = tuple(mesh_mapper(point) for point in mesh.vertices)
+    rest_vertices = tuple(mesh_mapper(point) for point in source_mesh_vertices)
     weights = load_makehuman_weights(len(rest_vertices))
     posed_vertices = apply_weighted_fk(
         source_vertices,

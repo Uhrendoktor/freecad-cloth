@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import NotRequired, TypedDict
+
 
 class JointRotationInput(TypedDict):
     """Dictionary input accepted by the persistent joint-rotation API."""
@@ -205,9 +206,15 @@ class AffineTransform:
         """Return the inverse of this rigid affine transform."""
         m = self.matrix
         inverse_matrix = (
-            m[0], m[3], m[6],
-            m[1], m[4], m[7],
-            m[2], m[5], m[8],
+            m[0],
+            m[3],
+            m[6],
+            m[1],
+            m[4],
+            m[7],
+            m[2],
+            m[5],
+            m[8],
         )
         tx, ty, tz = self.translation
         inverse_translation = (
@@ -292,7 +299,9 @@ def build_bone_transforms(
             return IDENTITY
         parent_name = bone.get("parent")
         parent_transform = visit(parent_name) if parent_name else IDENTITY
-        rest_head = fit_point(_joint_point(source_vertices, skeleton["joints"][bone["head"]]))
+        rest_head = _joint_point(
+            source_vertices, skeleton["joints"][bone["head"]], mapper=fit_point
+        )
         rotation = rotation_map.get(bone_name)
         if rotation is None:
             local = IDENTITY
