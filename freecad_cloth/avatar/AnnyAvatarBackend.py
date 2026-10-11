@@ -280,12 +280,8 @@ def _fit_anny_body(
         (parameter_name, key, float(values[parameter_name]) / 10.0)
         for parameter_name, key in MEASUREMENT_FIELDS
     )
-    global_targets = tuple(
-        target for target in targets if target[0] in {"height", "inseam"}
-    )
-    local_targets = tuple(
-        target for target in targets if target[0] not in {"height", "inseam"}
-    )
+    global_targets = tuple(target for target in targets if target[0] in {"height", "inseam"})
+    local_targets = tuple(target for target in targets if target[0] not in {"height", "inseam"})
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
     global_phenotype_names = {"height", "proportions"}
@@ -302,9 +298,7 @@ def _fit_anny_body(
     # must not change the whole-body phenotypes: doing so moved head/neck/shoulder
     # anchors when an otherwise unrelated hip measurement changed.
     global_parameters = [
-        value
-        for name, value in body.phenotype_kwargs.items()
-        if name in global_phenotype_names
+        value for name, value in body.phenotype_kwargs.items() if name in global_phenotype_names
     ]
     for name, value in body.phenotype_kwargs.items():
         value.requires_grad_(name in global_phenotype_names)
@@ -314,8 +308,7 @@ def _fit_anny_body(
     global_optimizer = torch.optim.Adam(global_parameters, lr=0.035)
     global_target_keys = [key for _name, key, _target in global_targets]
     global_target_values = {
-        key: torch.tensor(target, dtype=torch.float32)
-        for _name, key, target in global_targets
+        key: torch.tensor(target, dtype=torch.float32) for _name, key, target in global_targets
     }
     for _step in range(_FIT_STEPS):
         global_optimizer.zero_grad(set_to_none=True)
@@ -362,25 +355,20 @@ def _fit_anny_body(
     local_optimizer = torch.optim.Adam(local_parameters, lr=0.035)
     local_target_keys = [key for _name, key, _target in local_targets]
     local_target_values = {
-        key: torch.tensor(target, dtype=torch.float32)
-        for _name, key, target in local_targets
+        key: torch.tensor(target, dtype=torch.float32) for _name, key, target in local_targets
     }
     for _step in range(_FIT_STEPS):
         local_optimizer.zero_grad(set_to_none=True)
         actual = measure_grad(body, only=local_target_keys)
         relative_errors = [
-            (actual[key] - local_target_values[key]).abs()
-            / local_target_values[key].clamp_min(1.0)
+            (actual[key] - local_target_values[key]).abs() / local_target_values[key].clamp_min(1.0)
             for _name, key, _target in local_targets
         ]
         if float(torch.stack(relative_errors).max().detach()) <= _FIT_TOLERANCE:
             break
         measurement_loss = torch.stack(
             [
-                (
-                    (actual[key] - local_target_values[key])
-                    / local_target_values[key].clamp_min(1.0)
-                )
+                ((actual[key] - local_target_values[key]) / local_target_values[key].clamp_min(1.0))
                 ** 2
                 for _name, key, _target in local_targets
             ]

@@ -300,8 +300,7 @@ def run():
             camera_before_rebuild = _camera_signature(view)
             if not panel._apply():
                 raise RuntimeError(
-                    "Apply & Rebuild rejected staged body-shape values: "
-                    + str(panel.status.text())
+                    "Apply & Rebuild rejected staged body-shape values: " + str(panel.status.text())
                 )
             _events()
             _assert_camera_stable(camera_before_rebuild, _camera_signature(view))
