@@ -127,7 +127,9 @@ def test_canonical_gui_jobs_use_shared_freecad_test_boundaries():
     gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in gui
-    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in tunic
+    assert "uses: ./.github/actions/freecad-test" in tunic
+    assert "scene-report-command: python3 tools/ci/scene_understanding_report.py" in tunic
+    assert "summary=scene-understanding.json;visual=scene-understanding.svg" in tunic
     assert "case: sketcher, script: tests/freecad_sketcher_acceptance.py" in gui
     assert "case: pattern-export, script: tests/freecad_pattern_export_smoke.py" in gui
     assert "test-script: ${{ matrix.script }}" in gui
