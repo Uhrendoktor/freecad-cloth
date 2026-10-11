@@ -115,7 +115,7 @@ def _assert_camera_stable(before, after):
             )
 
 
-def _shape_change_summary(before, after, height_mm):
+def _shape_change_summary(before, after, height_mm, breast_reference=None):
     """Measure changed torso geometry independently of native point order/count."""
     before_keys = {tuple(round(value, 1) for value in point) for point in before}
 
@@ -126,9 +126,10 @@ def _shape_change_summary(before, after, height_mm):
     torso_changed_vertices = sum(
         1 for point in changed_positions if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
     )
+    bust_baseline = before if breast_reference is None else breast_reference
     before_front = tuple(
         point[1]
-        for point in before
+        for point in bust_baseline
         if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
         and point[1] > 0.0
         and abs(point[0]) <= 160.0
@@ -329,7 +330,19 @@ def run():
                         original_facets, updated_facets
                     )
                 )
-            shape_delta = _shape_change_summary(original_mesh, updated_mesh, float(avatar.Height))
+            from dataclasses import replace as replace_parameters
+            from freecad_cloth.avatar.AvatarModel import generate_mesh
+
+            committed_parameters = panel._staged_parameters()
+            zero_fullness_vertices, _triangles, _landmarks = generate_mesh(
+                replace_parameters(committed_parameters, breast_size=0.0)
+            )
+            shape_delta = _shape_change_summary(
+                original_mesh,
+                updated_mesh,
+                float(avatar.Height),
+                breast_reference=zero_fullness_vertices,
+            )
             if shape_delta["changed_vertices"] == 0:
                 raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
             if shape_delta["torso_changed_vertices"] == 0:

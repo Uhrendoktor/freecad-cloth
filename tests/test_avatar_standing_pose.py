@@ -3,11 +3,6 @@ import unittest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose, generate_mesh
 from freecad_cloth.avatar.HierarchicalPose import build_hierarchical_avatar_mesh
-from freecad_cloth.avatar.HumanoidMesh import (
-    fit_makehuman_mesh,
-    load_makehuman_arm_weights,
-    load_makehuman_mesh,
-)
 
 
 class AvatarStandingPoseTests(unittest.TestCase):
@@ -75,11 +70,9 @@ class AvatarStandingPoseTests(unittest.TestCase):
     def test_default_fk_raises_arms_and_preserves_bilateral_symmetry(self):
         params = AvatarParameters()
         actual_vertices, _triangles, _landmarks = generate_mesh(params)
-        reference = fit_makehuman_mesh(
-            load_makehuman_mesh(),
-            params,
-            arm_weights=load_makehuman_arm_weights(13380),
-        ).vertices
+        reference_vertices, _triangles, _landmarks = generate_mesh(
+            AvatarParameters(pose=Pose("t_pose"))
+        )
 
         def bounds(vertices):
             return tuple(
@@ -87,12 +80,11 @@ class AvatarStandingPoseTests(unittest.TestCase):
                 for axis in range(3)
             )
 
-        actual, expected = bounds(actual_vertices), bounds(reference)
+        actual, expected = bounds(actual_vertices), bounds(reference_vertices)
 
-        # The MakeHuman reference has near-horizontal arms. The 70-degree
-        # standing preset lowers them inward, so its lateral envelope must be
-        # narrower. The companion 12-degree test verifies the near-horizontal
-        # authored pose widens the emitted mesh again.
+        # Compare like-for-like Anny geometry: the 12-degree reference is
+        # near-horizontal, while the default 70-degree standing pose lowers
+        # both arms inward.
         self.assertGreater(actual[0][0], expected[0][0] + 50.0)
         self.assertLess(actual[0][1], expected[0][1] - 50.0)
         self.assertAlmostEqual(actual[0][0], -actual[0][1], delta=2.0)

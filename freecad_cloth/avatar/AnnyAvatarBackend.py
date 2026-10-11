@@ -354,40 +354,57 @@ def _fit_anny_body(
         value.requires_grad_(False)
 
     breast_names = {_BREAST_LOCAL_CHANGE}
+    hip_change_names = {
+        name for name in body.local_changes_kwargs if "measure-hips-circ" in name
+    }
+    if not hip_change_names:
+        raise AnnyAvatarBackendError("Anny exposes no hip-specific circumference morphs.")
+    non_hip_targets = tuple(target for target in local_targets if target[0] != "hip")
+    hip_targets = tuple(target for target in local_targets if target[0] == "hip")
+    if len(hip_targets) != 1 or not non_hip_targets:
+        raise AnnyAvatarBackendError("Anny local measurement targets cannot be separated by region.")
+
+    # Fit every non-hip dimension without allowing the hip morph to pull the
+    # torso/neck/shoulder controls. This makes hip-only edits spatially local.
     local_parameters = []
     for name, value in body.local_changes_kwargs.items():
-        trainable = name not in breast_names
+        trainable = name not in breast_names and name not in hip_change_names
         value.requires_grad_(trainable)
         if trainable:
             local_parameters.append(value)
     if not local_parameters:
-        raise AnnyAvatarBackendError("Anny exposes no trainable local measurement morphs.")
+        raise AnnyAvatarBackendError("Anny exposes no trainable non-hip measurement morphs.")
 
     local_optimizer = torch.optim.Adam(local_parameters, lr=0.035)
-    local_target_keys = [key for _name, key, _target in local_targets]
+    local_target_keys = [key for _name, key, _target in non_hip_targets]
     local_target_values = {
-        key: torch.tensor(target, dtype=torch.float32) for _name, key, target in local_targets
+        key: torch.tensor(target, dtype=torch.float32)
+        for _name, key, target in non_hip_targets
     }
     for _step in range(_FIT_STEPS):
         local_optimizer.zero_grad(set_to_none=True)
         actual = measure_grad(body, only=local_target_keys)
         relative_errors = [
-            (actual[key] - local_target_values[key]).abs() / local_target_values[key].clamp_min(1.0)
-            for _name, key, _target in local_targets
+            (actual[key] - local_target_values[key]).abs()
+            / local_target_values[key].clamp_min(1.0)
+            for _name, key, _target in non_hip_targets
         ]
         if float(torch.stack(relative_errors).max().detach()) <= _FIT_TOLERANCE:
             break
         measurement_loss = torch.stack(
             [
-                ((actual[key] - local_target_values[key]) / local_target_values[key].clamp_min(1.0))
+                (
+                    (actual[key] - local_target_values[key])
+                    / local_target_values[key].clamp_min(1.0)
+                )
                 ** 2
-                for _name, key, _target in local_targets
+                for _name, key, _target in non_hip_targets
             ]
         ).mean()
         local_penalties = [
             value.square().mean()
             for name, value in body.local_changes_kwargs.items()
-            if name not in breast_names
+            if name not in breast_names and name not in hip_change_names
         ]
         local_penalty = torch.stack(local_penalties).mean()
         loss = measurement_loss + 0.0005 * local_penalty
@@ -395,8 +412,47 @@ def _fit_anny_body(
         local_optimizer.step()
         with torch.no_grad():
             for name, value in body.local_changes_kwargs.items():
-                if name not in breast_names:
+                if name not in breast_names and name not in hip_change_names:
                     value.clamp_(-1.0, 1.0)
+
+    # Only the hip-specific morphs may move while fitting hip circumference.
+    # All other local and global shape controls are now frozen.
+    for name, value in body.local_changes_kwargs.items():
+        value.requires_grad_(name in hip_change_names)
+    hip_parameters = [
+        value for name, value in body.local_changes_kwargs.items() if name in hip_change_names
+    ]
+    hip_name, hip_key, hip_target = hip_targets[0]
+    hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
+    hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)
+    for _step in range(_FIT_STEPS):
+        hip_optimizer.zero_grad(set_to_none=True)
+        actual = measure_grad(body, only=[hip_key])
+        relative_error = (
+            (actual[hip_key] - hip_target_value).abs() / hip_target_value.clamp_min(1.0)
+        )
+        if float(relative_error.max().detach()) <= _FIT_TOLERANCE:
+            break
+        measurement_loss = (
+            (actual[hip_key] - hip_target_value) / hip_target_value.clamp_min(1.0)
+        ).square().mean()
+        hip_penalty = torch.stack(
+            [
+                value.square().mean()
+                for name, value in body.local_changes_kwargs.items()
+                if name in hip_change_names
+            ]
+        ).mean()
+        loss = measurement_loss + 0.0005 * hip_penalty
+        loss.backward()
+        hip_optimizer.step()
+        with torch.no_grad():
+            for name, value in body.local_changes_kwargs.items():
+                if name in hip_change_names:
+                    value.clamp_(-1.0, 1.0)
+
+    for value in body.local_changes_kwargs.values():
+        value.requires_grad_(False)
 
     model = body.model
     if body.phenotype_kwargs is None:
