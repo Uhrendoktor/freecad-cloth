@@ -69,6 +69,20 @@ class MakeHumanTargetTests(unittest.TestCase):
             with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
                 self.assertEqual(target_directory(), root.resolve() / "targets")
 
+    def test_unmarked_target_tree_preserves_native_xyz_order(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cloth-native-target-") as directory:
+            root = Path(directory)
+            target_dir = root / "torso"
+            target_dir.mkdir()
+            (target_dir / "measure-waist-circ-incr.target").write_text(
+                "0 0.1 0.2 0.3\\n", encoding="utf-8"
+            )
+            reference = resolve_target("measure-waist-circ-incr", root)
+            self.assertIsNotNone(reference)
+            assert reference is not None
+            self.assertEqual(reference.coordinate_format, "makehuman")
+            self.assertEqual(load_target(reference).offsets, ((0, (0.1, 0.2, 0.3)),))
+
     def test_mpfb2_target_tree_converts_blender_axis_order(self) -> None:
         with tempfile.TemporaryDirectory(prefix="cloth-mpfb-target-") as directory:
             root = Path(directory)
