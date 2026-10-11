@@ -1032,14 +1032,29 @@ def simulation():
             draft_valid = False
             draft_reason = "derived outline unavailable: %s" % type(exc).__name__
 
-        crossing_match = re.search(
-            r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]",
-            ir_reason,
+        crossing_pattern = re.compile(
+            r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]"
         )
+        ir_crossing = crossing_pattern.search(ir_reason)
+        draft_crossing = crossing_pattern.search(draft_reason)
+        crossing_match = ir_crossing or draft_crossing
         if crossing_match is None:
             nearby = ()
         else:
             crossing = Point(float(crossing_match.group(1)), float(crossing_match.group(2)))
+            if ir_crossing is not None:
+                crossing_segments = segments
+            else:
+                crossing_segments = tuple(
+                    (
+                        str(boundary_summary[index][0])
+                        if index < len(boundary_summary)
+                        else "derived-edge:%d" % index,
+                        start,
+                        draft_points[(index + 1) % len(draft_points)],
+                    )
+                    for index, start in enumerate(draft_points)
+                )
             distances = sorted(
                 (
                     round(float(LineString((start, end)).distance(crossing)), 6),
@@ -1048,17 +1063,24 @@ def simulation():
                     start,
                     end,
                 )
-                for index, (edge_id, start, end) in enumerate(segments)
+                for index, (edge_id, start, end) in enumerate(crossing_segments)
             )
             nearby = tuple(distances[:8])
 
+        record = {
+            "piece": piece.Name,
+            "ir_valid": bool(ir_polygon.is_valid),
+            "ir_reason": ir_reason,
+            "draft_valid": draft_valid,
+            "draft_reason": draft_reason,
+        }
         log(
             "tunic-outline-topology piece=%s ir-valid=%s ir-reason=%s "
             "draft-valid=%s draft-reason=%s ir-points=%d draft-points=%d "
             "boundary-order=%r near-crossing=%r"
             % (
                 piece.Name,
-                bool(ir_polygon.is_valid),
+                record["ir_valid"],
                 ir_reason,
                 draft_valid,
                 draft_reason,
@@ -1068,9 +1090,9 @@ def simulation():
                 nearby,
             )
         )
+        return record
 
-    for piece in (front, back):
-        log_tunic_outline_topology(piece)
+    topology_results = [log_tunic_outline_topology(piece) for piece in (front, back)]
 
     capture_tunic_pattern_view(doc, front, back, hem_width)
     # Same-side side seams and authored shoulder seams; the neckline remains open.
@@ -1089,6 +1111,26 @@ def simulation():
         seam_obj = next(o for o in doc.Objects if getattr(o, "SeamId", "") == seam_id)
         seam_records.append((seam_obj, front, back))
     capture_tunic_sewing_view(doc, front, back, hem_width, seam_records)
+    invalid_native = next(
+        (record for record in topology_results if not bool(record["ir_valid"])),
+        None,
+    )
+    if invalid_native is not None:
+        raise RuntimeError(
+            "canonical tunic PatternIR boundary is invalid before simulation: "
+            "piece=%s reason=%s"
+            % (invalid_native["piece"], invalid_native["ir_reason"])
+        )
+    invalid_derived = next(
+        (record for record in topology_results if not bool(record["draft_valid"])),
+        None,
+    )
+    if invalid_derived is not None:
+        raise RuntimeError(
+            "canonical tunic derived pattern outline is invalid before simulation: "
+            "piece=%s reason=%s"
+            % (invalid_derived["piece"], invalid_derived["draft_reason"])
+        )
     scene.StartHeight = 0.0
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 24.0
