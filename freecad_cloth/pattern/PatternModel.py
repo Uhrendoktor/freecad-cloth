@@ -5,7 +5,9 @@ FreeCAD document objects remain the persistence authority and round-trip these
 values rather than being replaced by a second database/model.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import field
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing import Union
 
 from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_finite_number
@@ -23,7 +25,7 @@ def _empty_metadata() -> dict[str, object]:
     """Create an explicitly typed empty metadata mapping."""
     return {}
 
-@dataclass
+@pydantic_dataclass
 class PatternPiece:
     """A planar sewing piece expressed in millimetres."""
 
@@ -55,7 +57,7 @@ class PatternPiece:
         )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Seam:
     """Canonical immutable in-memory sewing contract.
 
