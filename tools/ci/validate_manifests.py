@@ -146,9 +146,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     sdf_resolution = tuple(int(value) for value in collision.groups()[4:7])
     surface_spans_mm = tuple(float(value) for value in collision.groups()[7:10])
     if not isclose(thickness_mm, 5.0, abs_tol=1e-6):
-        raise SystemExit(
-            f"tunic: mannequin collision thickness must be 5 mm, got {thickness_mm}"
-        )
+        raise SystemExit(f"tunic: mannequin collision thickness must be 5 mm, got {thickness_mm}")
     if not isclose(voxel_mm, 3.0, abs_tol=1e-6):
         raise SystemExit(f"tunic: PBD SDF voxel must be 3 mm, got {voxel_mm}")
     if not isclose(configured_tolerance_mm, 2.0, abs_tol=1e-6):
@@ -159,8 +157,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
     if not isclose(effective_tolerance_mm, expected_tolerance_mm, abs_tol=1e-6):
         raise SystemExit("tunic: effective collision tolerance does not match its inputs")
     expected_resolution = tuple(
-        max(16, min(256, int(ceil((span + 200.0) / voxel_mm))))
-        for span in surface_spans_mm
+        max(16, min(256, int(ceil((span + 200.0) / voxel_mm)))) for span in surface_spans_mm
     )
     if sdf_resolution != expected_resolution:
         raise SystemExit(

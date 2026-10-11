@@ -369,18 +369,19 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         mesh.buildNeighbors()
 
         resolution = _pbd_collision_resolution(collision_surface)
+        collision_voxel_mm = _pbd_collision_voxel_mm()
+        configured_tolerance_mm = _pbd_collision_tolerance_mm()
+        effective_tolerance_mm = _pbd_collision_effective_tolerance_mm(collision_surface)
         self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)
-        self._collision_voxel_mm = _pbd_collision_voxel_mm()
-        self._collision_configured_tolerance_mm = _pbd_collision_tolerance_mm()
-        self._collision_effective_tolerance_mm = _pbd_collision_effective_tolerance_mm(
-            collision_surface
-        )
+        self._collision_voxel_mm = collision_voxel_mm
+        self._collision_configured_tolerance_mm = configured_tolerance_mm
+        self._collision_effective_tolerance_mm = effective_tolerance_mm
         print(
             "cloth-pbd-collision-config "
             f"target_thickness_mm={float(collision_surface.thickness):.2f} "
-            f"configured_tolerance_mm={self._collision_configured_tolerance_mm:.2f} "
-            f"voxel_mm={self._collision_voxel_mm:.2f} "
-            f"effective_tolerance_mm={self._collision_effective_tolerance_mm:.2f} "
+            f"configured_tolerance_mm={configured_tolerance_mm:.2f} "
+            f"voxel_mm={collision_voxel_mm:.2f} "
+            f"effective_tolerance_mm={effective_tolerance_mm:.2f} "
             f"resolution={list(self._collision_sdf_resolution)}",
             flush=True,
         )
@@ -428,9 +429,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         rigid_body.setFrictionCoeff(0.5)
 
         collision_detection = sim.getTimeStep().getCollisionDetection()
-        collision_detection.setTolerance(
-            self._collision_effective_tolerance_mm / _MM
-        )
+        collision_detection.setTolerance(effective_tolerance_mm / _MM)
 
     def _build(self) -> None:
         self._sim, self._model = self._new_simulation()

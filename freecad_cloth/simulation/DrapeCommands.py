@@ -114,6 +114,8 @@ def create_mannequin_drape_target():
             DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
         )
     else:
+        target.CollisionDeflection = 1.0
+        target.CollisionThickness = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
         assign_drape_target(target, mannequin, "Mannequin")
     target.Label = "Drape Target (Mannequin)"
     _attach_to_simulation(doc, mannequin, target)

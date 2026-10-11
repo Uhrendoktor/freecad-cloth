@@ -190,7 +190,10 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
     assert 'os.environ["CLOTH_PBD_SUBSTEPS"]' not in source
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow
     assert "tunic-collision-config target-thickness-mm=%.2f" in source
-    assert "DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM" in source
+    simulation_commands = (
+        ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py"
+    ).read_text(encoding="utf-8")
+    assert "DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM" in simulation_commands
     assert "tunic-simulation-start" in source
     assert 'configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))' in source
     assert 'effective_substeps = int(getattr(active_backend, "_substeps", -1))' in source
@@ -229,6 +232,7 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit():
     assert "representation_margin = 0.5 * _pbd_collision_voxel_mm()" in backend
     assert "max(configured, thickness, representation_margin)" in backend
     assert "self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)" in backend
+    assert "effective_tolerance_mm / _MM" in backend
     assert "cloth-pbd-collision-config " in backend
 
 
