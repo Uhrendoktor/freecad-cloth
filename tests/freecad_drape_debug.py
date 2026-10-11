@@ -175,12 +175,12 @@ def _make_tunic_sketch(
     points = [
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + 0.76 * panel_width, armhole_z),
+        (x_offset + 0.96 * panel_width, shoulder_z),
         (x_offset + float(neckline_ratio) * panel_width, neck_z),
         (x_offset + (1.0 - float(neckline_ratio)) * panel_width, neck_z),
-        (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.26 * panel_width, armhole_z),
+        (x_offset + 0.04 * panel_width, shoulder_z),
+        (x_offset + 0.24 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
         raise RuntimeError("debug tunic shoulders must fall outward from neckline")
@@ -208,10 +208,10 @@ def _make_tunic_sketch(
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
-            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.761 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 6:
-            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
+            midpoint = App.Vector(x_offset + 0.239 * panel_width, armhole_mid_z, 0)
             geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
         elif idx == 7:
             midpoint = App.Vector(
@@ -440,8 +440,8 @@ def run():
     def pin_indices(piece, outline, positions):
         x_offset = 0.5 * (float(hem_width) - float(panel_width))
         targets = (
-            (x_offset + 0.06 * panel_width, 0.90 * garment_height),
-            (x_offset + 0.94 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.04 * panel_width, 0.90 * garment_height),
+            (x_offset + 0.96 * panel_width, 0.90 * garment_height),
         )
         result = []
         available = list(range(len(positions)))

@@ -194,12 +194,12 @@ replacements = {
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + 0.76 * panel_width, armhole_z),
+        (x_offset + 0.96 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.26 * panel_width, armhole_z),
+        (x_offset + 0.04 * panel_width, shoulder_z),
+        (x_offset + 0.24 * panel_width, armhole_z),
     ]
 """: """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
@@ -208,12 +208,12 @@ replacements = {
     points = [
         (0.00, 0.00),
         (hem_width, 0.00),
-        (x_offset + 0.74 * panel_width, armhole_z),
-        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + 0.76 * panel_width, armhole_z),
+        (x_offset + 0.96 * panel_width, shoulder_z),
         (x_offset + neckline_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neckline_ratio) * panel_width, neck_z),
-        (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.26 * panel_width, armhole_z),
+        (x_offset + 0.04 * panel_width, shoulder_z),
+        (x_offset + 0.24 * panel_width, armhole_z),
     ]
 """,
     # Keep this armhole PR on the canonical upper edge. The source-rewrite harness
