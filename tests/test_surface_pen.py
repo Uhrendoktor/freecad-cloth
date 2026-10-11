@@ -7,6 +7,7 @@ from freecad_cloth.pattern.SurfacePen import (
     polygon_area_2d,
     polygon_self_intersects,
     simplify_polyline,
+    surface_stroke_can_finish,
 )
 
 
@@ -40,6 +41,21 @@ def test_close_surface_stroke_accepts_nearby_closing_sample():
     assert len(closed) == 4
     assert closed[0] == anchors[0]
     assert closed[-1] == anchors[3]
+
+
+def test_surface_stroke_can_finish_requires_closed_distinct_boundary():
+    closed = (
+        SurfaceAnchor((0, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 0, 0), (0, 0, 1)),
+        SurfaceAnchor((80, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((0, 50, 0), (0, 0, 1)),
+        SurfaceAnchor((0.5, 0.2, 0), (0, 0, 1)),
+    )
+    assert surface_stroke_can_finish(closed, tolerance_mm=1.0)
+    assert not surface_stroke_can_finish(closed, tolerance_mm=0.1)
+    assert not surface_stroke_can_finish(closed[:-1], tolerance_mm=1.0)
+    repeated = (*closed[:2], closed[0])
+    assert not surface_stroke_can_finish(repeated, tolerance_mm=1.0)
 
 
 def test_close_surface_stroke_rejects_open_boundary():
