@@ -157,6 +157,8 @@ def simplify_polyline(
     if len(values) <= 2:
         return values
     tolerance = max(0.0, float(tolerance_mm))
+    if tolerance <= 1e-12:
+        return values
 
     def perpendicular_distance(point: Point3, start: Point3, end: Point3) -> float:
         axis = _sub(end, start)
