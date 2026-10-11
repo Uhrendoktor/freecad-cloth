@@ -9,6 +9,7 @@ This wiki-style manual is organised around reader tasks. Start with setup if you
 | Install Cloth and understand its runtime requirements | [Installation](../INSTALLATION.md) |
 | Complete the pattern-to-drape workflow once | [End-to-end user guide](../USER_GUIDE.md) |
 | Understand the simple and full-garment examples | [Examples](../EXAMPLES.md) |
+| Adjust mannequin body shape and sewing dimensions | [Avatar shape and dimensions](09-avatar-shape.md) |
 | Fix a missing workbench, invalid seam, wrong arrangement, or stale simulation | [Troubleshooting](../TROUBLESHOOTING.md) |
 | Find user-facing command behavior | [Workbench guide](../WORKBENCH_GUIDE.md) |
 
