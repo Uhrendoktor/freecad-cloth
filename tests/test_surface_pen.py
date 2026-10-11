@@ -160,9 +160,7 @@ def test_surface_anchor_round_trips_point_authoring_kind() -> None:
 
 
 def test_legacy_surface_anchor_json_defaults_to_corner() -> None:
-    restored = SurfaceAnchor.from_json(
-        {"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]}
-    )
+    restored = SurfaceAnchor.from_json({"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]})
     assert restored == SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
 
 
@@ -190,4 +188,3 @@ def test_surface_segments_reject_boundaries_with_too_few_corners() -> None:
         assert "at least three corner points" in str(exc)
     else:
         raise AssertionError("a curve boundary without three authored corners was accepted")
-
