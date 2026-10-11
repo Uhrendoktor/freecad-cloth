@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -106,3 +107,95 @@ def test_group_collection_is_checked_during_the_execution_run():
     assert '"tools.ci.pytest_collection_contract"' in runner
     assert "CLOTH_EXPECTED_TEST_MODULES" in runner
     assert "collection_command" not in runner
+
+
+def _valid_realtime_benchmark_metrics() -> dict[str, object]:
+    from tools.ci.validate_realtime_benchmark import FRAME_BUDGET_MS
+
+    return {
+        "schema_version": 1,
+        "backend": "position-based-dynamics",
+        "frame_budget_ms": FRAME_BUDGET_MS,
+        "frames_requested": 120,
+        "warmup_frames_requested": 30,
+        "measured_intervals": 120,
+        "observed_ticks": 150,
+        "expected_ticks": 150,
+        "frames_advanced": 150,
+        "timed_out": False,
+        "backend_finite": True,
+        "published_state_finite": True,
+        "mean_frame_interval_ms": 16.4,
+        "p95_frame_interval_ms": 18.2,
+        "mean_callback_ms": 5.1,
+        "p95_callback_ms": 6.3,
+        "profile": {
+            "quality_preset": "Fast",
+            "particle_distance_mm": 40.0,
+            "solver_iterations": 1,
+            "solver_substeps": 1,
+            "pbd_substeps": 1,
+        },
+        "runtime": {
+            "platform": "Linux-test",
+            "python_version": "3.12.0",
+            "freecad_version": "1.0.0",
+            "cpu_count": 4,
+            "libgl_always_software": "1",
+        },
+    }
+
+
+def test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample() -> None:
+    from tools.ci.validate_realtime_benchmark import validate_metrics
+
+    assert validate_metrics(_valid_realtime_benchmark_metrics()) == []
+
+
+def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
+    from tools.ci.validate_realtime_benchmark import validate_metrics
+
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["mean_frame_interval_ms"] = 42.0
+    metrics["backend_finite"] = False
+    profile = metrics["profile"]
+    assert isinstance(profile, dict)
+    profile["pbd_substeps"] = 8
+
+    errors = validate_metrics(metrics)
+
+    assert any("mean_frame_interval_ms exceeds" in error for error in errors)
+    assert "backend_finite must be true" in errors
+    assert "profile.pbd_substeps must be 1" in errors
+
+
+def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> None:
+    from tools.ci.validate_realtime_benchmark import validate_metrics
+
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["measured_intervals"] = 9
+
+    errors = validate_metrics(metrics)
+
+    assert "measured_intervals must equal frames_requested" in errors
+
+
+def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
+    source_path = ROOT / "tests" / "freecad_realtime_benchmark.py"
+    parsed = ast.parse(source_path.read_text(encoding="utf-8"))
+    identifiers = {
+        node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)
+    }
+    attributes = {
+        node.attr for node in ast.walk(parsed) if isinstance(node, ast.Attribute)
+    }
+    assert "_Preview" in identifiers
+    assert "_prepare" in identifiers
+    assert "QEventLoop" in attributes
+    assert "disconnect" in attributes
+    assert "connect" in attributes
+    assert "WARMUP_FRAMES" in identifiers
+    assert "FRAMES" in identifiers
+    assert "validate_realtime_benchmark.py" in (
+        ROOT / ".github" / "workflows" / "canonical-execution.yml"
+    ).read_text(encoding="utf-8")
