@@ -9,7 +9,7 @@ from xml.etree import ElementTree
 
 
 _MM_LENGTH = re.compile(
-    r"^\\s*([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)mm\\s*$"
+    r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$"
 )
 
 
