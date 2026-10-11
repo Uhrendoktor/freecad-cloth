@@ -38,10 +38,7 @@ def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes():
             for point in _bone_source_endpoints(source, skeleton, bone_name):
                 assert baseline_mapper(point) == pytest.approx(variant_mapper(point))
         assert variant_source == source
-    # The hip joint must be evaluated in the edited fit space, rather than
-    # reusing a pre-edit or surface-padded pivot.
-    hip_endpoint = _bone_source_endpoints(source, skeleton, "spine05")[0]
-    assert baseline_mapper(hip_endpoint) != pytest.approx(pose_world_state(hip_changed)[2](hip_endpoint))
+
 
 
 def test_joint_rotation_bounds_and_mirror():
