@@ -1,12 +1,12 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json
-from html import escape
 from dataclasses import dataclass
+from html import escape
 from math import cos, hypot, radians, sin
 from xml.etree import ElementTree
-from shapely.geometry import Point as ShapelyPoint
-from shapely.geometry import Polygon
+
+from shapely.geometry import Point as ShapelyPoint, Polygon
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
@@ -48,7 +48,6 @@ def _validate_units(units: str) -> str:
 class _ResolvedNotchCut:
     """Geometric cut-insertion plan for one semantic notch."""
 
-    id: str
     center: float
     left_measure: float
     right_measure: float
@@ -184,7 +183,6 @@ def _cut_contour_with_notches(
         right_measure = (cut_measure + half_width) % perimeter
         resolved.append(
             _ResolvedNotchCut(
-                notch.id,
                 cut_measure % perimeter,
                 left_measure,
                 right_measure,
