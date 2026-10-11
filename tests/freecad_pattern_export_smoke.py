@@ -17,7 +17,11 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
-from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+from freecad_cloth.pattern.PatternExport import (
+    from_dxf_metadata,
+    from_pdf_metadata,
+    from_svg_metadata,
+)
 
 LOG_PATH = Path(
     os.environ.get("CLOTH_PATTERN_EXPORT_LOG", ROOT / "artifacts" / "pattern-production-export.log")
@@ -293,8 +297,10 @@ try:
         )
 
         results = {}
-        readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata}
-        for export_format in ("SVG", "DXF"):
+        readers = {"SVG": from_svg_metadata, "DXF": from_dxf_metadata, "PDF": from_pdf_metadata}
+        preview_pdf = ROOT / "artifacts" / "pattern-export-print-preview.pdf"
+        preview_pdf.parent.mkdir(parents=True, exist_ok=True)
+        for export_format in ("SVG", "DXF", "PDF"):
             path_a = output_dir / ("piece." + export_format.lower())
             path_b = output_dir / ("piece-second." + export_format.lower())
 
@@ -322,7 +328,11 @@ try:
             if first != second:
                 raise RuntimeError(export_format + " export is not byte-deterministic")
 
-            metadata = readers[export_format](first.decode("utf-8"))
+            metadata = (
+                readers[export_format](first)
+                if export_format == "PDF"
+                else readers[export_format](first.decode("utf-8"))
+            )
             if metadata.get("piece_id") != piece_id:
                 raise RuntimeError(export_format + " export lost piece identity")
             if metadata.get("units") != "mm" or metadata.get("scale") != 1.0:
@@ -336,8 +346,8 @@ try:
             if metadata.get("mark_ids") != sorted([grainline_id, mark_id]):
                 raise RuntimeError(export_format + " export lost persisted mark identity")
 
-            output = first.decode("utf-8")
             if export_format == "SVG":
+                output = first.decode("utf-8")
                 if f'data-notch-ids="{notch_id}"' not in output:
                     raise RuntimeError("SVG cut perimeter lost persisted notch identity")
                 if "55.000000,67.000000" not in output:
@@ -358,7 +368,8 @@ try:
                     raise RuntimeError("SVG export lost persisted construction-mark coordinates")
                 if 'x1="37.000000" y1="65.000000" x2="73.000000" y2="65.000000"' not in output:
                     raise RuntimeError("SVG export lost persisted grainline coordinates")
-            else:
+            elif export_format == "DXF":
+                output = first.decode("utf-8")
                 if f'"notch_ids":["{notch_id}"]' not in output:
                     raise RuntimeError("DXF export lost persisted notch identity")
                 expected_mark_ids = json.dumps(
@@ -373,6 +384,15 @@ try:
                     raise RuntimeError("DXF export lost persisted construction-mark coordinates")
                 if "10\n32.000000\n20\n0.000000\n10\n68.000000\n20\n0.000000" not in output:
                     raise RuntimeError("DXF export lost persisted grainline coordinates")
+            else:
+                if b"/MediaBox [0 0 595.27559 841.88976]" not in first:
+                    raise RuntimeError("PDF export lost the A4 page size")
+                if first.count(b"25 mm CALIBRATION SQUARE") != metadata.get("page_count"):
+                    raise RuntimeError("PDF export lost page calibration marks")
+                if b"Print at ACTUAL SIZE / 100%" not in first:
+                    raise RuntimeError("PDF export lost the print-at-100% warning")
+                preview_pdf.write_bytes(first)
+                record(f"pdf-preview-artifact={preview_pdf}")
 
             results[export_format] = len(first)
 
@@ -420,8 +440,8 @@ try:
         record("stale-mark-guard=passed")
 
         record(
-            "pattern-export=passed formats=SVG,DXF bytes={},{}".format(
-                results["SVG"], results["DXF"]
+            "pattern-export=passed formats=SVG,DXF,PDF bytes={},{},{}".format(
+                results["SVG"], results["DXF"], results["PDF"]
             )
         )
 

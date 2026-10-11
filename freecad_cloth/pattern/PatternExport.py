@@ -416,6 +416,76 @@ def to_dxf(
     return "\n".join(lines)
 
 
+
+
+def to_pdf(
+    pattern: ParametricPattern,
+    curve_samples: int = 32,
+    units: str = "mm",
+    derived: DerivedPattern | None = None,
+    piece_id: str = "",
+    seam_ids=(),
+    seam_allowance: float = 0.0,
+    *,
+    paper_size: str = "A4",
+    margin_mm: float = 10.0,
+    overlap_mm: float = 10.0,
+) -> bytes:
+    """Generate a true-scale tiled PDF with calibration and registration marks."""
+    from freecad_cloth.pattern.PatternPdfExport import to_pdf as render_pdf
+
+    return render_pdf(
+        pattern,
+        curve_samples,
+        units,
+        derived,
+        piece_id,
+        tuple(seam_ids),
+        seam_allowance,
+        paper_size=paper_size,
+        margin_mm=margin_mm,
+        overlap_mm=overlap_mm,
+    )
+
+
+def from_pdf_metadata(pdf: bytes) -> dict:
+    """Read deterministic cloth-pattern metadata from a tiled PDF."""
+    from freecad_cloth.pattern.PatternPdfExport import from_pdf_metadata as read_metadata
+
+    return read_metadata(pdf)
+
+
+def validate_pdf_export(
+    pattern: ParametricPattern,
+    exported: bytes,
+    curve_samples: int = 32,
+    units: str = "mm",
+    derived: DerivedPattern | None = None,
+    piece_id: str = "",
+    seam_ids=(),
+    seam_allowance: float = 0.0,
+    *,
+    paper_size: str = "A4",
+    margin_mm: float = 10.0,
+    overlap_mm: float = 10.0,
+) -> dict:
+    """Validate a PDF by deterministic regeneration from the authoritative model."""
+    from freecad_cloth.pattern.PatternPdfExport import validate_pdf_export as validate_pdf
+
+    return validate_pdf(
+        pattern,
+        exported,
+        curve_samples,
+        units,
+        derived,
+        piece_id,
+        tuple(seam_ids),
+        seam_allowance,
+        paper_size=paper_size,
+        margin_mm=margin_mm,
+        overlap_mm=overlap_mm,
+    )
+
 def from_dxf_metadata(dxf: str) -> dict:
     """Provide the public from dxf metadata operation."""
     marker = "$COMMENT\n1\n"
@@ -607,12 +677,20 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
 
 
 def export_pattern_piece(
-    piece, path, format: str, *, units: str = "mm", curve_samples: int = 64
+    piece,
+    path,
+    format: str,
+    *,
+    units: str = "mm",
+    curve_samples: int = 64,
+    paper_size: str = "A4",
+    margin_mm: float = 10.0,
+    overlap_mm: float = 10.0,
 ) -> dict:
-    """Write and validate an SVG/DXF export derived from an authoritative piece."""
+    """Write and validate an SVG/DXF/PDF export derived from an authoritative piece."""
     normalized_format = str(format).strip().lower()
-    if normalized_format not in {"svg", "dxf"}:
-        raise ValueError("format must be 'svg' or 'dxf'")
+    if normalized_format not in {"svg", "dxf", "pdf"}:
+        raise ValueError("format must be 'svg', 'dxf' or 'pdf'")
     units = _validate_units(units)
     pattern = pattern_from_pattern_piece(piece, curve_samples=curve_samples)
     seam_ids = _piece_seams(piece)
@@ -633,26 +711,41 @@ def export_pattern_piece(
             text="Grain",
         )
         derived = add_marks(derived, (mark,))
-    if normalized_format == "svg":
-        content = to_svg(
+    piece_id = str(getattr(piece, "PieceId", ""))
+    if normalized_format == "pdf":
+        content = to_pdf(
             pattern,
             curve_samples,
             units,
             derived,
-            str(getattr(piece, "PieceId", "")),
+            piece_id,
             seam_ids,
             allowance,
+            paper_size=paper_size,
+            margin_mm=margin_mm,
+            overlap_mm=overlap_mm,
         )
-    else:
-        content = to_dxf(
+        with open(str(path), "wb") as handle:
+            handle.write(content)
+        return validate_pdf_export(
             pattern,
-            curve_samples,
-            units,
-            derived,
-            str(getattr(piece, "PieceId", "")),
-            seam_ids,
-            allowance,
+            content,
+            curve_samples=curve_samples,
+            units=units,
+            derived=derived,
+            piece_id=piece_id,
+            seam_ids=seam_ids,
+            seam_allowance=allowance,
+            paper_size=paper_size,
+            margin_mm=margin_mm,
+            overlap_mm=overlap_mm,
         )
+
+    content = (
+        to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)
+        if normalized_format == "svg"
+        else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)
+    )
     with open(str(path), "w", encoding="utf-8", newline="") as handle:
         handle.write(content)
     return validate_export(
@@ -662,7 +755,7 @@ def export_pattern_piece(
         curve_samples=curve_samples,
         units=units,
         derived=derived,
-        piece_id=str(getattr(piece, "PieceId", "")),
+        piece_id=piece_id,
         seam_ids=seam_ids,
         seam_allowance=allowance,
     )

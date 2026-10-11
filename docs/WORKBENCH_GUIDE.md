@@ -8,9 +8,11 @@ FreeCAD Cloth has three cooperating native workbenches:
 
 ## Production 2D export
 
-In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG or DXF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Geometry units are fixed to millimetres; other unit labels are rejected until coordinate conversion is implemented. SVG output uses explicit visible line styles, and a single closed cut contour is emitted for the seam allowance. Export is read-only: source PatternPiece/Sketch state is not mutated.
+In the Cloth Pattern workbench, select a PatternPiece and run the public `ClothPattern_Export` command. The task panel emits deterministic SVG, DXF or tiled PDF derived from the authoritative native Sketcher geometry and reports piece/edge/seam identities, units, scale, seam allowance and construction-mark metadata. Geometry units are fixed to millimetres; other unit labels are rejected until coordinate conversion is implemented. SVG and DXF include the joined cut perimeter with inward V-notches embedded as actual cut geometry.
 
-Exports fail closed when the selected piece has missing native geometry, invalid cut-contour geometry, or invalid/stale semantic seam references. Re-running an export with identical document state produces byte-identical output. These vector exports are not yet a paginated home-print PDF workflow; tiled PDF, cut-edge notch geometry and rendered/physical print validation remain follow-up work.
+PDF output is a vector, 1:1 home-print layout with A4 or US Letter sheets, configurable overlap, registration marks, and a 25 mm calibration square plus print-at-100-percent instructions on every page. Pages are ordered left-to-right, then top-to-bottom. Match equal registration labels when assembling sheets and verify the calibration square before cutting fabric. Export is read-only: source PatternPiece/Sketch state is not mutated.
+
+Exports fail closed when the selected piece has missing native geometry, invalid cut-contour geometry, overlapping notch spans, or invalid/stale semantic references. Re-running an export with identical document state produces byte-identical output. PDF pattern lines are vector paths rather than raster screenshots.
 
 ## User workflow
 

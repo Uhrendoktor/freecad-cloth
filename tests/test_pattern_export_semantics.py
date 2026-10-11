@@ -16,10 +16,13 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 from freecad_cloth.pattern.PatternExport import (
     export_pattern_piece,
     from_dxf_metadata,
+    from_pdf_metadata,
     from_svg_metadata,
     to_dxf,
+    to_pdf,
     to_svg,
     validate_export,
+    validate_pdf_export,
 )
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -73,7 +76,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     coordinates = [
         (float(x), float(y))
         for x, y in re.findall(
-            r"(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)",
+            r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)",
             cut_path.attrib["d"],
         )
     ]
@@ -266,6 +269,112 @@ def test_zero_allowance_notch_falls_inward_not_outward() -> None:
     assert "10\n103.000000\n20\n30.000000" not in cut_section
 
 
+
+def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
+    pattern = rectangle(100.0, 60.0)
+    derived = derive_cut_boundary(pattern, 5.0)
+    derived = add_notches(derived, [Notch("right-notch", "right", 0.5, depth=3.0)])
+    first = to_pdf(
+        pattern,
+        derived=derived,
+        piece_id="front",
+        seam_ids=("front-back",),
+        seam_allowance=5.0,
+    )
+    second = to_pdf(
+        pattern,
+        derived=derived,
+        piece_id="front",
+        seam_ids=("front-back",),
+        seam_allowance=5.0,
+    )
+    assert first == second
+    assert first.startswith(b"%PDF-1.4")
+    assert b"/Count 1" in first
+    assert b"/MediaBox [0 0 595.27559 841.88976]" in first
+    assert b"70.86614 70.86614 re S" in first
+    assert first.count(b"25 mm CALIBRATION SQUARE") == 1
+    assert first.count(b"Print at ACTUAL SIZE / 100%") == 1
+    assert b"Fit to Page" in first
+    metadata = from_pdf_metadata(first)
+    assert metadata["format"] == "pdf"
+    assert metadata["units"] == "mm"
+    assert metadata["scale"] == 1.0
+    assert metadata["paper_size"] == "A4"
+    assert metadata["page_count"] == 1
+    assert metadata["notch_ids"] == ["right-notch"]
+    assert validate_pdf_export(
+        pattern,
+        first,
+        derived=derived,
+        piece_id="front",
+        seam_ids=("front-back",),
+        seam_allowance=5.0,
+    )["valid"] is True
+    with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative"):
+        validate_pdf_export(pattern, first + b"tampered")
+
+
+def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
+    pattern = rectangle(500.0, 400.0)
+    derived = derive_cut_boundary(pattern, 5.0)
+    pdf = to_pdf(pattern, derived=derived, piece_id="long-panel", seam_allowance=5.0)
+    metadata = from_pdf_metadata(pdf)
+    assert metadata["tile_columns"] == 3
+    assert metadata["tile_rows"] == 2
+    assert metadata["page_count"] == 6
+    assert b"/Count 6" in pdf
+    assert pdf.count(b"/Type /Page ") == 6
+    assert pdf.count(b"25 mm CALIBRATION SQUARE") == 6
+    assert pdf.count(b"Print at ACTUAL SIZE / 100%") == 6
+    assert b"H1-1" in pdf
+    assert b"V1-1" in pdf
+    assert metadata["overlap_mm"] == 10.0
+
+
+def test_pdf_letter_page_size_and_layout_validation() -> None:
+    pattern = rectangle(100.0, 60.0)
+    letter_pdf = to_pdf(pattern, paper_size="Letter")
+    assert b"/MediaBox [0 0 612 792]" in letter_pdf
+    assert from_pdf_metadata(letter_pdf)["paper_size"] == "Letter"
+    with TestCase().assertRaisesRegex(ValueError, "paper_size"):
+        to_pdf(pattern, paper_size="Legal")
+    with TestCase().assertRaisesRegex(ValueError, "overlap"):
+        to_pdf(pattern, overlap_mm=1000.0)
+
+
+def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path) -> None:
+    class Piece:
+        PatternType = "PatternPiece"
+        Name = "Front"
+        Label = "Front"
+        PieceId = "piece-front"
+        Width = 100.0
+        Height = 60.0
+        SeamAllowance = 5.0
+        GrainlineAngle = 90.0
+        GeometryAuthority = ""
+        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
+        DraftingBoundary = SewingOutline
+
+    class Document:
+        Objects = ()
+
+    piece = Piece()
+    piece.Document = Document()
+    piece.Document.Objects = (piece,)
+    path = tmp_path / "front.pdf"
+    result = export_pattern_piece(piece, path, "pdf", curve_samples=16)
+    payload = path.read_bytes()
+    metadata = from_pdf_metadata(payload)
+    assert result["valid"] is True
+    assert payload.startswith(b"%PDF-1.4")
+    assert metadata["piece_id"] == "piece-front"
+    assert metadata["scale"] == 1.0
+    assert metadata["seam_allowance_mm"] == 5.0
+    assert metadata["page_count"] == 1
+
+
 def test_export_rejects_units_that_would_relabel_without_conversion() -> None:
     pattern = _curved_pattern()
     with TestCase().assertRaisesRegex(ValueError, "units must be 'mm'"):
@@ -326,14 +435,22 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     piece.Document.Objects = (piece, Seam())
     before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
 
-    for fmt, metadata_reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+    for fmt, metadata_reader in (
+        ("svg", from_svg_metadata),
+        ("dxf", from_dxf_metadata),
+        ("pdf", from_pdf_metadata),
+    ):
         first = tmp_path / (f"front.{fmt}")
         second = tmp_path / (f"front-second.{fmt}")
         first_result = export_pattern_piece(piece, first, fmt, curve_samples=16)
         export_pattern_piece(piece, second, fmt, curve_samples=16)
         assert first.read_bytes() == second.read_bytes()
         assert first_result["valid"] is True
-        metadata = metadata_reader(first.read_text(encoding="utf-8"))
+        metadata = (
+            metadata_reader(first.read_bytes())
+            if fmt == "pdf"
+            else metadata_reader(first.read_text(encoding="utf-8"))
+        )
         assert metadata["piece_id"] == "piece-front"
         assert metadata["seam_ids"] == ["front-back"]
         assert metadata["scale"] == 1.0
@@ -431,10 +548,22 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
     piece.Document = Document()
     piece.Document.Objects = (piece, notch, grainline, internal)
 
-    for fmt, reader in (("svg", from_svg_metadata), ("dxf", from_dxf_metadata)):
+    for fmt, reader in (
+        ("svg", from_svg_metadata),
+        ("dxf", from_dxf_metadata),
+        ("pdf", from_pdf_metadata),
+    ):
         output = tmp_path / (f"front.{fmt}")
         export_pattern_piece(piece, output, fmt)
-        payload = output.read_text(encoding="utf-8")
+        raw_payload = output.read_bytes()
+        if fmt == "pdf":
+            metadata = reader(raw_payload)
+            assert metadata["piece_id"] == "piece-front"
+            assert metadata["notch_ids"] == ["notch-front"]
+            assert metadata["mark_ids"] == ["grain-front", "mark-front"]
+            assert b"25 mm CALIBRATION SQUARE" in raw_payload
+            continue
+        payload = raw_payload.decode("utf-8")
         metadata = reader(payload)
         assert metadata["piece_id"] == "piece-front"
         assert metadata["notch_ids"] == ["notch-front"]

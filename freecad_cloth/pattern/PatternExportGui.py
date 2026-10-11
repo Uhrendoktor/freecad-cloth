@@ -40,7 +40,15 @@ class PatternExportTaskPanel:
         self.form.setWindowTitle("Cloth Pattern — Production Export")
         layout = QtWidgets.QFormLayout(self.form)
         self.format = QtWidgets.QComboBox()
-        self.format.addItems(("SVG", "DXF"))
+        self.format.addItems(("SVG", "DXF", "PDF"))
+        self.pdf_paper_size = QtWidgets.QComboBox()
+        self.pdf_paper_size.addItems(("A4", "Letter"))
+        self.pdf_overlap = QtWidgets.QDoubleSpinBox()
+        self.pdf_overlap.setRange(0.0, 80.0)
+        self.pdf_overlap.setDecimals(1)
+        self.pdf_overlap.setSingleStep(1.0)
+        self.pdf_overlap.setValue(10.0)
+        self.pdf_overlap.setSuffix(" mm")
         self.units = QtWidgets.QLineEdit("mm")
         self.units.setReadOnly(True)
         self.units.setToolTip(
@@ -62,6 +70,10 @@ class PatternExportTaskPanel:
         )
         self.status.setWordWrap(True)
         layout.addRow("Format", self.format)
+        layout.addRow("PDF paper size", self.pdf_paper_size)
+        layout.addRow("PDF tile overlap", self.pdf_overlap)
+        self._pdf_paper_label = layout.labelForField(self.pdf_paper_size)
+        self._pdf_overlap_label = layout.labelForField(self.pdf_overlap)
         layout.addRow("Geometry unit (fixed)", self.units)
         layout.addRow("Curve samples", self.curve_samples)
         layout.addRow("Output", path_row)
@@ -70,15 +82,26 @@ class PatternExportTaskPanel:
         self._format_changed(self.format.currentText())
 
     def _format_changed(self, value):
+        is_pdf = str(value).lower() == "pdf"
+        self.pdf_paper_size.setVisible(is_pdf)
+        self.pdf_overlap.setVisible(is_pdf)
+        self._pdf_paper_label.setVisible(is_pdf)
+        self._pdf_overlap_label.setVisible(is_pdf)
         current = self.path.text().strip()
         if current:
-            suffix = ".svg" if str(value).lower() == "svg" else ".dxf"
-            if Path(current).suffix.lower() in {".svg", ".dxf"}:
+            suffix = {"svg": ".svg", "dxf": ".dxf", "pdf": ".pdf"}.get(
+                str(value).lower(), ".svg"
+            )
+            if Path(current).suffix.lower() in {".svg", ".dxf", ".pdf"}:
                 self.path.setText(str(Path(current).with_suffix(suffix)))
 
     def _browse(self):
         _, _, QtWidgets = _qt()
-        suffix = "SVG (*.svg)" if self.format.currentText().lower() == "svg" else "DXF (*.dxf)"
+        suffix = {
+            "svg": "SVG (*.svg)",
+            "dxf": "DXF (*.dxf)",
+            "pdf": "PDF (*.pdf)",
+        }[self.format.currentText().lower()]
         path, _selected = QtWidgets.QFileDialog.getSaveFileName(
             self.form, "Export Cloth Pattern", "", suffix
         )
@@ -98,6 +121,8 @@ class PatternExportTaskPanel:
                 self.format.currentText(),
                 units=self.units.text().strip(),
                 curve_samples=int(self.curve_samples.value()),
+                paper_size=self.pdf_paper_size.currentText(),
+                overlap_mm=float(self.pdf_overlap.value()),
             )
         except (OSError, ValueError, RuntimeError) as exc:
             self.status.setText(f"Export blocked: {exc}")
