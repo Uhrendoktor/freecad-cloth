@@ -14,7 +14,7 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench. The built-in Anny mannequin requires Anny and clad-body in that same embedded Python environment: run `python -m pip install 'anny>=0.5,<0.6' 'clad-body[anny]>=0.6.1,<0.7'`. From a source checkout, `python -m pip install -e '.[avatar]'` installs the equivalent optional extra.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench. The built-in Anny mannequin requires Anny and clad-body in that same embedded Python environment: run `python -m pip install 'anny[warp]>=0.5,<0.6' 'clad-body[anny]>=0.6.1,<0.7'`. From a source checkout, `python -m pip install -e '.[avatar]'` installs the equivalent optional extra.
 
 ## User installation
 
