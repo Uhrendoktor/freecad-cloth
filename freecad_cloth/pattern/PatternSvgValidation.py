@@ -1,7 +1,5 @@
 """Independent QtSvg rendering and physical-dimension checks for pattern SVGs."""
 
-from __future__ import annotations
-
 import math
 import re
 from pathlib import Path
