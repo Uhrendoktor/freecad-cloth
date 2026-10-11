@@ -627,7 +627,6 @@ class AvatarTaskPanel:
         self._update_shape_enabled()
         if self._dimension_controller is not None:
             self._dimension_controller.refresh()
-        self._fit_view()
         return True
 
     def _load_skeleton_pose(self):
@@ -742,10 +741,6 @@ class AvatarTaskPanel:
                 suffix,
             )
         )
-
-    def _fit_view(self):
-        if self.Gui.activeDocument():
-            self.Gui.activeDocument().activeView().fitAll()
 
     def accept(self):
         success = self._apply()
