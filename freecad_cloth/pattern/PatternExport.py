@@ -6,7 +6,8 @@ from html import escape
 from math import cos, hypot, radians, sin
 from xml.etree import ElementTree
 
-from shapely.geometry import Point as ShapelyPoint, Polygon
+from shapely.geometry import Point as ShapelyPoint
+from shapely.geometry import Polygon
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
