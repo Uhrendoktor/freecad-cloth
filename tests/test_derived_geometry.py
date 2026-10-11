@@ -51,7 +51,7 @@ def test_per_edge_override_and_curve_are_supported():
     assert len(derived.cut_boundary[2].points) == 8
 
 
-def test_per_edge_allowance_produces_a_valid_joined_cut_contour():
+def test_per_edge_allowance_produces_a_valid_joined_cut_contour() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0, {"right": 10.0})
     contour = derived.cut_contour
