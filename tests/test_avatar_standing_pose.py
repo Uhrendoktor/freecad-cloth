@@ -22,12 +22,19 @@ class AvatarStandingPoseTests(unittest.TestCase):
             "pose": {"preset": "standing", "left_arm_angle": 12, "right_arm_angle": 12},
         }
         migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual(migrated.schema_version, 2)
+        self.assertEqual(migrated.schema_version, 3)
+        self.assertEqual((migrated.gender, migrated.breast_size), (0.5, 0.0))
         self.assertEqual((migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (70.0, 70.0))
 
         legacy["pose"]["preset"] = "sewing"
         migrated = AvatarParameters.from_json(json.dumps(legacy))
         self.assertEqual((migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (55.0, 55.0))
+
+        legacy_v2 = dict(legacy)
+        legacy_v2["schema_version"] = 2
+        migrated_v2 = AvatarParameters.from_json(json.dumps(legacy_v2))
+        self.assertEqual(migrated_v2.schema_version, 3)
+        self.assertEqual((migrated_v2.gender, migrated_v2.breast_size), (0.5, 0.0))
 
     def test_generator_and_builder_share_the_same_fk_mesh(self):
         params = AvatarParameters()
