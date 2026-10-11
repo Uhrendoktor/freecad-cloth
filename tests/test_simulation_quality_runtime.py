@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import ClassVar
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
 from freecad_cloth.simulation.SimulationQualityRuntime import (
@@ -122,7 +123,7 @@ def test_quality_proxy_keeps_solver_stitch_provenance():
     from freecad_cloth.simulation import SimulationQualityRuntime as runtime
 
     class Base:
-        seam_stitch_pairs = {"seam-2": ((2, 3), (4, 5))}
+        seam_stitch_pairs: ClassVar[dict[str, tuple[tuple[int, int], tuple[int, int]]]] = {\n            "seam-2": ((2, 3), (4, 5))\n        }
 
     proxy = runtime.QualitySimulationProxy()
     proxy._sync_seam_stitch_provenance(Base())
