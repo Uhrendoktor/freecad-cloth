@@ -1,8 +1,9 @@
 """MakeHuman-backed humanoid mesh provider.
 
 The avatar is a real polygonal human base mesh rather than a collection of
-FreeCAD primitives. The pinned MakeHuman HM08 base mesh is fetched lazily and
-cached locally, then fitted into the Cloth millimetre coordinate system.
+FreeCAD primitives. The pinned MakeHuman HM08 base mesh is reused from a
+matching local installation when available, otherwise fetched lazily and cached
+locally before fitting into the Cloth millimetre coordinate system.
 """
 
 from __future__ import annotations
@@ -47,6 +48,7 @@ MAKEHUMAN_SKELETON_URL = (
 MAKEHUMAN_SKELETON_SIZE = 117790
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
+MAKEHUMAN_DATA_ENV = "FREECAD_CLOTH_MAKEHUMAN_DATA"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
 WEIGHTS_ENV = "FREECAD_CLOTH_AVATAR_WEIGHTS"
 SKELETON_ENV = "FREECAD_CLOTH_AVATAR_SKELETON"
@@ -248,8 +250,95 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
         raise
 
 
+
+def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
+    """Return conventional MakeHuman install paths without scanning the whole disk."""
+    roots: list[Path] = []
+    candidates: list[Path] = []
+    configured = os.environ.get(MAKEHUMAN_DATA_ENV, "").strip()
+    if configured:
+        explicit = Path(configured).expanduser()
+        if explicit.suffix.lower() == ".obj":
+            candidates.append(explicit)
+        roots.append(explicit)
+
+    home = Path.home()
+    roots.extend(
+        (
+            home / ".local" / "share" / "makehuman",
+            home / ".config" / "makehuman",
+            home / ".var" / "app" / "org.makehuman.MakeHuman" / "data",
+            home / "makehuman",
+            home / "MakeHuman",
+            home / "makehuman-community",
+            home / "src" / "makehuman",
+            home / "Development" / "makehuman",
+            Path("/usr/share/makehuman"),
+            Path("/usr/local/share/makehuman"),
+            Path("/usr/share"),
+            Path("/usr/local/share"),
+            Path("/opt/makehuman"),
+            Path("/opt/MakeHuman"),
+            Path("/opt/makehuman-community"),
+            Path("/Applications/MakeHuman.app"),
+            home / "Applications" / "MakeHuman.app",
+        )
+    )
+    for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
+        value = os.environ.get(variable, "").strip()
+        if value:
+            install_root = Path(value).expanduser()
+            roots.extend(
+                (
+                    install_root / "MakeHuman",
+                    install_root / "MakeHumanCommunity",
+                    install_root / "makehuman",
+                )
+            )
+    for variable in ("LOCALAPPDATA", "APPDATA"):
+        value = os.environ.get(variable, "").strip()
+        if value:
+            profile_root = Path(value).expanduser()
+            roots.extend(
+                (
+                    profile_root / "Programs" / "MakeHuman",
+                    profile_root / "MakeHuman",
+                    profile_root / "makehuman",
+                )
+            )
+
+    layouts = (
+        Path("3dobjs") / "base.obj",
+        Path("data") / "3dobjs" / "base.obj",
+        Path("makehuman") / "data" / "3dobjs" / "base.obj",
+        Path("makehuman") / "makehuman" / "data" / "3dobjs" / "base.obj",
+        Path("Contents") / "Resources" / "makehuman" / "data" / "3dobjs" / "base.obj",
+        Path("Contents") / "Resources" / "data" / "3dobjs" / "base.obj",
+        Path("Resources") / "makehuman" / "data" / "3dobjs" / "base.obj",
+    )
+    for root in roots:
+        candidates.extend(root / layout for layout in layouts)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = os.path.normcase(str(candidate))
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return tuple(unique)
+
+
+def _find_local_base_mesh() -> Path | None:
+    """Find a local copy only if its bytes match the pinned indexed HM08 mesh."""
+    for candidate in _makehuman_base_mesh_candidates():
+        if _verified(candidate):
+            return candidate
+    return None
+
+
 def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return a real human OBJ, using an explicit local override when supplied."""
+    """Resolve a human OBJ from an explicit path, local install, or pinned download."""
     override = os.environ.get(CACHE_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
@@ -265,12 +354,16 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
     destination = _default_cache_path()
     if _verified(destination):
         return destination
+    local_mesh = _find_local_base_mesh()
+    if local_mesh is not None:
+        return local_mesh
     try:
         _download(MAKEHUMAN_BASE_URL, destination, _verified)
     except Exception as exc:
         raise HumanoidMeshError(
-            "unable to obtain the pinned MakeHuman HM08 base mesh; "
-            f"set {CACHE_ENV} to a local OBJ file or allow network access ({exc})"
+            "unable to obtain the pinned MakeHuman HM08 base mesh; set "
+            f"{MAKEHUMAN_DATA_ENV} to a MakeHuman install/data directory, set "
+            f"{CACHE_ENV} to a local OBJ file, or allow network access ({exc})"
         ) from exc
     return destination
 
