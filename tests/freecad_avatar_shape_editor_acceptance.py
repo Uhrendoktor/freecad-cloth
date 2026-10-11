@@ -74,6 +74,14 @@ def _mesh_points(avatar):
     )
 
 
+def _head_envelope(points, cutoff):
+    """Return a stable geometric signature of the mannequin's head region."""
+    selected = tuple(sorted(point for point in points if point[2] >= cutoff))
+    if len(selected) < 10:
+        raise RuntimeError("too few mannequin vertices in the head envelope for a locality check")
+    return selected
+
+
 def _capture_screen(path):
     """Capture and validate the visible 1280 x 720 FreeCAD window."""
     try:
@@ -238,7 +246,7 @@ def run():
             if shape_recorder._started:
                 shape_recorder.stop()
 
-        # Record a distinct viewport-first circumference edit: drag the waist
+        # Record a distinct viewport-first circumference edit: drag the hip
         # handle, watch the ring/readout update, then commit via Apply & Rebuild.
         from pivy import coin
 
@@ -252,26 +260,31 @@ def run():
             show_cursor=False,
         )
         dimension_recorder.start()
+        before_hip_mesh = _mesh_points(avatar)
+        head_cutoff = max(point[2] for point in before_hip_mesh) * 0.88
+        head_before_hip = _head_envelope(before_hip_mesh, head_cutoff)
         try:
             dimension_recorder.hold(450)
-            waist_before, waist_staged = _drag_dimension_handle(
+            hip_before, hip_staged = _drag_dimension_handle(
                 controller,
                 coin,
-                "waist",
+                "hip",
                 pixels=5.0,
             )
             dimension_recorder.hold(700)
-            if abs(float(panel._boxes["waist"].value()) - waist_staged) > 1e-6:
-                raise RuntimeError("viewport waist handle and numeric value diverged")
+            if abs(float(panel._boxes["hip"].value()) - hip_staged) > 1e-6:
+                raise RuntimeError("viewport hip handle and numeric value diverged")
             if not panel._apply():
                 raise RuntimeError("Apply & Rebuild rejected the staged waist measurement")
             _events()
             dimension_recorder.hold(700)
-            waist_after = float(avatar.Waist)
-            if abs(waist_after - waist_staged) > 1e-6:
-                raise RuntimeError("viewport waist drag was not persisted on rebuild")
-            if abs(waist_after - waist_before) < 1.0:
-                raise RuntimeError("viewport waist drag produced no persistent dimensional change")
+            hip_after = float(avatar.Hip)
+            if abs(hip_after - hip_staged) > 1e-6:
+                raise RuntimeError("viewport hip drag was not persisted on rebuild")
+            if abs(hip_after - hip_before) < 1.0:
+                raise RuntimeError("viewport hip drag produced no persistent dimensional change")
+            if _head_envelope(_mesh_points(avatar), head_cutoff) != head_before_hip:
+                raise RuntimeError("hip circumference edit changed the head geometry instead of staying local")
         finally:
             if dimension_recorder._started:
                 dimension_recorder.stop()
@@ -288,11 +301,11 @@ def run():
         Path("artifacts/avatar-shape-editor.log").write_text(
             "avatar-shape-editor=passed "
             "gender=0.20 breast_size=0.65 "
-            "waist_before={:.2f} waist_after={:.2f} "
-            "document_objects_overlay=transient "
+            "hip_before={:.2f} hip_after={:.2f} "
+            "head_geometry=unchanged document_objects_overlay=transient "
             "screenshot_opaque_pixels={} screenshot_distinct_rgb={}\n".format(
-                waist_before,
-                waist_after,
+                hip_before,
+                hip_after,
                 metrics["opaque_pixels"],
                 metrics["distinct_rgb"],
             ),
@@ -300,7 +313,7 @@ def run():
         )
         print(
             "avatar-shape-editor=passed gender=0.20 breast_size=0.65 "
-            "waist_before={:.2f} waist_after={:.2f}".format(waist_before, waist_after),
+            "hip_before={:.2f} hip_after={:.2f}".format(hip_before, hip_after),
             flush=True,
         )
         panel.reject()
