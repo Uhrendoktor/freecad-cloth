@@ -22,8 +22,10 @@ def _mesh_object(doc, name, label):
 def _write_mesh(obj, positions, triangles):
     import Mesh
 
-    native = Mesh.Mesh()
-    native.addFacets([(positions[a], positions[b], positions[c]) for a, b, c in triangles])
+    # Passing the flat vertex stream lets Mesh.Mesh bulk-build topology once.
+    # Avoid allocating a nested tuple for every face on every preview tick.
+    vertices = [positions[index] for triangle in triangles for index in triangle]
+    native = Mesh.Mesh(vertices) if vertices else Mesh.Mesh()
     obj.Mesh = native
 
 

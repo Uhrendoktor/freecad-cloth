@@ -387,7 +387,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             f"resolution={list(self._collision_sdf_resolution)}",
             flush=True,
         )
-        if self._collision_projector is None:
+        # The position-level projection pass is required for high-detail avatar
+        # meshes where native PBD contact resolution leaves residual penetration.
+        # Simple blockers (for example the blanket's 12-triangle cube) already
+        # resolve reliably through native contacts; projecting them can overcorrect
+        # deeply intersecting points and create long mesh spikes.
+        if self._collision_projector is None and len(collision_surface.triangles) >= 1000:
             try:
                 from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
@@ -666,18 +671,24 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._time = 0.0
         self._build()
 
+    def _positions_snapshot(self) -> tuple[tuple[tuple[float, float, float], ...], bool]:
+        """Read native positions once and validate the same snapshot for publication."""
+        vertices = np.asarray(self._model.getParticles().getVertices(), dtype=np.float64)
+        if vertices.size == 0:
+            return (), True
+        converted = vertices[:, (0, 2, 1)] * _MM
+        positions = tuple(tuple(row) for row in converted.tolist())
+        finite = bool(np.isfinite(vertices).all() and np.all(np.abs(vertices) < 1e9))
+        return positions, finite
+
+    def positions_and_finite(self) -> tuple[tuple[tuple[float, float, float], ...], bool]:
+        """Return display positions and the finite-state flag from one native snapshot."""
+        return self._positions_snapshot()
+
     def positions(self) -> tuple[tuple[float, float, float], ...]:
         """Return current cloth particle positions in FreeCAD millimetres."""
-        particles = self._model.getParticles()
-        vertices = np.asarray(particles.getVertices())
-        if vertices.size == 0:
-            return ()
-        converted = vertices[:, (0, 2, 1)] * _MM
-        return tuple(tuple(row) for row in converted.tolist())
+        return self._positions_snapshot()[0]
 
     def finite(self) -> bool:
         """Return whether all solver coordinates remain finite and bounded."""
-        vertices = np.asarray(self._model.getParticles().getVertices())
-        if vertices.size == 0:
-            return True
-        return bool(np.isfinite(vertices).all() and np.all(np.abs(vertices) < 1e9))
+        return self._positions_snapshot()[1]

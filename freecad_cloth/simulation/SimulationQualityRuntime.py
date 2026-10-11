@@ -170,7 +170,12 @@ class QualitySimulationProxy:
 
     def _publish_state(self, obj, base):
         """Write the already-solved particle state to the display objects."""
-        positions = base.backend.positions()
+        snapshot = getattr(base.backend, "positions_and_finite", None)
+        if callable(snapshot):
+            positions, finite_state = snapshot()
+        else:
+            positions = base.backend.positions()
+            finite_state = base.backend.finite()
         from freecad_cloth.simulation.SimulationObjects import _write_mesh
 
         for panel in getattr(obj, "DrapePanels", ()):
@@ -179,7 +184,7 @@ class QualitySimulationProxy:
         obj.Steps = int(base.last_steps)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
-        obj.FiniteState = base.backend.finite()
+        obj.FiniteState = finite_state
 
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
