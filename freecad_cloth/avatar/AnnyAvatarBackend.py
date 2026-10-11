@@ -60,6 +60,7 @@ _FIT_TOLERANCE = 0.012
 class AnnyAvatarBackendError(RuntimeError):
     """Raised when Anny cannot produce a compatible avatar mesh."""
 
+
 def _adapt_clad_body_pose_alias(model: object) -> None:
     """Translate clad-body 0.6.1 legacy forward calls for Anny 0.6."""
     forward = getattr(model, "forward", None)
@@ -76,7 +77,6 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
     # Anny 0.6 translates that alias only in the factory, not in forward().
     setattr(model, "forward", compatible_forward)
 
-@lru_cache(maxsize=1)
 
 @lru_cache(maxsize=1)
 def _measurement_local_change_labels() -> tuple[str, ...]:
