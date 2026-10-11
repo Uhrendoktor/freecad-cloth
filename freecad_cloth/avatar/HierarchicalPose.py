@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
-from freecad_cloth.avatar.AnnyAvatarBackend import build_avatar_shape_mesh
+from freecad_cloth.avatar.AnnyAvatarBackend import (
+    build_avatar_rig_vertices,
+    build_avatar_shape_mesh,
+)
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.HumanoidMesh import (
     MeshData,
@@ -115,8 +118,7 @@ def pose_world_state(
     dict[str, AffineTransform],
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
-    source_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=False)
-    source_vertices = source_mesh.vertices
+    source_vertices = build_avatar_rig_vertices(parameters)
     mapper = _identity_point
     skeleton = load_makehuman_skeleton()
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
@@ -137,7 +139,7 @@ def _manual_pose_state(
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
     source_mesh = mesh
-    source_vertices = source_mesh.vertices
+    source_vertices = build_avatar_rig_vertices(parameters)
     mapper = _identity_point
     padded_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=True)
     skeleton = load_makehuman_skeleton()
