@@ -407,17 +407,27 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
         in audit
     )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
+    # Start front/back panels outside the mannequin but converge their shoulder edges,
+    # reducing stitch-driven traversal through the upper torso without touching PBD settings.
+    assert "front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)" in source
+    assert "back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)" in source
+    assert 'rotation = front_rot if side == "front" else back_rot' in source
+    assert "front_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)" in audit
+    assert "back_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)" in audit
+    assert "rotation = front_rot if side == " + '"front" else back_rot' in audit
+    assert "front_rot = App.Rotation(App.Vector(1, 0, 0), 100.0)" in debug
+    assert "back_rot = App.Rotation(App.Vector(1, 0, 0), 80.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in source
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
     assert "hem_width = max(500.0, panel_width + 100.0)" in debug
-    assert 'make_piece("DebugTunicFront", front_y, 0.72, 0.03)' in debug
+    assert 'make_piece("DebugTunicFront", front_y, front_rot, 0.72, 0.03)' in debug
     assert "panel_width *= 1.10" in source
     assert "hem_width *= 1.10" in source
     assert "panel_width *= 1.10" in debug
     assert "hem_width *= 1.10" in debug
-    assert 'make_piece("DebugTunicBack", back_y, 0.72, 0.03)' in debug
+    assert 'make_piece("DebugTunicBack", back_y, back_rot, 0.72, 0.03)' in debug
     assert 'make_piece("VisualTunicFront", "back", 0.72, 0.03)' in audit
     assert 'make_piece("VisualTunicBack", "front", 0.72, 0.03)' in audit
 
