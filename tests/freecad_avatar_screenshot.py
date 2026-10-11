@@ -140,6 +140,248 @@ def render_turntable(view, center, frame_dir, frame_count=72):
     log("turntable-pass frames=%d" % (frame_count + 1))
 
 
+
+
+def render_body_shape_gallery(doc, view, avatar, output):
+    """Render real HM08 mannequin examples at one orthographic scale."""
+    from PIL import Image, ImageDraw, ImageFont
+    from freecad_cloth.avatar.AvatarCommands import _rebuild
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
+
+    profiles = (
+        {
+            "name": "Feminine form",
+            "gender": 0.15,
+            "breast_size": 0.55,
+            "measurements": {
+                "height": 1680, "shoulder": 420, "chest": 930, "underbust": 810,
+                "waist": 720, "high_hip": 900, "hip": 1030,
+                "upper_arm": 290, "thigh": 535,
+            },
+        },
+        {
+            "name": "Masculine form",
+            "gender": 0.90,
+            "breast_size": 0.0,
+            "measurements": {
+                "height": 1800, "shoulder": 490, "chest": 1030, "underbust": 900,
+                "waist": 850, "high_hip": 930, "hip": 1010,
+                "upper_arm": 330, "thigh": 570,
+            },
+        },
+        {
+            "name": "Slim",
+            "gender": 0.30,
+            "breast_size": 0.20,
+            "measurements": {
+                "height": 1700, "shoulder": 390, "chest": 820, "underbust": 720,
+                "waist": 650, "high_hip": 800, "hip": 890,
+                "upper_arm": 250, "thigh": 470,
+            },
+        },
+        {
+            "name": "Plus-size",
+            "gender": 0.25,
+            "breast_size": 0.75,
+            "measurements": {
+                "height": 1680, "shoulder": 470, "chest": 1220, "underbust": 1090,
+                "waist": 1170, "high_hip": 1220, "hip": 1350,
+                "upper_arm": 400, "thigh": 710,
+            },
+        },
+        {
+            "name": "Muscular",
+            "gender": 0.85,
+            "breast_size": 0.0,
+            "measurements": {
+                "height": 1800, "shoulder": 550, "chest": 1150, "underbust": 1050,
+                "waist": 780, "high_hip": 890, "hip": 990,
+                "upper_arm": 430, "thigh": 640,
+            },
+        },
+        {
+            "name": "Tall",
+            "gender": 0.30,
+            "breast_size": 0.35,
+            "measurements": {
+                "height": 1950, "shoulder": 440, "chest": 970, "underbust": 835,
+                "waist": 790, "high_hip": 900, "hip": 1010,
+                "upper_arm": 300, "thigh": 550,
+            },
+        },
+        {
+            "name": "Petite",
+            "gender": 0.25,
+            "breast_size": 0.35,
+            "measurements": {
+                "height": 1530, "shoulder": 415, "chest": 900, "underbust": 790,
+                "waist": 710, "high_hip": 860, "hip": 970,
+                "upper_arm": 285, "thigh": 520,
+            },
+        },
+    )
+
+    output_path = Path(output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_dir = output_path.parent / ".avatar-body-shape-gallery-frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+
+    # Fit the camera once, then preserve the orthographic scale for all seven
+    # variations so tall/short and slim/plus-size silhouettes remain comparable.
+    view.setCameraType("Orthographic")
+    view.viewRear()
+    view.fitAll()
+    events()
+    from pivy import coin
+
+    camera = view.getCameraNode()
+    initial = avatar.Mesh.BoundBox
+    initial_center = App.Vector(
+        0.5 * (initial.XMin + initial.XMax),
+        0.5 * (initial.YMin + initial.YMax),
+        0.5 * (initial.ZMin + initial.ZMax),
+    )
+    center_coin = coin.SbVec3f(initial_center.x, initial_center.y, initial_center.z)
+    base_position = coin.SbVec3f(camera.position.getValue())
+    base_offset = base_position - center_coin
+    camera_height = 2200.0
+    camera.height = camera_height
+
+    frames = []
+    for index, profile in enumerate(profiles):
+        measurements = dict(DEFAULT_MEASUREMENTS)
+        measurements.update(profile["measurements"])
+        params = AvatarParameters(
+            measurements,
+            float(getattr(avatar, "SkinOffset", 3.0)),
+            Pose("standing"),
+            3,
+            float(profile["gender"]),
+            float(profile["breast_size"]),
+        )
+        _rebuild(avatar, params=params)
+        avatar.Label = "Avatar example: " + profile["name"]
+        doc.recompute()
+
+        bounds = avatar.Mesh.BoundBox
+        center = App.Vector(
+            0.5 * (bounds.XMin + bounds.XMax),
+            0.5 * (bounds.YMin + bounds.YMax),
+            0.5 * (bounds.ZMin + bounds.ZMax),
+        )
+        target = coin.SbVec3f(center.x, center.y, center.z)
+        camera.position = target + base_offset
+        camera.pointAt(target, coin.SbVec3f(0.0, 0.0, 1.0))
+        camera.height = camera_height
+        events()
+
+        frame_path = frame_dir / ("%02d.png" % index)
+        view.saveImage(str(frame_path), 420, 560, "White")
+        if not frame_path.is_file() or frame_path.stat().st_size < 3000:
+            raise RuntimeError("body-shape frame missing or suspiciously small: " + str(frame_path))
+        with Image.open(frame_path) as source:
+            if source.size != (420, 560):
+                raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
+            frames.append(source.convert("RGB").copy())
+
+    def font(size, bold=False):
+        """Load a readable annotation font with a portable fallback."""
+        candidates = (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
+            if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        )
+        for candidate in candidates:
+            try:
+                return ImageFont.truetype(candidate, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    panel_width = 420
+    image_height = 560
+    label_height = 84
+    panel_height = image_height + label_height
+    gutter = 20
+    margin = 28
+    title_height = 106
+    columns = 4
+    canvas_width = margin * 2 + columns * panel_width + (columns - 1) * gutter
+    canvas_height = title_height + 2 * panel_height + gutter + margin
+    gallery = Image.new("RGB", (canvas_width, canvas_height), (244, 247, 251))
+    draw = ImageDraw.Draw(gallery)
+    draw.text((margin, 22), "Example mannequin body shapes", font=font(32, True), fill=(28, 43, 64))
+    draw.text(
+        (margin, 68),
+        "Current HM08 mesh · shared orthographic scale · example measurement combinations",
+        font=font(16),
+        fill=(76, 91, 111),
+    )
+
+    for index, (profile, frame) in enumerate(zip(profiles, frames, strict=True)):
+        row, column = divmod(index, columns)
+        row_count = columns if row == 0 else len(profiles) - columns
+        row_width = row_count * panel_width + (row_count - 1) * gutter
+        row_start = (canvas_width - row_width) // 2
+        x = row_start + column * (panel_width + gutter)
+        y = title_height + row * (panel_height + gutter)
+        draw.rounded_rectangle(
+            (x, y, x + panel_width - 1, y + panel_height - 1),
+            radius=12,
+            fill=(255, 255, 255),
+            outline=(214, 222, 232),
+            width=2,
+        )
+        gallery.paste(frame, (x, y))
+        label_y = y + image_height + 4
+        draw.text(
+            (x + panel_width // 2, label_y + 2),
+            profile["name"],
+            anchor="mt",
+            font=font(21, True),
+            fill=(28, 43, 64),
+        )
+        measurements = profile["measurements"]
+        detail = "Height %d cm  ·  waist %d cm  ·  hip %d cm" % (
+            round(measurements["height"] / 10),
+            round(measurements["waist"] / 10),
+            round(measurements["hip"] / 10),
+        )
+        draw.text(
+            (x + panel_width // 2, label_y + 34),
+            detail,
+            anchor="mt",
+            font=font(14),
+            fill=(76, 91, 111),
+        )
+
+    gallery.save(output_path, format="PNG", optimize=True)
+    if output_path.stat().st_size < 20000:
+        raise RuntimeError("body-shape gallery is suspiciously small")
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+
+    metrics = validate_png_capture(
+        output_path,
+        expected_width=canvas_width,
+        expected_height=canvas_height,
+        min_nonwhite_pixels=10000,
+        min_distinct_rgb=16,
+        min_opaque_pixels=10000,
+    )
+    log(
+        "body-shape-gallery=%s profiles=%d size=%dx%d bytes=%d distinct_rgb=%d"
+        % (
+            output_path,
+            len(profiles),
+            canvas_width,
+            canvas_height,
+            output_path.stat().st_size,
+            metrics["distinct_rgb"],
+        )
+    )
+
+
 def main():
     log("avatar-script-start")
     window = wait_for_gui_ready()
@@ -196,6 +438,12 @@ def main():
             center,
             os.path.join(OUT, "cloth-avatar-turntable-frames"),
             frame_count=TURNTABLE_FRAMES,
+        )
+        render_body_shape_gallery(
+            doc,
+            view,
+            avatar,
+            os.path.join(OUT, "avatar-body-shape-gallery.png"),
         )
         log("avatar-script-pass")
     finally:
