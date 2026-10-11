@@ -724,12 +724,6 @@ def _section_circumference(
     graph: dict[tuple[int, int], set[tuple[int, int]]] = {}
     segment_seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
 
-    def node(point: tuple[float, float]) -> tuple[int, int]:
-        key = (round(point[0] * 10000), round(point[1] * 10000))
-        node_points.setdefault(key, point)
-        graph.setdefault(key, set())
-        return key
-
     for tri in triangles:
         if len(tri) != 3 or any(index < 0 or index >= len(vertices) for index in tri):
             continue
