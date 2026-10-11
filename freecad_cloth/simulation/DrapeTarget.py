@@ -128,10 +128,10 @@ def _geometry_signature(target):
                 box = shape.BoundBox
                 return (
                     "Shape",
-                    int(len(getattr(shape, "Solids", ()))),
-                    int(len(getattr(shape, "Faces", ()))),
-                    int(len(getattr(shape, "Edges", ()))),
-                    int(len(getattr(shape, "Vertexes", ()))),
+                    len(getattr(shape, "Solids", ())),
+                    len(getattr(shape, "Faces", ())),
+                    len(getattr(shape, "Edges", ())),
+                    len(getattr(shape, "Vertexes", ())),
                     round(float(box.XMin), 6),
                     round(float(box.XMax), 6),
                     round(float(box.YMin), 6),
