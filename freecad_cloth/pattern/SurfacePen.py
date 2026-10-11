@@ -752,10 +752,7 @@ class SurfacePenController:
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
         )
-        self._status(
-            "3D Pattern Pen: drag on the visible target. Release to lift and continue; "
-            + self._stroke_status()
-        )
+        self._status("3D Pattern Pen ready. " + self._stroke_status())
 
     def deactivate(self):
         """Remove viewport callbacks and discard transient drawing state."""
