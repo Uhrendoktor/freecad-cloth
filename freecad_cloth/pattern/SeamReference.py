@@ -12,7 +12,7 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point = tuple[float, float]
 
@@ -46,7 +46,7 @@ class ChangedEdgeReference(EdgeReferenceError):
     """The semantic id exists but its geometry no longer matches."""
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class EdgeReference:
     """Persistent identity and fingerprint for one pattern boundary edge."""
 
