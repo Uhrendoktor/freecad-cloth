@@ -6,7 +6,7 @@ Use this editor to prepare a mannequin for pattern fitting and sewing. It separa
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-shape-edit.gif" alt="Changing the feminine-to-masculine body-shape blend and breast fullness, then applying and rebuilding the mannequin" width="900"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the mannequin waist circumference handle to stage a new measurement, then applying and rebuilding the body" width="900"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-dimension-drag.gif" alt="Dragging the mannequin hip circumference handle to stage a local measurement, then applying and rebuilding the body" width="900"></p>
 
 ## Prepare a mannequin for sewing
 
