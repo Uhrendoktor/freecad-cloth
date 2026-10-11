@@ -804,9 +804,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         front_placement = App.Placement(
             App.Vector(-float(hem_width) - gap / 2.0, 0.0, 0.0), App.Rotation()
         )
-        back_placement = App.Placement(
-            App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation()
-        )
+        back_placement = App.Placement(App.Vector(gap / 2.0, 0.0, 0.0), App.Rotation())
         front.Placement = front_placement
         front.Sketch.Placement = front_placement
         back.Placement = back_placement
