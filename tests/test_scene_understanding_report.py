@@ -160,7 +160,9 @@ def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> No
     assert fit_assessment["state"] == "not_assessed"
 
 
-def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(tmp_path: Path) -> None:
+def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
+    tmp_path: Path,
+) -> None:
     """Script success, non-penetration, and seams alone must not certify garment coverage."""
     output_root = tmp_path / "docs" / "images" / "generated"
     output_root.mkdir(parents=True)
