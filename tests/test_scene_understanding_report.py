@@ -190,9 +190,7 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
             },
         ],
     }
-    (output_root / "drape-visual-metrics.json").write_text(
-        json.dumps(metrics), encoding="utf-8"
-    )
+    (output_root / "drape-visual-metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
     progress.write_text(
         "script-start\\ntunic-simulation-start\\n"
         + "drape-metrics="
