@@ -80,6 +80,7 @@ def _curved_shape(line_length, curve_span, curve_height, x_offset=0.0):
         )
     )
 
+
 def add_curved_piece(
     doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
 ):
@@ -103,9 +104,7 @@ def add_curved_piece(
     return obj
 
 
-def add_rectangular_piece(
-    doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0
-):
+def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0):
     """Create a standard Part feature carrying the sewing workflow's piece contract."""
     obj = doc.addObject("Part::Feature", name)
     obj.Label = name
@@ -120,9 +119,7 @@ def add_rectangular_piece(
         (x_offset + float(width), float(height)),
         (x_offset, float(height)),
     ]
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
-        outline
-    )
+    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(outline)
     # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
     # returns a face whose native Edge1..Edge4 order does not match this boundary.
     vertices = [App.Vector(x, y, 0.0) for x, y in outline]
@@ -406,7 +403,6 @@ def wait_for_task_close():
     raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
 
 
-
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:
@@ -514,14 +510,18 @@ try:
                 "seam-assignment GIF fixture has empty pattern geometry: " + piece.Label
             )
         if not bool(piece.ViewObject.Visibility):
-            raise RuntimeError(
-                "seam-assignment GIF fixture is not visible: " + piece.Label
-            )
+            raise RuntimeError("seam-assignment GIF fixture is not visible: " + piece.Label)
         # Shape.BoundBox is already in the placed/world coordinate system here.
-        world_bounds.append((
-            float(box.XMin), float(box.YMin), float(box.ZMin),
-            float(box.XMax), float(box.YMax), float(box.ZMax),
-        ))
+        world_bounds.append(
+            (
+                float(box.XMin),
+                float(box.YMin),
+                float(box.ZMin),
+                float(box.XMax),
+                float(box.YMax),
+                float(box.ZMax),
+            )
+        )
     xmin = min(value[0] for value in world_bounds)
     ymin = min(value[1] for value in world_bounds)
     xmax = max(value[3] for value in world_bounds)
@@ -569,8 +569,13 @@ try:
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
         "height=%.2f viewport=%dx%d"
         % (
-            xmin, ymin, xmax, ymax, float(camera_match.group(1)),
-            int(view_width), int(view_height),
+            xmin,
+            ymin,
+            xmax,
+            ymax,
+            float(camera_match.group(1)),
+            int(view_width),
+            int(view_height),
         )
     )
 
@@ -651,14 +656,10 @@ try:
     )
     picker._viewport_callback = None
     picker._viewport_picking = True
-    picker._viewport_mouse_event(
-        {"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)}
-    )
+    picker._viewport_mouse_event({"State": "DOWN", "Button": "BUTTON1", "Position": (100, 200)})
     assert len(picker._viewport_picks) == 1
     assert "Side A" in picker.feedback.text()
-    picker._viewport_mouse_event(
-        {"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)}
-    )
+    picker._viewport_mouse_event({"State": "DOWN", "Button": "BUTTON1", "Position": (300, 200)})
     assert any(getattr(obj, "SeamId", "") for obj in picker.session.created)
     assert "Seam preview shown" in picker.feedback.text()
     assert picker.commit_button.isEnabled()
@@ -853,6 +854,7 @@ try:
     assert seam_color_snapshot(curved_network.Seams) == baseline_seam_colors
     record("seam-colors-recompute=passed identity-stable=true")
     from freecad_cloth.sewing.SewingView import apply_seam_colors
+
     apply_seam_colors(doc.Objects)
     refreshed_network = next(
         obj
@@ -882,7 +884,11 @@ try:
     Gui.activateWorkbench("ClothPatternWorkbench")
     process_events()
     active_workbench = Gui.activeWorkbench()
-    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    active_name = (
+        str(active_workbench.name())
+        if callable(getattr(active_workbench, "name", None))
+        else str(active_workbench)
+    )
     assert "pattern" in active_name.lower(), (
         "seam overlay acceptance requires the Cloth Pattern workbench to be active"
     )
@@ -902,7 +908,11 @@ try:
     Gui.activateWorkbench("ClothSewingWorkbench")
     process_events()
     active_workbench = Gui.activeWorkbench()
-    active_name = str(active_workbench.name()) if callable(getattr(active_workbench, "name", None)) else str(active_workbench)
+    active_name = (
+        str(active_workbench.name())
+        if callable(getattr(active_workbench, "name", None))
+        else str(active_workbench)
+    )
     assert "sewing" in active_name.lower(), (
         "seam overlay acceptance requires the Cloth Sewing workbench to be active"
     )
@@ -1090,6 +1100,7 @@ finally:
     if recorder is not None and recorder._started:
         with contextlib.suppress(Exception):
             from tests.support.freecad_input import release_all_input
+
             release_all_input()
             recorder.stop()
     with contextlib.suppress(Exception):
