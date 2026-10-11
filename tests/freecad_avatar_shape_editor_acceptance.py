@@ -275,7 +275,7 @@ def run():
             if abs(float(panel._boxes["hip"].value()) - hip_staged) > 1e-6:
                 raise RuntimeError("viewport hip handle and numeric value diverged")
             if not panel._apply():
-                raise RuntimeError("Apply & Rebuild rejected the staged waist measurement")
+                raise RuntimeError("Apply & Rebuild rejected the staged hip measurement")
             _events()
             dimension_recorder.hold(700)
             hip_after = float(avatar.Hip)
