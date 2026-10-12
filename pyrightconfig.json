@@ -25,6 +25,11 @@
     "**/*Commands.py",
     "**/workbench.py"
   ],
+  "strict": [
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py"
+  ],
   "typeCheckingMode": "standard",
   "reportMissingImports": "none",
   "reportMissingModuleSource": "none",

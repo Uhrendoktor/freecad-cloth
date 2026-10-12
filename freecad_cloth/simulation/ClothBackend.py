@@ -1,4 +1,3 @@
-# pyright: strict
 """Small adapter contract for the production PositionBasedDynamics cloth solver.
 
 FreeCAD document code depends on this boundary instead of importing PositionBasedDynamics APIs.

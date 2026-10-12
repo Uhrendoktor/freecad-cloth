@@ -63,6 +63,11 @@ PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Commands.py",
     "**/workbench.py",
 )
+PYRIGHT_EXPECTED_STRICT = (
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py",
+)
 
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
@@ -214,8 +219,12 @@ def main() -> int:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise SystemExit("pyrightconfig.json must be valid JSON") from error
-    if pyright_config.get("typeCheckingMode") != "strict":
-        raise SystemExit("pyrightconfig.json must use typeCheckingMode=strict")
+    if pyright_config.get("typeCheckingMode") != "standard":
+        raise SystemExit(
+            "pyrightconfig.json must use a standard baseline with a focused strict path list"
+        )
+    if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
+        raise SystemExit("pyrightconfig.json strict paths must match the reviewed core inventory")
     command_lines = {line.strip() for line in text.splitlines()}
     missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
     if missing_ruff:
