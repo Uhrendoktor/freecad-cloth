@@ -44,7 +44,10 @@ class AvatarTaskPanel:
         "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
-    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {"gender": "GenderBlend", "breast_size": "BreastSize"}
+    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {
+        "gender": "GenderBlend",
+        "breast_size": "BreastSize",
+    }
     BODY = (
         ("height", "Height"),
         ("neck", "Neck circumference"),
