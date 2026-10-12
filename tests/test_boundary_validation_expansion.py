@@ -109,9 +109,8 @@ def test_pattern_piece_and_ir_schemas_reject_nonfinite_geometry():
 
 
 def test_pattern_seam_rejects_unsupported_edge_reference_type():
-    seam = Seam("front", 1.5, "back", 0, id="seam")  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="edge references"):
-        seam.validate()
+    with pytest.raises(ValidationError):
+        Seam("front", 1.5, "back", 0, id="seam")  # type: ignore[arg-type]
 
 
 def test_drape_target_and_quality_mesh_settings_reject_nonfinite_values():
