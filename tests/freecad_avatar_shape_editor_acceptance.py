@@ -134,7 +134,7 @@ def _shape_change_summary(
     bust_baseline = before if breast_reference is None else breast_reference
 
     # clad-body normalizes Anny output to Z-up. The anatomical anterior is at
-        # negative Y, so measure forward projection as -Y for each breast lobe.
+    # negative Y, so measure forward projection as -Y for each breast lobe.
     # Evaluate both lobes separately so sternum movement cannot dominate.
     # The center exclusion removes the sternum; the outer limit excludes arms.
     def front_lobe(
