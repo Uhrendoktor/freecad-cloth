@@ -30,10 +30,6 @@ License: MIT
 | `ClothSimulation_Run.svg` | `player-play.svg` |
 | `ClothSimulation_Step.svg` | `player-skip-forward.svg` |
 
-## Original project icons
-
-The other SVGs in this directory are original, project-specific artwork for the Cloth workbench. They use FreeCAD's current-color icon convention and are not covered by the Tabler notice above.
-
 MIT License
 
 Copyright (c) 2020-2026 Paweł Kuna
@@ -55,3 +51,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Original project icons
+
+The other SVGs in this directory are original, project-specific artwork for the Cloth workbench. They use FreeCAD's current-color icon convention and are not covered by the Tabler notice above.
