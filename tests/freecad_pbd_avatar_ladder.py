@@ -644,15 +644,16 @@ def _structural_ladder_checks(records):
 def main():
     _boot("main-entered")
     _progress("avatar-ladder: start")
-    records = []
-    for case_id in (
-        "rung-6-avatar-pinned",
-        "rung-7-avatar-unpinned",
-        "rung-8-avatar-two-piece-no-seam",
-        "rung-9-avatar-two-piece-small-seam",
-        "rung-10-avatar-two-piece-large-seam",
-    ):
-        records.append(_run_ladder_case(case_id))
+    records = [
+        _run_ladder_case(case_id)
+        for case_id in (
+            "rung-6-avatar-pinned",
+            "rung-7-avatar-unpinned",
+            "rung-8-avatar-two-piece-no-seam",
+            "rung-9-avatar-two-piece-small-seam",
+            "rung-10-avatar-two-piece-large-seam",
+        )
+    ]
     manifest = {
         "schema": 1,
         "purpose": "simulation-avatar-ladder",

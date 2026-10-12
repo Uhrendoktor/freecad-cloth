@@ -147,17 +147,17 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         elif isinstance(node, ast.AnnAssign):
             annotation_fields.append(node.annotation)
 
-        for annotation in annotation_fields:
+        violations.extend(
+            f"{filename}:{getattr(annotation, 'lineno', node.lineno)}: "
+            "stringified annotation references explicit Any; use a concrete type, "
+            "object with narrowing, or a Protocol"
+            for annotation in annotation_fields
             if (
                 isinstance(annotation, ast.Constant)
                 and isinstance(annotation.value, str)
                 and _contains_explicit_any(annotation, any_names, typing_modules)
-            ):
-                violations.append(
-                    f"{filename}:{getattr(annotation, 'lineno', node.lineno)}: "
-                    "stringified annotation references explicit Any; use a concrete type, "
-                    "object with narrowing, or a Protocol"
-                )
+            )
+        )
 
         type_comment = getattr(node, "type_comment", None)
         if isinstance(type_comment, str):

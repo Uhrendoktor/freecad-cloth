@@ -36,10 +36,14 @@ def contract_errors() -> list[str]:
     except (OSError, ValueError) as exc:
         return [f"cannot compute README/wiki image inventory: {exc}"]
     declared = set(assets)
-    for name in sorted(documented - declared):
-        errors.append(f"documented asset has no producer mapping: {name}")
-    for name in sorted(declared - documented):
-        errors.append(f"producer mapping is unused by README/wiki: {name}")
+    errors.extend(
+        f"documented asset has no producer mapping: {name}"
+        for name in sorted(documented - declared)
+    )
+    errors.extend(
+        f"producer mapping is unused by README/wiki: {name}"
+        for name in sorted(declared - documented)
+    )
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     publisher_text = PUBLISH_ACTION.read_text(encoding="utf-8")
     production_config = workflow_text + chr(10) + publisher_text
@@ -49,9 +53,11 @@ def contract_errors() -> list[str]:
         "docs/images/generated/*.log",
         "docs/images/generated/*.txt",
     )
-    for pattern in required_upload_patterns:
-        if pattern not in workflow_text:
-            errors.append(f"turntable artifact upload does not include required pattern: {pattern}")
+    errors.extend(
+        f"turntable artifact upload does not include required pattern: {pattern}"
+        for pattern in required_upload_patterns
+        if pattern not in workflow_text
+    )
     for name in sorted(documented & declared):
         entry = assets[name]
         if not isinstance(entry, dict):

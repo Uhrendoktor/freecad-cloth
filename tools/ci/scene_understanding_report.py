@@ -824,18 +824,18 @@ def render_markdown(report: dict[str, object]) -> str:
         "| Stage | State |",
         "|---|---|",
     ]
-    for stage_name in (
-        "mannequin_pose",
-        "pattern_construction",
-        "pattern_topology",
-        "sewing_preview",
-        "initial_placement",
-        "simulation",
-        "drape",
-    ):
-        lines.append(
-            f"| {stage_name.replace('_', ' ')} | {stages.get(stage_name, 'not_observed')} |"
+    lines.extend(
+        f"| {stage_name.replace('_', ' ')} | {stages.get(stage_name, 'not_observed')} |"
+        for stage_name in (
+            "mannequin_pose",
+            "pattern_construction",
+            "pattern_topology",
+            "sewing_preview",
+            "initial_placement",
+            "simulation",
+            "drape",
         )
+    )
     fit = _as_dict(report.get("fit_assessment"))
     fit_state = str(fit.get("state", "not_assessed"))
     fit_findings = _as_list(fit.get("findings"))

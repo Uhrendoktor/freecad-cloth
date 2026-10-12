@@ -258,25 +258,21 @@ def to_pdf(
     if overlap >= 4.0:
         registrations.extend(
             (
-                (
-                    f"H{row + 1}-{column + 1}",
-                    min_x + (column + 1) * stride_x + overlap / 2.0,
-                    max_y - row * stride_y - usable_height / 2.0,
-                )
-                for row in range(rows)
-                for column in range(columns - 1)
+                f"H{row + 1}-{column + 1}",
+                min_x + (column + 1) * stride_x + overlap / 2.0,
+                max_y - row * stride_y - usable_height / 2.0,
             )
+            for row in range(rows)
+            for column in range(columns - 1)
         )
         registrations.extend(
             (
-                (
-                    f"V{row + 1}-{column + 1}",
-                    min_x + column * stride_x + usable_width / 2.0,
-                    max_y - row * stride_y - usable_height + overlap / 2.0,
-                )
-                for row in range(rows - 1)
-                for column in range(columns)
+                f"V{row + 1}-{column + 1}",
+                min_x + column * stride_x + usable_width / 2.0,
+                max_y - row * stride_y - usable_height + overlap / 2.0,
             )
+            for row in range(rows - 1)
+            for column in range(columns)
         )
 
     page_streams: list[bytes] = []

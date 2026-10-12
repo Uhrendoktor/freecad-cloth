@@ -150,9 +150,11 @@ def validate_metrics(payload: object) -> list[str]:
         spacing = _number(profile.get("particle_distance_mm"))
         if spacing is None or spacing < 40.0:
             errors.append("profile.particle_distance_mm must be >= 40")
-        for key in ("solver_iterations", "solver_substeps", "pbd_substeps"):
-            if _integer(profile.get(key)) != 1:
-                errors.append(f"profile.{key} must be 1")
+        errors.extend(
+            f"profile.{key} must be 1"
+            for key in ("solver_iterations", "solver_substeps", "pbd_substeps")
+            if _integer(profile.get(key)) != 1
+        )
 
     runtime_value = metrics.get("runtime")
     if not isinstance(runtime_value, dict):
