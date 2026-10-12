@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 PAGE_SIZE = 100
 MAX_RUN_DELETIONS_PER_RUN = 100
@@ -82,7 +82,7 @@ def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
 def main() -> int:
     """Remove old agent branches and retain bounded workflow-run cleanup work."""
     repo = os.environ["REPO"]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=14)).timestamp()
     run_cutoff = (now - timedelta(days=30)).timestamp()
 

@@ -9,6 +9,7 @@
     "freecad_cloth/pattern/PatternSvgValidation.py",
     "freecad_cloth/sewing/SeamGraph.py",
     "freecad_cloth/sewing/SewingCorrespondence.py",
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
     "freecad_cloth/simulation/ClothBackend.py",
     "freecad_cloth/simulation/ClothSolver.py",
     "freecad_cloth/simulation/DrapeTarget.py",
@@ -23,6 +24,11 @@
     "**/*Gui.py",
     "**/*Commands.py",
     "**/workbench.py"
+  ],
+  "strict": [
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
+    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/ClothSolver.py"
   ],
   "typeCheckingMode": "standard",
   "reportMissingImports": "none",

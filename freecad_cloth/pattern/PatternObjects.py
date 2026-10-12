@@ -3,7 +3,6 @@
 import ast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.shared.seam_colors import apply_seam_colors
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
@@ -11,6 +10,7 @@ from freecad_cloth.pattern.SeamReference import (
     resolve_edge_reference,
     semantic_edge_id,
 )
+from freecad_cloth.shared.seam_colors import apply_seam_colors
 
 
 def _parse_points(value):
@@ -348,9 +348,7 @@ class SeamProxy:
             pb0, pb1 = piece_b.Placement.multVec(pb0), piece_b.Placement.multVec(pb1)
         from freecad_cloth.sewing.SewingView import build_seam_visual_shape
 
-        obj.Shape = build_seam_visual_shape(
-            piece_a, piece_b, obj, sample_count=5, world_space=True
-        )
+        obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
 
     def onDocumentRestored(self, obj):
         """Reapply canonical seam colors after FreeCAD restores a document proxy."""

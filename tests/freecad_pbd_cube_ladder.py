@@ -475,15 +475,16 @@ def _structural_ladder_checks(records):
 def main():
     _boot("main-entered")
     _progress("cube-ladder: start")
-    records = []
-    for case_id in (
-        "rung-1-cube-pinned",
-        "rung-2-cube-unpinned",
-        "rung-3-cube-two-piece-no-seam",
-        "rung-4-cube-two-piece-small-seam",
-        "rung-5-cube-two-piece-large-seam",
-    ):
-        records.append(_run_ladder_case(case_id))
+    records = [
+        _run_ladder_case(case_id)
+        for case_id in (
+            "rung-1-cube-pinned",
+            "rung-2-cube-unpinned",
+            "rung-3-cube-two-piece-no-seam",
+            "rung-4-cube-two-piece-small-seam",
+            "rung-5-cube-two-piece-large-seam",
+        )
+    ]
     manifest = {
         "schema": 1,
         "purpose": "simulation-collision-ladder",

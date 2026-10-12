@@ -2,7 +2,6 @@ import unittest
 from types import SimpleNamespace
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
-from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
@@ -10,6 +9,7 @@ from freecad_cloth.avatar.AvatarProvider import (
     ParametricAvatarProvider,
     provider_from_target,
 )
+from freecad_cloth.shared.collision import CollisionSurface
 
 
 class _Shape:

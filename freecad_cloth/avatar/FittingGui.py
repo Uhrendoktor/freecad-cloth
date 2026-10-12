@@ -423,7 +423,7 @@ class DirectArrangeController:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self._clear_anchor_overlay()
             self._restore_anchor_feature_visibility()
-            self._status("Attachment-point overlay unavailable — {}".format(exc))
+            self._status(f"Attachment-point overlay unavailable — {exc}")
 
     def _queue_snap_indicator(self, point):
         """Defer scene-graph mutation until Coin finishes the active event traversal."""
@@ -543,7 +543,7 @@ class DirectArrangeController:
             self._begin_transaction()
             self.Gui.Selection.clearSelection()
             self.Gui.Selection.addSelection(piece)
-            self._status("Dragging {} — release near a blue crosshair to snap.".format(piece.Label))
+            self._status(f"Dragging {piece.Label} — release near a blue crosshair to snap.")
         elif state == "UP" and self.drag_piece is not None:
             piece = self.drag_piece
             snap = self.snap_point
@@ -573,12 +573,12 @@ class DirectArrangeController:
                         float(placement.Base.z),
                         float(placement.Rotation.Angle),
                     )
-                    self._status("Placed {}.".format(piece.Label))
+                    self._status(f"Placed {piece.Label}.")
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
                 self._abort_transaction()
                 self.drag_piece = None
                 self.snap_point = None
-                self._status("Placement blocked — {}".format(exc))
+                self._status(f"Placement blocked — {exc}")
                 return
             self._commit_transaction()
             self.drag_piece = None
@@ -759,7 +759,7 @@ class ViewportAnchorPicker:
                 wrap_direction=str(self.panel.wrap_direction.currentText()),
             )
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.panel.status.setText("Could not create surface anchor — {}.".format(exc))
+            self.panel.status.setText(f"Could not create surface anchor — {exc}.")
             return
         self._finish()
         self.Gui.Selection.clearSelection()
@@ -767,10 +767,8 @@ class ViewportAnchorPicker:
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
         self.panel.status.setText(
-            "Created surface anchor '{}'. Drag a pattern piece to its marker; target changes "
-            "invalidate the anchor, and the anchor does not attach cloth to the surface.".format(
-                point.name
-            )
+            f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; target changes "
+            "invalidate the anchor, and the anchor does not attach cloth to the surface."
         )
 
     def dispose(self):
@@ -894,9 +892,9 @@ class FittingTaskPanel:
             )
         }
         index = 1
-        while "SurfaceAnchor{}".format(index) in existing:
+        while f"SurfaceAnchor{index}" in existing:
             index += 1
-        return "SurfaceAnchor{}".format(index)
+        return f"SurfaceAnchor{index}"
 
     def start_anchor_pick(self):
         """Arm one viewport selection to create a surface-aware arrangement point."""
@@ -923,11 +921,9 @@ class FittingTaskPanel:
             in {"stale", "missing target", "invalid", "wrong target", "unconfigured target"}
             for point in point_objects
         )
-        suffix = " | {} stale anchor(s) excluded".format(stale) if stale else ""
+        suffix = f" | {stale} stale anchor(s) excluded" if stale else ""
         self.context.setText(
-            "{} piece(s) | {} snap point(s) | Target: {}{}".format(
-                len(pieces), len(point_objects), target_name, suffix
-            )
+            f"{len(pieces)} piece(s) | {len(point_objects)} snap point(s) | Target: {target_name}{suffix}"
         )
 
     def reset_arrangement(self):
@@ -937,7 +933,7 @@ class FittingTaskPanel:
 
             reset_arrangement()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText("Reset unavailable — {}".format(exc))
+            self.status.setText(f"Reset unavailable — {exc}")
             return
         self._refresh_context()
         self._fit_view()

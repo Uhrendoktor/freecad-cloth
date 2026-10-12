@@ -10,10 +10,13 @@ model.
 import bisect
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import (
-    ArcLengthSamplingInput, CorrespondenceAnalysisInput, CorrespondenceSamplesInput,
+    ArcLengthSamplingInput,
+    CorrespondenceAnalysisInput,
+    CorrespondenceSamplesInput,
 )
 
 STATUS_VALID = "valid"
@@ -22,7 +25,7 @@ STATUS_LENGTH_MISMATCH = "length_mismatch"
 STATUS_INVALID_RANGE = "invalid_range"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class CorrespondenceReport:
     """Deterministic validation result for a pair of seam ranges."""
 
@@ -110,10 +113,14 @@ def analyze_correspondence(
     """
     inputs = CorrespondenceAnalysisInput.model_validate(
         {
-            "length_a": length_a, "length_b": length_b,
-            "start_a": start_a, "end_a": end_a,
-            "start_b": start_b, "end_b": end_b,
-            "reversed_b": reversed_b, "length_tolerance": length_tolerance,
+            "length_a": length_a,
+            "length_b": length_b,
+            "start_a": start_a,
+            "end_a": end_a,
+            "start_b": start_b,
+            "end_b": end_b,
+            "reversed_b": reversed_b,
+            "length_tolerance": length_tolerance,
         }
     )
     length_a, length_b = inputs.length_a, inputs.length_b
@@ -229,10 +236,9 @@ def arc_length_vertex_indices(
         upper_bound = last_index - (sample_count - sample - 1)
 
         right = bisect.bisect_left(cumulative, target)
-        candidates = []
-        for index in (right - 1, right, right + 1):
-            if lower_bound <= index <= upper_bound:
-                candidates.append(index)
+        candidates = [
+            index for index in (right - 1, right, right + 1) if lower_bound <= index <= upper_bound
+        ]
 
         if candidates:
             index = min(
@@ -286,8 +292,12 @@ def correspondence_samples(
     """Return paired normalized parameters for deterministic mesh sampling."""
     inputs = CorrespondenceSamplesInput.model_validate(
         {
-            "count": count, "start_a": start_a, "end_a": end_a,
-            "start_b": start_b, "end_b": end_b, "reversed_b": reversed_b,
+            "count": count,
+            "start_a": start_a,
+            "end_a": end_a,
+            "start_b": start_b,
+            "end_b": end_b,
+            "reversed_b": reversed_b,
         }
     )
     count = inputs.count

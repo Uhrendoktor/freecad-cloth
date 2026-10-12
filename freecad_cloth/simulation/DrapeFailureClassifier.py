@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Protocol
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
 class DrapeMetrics(Protocol):
@@ -28,7 +29,7 @@ STATES = (
 )
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DrapeClassification:
     """Evidence classification; never a claim of physical correctness."""
 

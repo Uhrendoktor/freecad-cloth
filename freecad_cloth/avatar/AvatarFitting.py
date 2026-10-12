@@ -6,7 +6,9 @@ these immutable records as its source of truth for fitting metadata.
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import field
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 _DEFAULT_MEASUREMENTS = {
     "height": 1700.0,
@@ -17,7 +19,7 @@ _DEFAULT_MEASUREMENTS = {
 }
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class BodyMeasurements:
     """Public data model or service class for BodyMeasurements."""
 
@@ -58,7 +60,7 @@ class BodyMeasurements:
         return result
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class PiecePlacement:
     """Public data model or service class for PiecePlacement."""
 
@@ -88,7 +90,7 @@ class PiecePlacement:
         return result
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class ArrangementPoint:
     """Named avatar fitting point in deterministic world coordinates.
 
@@ -167,7 +169,7 @@ class ArrangementPoint:
         return result
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class BoundingVolume:
     """Named axis-aligned avatar volume used for deterministic fitting metadata."""
 
@@ -204,7 +206,7 @@ class BoundingVolume:
         return result
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class FittingScene:
     """Public data model or service class for FittingScene."""
 

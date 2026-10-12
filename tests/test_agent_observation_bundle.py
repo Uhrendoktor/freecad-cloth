@@ -131,7 +131,7 @@ def test_traversal_and_symlinks_are_rejected(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path / "symlink",
             observation_root="artifacts",
-                specifications=["metrics=outside.json"],
+            specifications=["metrics=outside.json"],
             label="",
             environment=environment,
         )
@@ -144,7 +144,7 @@ def test_logs_are_not_valid_evidence(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-                specifications=["metrics=run.log"],
+            specifications=["metrics=run.log"],
             label="",
             environment=environment,
         )
@@ -157,7 +157,7 @@ def test_individual_file_budget_is_enforced(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-                specifications=["summary=large.json"],
+            specifications=["summary=large.json"],
             label="",
             environment=environment,
         )
@@ -171,7 +171,7 @@ def test_aggregate_evidence_budget_is_enforced(tmp_path: Path):
         create_observation_bundle(
             workspace=tmp_path,
             observation_root="artifacts",
-                specifications=["summary=one.json", "summary=two.json"],
+            specifications=["summary=one.json", "summary=two.json"],
             label="",
             environment=environment,
         )

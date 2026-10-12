@@ -1,9 +1,9 @@
 """FreeCAD-independent parametric 2D pattern geometry primitives."""
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from math import hypot, isfinite
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.errors import GEOSException
 from shapely.geometry import Polygon
 
@@ -19,7 +19,7 @@ from freecad_cloth.common.ValidationModels import (
 Point = tuple[float, float]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class LineSegment:
     """Public data model or service class for LineSegment."""
 
@@ -45,7 +45,7 @@ class LineSegment:
         return _distance(self.start, self.end)
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class QuadraticBezier:
     """Public data model or service class for QuadraticBezier."""
 
@@ -80,7 +80,7 @@ class QuadraticBezier:
         return [self.point(i / (samples - 1)) for i in range(samples)]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class PolylineSegment:
     """A deterministic sampled native curve segment used for derived export."""
 

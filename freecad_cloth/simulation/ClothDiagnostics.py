@@ -6,12 +6,12 @@ by GUI, export, or headless validation code.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from math import sqrt
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
@@ -59,7 +59,7 @@ def export_json(result: "DiagnosticResult", path) -> dict:
     return payload
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DiagnosticResult:
     """Per-face diagnostic values plus aggregate ranges."""
 

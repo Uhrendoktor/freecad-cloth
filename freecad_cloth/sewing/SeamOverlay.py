@@ -73,7 +73,7 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
         for identity in identities
         if identity not in labels
     }
-    widths = {identity: 6 for identity in hashed}
+    widths = dict.fromkeys(hashed, 6)
     while True:
         candidates = {identity: "S" + hashed[identity][: widths[identity]] for identity in hashed}
         by_label: dict[str, list[str]] = {}

@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
-from freecad_cloth.shared.SourceSignature import source_signature
 from freecad_cloth.shared.seam_colors import (
     apply_seam_colors,
     register_seam_refresh_callback,
@@ -13,6 +12,7 @@ from freecad_cloth.shared.seam_colors import (
     seam_color_map,
     set_seam_color_highlighting_enabled,
 )
+from freecad_cloth.shared.SourceSignature import source_signature
 
 
 class _Vertex:
@@ -164,4 +164,3 @@ def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
         assert calls == [document]
     finally:
         register_seam_refresh_callback(None)
-

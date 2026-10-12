@@ -84,6 +84,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     def Deactivated(self):
         callback = _WORKBENCH_DEACTIVATION_CALLBACK
         if callback is not None:
+
             def finish_deactivation() -> None:
                 # FreeCAD may deliver the new workbench's Activated() before
                 # the previous workbench's Deactivated(). Defer cleanup until
@@ -110,7 +111,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 QtCore.QTimer.singleShot(0, finish_deactivation)
             except ImportError:
                 finish_deactivation()
-        return None
+        return
 
     def ContextMenu(self, recipient):
         if Gui is not None and recipient in ("view", "tree") and self.commands:

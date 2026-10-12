@@ -1,12 +1,12 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json
-from dataclasses import dataclass
 from html import escape
 from math import cos, hypot, radians, sin
 from pathlib import Path
 from xml.etree import ElementTree
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry import Polygon
 
@@ -45,7 +45,7 @@ def _validate_units(units: str) -> str:
     return "mm"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class _ResolvedNotchCut:
     """Geometric cut-insertion plan for one semantic notch."""
 
@@ -520,7 +520,7 @@ def from_svg_metadata(svg: str) -> dict:
 def validate_export(
     pattern: ParametricPattern,
     exported: str,
-    format: str,
+    export_format: str,
     curve_samples: int = 32,
     units: str = "mm",
     derived: DerivedPattern | None = None,
@@ -534,7 +534,7 @@ def validate_export(
     artifact is an intentional release-gate check: geometry, units, edge IDs,
     piece/seam identity and construction-mark metadata cannot drift silently.
     """
-    normalized_format = str(format).strip().lower()
+    normalized_format = str(export_format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
         raise ValueError("format must be 'svg' or 'dxf'")
     expected = (
@@ -715,7 +715,7 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
 def export_pattern_piece(
     piece,
     path,
-    format: str,
+    export_format: str,
     *,
     units: str = "mm",
     curve_samples: int = 64,
@@ -724,7 +724,7 @@ def export_pattern_piece(
     overlap_mm: float = 10.0,
 ) -> dict:
     """Write and validate an SVG/DXF/PDF export derived from an authoritative piece."""
-    normalized_format = str(format).strip().lower()
+    normalized_format = str(export_format).strip().lower()
     if normalized_format not in {"svg", "dxf", "pdf"}:
         raise ValueError("format must be 'svg', 'dxf' or 'pdf'")
     units = _validate_units(units)

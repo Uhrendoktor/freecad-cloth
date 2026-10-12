@@ -127,7 +127,7 @@ def _case_record(
     target_points, target_triangles = _mesh_geometry(source)
     target_bounds = _bounds(target_points)
     target_sig = _target_signature(target)
-    target_surface_triangles = int(len(getattr(collision_surface, "triangles", ()) or ()))
+    target_surface_triangles = len(getattr(collision_surface, "triangles", ()) or ())
     signed_before = (
         None
         if before_distance is None

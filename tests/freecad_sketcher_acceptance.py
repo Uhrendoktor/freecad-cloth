@@ -254,7 +254,7 @@ def run_acceptance():
         reference = mate.Sketch
         if reference is None:
             raise RuntimeError("second PatternPiece has no native Sketcher source")
-        audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
+        _audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
         _record("sketch-geometry-and-constraints")
 
         Gui.Selection.clearSelection()

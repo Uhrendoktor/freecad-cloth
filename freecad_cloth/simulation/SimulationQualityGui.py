@@ -43,7 +43,13 @@ class SimulationQualityTaskPanel:
             ensure_quality_properties,
         )
 
-        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = App, Gui, QtCore, QtWidgets, QtGui
+        self.App, self.Gui, self.QtCore, self.QtWidgets, self.QtGui = (
+            App,
+            Gui,
+            QtCore,
+            QtWidgets,
+            QtGui,
+        )
         self.scene = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None

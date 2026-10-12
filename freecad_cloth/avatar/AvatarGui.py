@@ -6,6 +6,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
+from typing import ClassVar
 
 
 def _modules():
@@ -22,7 +23,7 @@ def _modules():
 class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
 
-    PROPERTY_MAP = {
+    PROPERTY_MAP: ClassVar[dict[str, str]] = {
         "height": "Height",
         "neck": "Neck",
         "shoulder": "Shoulder",
@@ -43,7 +44,10 @@ class AvatarTaskPanel:
         "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
     }
-    SHAPE_PROPERTY_MAP = {"gender": "GenderBlend", "breast_size": "BreastSize"}
+    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {
+        "gender": "GenderBlend",
+        "breast_size": "BreastSize",
+    }
     BODY = (
         ("height", "Height"),
         ("neck", "Neck circumference"),
@@ -358,7 +362,7 @@ class AvatarTaskPanel:
         self.breast_slider.setSingleStep(1)
         self.breast_slider.setPageStep(10)
         self.breast_slider.setToolTip(
-            "Stage additional breast projection from the neutral base shape (0–100%)."
+            "Stage additional breast projection from the neutral base shape (0–100%)."  # noqa: RUF001 - en dash is part of the UI range label.
         )
         breast_row.addWidget(self.breast_slider, 1)
         breast_row.addWidget(QtWidgets.QLabel("More"))
@@ -504,11 +508,11 @@ class AvatarTaskPanel:
         if value == 50:
             label = "Neutral"
         elif value < 50:
-            label = "Feminine {}%".format(100 - value * 2)
+            label = f"Feminine {100 - value * 2}%"
         else:
-            label = "Masculine {}%".format((value - 50) * 2)
+            label = f"Masculine {(value - 50) * 2}%"
         self.gender_value.setText(label)
-        self.breast_value.setText("{}%".format(int(self.breast_slider.value())))
+        self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
         self._update_shape_labels()

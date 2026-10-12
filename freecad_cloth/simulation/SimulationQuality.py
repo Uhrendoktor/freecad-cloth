@@ -8,13 +8,15 @@ store the values returned by ``preset`` and the simulation backend can consume
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from math import isfinite
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SimulationQuality:
     """Public data model or service class for SimulationQuality."""
 
@@ -47,7 +49,7 @@ def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     return values[0], values[1], values[2]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class FabricMaterial:
     """Physical fabric controls plus persisted presentation properties."""
 

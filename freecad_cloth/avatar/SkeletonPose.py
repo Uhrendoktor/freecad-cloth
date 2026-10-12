@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
 from typing import NotRequired, TypedDict
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
 class JointRotationInput(TypedDict):
@@ -64,7 +65,7 @@ MIRROR_BONES = {
 }
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class JointRotation:
     """A persistent Euler rotation for one authored mannequin joint."""
 
@@ -174,9 +175,7 @@ def mirror_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
     """Return a deterministic left/right mirrored pose."""
-    mirrored = []
-    for item in normalize_joint_rotations(rotations):
-        mirrored.append(item.mirrored())
+    mirrored = [item.mirrored() for item in normalize_joint_rotations(rotations)]
     return normalize_joint_rotations(mirrored)
 
 
@@ -184,7 +183,7 @@ Matrix = tuple[float, ...]
 Vector = tuple[float, float, float]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AffineTransform:
     """Small immutable affine transform used by the headless FK implementation."""
 
@@ -202,7 +201,7 @@ class AffineTransform:
             m[6] * x + m[7] * y + m[8] * z + t[2],
         )
 
-    def inverse(self) -> "AffineTransform":
+    def inverse(self) -> AffineTransform:
         """Return the inverse of this rigid affine transform."""
         m = self.matrix
         inverse_matrix = (

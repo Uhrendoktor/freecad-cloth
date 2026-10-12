@@ -327,6 +327,8 @@ def test_python_sources_do_not_import_removed_architecture_modules():
                         imported.add(f"{node.module}.{alias.name}" if node.module else alias.name)
                 elif isinstance(node, ast.Import):
                     imported.update(alias.name for alias in node.names)
-                for name in imported & forbidden_modules:
-                    offenders.append(f"{path.relative_to(root)}:{node.lineno}: {name}")
+                offenders.extend(
+                    f"{path.relative_to(root)}:{node.lineno}: {name}"
+                    for name in imported & forbidden_modules
+                )
     assert not offenders, "stale architecture imports: " + ", ".join(offenders)

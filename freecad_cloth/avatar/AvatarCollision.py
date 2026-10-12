@@ -4,12 +4,11 @@ The collision geometry value type is neutral and lives in shared.collision.
 FreeCAD conversion remains a host adapter so Simulation never depends on Avatar.
 """
 
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import (
     CollisionSurface,
-    surface_from_triangles,
 )
 
 
@@ -35,7 +34,7 @@ def ensure_collision_proxy(doc, source_obj, thickness=2.0, deflection=1.0):
     return avatar
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AvatarSpec:
     """Host-neutral avatar identity and optional collision surface."""
 

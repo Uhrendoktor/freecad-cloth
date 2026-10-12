@@ -11,7 +11,6 @@ import gzip
 import math
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -20,10 +19,13 @@ if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class MakeHumanTarget:
     """Sparse vertex offsets read from a MakeHuman target."""
 
@@ -31,7 +33,7 @@ class MakeHumanTarget:
     offsets: tuple[tuple[int, Point], ...]
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class TargetReference:
     """Address a loose target file or one target inside a targets.npz archive."""
 
@@ -251,8 +253,7 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
             if not key.endswith(".index"):
                 continue
             target_name = key[: -len(".index")]
-            if target_name.startswith("targets/"):
-                target_name = target_name[len("targets/") :]
+            target_name = target_name.removeprefix("targets/")
             index.setdefault(target_name.casefold(), key[: -len(".index")])
             index.setdefault(Path(target_name).name.casefold(), key[: -len(".index")])
     return index

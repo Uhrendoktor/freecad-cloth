@@ -86,7 +86,7 @@ def _outline_points(piece: object) -> list[tuple[float, float]]:
                     return points
             except (ValueError, SyntaxError, TypeError, IndexError):
                 pass
-    width, height = float(getattr(piece, "Width")), float(getattr(piece, "Height"))
+    width, height = float(piece.Width), float(piece.Height)
     return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
@@ -174,9 +174,7 @@ def _native_edge(piece: object, edge: int) -> _NativeEdge | None:
     return None
 
 
-def _edge_polyline(
-    piece: object, edge: int, sample_count: int = 64
-) -> list[tuple[float, float]]:
+def _edge_polyline(piece: object, edge: int, sample_count: int = 64) -> list[tuple[float, float]]:
     """Return a local 2D polyline suitable for arc-length operations."""
     edge = int(edge)
     native = _native_edge(piece, edge)
@@ -198,9 +196,7 @@ def _polyline_length(points: Sequence[tuple[float, float]]) -> float:
     return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
 
 
-def _sample_polyline(
-    points: Sequence[tuple[float, float]], fraction: float
-) -> tuple[float, float]:
+def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> tuple[float, float]:
     """Sample a polyline at normalized arc length."""
     if not points:
         raise ValueError("cannot sample an empty edge")
@@ -243,8 +239,7 @@ def _seam_edge_index(piece: object, seam: object, prefix: str) -> int:
             # identity back through Sketch.SemanticEdgeIds before reading geometry.
             sketch = getattr(piece, "Sketch", None)
             semantic_ids = tuple(
-                str(value).strip()
-                for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+                str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
             )
             native_indices = [
                 index for index, identity in enumerate(semantic_ids) if identity == edge_id
@@ -253,8 +248,8 @@ def _seam_edge_index(piece: object, seam: object, prefix: str) -> int:
                 from freecad_cloth.pattern.SeamReference import MissingEdgeReference
 
                 raise MissingEdgeReference(
-                    "semantic seam edge {} must resolve to exactly one native Sketcher edge; "
-                    "found {}".format(edge_id, len(native_indices))
+                    f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
+                    f"found {len(native_indices)}"
                 )
             return native_indices[0]
         return int(record["ordinal"])
@@ -331,14 +326,14 @@ def _alignment_placement(piece_a: object, piece_b: object, seam: object) -> obje
     a0, a1 = _edge_points(
         piece_a,
         _resolved_edge(piece_a, seam, "A"),
-        float(getattr(seam, "StartA")),
-        float(getattr(seam, "EndA")),
+        float(seam.StartA),
+        float(seam.EndA),
     )
     b0, b1 = _edge_points(
         piece_b,
         _resolved_edge(piece_b, seam, "B"),
-        float(getattr(seam, "StartB")),
-        float(getattr(seam, "EndB")),
+        float(seam.StartB),
+        float(seam.EndB),
     )
     if bool(getattr(seam, "ReversedB", False)):
         b0, b1 = b1, b0
@@ -367,12 +362,8 @@ def _seam_correspondence(
         raise ValueError(f"unsupported sewing alignment: {alignment}")
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
-    a_points = _edge_samples(
-        piece_a, edge_a, float(getattr(seam, "StartA")), float(getattr(seam, "EndA")), count
-    )
-    b_points = _edge_samples(
-        piece_b, edge_b, float(getattr(seam, "StartB")), float(getattr(seam, "EndB")), count
-    )
+    a_points = _edge_samples(piece_a, edge_a, float(seam.StartA), float(seam.EndA), count)
+    b_points = _edge_samples(piece_b, edge_b, float(seam.StartB), float(seam.EndB), count)
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
     return list(zip(a_points, b_points, strict=False))
@@ -488,7 +479,7 @@ def add_sewing_operation(
     )
     obj.addProperty(
         "App::PropertyPlacement", "AssemblyPlacementB", "Assembly"
-    ).AssemblyPlacementB = getattr(piece_b, "Placement")
+    ).AssemblyPlacementB = piece_b.Placement
     obj.addProperty("App::PropertyLength", "Tolerance", "Validation").Tolerance = 0.5
     obj.addProperty(
         "App::PropertyFloat", "RelativeTolerance", "Validation"

@@ -52,8 +52,9 @@ class SimulationQualityTests(unittest.TestCase):
     def test_material_validation_rejects_nonfinite_density_and_thickness(self):
         for field in ("density_g_m2", "thickness_mm"):
             for value in (float("nan"), float("inf"), float("-inf")):
-                with self.subTest(field=field, value=value), self.assertRaisesRegex(
-                    ValueError, "positive and finite"
+                with (
+                    self.subTest(field=field, value=value),
+                    self.assertRaisesRegex(ValueError, "positive and finite"),
                 ):
                     FabricMaterial(**{field: value}).validate()
 
@@ -123,10 +124,7 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertTrue(all(len(edge) >= 3 for edge in boundary))
         for edge in boundary:
             self.assertLessEqual(
-                max(
-                    dist(positions[a], positions[b])
-                    for a, b in zip(edge, edge[1:], strict=False)
-                ),
+                max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)),
                 20.000001,
             )
 

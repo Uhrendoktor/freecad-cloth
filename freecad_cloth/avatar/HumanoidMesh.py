@@ -15,11 +15,13 @@ import math
 import os
 import tempfile
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
+
+from pydantic import StrictInt
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
     apply_measurement_targets,
@@ -56,10 +58,8 @@ DEFAULT_CACHE_NAME = "makehuman-hm08-base.obj"
 DEFAULT_WEIGHTS_NAME = "makehuman-default-weights.mhw"
 DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
-
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
-
 
 Point = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -83,12 +83,12 @@ class HumanoidMeshError(RuntimeError):
     """Raised when the real humanoid mesh cannot be loaded or fitted."""
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class MeshData:
     """Public data model or service class for MeshData."""
 
     vertices: tuple[tuple[float, float, float], ...]
-    triangles: tuple[tuple[int, int, int], ...]
+    triangles: tuple[tuple[StrictInt, StrictInt, StrictInt], ...]
 
     def validate(self) -> Self:
         """Validate this value and raise ValueError when its state is invalid."""
@@ -525,8 +525,9 @@ def parse_obj(text: str) -> MeshData:
                 index = int(token.split("/", 1)[0])
                 index = len(vertices) + index if index < 0 else index - 1
                 indices.append(index)
-            for i in range(1, len(indices) - 1):
-                triangles.append((indices[0], indices[i], indices[i + 1]))
+            triangles.extend(
+                (indices[0], indices[i], indices[i + 1]) for i in range(1, len(indices) - 1)
+            )
 
     body_vertices = tuple(vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     body_triangles = tuple(

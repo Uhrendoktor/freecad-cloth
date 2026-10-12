@@ -52,15 +52,15 @@ def check(path: Path) -> list[str]:
                 f"{path}:{node.lineno}: missing docstring for public {type(node).__name__.lower()} {node.name}"
             )
         if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
-            for member in node.body:
+            errors.extend(
+                f"{path}:{member.lineno}: missing docstring for public method {node.name}.{member.name}"
+                for member in node.body
                 if (
                     isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
                     and not member.name.startswith("_")
                     and ast.get_docstring(member) is None
-                ):
-                    errors.append(
-                        f"{path}:{member.lineno}: missing docstring for public method {node.name}.{member.name}"
-                    )
+                )
+            )
     return errors
 
 

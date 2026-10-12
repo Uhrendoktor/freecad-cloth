@@ -15,12 +15,14 @@ def _acceptance_job(workflow: str) -> str:
         end = len(workflow)
     return workflow[start:end]
 
+
 def test_sketcher_acceptance_uses_freecad_startup_workbench_registration():
     source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
     assert "def _bootstrap_workbenches():" in source
     assert 'if "ClothPatternWorkbench" not in Gui.listWorkbenches()' in source
     assert "ClothPatternWorkbench was not loaded by FreeCAD startup" in source
     assert "compile(init_gui.read_text" not in source
+
 
 def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flags():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(

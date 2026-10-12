@@ -1,14 +1,15 @@
 """Solver-neutral sewing constraints derived from pattern seams."""
 
-from dataclasses import dataclass
 from math import hypot
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern
 from freecad_cloth.pattern.PatternMesh import TriangleMesh
 from freecad_cloth.pattern.PatternModel import Seam
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Stitch:
     """Public data model or service class for Stitch."""
 
@@ -17,7 +18,7 @@ class Stitch:
     rest_length: float = 0.0
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class SewingConstraintSet:
     """Public data model or service class for SewingConstraintSet."""
 

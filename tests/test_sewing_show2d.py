@@ -1,16 +1,17 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SeamOverlay import (
     _label_anchor,
-    _simulation_seam_geometry,
     _side_segments,
+    _simulation_seam_geometry,
     seam_display_labels,
 )
+from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
     apply_seam_colors,
@@ -94,8 +95,8 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     piece = SimpleNamespace(PatternType="PatternPiece")
 
     class Selection:
-        added = []
-        cleared = 0
+        added: ClassVar[list[object]] = []
+        cleared: ClassVar[int] = 0
 
         @classmethod
         def clearSelection(cls):
@@ -203,21 +204,17 @@ def test_viewport_picker_accepts_only_pattern_piece_edges():
     seam = SimpleNamespace(Name="Seam1", Label="Seam", SeamId="seam-1")
     document = SimpleNamespace(Objects=[first, second, seam])
 
-    assert viewport_edge_candidate(
-        document, {"Object": "PatternA", "Component": "Edge3"}
-    ) == (first, "Edge3")
-    assert viewport_edge_candidate(
-        document, {"Object": "Back", "Component": "Edge2"}
-    ) == (second, "Edge2")
-    assert viewport_edge_candidate(
-        document, {"Object": "PatternA", "Component": "Face1"}
-    ) is None
-    assert viewport_edge_candidate(
-        document, {"Object": "Seam1", "Component": "Edge1"}
-    ) is None
-    assert viewport_edge_candidate(
-        document, {"Object": "Missing", "Component": "Edge1"}
-    ) is None
+    assert viewport_edge_candidate(document, {"Object": "PatternA", "Component": "Edge3"}) == (
+        first,
+        "Edge3",
+    )
+    assert viewport_edge_candidate(document, {"Object": "Back", "Component": "Edge2"}) == (
+        second,
+        "Edge2",
+    )
+    assert viewport_edge_candidate(document, {"Object": "PatternA", "Component": "Face1"}) is None
+    assert viewport_edge_candidate(document, {"Object": "Seam1", "Component": "Edge1"}) is None
+    assert viewport_edge_candidate(document, {"Object": "Missing", "Component": "Edge1"}) is None
 
 
 def test_simulation_seam_geometry_uses_authoritative_particle_pair_provenance():
@@ -261,5 +258,3 @@ def test_seam_side_overlay_creates_edge_direction_and_notch_strokes():
     short_segments = _side_segments(two_points)
     assert short_segments[0] == list(two_points)
     assert len(short_segments) >= 3
-
-

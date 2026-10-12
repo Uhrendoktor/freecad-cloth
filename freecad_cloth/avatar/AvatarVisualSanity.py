@@ -8,14 +8,15 @@ reference target before a garment simulation is evaluated.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
 class AvatarVisualSanityError(ValueError):
     """Raised when avatar geometry cannot satisfy visual acceptance invariants."""
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AvatarVisualSanity:
     """Public data model or service class for AvatarVisualSanity."""
 

@@ -2,7 +2,8 @@
 
 import hashlib
 import json
-from dataclasses import dataclass
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import CollisionSurface
@@ -10,7 +11,7 @@ from freecad_cloth.shared.collision import CollisionSurface
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DrapeTargetSpec:
     """Public data model or service class for DrapeTargetSpec."""
 
@@ -127,10 +128,10 @@ def _geometry_signature(target):
                 box = shape.BoundBox
                 return (
                     "Shape",
-                    int(len(getattr(shape, "Solids", ()))),
-                    int(len(getattr(shape, "Faces", ()))),
-                    int(len(getattr(shape, "Edges", ()))),
-                    int(len(getattr(shape, "Vertexes", ()))),
+                    len(getattr(shape, "Solids", ())),
+                    len(getattr(shape, "Faces", ())),
+                    len(getattr(shape, "Edges", ())),
+                    len(getattr(shape, "Vertexes", ())),
                     round(float(box.XMin), 6),
                     round(float(box.XMax), 6),
                     round(float(box.YMin), 6),

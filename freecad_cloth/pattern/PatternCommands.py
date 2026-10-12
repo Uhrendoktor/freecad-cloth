@@ -115,10 +115,10 @@ def create_pattern_piece_from_selected_sketch(name=None, allowance=0.0, grainlin
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    from freecad_cloth.pattern.SketchAuthority import attach
     from freecad_cloth.pattern.PatternIR import PatternIR
     from freecad_cloth.pattern.PatternModel import PatternPiece
     from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+    from freecad_cloth.pattern.SketchAuthority import attach
     from freecad_cloth.sewing.SeamGraph import SeamGraph
 
     sketch = _selected_sketch()
@@ -460,7 +460,7 @@ class _PatternExportCommand:
 
     def Activated(self):
         self.panel = export_pattern()
-        return None
+        return
 
     def IsActive(self):
         import FreeCAD as App

@@ -87,7 +87,7 @@ def _metric_color(value, lo, hi):
 
 def create_diagnostic_map(scene, metric="stress"):
     """Create a derived Mesh::Feature colored by one diagnostic metric."""
-    App, _Gui, _QtWidgets = _qt()
+    _App, _Gui, _QtWidgets = _qt()
     from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
     panels = _simulation_data(scene)

@@ -259,17 +259,17 @@ def _load_cloth_modules():
 
     site.addsitedir(str(ROOT))
 
+    from freecad_cloth.common.MeshValidation import validate_mesh
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+    from freecad_cloth.pattern.PatternGeometry import rectangle
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.DrapeVisualSanity import (
         inspect_drape,
         maximum_box_penetration,
         mesh_shape_sanity,
     )
-    from freecad_cloth.common.MeshValidation import validate_mesh
-    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-    from freecad_cloth.pattern.PatternGeometry import rectangle
     from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
-    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
@@ -298,7 +298,9 @@ def main():
     try:
         blanket_width = 200.0
         blanket_height = 200.0
-        sketch, outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
+        sketch, _outline = make_rectangle_sketch(
+            doc, "BlanketSketch", blanket_width, blanket_height
+        )
         piece = adopt_sketch(doc, sketch)
         placement = App.Placement(
             App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 90.0),
@@ -465,9 +467,8 @@ def main():
             start_step=1,
             final_steps=120,
         )
-        if (
-            best_drape is None
-            or progress_drape is not None
+        if best_drape is None or (
+            progress_drape is not None
             and progress_step is not None
             and progress_step < best_drape_step
         ):

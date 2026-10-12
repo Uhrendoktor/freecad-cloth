@@ -165,9 +165,12 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     )
     assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert "python -m ruff format --check tools/ci" in quality
-    assert "python -m ruff format tools/ci\n" not in quality
-    assert "python -m ruff check --fix tools/ci" not in quality
+    assert "git ls-files -z -- '*.py' '*.pyi'" in quality
+    assert (
+        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    )
+    assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    assert "python -m ruff check --fix" not in quality
     for job in (
         "local_runner_readiness:",
         "runner_watchdog:",

@@ -11,6 +11,7 @@ def _scene():
         for name, value in zip(
             SimulationQualityTaskPanel.SNAPSHOT_PROPERTIES,
             range(1, len(SimulationQualityTaskPanel.SNAPSHOT_PROPERTIES) + 1),
+            strict=True,
         )
     }
     values["Document"] = SimpleNamespace(recompute=lambda: None)

@@ -66,9 +66,9 @@ The library investigation was tracked through issues #479–#481. Those issues a
 
 ### Boundary validation
 
-Pydantic v2 is adopted for **external and cross-module numerical input boundaries** through `freecad_cloth.common.ValidationModels`. Schemas reject NaN/infinity, booleans masquerading as numbers, fractional/string mesh indices, invalid sample counts, and out-of-range connectivity before geometry algorithms run. Models are immutable and reject unknown fields. Integer coordinates normalize to floats; mesh indices and sample counts remain exact integers.
+Pydantic v2 is used for **all production data-carrier dataclasses plus external and cross-module numerical boundaries** through `pydantic.dataclasses.dataclass` and `freecad_cloth.common.ValidationModels`. Schemas reject NaN/infinity, booleans masquerading as numbers, fractional/string mesh indices, invalid sample counts, and out-of-range connectivity before geometry algorithms run. Models are immutable and reject unknown fields. Integer coordinates normalize to floats; mesh indices and sample counts remain exact integers.
 
-Pydantic is not used for each arithmetic operation or inside per-particle solver loops: model construction in hot loops adds overhead without stronger invariants. Core math remains testable by Hypothesis and CrossHair. Property-based tests explore broad input spaces; they are regression evidence, not a proof of correctness.
+Pydantic validation occurs at record construction, not around each arithmetic operation. Core math remains testable by Hypothesis and CrossHair. A repository policy check rejects production use of unchecked stdlib dataclass records; only demonstrated incompatibility with FreeCAD's native document serialization may justify an exception. Property-based tests explore broad input spaces; they are regression evidence, not a proof of correctness.
 
 ### Delegation choices
 

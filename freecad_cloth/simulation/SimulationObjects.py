@@ -447,7 +447,7 @@ class SimulationProxy:
             status = target_status(target)
             if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
                 _set_simulation_state(obj, "STALE", status["reason"] or status["message"])
-                return None
+                return
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
@@ -484,10 +484,10 @@ class SimulationProxy:
             message = str(exc)
             if message.startswith("cannot simulate invalid seam "):
                 _set_simulation_state(obj, "BLOCKED", message)
-                return None
+                return
             raise
         _set_simulation_state(obj, "READY_FOR_SIMULATION", "")
-        return None
+        return
 
     def _build(self, obj, signature=None, piece_mesh=None):
         pieces = [

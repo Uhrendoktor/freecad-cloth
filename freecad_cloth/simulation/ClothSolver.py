@@ -6,16 +6,21 @@ for tests and adapters while leaving one production simulation implementation.
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
 from math import dist, isfinite
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 from freecad_cloth.common.ValidationModels import (
-    DistanceConstraintInput, GridInput, ParticleIndexInput, ParticleInput,
-    ParticlePairInput, validate_finite_number,
+    DistanceConstraintInput,
+    GridInput,
+    ParticleIndexInput,
+    ParticleInput,
+    ParticlePairInput,
+    validate_finite_number,
 )
 
 
-@dataclass
+@pydantic_dataclass
 class Particle:
     """Mutable particle input expressed in FreeCAD millimetres."""
 
@@ -29,7 +34,10 @@ class Particle:
             {"x": self.x, "y": self.y, "z": self.z, "inv_mass": self.inv_mass}
         )
         self.x, self.y, self.z, self.inv_mass = (
-            validated.x, validated.y, validated.z, validated.inv_mass
+            validated.x,
+            validated.y,
+            validated.z,
+            validated.inv_mass,
         )
 
     def position(self) -> tuple[float, float, float]:
@@ -37,7 +45,7 @@ class Particle:
         return (self.x, self.y, self.z)
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DistanceConstraint:
     """Distance constraint input passed to the native solver."""
 
@@ -111,7 +119,11 @@ class ClothSystem:
             {"width": width, "height": height, "nx": nx, "ny": ny, "origin": origin}
         )
         width, height, nx, ny, (ox, oy, oz) = (
-            spec.width, spec.height, spec.nx, spec.ny, spec.origin
+            spec.width,
+            spec.height,
+            spec.nx,
+            spec.ny,
+            spec.origin,
         )
         particles = [
             Particle(

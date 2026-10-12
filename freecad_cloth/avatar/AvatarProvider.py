@@ -6,14 +6,14 @@ surface and stable landmarks. The built-in human provider uses a real MakeHuman
 HM08 polygon mesh; a CAD provider adapts an existing FreeCAD object.
 """
 
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.collision import surface_from_triangles
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AvatarProviderInfo:
     """Persistent identity presented by the avatar UI/document layer."""
 
@@ -97,7 +97,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
     def parameters(self):
         """Return the current provider parameters."""
-        return None
+        return
 
     def surface(self):
         """Return the current surface mesh."""

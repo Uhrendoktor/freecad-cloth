@@ -692,9 +692,7 @@ class SkeletonPoseController:
                 math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
             )
         self.panel.status.setText(
-            "Rotating {} — release to keep the staged pose; Cancel restores it.".format(
-                self.panel._joint_label(self.selected_bone)
-            )
+            f"Rotating {self.panel._joint_label(self.selected_bone)} — release to keep the staged pose; Cancel restores it."
         )
 
     def _dragger_quaternion(self, dragger):
@@ -740,9 +738,7 @@ class SkeletonPoseController:
         self._active_gizmo_axis = None
         if self.selected_bone:
             self.panel.status.setText(
-                "{} posed. Click Apply & Rebuild to keep the change.".format(
-                    self.panel._joint_label(self.selected_bone)
-                )
+                f"{self.panel._joint_label(self.selected_bone)} posed. Click Apply & Rebuild to keep the change."
             )
             self.refresh_overlay()
 
@@ -890,7 +886,7 @@ class AvatarPoseTaskPanel:
             button = QtWidgets.QToolButton()
             button.setText(label)
             button.setAutoRaise(True)
-            button.setToolTip("Stage the {} starting pose.".format(label.lower()))
+            button.setToolTip(f"Stage the {label.lower()} starting pose.")
             self.preset_group.addButton(button)
             self.preset_buttons[preset] = button
             presets.addWidget(button)
@@ -933,7 +929,7 @@ class AvatarPoseTaskPanel:
         axis_row = QtWidgets.QHBoxLayout()
         self._angle_labels = {}
         for axis in ("x", "y", "z"):
-            value = QtWidgets.QLabel("{} 0°".format(axis.upper()))
+            value = QtWidgets.QLabel(f"{axis.upper()} 0°")
             value.setAlignment(QtCore.Qt.AlignCenter)
             axis_row.addWidget(value, 1)
             self._angle_labels[axis] = value
@@ -956,7 +952,7 @@ class AvatarPoseTaskPanel:
             box.setRange(-180.0, 180.0)
             box.setDecimals(1)
             box.setSuffix("°")
-            box.setPrefix("{} ".format(axis.upper()))
+            box.setPrefix(f"{axis.upper()} ")
             self.precision_fields[axis] = box
             precision_layout.addWidget(box)
             box.valueChanged.connect(lambda value, axis=axis: self._precision_changed(axis, value))
@@ -1131,7 +1127,7 @@ class AvatarPoseTaskPanel:
         value = float(value)
         label = self._angle_labels[axis]
         precision = self.precision_fields[axis]
-        label.setText("{} {:.1f}°".format(axis.upper(), value))
+        label.setText(f"{axis.upper()} {value:.1f}°")
         precision.blockSignals(True)
         precision.setValue(value)
         precision.blockSignals(False)
@@ -1175,12 +1171,7 @@ class AvatarPoseTaskPanel:
         if preview:
             self._preview_rebuild()
         self.status.setText(
-            "{} staged at X {:.0f}° Y {:.0f}° Z {:.0f}°.".format(
-                self._joint_label(bone),
-                rotation.x,
-                rotation.y,
-                rotation.z,
-            )
+            f"{self._joint_label(bone)} staged at X {rotation.x:.0f}° Y {rotation.y:.0f}° Z {rotation.z:.0f}°."
         )
 
     def _staged_parameters(self):
@@ -1254,9 +1245,7 @@ class AvatarPoseTaskPanel:
         self._preview_rebuild()
         self._select_first_joint()
         self.status.setText(
-            "{} preset staged. Manual joint edits will start from this baseline.".format(
-                preset.title()
-            )
+            f"{preset.title()} preset staged. Manual joint edits will start from this baseline."
         )
 
     def _preview_rebuild(self):

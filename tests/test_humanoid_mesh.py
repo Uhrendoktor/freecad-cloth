@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     MAKEHUMAN_BASE_SHA256,
@@ -84,12 +86,11 @@ class HumanoidMeshTests(unittest.TestCase):
                     parse_obj(source)
 
     def test_mesh_data_rejects_non_integer_face_indices(self):
-        mesh = MeshData(
-            ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
-            ((0.5, 1, 2),),
-        )
-        with self.assertRaisesRegex(HumanoidMeshError, "invalid face"):
-            mesh.validate()
+        with self.assertRaises(ValidationError):
+            MeshData(
+                ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                ((0.5, 1, 2),),
+            )
 
     def test_weights_cache_verifier_rejects_malformed_or_empty_payloads(self):
         with tempfile.TemporaryDirectory() as directory:

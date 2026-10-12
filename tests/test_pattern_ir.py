@@ -7,13 +7,13 @@ from freecad_cloth.pattern.PatternGeometry import LineSegment as GeometryLineSeg
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, QuadraticBezier, rectangle
 from freecad_cloth.pattern.PatternIR import PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.sewing.SeamGraph import SeamGraph
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,
     resolve_edge_reference_status,
 )
+from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 
 def _graph():

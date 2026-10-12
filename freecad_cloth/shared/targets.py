@@ -1,9 +1,9 @@
 """Target-neutral collision references shared by avatar and generic geometry."""
 
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class DrapeTargetRef:
     """Persistable target identity; geometry itself remains owned by FreeCAD."""
 

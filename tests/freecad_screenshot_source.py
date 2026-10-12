@@ -1997,7 +1997,7 @@ def simulation():
     try:
         create_diagnostic_map(scene, "stress")
     except RuntimeError as exc:
-        log(f"diagnostic-stale-guard=passed message={str(exc)}")
+        log(f"diagnostic-stale-guard=passed message={exc!s}")
     else:
         raise RuntimeError("diagnostics created a map from a non-finite simulation state")
     finally:

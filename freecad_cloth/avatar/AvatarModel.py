@@ -7,7 +7,9 @@ real MakeHuman HM08 human base mesh and a deterministic measurement/pose fit.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import field
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
@@ -38,14 +40,12 @@ DEFAULT_MEASUREMENTS = {
     "back_waist": 440.0,
 }
 
-
 DEFAULT_POSE_ARM_ANGLES = {
     "standing": 70.0,
     "sewing": 55.0,
     "sitting": 25.0,
     "t_pose": 12.0,
 }
-
 
 LIMITS = {
     "height": (1200, 2300),
@@ -70,7 +70,7 @@ LIMITS = {
 }
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Pose:
     """Public data model or service class for Pose."""
 
@@ -109,7 +109,7 @@ class Pose:
         normalize_joint_rotations(self.joint_rotations)
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class Landmark:
     """Public data model or service class for Landmark."""
 
@@ -117,7 +117,7 @@ class Landmark:
     position: tuple
 
 
-@dataclass(frozen=True)
+@pydantic_dataclass(frozen=True)
 class AvatarParameters:
     """Public data model or service class for AvatarParameters."""
 

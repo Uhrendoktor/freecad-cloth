@@ -1,6 +1,7 @@
 import math
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -62,7 +63,7 @@ def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order():
     graph.add_piece(piece)
 
     class Sketch:
-        Geometry = [
+        Geometry: ClassVar[list[object]] = [
             LineSegment((100, 60), (0, 60)),
             LineSegment((0, 0), (100, 0)),
             LineSegment((0, 60), (0, 0)),
@@ -91,7 +92,7 @@ def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary():
             return Point(50.0 + 50.0 * math.cos(parameter), 50.0 + 50.0 * math.sin(parameter))
 
     class Sketch:
-        Geometry = [Circle()]
+        Geometry: ClassVar[list[object]] = [Circle()]
 
     result = PatternIR.from_sketches(graph, {"circle": Sketch()}, curve_samples=32)
     boundary = result.piece("circle").boundaries[0]
@@ -113,7 +114,7 @@ def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary():
             return Point(100.0 * parameter, 40.0 * parameter)
 
     class Sketch:
-        Geometry = [Curve()]
+        Geometry: ClassVar[list[object]] = [Curve()]
 
     try:
         PatternIR.from_sketches(graph, {"open": Sketch()})
