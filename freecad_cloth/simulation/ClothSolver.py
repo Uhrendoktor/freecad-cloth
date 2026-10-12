@@ -1,3 +1,4 @@
+# pyright: strict
 """Headless model used to assemble deterministic inputs for PositionBasedDynamics.
 
 This module deliberately contains no physics integration or collision solver.

@@ -1,3 +1,4 @@
+# pyright: strict
 """Evidence-only classification of canonical drape outcomes."""
 
 from __future__ import annotations

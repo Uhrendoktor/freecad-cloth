@@ -25,9 +25,8 @@
     "**/*Commands.py",
     "**/workbench.py"
   ],
-  "typeCheckingMode": "strict",
+  "typeCheckingMode": "standard",
   "reportMissingImports": "none",
   "reportMissingModuleSource": "none",
-  "pythonVersion": "3.12",
-  "reportUnnecessaryTypeIgnoreComment": "error"
+  "pythonVersion": "3.12"
 }

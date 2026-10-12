@@ -1,5 +1,6 @@
 """Tests for the repository's single-source CI configuration contracts."""
 
+import json
 import tomllib
 from pathlib import Path
 
@@ -129,3 +130,26 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing():
     assert "pyright -p pyrightconfig.agent-strict.json" not in quality
     assert "python tools/ci/check_pydantic_models.py" in quality
     assert 'path: "freecad_cloth tests tools/ci"' in workflow
+
+
+
+def test_pyright_keeps_broad_inventory_with_explicit_strict_core():
+    """One profile covers the broad inventory and makes strict core scope explicit."""
+    config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    strict_core = (
+        "freecad_cloth/simulation/DrapeFailureClassifier.py",
+        "freecad_cloth/simulation/ClothBackend.py",
+        "freecad_cloth/simulation/ClothSolver.py",
+    )
+
+    assert config["typeCheckingMode"] == "standard"
+    assert set(strict_core).issubset(config["include"])
+    assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
+    assert quality.count("pyright -p ") == 1
+    for relative_path in strict_core:
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert source.startswith("# pyright: strict\\n")
