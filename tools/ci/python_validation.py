@@ -112,6 +112,7 @@ GROUPS = {
         "tests/test_agent_observation_bundle.py",
         "tests/test_ci_configuration.py",
         "tests/test_explicit_any_annotations.py",
+        "tests/test_pydantic_models_policy.py",
         "tests/test_changed_python_types.py",
         "tests/test_garment_warning_contract.py",
         "tests/test_markdown_contract.py",
