@@ -187,6 +187,8 @@ replacements = {
     # depth extrema are dominated by hands in the near-T pose and can pull the stitched
     # panels through the body; the silhouette filter excludes those outliers.
     "hem_width = max(450.0, panel_width + 100.0)": "hem_width = max(500.0, panel_width + 100.0)",
+    "panel_width *= 1.10": "panel_width *= 1.25",
+    "hem_width *= 1.10": "hem_width *= 1.25",
     """    neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.62 * float(garment_height)
