@@ -1,9 +1,14 @@
 """Presentation helpers for the Sewing workbench."""
 
-from freecad_cloth.shared.seam_colors import (
-    apply_seam_colors as apply_seam_colors,
-    seam_color_map as seam_color_map,
-)
+from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
+
+__all__ = [
+    "apply_seam_colors",
+    "build_seam_visual_shape",
+    "pattern_pieces_for_2d",
+    "seam_color_map",
+    "seam_visual_markers",
+]
 
 
 def pattern_pieces_for_2d(objects):
