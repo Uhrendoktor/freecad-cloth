@@ -152,4 +152,4 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core():
     assert quality.count("pyright -p ") == 1
     for relative_path in strict_core:
         source = (ROOT / relative_path).read_text(encoding="utf-8")
-        assert source.startswith("# pyright: strict\\n")
+        assert source.splitlines()[0] == "# pyright: strict"
