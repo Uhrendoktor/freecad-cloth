@@ -82,14 +82,19 @@ def test_parse_errors_fail_closed() -> None:
 
 
 def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
-    """Require one strict Pyright config and all blocking static-analysis gates."""
+    """Require one Pyright config with focused strict modules and blocking gates."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     assert missing_typecheck_commands(workflow_text) == ()
     assert missing_python_policy_commands(workflow_text) == ()
     assert workflow_text.count("pyright -p pyrightconfig.json") == 1
     assert "pyrightconfig.agent-strict.json" not in workflow_text
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    assert config["typeCheckingMode"] == "strict"
+    assert config["typeCheckingMode"] == "standard"
+    assert config["strict"] == [
+        "freecad_cloth/simulation/DrapeFailureClassifier.py",
+        "freecad_cloth/simulation/ClothBackend.py",
+        "freecad_cloth/simulation/ClothSolver.py",
+    ]
     assert not PYRIGHT_CONFIG.with_name("pyrightconfig.agent-strict.json").exists()
 
 
