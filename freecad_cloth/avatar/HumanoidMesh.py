@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
 
+from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -87,7 +88,7 @@ class MeshData:
     """Public data model or service class for MeshData."""
 
     vertices: tuple[tuple[float, float, float], ...]
-    triangles: tuple[tuple[int, int, int], ...]
+    triangles: tuple[tuple[StrictInt, StrictInt, StrictInt], ...]
 
     def validate(self) -> Self:
         """Validate this value and raise ValueError when its state is invalid."""

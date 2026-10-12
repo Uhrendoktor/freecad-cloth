@@ -1,5 +1,10 @@
 """Presentation helpers for the Sewing workbench."""
 
+from freecad_cloth.shared.seam_colors import (
+    apply_seam_colors as apply_seam_colors,
+    seam_color_map as seam_color_map,
+)
+
 
 def pattern_pieces_for_2d(objects):
     """Return pattern pieces participating in the sewing 2D focus.

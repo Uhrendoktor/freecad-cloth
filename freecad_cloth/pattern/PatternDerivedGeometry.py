@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 from math import atan2, cos, hypot, isfinite
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import Polygon
 
@@ -67,7 +68,7 @@ class OffsetEdge:
     points: tuple[Point, ...]
 
 
-@pydantic_dataclass(frozen=True)
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class DerivedPattern:
     """Public data model or service class for DerivedPattern."""
 
