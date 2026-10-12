@@ -179,7 +179,9 @@ def main() -> int:
         *tests,
     ]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
-    subprocess.run(command, check=True, timeout=300, env=env)
+    # Anny-backed geometry tests perform several CPU differentiable body fits.
+    # Keep the subprocess bounded while allowing the full core inventory to finish.
+    subprocess.run(command, check=True, timeout=600, env=env)
     print(f"python-validation={args.group} passed", flush=True)
     return 0
 

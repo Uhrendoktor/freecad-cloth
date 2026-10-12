@@ -133,17 +133,18 @@ def _shape_change_summary(
     )
     bust_baseline = before if breast_reference is None else breast_reference
 
-    # clad-body normalizes Anny output to Z-up; evaluate the two breast lobes
-    # separately so sternum/cleavage movement cannot dominate the measurement.
+    # clad-body normalizes Anny output to Z-up. The anatomical anterior is at
+        # negative Y, so measure forward projection as -Y for each breast lobe.
+    # Evaluate both lobes separately so sternum movement cannot dominate.
     # The center exclusion removes the sternum; the outer limit excludes arms.
     def front_lobe(
         points: tuple[tuple[float, float, float], ...], side: float
     ) -> tuple[float, ...]:
         return tuple(
-            point[1]
+            -point[1]
             for point in points
             if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
-            and point[1] > 0.0
+            and point[1] < 0.0
             and 25.0 <= side * point[0] <= 155.0
         )
 

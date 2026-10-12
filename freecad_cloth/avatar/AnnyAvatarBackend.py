@@ -581,8 +581,8 @@ def _fitted_body_for(
 def build_avatar_rig_vertices(
     parameters: AvatarParameters,
 ) -> tuple[tuple[float, float, float], ...]:
-    """Return cached Anny rig vertices captured before the visible hip-only fit."""
-    _mesh, rig_vertices = _fitted_body_for(parameters)
+    """Return cached hip-neutral Anny vertices for stable skeleton anchor mapping."""
+    _mesh, rig_vertices = _fitted_body_for(parameters, fit_hip=False)
     return rig_vertices
 
 
