@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tools.ci import check_pydantic_models
 from tools.ci.check_pydantic_models import (
     repository_violations,
@@ -38,7 +40,7 @@ def test_pydantic_dataclass_is_accepted() -> None:
 
 
 def test_freecad_exception_requires_a_serialization_incompatibility_reason(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Do not let generic convenience/performance notes bypass Pydantic."""
     path = "freecad_cloth/example.py"

@@ -132,7 +132,7 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing():
     assert 'path: "freecad_cloth tests tools/ci"' in workflow
 
 
-def test_pyright_keeps_broad_inventory_with_explicit_strict_core():
+def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     """One profile covers the broad inventory and makes strict core scope explicit."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
