@@ -362,12 +362,8 @@ def _seam_correspondence(
         raise ValueError(f"unsupported sewing alignment: {alignment}")
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
-    a_points = _edge_samples(
-        piece_a, edge_a, float(seam.StartA), float(seam.EndA), count
-    )
-    b_points = _edge_samples(
-        piece_b, edge_b, float(seam.StartB), float(seam.EndB), count
-    )
+    a_points = _edge_samples(piece_a, edge_a, float(seam.StartA), float(seam.EndA), count)
+    b_points = _edge_samples(piece_b, edge_b, float(seam.StartB), float(seam.EndB), count)
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
     return list(zip(a_points, b_points, strict=False))

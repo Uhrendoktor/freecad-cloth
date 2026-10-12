@@ -237,9 +237,7 @@ def arc_length_vertex_indices(
 
         right = bisect.bisect_left(cumulative, target)
         candidates = [
-            index
-            for index in (right - 1, right, right + 1)
-            if lower_bound <= index <= upper_bound
+            index for index in (right - 1, right, right + 1) if lower_bound <= index <= upper_bound
         ]
 
         if candidates:

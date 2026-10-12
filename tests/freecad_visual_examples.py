@@ -298,7 +298,9 @@ def main():
     try:
         blanket_width = 200.0
         blanket_height = 200.0
-        sketch, _outline = make_rectangle_sketch(doc, "BlanketSketch", blanket_width, blanket_height)
+        sketch, _outline = make_rectangle_sketch(
+            doc, "BlanketSketch", blanket_width, blanket_height
+        )
         piece = adopt_sketch(doc, sketch)
         placement = App.Placement(
             App.Vector(-blanket_width / 2.0, -blanket_height / 2.0, 90.0),
@@ -465,11 +467,10 @@ def main():
             start_step=1,
             final_steps=120,
         )
-        if (
-            best_drape is None
-            or (progress_drape is not None
+        if best_drape is None or (
+            progress_drape is not None
             and progress_step is not None
-            and progress_step < best_drape_step)
+            and progress_step < best_drape_step
         ):
             best_drape = progress_drape
             best_drape_clearance = progress_clearance

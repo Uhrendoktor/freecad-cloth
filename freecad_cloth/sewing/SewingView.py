@@ -1,7 +1,6 @@
 """Presentation helpers for the Sewing workbench."""
 
 
-
 def pattern_pieces_for_2d(objects):
     """Return pattern pieces participating in the sewing 2D focus.
 
