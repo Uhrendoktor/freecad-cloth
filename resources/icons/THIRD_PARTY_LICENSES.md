@@ -1,13 +1,34 @@
 ## Tabler Icons
 
-The reusable generic toolbar glyphs retained in the Cloth workbench include artwork sourced from Tabler Icons, an open-source icon set by Paweł Kuna. Their source and license are listed below.
+The following SVGs retain icon path data from the Tabler Icons outline set by Paweł Kuna. Their filenames are adapted to Cloth workbench commands; the underlying glyph artwork is from Tabler Icons.
 
-Source: https://github.com/tabler/tabler-icons
+Source: https://github.com/tabler/tabler-icons/tree/main/icons/outline
 License: MIT
 
-## Project-specific icons
-
-Command-specific icons for sewing repair, geometry diagnostics, topology repair, avatar fitting and arrangement are original SVG artwork created for this project. They were drawn to use FreeCAD's current-color icon convention and do not introduce additional third-party icon dependencies.
+| Cloth icon | Upstream Tabler icon |
+| --- | --- |
+| `ClothDrape_CreateTarget.svg` | `target.svg` |
+| `ClothDrape_DisableTarget.svg` | `eye-off.svg` |
+| `ClothDrape_EnableTarget.svg` | `eye.svg` |
+| `ClothFitting_CreateBoundingVolume.svg` | `box.svg` |
+| `ClothFitting_SetAvatarProvider.svg` | `database.svg` |
+| `ClothFitting_SetMeasurements.svg` | `ruler-measure.svg` |
+| `ClothFitting_SetSymmetry.svg` | `arrows-left-right.svg` |
+| `ClothPattern_AddGrainline.svg` | `align-center.svg` |
+| `ClothPattern_AddSeam.svg` | `needle-thread.svg` |
+| `ClothPattern_CreateDrafting.svg` | `geometry.svg` |
+| `ClothPattern_CreateMesh.svg` | `polygon.svg` |
+| `ClothPattern_CreatePiece.svg` | `file-plus.svg` |
+| `ClothPattern_EditPiece.svg` | `edit.svg` |
+| `ClothPattern_EditSketch.svg` | `vector.svg` |
+| `ClothPattern_Show2D.svg` | `layout-2.svg` |
+| `ClothSewingNetwork_CreateNetwork.svg` | `git-merge.svg` |
+| `ClothSewing_ReverseSeam.svg` | `arrows-exchange.svg` |
+| `ClothSewing_Validate.svg` | `checklist.svg` |
+| `ClothSimulation_Create.svg` | `atom-2.svg` |
+| `ClothSimulation_Reset.svg` | `refresh.svg` |
+| `ClothSimulation_Run.svg` | `player-play.svg` |
+| `ClothSimulation_Step.svg` | `player-skip-forward.svg` |
 
 MIT License
 
@@ -30,3 +51,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Original project icons
+
+The other SVGs in this directory are original, project-specific artwork for the Cloth workbench. They use FreeCAD's current-color icon convention and are not covered by the Tabler notice above.
