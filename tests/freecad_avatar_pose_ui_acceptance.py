@@ -97,6 +97,7 @@ def _runtime_diagnostics():
         info["runtime_error"] = repr(exc)
     return info
 
+
 def _events():
     try:
         from PySide import QtWidgets
