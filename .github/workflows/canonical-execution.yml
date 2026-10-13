@@ -97,60 +97,25 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          set +e
-          git -c rerere.enabled=true rebase origin/main
-          rebase_rc=$?
-          set -e
-          while [ "$rebase_rc" -ne 0 ]; do
-            conflict_paths="$(git diff --name-only --diff-filter=U)"
-            if [ "$conflict_paths" != "pyrightconfig.json" ]; then
-              echo "::error::Rebase conflict in PR #${PR_NUMBER}; unresolved paths are not the known Pyright coverage conflict."
-              git status --short
-              printf '%s\n' "$conflict_paths"
-              exit 1
-            fi
-            echo "Resolving pyrightconfig.json by preserving current main and adding Anny backend coverage."
-            python - <<'PY'
-          import json
-          import subprocess
-          from pathlib import Path
-
-          current_main = subprocess.run(
-              ["git", "show", "origin/main:pyrightconfig.json"],
-              check=True,
-              capture_output=True,
-              text=True,
-          ).stdout
-          config = json.loads(current_main)
-          includes = config.setdefault("include", [])
-          target = "freecad_cloth/avatar/AnnyAvatarBackend.py"
-          if target not in includes:
-              includes.append(target)
-          Path("pyrightconfig.json").write_text(
-              json.dumps(config, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          PY
-            git add pyrightconfig.json
-            set +e
-            GIT_EDITOR=true git -c rerere.enabled=true rebase --continue
-            rebase_rc=$?
-            set -e
-          done
+          if ! git -c rerere.enabled=true rebase -X ours origin/main; then
+            echo "::error::Rebase has conflicts beyond automatic main-side resolution."
+            git status --short
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          # Preserve current main's full Pyright config and add the Anny backend path.
+          python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"]=list(dict.fromkeys([*d["include"],x]));p.write_text(json.dumps(d,indent=2)+"\n")'
+          git add pyrightconfig.json
+          if ! git diff --cached --quiet; then git commit -m "ci: include Anny backend in Pyright coverage"; fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
-          git log -5 --oneline --decorate
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
 
           # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
           gh workflow run canonical-execution.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted
           for attempt in $(seq 1 30); do
-            echo "validation-dispatch-wait=${attempt}/30"
-            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url --jq '.[] | select(.headSha == "'"${REBASED_HEAD}"'")' || true)"
-            if [ -n "$RUN_JSON" ]; then
-              echo "$RUN_JSON"
-              exit 0
-            fi
+            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "${REBASED_HEAD}" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [ -n "$RUN_JSON" ]; then echo "$RUN_JSON"; exit 0; fi
             sleep 2
           done
           echo "::error::Dispatched validation but could not find its run for ${REBASED_HEAD}"
