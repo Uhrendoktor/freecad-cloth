@@ -48,6 +48,7 @@ permissions:
 jobs:
   # Explicitly activated on main; ordinary pushes and PR checks leave this job skipped.
   # The activation commit's first title line identifies the target PR; its branch head is read live at run time.
+  # Explicit one-shot activation to finish the requested PR 2711 rebase.
   guarded-rebase-pr:
     name: Rebase a PR named in an explicit activation commit
     if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}"
