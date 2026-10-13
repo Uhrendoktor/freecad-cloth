@@ -202,6 +202,10 @@ def _fit_anny_body(
         for name, value in initial_parameters.items()
         if isinstance(value, (int, float))
     }
+    # Fit circumference morphs against the neutral bust before applying the
+    # independent cupsize phenotype. Otherwise the optimizer can absorb the
+    # visible cupsize change while trying to match the same circumference targets.
+    phenotype_values["cupsize"] = 0.0
 
     # Use Anny's compatibility factory, also used by clad-body's loader.
     # "makehuman" disables Anny's nudity edits; retaining unattached vertices
@@ -339,10 +343,7 @@ def _fit_anny_body(
         if target[0] != "hip" and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
     )
     local_targets = tuple(
-        target
-        for target in targets
-        if target[0] not in {"height", "inseam"}
-        and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
+        target for target in targets if target[0] not in {"height", "inseam"}
     )
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
@@ -498,6 +499,11 @@ def _fit_anny_body(
         raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
     if body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not preserve the fitted morph tensors.")
+    cupsize_control = body.phenotype_kwargs.get("cupsize")
+    if cupsize_control is None:
+        raise AnnyAvatarBackendError("Anny did not expose its independent cupsize phenotype.")
+    with torch.no_grad():
+        cupsize_control.fill_(float(breast_size))
     first_parameter = next(iter(body.phenotype_kwargs.values()))
     pose = build_anny_apose(model, first_parameter.device)
     rig_vertices: tuple[tuple[float, float, float], ...] | None = None
