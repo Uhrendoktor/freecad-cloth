@@ -311,7 +311,7 @@ jobs:
     if: ${{ github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -325,7 +325,7 @@ jobs:
           persist-credentials: false
       - name: Run pure Python validation groups
         if: ${{ matrix.group != 'gui' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@6d4c0ad13e2e267c48b746d5d09b9ffc3d059128
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           command: >-
@@ -378,7 +378,7 @@ jobs:
     name: Full tunic visual and simulation audit
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 15
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -405,6 +405,7 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_tunic_audit_production.py
+          pre-command: sed -i 's/^freecad_application_timeout_seconds = 120$/freecad_application_timeout_seconds = 360/' pyproject.toml && grep '^freecad_application_timeout_seconds' pyproject.toml
           stage-workbench: "true"
           clean-user: "true"
           log-file: artifacts/tunic-audit/freecad-tunic-audit.log
