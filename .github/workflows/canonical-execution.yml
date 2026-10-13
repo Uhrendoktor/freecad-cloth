@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PR_NUMBER="$(printf '%s' "$ACTIVATION_TITLE" | sed -n 's/^RUN REBASE: PR #\([0-9][0-9]*\)$/\1/p')"
+          PR_NUMBER="$(printf '%s\n' "$ACTIVATION_TITLE" | head -n 1 | sed -n 's/^RUN REBASE: PR #\([0-9][0-9]*\)$/\1/p')"
           if [ -z "$PR_NUMBER" ]; then
             echo "::error::Invalid rebase activation commit title."
             exit 1
