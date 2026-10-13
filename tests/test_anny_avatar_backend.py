@@ -29,9 +29,9 @@ def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
     assert masculine["_local_changes"]["breast-volume-vert-up"] == 0.0
 
 
-def test_breast_shape_controls_do_not_get_fitted_away_by_bust_measurements() -> None:
-    # Bust and underbust remain user measurements, but fitting them as fixed
-    # constraints can counteract the independently exposed Anny cupsize shape.
+def test_bust_measurements_are_separated_from_global_phenotype_fit() -> None:
+    # Fit chest and underbust through local circumference morphs at neutral
+    # cupsize, then restore cupsize so the two independent controls do not cancel.
     assert frozenset({"chest", "underbust"}) == _BREAST_SHAPE_MEASUREMENT_FIELDS
 
 
