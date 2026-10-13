@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 from collections import defaultdict
+from contextlib import suppress
 from itertools import product
 from pathlib import Path
 
