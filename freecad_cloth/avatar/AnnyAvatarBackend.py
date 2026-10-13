@@ -267,27 +267,27 @@ def _fit_anny_body(
             pose_parameterization="local-bone",
             return_bone_ends=True,
         )
+    height_m = float(values["height"]) / 1000.0
+
+    def _front_y_mm(vertex_tensor):
+        points = vertex_tensor[0].detach()
+        result = {}
+        for side, label in ((-1.0, "left"), (1.0, "right")):
+            mask = (
+                (points[:, 2] >= 0.64 * height_m)
+                & (points[:, 2] <= 0.73 * height_m)
+                & (points[:, 1] < 0.0)
+                & (side * points[:, 0] >= 0.025)
+                & (side * points[:, 0] <= 0.155)
+            )
+            result[label] = (
+                float(points[mask, 1].min().item() * 1000.0)
+                if bool(mask.any())
+                else None
+            )
+        return result
+
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
-        height_m = float(values["height"]) / 1000.0
-
-        def _front_y_mm(vertex_tensor):
-            points = vertex_tensor[0].detach()
-            result = {}
-            for side, label in ((-1.0, "left"), (1.0, "right")):
-                mask = (
-                    (points[:, 2] >= 0.64 * height_m)
-                    & (points[:, 2] <= 0.73 * height_m)
-                    & (points[:, 1] < 0.0)
-                    & (side * points[:, 0] >= 0.025)
-                    & (side * points[:, 0] <= 0.155)
-                )
-                result[label] = (
-                    float(points[mask, 1].min().item() * 1000.0)
-                    if bool(mask.any())
-                    else None
-                )
-            return result
-
         raw_front_y = _front_y_mm(initial_output["vertices"])
         print(
             "anny-shape-trace stage=pre-fit gender=%s cupsize=%s front_lobe_y_mm=%r"
