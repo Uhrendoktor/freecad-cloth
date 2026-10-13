@@ -153,9 +153,7 @@ def _shape_change_summary(
         before_lobe = front_lobe(bust_baseline, side)
         after_lobe = front_lobe(after, side)
         if not before_lobe or not after_lobe:
-            raise RuntimeError(
-                f"no front-facing {name} breast vertices available for shape review"
-            )
+            raise RuntimeError(f"no front-facing {name} breast vertices available for shape review")
         side_deltas[name] = max(after_lobe) - max(before_lobe)
     return {
         "changed_vertices": len(changed_positions),
