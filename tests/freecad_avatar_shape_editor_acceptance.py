@@ -154,7 +154,7 @@ def _shape_change_summary(
         after_lobe = front_lobe(after, side)
         if not before_lobe or not after_lobe:
             raise RuntimeError(
-                "no front-facing {} breast vertices available for shape review".format(name)
+                f"no front-facing {name} breast vertices available for shape review"
             )
         side_deltas[name] = max(after_lobe) - max(before_lobe)
     return {
@@ -344,9 +344,7 @@ def run():
             updated_facets = len(avatar.Mesh.Facets)
             if updated_facets != original_facets:
                 raise RuntimeError(
-                    "avatar shape rebuild changed facet count: {} -> {}".format(
-                        original_facets, updated_facets
-                    )
+                    f"avatar shape rebuild changed facet count: {original_facets} -> {updated_facets}"
                 )
             from dataclasses import replace as replace_parameters
 
