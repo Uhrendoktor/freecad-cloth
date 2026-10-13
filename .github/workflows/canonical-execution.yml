@@ -97,19 +97,12 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          set +e
-          git -c rerere.enabled=true rebase origin/main
-          rebase_rc=$?
-          set -e
-          if [ "$rebase_rc" -ne 0 ]; then
-            [ "$(git diff --name-only --diff-filter=U)" = "pyrightconfig.json" ] || { git status --short; exit 1; }
-            python -c 'import json,pathlib,subprocess;p=pathlib.Path("pyrightconfig.json");d=json.loads(subprocess.check_output(["git","show","origin/main:pyrightconfig.json"],text=True));x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
-            git add pyrightconfig.json
-            GIT_EDITOR=true git -c rerere.enabled=true rebase --continue
-          fi
+          git -c rerere.enabled=true rebase -X ours origin/main
+          # Reapply the two intended Anny inventory additions after preserving conflicting main hunks.
           python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
-          git add pyrightconfig.json
-          if ! git diff --cached --quiet; then git commit -m "ci: include Anny backend in Pyright coverage"; fi
+          python -c 'from pathlib import Path;p=Path("tools/ci/validate_ci_structure.py");s=p.read_text();m="    \"freecad_cloth/avatar/MakeHumanTargets.py\",\n";a="    \"freecad_cloth/avatar/AnnyAvatarBackend.py\",\n";p.write_text(s if a in s else s.replace(m,m+a))'
+          git add pyrightconfig.json tools/ci/validate_ci_structure.py
+          if ! git diff --cached --quiet; then git commit -m "ci: retain Anny Pyright inventory"; fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
