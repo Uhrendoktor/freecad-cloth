@@ -1,8 +1,8 @@
 """Contracts for the library-backed avatar body model."""
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (
-    MEASUREMENT_FIELDS,
     _BREAST_SHAPE_MEASUREMENT_FIELDS,
+    MEASUREMENT_FIELDS,
     _adapt_clad_body_pose_alias,
     _initial_phenotypes,
     _measurement_local_change_labels,
@@ -32,7 +32,7 @@ def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
 def test_breast_shape_controls_do_not_get_fitted_away_by_bust_measurements() -> None:
     # Bust and underbust remain user measurements, but fitting them as fixed
     # constraints can counteract the independently exposed Anny cupsize shape.
-    assert _BREAST_SHAPE_MEASUREMENT_FIELDS == frozenset({"chest", "underbust"})
+    assert frozenset({"chest", "underbust"}) == _BREAST_SHAPE_MEASUREMENT_FIELDS
 
 
 def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None:
