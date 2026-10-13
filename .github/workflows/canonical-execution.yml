@@ -113,7 +113,7 @@ jobs:
 
           # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
           gh workflow run canonical-execution.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "${REBASED_HEAD}" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
             if [ -n "$RUN_JSON" ]; then echo "$RUN_JSON"; exit 0; fi
             sleep 2
