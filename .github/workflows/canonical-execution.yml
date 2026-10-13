@@ -97,14 +97,17 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          if ! git -c rerere.enabled=true rebase -X ours origin/main; then
-            echo "::error::Rebase has conflicts beyond automatic main-side resolution."
-            git status --short
-            git diff --name-only --diff-filter=U
-            exit 1
+          set +e
+          git -c rerere.enabled=true rebase origin/main
+          rebase_rc=$?
+          set -e
+          if [ "$rebase_rc" -ne 0 ]; then
+            [ "$(git diff --name-only --diff-filter=U)" = "pyrightconfig.json" ] || { git status --short; exit 1; }
+            python -c 'import json,pathlib,subprocess;p=pathlib.Path("pyrightconfig.json");d=json.loads(subprocess.check_output(["git","show","origin/main:pyrightconfig.json"],text=True));x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
+            git add pyrightconfig.json
+            GIT_EDITOR=true git -c rerere.enabled=true rebase --continue
           fi
-          # Preserve current main's full Pyright config and add the Anny backend path.
-          python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"]=list(dict.fromkeys([*d["include"],x]));p.write_text(json.dumps(d,indent=2)+"\n")'
+          python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
           git add pyrightconfig.json
           if ! git diff --cached --quiet; then git commit -m "ci: include Anny backend in Pyright coverage"; fi
           git merge-base --is-ancestor origin/main HEAD
