@@ -97,26 +97,28 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          if ! git -c rerere.enabled=true rebase origin/main; then
-            echo "::error::Rebase conflict in PR #${PR_NUMBER}; inspect the unmerged paths before continuing."
-            git status --short
-            git diff --name-only --diff-filter=U
-            exit 1
+          set +e
+          git -c rerere.enabled=true rebase origin/main
+          rebase_rc=$?
+          set -e
+          if [ "$rebase_rc" -ne 0 ]; then
+            [ "$(git diff --name-only --diff-filter=U)" = "pyrightconfig.json" ] || { git status --short; exit 1; }
+            python -c 'import json,pathlib,subprocess;p=pathlib.Path("pyrightconfig.json");d=json.loads(subprocess.check_output(["git","show","origin/main:pyrightconfig.json"],text=True));x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
+            git add pyrightconfig.json
+            GIT_EDITOR=true git -c rerere.enabled=true rebase --continue
           fi
+          python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
+          git add pyrightconfig.json
+          if ! git diff --cached --quiet; then git commit -m "ci: include Anny backend in Pyright coverage"; fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
-          git log -5 --oneline --decorate
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
 
           # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
           gh workflow run canonical-execution.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted
-          for attempt in $(seq 1 30); do
-            echo "validation-dispatch-wait=${attempt}/30"
-            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url --jq '.[] | select(.headSha == "'"${REBASED_HEAD}"'")' || true)"
-            if [ -n "$RUN_JSON" ]; then
-              echo "$RUN_JSON"
-              exit 0
-            fi
+          for _ in $(seq 1 30); do
+            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "${REBASED_HEAD}" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [ -n "$RUN_JSON" ]; then echo "$RUN_JSON"; exit 0; fi
             sleep 2
           done
           echo "::error::Dispatched validation but could not find its run for ${REBASED_HEAD}"
