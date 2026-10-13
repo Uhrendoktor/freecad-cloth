@@ -169,7 +169,7 @@ def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | 
         "caucasian": 1.0 / 3.0,
         # Breast size is an Anny phenotype, not a vertical-position morph.
         # Keep the independent breast-volume-position target at its neutral value.
-        "_local_changes": {name: 0.0 for name in _measurement_local_change_labels()},
+        "_local_changes": dict.fromkeys(_measurement_local_change_labels(), 0.0),
     }
 
 
@@ -528,7 +528,7 @@ def _fit_anny_body(
         hip_parameters = [
             value for name, value in body.local_changes_kwargs.items() if name in hip_change_names
         ]
-        hip_name, hip_key, hip_target = hip_targets[0]
+        _hip_name, hip_key, hip_target = hip_targets[0]
         hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
         hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)
         for _step in range(_FIT_STEPS):
