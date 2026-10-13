@@ -97,7 +97,8 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          git -c rerere.enabled=true rebase -X ours origin/main
+          git -c rerere.enabled=true rebase -X ours --exec 'git checkout origin/main -- .github/workflows/canonical-execution.yml && if ! git diff --cached --quiet; then git commit --amend --allow-empty --no-edit; fi' origin/main
+          git diff --exit-code origin/main -- .github/workflows/canonical-execution.yml
           # Reapply the two intended Anny inventory additions after preserving conflicting main hunks.
           python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
           python -c 'from pathlib import Path;p=Path("tools/ci/validate_ci_structure.py");s=p.read_text();m="    \"freecad_cloth/avatar/MakeHumanTargets.py\",\n";a="    \"freecad_cloth/avatar/AnnyAvatarBackend.py\",\n";p.write_text(s if a in s else s.replace(m,m+a))'
