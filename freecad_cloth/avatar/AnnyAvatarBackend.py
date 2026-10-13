@@ -274,7 +274,7 @@ def _fit_anny_body(
         )
     height_m = float(values["height"]) / 1000.0
 
-    def _front_y_mm(vertex_tensor):
+    def _front_y_mm(vertex_tensor: torch.Tensor) -> dict[str, float | None]:
         points = vertex_tensor[0].detach()
         result = {}
         for side, label in ((-1.0, "left"), (1.0, "right")):
@@ -290,7 +290,7 @@ def _fit_anny_body(
             )
         return result
 
-    def _write_shape_trace(stage, payload):
+    def _write_shape_trace(stage: str, payload: dict[str, object]) -> None:
         if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") != "1":
             return
         trace_path = Path("artifacts") / "anny-shape-trace.log"
