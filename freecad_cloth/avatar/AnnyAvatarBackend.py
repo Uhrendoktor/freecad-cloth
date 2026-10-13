@@ -342,9 +342,7 @@ def _fit_anny_body(
         for target in targets
         if target[0] != "hip" and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
     )
-    local_targets = tuple(
-        target for target in targets if target[0] not in {"height", "inseam"}
-    )
+    local_targets = tuple(target for target in targets if target[0] not in {"height", "inseam"})
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
     global_phenotype_names = {"height", "weight", "muscle", "proportions"}
