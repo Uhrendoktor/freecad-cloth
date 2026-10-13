@@ -184,6 +184,23 @@ def main() -> int:
             f"realtime-benchmark=failed reason=unreadable-metrics error={exc}"
         ) from exc
 
+    if isinstance(payload, dict) and _integer(payload.get("schema")) == 2:
+        from tools.ci.validate_workbench_benchmark import validate_payload
+
+        workbench_errors = validate_payload(payload)
+        if workbench_errors:
+            for error in workbench_errors:
+                print(f"workbench-benchmark=failed reason={error}", flush=True)
+            return 1
+        data = cast(dict[str, object], payload)
+        workbenches = cast(dict[str, object], data["workbenches"])
+        name = next(iter(workbenches))
+        repeats = _integer(data.get("repeats"))
+        if repeats is None:
+            return 1
+        print(f"workbench-benchmark=passed workbench={name} repeats={repeats}", flush=True)
+        return 0
+
     errors = validate_metrics(payload)
     if errors:
         for error in errors:

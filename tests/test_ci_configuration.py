@@ -150,3 +150,63 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
     assert quality.count("pyright -p ") == 1
     assert config["strict"] == list(strict_core)
+
+def _valid_workbench_benchmark_payload(workbench: str) -> dict[str, object]:
+    return {
+        "schema": 2,
+        "python": "3.12.0",
+        "freecad_version": ["1", "1", "0", "Git"],
+        "repeats": 7,
+        "workbenches": {
+            workbench: {
+                "python_files": 12,
+                "nonblank_loc": 900,
+                "related_test_files": 2,
+                "related_tests": ["test_pattern.py", "test_export.py"],
+                "cloth_command_tokens": 14,
+                "class_lookup_ms": 0.01,
+                "construct_ms": 0.08,
+                "initialize_ms": 1.2,
+                "initialize_samples": 7,
+                "registered_commands": 20,
+            }
+        },
+    }
+
+
+def test_workbench_benchmark_validator_accepts_each_matrix_schema() -> None:
+    from tools.ci.validate_workbench_benchmark import validate_payload
+
+    for workbench in ("Pattern", "Sewing", "Simulation"):
+        assert validate_payload(
+            _valid_workbench_benchmark_payload(workbench),
+            expected_workbench=workbench,
+        ) == []
+
+
+def test_workbench_benchmark_validator_rejects_nonfinite_and_inconsistent_metrics() -> None:
+    from tools.ci.validate_workbench_benchmark import validate_payload
+
+    payload = _valid_workbench_benchmark_payload("Pattern")
+    workbenches = payload["workbenches"]
+    assert isinstance(workbenches, dict)
+    metrics = workbenches["Pattern"]
+    assert isinstance(metrics, dict)
+    metrics["initialize_ms"] = float("nan")
+    metrics["initialize_samples"] = 6
+
+    errors = validate_payload(payload, expected_workbench="Pattern")
+
+    assert "workbenches.Pattern.initialize_ms must be a finite non-negative number" in errors
+    assert "workbenches.Pattern.initialize_samples must equal repeats" in errors
+
+
+def test_realtime_validator_dispatches_schema_two_workbench_artifacts() -> None:
+    source = (
+        ROOT / "tools" / "ci" / "validate_realtime_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'if isinstance(payload, dict) and _integer(payload.get("schema")) == 2:' in source
+    assert "from tools.ci.validate_workbench_benchmark import validate_payload" in source
+    assert "workbench-benchmark=passed" in source
+
