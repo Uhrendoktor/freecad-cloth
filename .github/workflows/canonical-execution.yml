@@ -127,7 +127,7 @@ jobs:
           if target not in includes:
               includes.append(target)
           Path("pyrightconfig.json").write_text(
-              json.dumps(config, indent=2) + "\\n",
+              json.dumps(config, indent=2) + "\n",
               encoding="utf-8",
           )
           PY
