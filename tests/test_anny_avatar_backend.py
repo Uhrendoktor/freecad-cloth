@@ -2,6 +2,7 @@
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (
     MEASUREMENT_FIELDS,
+    _BREAST_SHAPE_MEASUREMENT_FIELDS,
     _adapt_clad_body_pose_alias,
     _initial_phenotypes,
     _measurement_local_change_labels,
@@ -26,6 +27,12 @@ def test_cloth_gender_slider_is_translated_to_anny_convention() -> None:
     assert masculine["cupsize"] == 0.75
     assert feminine["_local_changes"]["breast-volume-vert-up"] == 0.0
     assert masculine["_local_changes"]["breast-volume-vert-up"] == 0.0
+
+
+def test_breast_shape_controls_do_not_get_fitted_away_by_bust_measurements() -> None:
+    # Bust and underbust remain user measurements, but fitting them as fixed
+    # constraints can counteract the independently exposed Anny cupsize shape.
+    assert _BREAST_SHAPE_MEASUREMENT_FIELDS == frozenset({"chest", "underbust"})
 
 
 def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None:

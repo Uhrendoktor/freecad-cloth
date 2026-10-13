@@ -53,6 +53,11 @@ _LOCAL_CHANGE_TERMS = (
     "torso-scale-horiz",
 )
 _BREAST_LOCAL_CHANGE = "breast-volume-vert-up"
+# Cupsize and circumference are separate Cloth controls. Fitting bust and
+# underbust back to the same target values can cancel or reverse the visible
+# cupsize phenotype, so keep those measurements as user data, not shape-fit loss
+# terms.
+_BREAST_SHAPE_MEASUREMENT_FIELDS = frozenset({"chest", "underbust"})
 _FIT_STEPS = max(1, int(os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS", "40")))
 _FIT_TOLERANCE = 0.012
 
@@ -287,8 +292,27 @@ def _fit_anny_body(
             )
         return result
 
+    def _write_shape_trace(stage, payload):
+        if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") != "1":
+            return
+        trace_path = Path("artifacts") / "anny-shape-trace.log"
+        try:
+            trace_path.parent.mkdir(parents=True, exist_ok=True)
+            with trace_path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"stage": stage, **payload}, sort_keys=True) + "\n")
+        except OSError as exc:
+            print("anny-shape-trace-write-failed %r" % (exc,), flush=True)
+
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
         raw_front_y = _front_y_mm(initial_output["vertices"])
+        _write_shape_trace(
+            "pre-fit",
+            {
+                "gender": phenotype_values["gender"],
+                "cupsize": phenotype_values["cupsize"],
+                "front_lobe_y_mm": raw_front_y,
+            },
+        )
         print(
             "anny-shape-trace stage=pre-fit gender=%s cupsize=%s front_lobe_y_mm=%r"
             % (phenotype_values["gender"], phenotype_values["cupsize"], raw_front_y),
@@ -311,8 +335,17 @@ def _fit_anny_body(
     )
     # Keep global shape fitting independent of hip-only edits while retaining
     # the other measurements that define the whole-body silhouette.
-    global_targets = tuple(target for target in targets if target[0] != "hip")
-    local_targets = tuple(target for target in targets if target[0] not in {"height", "inseam"})
+    global_targets = tuple(
+        target
+        for target in targets
+        if target[0] != "hip" and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
+    )
+    local_targets = tuple(
+        target
+        for target in targets
+        if target[0] not in {"height", "inseam"}
+        and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
+    )
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
     global_phenotype_names = {"height", "weight", "muscle", "proportions"}
@@ -375,6 +408,29 @@ def _fit_anny_body(
         with torch.no_grad():
             for name in global_phenotype_names:
                 body.phenotype_kwargs[name].clamp_(0.0, 1.0)
+
+    if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
+        with torch.no_grad():
+            global_output = body.model(
+                pose_parameters=pose,
+                phenotype_kwargs=body.phenotype_kwargs,
+                local_changes_kwargs=body.local_changes_kwargs,
+                pose_parameterization="local-bone",
+                return_bone_ends=True,
+            )
+        _write_shape_trace(
+            "post-global-fit",
+            {
+                "gender": float(body.phenotype_kwargs["gender"].detach().item()),
+                "cupsize": float(body.phenotype_kwargs["cupsize"].detach().item()),
+                "front_lobe_y_mm": _front_y_mm(global_output["vertices"]),
+                "bust_morphs": {
+                    name: float(value.detach().reshape(-1)[0].item())
+                    for name, value in body.local_changes_kwargs.items()
+                    if "bust" in name or "underbust" in name
+                },
+            },
+        )
 
     # Freeze global phenotypes and fit the local measurement morphs separately.
     # This keeps local circumference requests from being "solved" by changing
@@ -523,6 +579,15 @@ def _fit_anny_body(
             for name, value in body.local_changes_kwargs.items()
             if "bust" in name or "underbust" in name
         }
+        _write_shape_trace(
+            "post-local-fit",
+            {
+                "gender": float(body.phenotype_kwargs["gender"].detach().item()),
+                "cupsize": float(body.phenotype_kwargs["cupsize"].detach().item()),
+                "front_lobe_y_mm": fitted_front_y,
+                "bust_morphs": bust_fit,
+            },
+        )
         print(
             "anny-shape-trace stage=post-fit gender=%s cupsize=%s front_lobe_y_mm=%r bust_morphs=%r"
             % (
