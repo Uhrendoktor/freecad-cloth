@@ -97,12 +97,46 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          if ! git -c rerere.enabled=true rebase origin/main; then
-            echo "::error::Rebase conflict in PR #${PR_NUMBER}; inspect the unmerged paths before continuing."
-            git status --short
-            git diff --name-only --diff-filter=U
-            exit 1
-          fi
+          set +e
+          git -c rerere.enabled=true rebase origin/main
+          rebase_rc=$?
+          set -e
+          while [ "$rebase_rc" -ne 0 ]; do
+            conflict_paths="$(git diff --name-only --diff-filter=U)"
+            if [ "$conflict_paths" != "pyrightconfig.json" ]; then
+              echo "::error::Rebase conflict in PR #${PR_NUMBER}; unresolved paths are not the known Pyright coverage conflict."
+              git status --short
+              printf '%s\n' "$conflict_paths"
+              exit 1
+            fi
+            echo "Resolving pyrightconfig.json by preserving current main and adding Anny backend coverage."
+            python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          current_main = subprocess.run(
+              ["git", "show", "origin/main:pyrightconfig.json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout
+          config = json.loads(current_main)
+          includes = config.setdefault("include", [])
+          target = "freecad_cloth/avatar/AnnyAvatarBackend.py"
+          if target not in includes:
+              includes.append(target)
+          Path("pyrightconfig.json").write_text(
+              json.dumps(config, indent=2) + "\\n",
+              encoding="utf-8",
+          )
+          PY
+            git add pyrightconfig.json
+            set +e
+            GIT_EDITOR=true git -c rerere.enabled=true rebase --continue
+            rebase_rc=$?
+            set -e
+          done
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
           git log -5 --oneline --decorate
