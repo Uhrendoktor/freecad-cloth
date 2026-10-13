@@ -46,6 +46,78 @@ permissions:
   contents: read
   packages: read
 jobs:
+  guarded-rebase-pr:
+    name: Rebase a PR named in an explicit activation commit
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Rebase requested PR branch onto current main and dispatch exact-head validation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIVATION_TITLE: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_NUMBER="$(printf '%s' "$ACTIVATION_TITLE" | sed -n 's/^RUN REBASE: PR #\([0-9][0-9]*\)$/\1/p')"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Invalid rebase activation commit title."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin main
+
+          PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          PR_STATE="$(printf '%s' "$PR_JSON" | jq -r '.state')"
+          PR_BASE="$(printf '%s' "$PR_JSON" | jq -r '.base.ref')"
+          PR_BRANCH="$(printf '%s' "$PR_JSON" | jq -r '.head.ref')"
+          PR_REPO="$(printf '%s' "$PR_JSON" | jq -r '.head.repo.full_name // empty')"
+          EXPECTED_HEAD="$(printf '%s' "$PR_JSON" | jq -r '.head.sha')"
+          if [ "$PR_STATE" != "open" ] || [ "$PR_BASE" != "main" ] || [ "$PR_REPO" != "${GITHUB_REPOSITORY}" ] || [ -z "$PR_BRANCH" ] || [ "$PR_BRANCH" = "main" ]; then
+            echo "::error::PR must be open, based on main, and have a branch in this repository."
+            exit 1
+          fi
+          git fetch origin "refs/heads/${PR_BRANCH}:refs/remotes/origin/${PR_BRANCH}"
+          FETCHED_HEAD="$(git rev-parse "refs/remotes/origin/${PR_BRANCH}")"
+          if [ "$FETCHED_HEAD" != "$EXPECTED_HEAD" ]; then
+            echo "::error::PR head changed during inspection; refusing to rebase a stale revision."
+            exit 1
+          fi
+          git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
+          if ! git -c rerere.enabled=true rebase origin/main; then
+            echo "::error::Rebase conflict in PR #${PR_NUMBER}; inspect the unmerged paths before continuing."
+            git status --short
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          git merge-base --is-ancestor origin/main HEAD
+          REBASED_HEAD="$(git rev-parse HEAD)"
+          git log -5 --oneline --decorate
+          git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
+
+          # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
+          gh workflow run canonical-execution.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted
+          for attempt in $(seq 1 30); do
+            echo "validation-dispatch-wait=${attempt}/30"
+            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url --jq '.[] | select(.headSha == "'"${REBASED_HEAD}"'")' || true)"
+            if [ -n "$RUN_JSON" ]; then
+              echo "$RUN_JSON"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Dispatched validation but could not find its run for ${REBASED_HEAD}"
+          exit 1
   agent-quality:
     name: Static, architecture, workflow, and security gates
     runs-on: ubuntu-latest
