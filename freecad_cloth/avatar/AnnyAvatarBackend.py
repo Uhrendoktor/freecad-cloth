@@ -286,9 +286,7 @@ def _fit_anny_body(
                 & (side * points[:, 0] <= 0.155)
             )
             result[label] = (
-                float(points[mask, 1].min().item() * 1000.0)
-                if bool(mask.any())
-                else None
+                float(points[mask, 1].min().item() * 1000.0) if bool(mask.any()) else None
             )
         return result
 
