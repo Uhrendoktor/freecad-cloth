@@ -265,6 +265,7 @@ def _drag_dimension_handle(controller, coin, key, pixels=6.0):
 
 def run():
     """Exercise body-shape controls, viewport dimension staging, and saved rebuilds."""
+    os.environ["CLOTH_ANNY_SHAPE_TRACE"] = "1"
     Path("artifacts/ui-gifs").mkdir(parents=True, exist_ok=True)
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel

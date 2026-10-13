@@ -267,6 +267,34 @@ def _fit_anny_body(
             pose_parameterization="local-bone",
             return_bone_ends=True,
         )
+    if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
+        height_m = float(values["height"]) / 1000.0
+
+        def _front_y_mm(vertex_tensor):
+            points = vertex_tensor[0].detach()
+            result = {}
+            for side, label in ((-1.0, "left"), (1.0, "right")):
+                mask = (
+                    (points[:, 2] >= 0.64 * height_m)
+                    & (points[:, 2] <= 0.73 * height_m)
+                    & (points[:, 1] < 0.0)
+                    & (side * points[:, 0] >= 0.025)
+                    & (side * points[:, 0] <= 0.155)
+                )
+                result[label] = (
+                    float(points[mask, 1].min().item() * 1000.0)
+                    if bool(mask.any())
+                    else None
+                )
+            return result
+
+        raw_front_y = _front_y_mm(initial_output["vertices"])
+        print(
+            "anny-shape-trace stage=pre-fit gender=%s cupsize=%s front_lobe_y_mm=%r"
+            % (phenotype_values["gender"], phenotype_values["cupsize"], raw_front_y),
+            flush=True,
+        )
+
     body = load_anny_from_verts(
         initial_output["vertices"],
         model,
@@ -488,6 +516,24 @@ def _fit_anny_body(
             pose_parameterization="local-bone",
             return_bone_ends=True,
         )
+    if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
+        fitted_front_y = _front_y_mm(output["vertices"])
+        bust_fit = {
+            name: float(value.detach().reshape(-1)[0].item())
+            for name, value in body.local_changes_kwargs.items()
+            if "bust" in name or "underbust" in name
+        }
+        print(
+            "anny-shape-trace stage=post-fit gender=%s cupsize=%s front_lobe_y_mm=%r bust_morphs=%r"
+            % (
+                float(body.phenotype_kwargs["gender"].detach().item()),
+                float(body.phenotype_kwargs["cupsize"].detach().item()),
+                fitted_front_y,
+                bust_fit,
+            ),
+            flush=True,
+        )
+
     fitted_body = load_anny_from_verts(
         output["vertices"],
         model,

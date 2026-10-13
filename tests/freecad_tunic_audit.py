@@ -460,8 +460,48 @@ timed_anchor = """    from time import perf_counter
     view.setCameraType("Orthographic"); view.viewAxonometric(); view.fitAll(); events()
     save_view("cloth-tunic-mannequin-motion-frames/motion-000.png", "mannequin drape step 0", "production tunic before gravity")
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend as _PBDBackend
+    import freecad_cloth.simulation.MeshCollisionProjector as _mesh_projector_module
+    import numpy as _np
+
     _backend_step = _PBDBackend.step
     _backend_step_count = {"count": 0}
+    _trace_pairs = []
+    for _seam_name, _pairs_raw in getattr(scene.Proxy, "seam_stitch_pairs", {}).items():
+        _pairs = tuple((int(a), int(b)) for a, b in _pairs_raw)
+        if _pairs:
+            for _pair in dict.fromkeys((_pairs[0], _pairs[-1])):
+                _trace_pairs.append((str(_seam_name), _pair))
+
+    def _trace_pair_stage(stage, raw_positions, step_call, normals=None):
+        positions_array = _np.asarray(raw_positions, dtype=_np.float64)
+        normal_array = None if normals is None else _np.asarray(normals, dtype=_np.float64)
+        if positions_array.ndim != 2 or positions_array.shape[1] != 3:
+            log("tunic-stitch-trace invalid-position-array stage=%s shape=%r" % (
+                stage, positions_array.shape,
+            ))
+            return
+        zero_normal = _np.zeros(3, dtype=_np.float64)
+        for seam_name, (a, b) in _trace_pairs:
+            if max(a, b) >= len(positions_array):
+                continue
+            point_a = positions_array[a]
+            point_b = positions_array[b]
+            delta = point_a - point_b
+            gap_mm = float(_np.linalg.norm(delta))
+            normal_a = zero_normal if normal_array is None else normal_array[a]
+            normal_b = zero_normal if normal_array is None else normal_array[b]
+            log(
+                "tunic-stitch-trace call=%d stage=%s seam=%s pair=(%d,%d) "
+                "gap_mm=%.3f delta_mm=(%.3f,%.3f,%.3f) "
+                "normal_a=(%.4f,%.4f,%.4f) normal_b=(%.4f,%.4f,%.4f)"
+                % (
+                    step_call, stage, seam_name, a, b, gap_mm,
+                    float(delta[0]), float(delta[1]), float(delta[2]),
+                    float(normal_a[0]), float(normal_a[1]), float(normal_a[2]),
+                    float(normal_b[0]), float(normal_b[1]), float(normal_b[2]),
+                )
+            )
+
     def _trace_backend_step(backend, dt, iterations=8, gravity=(0.0, 0.0, -9810.0), surface=None):
         _backend_step_count["count"] += 1
         step_call = _backend_step_count["count"]
@@ -470,7 +510,60 @@ timed_anchor = """    from time import perf_counter
         log("tunic-pbd-substep-start call=%d simulated_step=%d" % (
             step_call, simulated_step,
         ))
-        result = _backend_step(backend, dt, iterations, gravity, surface)
+        _trace_pair_stage("pre-native-step", backend.positions(), step_call)
+        original_project_hook = backend._project_collision_positions
+
+        def _trace_collision_projection():
+            _trace_pair_stage("post-native-pre-projection", backend.positions(), step_call)
+            projector = getattr(backend, "_collision_projector", None)
+            if projector is None:
+                result = original_project_hook()
+                _trace_pair_stage("post-projection-written-back", backend.positions(), step_call)
+                return result
+
+            projector_class = projector.__class__
+            original_project = projector_class.project
+            original_stitched = _mesh_projector_module.project_stitched_pairs
+
+            def _project_with_trace(projector_instance, positions_mm):
+                _trace_pair_stage("pre-individual-projection", positions_mm, step_call)
+                corrected_mm, outward_normals = original_project(projector_instance, positions_mm)
+                _trace_pair_stage(
+                    "post-individual-projection", corrected_mm, step_call, outward_normals
+                )
+                return corrected_mm, outward_normals
+
+            def _stitch_with_trace(
+                projector_instance, positions_mm, contact_normals, stitches, pinned_indices=()
+            ):
+                _trace_pair_stage(
+                    "pre-stitch-reconciliation", positions_mm, step_call, contact_normals
+                )
+                corrected_mm, outward_normals = original_stitched(
+                    projector_instance, positions_mm, contact_normals, stitches, pinned_indices
+                )
+                _trace_pair_stage(
+                    "post-stitch-reconciliation", corrected_mm, step_call, outward_normals
+                )
+                return corrected_mm, outward_normals
+
+            projector_class.project = _project_with_trace
+            _mesh_projector_module.project_stitched_pairs = _stitch_with_trace
+            try:
+                result = original_project_hook()
+            finally:
+                projector_class.project = original_project
+                _mesh_projector_module.project_stitched_pairs = original_stitched
+            _trace_pair_stage("post-projection-written-back", backend.positions(), step_call)
+            return result
+
+        # This instance-level wrapper intentionally closes over the active backend.
+        backend._project_collision_positions = _trace_collision_projection
+        try:
+            result = _backend_step(backend, dt, iterations, gravity, surface)
+        finally:
+            del backend._project_collision_positions
+        _trace_pair_stage("post-native-and-contact-step", backend.positions(), step_call)
         log("tunic-pbd-substep-end call=%d simulated_step=%d elapsed_ms=%.1f" % (
             step_call, simulated_step, 1000.0 * (perf_counter() - step_started),
         ))
