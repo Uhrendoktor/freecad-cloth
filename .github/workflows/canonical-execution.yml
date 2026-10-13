@@ -46,6 +46,7 @@ permissions:
   contents: read
   packages: read
 jobs:
+  # Explicitly activated on main; ordinary pushes and PR checks leave this job skipped.
   guarded-rebase-pr:
     name: Rebase a PR named in an explicit activation commit
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}
