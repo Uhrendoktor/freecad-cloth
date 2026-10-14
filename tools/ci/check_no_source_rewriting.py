@@ -142,10 +142,42 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
         if not isinstance(node, ast.Call):
             continue
 
-        if isinstance(node.func, ast.Name) and node.func.id == "exec":
-            violations.append(
-                f"{path}:{node.lineno}: direct exec() is prohibited; call a checked-in function instead"
-            )
+        if isinstance(node.func, ast.Name) and node.func.id == "exec" and node.args:
+            expression = node.args[0]
+            if _names_used(expression) & modified_source_names:
+                violations.append(
+                    f"{path}:{node.lineno}: transformed source must not be executed dynamically"
+                )
+            elif isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name):
+                if expression.func.id == "compile" and expression.args:
+                    compiled_source = expression.args[0]
+                    if _names_used(compiled_source) & modified_source_names:
+                        violations.append(
+                            f"{path}:{node.lineno}: transformed source must not be executed dynamically"
+                        )
+                    elif (
+                        isinstance(compiled_source, ast.Name)
+                        and compiled_source.id not in source_names
+                    ):
+                        violations.append(
+                            f"{path}:{node.lineno}: generated Python source must not be executed"
+                        )
+                    elif (
+                        isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
+                        and not (_names_used(compiled_source) & source_names)
+                    ):
+                        violations.append(
+                            f"{path}:{node.lineno}: generated Python source must not be executed"
+                        )
+            elif isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr)):
+                if not (_names_used(expression) & source_names):
+                    violations.append(
+                        f"{path}:{node.lineno}: generated Python source must not be executed"
+                    )
+            elif isinstance(expression, ast.Name) and expression.id not in source_names:
+                violations.append(
+                    f"{path}:{node.lineno}: generated Python source must not be executed"
+                )
 
         if isinstance(node.func, ast.Attribute):
             receiver_names = _names_used(node.func.value)
@@ -166,6 +198,13 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 violations.append(
                     f"{path}:{node.lineno}: Python source text must not be written after "
                     "runtime transformation"
+                )
+
+        if isinstance(node.func, ast.Name) and node.func.id in {"sub", "subn"}:
+            if any(_names_used(argument) & source_names for argument in node.args):
+                violations.append(
+                    f"{path}:{node.lineno}: Python source text must not be rewritten with "
+                    f"{node.func.id}(); use explicit functions/configuration"
                 )
 
         if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
