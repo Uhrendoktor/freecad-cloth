@@ -1601,9 +1601,7 @@ def simulation():
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(
-        side, outline: Sequence[tuple[float, float]] | None = None
-    ):
+    def target_relative_piece_placement(side, outline: Sequence[tuple[float, float]] | None = None):
         if TUNIC_PRODUCTION_AUDIT:
             if outline is None:
                 raise RuntimeError(
