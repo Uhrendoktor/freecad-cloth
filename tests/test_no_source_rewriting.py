@@ -20,7 +20,7 @@ exec(compile(source, str(source_path), "exec"))
 """
     violations = python_source_rewrite_violations(sample, "fixture.py")
     assert any("must not be rewritten" in issue for issue in violations)
-    assert any("direct exec()" in issue for issue in violations)
+    assert any("transformed source must not be executed dynamically" in issue for issue in violations)
     assert any("transformed source must not be compiled" in issue for issue in violations)
 
 
@@ -45,6 +45,17 @@ compile(patched, str(source_path), "exec")
     violations = python_source_rewrite_violations(sample, "regex_generator.py")
     assert any("must not be rewritten" in issue for issue in violations)
     assert any("transformed source must not be compiled" in issue for issue in violations)
+
+
+def test_checked_in_bootstrap_source_can_be_executed_without_modification() -> None:
+    """FreeCAD's host bootstrap may execute a checked-in file when it was not rewritten."""
+    sample = """
+from pathlib import Path
+
+init_gui = Path("InitGui.py")
+exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"))
+"""
+    assert python_source_rewrite_violations(sample, "bootstrap.py") == ()
 
 
 def test_read_only_syntax_check_of_checked_in_python_is_allowed() -> None:
