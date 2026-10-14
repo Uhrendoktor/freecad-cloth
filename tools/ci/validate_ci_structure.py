@@ -77,6 +77,7 @@ TYPECHECK_COMMANDS = (
 )
 
 PYTHON_POLICY_COMMANDS = ("python tools/ci/check_pydantic_models.py",)
+SOURCE_REWRITING_POLICY_COMMANDS = ("python tools/ci/check_no_source_rewriting.py",)
 
 RUFF_COMMANDS = (
     'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
@@ -98,6 +99,14 @@ def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
     """Return required data-model policy gates missing from the canonical workflow."""
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
+
+
+def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
+    """Require the blocking source-rewriting prohibition in the canonical workflow."""
+    command_lines = {line.strip() for line in workflow_text.splitlines()}
+    return tuple(
+        command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
+    )
 
 
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
@@ -210,6 +219,12 @@ def main() -> int:
         raise SystemExit(
             "canonical workflow is missing standalone Python policy commands: "
             + ", ".join(missing_python_policies)
+        )
+    missing_source_rewriting_policies = missing_source_rewriting_policy_commands(text)
+    if missing_source_rewriting_policies:
+        raise SystemExit(
+            "canonical workflow is missing the blocking source-rewriting policy: "
+            + ", ".join(missing_source_rewriting_policies)
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
         raise SystemExit(
