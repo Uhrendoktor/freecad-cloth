@@ -151,11 +151,25 @@ def _shape_change_summary(
         )
 
     side_deltas: dict[str, float] = {}
+    side_max_abs_axis_delta: dict[str, tuple[float, float, float]] = {}
+    side_max_vertex_delta: dict[str, float] = {}
+    side_lobe_vertex_counts: dict[str, int] = {}
     for side, name in ((-1.0, "left"), (1.0, "right")):
         lobe_indices = front_lobe_indices(bust_baseline, side)
         if not lobe_indices:
             raise RuntimeError(f"no front-facing {name} breast vertices available for shape review")
-        side_deltas[name] = max(after[index][1] - bust_baseline[index][1] for index in lobe_indices)
+        deltas = tuple(
+            tuple(after[index][axis] - bust_baseline[index][axis] for axis in range(3))
+            for index in lobe_indices
+        )
+        side_deltas[name] = max(delta[1] for delta in deltas)
+        side_max_abs_axis_delta[name] = tuple(
+            max(abs(delta[axis]) for delta in deltas) for axis in range(3)
+        )
+        side_max_vertex_delta[name] = max(
+            math.sqrt(sum(component * component for component in delta)) for delta in deltas
+        )
+        side_lobe_vertex_counts[name] = len(lobe_indices)
     return {
         "changed_vertices": len(changed_positions),
         "torso_changed_vertices": torso_changed_vertices,
@@ -163,6 +177,16 @@ def _shape_change_summary(
         "right_bust_projection_delta_mm": side_deltas["right"],
         "min_side_bust_projection_delta_mm": min(side_deltas.values()),
         "max_bust_projection_delta_mm": max(side_deltas.values()),
+        "left_lobe_max_abs_dx_mm": side_max_abs_axis_delta["left"][0],
+        "left_lobe_max_abs_dy_mm": side_max_abs_axis_delta["left"][1],
+        "left_lobe_max_abs_dz_mm": side_max_abs_axis_delta["left"][2],
+        "right_lobe_max_abs_dx_mm": side_max_abs_axis_delta["right"][0],
+        "right_lobe_max_abs_dy_mm": side_max_abs_axis_delta["right"][1],
+        "right_lobe_max_abs_dz_mm": side_max_abs_axis_delta["right"][2],
+        "left_lobe_max_vertex_delta_mm": side_max_vertex_delta["left"],
+        "right_lobe_max_vertex_delta_mm": side_max_vertex_delta["right"],
+        "left_lobe_vertex_count": side_lobe_vertex_counts["left"],
+        "right_lobe_vertex_count": side_lobe_vertex_counts["right"],
     }
 
 
