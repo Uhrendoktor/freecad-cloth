@@ -41,9 +41,12 @@ def _target_names(target: ast.expr) -> set[str]:
 def _contains_python_path_literal(node: ast.AST) -> bool:
     """Recognize path expressions that explicitly identify a Python source file."""
     for child in ast.walk(node):
-        if isinstance(child, ast.Constant) and isinstance(child.value, str):
-            if child.value.endswith(".py") or child.value.endswith(".pyi"):
-                return True
+        if (
+            isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and (child.value.endswith(".py") or child.value.endswith(".pyi"))
+        ):
+            return True
         if isinstance(child, ast.Name) and child.id == "__file__":
             return True
     return False
@@ -126,11 +129,13 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 rewrites_source = False
                 if isinstance(value.func, ast.Attribute) and value.func.attr == "replace":
                     rewrites_source = bool(_names_used(value.func.value) & source_names)
-                elif isinstance(value.func, ast.Attribute) and value.func.attr in {"sub", "subn"}:
-                    rewrites_source = any(
-                        _names_used(argument) & source_names for argument in value.args
+                elif (
+                    (
+                        isinstance(value.func, ast.Attribute)
+                        and value.func.attr in {"sub", "subn"}
                     )
-                elif isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"}:
+                    or (isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"})
+                ):
                     rewrites_source = any(
                         _names_used(argument) & source_names for argument in value.args
                     )
@@ -170,15 +175,15 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                             f"{path}:{node.lineno}: transformed source must not be executed dynamically"
                         )
                     elif (
-                        isinstance(compiled_source, ast.Name)
-                        and compiled_source.id not in source_names
-                    ):
-                        violations.append(
-                            f"{path}:{node.lineno}: generated Python source must not be executed"
+                        (
+                            isinstance(compiled_source, ast.Name)
+                            and compiled_source.id not in source_names
                         )
-                    elif isinstance(
-                        compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr)
-                    ) and not (_names_used(compiled_source) & source_names):
+                        or (
+                            isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
+                            and not (_names_used(compiled_source) & source_names)
+                        )
+                    ):
                         violations.append(
                             f"{path}:{node.lineno}: generated Python source must not be executed"
                         )
@@ -213,12 +218,15 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                     "runtime transformation"
                 )
 
-        if isinstance(node.func, ast.Name) and node.func.id in {"sub", "subn"}:
-            if any(_names_used(argument) & source_names for argument in node.args):
-                violations.append(
-                    f"{path}:{node.lineno}: Python source text must not be rewritten with "
-                    f"{node.func.id}(); use explicit functions/configuration"
-                )
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id in {"sub", "subn"}
+            and any(_names_used(argument) & source_names for argument in node.args)
+        ):
+            violations.append(
+                f"{path}:{node.lineno}: Python source text must not be rewritten with "
+                f"{node.func.id}(); use explicit functions/configuration"
+            )
 
         if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
             expression = node.args[0]
@@ -266,7 +274,7 @@ def _policy_files() -> tuple[Path, ...]:
     ci_files.extend((ROOT / ".github").rglob("*.yaml"))
     ci_files.extend((ROOT / "tools").rglob("*.sh"))
     ci_files.extend((ROOT / ".github").rglob("*.sh"))
-    return tuple(sorted(set([*python_files, *ci_files])))
+    return tuple(sorted({*python_files, *ci_files}))
 
 
 def main() -> int:
