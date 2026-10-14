@@ -132,17 +132,19 @@ def _shape_change_summary(
         1 for point in changed_positions if 0.50 * height_mm <= point[2] <= 0.80 * height_mm
     )
     bust_baseline = before if breast_reference is None else breast_reference
+    if len(bust_baseline) != len(after):
+        raise RuntimeError("bust projection comparison requires matched generated mesh topology")
 
-    # clad-body normalizes Anny output to Z-up and uses +Y for the anterior.
-    # Measure forward projection as Y for each breast lobe.
-    # Evaluate both lobes separately so sternum movement cannot dominate.
-    # The center exclusion removes the sternum; the outer limit excludes arms.
-    def front_lobe(
+    # clad-body uses Z-up and +Y-anterior. Use baseline vertex indices as the
+    # lobe correspondence, then measure each corresponding vertex's forward
+    # displacement. Taking max(Y) independently on two different point clouds
+    # can select an unrelated extremum and hide a real local shape change.
+    def front_lobe_indices(
         points: tuple[tuple[float, float, float], ...], side: float
-    ) -> tuple[float, ...]:
+    ) -> tuple[int, ...]:
         return tuple(
-            point[1]
-            for point in points
+            index
+            for index, point in enumerate(points)
             if 0.64 * height_mm <= point[2] <= 0.73 * height_mm
             and point[1] > 0.0
             and 25.0 <= side * point[0] <= 155.0
@@ -150,11 +152,12 @@ def _shape_change_summary(
 
     side_deltas: dict[str, float] = {}
     for side, name in ((-1.0, "left"), (1.0, "right")):
-        before_lobe = front_lobe(bust_baseline, side)
-        after_lobe = front_lobe(after, side)
-        if not before_lobe or not after_lobe:
+        lobe_indices = front_lobe_indices(bust_baseline, side)
+        if not lobe_indices:
             raise RuntimeError(f"no front-facing {name} breast vertices available for shape review")
-        side_deltas[name] = max(after_lobe) - max(before_lobe)
+        side_deltas[name] = max(
+            after[index][1] - bust_baseline[index][1] for index in lobe_indices
+        )
     return {
         "changed_vertices": len(changed_positions),
         "torso_changed_vertices": torso_changed_vertices,
@@ -265,15 +268,17 @@ def run():
     """Exercise body-shape controls, viewport dimension staging, and saved rebuilds."""
     os.environ["CLOTH_ANNY_SHAPE_TRACE"] = "1"
     Path("artifacts/ui-gifs").mkdir(parents=True, exist_ok=True)
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import _parameters, create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
+    from freecad_cloth.avatar.AvatarModel import generate_mesh
 
     doc = App.newDocument("AvatarShapeEditorAcceptance")
     try:
         avatar = create_avatar(attach_collision=False, doc=doc, object_name="ShapeEditorMannequin")
         avatar.Label = "Mannequin / Sewing Fit Example"
         doc.recompute()
-        original_mesh = _mesh_points(avatar)
+        original_native_mesh = _mesh_points(avatar)
+        original_mesh, original_triangles, _original_landmarks = generate_mesh(_parameters(avatar))
         original_facets = len(avatar.Mesh.Facets)
         original_names = {str(obj.Name) for obj in doc.Objects}
 
@@ -338,7 +343,7 @@ def run():
                 raise RuntimeError("gender blend did not persist to the FreeCAD avatar object")
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
                 raise RuntimeError("breast fullness did not persist to the FreeCAD avatar object")
-            updated_mesh = _mesh_points(avatar)
+            updated_native_mesh = _mesh_points(avatar)
             updated_facets = len(avatar.Mesh.Facets)
             if updated_facets != original_facets:
                 raise RuntimeError(
@@ -346,12 +351,30 @@ def run():
                 )
             from dataclasses import replace as replace_parameters
 
-            from freecad_cloth.avatar.AvatarModel import generate_mesh
-
             committed_parameters = panel._staged_parameters()
-            zero_fullness_vertices, _triangles, _landmarks = generate_mesh(
+            updated_mesh, updated_triangles, _updated_landmarks = generate_mesh(
+                committed_parameters
+            )
+            zero_fullness_vertices, zero_fullness_triangles, _landmarks = generate_mesh(
                 replace_parameters(committed_parameters, breast_size=0.0)
             )
+            if (
+                len(original_mesh) != len(updated_mesh)
+                or updated_triangles != zero_fullness_triangles
+                or updated_triangles != original_triangles
+            ):
+                raise RuntimeError(
+                    "cupsize acceptance requires stable generated mesh vertex/triangle correspondence"
+                )
+            native_before_keys = {
+                tuple(round(value, 1) for value in point) for point in original_native_mesh
+            }
+            native_changed_vertices = sum(
+                tuple(round(value, 1) for value in point) not in native_before_keys
+                for point in updated_native_mesh
+            )
+            if native_changed_vertices == 0:
+                raise RuntimeError("body-shape rebuild did not change native FreeCAD mesh vertices")
             shape_delta = _shape_change_summary(
                 original_mesh,
                 updated_mesh,
