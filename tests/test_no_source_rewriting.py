@@ -28,7 +28,7 @@ def test_generated_python_source_cannot_be_compiled() -> None:
     """Generated executable code is prohibited even if it is not read from a file."""
     sample = 'generated = "def patched():\\n    return 1\\n"\ncompile(generated, "<generated>", "exec")\n'
     violations = python_source_rewrite_violations(sample, "generator.py")
-    assert any("compiling generated Python source" in issue for issue in violations)
+    assert any("transformed source must not be compiled" in issue for issue in violations)
 
 
 
