@@ -459,9 +459,7 @@ def run():
         )
         dimension_recorder.start()
         before_hip_mesh = _mesh_points(avatar)
-        before_hip_measurements = {
-            name: float(box.value()) for name, box in panel._boxes.items()
-        }
+        before_hip_measurements = {name: float(box.value()) for name, box in panel._boxes.items()}
         head_cutoff = max(point[2] for point in before_hip_mesh) * 0.88
         head_before_hip = _head_envelope(before_hip_mesh, head_cutoff)
         try:
@@ -491,9 +489,7 @@ def run():
             if head_after_hip != head_before_hip:
                 before_head_set = set(head_before_hip)
                 after_head_set = set(head_after_hip)
-                after_hip_measurements = {
-                    name: float(box.value()) for name, box in panel._boxes.items()
-                }
+                after_hip_measurements = {name: float(box.value()) for name, box in panel._boxes.items()}
                 changed_measurements = {
                     name: (before_hip_measurements[name], value)
                     for name, value in after_hip_measurements.items()
