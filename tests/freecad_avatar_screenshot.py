@@ -204,9 +204,7 @@ def _body_shape_gallery_params(
     )
 
 
-def render_body_shape_gallery(
-    doc, view, avatar, output, initial_profile_applied: bool = False
-):
+def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied: bool = False):
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -257,9 +255,7 @@ def render_body_shape_gallery(
         for index, profile in enumerate(profiles):
             profile_started = time.monotonic()
             log("body-shape-gallery-profile-start index=%d name=%s" % (index, profile["name"]))
-            params = _body_shape_gallery_params(
-                profile, float(getattr(avatar, "SkinOffset", 3.0))
-            )
+            params = _body_shape_gallery_params(profile, float(getattr(avatar, "SkinOffset", 3.0)))
             reused_initial_profile = initial_profile_applied and index == 0
             if not reused_initial_profile:
                 _rebuild(avatar, params=params)
