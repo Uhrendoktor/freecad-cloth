@@ -304,9 +304,36 @@ def project_stitched_pairs(
             eligible_groups.append(group)
             shared_points.append(points.mean(axis=0))
             continue
-        if float(np.linalg.norm(points - points[0], axis=1).max()) <= capture_distance_mm:
-            near_shell_groups.append(group)
-            near_shell_midpoints.append(points.mean(axis=0))
+        if float(np.linalg.norm(points - points[0], axis=1).max()) > capture_distance_mm:
+            continue
+        midpoint = points.mean(axis=0)
+        if not bool(
+            np.all((midpoint >= projector._bounds_min) & (midpoint <= projector._bounds_max))
+        ):
+            continue
+        centroid_distance, closest_face_id = projector._tree.query(
+            midpoint,
+            k=1,
+            eps=0.0,
+            workers=1,
+        )
+        closest_face = int(closest_face_id)
+        closest_plane_distance = float(
+            np.dot(
+                midpoint - projector._centroids[closest_face],
+                projector._normals[closest_face],
+            )
+        )
+        # Mirror the projector's broad phase: a zero normal means "safe" both
+        # near the clearance shell and far away. Only reconcile midpoints that
+        # are plausible surface candidates; remote stitches remain untouched.
+        if (
+            float(centroid_distance) > projector._search_radius_mm
+            and closest_plane_distance >= 0.0
+        ):
+            continue
+        near_shell_groups.append(group)
+        near_shell_midpoints.append(midpoint)
 
     # Reconcile close residual stitches at their shared midpoint. If collision
     # correction is needed, the shared point is projected to the exterior shell;

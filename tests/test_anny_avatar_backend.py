@@ -4,6 +4,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _BREAST_SHAPE_MEASUREMENT_FIELDS,
     MEASUREMENT_FIELDS,
     _adapt_clad_body_pose_alias,
+    _apply_front_breast_fullness,
     _initial_phenotypes,
     _measurement_local_change_labels,
     build_avatar_rig_vertices,
@@ -90,3 +91,29 @@ def test_fitted_rig_keeps_helper_vertices_without_exposing_them_as_body_surface(
     assert any(index >= MAKEHUMAN_BODY_VERTEX_COUNT for index in referenced_indices)
     for bone_name in skeleton["bones"]:
         _bone_source_endpoints(rig_vertices, skeleton, bone_name)
+
+
+def test_front_breast_fullness_moves_only_the_visible_anterior_chest() -> None:
+    height_mm = 1750.0
+    baseline = (
+        (-72.0, 150.0, 0.685 * height_mm),
+        (72.0, 150.0, 0.685 * height_mm),
+        (-72.0, 150.0, 0.45 * height_mm),
+        (250.0, 150.0, 0.685 * height_mm),
+        (72.0, -30.0, 0.685 * height_mm),
+    )
+
+    neutral = _apply_front_breast_fullness(baseline, 0.0, height_mm)
+    fuller = _apply_front_breast_fullness(baseline, 0.65, height_mm)
+
+    assert neutral == baseline
+    assert len(fuller) == len(baseline)
+    assert fuller[0][1] - baseline[0][1] > 1.0
+    assert fuller[1][1] - baseline[1][1] > 1.0
+    assert fuller[0][1] == fuller[1][1]
+    assert fuller[0][0] == baseline[0][0] and fuller[0][2] == baseline[0][2]
+    assert fuller[1][0] == baseline[1][0] and fuller[1][2] == baseline[1][2]
+    assert fuller[2] == baseline[2]
+    assert fuller[3] == baseline[3]
+    assert fuller[4] == baseline[4]
+

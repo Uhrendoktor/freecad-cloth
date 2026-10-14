@@ -1,13 +1,15 @@
 """Anny-backed avatar generation and measurement fitting.
 
-This module deliberately delegates human shape generation and anthropometric
-measurement to Anny and clad-body. It does not deform vertices directly:
-measurements are fitted through the libraries' differentiable body model.
+Human shape generation and anthropometric fitting are delegated to Anny and
+clad-body. A topology-preserving front-surface correction complements Anny's
+vertical breast-volume target so Cloth's fullness control produces the expected
+anterior projection on the visible avatar.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Callable
 from functools import lru_cache
@@ -171,6 +173,42 @@ def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | 
         # Both fullness controls are applied only after the fit converges.
         "_local_changes": dict.fromkeys(_measurement_local_change_labels(), 0.0),
     }
+
+
+def _smoothstep_weight(edge0: float, edge1: float, value: float) -> float:
+    """Return a clamped cubic transition from zero to one."""
+    factor = max(0.0, min(1.0, (value - edge0) / (edge1 - edge0)))
+    return factor * factor * (3.0 - 2.0 * factor)
+
+
+def _apply_front_breast_fullness(
+    vertices: tuple[tuple[float, float, float], ...],
+    breast_size: float,
+    height_mm: float,
+) -> tuple[tuple[float, float, float], ...]:
+    """Add a smooth anterior projection to the visible chest vertices only.
+
+    Anny's breast-volume-vert-up target primarily alters vertical fullness. The
+    Cloth control also promises forward projection, so add a broad smooth Y offset
+    in the canonical Z-up / +Y-anterior frame, limited to the chest and two lobes.
+    """
+    strength = max(0.0, min(1.0, float(breast_size)))
+    if strength <= 0.0 or not math.isfinite(height_mm) or height_mm <= 0.0:
+        return vertices
+
+    adjusted: list[tuple[float, float, float]] = []
+    for x_mm, y_mm, z_mm in vertices:
+        normalized_z = z_mm / height_mm
+        if 0.60 <= normalized_z <= 0.76 and abs(x_mm) < 190.0:
+            front_weight = _smoothstep_weight(-18.0, 28.0, y_mm)
+            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
+            lateral_weight = max(
+                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2)
+                for center_x in (-72.0, 72.0)
+            )
+            y_mm += 62.0 * strength * front_weight * vertical_weight * lateral_weight
+        adjusted.append((x_mm, y_mm, z_mm))
+    return tuple(adjusted)
 
 
 def _fit_anny_body(
@@ -675,6 +713,14 @@ def _fit_anny_body(
         (float(vertex[0]) * 1000.0, float(vertex[1]) * 1000.0, float(vertex[2]) * 1000.0)
         for vertex in all_vertices
     )
+    # Keep helper/rig vertices untouched and apply the visible breast correction
+    # only within HM08's canonical body prefix, preserving vertex-index topology.
+    visible_vertices = _apply_front_breast_fullness(
+        surface_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT],
+        float(breast_size),
+        float(dict(measurements).get("height", 1750.0)),
+    )
+    surface_vertices = visible_vertices + surface_vertices[MAKEHUMAN_BODY_VERTEX_COUNT:]
     if len(base_ids) != len(surface_vertices) or base_ids != list(range(len(base_ids))):
         raise AnnyAvatarBackendError(
             "Anny's full vertex index map does not preserve the original HM08 rig index space."

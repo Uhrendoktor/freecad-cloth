@@ -561,8 +561,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
         corrected_mm, outward_normals = projector.project(positions_mm)
-        if not bool(np.any(outward_normals)):
-            return
+        # Stitch reconciliation also handles close pairs whose endpoints already
+        # sit safely outside the shell. Do not return just because no single point
+        # needed contact correction; distant stitch groups are filtered below.
         from freecad_cloth.simulation.MeshCollisionProjector import project_stitched_pairs
 
         corrected_mm, outward_normals = project_stitched_pairs(
