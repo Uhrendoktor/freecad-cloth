@@ -16,6 +16,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+import numpy as np
+
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
@@ -208,6 +210,42 @@ def _apply_front_breast_fullness(
             y_mm += 62.0 * strength * front_weight * vertical_weight * lateral_weight
         adjusted.append((x_mm, y_mm, z_mm))
     return tuple(adjusted)
+
+
+def _canonicalize_anny_vertices(
+    vertices: np.ndarray,
+    reference_vertices: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Normalize a fitted mesh using a stable reference body's origin.
+
+    The hip-specific Anny morph can change the fitted mesh bounds. Re-centering
+    from those post-fit bounds translates unrelated head/shoulder vertices, so
+    derive the up axis, floor, and XY origin from the pre-hip reference instead.
+    """
+    points = np.asarray(vertices, dtype=np.float32).copy()
+    reference = np.asarray(reference_vertices, dtype=np.float32)
+    if (
+        points.ndim != 2
+        or points.shape[1] != 3
+        or reference.shape != points.shape
+        or not points.shape[0]
+    ):
+        raise ValueError("Anny vertices and reference must have matching shape (N, 3)")
+    if not bool(np.isfinite(points).all() and np.isfinite(reference).all()):
+        raise ValueError("Anny vertices and reference must be finite")
+
+    # Match clad-body's Y-up -> Z-up conversion, but make the choice using the
+    # reference so a local hip morph cannot change the inferred orientation.
+    if int(np.argmax(reference.max(axis=0) - reference.min(axis=0))) == 1:
+        points = points[:, (0, 2, 1)].copy()
+        points[:, 2] = -points[:, 2]
+        reference = reference[:, (0, 2, 1)].copy()
+        reference[:, 2] = -reference[:, 2]
+
+    points[:, 2] -= reference[:, 2].min()
+    center_xy = (reference[:, :2].max(axis=0) + reference[:, :2].min(axis=0)) / 2
+    points[:, :2] -= center_xy
+    return points, center_xy
 
 
 def _fit_anny_body(
@@ -586,6 +624,7 @@ def _fit_anny_body(
     first_parameter = next(iter(body.phenotype_kwargs.values()))
     pose = build_anny_apose(model, first_parameter.device)
     rig_vertices: tuple[tuple[float, float, float], ...] | None = None
+    canonical_reference_vertices: np.ndarray | None = None
     if fit_hip:
         # Capture the rig's neutral hip shape before fitting the hip-only morph.
         # This snapshot lets rig anchors and the visible mesh share one Anny fit.
@@ -598,6 +637,7 @@ def _fit_anny_body(
                 return_bone_ends=True,
             )
         rig_output_vertices = rig_output["vertices"]
+        canonical_reference_vertices = rig_output_vertices[0].detach().cpu().numpy()
         # Anny's forward pass retains its leading batch dimension (1, N, 3);
         # strip that singleton dimension before converting individual points.
         rig_vertices = tuple(
@@ -691,6 +731,15 @@ def _fit_anny_body(
         bone_tails=output.get("bone_tails"),
         source="FreeCAD Cloth / Anny",
     )
+    if canonical_reference_vertices is not None:
+        # Keep the post-hip surface in the pre-hip coordinate frame. Also update
+        # clad-body's XY offset so its measured bone/joint positions stay aligned.
+        fitted_vertices, center_xy = _canonicalize_anny_vertices(
+            output["vertices"][0].detach().cpu().numpy(),
+            canonical_reference_vertices,
+        )
+        fitted_body.vertices = fitted_vertices
+        fitted_body._xy_offset = (-center_xy).astype(np.float32)
 
     all_vertices = fitted_body.vertices
     fitted_faces = fitted_body.faces

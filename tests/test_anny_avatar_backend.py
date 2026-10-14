@@ -5,6 +5,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     MEASUREMENT_FIELDS,
     _adapt_clad_body_pose_alias,
     _apply_front_breast_fullness,
+    _canonicalize_anny_vertices,
     _initial_phenotypes,
     _measurement_local_change_labels,
     build_avatar_rig_vertices,
@@ -65,6 +66,36 @@ def test_clad_body_legacy_pose_alias_is_translated_for_anny_forward() -> None:
 
     assert model.forward(pose_parameterization="root_relative_world") == "local-bone"
     assert model.forward(pose_parameterization="local-bone") == "local-bone"
+
+
+def test_hip_fitting_keeps_the_pre_hip_mesh_origin() -> None:
+    import numpy as np
+
+    reference = np.asarray(
+        (
+            (-0.8, 3.0, 0.0),
+            (0.8, 3.0, 0.0),
+            (-0.8, 2.0, 0.0),
+            (0.8, 2.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+        ),
+        dtype=np.float32,
+    )
+    hip_fitted = reference.copy()
+    hip_fitted[4, 0] = -1.8
+
+    baseline, _ = _canonicalize_anny_vertices(reference, reference)
+    recentered, _ = _canonicalize_anny_vertices(hip_fitted, hip_fitted)
+    stable, _ = _canonicalize_anny_vertices(hip_fitted, reference)
+
+    # The edited hip changes the fitted bounds, but head/torso coordinates must
+    # stay fixed in the original frame instead of following the new XY center.
+    assert np.array_equal(stable[:4], baseline[:4])
+    assert np.max(np.abs(recentered[:4] - baseline[:4])) > 0.1
+    assert not np.array_equal(stable[4], baseline[4])
 
 
 def test_hip_only_shape_edits_do_not_change_rig_vertex_space() -> None:
