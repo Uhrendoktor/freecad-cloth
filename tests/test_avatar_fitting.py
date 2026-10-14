@@ -199,9 +199,7 @@ class AvatarFittingTests(unittest.TestCase):
         class FakeMesh:
             def addFacets(
                 self,
-                indexed_mesh: tuple[
-                    list[tuple[float, float, float]], list[tuple[int, int, int]]
-                ],
+                indexed_mesh: tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]],
                 check_manifold: bool = True,
             ) -> None:
                 calls.append((indexed_mesh, check_manifold))
