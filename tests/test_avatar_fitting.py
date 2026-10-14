@@ -190,6 +190,34 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertLess(x_span / z_span, 0.6)
         self.assertLess(y_span / z_span, 0.25)
 
+    def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self):
+        from freecad_cloth.avatar.AvatarCommands import _mesh_data
+
+        calls = []
+        created = []
+
+        class FakeMesh:
+            def addFacets(self, indexed_mesh, check_manifold=True):
+                calls.append((indexed_mesh, check_manifold))
+
+        def create_mesh():
+            mesh = FakeMesh()
+            created.append(mesh)
+            return mesh
+
+        freecad = SimpleNamespace(Vector=lambda *point: tuple(float(value) for value in point))
+        mesh_module = SimpleNamespace(Mesh=create_mesh)
+        with mock.patch.dict("sys.modules", {"FreeCAD": freecad, "Mesh": mesh_module}):
+            result = _mesh_data(
+                ((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)),
+                ((0, 1, 2), (0, 2, 3)),
+            )
+
+        self.assertIs(result, created[0])
+        self.assertEqual(calls[0][0][0], [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)])
+        self.assertEqual(calls[0][0][1], [(0, 1, 2), (0, 2, 3)])
+        self.assertFalse(calls[0][1])
+
     def test_mannequin_is_deterministic_and_landmarked(self):
         params = AvatarParameters()
         first = generate_mesh(params)
