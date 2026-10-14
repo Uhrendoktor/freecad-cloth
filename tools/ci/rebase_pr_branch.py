@@ -222,7 +222,9 @@ def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     token = os.environ.get("GH_TOKEN", "")
     title_lines = os.environ.get("ACTIVATION_TITLE", "").splitlines()
-    match = re.fullmatch(r"RUN REBASE: PR #([0-9]+)", title_lines[0].strip()) if title_lines else None
+    match = (
+        re.fullmatch(r"RUN REBASE: PR #([0-9]+)", title_lines[0].strip()) if title_lines else None
+    )
     if not repo or not token or not match:
         raise RuntimeError("Missing repository/token or invalid rebase activation title")
     number = int(match.group(1))
