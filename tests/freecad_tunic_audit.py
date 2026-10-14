@@ -16,6 +16,9 @@ source = source_path.read_text(encoding="utf-8")
 os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
 os.environ["CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"] = "1"
 os.environ["CLOTH_TUNIC_AUDIT_RUN_AVATAR_ACCEPTANCE"] = "1"
+# Keep integration-scene setup under the FreeCAD test command budget; normal fit quality
+# is covered by the dedicated avatar fitting acceptance using production defaults.
+os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = "18"
 # Preserve the canonical workflow's PBD substep budget. The audit must not secretly
 # multiply the configured simulation cost behind the workflow's back.
 
