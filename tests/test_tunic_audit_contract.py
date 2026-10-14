@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "front_edge_ids = tuple(" in source
     assert "back_edge_ids = tuple(" in source
     assert '"SemanticEdgeIds"' in source
@@ -60,36 +60,33 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
 
 
 def test_canonical_tunic_uses_matching_authored_mapping():
-    audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert "required_indices = (1, 3, 5, 7)" in audit
-    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit
-    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit
-    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit
-    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit
-    assert 'front_edge_ids[3], back_edge_ids[5], "TunicRightShoulder"' not in audit
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "required_indices = (1, 3, 5, 7)" in source
+    assert 'front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source
+    assert 'front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in source
+    assert 'front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source
+    assert 'front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source
+    assert 'front_edge_ids[3], back_edge_ids[5], "TunicRightShoulder"' not in source
 
 
-def test_canonical_tunic_source_rewrite_compiles():
-    import subprocess
-    import sys
-
+def test_canonical_tunic_audit_uses_checked_in_scenario_code():
     audit_path = ROOT / "tests" / "freecad_tunic_audit.py"
-    result = subprocess.run(
-        [sys.executable, str(audit_path), "--syntax-check"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, (
-        "generated tunic source syntax gate failed\n"
-        f"stdout:\n{result.stdout}\n"
-        f"stderr:\n{result.stderr}"
-    )
-    assert "tunic-audit-source-syntax=passed" in result.stdout
+    source_path = ROOT / "tests" / "freecad_screenshot_source.py"
+    audit = audit_path.read_text(encoding="utf-8")
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'os.environ["CLOTH_TUNIC_AUDIT_PROFILE"] = "production"' in audit
+    assert 'runpy.run_path(str(SOURCE_PATH), run_name="__main__")' in audit
+    assert "source.replace(" not in audit
+    assert "SEAM_SOURCE" not in audit
+    assert "def _validate_authoritative_tunic_seams(scene, seam_records, log):" in source
+    assert "def _projected_point_within_outline_margin(" in source
+    compile(audit, str(audit_path), "exec")
+    compile(source, str(source_path), "exec")
 
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert 'os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source
     assert "proxy=proxy" in source
     assert "authoritative tunic seams did not converge" in source
@@ -174,7 +171,7 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata():
 
 
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit():
-    source = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -308,16 +305,18 @@ def test_pbd_ci_image_is_pinned_and_preinstalled():
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry():
     audit = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
-    assert 'source_path = Path(__file__).with_name("freecad_screenshot_source.py")' in audit
-    assert "SEAM_SOURCE = " in audit
-    assert "required_indices = (1, 3, 5, 7)" in audit
-    assert "TunicRightShoulder" in audit
-    assert "TunicLeftShoulder" in audit
-    assert "ParticleDistance = 24.0" in audit
-    assert "SolverIterations = 8" in audit
-    assert "SolverSubsteps = 4" in audit
-    assert "tunic-simulation-start" in audit
-    assert "realtime-preview=passed backend=position-based-dynamics" in audit
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert 'os.environ["CLOTH_TUNIC_AUDIT_PROFILE"] = "production"' in audit
+    assert "source.replace(" not in audit
+    assert "SEAM_SOURCE" not in audit
+    assert "required_indices = (1, 3, 5, 7)" in source
+    assert "TunicRightShoulder" in source
+    assert "TunicLeftShoulder" in source
+    assert "scene.ParticleDistance = 24.0" in source
+    assert "scene.SolverIterations = 8" in source
+    assert "scene.SolverSubsteps = 4 if TUNIC_PRODUCTION_AUDIT else 1" in source
+    assert "tunic-simulation-start particles=%d" in source
+    assert "realtime-preview=passed backend=position-based-dynamics" in source
 
 
 def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() -> None:
@@ -408,28 +407,26 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug
     assert "neckline_scoop_depth = 0.12 * float(garment_height)" in source
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
-    assert "neckline_scoop_depth = 0.12 * float(garment_height)" in audit
-    assert 'make_piece("VisualTunicFront", "front", 0.72, 0.03)' in source
-    assert 'make_piece("VisualTunicBack", "back", 0.72, 0.03)' in source
+    assert "neckline_scoop_depth = 0.12 * float(garment_height)" in source
+    assert 'front_side, back_side = (' in source
+    assert '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in source
+    assert 'make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in source
+    assert 'make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in source
     assert "elif idx == 4:" in debug
     assert "elif index == 4:" in source
     assert "true U-shaped neckline" in source
     assert "ArrangementPoint.from_string(raw)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "shoulder_width + 105.0" in source
-    assert "hem_width = max(450.0, panel_width + 100.0)" in source
-    assert "shoulder_span_ratio" not in audit
-    assert '"panel_width = max(420.0, shoulder_width + 105.0)":' not in audit
+    assert "hem_width_floor = 500.0 if TUNIC_PRODUCTION_AUDIT else 450.0" in source
+    assert "shoulder_span_ratio" not in source
     assert "clearance = max(20.0, 0.08 * body_depth)" in debug
-    assert (
-        '"clearance = max(20.0, 0.08 * body_depth)": "clearance = max(20.0, 0.08 * body_depth);"'
-        in audit
-    )
     assert "clearance = max(20.0, 0.08 * body_depth)" in source
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
     assert "panel_width = max(420.0, shoulder_width + 105.0)" in source
-    assert "panel_width = max(420.0, shoulder_width + 105.0)" in debug
-    assert "panel_width = max(420.0, shoulder_width + 105.0)" not in audit
+    assert "target_relative_piece_placement(side, outline)" in source
+    assert "_projected_point_within_outline_margin(" in source
+    assert "source.replace(" not in audit
     assert "hem_width = max(500.0, panel_width + 100.0)" in debug
     assert 'make_piece("DebugTunicFront", front_y, 0.72, 0.03)' in debug
     assert "panel_width *= 1.10" in source
@@ -437,8 +434,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "panel_width *= 1.10" in debug
     assert "hem_width *= 1.10" in debug
     assert 'make_piece("DebugTunicBack", back_y, 0.72, 0.03)' in debug
-    assert 'make_piece("VisualTunicFront", "back", 0.72, 0.03)' in audit
-    assert 'make_piece("VisualTunicBack", "front", 0.72, 0.03)' in audit
+    assert '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in source
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit():
