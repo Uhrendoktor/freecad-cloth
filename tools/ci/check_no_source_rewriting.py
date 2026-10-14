@@ -130,12 +130,8 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 if isinstance(value.func, ast.Attribute) and value.func.attr == "replace":
                     rewrites_source = bool(_names_used(value.func.value) & source_names)
                 elif (
-                    (
-                        isinstance(value.func, ast.Attribute)
-                        and value.func.attr in {"sub", "subn"}
-                    )
-                    or (isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"})
-                ):
+                    isinstance(value.func, ast.Attribute) and value.func.attr in {"sub", "subn"}
+                ) or (isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"}):
                     rewrites_source = any(
                         _names_used(argument) & source_names for argument in value.args
                     )
@@ -175,14 +171,11 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                             f"{path}:{node.lineno}: transformed source must not be executed dynamically"
                         )
                     elif (
-                        (
-                            isinstance(compiled_source, ast.Name)
-                            and compiled_source.id not in source_names
-                        )
-                        or (
-                            isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
-                            and not (_names_used(compiled_source) & source_names)
-                        )
+                        isinstance(compiled_source, ast.Name)
+                        and compiled_source.id not in source_names
+                    ) or (
+                        isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
+                        and not (_names_used(compiled_source) & source_names)
                     ):
                         violations.append(
                             f"{path}:{node.lineno}: generated Python source must not be executed"
