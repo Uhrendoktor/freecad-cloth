@@ -190,17 +190,23 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertLess(x_span / z_span, 0.6)
         self.assertLess(y_span / z_span, 0.25)
 
-    def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self):
+    def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self) -> None:
         from freecad_cloth.avatar.AvatarCommands import _mesh_data
 
         calls = []
         created = []
 
         class FakeMesh:
-            def addFacets(self, indexed_mesh, check_manifold=True):
+            def addFacets(
+                self,
+                indexed_mesh: tuple[
+                    list[tuple[float, float, float]], list[tuple[int, int, int]]
+                ],
+                check_manifold: bool = True,
+            ) -> None:
                 calls.append((indexed_mesh, check_manifold))
 
-        def create_mesh():
+        def create_mesh() -> FakeMesh:
             mesh = FakeMesh()
             created.append(mesh)
             return mesh
