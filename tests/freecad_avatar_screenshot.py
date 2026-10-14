@@ -246,7 +246,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
     from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
 
     original_fit_steps = anny_backend._FIT_STEPS
-    anny_backend._FIT_STEPS = min(original_fit_steps, 4)
+    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
     try:
         for index, profile in enumerate(profiles):
             measurements = dict(DEFAULT_MEASUREMENTS)
