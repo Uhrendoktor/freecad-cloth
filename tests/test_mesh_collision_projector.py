@@ -253,7 +253,8 @@ def test_stitched_pair_reconciliation_rescues_near_shell_midpoint() -> None:
         )
     )
 
-def test_stitched_pair_reconciliation_closes_safe_midpoint_without_contact_projection() -> None:
+
+def test_stitched_pair_reconciliation_closes_safe_midpoint() -> None:
     cube = _cube_surface()
     surface = CollisionSurface(
         tuple(tuple(float(value) * 0.4 for value in vertex) for vertex in cube.vertices),
