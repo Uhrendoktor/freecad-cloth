@@ -70,7 +70,8 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
         return (f"{path}:{error.lineno or 1}: invalid Python syntax: {error.msg}",)
 
     assignments = [
-        node for node in ast.walk(tree)
+        node
+        for node in ast.walk(tree)
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
     ]
     python_path_names: set[str] = set()
@@ -95,7 +96,12 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 if (
                     receiver_names & python_path_names
                     or _contains_python_path_literal(read_receiver)
-                    or (_target_names(node.targets[0]) if isinstance(node, ast.Assign) else _target_names(node.target)) & PYTHON_SOURCE_NAME_HINTS
+                    or (
+                        _target_names(node.targets[0])
+                        if isinstance(node, ast.Assign)
+                        else _target_names(node.target)
+                    )
+                    & PYTHON_SOURCE_NAME_HINTS
                 ):
                     targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                     for target in targets:
@@ -106,20 +112,23 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 rewrites_source = False
                 if isinstance(value.func, ast.Attribute) and value.func.attr == "replace":
                     rewrites_source = bool(_names_used(value.func.value) & source_names)
-                elif (
-                    isinstance(value.func, ast.Attribute)
-                    and value.func.attr in {"sub", "subn"}
-                ):
-                    rewrites_source = any(_names_used(argument) & source_names for argument in value.args)
+                elif isinstance(value.func, ast.Attribute) and value.func.attr in {"sub", "subn"}:
+                    rewrites_source = any(
+                        _names_used(argument) & source_names for argument in value.args
+                    )
                 elif isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"}:
-                    rewrites_source = any(_names_used(argument) & source_names for argument in value.args)
+                    rewrites_source = any(
+                        _names_used(argument) & source_names for argument in value.args
+                    )
                 if rewrites_source:
                     targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                     for target in targets:
                         before = len(modified_source_names)
                         modified_source_names.update(_target_names(target))
                         changed |= len(modified_source_names) != before
-            if isinstance(value, ast.BinOp) and _names_used(value) & (source_names | modified_source_names):
+            if isinstance(value, ast.BinOp) and _names_used(value) & (
+                source_names | modified_source_names
+            ):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
                     before = len(modified_source_names)
@@ -161,12 +170,8 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
 
         if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
             expression = node.args[0]
-            if (
-                _names_used(expression) & modified_source_names
-                or (
-                    isinstance(expression, ast.BinOp)
-                    and _names_used(expression) & source_names
-                )
+            if _names_used(expression) & modified_source_names or (
+                isinstance(expression, ast.BinOp) and _names_used(expression) & source_names
             ):
                 violations.append(
                     f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
