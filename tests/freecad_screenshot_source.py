@@ -2,6 +2,7 @@
 
 import contextlib
 import importlib.util
+from collections.abc import Callable, Sequence
 import json
 import os
 import sys
@@ -1258,7 +1259,9 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         events()
 
 
-def _projected_point_within_outline_margin(x, z, points, margin):
+def _projected_point_within_outline_margin(
+    x: float, z: float, points: Sequence[tuple[float, float]], margin: float
+) -> bool:
     """Check whether a projected target vertex overlaps a pattern outline or its clearance band."""
     px = float(x)
     pz = float(z)
@@ -1286,7 +1289,11 @@ def _projected_point_within_outline_margin(x, z, points, margin):
     return inside or near
 
 
-def _validate_authoritative_tunic_seams(scene, seam_records, log):
+def _validate_authoritative_tunic_seams(
+    scene: object,
+    seam_records: Sequence[tuple[object, object, object]],
+    log: Callable[[str], None],
+) -> None:
     """Fail if the actual solver-owned stitch pairs exceed the 35 mm acceptance limit."""
     backend_state = scene.Proxy._base_or_restore()
     simulated_positions = tuple(backend_state.backend.positions())
@@ -1366,7 +1373,9 @@ def _validate_authoritative_tunic_seams(scene, seam_records, log):
     )
 
 
-def _validate_tunic_collision_configuration(active_backend, log):
+def _validate_tunic_collision_configuration(
+    active_backend: object, log: Callable[[str], None]
+) -> int:
     """Validate the production audit's fixed mesh-collision geometry and runtime settings."""
     active_collision = getattr(active_backend, "_collision_surface", None)
     if active_collision is None:
@@ -1526,7 +1535,7 @@ def simulation():
     hip_point = arrangement_world("hip")
     if TUNIC_PRODUCTION_AUDIT:
 
-        def landmark_world(name):
+        def landmark_world(name: str) -> object:
             raw = next(
                 (
                     value
@@ -1592,7 +1601,9 @@ def simulation():
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(side, outline=None):
+    def target_relative_piece_placement(
+        side, outline: Sequence[tuple[float, float]] | None = None
+    ):
         if TUNIC_PRODUCTION_AUDIT:
             if outline is None:
                 raise RuntimeError(
