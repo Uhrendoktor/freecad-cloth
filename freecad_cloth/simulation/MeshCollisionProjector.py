@@ -227,16 +227,19 @@ def project_stitched_pairs(
     stitches: Sequence[tuple[int, int]],
     pinned_indices: Sequence[int] = (),
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Close zero-rest-length stitch groups after contact projection.
+    """Close stitch groups after contact projection, including near-shell residuals.
 
     The native PBD pass projects stitches before the backend's position-level
     collision response. Independent contact corrections can therefore separate
-    two vertices that were sewn together, especially when the nearest body
-    triangles have different normals. Reconcile each connected stitch group at
-    a shared point, then project that point to the same exterior clearance shell.
-    Only groups touched by the preceding contact projection are reconciled;
-    non-contacting stitches remain the native solver's responsibility. Groups
-    containing fixed particles are left unchanged to preserve pins.
+    two sewn vertices. Reconcile contact-touched groups at a shared point and
+    project that point to the exterior clearance shell.
+
+    A residual stitch can also stall when both endpoints sit just outside the
+    shell on different sides of a curved body. In that case, probe only the
+    midpoint of near-closed groups; reconcile them only if the midpoint itself
+    requires collision projection. This leaves distant, non-contacting stitches
+    to the native solver and avoids pulling a newly arranged garment through the
+    mannequin. Groups containing fixed particles remain unchanged.
     """
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
@@ -246,11 +249,6 @@ def project_stitched_pairs(
         raise ValueError("stitched collision normals must match the position array")
     if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
         raise ValueError("stitched collision positions and normals must be finite")
-
-    # Contact-free steps are common in a preview. Avoid rebuilding stitch
-    # connectivity when no particle was projected.
-    if not bool(np.any(normals)):
-        return corrected, normals
 
     particle_count = len(corrected)
     pinned = {int(index) for index in pinned_indices}
@@ -293,25 +291,42 @@ def project_stitched_pairs(
 
     eligible_groups: list[list[int]] = []
     shared_points: list[npt.NDArray[np.float64]] = []
+    near_shell_groups: list[list[int]] = []
+    near_shell_midpoints: list[npt.NDArray[np.float64]] = []
+    capture_distance_mm = max(25.0, 10.0 * projector.clearance_mm)
     for group in groups.values():
         if len(group) < 2 or pinned.intersection(group):
-            continue
-        if not bool(np.any(np.linalg.norm(normals[group], axis=1) > 1e-7)):
             continue
         points = corrected[group]
         if float(np.linalg.norm(points - points[0], axis=1).max()) <= 1e-7:
             continue
-        eligible_groups.append(group)
-        shared_points.append(points.mean(axis=0))
+        if bool(np.any(np.linalg.norm(normals[group], axis=1) > 1e-7)):
+            eligible_groups.append(group)
+            shared_points.append(points.mean(axis=0))
+            continue
+        if float(np.linalg.norm(points - points[0], axis=1).max()) <= capture_distance_mm:
+            near_shell_groups.append(group)
+            near_shell_midpoints.append(points.mean(axis=0))
 
-    if not shared_points:
-        return corrected, normals
+    # Rescue only residual stitches whose shared point is itself inside or too
+    # close to the mannequin. Far-away pairs produce no contact normal and stay
+    # under the native solver, as before.
+    if near_shell_midpoints:
+        midpoint_points, midpoint_normals = projector.project(
+            np.asarray(near_shell_midpoints, dtype=np.float64)
+        )
+        for index, group in enumerate(near_shell_groups):
+            if float(np.linalg.norm(midpoint_normals[index])) <= 1e-7:
+                continue
+            corrected[group] = midpoint_points[index]
+            normals[group] = midpoint_normals[index]
 
-    projected_points, projected_normals = projector.project(
-        np.asarray(shared_points, dtype=np.float64)
-    )
-    for index, group in enumerate(eligible_groups):
-        corrected[group] = projected_points[index]
-        normals[group] = projected_normals[index]
+    if shared_points:
+        projected_points, projected_normals = projector.project(
+            np.asarray(shared_points, dtype=np.float64)
+        )
+        for index, group in enumerate(eligible_groups):
+            corrected[group] = projected_points[index]
+            normals[group] = projected_normals[index]
 
     return corrected, normals
