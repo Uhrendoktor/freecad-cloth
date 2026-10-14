@@ -255,10 +255,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
     try:
         for index, profile in enumerate(profiles):
             profile_started = time.monotonic()
-            log(
-                "body-shape-gallery-profile-start index=%d name=%s"
-                % (index, profile["name"])
-            )
+            log("body-shape-gallery-profile-start index=%d name=%s" % (index, profile["name"]))
             measurements = dict(DEFAULT_MEASUREMENTS)
             measurements.update(profile["measurements"])
             params = AvatarParameters(
