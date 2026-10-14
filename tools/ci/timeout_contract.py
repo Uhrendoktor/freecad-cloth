@@ -32,9 +32,15 @@ def configured_timeout() -> int:
 def main() -> int:
     """Validate that workflow and action surfaces do not define a second timeout."""
     expected = configured_timeout()
+    if expected != 120:
+        raise SystemExit("FreeCAD application runtime budget must remain at 120 seconds")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     action = TEST_ACTION.read_text(encoding="utf-8")
 
+    if "freecad_application_timeout_seconds" in workflow:
+        raise SystemExit(
+            "the canonical workflow must not rewrite the authoritative FreeCAD application budget"
+        )
     if "timeout-seconds:" in workflow:
         raise SystemExit(
             "FreeCAD application timeout must not be duplicated in the canonical workflow"
