@@ -17,6 +17,7 @@ from tools.ci.validate_ci_structure import (
     missing_source_rewriting_policy_commands,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
+    source_rewriting_policy_tests_are_blocking,
     ty_warnings_are_blocking,
 )
 
@@ -88,6 +89,7 @@ def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
     assert missing_typecheck_commands(workflow_text) == ()
     assert missing_python_policy_commands(workflow_text) == ()
     assert missing_source_rewriting_policy_commands(workflow_text) == ()
+    assert source_rewriting_policy_tests_are_blocking(workflow_text)
     assert workflow_text.count("pyright -p pyrightconfig.json") == 1
     assert "pyrightconfig.agent-strict.json" not in workflow_text
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
