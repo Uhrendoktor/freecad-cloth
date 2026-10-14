@@ -79,9 +79,7 @@ def _mesh_points(avatar):
 
 def _mesh_points_unrounded(avatar):
     """Return full-precision vertices in native index order for locality checks."""
-    return tuple(
-        (float(point.x), float(point.y), float(point.z)) for point in avatar.Mesh.Points
-    )
+    return tuple((float(point.x), float(point.y), float(point.z)) for point in avatar.Mesh.Points)
 
 
 def _head_envelope(points, cutoff):
@@ -535,12 +533,8 @@ def run():
 
                 before_head_points = tuple(point for _, point in head_before_hip)
                 after_head_points = tuple(point for _, point in head_after_hip)
-                before_bounds = tuple(
-                    _axis_bounds(before_head_points, axis) for axis in range(3)
-                )
-                after_bounds = tuple(
-                    _axis_bounds(after_head_points, axis) for axis in range(3)
-                )
+                before_bounds = tuple(_axis_bounds(before_head_points, axis) for axis in range(3))
+                after_bounds = tuple(_axis_bounds(after_head_points, axis) for axis in range(3))
                 largest_displacements = tuple(
                     (
                         index,
