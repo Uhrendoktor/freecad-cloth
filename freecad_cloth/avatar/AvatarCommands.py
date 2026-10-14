@@ -266,7 +266,12 @@ def _ensure_drape_target(obj):
     return target
 
 
-def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
+def create_avatar(
+    attach_collision=True,
+    doc=None,
+    object_name="ClothAvatar",
+    params: AvatarParameters | None = None,
+):
     import FreeCAD as App
 
     doc = doc or App.ActiveDocument or App.newDocument("ClothSewing")
@@ -368,7 +373,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             "Avatar",
             int(getattr(obj, "AvatarRevision", 0)),
         )
-    _rebuild(obj)
+    _rebuild(obj, params=params)
     if attach_collision:
         _ensure_collision(obj)
         _ensure_drape_target(obj)
