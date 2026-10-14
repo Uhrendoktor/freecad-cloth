@@ -1315,9 +1315,7 @@ def _validate_authoritative_tunic_seams(scene, seam_records, log):
             b = simulated_positions[int(gb)]
             gap = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
             pair_gaps.append((gap, int(ga), int(gb), tuple(a), tuple(b)))
-        worst_gap, worst_a, worst_b, worst_pa, worst_pb = max(
-            pair_gaps, key=lambda item: item[0]
-        )
+        worst_gap, worst_a, worst_b, worst_pa, worst_pb = max(pair_gaps, key=lambda item: item[0])
         mean_gap = sum(item[0] for item in pair_gaps) / len(pair_gaps)
         seam_gap_records.append((seam_id, worst_gap))
         log(
@@ -1325,9 +1323,21 @@ def _validate_authoritative_tunic_seams(scene, seam_records, log):
             "worst-pair=(%d,%d) a=(%.2f,%.2f,%.2f) b=(%.2f,%.2f,%.2f) "
             "delta=(%.2f,%.2f,%.2f)"
             % (
-                seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b,
-                worst_pa[0], worst_pa[1], worst_pa[2], worst_pb[0], worst_pb[1], worst_pb[2],
-                worst_pa[0] - worst_pb[0], worst_pa[1] - worst_pb[1], worst_pa[2] - worst_pb[2],
+                seam_id,
+                len(pair_gaps),
+                worst_gap,
+                mean_gap,
+                worst_a,
+                worst_b,
+                worst_pa[0],
+                worst_pa[1],
+                worst_pa[2],
+                worst_pb[0],
+                worst_pb[1],
+                worst_pb[2],
+                worst_pa[0] - worst_pb[0],
+                worst_pa[1] - worst_pb[1],
+                worst_pa[2] - worst_pb[2],
             )
         )
         for sample_index, (gap, ga, gb, point_a, point_b) in enumerate(pair_gaps):
@@ -1335,8 +1345,14 @@ def _validate_authoritative_tunic_seams(scene, seam_records, log):
                 "authoritative-seam-sample seam=%s sample=%d pair=(%d,%d) gap-mm=%.2f "
                 "delta=(%.2f,%.2f,%.2f)"
                 % (
-                    seam_id, sample_index, ga, gb, gap,
-                    point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2],
+                    seam_id,
+                    sample_index,
+                    ga,
+                    gb,
+                    gap,
+                    point_a[0] - point_b[0],
+                    point_a[1] - point_b[1],
+                    point_a[2] - point_b[2],
                 )
             )
     max_seam_gap = max((gap for _seam_id, gap in seam_gap_records), default=0.0)
@@ -1380,7 +1396,8 @@ def _validate_tunic_collision_configuration(active_backend, log):
     )
     if abs(collision_target_thickness_mm - 5.0) > 1e-6:
         raise RuntimeError(
-            "tunic mannequin collision thickness must be 5 mm, got %.3f" % collision_target_thickness_mm
+            "tunic mannequin collision thickness must be 5 mm, got %.3f"
+            % collision_target_thickness_mm
         )
     if abs(collision_voxel_mm - 8.0) > 1e-6:
         raise RuntimeError("tunic PBD SDF voxel size must be 8 mm, got %.3f" % collision_voxel_mm)
@@ -1404,9 +1421,12 @@ def _validate_tunic_collision_configuration(active_backend, log):
         "configured-tolerance-mm=%.2f effective-tolerance-mm=%.2f "
         "sdf-resolution=%dx%dx%d span-mm=%.2fx%.2fx%.2f"
         % (
-            collision_target_thickness_mm, collision_voxel_mm,
-            collision_configured_tolerance_mm, collision_effective_tolerance_mm,
-            *collision_sdf_resolution, *collision_spans_mm,
+            collision_target_thickness_mm,
+            collision_voxel_mm,
+            collision_configured_tolerance_mm,
+            collision_effective_tolerance_mm,
+            *collision_sdf_resolution,
+            *collision_spans_mm,
         )
     )
     configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))
@@ -1505,6 +1525,7 @@ def simulation():
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
     if TUNIC_PRODUCTION_AUDIT:
+
         def landmark_world(name):
             raw = next(
                 (
@@ -1516,9 +1537,7 @@ def simulation():
             )
             if raw is None:
                 raise RuntimeError("posed avatar mesh is missing FK landmark %s" % name)
-            coordinates = tuple(
-                float(value) for value in str(raw).split("|", 1)[1].split(",")
-            )
+            coordinates = tuple(float(value) for value in str(raw).split("|", 1)[1].split(","))
             if len(coordinates) != 3:
                 raise RuntimeError("posed avatar FK landmark %s has invalid coordinates" % name)
             return avatar.Placement.multVec(App.Vector(*coordinates))
@@ -1576,7 +1595,9 @@ def simulation():
     def target_relative_piece_placement(side, outline=None):
         if TUNIC_PRODUCTION_AUDIT:
             if outline is None:
-                raise RuntimeError("production tunic placement requires the authored pattern outline")
+                raise RuntimeError(
+                    "production tunic placement requires the authored pattern outline"
+                )
             panel_origin_x = x_mid - hem_width / 2.0
             torso_half_width = max(80.0, 0.30 * shoulder_width)
             projected_target_ys = [
@@ -1606,8 +1627,14 @@ def simulation():
                 "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
                 "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
                 % (
-                    side, target_front_y, target_back_y, y, clearance,
-                    x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
+                    side,
+                    target_front_y,
+                    target_back_y,
+                    y,
+                    clearance,
+                    x_mid - torso_half_width,
+                    x_mid + torso_half_width,
+                    len(projected_target_ys),
                 )
             )
             return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
@@ -1638,9 +1665,7 @@ def simulation():
 
     # The production audit intentionally stages the visual front at +Y and back at -Y,
     # using target-projected placement; the ordinary screenshot path retains its default.
-    front_side, back_side = (
-        ("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")
-    )
+    front_side, back_side = ("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")
     front, front_outline = make_piece("VisualTunicFront", front_side, 0.72, 0.03)
     back, back_outline = make_piece("VisualTunicBack", back_side, 0.72, 0.03)
 
@@ -2212,8 +2237,11 @@ def simulation():
         preview_saved = {
             name: getattr(scene, name)
             for name in (
-                "ParticleDistance", "SolverIterations", "SolverSubsteps",
-                "TimeStep", "QualityPreset",
+                "ParticleDistance",
+                "SolverIterations",
+                "SolverSubsteps",
+                "TimeStep",
+                "QualityPreset",
             )
         }
         Gui.runCommand("ClothRealtimePreview")
@@ -2242,9 +2270,7 @@ def simulation():
         for name, value in preview_saved.items():
             if getattr(scene, name) != value:
                 raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
-        log(
-            "realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps
-        )
+        log("realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps)
         active_backend = scene.Proxy._base_or_restore().backend
         effective_substeps = _validate_tunic_collision_configuration(active_backend, log)
         simulation_started = perf_counter()
@@ -2252,8 +2278,11 @@ def simulation():
             "tunic-simulation-start particles=%d iterations=%d scene_substeps=%d "
             "backend_substeps=%d configured_substeps=%d backend=%s collision_triangles=%d"
             % (
-                int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
-                effective_substeps, int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8")),
+                int(scene.ParticleCount),
+                int(scene.SolverIterations),
+                int(scene.SolverSubsteps),
+                effective_substeps,
+                int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8")),
                 str(getattr(active_backend, "name", "")),
                 len(getattr(getattr(active_backend, "_collision_surface", None), "triangles", ())),
             )
@@ -2287,10 +2316,14 @@ def simulation():
                 "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
                 "particles=%d iterations=%d scene_substeps=%d backend_substeps=%d"
                 % (
-                    frame_index, int(scene.Steps), batch,
+                    frame_index,
+                    int(scene.Steps),
+                    batch,
                     1000.0 * (perf_counter() - batch_started),
                     1000.0 * (perf_counter() - simulation_started),
-                    int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
+                    int(scene.ParticleCount),
+                    int(scene.SolverIterations),
+                    int(scene.SolverSubsteps),
                     int(getattr(scene.Proxy._base_or_restore().backend, "_substeps", -1)),
                 )
             )
