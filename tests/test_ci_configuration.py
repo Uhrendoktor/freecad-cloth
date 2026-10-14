@@ -16,7 +16,7 @@ def test_freecad_timeout_is_positive_and_declared_once():
     configured = tomllib.loads(pyproject)["tool"]["freecad_cloth"]["ci"][
         "freecad_application_timeout_seconds"
     ]
-    assert configured > 0
+    assert configured == 120
     assert configured_timeout_seconds() == configured
     assert pyproject.count("freecad_application_timeout_seconds") == 1
 
@@ -32,6 +32,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     assert "timeout-seconds:" not in workflow
+    assert "freecad_application_timeout_seconds" not in workflow
     assert "timeout-seconds:" not in action
     assert "configured_timeout_seconds()" in runner
 
