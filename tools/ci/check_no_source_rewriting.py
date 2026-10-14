@@ -102,8 +102,18 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                         before = len(source_names)
                         source_names.update(_target_names(target))
                         changed |= len(source_names) != before
-            if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute):
-                if value.func.attr in {"replace", "sub"} and _names_used(value.func.value) & source_names:
+            if isinstance(value, ast.Call):
+                rewrites_source = False
+                if isinstance(value.func, ast.Attribute) and value.func.attr == "replace":
+                    rewrites_source = bool(_names_used(value.func.value) & source_names)
+                elif (
+                    isinstance(value.func, ast.Attribute)
+                    and value.func.attr in {"sub", "subn"}
+                ):
+                    rewrites_source = any(_names_used(argument) & source_names for argument in value.args)
+                elif isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"}:
+                    rewrites_source = any(_names_used(argument) & source_names for argument in value.args)
+                if rewrites_source:
                     targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                     for target in targets:
                         before = len(modified_source_names)
@@ -130,7 +140,13 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
 
         if isinstance(node.func, ast.Attribute):
             receiver_names = _names_used(node.func.value)
-            if node.func.attr in {"replace", "sub"} and receiver_names & source_names:
+            rewrites_source = (
+                node.func.attr == "replace" and bool(receiver_names & source_names)
+            ) or (
+                node.func.attr in {"sub", "subn"}
+                and any(_names_used(argument) & source_names for argument in node.args)
+            )
+            if rewrites_source:
                 violations.append(
                     f"{path}:{node.lineno}: Python source text must not be rewritten with "
                     f"{node.func.attr}(); use explicit functions/configuration"
@@ -145,7 +161,13 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
 
         if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
             expression = node.args[0]
-            if _names_used(expression) & modified_source_names:
+            if (
+                _names_used(expression) & modified_source_names
+                or (
+                    isinstance(expression, ast.BinOp)
+                    and _names_used(expression) & source_names
+                )
+            ):
                 violations.append(
                     f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
                 )
@@ -187,10 +209,10 @@ def _policy_files() -> tuple[Path, ...]:
         for path in ROOT.rglob("*.py")
         if not any(part in {".git", ".venv", "__pycache__", "build", "dist"} for part in path.parts)
     ]
-    ci_files = list((ROOT / ".github" / "workflows").glob("*.yml"))
-    ci_files.extend((ROOT / ".github" / "workflows").glob("*.yaml"))
-    ci_files.extend((ROOT / ".github" / "actions").rglob("action.yml"))
+    ci_files = list((ROOT / ".github").rglob("*.yml"))
+    ci_files.extend((ROOT / ".github").rglob("*.yaml"))
     ci_files.extend((ROOT / "tools").rglob("*.sh"))
+    ci_files.extend((ROOT / ".github").rglob("*.sh"))
     return tuple(sorted(set([*python_files, *ci_files])))
 
 
