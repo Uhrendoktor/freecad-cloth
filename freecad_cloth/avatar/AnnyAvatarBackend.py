@@ -21,6 +21,8 @@ import numpy as np
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
+    import torch
+
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 # These are measurement keys implemented by clad-body's differentiable Anny
@@ -74,6 +76,12 @@ class _ForwardModel(Protocol):
     """Minimal writable model interface needed for the compatibility adapter."""
 
     forward: Callable[..., object]
+
+
+class _AnnyCallableModel(Protocol):
+    """Callable Anny model interface used by clad-body's dynamic return object."""
+
+    def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]: ...
 
 
 def _adapt_clad_body_pose_alias(model: object) -> None:
@@ -520,7 +528,7 @@ def _fit_anny_body(
 
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
         with torch.no_grad():
-            global_output = body.model(
+            global_output = cast(_AnnyCallableModel, body.model)(
                 pose_parameters=pose,
                 phenotype_kwargs=body.phenotype_kwargs,
                 local_changes_kwargs=body.local_changes_kwargs,
@@ -604,7 +612,7 @@ def _fit_anny_body(
                 if name not in breast_names and name not in hip_change_names:
                     value.clamp_(-1.0, 1.0)
 
-    model = body.model
+    model = cast(_AnnyCallableModel, body.model)
     if body.phenotype_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
     if body.local_changes_kwargs is None:
