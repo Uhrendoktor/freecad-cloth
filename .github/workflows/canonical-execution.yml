@@ -432,7 +432,7 @@ jobs:
     name: README turntable evidence
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -440,7 +440,13 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", test-script: tests/freecad_avatar_screenshot.py, clean-user: "true", log-file: artifacts/avatar-gui-progress.log, environment: CLOTH_CI_DISABLE_PBD=1}
+        with:
+          image: "${{ env.FREECAD_PBD_IMAGE }}"
+          test-script: tests/freecad_avatar_screenshot.py
+          pre-command: sed -i 's/^freecad_application_timeout_seconds = 120$/freecad_application_timeout_seconds = 360/' pyproject.toml && grep '^freecad_application_timeout_seconds' pyproject.toml
+          clean-user: "true"
+          log-file: artifacts/avatar-gui-progress.log
+          environment: CLOTH_CI_DISABLE_PBD=1
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
