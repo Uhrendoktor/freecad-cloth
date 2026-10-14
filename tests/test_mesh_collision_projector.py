@@ -275,9 +275,7 @@ def test_stitched_pair_reconciliation_closes_safe_midpoint() -> None:
         ((0, 1),),
     )
 
-    assert np.allclose(
-        stitched_positions, ((-5.0, 20.0, 20.0), (-5.0, 20.0, 20.0))
-    )
+    assert np.allclose(stitched_positions, ((-5.0, 20.0, 20.0), (-5.0, 20.0, 20.0)))
     assert np.array_equal(stitched_normals, np.zeros_like(stitched_normals))
     assert not any(
         points_inside_closed_mesh(
