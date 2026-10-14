@@ -41,7 +41,7 @@ The README animations currently come from focused acceptance fixtures, not one c
 
 Use this focused setup when the garment's intended wearer differs from the default mannequin or when a more accurate bust, waist, hip, shoulder, or height is needed before pattern fitting.
 
-1. Open the document containing the built-in MakeHuman mannequin, or create one from **Cloth Simulation → Avatar & Fitting → Create Avatar**.
+1. Create the built-in Anny-backed mannequin from **Cloth Simulation → Avatar & Fitting → Create Avatar**; no pre-populated document is required.
 2. Open **Avatar & Fitting → Edit Avatar**.
 3. Set the feminine-to-masculine proportion blend and breast fullness in **Body shape**. Treat these as shape controls rather than replacements for measurements.
 4. Drag the 3D height, shoulder, chest, waist, or hip handle in the viewport, or enter the exact value in the **Body measurements** or **Proportions** group. The handles stage changes; they do not immediately mutate the saved avatar.
