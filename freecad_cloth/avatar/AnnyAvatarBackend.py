@@ -203,8 +203,7 @@ def _apply_front_breast_fullness(
             front_weight = _smoothstep_weight(-18.0, 28.0, y_mm)
             vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
             lateral_weight = max(
-                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2)
-                for center_x in (-72.0, 72.0)
+                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2) for center_x in (-72.0, 72.0)
             )
             y_mm += 62.0 * strength * front_weight * vertical_weight * lateral_weight
         adjusted.append((x_mm, y_mm, z_mm))

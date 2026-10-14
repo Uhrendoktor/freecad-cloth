@@ -327,10 +327,7 @@ def project_stitched_pairs(
         # Mirror the projector's broad phase: a zero normal means "safe" both
         # near the clearance shell and far away. Only reconcile midpoints that
         # are plausible surface candidates; remote stitches remain untouched.
-        if (
-            float(centroid_distance) > projector._search_radius_mm
-            and closest_plane_distance >= 0.0
-        ):
+        if float(centroid_distance) > projector._search_radius_mm and closest_plane_distance >= 0.0:
             continue
         near_shell_groups.append(group)
         near_shell_midpoints.append(midpoint)

@@ -116,4 +116,3 @@ def test_front_breast_fullness_moves_only_the_visible_anterior_chest() -> None:
     assert fuller[2] == baseline[2]
     assert fuller[3] == baseline[3]
     assert fuller[4] == baseline[4]
-
