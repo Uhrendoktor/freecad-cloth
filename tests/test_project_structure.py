@@ -12,7 +12,7 @@ def test_project_metadata_exists():
     assert "[build-system]" in text
 
 
-def test_anny_avatar_runtime_is_a_required_project_dependency():
+def test_anny_avatar_runtime_is_a_required_project_dependency() -> None:
     import tomllib
 
     root = Path(__file__).resolve().parents[1]
