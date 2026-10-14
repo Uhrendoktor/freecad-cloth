@@ -402,6 +402,7 @@ jobs:
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
 
       - uses: ./.github/actions/freecad-test
+        if: always()
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
