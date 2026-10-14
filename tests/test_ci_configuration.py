@@ -29,11 +29,18 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     action = (ROOT / ".github" / "actions" / "freecad-test" / "action.yml").read_text(
         encoding="utf-8"
     )
+    container_action = (
+        ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
+    ).read_text(encoding="utf-8")
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     assert "timeout-seconds:" not in workflow
     assert "freecad_application_timeout_seconds" not in workflow
     assert "timeout-seconds:" not in action
+    assert 'default: "120"' in container_action
+    assert "maximum 120 seconds" in container_action
+    assert 'if [ "$timeout_seconds" -gt 120 ]; then' in container_action
+    assert "420" not in container_action
     assert "configured_timeout_seconds()" in runner
 
 
