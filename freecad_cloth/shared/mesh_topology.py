@@ -113,6 +113,4 @@ def orient_closed_triangle_winding(
             second = corrected[component_indices, 1].copy()
             corrected[component_indices, 1] = corrected[component_indices, 2]
             corrected[component_indices, 2] = second
-    return tuple(
-        (int(face[0]), int(face[1]), int(face[2])) for face in corrected.tolist()
-    )
+    return tuple((int(face[0]), int(face[1]), int(face[2])) for face in corrected.tolist())
