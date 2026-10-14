@@ -150,7 +150,24 @@ def _shape_change_summary(
             and 25.0 <= side * point[0] <= 155.0
         )
 
+    # Anny/clad-body centres each fitted mesh on its own XY bounds. Cupsize can
+    # therefore translate the whole torso when the breast envelope changes; compare
+    # lobe displacement relative to the lower torso to isolate actual prominence.
+    torso_reference_indices = tuple(
+        index
+        for index, point in enumerate(bust_baseline)
+        if 0.48 * height_mm <= point[2] <= 0.61 * height_mm
+        and point[1] > 0.0
+        and 20.0 <= abs(point[0]) <= 130.0
+    )
+    if not torso_reference_indices:
+        raise RuntimeError("no lower-torso vertices available to normalize bust projection")
+    torso_y_shift = sorted(
+        after[index][1] - bust_baseline[index][1] for index in torso_reference_indices
+    )[len(torso_reference_indices) // 2]
+
     side_deltas: dict[str, float] = {}
+    side_absolute_deltas: dict[str, float] = {}
     side_max_abs_axis_delta: dict[str, tuple[float, float, float]] = {}
     side_max_vertex_delta: dict[str, float] = {}
     side_lobe_vertex_counts: dict[str, int] = {}
@@ -162,7 +179,8 @@ def _shape_change_summary(
             tuple(after[index][axis] - bust_baseline[index][axis] for axis in range(3))
             for index in lobe_indices
         )
-        side_deltas[name] = max(delta[1] for delta in deltas)
+        side_absolute_deltas[name] = max(delta[1] for delta in deltas)
+        side_deltas[name] = side_absolute_deltas[name] - torso_y_shift
         side_max_abs_axis_delta[name] = tuple(
             max(abs(delta[axis]) for delta in deltas) for axis in range(3)
         )
@@ -173,6 +191,9 @@ def _shape_change_summary(
     return {
         "changed_vertices": len(changed_positions),
         "torso_changed_vertices": torso_changed_vertices,
+        "torso_reference_y_shift_mm": torso_y_shift,
+        "left_bust_absolute_y_delta_mm": side_absolute_deltas["left"],
+        "right_bust_absolute_y_delta_mm": side_absolute_deltas["right"],
         "left_bust_projection_delta_mm": side_deltas["left"],
         "right_bust_projection_delta_mm": side_deltas["right"],
         "min_side_bust_projection_delta_mm": min(side_deltas.values()),
