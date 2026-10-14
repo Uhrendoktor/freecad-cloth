@@ -22,6 +22,7 @@ REQUIRED = (
     ROOT / ".github/actions/publish-visual-evidence/action.yml",
     ROOT / "tools/ci/run_freecad.py",
     ROOT / "tools/ci/python_validation.py",
+    ROOT / "tools/ci/rebase_pr_branch.py",
     ROOT / "tools/ci/validate_acceptance.py",
     ROOT / "tools/ci/validate_manifests.py",
     ROOT / "tools/ci/visual_evidence.py",
