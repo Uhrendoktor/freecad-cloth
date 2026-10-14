@@ -65,6 +65,28 @@ def _names_used(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
 
 
+def _checked_in_source_handles(
+    tree: ast.Module, python_path_names: set[str]
+) -> set[str]:
+    """Find file handles opened from known Python paths inside with statements."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.With, ast.AsyncWith)):
+            continue
+        for item in node.items:
+            expression = item.context_expr
+            if not isinstance(expression, ast.Call) or not isinstance(expression.func, ast.Name):
+                continue
+            if expression.func.id != "open" or not expression.args:
+                continue
+            source_path = expression.args[0]
+            if _names_used(source_path) & python_path_names or _contains_python_path_literal(
+                source_path
+            ):
+                names.update(_target_names(item.optional_vars) if item.optional_vars else set())
+    return names
+
+
 def _is_checked_in_source_expression(
     expression: ast.expr,
     source_names: set[str],
@@ -75,7 +97,8 @@ def _is_checked_in_source_expression(
         return expression.id in source_names
     receiver = _read_method_receiver(expression)
     return receiver is not None and bool(
-        _names_used(receiver) & python_path_names or _contains_python_path_literal(receiver)
+        _names_used(receiver) & (python_path_names | source_names)
+        or _contains_python_path_literal(receiver)
     )
 
 
@@ -99,7 +122,7 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
             for target in targets:
                 python_path_names.update(_target_names(target))
 
-    source_names: set[str] = set()
+    source_names = _checked_in_source_handles(tree, python_path_names)
     modified_source_names: set[str] = set()
     for _ in range(4):
         changed = False
