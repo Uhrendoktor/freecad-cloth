@@ -23,6 +23,7 @@ os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "gui-progress.log")
 MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
 METRICS = os.path.join(OUT, "drape-visual-metrics.json")
+TUNIC_PRODUCTION_AUDIT = os.environ.get("CLOTH_TUNIC_AUDIT_PROFILE") == "production"
 
 
 def log(message):
@@ -448,7 +449,9 @@ def write_drape_metrics(
         shoulder_z = float(box.ZMin) + 0.76 * target_height
     if hem_z is None:
         hem_z = float(box.ZMin) + 0.40 * target_height
-    upper_margin = 0.12 * max(1.0, float(shoulder_z) - float(hem_z))
+    upper_margin = (0.17 if TUNIC_PRODUCTION_AUDIT else 0.12) * max(
+        1.0, float(shoulder_z) - float(hem_z)
+    )
     lower_margin = 0.20 * max(1.0, float(shoulder_z) - float(hem_z))
     records = []
     for panel in panels:
@@ -1255,6 +1258,168 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
         events()
 
 
+def _projected_point_within_outline_margin(x, z, points, margin):
+    """Check whether a projected target vertex overlaps a pattern outline or its clearance band."""
+    px = float(x)
+    pz = float(z)
+    margin_sq = float(margin) * float(margin)
+    inside = False
+    near = False
+    for index, (ax_raw, az_raw) in enumerate(points):
+        bx_raw, bz_raw = points[(index + 1) % len(points)]
+        ax, az = float(ax_raw), float(az_raw)
+        bx, bz = float(bx_raw), float(bz_raw)
+        if (az > pz) != (bz > pz):
+            crossing_x = ax + (pz - az) * (bx - ax) / (bz - az)
+            if px < crossing_x:
+                inside = not inside
+        dx, dz = bx - ax, bz - az
+        length_sq = dx * dx + dz * dz
+        if length_sq > 0.0:
+            factor = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / length_sq))
+            closest_x = ax + factor * dx
+            closest_z = az + factor * dz
+        else:
+            closest_x, closest_z = ax, az
+        if (px - closest_x) ** 2 + (pz - closest_z) ** 2 <= margin_sq:
+            near = True
+    return inside or near
+
+
+def _validate_authoritative_tunic_seams(scene, seam_records, log):
+    """Fail if the actual solver-owned stitch pairs exceed the 35 mm acceptance limit."""
+    backend_state = scene.Proxy._base_or_restore()
+    simulated_positions = tuple(backend_state.backend.positions())
+    if not simulated_positions:
+        raise RuntimeError("PositionBasedDynamics backend returned no simulated particle positions")
+    stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
+    if not stitch_pairs_by_seam:
+        raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
+    seam_gap_records = []
+    for seam, piece_a, piece_b in seam_records:
+        expected_a = f"{piece_a.PieceId}:edge:"
+        expected_b = f"{piece_b.PieceId}:edge:"
+        edge_a_id = str(getattr(seam, "EdgeAId", ""))
+        edge_b_id = str(getattr(seam, "EdgeBId", ""))
+        if not edge_a_id.startswith(expected_a) or not edge_b_id.startswith(expected_b):
+            raise RuntimeError("authoritative tunic seam lost semantic edge identity")
+        seam_id = str(seam.SeamId)
+        pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
+        if not pairs:
+            raise RuntimeError(
+                "authoritative seam check cannot resolve exact solver pairs for %s" % seam.SeamId
+            )
+        pair_gaps = []
+        for ga, gb in pairs:
+            a = simulated_positions[int(ga)]
+            b = simulated_positions[int(gb)]
+            gap = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5
+            pair_gaps.append((gap, int(ga), int(gb), tuple(a), tuple(b)))
+        worst_gap, worst_a, worst_b, worst_pa, worst_pb = max(
+            pair_gaps, key=lambda item: item[0]
+        )
+        mean_gap = sum(item[0] for item in pair_gaps) / len(pair_gaps)
+        seam_gap_records.append((seam_id, worst_gap))
+        log(
+            "authoritative-seam-gap seam=%s count=%d max-mm=%.2f mean-mm=%.2f "
+            "worst-pair=(%d,%d) a=(%.2f,%.2f,%.2f) b=(%.2f,%.2f,%.2f) "
+            "delta=(%.2f,%.2f,%.2f)"
+            % (
+                seam_id, len(pair_gaps), worst_gap, mean_gap, worst_a, worst_b,
+                worst_pa[0], worst_pa[1], worst_pa[2], worst_pb[0], worst_pb[1], worst_pb[2],
+                worst_pa[0] - worst_pb[0], worst_pa[1] - worst_pb[1], worst_pa[2] - worst_pb[2],
+            )
+        )
+        for sample_index, (gap, ga, gb, point_a, point_b) in enumerate(pair_gaps):
+            log(
+                "authoritative-seam-sample seam=%s sample=%d pair=(%d,%d) gap-mm=%.2f "
+                "delta=(%.2f,%.2f,%.2f)"
+                % (
+                    seam_id, sample_index, ga, gb, gap,
+                    point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2],
+                )
+            )
+    max_seam_gap = max((gap for _seam_id, gap in seam_gap_records), default=0.0)
+    if max_seam_gap > 35.0:
+        raise RuntimeError(
+            "authoritative tunic seams did not converge: max endpoint gap %.1f mm" % max_seam_gap
+        )
+    log(
+        "authoritative-seam-max-gap-mm=%.2f seam-ids=%s"
+        % (max_seam_gap, tuple(str(seam.SeamId) for seam, _a, _b in seam_records))
+    )
+
+
+def _validate_tunic_collision_configuration(active_backend, log):
+    """Validate the production audit's fixed mesh-collision geometry and runtime settings."""
+    active_collision = getattr(active_backend, "_collision_surface", None)
+    if active_collision is None:
+        raise RuntimeError("tunic PBD backend has no active mannequin collision surface")
+    from math import ceil as _ceil
+
+    collision_voxel_mm = float(getattr(active_backend, "_collision_voxel_mm", -1.0))
+    collision_configured_tolerance_mm = float(
+        getattr(active_backend, "_collision_configured_tolerance_mm", -1.0)
+    )
+    collision_effective_tolerance_mm = float(
+        getattr(active_backend, "_collision_effective_tolerance_mm", -1.0)
+    )
+    collision_target_thickness_mm = float(getattr(active_collision, "thickness", 0.0))
+    if not active_collision.vertices:
+        raise RuntimeError("tunic PBD collision surface has no vertices")
+    collision_spans_mm = tuple(
+        max(float(vertex[axis]) for vertex in active_collision.vertices)
+        - min(float(vertex[axis]) for vertex in active_collision.vertices)
+        for axis in range(3)
+    )
+    collision_sdf_resolution = tuple(
+        int(value) for value in (getattr(active_backend, "_collision_sdf_resolution", ()) or ())
+    )
+    expected_sdf_resolution = tuple(
+        max(16, min(256, int(_ceil((span + 200.0) / 8.0)))) for span in collision_spans_mm
+    )
+    if abs(collision_target_thickness_mm - 5.0) > 1e-6:
+        raise RuntimeError(
+            "tunic mannequin collision thickness must be 5 mm, got %.3f" % collision_target_thickness_mm
+        )
+    if abs(collision_voxel_mm - 8.0) > 1e-6:
+        raise RuntimeError("tunic PBD SDF voxel size must be 8 mm, got %.3f" % collision_voxel_mm)
+    if abs(collision_configured_tolerance_mm - 2.0) > 1e-6:
+        raise RuntimeError(
+            "tunic configured PBD collision tolerance must be 2 mm, got %.3f"
+            % collision_configured_tolerance_mm
+        )
+    expected_effective_tolerance_mm = max(
+        collision_configured_tolerance_mm, collision_target_thickness_mm, 0.5 * collision_voxel_mm
+    )
+    if abs(collision_effective_tolerance_mm - expected_effective_tolerance_mm) > 1e-6:
+        raise RuntimeError("tunic PBD effective collision tolerance does not match its inputs")
+    if collision_sdf_resolution != expected_sdf_resolution:
+        raise RuntimeError(
+            "tunic PBD SDF resolution does not match configured 8 mm voxel resolution: "
+            "actual=%r expected=%r" % (collision_sdf_resolution, expected_sdf_resolution)
+        )
+    log(
+        "tunic-collision-config target-thickness-mm=%.2f voxel-mm=%.2f "
+        "configured-tolerance-mm=%.2f effective-tolerance-mm=%.2f "
+        "sdf-resolution=%dx%dx%d span-mm=%.2fx%.2fx%.2f"
+        % (
+            collision_target_thickness_mm, collision_voxel_mm,
+            collision_configured_tolerance_mm, collision_effective_tolerance_mm,
+            *collision_sdf_resolution, *collision_spans_mm,
+        )
+    )
+    configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))
+    effective_substeps = int(getattr(active_backend, "_substeps", -1))
+    if effective_substeps != configured_substeps:
+        raise RuntimeError(
+            "tunic PBD substeps differ from workflow configuration: "
+            "backend=%d configured=%d" % (effective_substeps, configured_substeps)
+        )
+    return effective_substeps
+
+
+
 def simulation():
     import os
 
@@ -1281,6 +1446,30 @@ def simulation():
     if target_source is not avatar:
         raise RuntimeError(
             "visual fixture DrapeTarget does not reference the production ClothAvatar"
+        )
+    if TUNIC_PRODUCTION_AUDIT:
+        # Author the production audit pose through the same FK/model API used by the UI.
+        from dataclasses import replace as _replace_dataclass
+        from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
+
+        initial_parameters = _parameters(avatar)
+        near_t_pose = _replace_dataclass(
+            initial_parameters.pose,
+            left_arm_angle=12.0,
+            right_arm_angle=12.0,
+            left_elbow_angle=0.0,
+            right_elbow_angle=0.0,
+            joint_rotations=(),
+        )
+        apply_avatar_parameters(
+            avatar,
+            _replace_dataclass(initial_parameters, pose=near_t_pose),
+        )
+        refresh_drape_target(target)
+        doc.recompute()
+        log(
+            "tunic-avatar-pose=near-horizontal left_arm_angle=12 "
+            "right_arm_angle=12 joint_overrides=cleared"
         )
     pre_status = target_status(target)
     if str(pre_status.get("state", "")) != "ready":
@@ -1315,6 +1504,52 @@ def simulation():
     shoulder_left = arrangement_world("shoulder_left")
     shoulder_right = arrangement_world("shoulder_right")
     hip_point = arrangement_world("hip")
+    if TUNIC_PRODUCTION_AUDIT:
+        def landmark_world(name):
+            raw = next(
+                (
+                    value
+                    for value in getattr(avatar, "Landmarks", ())
+                    if str(value).split("|", 1)[0] == name
+                ),
+                None,
+            )
+            if raw is None:
+                raise RuntimeError("posed avatar mesh is missing FK landmark %s" % name)
+            coordinates = tuple(
+                float(value) for value in str(raw).split("|", 1)[1].split(",")
+            )
+            if len(coordinates) != 3:
+                raise RuntimeError("posed avatar FK landmark %s has invalid coordinates" % name)
+            return avatar.Placement.multVec(App.Vector(*coordinates))
+
+        wrist_left = landmark_world("wrist_left")
+        wrist_right = landmark_world("wrist_right")
+        left_span = abs(float(wrist_left.x) - float(shoulder_left.x))
+        right_span = abs(float(wrist_right.x) - float(shoulder_right.x))
+        left_vertical = abs(float(wrist_left.z) - float(shoulder_left.z))
+        right_vertical = abs(float(wrist_right.z) - float(shoulder_right.z))
+        log(
+            "tunic-pose-geometry left_dx=%.1f left_dz=%.1f right_dx=%.1f right_dz=%.1f"
+            % (left_span, left_vertical, right_span, right_vertical)
+        )
+        if (
+            min(left_span, right_span) < 150.0
+            or left_vertical > 0.22 * left_span
+            or right_vertical > 0.22 * right_span
+        ):
+            raise RuntimeError(
+                "tunic mannequin FK mesh is not near-T-pose: wrists are not near shoulder height"
+            )
+        pose_view = Gui.activeDocument().activeView()
+        pose_view.viewFront()
+        pose_view.fitAll()
+        events()
+        save(
+            "cloth-mannequin-near-t-pose.png",
+            "Mannequin near-T pose before cloth",
+            "FK pose verified by shoulder-to-wrist geometry before draping",
+        )
     target_ys = [float(vertex[1]) for vertex in target_surface.vertices]
     y_span = max(target_ys) - min(target_ys)
     x_mid = (shoulder_left.x + shoulder_right.x) / 2.0
@@ -1322,7 +1557,8 @@ def simulation():
     hem_z = hip_point.z
     shoulder_width = abs(shoulder_right.x - shoulder_left.x)
     panel_width = max(420.0, shoulder_width + 105.0)
-    hem_width = max(450.0, panel_width + 100.0)
+    hem_width_floor = 500.0 if TUNIC_PRODUCTION_AUDIT else 450.0
+    hem_width = max(hem_width_floor, panel_width + 100.0)
     # Add 10% horizontal ease at the underarms and shoulders without changing fit height.
     panel_width *= 1.10
     hem_width *= 1.10
@@ -1337,7 +1573,44 @@ def simulation():
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(side):
+    def target_relative_piece_placement(side, outline=None):
+        if TUNIC_PRODUCTION_AUDIT:
+            if outline is None:
+                raise RuntimeError("production tunic placement requires the authored pattern outline")
+            panel_origin_x = x_mid - hem_width / 2.0
+            torso_half_width = max(80.0, 0.30 * shoulder_width)
+            projected_target_ys = [
+                float(vertex[1])
+                for vertex in target_surface.vertices
+                if abs(float(vertex[0]) - x_mid) <= torso_half_width
+                and _projected_point_within_outline_margin(
+                    float(vertex[0]) - panel_origin_x,
+                    float(vertex[2]) - hem_z,
+                    outline,
+                    clearance,
+                )
+            ]
+            if not projected_target_ys:
+                raise RuntimeError(
+                    "canonical tunic torso silhouette does not overlap DrapeTarget projections"
+                )
+            target_front_y = min(projected_target_ys)
+            target_back_y = max(projected_target_ys)
+            if side == "front":
+                y = target_front_y - clearance
+            elif side == "back":
+                y = target_back_y + clearance
+            else:
+                raise ValueError("tunic target-relative side must be front or back")
+            log(
+                "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
+                "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
+                % (
+                    side, target_front_y, target_back_y, y, clearance,
+                    x_mid - torso_half_width, x_mid + torso_half_width, len(projected_target_ys),
+                )
+            )
+            return App.Placement(App.Vector(panel_origin_x, y, hem_z), rot)
         if side == "front":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 - clearance
         elif side == "back":
@@ -1359,13 +1632,17 @@ def simulation():
         doc.recompute()
         piece = _adopt_sketch(sketch, name, 10.0, 0.0)
         piece.Label = name
-        piece.Placement = target_relative_piece_placement(side)
+        piece.Placement = target_relative_piece_placement(side, outline)
         piece.Sketch.Placement = piece.Placement
         return piece, outline
 
-    # Widen the neck opening and lift the shoulder seams 20 mm over the mannequin's shoulder landmark.
-    front, front_outline = make_piece("VisualTunicFront", "front", 0.72, 0.03)
-    back, back_outline = make_piece("VisualTunicBack", "back", 0.72, 0.03)
+    # The production audit intentionally stages the visual front at +Y and back at -Y,
+    # using target-projected placement; the ordinary screenshot path retains its default.
+    front_side, back_side = (
+        ("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")
+    )
+    front, front_outline = make_piece("VisualTunicFront", front_side, 0.72, 0.03)
+    back, back_outline = make_piece("VisualTunicBack", back_side, 0.72, 0.03)
 
     def log_tunic_outline_topology(piece):
         """Log the actual sampled boundary and crossing edges before sewing or draping."""
@@ -1617,12 +1894,15 @@ def simulation():
     scene.QualityPreset = "Fast"
     scene.ParticleDistance = 24.0
     scene.SolverIterations = 8
-    scene.SolverSubsteps = 1
-    scene.TimeStep = 1.0 / 120.0
+    scene.SolverSubsteps = 4 if TUNIC_PRODUCTION_AUDIT else 1
+    scene.TimeStep = 1.0 / 240.0 if TUNIC_PRODUCTION_AUDIT else 1.0 / 120.0
     scene.GravityX = 0.0
     scene.GravityY = 0.0
     scene.GravityZ = -9810.0
-    scene.FabricFriction = 0.75
+    scene.FabricFriction = 0.85 if TUNIC_PRODUCTION_AUDIT else 0.75
+    if TUNIC_PRODUCTION_AUDIT:
+        log("tunic-time-step=1/240s for 90-step free-drape audit")
+        log("tunic-solver=particle-distance-24 iterations-8 substeps=4")
     # Keep the free-drape audit unpinned: fixed front/back neckline centers
     # prevent the shoulder seams from converging.
     scene.PinMode = "None"
@@ -1921,6 +2201,63 @@ def simulation():
     task_dock.raise_()
     events()
     os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    simulation_started = None
+    effective_substeps = None
+    if TUNIC_PRODUCTION_AUDIT:
+        # Exercise the real-time command before the deterministic 90-step production drape.
+        from freecad_cloth.simulation import RealtimePreview
+
+        if "ClothRealtimePreview" not in Gui.listCommands():
+            raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
+        preview_saved = {
+            name: getattr(scene, name)
+            for name in (
+                "ParticleDistance", "SolverIterations", "SolverSubsteps",
+                "TimeStep", "QualityPreset",
+            )
+        }
+        Gui.runCommand("ClothRealtimePreview")
+        scene.Document.recompute()
+        preview_base = scene.Proxy._base_or_restore()
+        preview_backend = getattr(preview_base, "backend", None)
+        if getattr(preview_backend, "name", None) != "position-based-dynamics":
+            raise RuntimeError(
+                "Realtime Cloth Preview did not select the PositionBasedDynamics backend"
+            )
+        from time import monotonic, perf_counter, sleep
+
+        deadline = monotonic() + 2.0
+        while int(scene.Steps) <= 0 and monotonic() < deadline:
+            events()
+            sleep(0.04)
+        events()
+        preview_steps = int(scene.Steps)
+        if preview_steps <= 0:
+            RealtimePreview.stop_realtime_preview()
+            raise RuntimeError("Realtime Cloth Preview timer did not advance the simulation")
+        Gui.runCommand("ClothRealtimePreview")
+        if int(scene.Steps) != 0:
+            RealtimePreview.stop_realtime_preview()
+            raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
+        for name, value in preview_saved.items():
+            if getattr(scene, name) != value:
+                raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
+        log(
+            "realtime-preview=passed backend=position-based-dynamics steps=%d" % preview_steps
+        )
+        active_backend = scene.Proxy._base_or_restore().backend
+        effective_substeps = _validate_tunic_collision_configuration(active_backend, log)
+        simulation_started = perf_counter()
+        log(
+            "tunic-simulation-start particles=%d iterations=%d scene_substeps=%d "
+            "backend_substeps=%d configured_substeps=%d backend=%s collision_triangles=%d"
+            % (
+                int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
+                effective_substeps, int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8")),
+                str(getattr(active_backend, "name", "")),
+                len(getattr(getattr(active_backend, "_collision_surface", None), "triangles", ())),
+            )
+        )
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -1933,6 +2270,7 @@ def simulation():
         "production tunic before gravity",
     )
     for frame_index, batch in enumerate((10, 10, 10, 10, 10, 10, 10, 10, 10), start=1):
+        batch_started = perf_counter() if TUNIC_PRODUCTION_AUDIT else None
         simulation_panel.step(batch)
         doc.recompute()
         events()
@@ -1944,9 +2282,23 @@ def simulation():
             "mannequin drape step %d" % int(scene.Steps),
             "production tunic gravity progression",
         )
+        if TUNIC_PRODUCTION_AUDIT:
+            log(
+                "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
+                "particles=%d iterations=%d scene_substeps=%d backend_substeps=%d"
+                % (
+                    frame_index, int(scene.Steps), batch,
+                    1000.0 * (perf_counter() - batch_started),
+                    1000.0 * (perf_counter() - simulation_started),
+                    int(scene.ParticleCount), int(scene.SolverIterations), int(scene.SolverSubsteps),
+                    int(getattr(scene.Proxy._base_or_restore().backend, "_substeps", -1)),
+                )
+            )
     task_dock.show()
     task_dock.raise_()
     events()
+    if TUNIC_PRODUCTION_AUDIT:
+        log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - simulation_started)))
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
         raise RuntimeError("simulation did not reach a finite 90-step state")
     log("seam-world-x-step90=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
@@ -2012,6 +2364,8 @@ def simulation():
     )
     for diagnostic in diagnostic_maps:
         diagnostic.ViewObject.Visibility = False
+    if TUNIC_PRODUCTION_AUDIT:
+        _validate_authoritative_tunic_seams(scene, seam_records, log)
     write_drape_metrics(
         panels,
         avatar,
@@ -2020,6 +2374,7 @@ def simulation():
         hem_z=hem_z,
         seam_records=seam_records,
         proxy=proxy,
+        collision_surface=target_surface if TUNIC_PRODUCTION_AUDIT else None,
     )
     bounds = []
     for panel in scene.DrapePanels:
