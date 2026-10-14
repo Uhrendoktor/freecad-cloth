@@ -5,8 +5,8 @@ import sys
 import time
 import traceback
 from math import pi
-from typing import TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import FreeCAD as App
 import FreeCADGui as Gui
