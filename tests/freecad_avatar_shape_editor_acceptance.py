@@ -19,6 +19,8 @@ import FreeCADGui as Gui
 
 from tests.support.freecad_input import UiGifRecorder, focus_main_window
 
+HEAD_LOCALITY_TOLERANCE_MM = 0.0005
+
 
 class _Event:
     """Small event adapter for driving the controller through the same callback path."""
@@ -75,9 +77,16 @@ def _mesh_points(avatar):
     )
 
 
+def _mesh_points_unrounded(avatar):
+    """Return full-precision vertices in native index order for locality checks."""
+    return tuple(
+        (float(point.x), float(point.y), float(point.z)) for point in avatar.Mesh.Points
+    )
+
+
 def _head_envelope(points, cutoff):
-    """Return a stable geometric signature of the mannequin head region."""
-    selected = tuple(sorted(point for point in points if point[2] >= cutoff))
+    """Return indexed head vertices so a rebuild can be checked by correspondence."""
+    selected = tuple((index, point) for index, point in enumerate(points) if point[2] >= cutoff)
     if len(selected) < 10:
         raise RuntimeError("too few mannequin vertices in the head envelope for a locality check")
     return selected
@@ -458,7 +467,7 @@ def run():
             show_cursor=False,
         )
         dimension_recorder.start()
-        before_hip_mesh = _mesh_points(avatar)
+        before_hip_mesh = _mesh_points_unrounded(avatar)
         before_hip_measurements = {name: float(box.value()) for name, box in panel._boxes.items()}
         head_cutoff = max(point[2] for point in before_hip_mesh) * 0.88
         head_before_hip = _head_envelope(before_hip_mesh, head_cutoff)
@@ -484,11 +493,33 @@ def run():
                 raise RuntimeError("viewport hip drag was not persisted on rebuild")
             if abs(hip_after - hip_before) < 1.0:
                 raise RuntimeError("viewport hip drag produced no persistent dimensional change")
-            after_hip_mesh = _mesh_points(avatar)
+            after_hip_mesh = _mesh_points_unrounded(avatar)
             head_after_hip = _head_envelope(after_hip_mesh, head_cutoff)
-            if head_after_hip != head_before_hip:
-                before_head_set = set(head_before_hip)
-                after_head_set = set(head_after_hip)
+            before_by_index = dict(head_before_hip)
+            after_by_index = dict(head_after_hip)
+            shared_indices = before_by_index.keys() & after_by_index.keys()
+            displacement_records = tuple(
+                (
+                    math.dist(before_by_index[index], after_by_index[index]),
+                    index,
+                    before_by_index[index],
+                    after_by_index[index],
+                )
+                for index in shared_indices
+            )
+            largest_displacement = max(
+                displacement_records,
+                key=lambda record: record[0],
+                default=(float("inf"), -1, (), ()),
+            )
+            head_indices_stable = before_by_index.keys() == after_by_index.keys()
+            if (
+                not head_indices_stable
+                or largest_displacement[0] > HEAD_LOCALITY_TOLERANCE_MM
+                or len(before_hip_mesh) != len(after_hip_mesh)
+            ):
+                before_head_set = set(before_by_index)
+                after_head_set = set(after_by_index)
                 after_hip_measurements = {
                     name: float(box.value()) for name, box in panel._boxes.items()
                 }
@@ -502,24 +533,45 @@ def run():
                     values = tuple(point[axis] for point in points)
                     return min(values), max(values)
 
-                before_bounds = tuple(_axis_bounds(head_before_hip, axis) for axis in range(3))
-                after_bounds = tuple(_axis_bounds(head_after_hip, axis) for axis in range(3))
+                before_head_points = tuple(point for _, point in head_before_hip)
+                after_head_points = tuple(point for _, point in head_after_hip)
+                before_bounds = tuple(
+                    _axis_bounds(before_head_points, axis) for axis in range(3)
+                )
+                after_bounds = tuple(
+                    _axis_bounds(after_head_points, axis) for axis in range(3)
+                )
+                largest_displacements = tuple(
+                    (
+                        index,
+                        round(displacement, 9),
+                        before_point,
+                        after_point,
+                    )
+                    for displacement, index, before_point, after_point in sorted(
+                        displacement_records,
+                        key=lambda record: record[0],
+                        reverse=True,
+                    )[:3]
+                )
                 locality_diagnostic = {
                     "cutoff_mm": head_cutoff,
+                    "tolerance_mm": HEAD_LOCALITY_TOLERANCE_MM,
+                    "max_vertex_displacement_mm": largest_displacement[0],
+                    "max_displacement_vertex_index": largest_displacement[1],
                     "before_head_count": len(head_before_hip),
                     "after_head_count": len(head_after_hip),
                     "before_bounds_mm": before_bounds,
                     "after_bounds_mm": after_bounds,
-                    "removed_points": len(before_head_set - after_head_set),
-                    "added_points": len(after_head_set - before_head_set),
-                    "removed_examples_mm": sorted(before_head_set - after_head_set)[:3],
-                    "added_examples_mm": sorted(after_head_set - before_head_set)[:3],
+                    "removed_vertex_indices": sorted(before_head_set - after_head_set)[:3],
+                    "added_vertex_indices": sorted(after_head_set - before_head_set)[:3],
+                    "largest_vertex_displacements": largest_displacements,
                     "changed_measurements_mm": tuple(changed_measurements.items()),
                     "mesh_point_counts": (len(before_hip_mesh), len(after_hip_mesh)),
                 }
                 diagnostic_path = Path("artifacts/avatar-head-locality-diagnostic.txt")
                 diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
-                diagnostic_path.write_text(repr(locality_diagnostic) + "\\n", encoding="utf-8")
+                diagnostic_path.write_text(repr(locality_diagnostic) + "\n", encoding="utf-8")
                 print("avatar-head-locality-diagnostic " + repr(locality_diagnostic), flush=True)
                 raise RuntimeError(
                     "hip circumference edit changed the head geometry instead of staying local: "
