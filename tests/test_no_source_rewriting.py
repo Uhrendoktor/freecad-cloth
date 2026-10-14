@@ -67,6 +67,18 @@ exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"))
     assert python_source_rewrite_violations(sample, "bootstrap.py") == ()
 
 
+def test_checked_in_bootstrap_source_can_be_read_from_open_context() -> None:
+    """Support FreeCAD bootstrap scripts that use open(...).read() in a with block."""
+    sample = """
+import os
+
+init_gui = os.path.join(ROOT, "InitGui.py")
+with open(init_gui, encoding="utf-8") as handle:
+    exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
+"""
+    assert python_source_rewrite_violations(sample, "bootstrap.py") == ()
+
+
 def test_read_only_syntax_check_of_checked_in_python_is_allowed() -> None:
     """Compiling unmodified source-file text for syntax validation is legitimate."""
     sample = """
