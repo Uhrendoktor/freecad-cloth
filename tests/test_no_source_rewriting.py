@@ -20,7 +20,10 @@ exec(compile(source, str(source_path), "exec"))
 """
     violations = python_source_rewrite_violations(sample, "fixture.py")
     assert any("must not be rewritten" in issue for issue in violations)
-    assert any("transformed source must not be executed dynamically" in issue for issue in violations)
+    assert any(
+        "transformed source must not be executed dynamically" in issue
+        for issue in violations
+    )
     assert any("transformed source must not be compiled" in issue for issue in violations)
 
 
