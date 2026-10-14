@@ -408,7 +408,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks():
     assert "neckline_scoop_depth = 0.12 * float(garment_height)" in source
     assert "neckline_scoop_z = neck_z - neckline_scoop_depth" in source
     assert "neckline_scoop_depth = 0.12 * float(garment_height)" in source
-    assert 'front_side, back_side = (' in source
+    assert "front_side, back_side = (" in source
     assert '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in source
     assert 'make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in source
     assert 'make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in source
