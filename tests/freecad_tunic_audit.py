@@ -20,7 +20,7 @@ def main() -> int:
     os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
     os.environ["CLOTH_TUNIC_AUDIT_PROFILE"] = "production"
     os.environ["CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"] = "1"
-        if "--syntax-check" in sys.argv:
+    if "--syntax-check" in sys.argv:
         ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
         print("tunic-audit-source-syntax=passed", flush=True)
         return 0
