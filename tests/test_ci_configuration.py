@@ -42,6 +42,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     assert 'if [ "$timeout_seconds" -gt 120 ]; then' in container_action
     assert "420" not in container_action
     assert "configured_timeout_seconds()" in runner
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
+    assert '"torch==2.8.0+cpu"' in workflow
 
 
 def test_timeout_contract_is_documented():
