@@ -1439,7 +1439,6 @@ def _validate_tunic_collision_configuration(active_backend, log):
     return effective_substeps
 
 
-
 def simulation():
     import os
 
