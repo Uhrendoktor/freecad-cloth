@@ -285,12 +285,12 @@ def _fit_anny_body(
             mask = (
                 (points[:, 2] >= 0.64 * height_m)
                 & (points[:, 2] <= 0.73 * height_m)
-                & (points[:, 1] < 0.0)
+                & (points[:, 1] > 0.0)
                 & (side * points[:, 0] >= 0.025)
                 & (side * points[:, 0] <= 0.155)
             )
             result[label] = (
-                float(points[mask, 1].min().item() * 1000.0) if bool(mask.any()) else None
+                float(points[mask, 1].max().item() * 1000.0) if bool(mask.any()) else None
             )
         return result
 
