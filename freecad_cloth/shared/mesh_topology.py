@@ -65,7 +65,8 @@ def _closed_mesh_orientation_plan(
                 corrected[face_index][2],
                 corrected[face_index][1],
             )
-    return tuple(tuple(face) for face in corrected), tuple(tuple(c) for c in components)
+    corrected_faces = tuple((int(face[0]), int(face[1]), int(face[2])) for face in corrected)
+    return corrected_faces, tuple(tuple(component) for component in components)
 
 
 def orient_closed_triangle_winding(
@@ -112,4 +113,6 @@ def orient_closed_triangle_winding(
             second = corrected[component_indices, 1].copy()
             corrected[component_indices, 1] = corrected[component_indices, 2]
             corrected[component_indices, 2] = second
-    return tuple(tuple(int(index) for index in face) for face in corrected.tolist())
+    return tuple(
+        (int(face[0]), int(face[1]), int(face[2])) for face in corrected.tolist()
+    )
