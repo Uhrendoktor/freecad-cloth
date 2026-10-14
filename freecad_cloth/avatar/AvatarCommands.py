@@ -127,7 +127,10 @@ def _mesh_data(vertices, triangles):
 
     native = Mesh.Mesh()
     vectors = [App.Vector(*point) for point in vertices]
-    native.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in triangles])
+    # Preserve the provider's shared vertex indices. Passing one vector triple
+    # per face builds disconnected facet topology in FreeCAD Mesh, so the
+    # downstream collision adapter cannot recognize the closed mannequin shell.
+    native.addFacets((vectors, list(triangles)), False)
     return native
 
 
