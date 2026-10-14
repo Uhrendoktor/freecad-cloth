@@ -410,6 +410,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
 
 def main():
     log("avatar-script-start")
+    mode = os.environ.get("CLOTH_AVATAR_SCREENSHOT_MODE", "all").strip().lower()
+    if mode not in ("all", "turntable", "gallery"):
+        raise RuntimeError("CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, or gallery")
+    log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
@@ -439,39 +443,41 @@ def main():
         view = Gui.activeDocument().activeView()
         view.setAnimationEnabled(False)
 
-        directions = (
-            ("front", "viewRear"),
-            ("rear", "viewFront"),
-            ("left", "viewLeft"),
-            ("right", "viewRight"),
-            ("top", "viewTop"),
-            ("bottom", "viewBottom"),
-        )
-        for direction, method_name in directions:
-            getattr(view, method_name)()
-            zoom_for_direction(view, direction)
-            save_png(
-                view,
-                os.path.join(OUT, f"cloth-avatar-{direction}.png"),
-                1280,
-                720,
-                f"Avatar audit {direction}",
+        if mode in ("all", "turntable"):
+            directions = (
+                ("front", "viewRear"),
+                ("rear", "viewFront"),
+                ("left", "viewLeft"),
+                ("right", "viewRight"),
+                ("top", "viewTop"),
+                ("bottom", "viewBottom"),
             )
+            for direction, method_name in directions:
+                getattr(view, method_name)()
+                zoom_for_direction(view, direction)
+                save_png(
+                    view,
+                    os.path.join(OUT, f"cloth-avatar-{direction}.png"),
+                    1280,
+                    720,
+                    f"Avatar audit {direction}",
+                )
 
-        center = avatar_center(avatar)
-        render_turntable(
-            view,
-            center,
-            os.path.join(OUT, "cloth-avatar-turntable-frames"),
-            frame_count=TURNTABLE_FRAMES,
-        )
-        render_body_shape_gallery(
-            doc,
-            view,
-            avatar,
-            os.path.join(OUT, "avatar-body-shape-gallery.png"),
-        )
-        log("avatar-script-pass")
+            center = avatar_center(avatar)
+            render_turntable(
+                view,
+                center,
+                os.path.join(OUT, "cloth-avatar-turntable-frames"),
+                frame_count=TURNTABLE_FRAMES,
+            )
+        if mode in ("all", "gallery"):
+            render_body_shape_gallery(
+                doc,
+                view,
+                avatar,
+                os.path.join(OUT, "avatar-body-shape-gallery.png"),
+            )
+        log("avatar-script-pass mode=%s" % mode)
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)

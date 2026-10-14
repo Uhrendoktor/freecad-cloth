@@ -353,7 +353,8 @@ jobs:
         include:
           - {case: sewing, script: tests/freecad_sewing_creation_smoke.py, log: artifacts/sewing-creation-smoke.log, artifact: sewing-creation-smoke, stage: "true", clean: "false", env: "CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log", pre: "python3 tests/freecad_tunic_audit.py --syntax-check", validate: ""}
           - {case: avatar-pose, script: tests/freecad_avatar_pose_ui_acceptance.py, log: artifacts/avatar-pose-ui.log, artifact: avatar-pose-ui, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-pose"}
-          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
+          - {case: avatar-provider-lifecycle, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-provider-lifecycle-run.log, artifact: avatar-provider-lifecycle, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-provider-lifecycle"}
+          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
@@ -444,7 +445,20 @@ jobs:
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
-          environment: CLOTH_CI_DISABLE_PBD=1
+          environment: |
+            CLOTH_CI_DISABLE_PBD=1
+            CLOTH_AVATAR_SCREENSHOT_MODE=turntable
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          log-file: artifacts/avatar-gallery-progress.log
+          environment: |
+            CLOTH_CI_DISABLE_PBD=1
+            CLOTH_AVATAR_SCREENSHOT_MODE=gallery
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
