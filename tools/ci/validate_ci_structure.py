@@ -109,6 +109,14 @@ def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, .
     )
 
 
+def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
+    """Require the policy's positive/negative regression tests in the blocking pytest step."""
+    return any(
+        "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
+        for line in workflow_text.splitlines()
+    )
+
+
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
     """Return whether a source path is covered by one include entry."""
     normalized = Path(path).as_posix()
@@ -225,6 +233,10 @@ def main() -> int:
         raise SystemExit(
             "canonical workflow is missing the blocking source-rewriting policy: "
             + ", ".join(missing_source_rewriting_policies)
+        )
+    if not source_rewriting_policy_tests_are_blocking(text):
+        raise SystemExit(
+            "canonical workflow must run tests/test_no_source_rewriting.py in blocking pytest"
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
         raise SystemExit(
