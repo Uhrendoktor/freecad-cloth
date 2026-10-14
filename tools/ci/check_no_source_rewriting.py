@@ -65,9 +65,7 @@ def _names_used(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
 
 
-def _checked_in_source_handles(
-    tree: ast.Module, python_path_names: set[str]
-) -> set[str]:
+def _checked_in_source_handles(tree: ast.Module, python_path_names: set[str]) -> set[str]:
     """Find file handles opened from known Python paths inside with statements."""
     names: set[str] = set()
     for node in ast.walk(tree):
