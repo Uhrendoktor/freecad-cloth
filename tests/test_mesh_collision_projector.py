@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 from freecad_cloth.simulation.MeshCollisionProjector import (
@@ -286,3 +287,28 @@ def test_stitched_pair_reconciliation_closes_safe_midpoint() -> None:
             chunk_size=1,
         )
     )
+
+
+def test_closed_mesh_orientation_repairs_local_face_winding() -> None:
+    surface = _cube_surface()
+    inconsistent = tuple(
+        (a, c, b) if face_index == 2 else (a, b, c)
+        for face_index, (a, b, c) in enumerate(surface.triangles)
+    )
+
+    oriented = orient_closed_triangle_winding(surface.vertices, inconsistent)
+    projector = MeshCollisionProjector(
+        CollisionSurface(surface.vertices, oriented, thickness=surface.thickness).validate(),
+        clearance_mm=1.0,
+    )
+    projected, normals = projector.project(((50.0, 50.0, 50.0),))
+
+    assert len(oriented) == len(inconsistent)
+    assert np.isclose(np.linalg.norm(normals[0]), 1.0)
+    assert not points_inside_closed_mesh(
+        (tuple(float(value) for value in projected[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+        chunk_size=1,
+    )[0]

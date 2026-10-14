@@ -22,7 +22,7 @@ if ROOT not in sys.path:
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
-TURNTABLE_FRAMES = max(12, min(36, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "24"))))
+TURNTABLE_FRAMES = max(12, min(36, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "12"))))
 
 
 def log(message):
@@ -246,7 +246,7 @@ def render_body_shape_gallery(doc, view, avatar, output):
     from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
 
     original_fit_steps = anny_backend._FIT_STEPS
-    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+    anny_backend._FIT_STEPS = min(original_fit_steps, 4)
     try:
         for index, profile in enumerate(profiles):
             measurements = dict(DEFAULT_MEASUREMENTS)

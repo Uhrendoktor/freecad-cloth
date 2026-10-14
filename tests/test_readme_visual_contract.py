@@ -81,7 +81,7 @@ def test_human_visual_validation_gallery_covers_the_full_flow():
     assert "artifact: interactive-arrange" in workflow
     assert "frame_count=TURNTABLE_FRAMES" in avatar_screenshot
     assert (
-        'TURNTABLE_FRAMES = max(12, min(36, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "24"))))'
+        'TURNTABLE_FRAMES = max(12, min(36, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "12"))))'
         in avatar_screenshot
     )
     assert "expected = documented_assets(source_root)" in publisher

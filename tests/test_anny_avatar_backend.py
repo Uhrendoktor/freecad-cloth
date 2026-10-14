@@ -7,6 +7,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _apply_front_breast_fullness,
     _canonicalize_anny_vertices,
     _initial_phenotypes,
+    _localize_hip_fit_delta,
     _measurement_local_change_labels,
     build_avatar_rig_vertices,
     build_avatar_shape_mesh,
@@ -147,3 +148,46 @@ def test_front_breast_fullness_moves_only_the_visible_anterior_chest() -> None:
     assert fuller[2] == baseline[2]
     assert fuller[3] == baseline[3]
     assert fuller[4] == baseline[4]
+
+
+def test_hip_fit_delta_does_not_change_vertices_outside_the_pelvis_band() -> None:
+    import numpy as np
+
+    reference = np.asarray(
+        (
+            (0.0, 0.0, 0.95),
+            (0.0, 0.0, 0.70),
+            (-0.5, 0.0, 0.50),
+            (0.5, 0.0, 0.50),
+            (0.7, 0.0, 0.30),
+            (0.0, 0.0, 0.0),
+        ),
+        dtype=np.float64,
+    )
+    fitted = reference.copy()
+    fitted[0, 1] += 5.0
+    fitted[1, 1] += 2.0
+    fitted[2, 0] -= 35.0
+    fitted[2, 1] += 3.0
+    fitted[3, 0] += 35.0
+    fitted[3, 1] += 3.0
+    fitted[4, 0] += 8.0
+
+    localized = _localize_hip_fit_delta(reference, fitted)
+
+    assert np.array_equal(localized[:2], reference[:2])
+    assert np.allclose(localized[2:4], fitted[2:4])
+    assert np.array_equal(localized[4:], reference[4:])
+
+
+def test_hip_fit_delta_rejects_mismatched_or_nonfinite_vertices() -> None:
+    import numpy as np
+    import pytest
+
+    reference = np.asarray(((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)))
+    with pytest.raises(ValueError, match="matching shape"):
+        _localize_hip_fit_delta(reference, reference[:1])
+    invalid = reference.copy()
+    invalid[0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        _localize_hip_fit_delta(invalid, reference)

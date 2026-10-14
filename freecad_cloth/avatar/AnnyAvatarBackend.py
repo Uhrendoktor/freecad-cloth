@@ -256,6 +256,42 @@ def _canonicalize_anny_vertices(
     return points, center_xy
 
 
+def _localize_hip_fit_delta(
+    reference_vertices: np.ndarray,
+    fitted_vertices: np.ndarray,
+) -> np.ndarray:
+    """Apply the fitted hip morph only across the hip/pelvis region.
+
+    Anny's hip circumference target can leave small blendshape deltas outside the
+    intended region. Keep the reference mesh exact above the pelvis and through
+    the lower legs, with a smooth fade into the circumference-control band.
+    Inputs must already share the same canonical reference coordinate frame.
+    """
+    reference = np.asarray(reference_vertices, dtype=np.float64)
+    fitted = np.asarray(fitted_vertices, dtype=np.float64)
+    if (
+        reference.ndim != 2
+        or reference.shape[1] != 3
+        or fitted.shape != reference.shape
+        or not len(reference)
+    ):
+        raise ValueError("Anny hip-fit vertices must have matching shape (N, 3)")
+    if not bool(np.isfinite(reference).all() and np.isfinite(fitted).all()):
+        raise ValueError("Anny hip-fit vertices must be finite")
+    height = float(np.ptp(reference[:, 2]))
+    if not math.isfinite(height) or height <= 0.0:
+        raise ValueError("Anny hip-fit reference must have a positive vertical extent")
+
+    normalized_z = (reference[:, 2] - float(reference[:, 2].min())) / height
+
+    def smoothstep(edge0: float, edge1: float) -> np.ndarray:
+        factor = np.clip((normalized_z - edge0) / (edge1 - edge0), 0.0, 1.0)
+        return factor * factor * (3.0 - 2.0 * factor)
+
+    hip_band = smoothstep(0.36, 0.44) * (1.0 - smoothstep(0.54, 0.64))
+    return reference + (fitted - reference) * hip_band[:, None]
+
+
 def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
@@ -742,11 +778,15 @@ def _fit_anny_body(
     if canonical_reference_vertices is not None:
         # Keep the post-hip surface in the pre-hip coordinate frame. Also update
         # clad-body's XY offset so its measured bone/joint positions stay aligned.
+        reference_vertices, _ = _canonicalize_anny_vertices(
+            canonical_reference_vertices,
+            canonical_reference_vertices,
+        )
         fitted_vertices, center_xy = _canonicalize_anny_vertices(
             output["vertices"][0].detach().cpu().numpy(),
             canonical_reference_vertices,
         )
-        fitted_body.vertices = fitted_vertices
+        fitted_body.vertices = _localize_hip_fit_delta(reference_vertices, fitted_vertices)
         fitted_body._xy_offset = (-center_xy).astype(np.float32)
 
     all_vertices = fitted_body.vertices
@@ -798,6 +838,17 @@ def _fit_anny_body(
             "Anny produced too few triangles for the visible HM08 body surface: "
             f"expected at least 20000, received {len(triangles)}."
         )
+    # Anny's triangulation preserves the right vertex index space but may contain
+    # locally reversed faces. Repair winding without changing either index set,
+    # so vertex normals, skin padding, and the closed-mesh collision projector agree.
+    from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
+
+    try:
+        triangles = orient_closed_triangle_winding(vertices, triangles)
+    except ValueError as exc:
+        raise AnnyAvatarBackendError(
+            f"Anny's visible HM08 surface is not a closed orientable mesh: {exc}"
+        ) from exc
     result = MeshData(vertices, triangles)
     try:
         result.validate()
