@@ -1469,6 +1469,7 @@ def simulation():
     if TUNIC_PRODUCTION_AUDIT:
         # Author the production audit pose through the same FK/model API used by the UI.
         from dataclasses import replace as _replace_dataclass
+
         from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
 
         initial_parameters = _parameters(avatar)
