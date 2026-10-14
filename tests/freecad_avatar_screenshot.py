@@ -22,7 +22,7 @@ if ROOT not in sys.path:
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
-TURNTABLE_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
+TURNTABLE_FRAMES = max(12, min(36, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "24"))))
 
 
 def log(message):
