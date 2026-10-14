@@ -62,6 +62,20 @@ def _names_used(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
 
 
+def _is_checked_in_source_expression(
+    expression: ast.expr,
+    source_names: set[str],
+    python_path_names: set[str],
+) -> bool:
+    """Return whether an expression reads unchanged text from a known Python file."""
+    if isinstance(expression, ast.Name):
+        return expression.id in source_names
+    receiver = _read_method_receiver(expression)
+    return receiver is not None and bool(
+        _names_used(receiver) & python_path_names or _contains_python_path_literal(receiver)
+    )
+
+
 def python_source_rewrite_violations(source_text: str, path: str = "<source>") -> tuple[str, ...]:
     """Find Python-source replacement, file-write, and dynamic execution patterns."""
     try:
@@ -215,10 +229,8 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 violations.append(
                     f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
                 )
-            if (
-                isinstance(expression, ast.Name)
-                and expression.id not in source_names
-                and expression.id not in modified_source_names
+            elif not _is_checked_in_source_expression(
+                expression, source_names, python_path_names
             ):
                 violations.append(
                     f"{path}:{node.lineno}: compiling generated Python source is prohibited"
