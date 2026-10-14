@@ -2,11 +2,11 @@
 
 import contextlib
 import importlib.util
-from collections.abc import Callable, Sequence
 import json
 import os
 import sys
 import traceback
+from collections.abc import Callable, Sequence
 
 import FreeCAD as App
 import FreeCADGui as Gui
