@@ -293,7 +293,6 @@ def project_stitched_pairs(
     shared_points: list[npt.NDArray[np.float64]] = []
     near_shell_groups: list[list[int]] = []
     near_shell_midpoints: list[npt.NDArray[np.float64]] = []
-    capture_distance_mm = max(25.0, 10.0 * projector.clearance_mm)
     for group in groups.values():
         if len(group) < 2 or pinned.intersection(group):
             continue
@@ -304,8 +303,11 @@ def project_stitched_pairs(
             eligible_groups.append(group)
             shared_points.append(points.mean(axis=0))
             continue
-        if float(np.linalg.norm(points - points[0], axis=1).max()) > capture_distance_mm:
-            continue
+        # Prefer target-surface evidence over endpoint distance. A sewn pair may span
+        # the body while both endpoints remain outside the collision shell; its shared
+        # midpoint is still a valid stitch repair candidate when it lies inside the
+        # target. The AABB and signed local-plane checks below reject remote unrelated
+        # stitches without discarding those through-surface residuals.
         midpoint = points.mean(axis=0)
         if not bool(
             np.all((midpoint >= projector._bounds_min) & (midpoint <= projector._bounds_max))
