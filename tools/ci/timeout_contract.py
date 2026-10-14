@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 TEST_ACTION = ROOT / ".github/actions/freecad-test/action.yml"
+CONTAINER_ACTION = ROOT / ".github/actions/freecad-container/action.yml"
 PYPROJECT = ROOT / "pyproject.toml"
 
 
@@ -36,6 +37,7 @@ def main() -> int:
         raise SystemExit("FreeCAD application runtime budget must remain at 120 seconds")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     action = TEST_ACTION.read_text(encoding="utf-8")
+    container_action = CONTAINER_ACTION.read_text(encoding="utf-8")
 
     if "freecad_application_timeout_seconds" in workflow:
         raise SystemExit(
@@ -47,6 +49,10 @@ def main() -> int:
         )
     if "timeout-seconds:" in action:
         raise SystemExit("FreeCAD test action must not define a second application timeout")
+    if 'default: "120"' not in container_action or "maximum 120 seconds" not in container_action:
+        raise SystemExit("FreeCAD container command timeout must remain capped at 120 seconds")
+    if 'if [ "$timeout_seconds" -gt 120 ]; then' not in container_action:
+        raise SystemExit("FreeCAD container action must enforce the 120-second cap")
     run_freecad = (ROOT / "tools/ci/run_freecad.py").read_text(encoding="utf-8")
     if "def configured_timeout_seconds()" not in run_freecad:
         raise SystemExit("run_freecad.py does not expose the authoritative timeout reader")
