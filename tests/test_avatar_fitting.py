@@ -214,10 +214,13 @@ class AvatarFittingTests(unittest.TestCase):
             )
 
         self.assertIs(result, created[0])
-        self.assertEqual(
-            calls[0][0][0],
-            [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)],
-        )
+        expected_vertices = [
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ]
+        self.assertEqual(calls[0][0][0], expected_vertices)
         self.assertEqual(calls[0][0][1], [(0, 1, 2), (0, 2, 3)])
         self.assertFalse(calls[0][1])
 
