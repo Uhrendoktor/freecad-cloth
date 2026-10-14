@@ -247,8 +247,18 @@ def render_body_shape_gallery(doc, view, avatar, output):
 
     original_fit_steps = anny_backend._FIT_STEPS
     anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+    gallery_started = time.monotonic()
+    log(
+        "body-shape-gallery-start profiles=%d fit_steps=%d"
+        % (len(profiles), anny_backend._FIT_STEPS)
+    )
     try:
         for index, profile in enumerate(profiles):
+            profile_started = time.monotonic()
+            log(
+                "body-shape-gallery-profile-start index=%d name=%s"
+                % (index, profile["name"])
+            )
             measurements = dict(DEFAULT_MEASUREMENTS)
             measurements.update(profile["measurements"])
             params = AvatarParameters(
@@ -260,6 +270,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
                 float(profile["breast_size"]),
             )
             _rebuild(avatar, params=params)
+            log(
+                "body-shape-gallery-profile-fit index=%d name=%s elapsed_ms=%.1f"
+                % (index, profile["name"], 1000.0 * (time.monotonic() - profile_started))
+            )
             # Rebuild reapplies the application's CAD wireframe style; use solid
             # shading for this silhouette comparison only.
             avatar.ViewObject.DisplayMode = "Shaded"
@@ -293,6 +307,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
                 if source.size != (420, 560):
                     raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
                 frames.append(source.convert("RGB").copy())
+            log(
+                "body-shape-gallery-profile-pass index=%d name=%s elapsed_ms=%.1f"
+                % (index, profile["name"], 1000.0 * (time.monotonic() - profile_started))
+            )
 
     finally:
         anny_backend._FIT_STEPS = original_fit_steps
@@ -394,6 +412,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
         min_nonwhite_pixels=10000,
         min_distinct_rgb=16,
         min_opaque_pixels=10000,
+    )
+    log(
+        "body-shape-gallery-pass profiles=%d elapsed_ms=%.1f bytes=%d"
+        % (len(profiles), 1000.0 * (time.monotonic() - gallery_started), output_path.stat().st_size)
     )
     log(
         "body-shape-gallery=%s profiles=%d size=%dx%d bytes=%d distinct_rgb=%d"
