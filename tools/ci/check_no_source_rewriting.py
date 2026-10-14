@@ -1,0 +1,215 @@
+"""Reject runtime rewriting or generated execution of checked-in Python source."""
+
+from __future__ import annotations
+
+import ast
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PYTHON_SOURCE_NAME_HINTS = {
+    "source",
+    "source_text",
+    "python_source",
+    "source_code",
+    "script_source",
+}
+WRITE_METHODS = {"write_text", "write_bytes"}
+READ_METHODS = {"read_text", "read_bytes", "read"}
+INLINE_EDIT_COMMANDS = (
+    re.compile(r"(?im)^\s*sed\s+-[^\n]*i(?:\s|$)"),
+    re.compile(r"(?im)^\s*(?:perl|ruby)\s+-[^\n]*p[^\n]*i(?:\s|$)"),
+)
+INLINE_PYTHON_EDIT = re.compile(
+    r"(?i)\bpython(?:3(?:\.\d+)?)?\s+-c\b[^\n]*(?:\.replace\s*\(|\.write_text\s*\(|\.write_bytes\s*\()"
+)
+
+
+def _target_names(target: ast.expr) -> set[str]:
+    """Return simple variable names assigned by one assignment target."""
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        result: set[str] = set()
+        for element in target.elts:
+            result.update(_target_names(element))
+        return result
+    return set()
+
+
+def _contains_python_path_literal(node: ast.AST) -> bool:
+    """Recognize path expressions that explicitly identify a Python source file."""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+            if child.value.endswith(".py") or child.value.endswith(".pyi"):
+                return True
+        if isinstance(child, ast.Name) and child.id == "__file__":
+            return True
+    return False
+
+
+def _read_method_receiver(node: ast.AST) -> ast.expr | None:
+    """Return the receiver of a read call, if this node represents file reading."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        return None
+    if node.func.attr not in READ_METHODS:
+        return None
+    return node.func.value
+
+
+def _names_used(node: ast.AST) -> set[str]:
+    return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+
+
+def python_source_rewrite_violations(source_text: str, path: str = "<source>") -> tuple[str, ...]:
+    """Find Python-source replacement, file-write, and dynamic execution patterns."""
+    try:
+        tree = ast.parse(source_text, filename=path)
+    except SyntaxError as error:
+        return (f"{path}:{error.lineno or 1}: invalid Python syntax: {error.msg}",)
+
+    assignments = [
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+    ]
+    python_path_names: set[str] = set()
+    for node in assignments:
+        value = node.value
+        if value is not None and _contains_python_path_literal(value):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                python_path_names.update(_target_names(target))
+
+    source_names = set(PYTHON_SOURCE_NAME_HINTS)
+    modified_source_names: set[str] = set()
+    for _ in range(4):
+        changed = False
+        for node in assignments:
+            value = node.value
+            if value is None:
+                continue
+            read_receiver = _read_method_receiver(value)
+            if read_receiver is not None:
+                receiver_names = _names_used(read_receiver)
+                if (
+                    receiver_names & python_path_names
+                    or _contains_python_path_literal(read_receiver)
+                    or (_target_names(node.targets[0]) if isinstance(node, ast.Assign) else _target_names(node.target)) & PYTHON_SOURCE_NAME_HINTS
+                ):
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    for target in targets:
+                        before = len(source_names)
+                        source_names.update(_target_names(target))
+                        changed |= len(source_names) != before
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute):
+                if value.func.attr in {"replace", "sub"} and _names_used(value.func.value) & source_names:
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    for target in targets:
+                        before = len(modified_source_names)
+                        modified_source_names.update(_target_names(target))
+                        changed |= len(modified_source_names) != before
+            if isinstance(value, ast.BinOp) and _names_used(value) & (source_names | modified_source_names):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                for target in targets:
+                    before = len(modified_source_names)
+                    modified_source_names.update(_target_names(target))
+                    changed |= len(modified_source_names) != before
+        if not changed:
+            break
+
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        if isinstance(node.func, ast.Name) and node.func.id == "exec":
+            violations.append(
+                f"{path}:{node.lineno}: direct exec() is prohibited; call a checked-in function instead"
+            )
+
+        if isinstance(node.func, ast.Attribute):
+            receiver_names = _names_used(node.func.value)
+            if node.func.attr in {"replace", "sub"} and receiver_names & source_names:
+                violations.append(
+                    f"{path}:{node.lineno}: Python source text must not be rewritten with "
+                    f"{node.func.attr}(); use explicit functions/configuration"
+                )
+            if node.func.attr in WRITE_METHODS and (
+                _names_used(node) & (source_names | modified_source_names)
+            ):
+                violations.append(
+                    f"{path}:{node.lineno}: Python source text must not be written after "
+                    "runtime transformation"
+                )
+
+        if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
+            expression = node.args[0]
+            if _names_used(expression) & modified_source_names:
+                violations.append(
+                    f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
+                )
+            if (
+                isinstance(expression, ast.Name)
+                and expression.id not in source_names
+                and expression.id not in modified_source_names
+            ):
+                violations.append(
+                    f"{path}:{node.lineno}: compiling generated Python source is prohibited"
+                )
+
+    return tuple(sorted(set(violations)))
+
+
+def workflow_source_rewrite_violations(text: str, path: str = "<workflow>") -> tuple[str, ...]:
+    """Reject inline shell commands that rewrite tracked source/configuration files."""
+    violations: list[str] = []
+    for pattern in INLINE_EDIT_COMMANDS:
+        match = pattern.search(text)
+        if match:
+            line = text.count("\n", 0, match.start()) + 1
+            violations.append(
+                f"{path}:{line}: inline in-place editing is prohibited; make a reviewed commit"
+            )
+    for match in INLINE_PYTHON_EDIT.finditer(text):
+        line = text.count("\n", 0, match.start()) + 1
+        violations.append(
+            f"{path}:{line}: inline Python source/config rewriting is prohibited; "
+            "use reviewed repository changes"
+        )
+    return tuple(sorted(set(violations)))
+
+
+def _policy_files() -> tuple[Path, ...]:
+    """Return repository Python sources and executable CI configuration files."""
+    python_files = [
+        path
+        for path in ROOT.rglob("*.py")
+        if not any(part in {".git", ".venv", "__pycache__", "build", "dist"} for part in path.parts)
+    ]
+    ci_files = list((ROOT / ".github" / "workflows").glob("*.yml"))
+    ci_files.extend((ROOT / ".github" / "workflows").glob("*.yaml"))
+    ci_files.extend((ROOT / ".github" / "actions").rglob("action.yml"))
+    ci_files.extend((ROOT / "tools").rglob("*.sh"))
+    return tuple(sorted(set([*python_files, *ci_files])))
+
+
+def main() -> int:
+    """Scan the repository and fail closed on forbidden source manipulation."""
+    errors: list[str] = []
+    for path in _policy_files():
+        relative = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".py":
+            errors.extend(python_source_rewrite_violations(text, relative))
+        elif path.suffix in {".yml", ".yaml", ".sh"}:
+            errors.extend(workflow_source_rewrite_violations(text, relative))
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        return 1
+    print("source-rewriting-policy=passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
