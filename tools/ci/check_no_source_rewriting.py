@@ -81,7 +81,7 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
             for target in targets:
                 python_path_names.update(_target_names(target))
 
-    source_names = set(PYTHON_SOURCE_NAME_HINTS)
+    source_names: set[str] = set()
     modified_source_names: set[str] = set()
     for _ in range(4):
         changed = False
