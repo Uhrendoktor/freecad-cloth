@@ -502,12 +502,8 @@ def run():
                     values = tuple(point[axis] for point in points)
                     return min(values), max(values)
 
-                before_bounds = tuple(
-                    _axis_bounds(head_before_hip, axis) for axis in range(3)
-                )
-                after_bounds = tuple(
-                    _axis_bounds(head_after_hip, axis) for axis in range(3)
-                )
+                before_bounds = tuple(_axis_bounds(head_before_hip, axis) for axis in range(3))
+                after_bounds = tuple(_axis_bounds(head_after_hip, axis) for axis in range(3))
                 locality_diagnostic = {
                     "cutoff_mm": head_cutoff,
                     "before_head_count": len(head_before_hip),
