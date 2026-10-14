@@ -459,6 +459,9 @@ def run():
         )
         dimension_recorder.start()
         before_hip_mesh = _mesh_points(avatar)
+        before_hip_measurements = {
+            name: float(box.value()) for name, box in panel._boxes.items()
+        }
         head_cutoff = max(point[2] for point in before_hip_mesh) * 0.88
         head_before_hip = _head_envelope(before_hip_mesh, head_cutoff)
         try:
@@ -483,9 +486,50 @@ def run():
                 raise RuntimeError("viewport hip drag was not persisted on rebuild")
             if abs(hip_after - hip_before) < 1.0:
                 raise RuntimeError("viewport hip drag produced no persistent dimensional change")
-            if _head_envelope(_mesh_points(avatar), head_cutoff) != head_before_hip:
+            after_hip_mesh = _mesh_points(avatar)
+            head_after_hip = _head_envelope(after_hip_mesh, head_cutoff)
+            if head_after_hip != head_before_hip:
+                before_head_set = set(head_before_hip)
+                after_head_set = set(head_after_hip)
+                after_hip_measurements = {
+                    name: float(box.value()) for name, box in panel._boxes.items()
+                }
+                changed_measurements = {
+                    name: (before_hip_measurements[name], value)
+                    for name, value in after_hip_measurements.items()
+                    if abs(value - before_hip_measurements[name]) > 1e-6
+                }
+
+                def _head_bounds(points):
+                    return tuple(
+                        (
+                            min(point[axis] for point in points),
+                            max(point[axis] for point in points),
+                        )
+                        for axis in range(3)
+                    )
+
+                locality_diagnostic = {
+                    "cutoff_mm": head_cutoff,
+                    "before_head_count": len(head_before_hip),
+                    "after_head_count": len(head_after_hip),
+                    "before_head_bounds_mm": _head_bounds(head_before_hip),
+                    "after_head_bounds_mm": _head_bounds(head_after_hip),
+                    "removed_rounded_points": len(before_head_set - after_head_set),
+                    "added_rounded_points": len(after_head_set - before_head_set),
+                    "removed_examples_mm": sorted(before_head_set - after_head_set)[:5],
+                    "added_examples_mm": sorted(after_head_set - before_head_set)[:5],
+                    "changed_staged_measurements_mm": changed_measurements,
+                    "before_mesh_point_count": len(before_hip_mesh),
+                    "after_mesh_point_count": len(after_hip_mesh),
+                }
+                diagnostic_path = Path("artifacts/avatar-head-locality-diagnostic.txt")
+                diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
+                diagnostic_path.write_text(repr(locality_diagnostic) + "\\n", encoding="utf-8")
+                print("avatar-head-locality-diagnostic " + repr(locality_diagnostic), flush=True)
                 raise RuntimeError(
-                    "hip circumference edit changed the head geometry instead of staying local"
+                    "hip circumference edit changed the head geometry instead of staying local; "
+                    + repr(locality_diagnostic)
                 )
         finally:
             if dimension_recorder._started:
