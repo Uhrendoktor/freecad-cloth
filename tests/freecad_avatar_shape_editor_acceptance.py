@@ -500,37 +500,29 @@ def run():
                     values = tuple(point[axis] for point in points)
                     return min(values), max(values)
 
+                before_bounds = tuple(
+                    _axis_bounds(head_before_hip, axis) for axis in range(3)
+                )
+                after_bounds = tuple(
+                    _axis_bounds(head_after_hip, axis) for axis in range(3)
+                )
                 locality_diagnostic = {
                     "cutoff_mm": head_cutoff,
                     "before_head_count": len(head_before_hip),
                     "after_head_count": len(head_after_hip),
-                    "before_bounds_mm": tuple(
-                        _axis_bounds(head_before_hip, axis) for axis in range(3)
-                    ),
-                    "after_bounds_mm": tuple(
-                        _axis_bounds(head_after_hip, axis) for axis in range(3)
-                    ),
+                    "before_bounds_mm": before_bounds,
+                    "after_bounds_mm": after_bounds,
                     "removed_points": len(before_head_set - after_head_set),
                     "added_points": len(after_head_set - before_head_set),
                     "removed_examples_mm": sorted(before_head_set - after_head_set)[:3],
                     "added_examples_mm": sorted(after_head_set - before_head_set)[:3],
-                    "changed_measurements_mm": tuple(
-                        (name, before_hip_measurements[name], value)
-                        for name, value in after_hip_measurements.items()
-                        if abs(value - before_hip_measurements[name]) > 1e-6
-                    ),
+                    "changed_measurements_mm": tuple(changed_measurements.items()),
                     "mesh_point_counts": (len(before_hip_mesh), len(after_hip_mesh)),
                 }
                 diagnostic_path = Path("artifacts/avatar-head-locality-diagnostic.txt")
                 diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
-                diagnostic_path.write_text(
-                    repr(locality_diagnostic) + "\\n",
-                    encoding="utf-8",
-                )
-                print(
-                    "avatar-head-locality-diagnostic " + repr(locality_diagnostic),
-                    flush=True,
-                )
+                diagnostic_path.write_text(repr(locality_diagnostic) + "\\n", encoding="utf-8")
+                print("avatar-head-locality-diagnostic " + repr(locality_diagnostic), flush=True)
                 raise RuntimeError(
                     "hip circumference edit changed the head geometry instead of staying local: "
                     + repr(locality_diagnostic)
