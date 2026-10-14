@@ -35,7 +35,7 @@ def test_generated_python_source_cannot_be_compiled() -> None:
 
 def test_inline_generated_python_source_cannot_be_compiled() -> None:
     """Literal source code passed straight to compile is prohibited too."""
-    sample = 'compile("def generated():\\n    return 1", "<generated>", "exec")\\n'
+    sample = 'compile("def generated():\\n    return 1", "<generated>", "exec")\n'
     violations = python_source_rewrite_violations(sample, "inline_generator.py")
     assert any("compiling generated Python source" in issue for issue in violations)
 
