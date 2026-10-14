@@ -322,9 +322,7 @@ def _fit_anny_body(
                 & (side * neutral_points[:, 0] <= 0.155)
             )
             result[label] = (
-                float(
-                    (full_points[mask, 1] - neutral_points[mask, 1]).max().item() * 1000.0
-                )
+                float((full_points[mask, 1] - neutral_points[mask, 1]).max().item() * 1000.0)
                 if bool(mask.any())
                 else None
             )
