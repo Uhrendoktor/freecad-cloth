@@ -235,11 +235,11 @@ def project_stitched_pairs(
     project that point to the exterior clearance shell.
 
     A residual stitch can also stall when both endpoints sit just outside the
-    shell on different sides of a curved body. In that case, probe only the
-    midpoint of near-closed groups; reconcile them only if the midpoint itself
-    requires collision projection. This leaves distant, non-contacting stitches
-    to the native solver and avoids pulling a newly arranged garment through the
-    mannequin. Groups containing fixed particles remain unchanged.
+    shell on different sides of a curved body. Probe the midpoint of near-closed
+    groups and share it between endpoints: project it to the exterior shell if
+    needed, or use it unchanged when the projector reports that it is already
+    safe. Groups beyond the capture distance and groups containing fixed
+    particles remain unchanged, avoiding early capture of distant stitches.
     """
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
@@ -308,16 +308,16 @@ def project_stitched_pairs(
             near_shell_groups.append(group)
             near_shell_midpoints.append(points.mean(axis=0))
 
-    # Rescue only residual stitches whose shared point is itself inside or too
-    # close to the mannequin. Far-away pairs produce no contact normal and stay
-    # under the native solver, as before.
+    # Reconcile close residual stitches at their shared midpoint. If collision
+    # correction is needed, the shared point is projected to the exterior shell;
+    # if its normal is zero, the midpoint is already safe and can be shared as-is.
+    # Pairs beyond capture_distance and groups containing pinned particles remain
+    # under the native solver.
     if near_shell_midpoints:
         midpoint_points, midpoint_normals = projector.project(
             np.asarray(near_shell_midpoints, dtype=np.float64)
         )
         for index, group in enumerate(near_shell_groups):
-            if float(np.linalg.norm(midpoint_normals[index])) <= 1e-7:
-                continue
             corrected[group] = midpoint_points[index]
             normals[group] = midpoint_normals[index]
 

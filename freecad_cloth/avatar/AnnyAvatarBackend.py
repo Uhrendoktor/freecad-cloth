@@ -167,8 +167,8 @@ def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | 
         "african": 1.0 / 3.0,
         "asian": 1.0 / 3.0,
         "caucasian": 1.0 / 3.0,
-        # Breast size is an Anny phenotype, not a vertical-position morph.
-        # Keep the independent breast-volume-position target at its neutral value.
+        # Keep local breast fullness neutral while measurements are fitted.
+        # Both fullness controls are applied only after the fit converges.
         "_local_changes": dict.fromkeys(_measurement_local_change_labels(), 0.0),
     }
 
@@ -537,8 +537,15 @@ def _fit_anny_body(
     cupsize_control = body.phenotype_kwargs.get("cupsize")
     if cupsize_control is None:
         raise AnnyAvatarBackendError("Anny did not expose its independent cupsize phenotype.")
+    breast_volume_control = body.local_changes_kwargs.get(_BREAST_LOCAL_CHANGE)
+    if breast_volume_control is None:
+        raise AnnyAvatarBackendError("Anny did not expose its breast-volume shape target.")
+    # Cupsize provides the parametric phenotype; the localized volume target makes
+    # that edit visible on the rig-compatible HM08 surface. Apply both after fitting
+    # so the anthropometry optimizer cannot absorb the requested fullness.
     with torch.no_grad():
         cupsize_control.fill_(float(breast_size))
+        breast_volume_control.fill_(float(breast_size))
     first_parameter = next(iter(body.phenotype_kwargs.values()))
     pose = build_anny_apose(model, first_parameter.device)
     rig_vertices: tuple[tuple[float, float, float], ...] | None = None

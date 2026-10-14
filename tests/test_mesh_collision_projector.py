@@ -243,10 +243,46 @@ def test_stitched_pair_reconciliation_rescues_near_shell_midpoint() -> None:
     assert np.allclose(stitched_positions[0], stitched_positions[1])
     assert np.isclose(np.linalg.norm(stitched_normals[0]), 1.0)
     assert np.allclose(stitched_normals[0], stitched_normals[1])
-    assert not points_inside_closed_mesh(
-        (tuple(float(value) for value in point) for point in stitched_positions),
-        surface.vertices,
-        surface.triangles,
-        prefer_trimesh=False,
-        chunk_size=1,
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point) for point in stitched_positions),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )
     )
+
+def test_stitched_pair_reconciliation_closes_safe_midpoint_without_contact_projection() -> None:
+    cube = _cube_surface()
+    surface = CollisionSurface(
+        tuple(tuple(float(value) * 0.4 for value in vertex) for vertex in cube.vertices),
+        cube.triangles,
+        thickness=0.0,
+    ).validate()
+    projector = MeshCollisionProjector(surface, clearance_mm=5.0)
+    # Both endpoints are on the exterior clearance shell. The midpoint is also
+    # safe, but independent projection alone leaves the residual seam open.
+    points = np.asarray(((-5.0, 20.0, 15.0), (-5.0, 20.0, 25.0)), dtype=np.float64)
+    contact_positions, contact_normals = projector.project(points)
+    assert np.array_equal(contact_normals, np.zeros_like(contact_normals))
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+    )
+
+    assert np.allclose(stitched_positions, ((-5.0, 20.0, 20.0), (-5.0, 20.0, 20.0)))
+    assert np.array_equal(stitched_normals, np.zeros_like(stitched_normals))
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point) for point in stitched_positions),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )
+    )
+
