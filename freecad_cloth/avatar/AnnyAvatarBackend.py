@@ -278,8 +278,21 @@ def _fit_anny_body(
         )
     height_m = float(values["height"]) / 1000.0
 
+    def _canonical_points(vertex_tensor: torch.Tensor) -> torch.Tensor:
+        points = vertex_tensor[0].detach().clone()
+        extents = points.amax(dim=0) - points.amin(dim=0)
+        if int(torch.argmax(extents).item()) == 1:
+            # Match clad-body.load_anny_from_verts: raw Anny tensors are Y-up,
+            # while avatar mesh diagnostics use the canonical Z-up/+Y-front frame.
+            points = points[:, (0, 2, 1)].clone()
+            points[:, 2] = -points[:, 2]
+        points[:, 2] -= points[:, 2].amin()
+        center_xy = (points[:, :2].amax(dim=0) + points[:, :2].amin(dim=0)) / 2
+        points[:, :2] -= center_xy
+        return points
+
     def _front_y_mm(vertex_tensor: torch.Tensor) -> dict[str, float | None]:
-        points = vertex_tensor[0].detach()
+        points = _canonical_points(vertex_tensor)
         result = {}
         for side, label in ((-1.0, "left"), (1.0, "right")):
             mask = (
@@ -291,6 +304,29 @@ def _fit_anny_body(
             )
             result[label] = (
                 float(points[mask, 1].max().item() * 1000.0) if bool(mask.any()) else None
+            )
+        return result
+
+    def _front_y_delta_mm(
+        full_tensor: torch.Tensor, neutral_tensor: torch.Tensor
+    ) -> dict[str, float | None]:
+        full_points = _canonical_points(full_tensor)
+        neutral_points = _canonical_points(neutral_tensor)
+        result = {}
+        for side, label in ((-1.0, "left"), (1.0, "right")):
+            mask = (
+                (neutral_points[:, 2] >= 0.64 * height_m)
+                & (neutral_points[:, 2] <= 0.73 * height_m)
+                & (neutral_points[:, 1] > 0.0)
+                & (side * neutral_points[:, 0] >= 0.025)
+                & (side * neutral_points[:, 0] <= 0.155)
+            )
+            result[label] = (
+                float(
+                    (full_points[mask, 1] - neutral_points[mask, 1]).max().item() * 1000.0
+                )
+                if bool(mask.any())
+                else None
             )
         return result
 
@@ -307,17 +343,41 @@ def _fit_anny_body(
 
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
         raw_front_y = _front_y_mm(initial_output["vertices"])
+        breast_labels = [
+            str(label)
+            for label in getattr(model, "blendshape_labels", ())
+            if str(label).startswith("breast:")
+        ]
+        try:
+            from anny.paths import get_anny_root_dir
+
+            breast_asset_dir = Path(get_anny_root_dir()) / "data" / "mpfb2" / "targets" / "breast"
+            breast_asset_count = len(tuple(breast_asset_dir.glob("*.target.gz")))
+        except (ImportError, OSError, RuntimeError):
+            breast_asset_count = None
         _write_shape_trace(
             "pre-fit",
             {
                 "gender": phenotype_values["gender"],
                 "cupsize": phenotype_values["cupsize"],
                 "front_lobe_y_mm": raw_front_y,
+                "cupsize_phenotype_enabled": "cupsize" in getattr(model, "phenotype_labels", ()),
+                "breast_blendshape_count": len(breast_labels),
+                "breast_blendshape_examples": breast_labels[:4],
+                "breast_asset_file_count": breast_asset_count,
             },
         )
         print(
-            "anny-shape-trace stage=pre-fit gender=%s cupsize=%s front_lobe_y_mm=%r"
-            % (phenotype_values["gender"], phenotype_values["cupsize"], raw_front_y),
+            "anny-shape-trace stage=pre-fit gender=%s cupsize=%s front_lobe_y_mm=%r "
+            "cupsize_enabled=%s breast_blendshapes=%d breast_assets=%r"
+            % (
+                phenotype_values["gender"],
+                phenotype_values["cupsize"],
+                raw_front_y,
+                "cupsize" in getattr(model, "phenotype_labels", ()),
+                len(breast_labels),
+                breast_asset_count,
+            ),
             flush=True,
         )
 
@@ -576,27 +636,62 @@ def _fit_anny_body(
         )
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
         fitted_front_y = _front_y_mm(output["vertices"])
-        bust_fit = {
+        breast_names = {
             name: float(value.detach().reshape(-1)[0].item())
             for name, value in body.local_changes_kwargs.items()
-            if "bust" in name or "underbust" in name
+            if "bust" in name or "underbust" in name or "breast" in name
         }
+        neutral_phenotypes = dict(body.phenotype_kwargs)
+        neutral_phenotypes["cupsize"] = torch.zeros_like(body.phenotype_kwargs["cupsize"])
+        with torch.no_grad():
+            neutral_cupsize_output = model(
+                pose_parameters=pose,
+                phenotype_kwargs=neutral_phenotypes,
+                local_changes_kwargs=body.local_changes_kwargs,
+                pose_parameterization="local-bone",
+                return_bone_ends=True,
+            )
+        direct_delta = output["vertices"][0] - neutral_cupsize_output["vertices"][0]
+        direct_vertex_magnitudes = torch.linalg.vector_norm(direct_delta, dim=1)
+        _write_shape_trace(
+            "cupsize-effect",
+            {
+                "cupsize": float(body.phenotype_kwargs["cupsize"].detach().item()),
+                "neutral_to_selected_changed_vertices": int(
+                    (direct_vertex_magnitudes > 1e-7).sum().item()
+                ),
+                "neutral_to_selected_max_vertex_delta_mm": float(
+                    direct_vertex_magnitudes.max().item() * 1000.0
+                ),
+                "front_lobe_forward_delta_mm": _front_y_delta_mm(
+                    output["vertices"], neutral_cupsize_output["vertices"]
+                ),
+            },
+        )
         _write_shape_trace(
             "post-local-fit",
             {
                 "gender": float(body.phenotype_kwargs["gender"].detach().item()),
                 "cupsize": float(body.phenotype_kwargs["cupsize"].detach().item()),
                 "front_lobe_y_mm": fitted_front_y,
-                "bust_morphs": bust_fit,
+                "bust_morphs": breast_names,
             },
         )
         print(
-            "anny-shape-trace stage=post-fit gender=%s cupsize=%s front_lobe_y_mm=%r bust_morphs=%r"
+            "anny-shape-trace stage=post-fit gender=%s cupsize=%s front_lobe_y_mm=%r "
+            "cupsize_effect=%r bust_morphs=%r"
             % (
                 float(body.phenotype_kwargs["gender"].detach().item()),
                 float(body.phenotype_kwargs["cupsize"].detach().item()),
                 fitted_front_y,
-                bust_fit,
+                {
+                    "changed_vertices": int((direct_vertex_magnitudes > 1e-7).sum().item()),
+                    "max_delta_mm": float(direct_vertex_magnitudes.max().item() * 1000.0),
+                    "front_lobe_forward_delta_mm": _front_y_delta_mm(
+                        output["vertices"], neutral_cupsize_output["vertices"]
+                    ),
+                },
+                breast_names,
             ),
             flush=True,
         )
