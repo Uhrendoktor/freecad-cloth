@@ -286,4 +286,3 @@ def test_stitched_pair_reconciliation_closes_safe_midpoint() -> None:
             chunk_size=1,
         )
     )
-
