@@ -5,6 +5,7 @@ import sys
 import time
 import traceback
 from math import pi
+from typing import TYPE_CHECKING
 from pathlib import Path
 
 import FreeCAD as App
@@ -19,6 +20,9 @@ from pivy import coin
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
