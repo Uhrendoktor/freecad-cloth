@@ -218,6 +218,7 @@ def test_stitched_pair_reconciliation_skips_noncontacting_stitches() -> None:
     assert np.array_equal(stitched_positions, contact_positions)
     assert np.array_equal(stitched_normals, contact_normals)
 
+
 def test_stitched_pair_reconciliation_rescues_near_shell_midpoint() -> None:
     cube = _cube_surface()
     surface = CollisionSurface(
