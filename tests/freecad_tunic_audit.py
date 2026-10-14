@@ -587,6 +587,16 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
     if not stitch_pairs_by_seam: raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
     seam_gaps = []
     seam_gap_records = []
+    # Measure the actual shortest endpoint-to-avatar-surface distance even if
+    # the target is open and MeshCollisionProjector deliberately fails closed.
+    # This distinguishes bad cloth placement from a collision response that
+    # moves seam endpoints away from the mannequin.
+    import trimesh as _trimesh
+    target_probe_mesh = _trimesh.Trimesh(
+        vertices=_np.asarray(target_surface.vertices, dtype=_np.float64),
+        faces=_np.asarray(target_surface.triangles, dtype=_np.int64),
+        process=False,
+    )
     for seam, piece_a, piece_b in seam_records:
         expected_a = f"{piece_a.PieceId}:edge:"
         expected_b = f"{piece_b.PieceId}:edge:"
@@ -615,6 +625,22 @@ seam_check = """    backend_state = scene.Proxy._base_or_restore()
             worst_pa[0], worst_pa[1], worst_pa[2], worst_pb[0], worst_pb[1], worst_pb[2],
             worst_pa[0]-worst_pb[0], worst_pa[1]-worst_pb[1], worst_pa[2]-worst_pb[2],
         ))
+        endpoint_points = _np.asarray((worst_pa, worst_pb), dtype=_np.float64)
+        closest_points, collider_distances, collider_faces = (
+            _trimesh.proximity.closest_point_naive(target_probe_mesh, endpoint_points)
+        )
+        log(
+            "authoritative-seam-endpoint-collider seam=%s points=(%d,%d) "
+            "distance-mm=(%.2f,%.2f) face=(%d,%d) "
+            "closest-a=(%.2f,%.2f,%.2f) closest-b=(%.2f,%.2f,%.2f)"
+            % (
+                seam_id, worst_a, worst_b,
+                float(collider_distances[0]), float(collider_distances[1]),
+                int(collider_faces[0]), int(collider_faces[1]),
+                float(closest_points[0, 0]), float(closest_points[0, 1]), float(closest_points[0, 2]),
+                float(closest_points[1, 0]), float(closest_points[1, 1]), float(closest_points[1, 2]),
+            )
+        )
         for sample_index, (gap, ga, gb, point_a, point_b) in enumerate(pair_gaps):
             log("authoritative-seam-sample seam=%s sample=%d pair=(%d,%d) gap-mm=%.2f delta=(%.2f,%.2f,%.2f)" % (
                 seam_id, sample_index, ga, gb, gap,
