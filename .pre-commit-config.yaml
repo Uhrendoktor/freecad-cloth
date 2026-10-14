@@ -55,6 +55,12 @@ repos:
         entry: python tools/ci/validate_ci_structure.py
         language: system
         files: ^(?:\.github/(actions|workflows)/|tools/ci/)
+      - id: no-source-rewriting
+        name: Prohibit runtime source rewriting
+        entry: python tools/ci/check_no_source_rewriting.py
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: ast-grep-tests
         name: ast-grep rule tests
         entry: ast-grep test --skip-snapshot-tests --color never
