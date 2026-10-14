@@ -69,7 +69,8 @@ def test_sewing_command_groups_are_unique_and_complete():
 
 def test_sewing_toolbar_is_a_unique_subset_of_registered_commands():
     grouped = {command for _group, commands in SEWING_COMMAND_GROUPS for command in commands}
-    assert set(SEWING_TOOLBAR_COMMANDS) <= grouped
+    assert set(SEWING_TOOLBAR_COMMANDS) <= grouped | set(AvatarCommands.COMMANDS)
+    assert "ClothFitting_CreateAvatar" in SEWING_TOOLBAR_COMMANDS
     assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
 
 
