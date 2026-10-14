@@ -18,8 +18,8 @@ PYTHON_SOURCE_NAME_HINTS = {
 WRITE_METHODS = {"write_text", "write_bytes"}
 READ_METHODS = {"read_text", "read_bytes", "read"}
 INLINE_EDIT_COMMANDS = (
-    re.compile(r"(?im)^\s*sed\s+-[^\n]*i(?:\s|$)"),
-    re.compile(r"(?im)^\s*(?:perl|ruby)\s+-[^\n]*p[^\n]*i(?:\s|$)"),
+    re.compile(r"(?im)\bsed\s+-i(?:\S*)?\b"),
+    re.compile(r"(?im)\b(?:perl|ruby)\s+-[^\s]*p[^\s]*i[^\s]*\b"),
 )
 INLINE_PYTHON_EDIT = re.compile(
     r"(?i)\bpython(?:3(?:\.\d+)?)?\s+-c\b[^\n]*(?:\.replace\s*\(|\.write_text\s*\(|\.write_bytes\s*\()"
