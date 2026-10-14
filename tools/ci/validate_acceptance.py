@@ -68,9 +68,7 @@ def main() -> int:
         )
         if missing:
             raise SystemExit(f"{args.case}: missing progress markers: {missing}")
-        print(
-            f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}"
-        )
+        print(f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}")
         return 0
 
     image = CASES[args.case]
