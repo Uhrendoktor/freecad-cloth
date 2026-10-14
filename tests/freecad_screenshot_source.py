@@ -1925,6 +1925,7 @@ def simulation():
     scene.GravityZ = -9810.0
     scene.FabricFriction = 0.85 if TUNIC_PRODUCTION_AUDIT else 0.75
     if TUNIC_PRODUCTION_AUDIT:
+        scene.ParticleDistance = 24.0
         log("tunic-time-step=1/240s for 90-step free-drape audit")
         log("tunic-solver=particle-distance-24 iterations-8 substeps=4")
     # Keep the free-drape audit unpinned: fixed front/back neckline centers
