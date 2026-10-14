@@ -93,16 +93,12 @@ def _active_pr(repo: str, number: int) -> tuple[str, str]:
         or branch == "main"
         or not expected_head
     ):
-        raise RuntimeError(
-            "PR must be open, based on main, and have a branch in this repository"
-        )
+        raise RuntimeError("PR must be open, based on main, and have a branch in this repository")
     _run(["git", "check-ref-format", "--branch", branch])
     return branch, expected_head
 
 
-def _rebase_and_push(
-    repo: str, number: int, branch: str, expected_head: str, token: str
-) -> str:
+def _rebase_and_push(repo: str, number: int, branch: str, expected_head: str, token: str) -> str:
     """Rebase, resolve only the known JSON-list conflict, and push with a lease."""
     _run(["git", "config", "user.name", "github-actions[bot]"])
     _run(
@@ -127,9 +123,7 @@ def _rebase_and_push(
 
     fetched_head = _output(["git", "rev-parse", f"refs/remotes/origin/{branch}"])
     if fetched_head != expected_head:
-        raise RuntimeError(
-            "PR head changed during inspection; refusing to rebase a stale revision"
-        )
+        raise RuntimeError("PR head changed during inspection; refusing to rebase a stale revision")
 
     _run(["git", "checkout", "-B", branch, f"refs/remotes/origin/{branch}"])
     result = _run(
@@ -228,11 +222,7 @@ def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     token = os.environ.get("GH_TOKEN", "")
     title_lines = os.environ.get("ACTIVATION_TITLE", "").splitlines()
-    match = (
-        re.fullmatch(r"RUN REBASE: PR #([0-9]+)", title_lines[0].strip())
-        if title_lines
-        else None
-    )
+    match = re.fullmatch(r"RUN REBASE: PR #([0-9]+)", title_lines[0].strip()) if title_lines else None
     if not repo or not token or not match:
         raise RuntimeError("Missing repository/token or invalid rebase activation title")
     number = int(match.group(1))
