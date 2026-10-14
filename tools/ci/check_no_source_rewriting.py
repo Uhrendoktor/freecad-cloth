@@ -176,10 +176,9 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                         violations.append(
                             f"{path}:{node.lineno}: generated Python source must not be executed"
                         )
-                    elif (
-                        isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
-                        and not (_names_used(compiled_source) & source_names)
-                    ):
+                    elif isinstance(
+                        compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr)
+                    ) and not (_names_used(compiled_source) & source_names):
                         violations.append(
                             f"{path}:{node.lineno}: generated Python source must not be executed"
                         )
@@ -229,9 +228,7 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
                 violations.append(
                     f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
                 )
-            elif not _is_checked_in_source_expression(
-                expression, source_names, python_path_names
-            ):
+            elif not _is_checked_in_source_expression(expression, source_names, python_path_names):
                 violations.append(
                     f"{path}:{node.lineno}: compiling generated Python source is prohibited"
                 )
