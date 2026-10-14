@@ -12,6 +12,18 @@ def test_project_metadata_exists():
     assert "[build-system]" in text
 
 
+def test_anny_avatar_runtime_is_a_required_project_dependency():
+    import tomllib
+
+    root = Path(__file__).resolve().parents[1]
+    metadata = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    project = metadata["project"]
+    required = set(project["dependencies"])
+    assert "anny>=0.6,<0.7" in required
+    assert "clad-body[anny]>=0.6.1,<0.7" in required
+    assert "avatar" not in project.get("optional-dependencies", {})
+
+
 def test_workbench_package_boundaries_exist():
     root = Path(__file__).resolve().parents[1]
     for name in ("pattern", "sewing", "simulation", "avatar", "common", "shared"):
