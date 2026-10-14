@@ -28,8 +28,7 @@ def test_generated_python_source_cannot_be_compiled() -> None:
     """Generated executable code is prohibited even if it is not read from a file."""
     sample = 'generated = "def patched():\\n    return 1\\n"\ncompile(generated, "<generated>", "exec")\n'
     violations = python_source_rewrite_violations(sample, "generator.py")
-    assert any("transformed source must not be compiled" in issue for issue in violations)
-
+    assert any("compiling generated Python source" in issue for issue in violations)
 
 
 def test_regular_expression_replacement_of_python_source_is_rejected() -> None:
@@ -45,7 +44,8 @@ compile(patched, str(source_path), "exec")
 """
     violations = python_source_rewrite_violations(sample, "regex_generator.py")
     assert any("must not be rewritten" in issue for issue in violations)
-    assert any("compiling generated Python source" in issue for issue in violations)
+    assert any("transformed source must not be compiled" in issue for issue in violations)
+
 
 def test_read_only_syntax_check_of_checked_in_python_is_allowed() -> None:
     """Compiling unmodified source-file text for syntax validation is legitimate."""
