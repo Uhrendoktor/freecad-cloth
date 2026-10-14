@@ -77,7 +77,7 @@ def _mesh_points(avatar):
     )
 
 
-def _mesh_points_unrounded(avatar):
+def _mesh_points_unrounded(avatar) -> tuple[tuple[float, float, float], ...]:
     """Return full-precision vertices in native index order for locality checks."""
     return tuple((float(point.x), float(point.y), float(point.z)) for point in avatar.Mesh.Points)
 
