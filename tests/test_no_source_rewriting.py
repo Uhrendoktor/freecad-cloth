@@ -31,6 +31,22 @@ def test_generated_python_source_cannot_be_compiled() -> None:
     assert any("compiling generated Python source" in issue for issue in violations)
 
 
+
+def test_regular_expression_replacement_of_python_source_is_rejected() -> None:
+    """Regex substitutions are also source rewriting when applied to Python file contents."""
+    sample = """
+from pathlib import Path
+import re
+
+source_path = Path("fixture.py")
+source = source_path.read_text(encoding="utf-8")
+patched = re.sub("old_expression", "new_expression", source)
+compile(patched, str(source_path), "exec")
+"""
+    violations = python_source_rewrite_violations(sample, "regex_generator.py")
+    assert any("must not be rewritten" in issue for issue in violations)
+    assert any("compiling generated Python source" in issue for issue in violations)
+
 def test_read_only_syntax_check_of_checked_in_python_is_allowed() -> None:
     """Compiling unmodified source-file text for syntax validation is legitimate."""
     sample = """
