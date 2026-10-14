@@ -166,7 +166,7 @@ def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
         register_seam_refresh_callback(None)
 
 
-def test_freecad_collision_repairs_winding_after_native_mesh_conversion():
+def test_freecad_collision_repairs_winding_after_native_mesh_conversion() -> None:
     vertices = (
         _Vertex(0, 0, 0),
         _Vertex(100, 0, 0),
@@ -222,7 +222,7 @@ def test_freecad_collision_repairs_winding_after_native_mesh_conversion():
     assert surface.thickness == 5.0
 
 
-def test_freecad_collision_does_not_invent_closure_for_open_mesh():
+def test_freecad_collision_does_not_invent_closure_for_open_mesh() -> None:
     surface = surface_from_freecad(
         SimpleNamespace(Mesh=_mesh(), Label="open triangle"),
     )
