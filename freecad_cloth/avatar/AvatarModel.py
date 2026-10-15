@@ -40,6 +40,8 @@ DEFAULT_MEASUREMENTS = {
     "torso": 450.0,
     "front_waist": 430.0,
     "back_waist": 440.0,
+    "stomach": 950.0,
+    "sleeve_length": 630.0,
 }
 
 DEFAULT_POSE_ARM_ANGLES = {
@@ -69,6 +71,8 @@ LIMITS = {
     "torso": (300, 650),
     "front_waist": (300, 650),
     "back_waist": (300, 650),
+    "stomach": (500, 1800),
+    "sleeve_length": (350, 1000),
 }
 
 
