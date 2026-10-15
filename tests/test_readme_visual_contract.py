@@ -258,6 +258,8 @@ def test_documentation_turntable_capture_does_not_run_simulation_release_gates()
     assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in workflow
     assert "if documentation_capture_only:" in simulation
     assert "stage=documentation-capture-only" in simulation
+
+
 def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() -> None:
     workflows = ROOT / ".github" / "workflows"
     shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
