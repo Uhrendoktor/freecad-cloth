@@ -58,3 +58,4 @@ def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters():
     end = source.index("COMMANDS", start)
     assert "_sync_visuals(" not in source[start:end]
 
+
