@@ -145,6 +145,7 @@ jobs:
           lint-imports
           python tools/ci/check_explicit_any_annotations.py
           python tools/ci/check_pydantic_models.py
+          python tools/ci/check_no_monkeypatch.py
           python tools/ci/check_no_source_rewriting.py
           python -m pytest -q tests/test_no_source_rewriting.py
           pyright -p pyrightconfig.json
