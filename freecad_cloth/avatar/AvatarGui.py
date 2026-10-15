@@ -424,7 +424,7 @@ class AvatarTaskPanel:
         self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
         self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.advanced_toggle.setToolTip(
-            "Reveal every normalized Anny phenotype and every paired, non-genital body morph. "
+            "Reveal every normalized Anny phenotype and every paired local-morph target in the installed model. "
             "These overrides are applied after anthropometric fitting and may change resulting measurements."
         )
         parent.addWidget(self.advanced_toggle)
