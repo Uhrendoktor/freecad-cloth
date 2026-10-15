@@ -135,8 +135,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         return {
             "data": {
                 "repository": {
-                    alias: {"text": contents_by_sha[sha].decode("utf-8")}
-                    for alias, sha in aliases
+                    alias: {"text": contents_by_sha[sha].decode("utf-8")} for alias, sha in aliases
                 }
             }
         }
