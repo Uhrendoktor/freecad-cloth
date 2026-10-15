@@ -340,7 +340,6 @@ jobs:
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
-
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
@@ -373,7 +372,6 @@ jobs:
           stage-workbench: ${{ matrix.stage }}
           clean-user: ${{ matrix.clean }}
           environment: ${{ matrix.env }}
-
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
@@ -488,7 +486,6 @@ jobs:
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
     needs: [agent-quality, gui-tunic-visual]
@@ -509,7 +506,6 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
-
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
     concurrency:
