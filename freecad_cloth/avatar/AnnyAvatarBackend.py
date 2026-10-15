@@ -873,9 +873,7 @@ def _cached_fitted_body(
     fit_steps: int,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Cache fitted surface and full rig vertices so viewport events do not refit."""
-    return _fit_anny_body(
-        measurements, gender, breast_size, fit_hip=fit_hip, fit_steps=fit_steps
-    )
+    return _fit_anny_body(measurements, gender, breast_size, fit_hip=fit_hip, fit_steps=fit_steps)
 
 
 def _fitted_body_for(
