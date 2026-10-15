@@ -669,7 +669,7 @@ def run_acceptance():
         if probe_volume is None or probe_volume.Name not in {
             obj.Name for obj in tuple(marker_group.Group or ())
         }:
-            raise RuntimeError("new bounding-volume marker was not added to the fitting marker group")
+            raise RuntimeError("bounding-volume marker missing from fitting group")
         delete_bounding_volume("HierarchyCleanupProbeVolume")
         if doc.getObject(probe_volume_name) is not None:
             raise RuntimeError("deleted bounding volume left a stale display object in the tree")
@@ -677,7 +677,7 @@ def run_acceptance():
         if marker_group is None or point.Name not in {
             obj.Name for obj in tuple(marker_group.Group or ())
         }:
-            raise RuntimeError("removing temporary markers disturbed the active fitting marker group")
+            raise RuntimeError("marker cleanup disturbed remaining fitting group")
         print("fitting-marker-tree=passed grouped=true stale-markers=pruned", flush=True)
 
         structure = garment_structure(doc)
