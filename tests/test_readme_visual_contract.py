@@ -243,15 +243,19 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
     commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
-    trigger_header = shared.split("\nconcurrency:", 1)[0]
+    trigger_header = shared.split("\nenv:", 1)[0]
 
     assert "workflow_call:" in trigger_header
+    assert "\nconcurrency:\n" not in shared.split("\njobs:\n", 1)[0]
     assert "  push:" not in trigger_header
     assert "  pull_request:" not in trigger_header
     assert "  merge_group:" not in trigger_header
     assert "pull_request:" in commits
     assert "merge_group:" in commits
-    assert "&& 'fast' ||" in commits
+    assert "execution_mode: fast" in commits
+    assert "execution_mode: full" in commits
+    assert "github.event.pull_request.draft == false" in commits
+    assert "name: Required pre-merge validation" in commits
     assert "  push:" not in commits
     assert "  pull_request:" not in publication
     assert "  merge_group:" not in publication
@@ -259,8 +263,16 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "push:" in publication
     assert "branches: [main]" in publication
     assert "execution_mode: publication" in publication
+    assert "workflow_run:" not in commits
+    assert "workflow_run:" not in publication
+    assert "\nenv:\n" not in commits
+    assert "\nenv:\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
+    watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
+    watchdog_source = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
+    assert "inputs.runner_mode != 'hosted'" in watchdog
+    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in watchdog_source
 
 
 def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:
@@ -271,6 +283,12 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         encoding="utf-8"
     )
     assert "source_tree" in workflow
-    assert "No successful merge-group full-validation run" in workflow
+    assert "for event in pull_request merge_group; do" in workflow
+    assert "Required pre-merge validation" in workflow
+    assert "No successful full-validation run" in workflow
+    doc_assets = workflow.split("  gui-avatar-doc-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]" in doc_assets
     assert 'build_visual_gif_set("turntables", Path("turntables"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher

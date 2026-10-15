@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       execution_mode:
-        description: Manually dispatched runs default to full validation; PR pushes use fast feedback automatically.
+        description: Manually dispatched runs use full validation.
         required: false
         type: choice
         default: full
@@ -43,19 +43,86 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 permissions:
-  actions: write
-  contents: write
-  packages: write
-  pull-requests: write
+  actions: read
+  contents: read
+  packages: read
 
 jobs:
-  execute:
-    name: Execute canonical checks
+  fast-feedback:
+    name: Fast PR feedback
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      actions: read
+      contents: read
+      packages: read
     uses: ./.github/workflows/canonical-execution.yml
     with:
-      execution_mode: ${{ github.event_name == 'pull_request' && 'fast' || (github.event_name == 'merge_group' && 'full' || (github.event_name == 'schedule' && 'scheduled' || inputs.execution_mode || 'full')) }}
+      execution_mode: fast
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ""
+    secrets: inherit
+
+  full-validation:
+    name: Full validation
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false) || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full') }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: full
       runner_mode: ${{ github.event_name == 'merge_group' && 'hosted' || inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
       fallback_source_run: ${{ inputs.fallback_source_run || '' }}
       diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
       pr_number: ${{ inputs.pr_number || '' }}
     secrets: inherit
+
+  scheduled-validation:
+    name: Scheduled static validation
+    if: ${{ github.event_name == 'schedule' }}
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: scheduled
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ""
+    secrets: inherit
+
+  required-pre-merge-validation:
+    name: Required pre-merge validation
+    if: ${{ always() && ((github.event_name == 'pull_request' && github.event.pull_request.draft == false) || github.event_name == 'merge_group') }}
+    needs: [fast-feedback, full-validation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Require fast feedback and complete validation for the current revision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FAST_RESULT: ${{ needs.fast-feedback.result }}
+          FULL_RESULT: ${{ needs.full-validation.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          require_success() {
+            local label="$1" result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::$label must succeed before merge (result=$result)"
+              exit 1
+            fi
+          }
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            require_success "Fast PR feedback" "$FAST_RESULT"
+          fi
+          require_success "Full validation" "$FULL_RESULT"
+          echo "required-pre-merge-validation=passed event=$EVENT_NAME"

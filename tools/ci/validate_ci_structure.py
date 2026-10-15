@@ -225,7 +225,7 @@ def main() -> int:
     lines = text.splitlines()
     if len(lines) > 750:
         raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
-    trigger_block = text.split("\nconcurrency:", 1)[0]
+    trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
@@ -237,10 +237,13 @@ def main() -> int:
     if (
         "pull_request:" not in commit_workflow
         or "merge_group:" not in commit_workflow
-        or "&& 'fast' ||" not in commit_workflow
+        or "execution_mode: fast" not in commit_workflow
+        or "execution_mode: full" not in commit_workflow
+        or "github.event.pull_request.draft == false" not in commit_workflow
+        or "name: Required pre-merge validation" not in commit_workflow
     ):
         raise SystemExit(
-            "commit-validation.yml must run fast PR feedback and full merge-group validation"
+            "commit-validation.yml must run fast feedback, full validation, and a required pre-merge gate"
         )
     if (
         "push:" not in publication_workflow
@@ -250,8 +253,17 @@ def main() -> int:
         raise SystemExit(
             "main-publication.yml must be main-only and call canonical publication mode"
         )
-    if "Required validation gate" not in text or "No successful merge-group full-validation run" not in text:
-        raise SystemExit("reusable workflow must enforce mode-specific validation and refuse unvalidated publication")
+    if (
+        "Required validation gate" not in text
+        or "No successful full-validation run" not in text
+        or "for event in pull_request merge_group; do" not in text
+        or "Required pre-merge validation" not in commit_workflow
+    ):
+        raise SystemExit(
+            "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
+        )
+    if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
+        raise SystemExit("concurrency belongs to entry workflows, not the shared reusable workflow")
     if "pull_request_target" in text:
         raise SystemExit("pull_request_target is forbidden")
     missing_typecheck = missing_typecheck_commands(text)

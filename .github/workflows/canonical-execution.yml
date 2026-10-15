@@ -29,10 +29,6 @@ on:
         type: string
         default: ""
 
-concurrency:
-  # Main pushes stay independently schedulable; visual publication is serialized separately.
-  group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && format('canonical-main-push-{0}', github.sha)) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -543,24 +539,28 @@ jobs:
         run: |
           set -euo pipefail
           source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
-          runs="$(gh run list --repo "${REPOSITORY}" --workflow commit-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
-          while IFS=$'\t' read -r run_id head_sha; do
-            [ -n "${run_id}" ] || continue
-            candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
-            if [ "${candidate_tree}" = "${source_tree}" ]; then
-              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
-              echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
-              echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
-              exit 0
-            fi
-          done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
-          echo "::error::No successful merge-group full-validation run matched source tree ${source_tree}; refusing to publish unvalidated assets."
+          for event in pull_request merge_group; do
+            runs="$(gh run list --repo "${REPOSITORY}" --workflow commit-validation.yml --event "${event}" --status success --limit 100 --json databaseId,headSha)"
+            while IFS=$'\t' read -r run_id head_sha; do
+              [ -n "${run_id}" ] || continue
+              gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"
+              [ "${gate_result}" = "1" ] || continue
+              candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
+              if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+                echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+                echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+                echo "validation-artifacts-run=${run_id} event=${event} validated_sha=${head_sha} tree=${source_tree}"
+                exit 0
+              fi
+            done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
+          done
+          echo "::error::No successful full-validation run with Required pre-merge validation matched source tree ${source_tree}; refusing to publish unvalidated assets."
           exit 1
 
   gui-avatar-doc-assets:
     name: Main-only avatar stills and body-shape gallery
     if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
-    needs: [local_runner_readiness, pbd_validation_image]
+    needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 8
     env:
@@ -646,7 +646,7 @@ jobs:
 
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
-    if: ${{ inputs.execution_mode == 'full' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
@@ -674,7 +674,7 @@ jobs:
   required-validation-gate:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
-    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, artifact-budget]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -693,6 +693,7 @@ jobs:
           TURNTABLE_RESULT: ${{ needs.gui-turntables.result }}
           BLANKET_RESULT: ${{ needs.gui-visual-examples.result }}
           ARTIFACT_BUDGET_RESULT: ${{ needs.artifact-budget.result }}
+          BENCHMARK_RESULT: ${{ needs.benchmark.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -713,6 +714,7 @@ jobs:
             require_success "Tunic visual and simulation audit" "$TUNIC_AUDIT_RESULT"
             require_success "Avatar and simulation turntables" "$TURNTABLE_RESULT"
             require_success "Blanket visual fixture" "$BLANKET_RESULT"
+            require_success "Workbench benchmark" "$BENCHMARK_RESULT"
             require_success "Visual evidence/artifact contract" "$ARTIFACT_BUDGET_RESULT"
           fi
           echo "required-validation=passed mode=$EXECUTION_MODE"
