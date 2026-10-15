@@ -151,7 +151,10 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     assert "canonical-pr-{0}" not in workflow
     assert "commit-validation-pr-{0}" in commit_workflow
     assert "commit-validation-merge-group-{0}" in commit_workflow
-    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}" in commit_workflow
+    assert (
+        "cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}"
+        in commit_workflow
+    )
     assert "cancel-stale-pr-runs:" not in workflow
     assert "artifact-budget:" in workflow
     budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
@@ -174,8 +177,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert "git ls-files -z -- '*.py' '*.pyi'" in quality
     assert (
-        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"'
-        in quality
+        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
     )
     assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
     assert "python -m ruff check --fix" not in quality
@@ -208,6 +210,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         block = workflow[start:end]
         if job[:-1] not in independent_jobs:
             assert "needs:" in block
+
 
 def test_canonical_readme_turntable_uses_shared_freecad_test_action():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
