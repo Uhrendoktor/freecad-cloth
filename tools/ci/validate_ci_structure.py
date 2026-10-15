@@ -69,6 +69,7 @@ PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Gui.py",
     "**/*Commands.py",
     "**/workbench.py",
+    "freecad_cloth/bootstrap.py",
 )
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
