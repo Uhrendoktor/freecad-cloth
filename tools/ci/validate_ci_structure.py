@@ -220,7 +220,9 @@ def main() -> int:
     """Validate the repository CI structure and hard runtime contracts."""
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
-        raise SystemExit(f"expected thin commit/main entry points plus one reusable workflow, found: {files}")
+        raise SystemExit(
+            f"expected thin commit/main entry points plus one reusable workflow, found: {files}"
+        )
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
     if len(lines) > 750:
@@ -242,7 +244,8 @@ def main() -> int:
         or "merge_group:" not in commit_workflow
         or "execution_mode: fast" not in commit_workflow
         or "execution_mode: full" not in commit_workflow
-        or "if: ${{ github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch'" not in full_validation_workflow
+        or "if: ${{ github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch'"
+        not in full_validation_workflow
         or "github.event.pull_request" in full_validation_workflow
         or "name: Required pre-merge validation" not in commit_workflow
     ):
