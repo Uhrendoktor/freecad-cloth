@@ -307,12 +307,12 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         encoding="utf-8"
     )
     assert "source_tree" in workflow
-    assert "for event in pull_request merge_group; do" in workflow
+    assert "--event merge_group --status success" in workflow
     assert "Required pre-merge validation" in workflow
-    assert "No successful full-validation run" in workflow
-    doc_assets = workflow.split("  gui-avatar-doc-assets:", 1)[1].split(
+    assert "No successful merge-group full-validation run" in workflow
+    doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
     )[0]
     assert "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]" in doc_assets
-    assert 'build_visual_gif_set("turntables", Path("turntables"))' in publisher
+    assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
