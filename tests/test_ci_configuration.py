@@ -4,6 +4,8 @@ import json
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from tools.ci.run_freecad import configured_timeout_seconds
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +106,69 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
 
     contents = b"FROM freecad:stable\n"
     assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
+
+
+def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch: pytest.MonkeyPatch) -> None:
+    import re
+    from hashlib import sha256
+
+    from tools.ci import maintenance_cleanup
+
+    contents_by_sha = {
+        "1" * 40: b"FROM freecad:one\n",
+        "2" * 40: b"FROM freecad:two\n",
+        "3" * 40: b"FROM freecad:three\n",
+        "4" * 40: b"FROM freecad:four\n",
+        "5" * 40: b"FROM freecad:five\n",
+    }
+    queries = []
+
+    def fake_gh_json(*args: str) -> dict[str, object]:
+        assert args[:3] == ("api", "graphql", "-f")
+        query_arg = args[3]
+        assert query_arg.startswith("query=")
+        query = query_arg.removeprefix("query=")
+        aliases = re.findall(
+            r'(file\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/Dockerfile"\)',
+            query,
+        )
+        assert aliases
+        queries.append(query)
+        return {
+            "data": {
+                "repository": {
+                    alias: {"text": contents_by_sha[sha].decode("utf-8")} for alias, sha in aliases
+                }
+            }
+        }
+
+    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
+
+    tags = maintenance_cleanup.dockerfile_tags_for_shas(
+        "owner/repo", set(contents_by_sha), batch_size=2
+    )
+
+    assert tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}
+    assert len(queries) == 3
+
+
+def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.ci import maintenance_cleanup
+
+    def fake_gh_json(*args: str) -> dict[str, object]:
+        assert args[:3] == ("api", "graphql", "-f")
+        return {"data": {"repository": {"file0": None}}}
+
+    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
+
+    try:
+        maintenance_cleanup.dockerfile_tags_for_shas("owner/repo", {"1" * 40})
+    except RuntimeError as exc:
+        assert "Dockerfile content missing" in str(exc)
+    else:
+        raise AssertionError("missing protected Dockerfile content must fail closed")
 
 
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
