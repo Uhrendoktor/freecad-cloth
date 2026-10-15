@@ -49,8 +49,8 @@ def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters() -> None:
     source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     assert '_FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"' in source
     assert '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"' in source
-    assert 'getattr(group, "addObject")(marker)' in source
-    assert "remove_object(name)" in source
+    assert "group.addObject(marker)" in source
+    assert "doc.removeObject(name)" in source
     assert "name.startswith(" in source and '"ArrangementPoint_"' in source
     assert 'name.startswith("BoundingVolume_")' in source
     start = source.index("class _FittingProxy")
