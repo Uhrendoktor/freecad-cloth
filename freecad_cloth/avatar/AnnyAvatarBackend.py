@@ -107,7 +107,7 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
 
 @lru_cache(maxsize=1)
 def _all_paired_local_change_labels() -> tuple[str, ...]:
-    """Return discoverable Anny body-morph labels, excluding genital targets."""
+    """Return discoverable paired Anny local-morph labels from every target group."""
     try:
         import anny
     except ImportError as exc:
@@ -135,8 +135,8 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
         ) from exc
 
     selected: set[str] = set()
-    for group, group_data in metadata.items():
-        if group == "genitals" or not isinstance(group_data, dict):
+    for _group, group_data in metadata.items():
+        if not isinstance(group_data, dict):
             continue
         for category in group_data.get("categories", []):
             if not isinstance(category, dict):
@@ -163,7 +163,7 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
 
 
 def available_anny_local_change_labels() -> tuple[str, ...]:
-    """Return every paired, non-genital Anny body-morph parameter."""
+    """Return every paired Anny local-morph parameter available in the installed assets."""
     return _all_paired_local_change_labels()
 
 
