@@ -177,7 +177,7 @@ def test_apply_persists_target_values_and_recomputes():
     panel._source_objects = [source]
     panel.doc = SimpleNamespace(recompute=lambda: document_calls.append("recompute"))
 
-    def assign_target(target_obj, source_obj, target_type):
+    def assign_target(target_obj: object, source_obj: object, target_type: str) -> None:
         assigned.append((target_obj, source_obj, target_type))
 
     assert panel._apply(assign_target=assign_target) is True

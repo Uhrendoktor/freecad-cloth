@@ -1,5 +1,8 @@
 """Persisted semantic marks for the Cloth Pattern workbench."""
 
+from collections.abc import Callable
+from types import ModuleType
+
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
@@ -7,7 +10,7 @@ def _pieces(doc):
     return [o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]
 
 
-def _selected_piece(doc, *, gui=None):
+def _selected_piece(doc, *, gui: ModuleType | None = None):
     try:
         if gui is None:
             import FreeCADGui as gui
@@ -37,7 +40,7 @@ def _native_default_segment_id(piece):
     raise ValueError("selected pattern piece has no authored native edge identity")
 
 
-def _has_selected_piece(*, gui=None):
+def _has_selected_piece(*, gui: ModuleType | None = None):
     try:
         if gui is None:
             import FreeCADGui as gui
@@ -145,7 +148,9 @@ def add_internal_mark():
 
 
 class _FunctionCommand:
-    def __init__(self, function, command_name, *, gui=None):
+    def __init__(
+        self, function: Callable[[], object], command_name: str, *, gui: ModuleType | None = None
+    ):
         self.function = function
         self.command_name = command_name
         self.gui = gui

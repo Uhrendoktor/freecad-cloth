@@ -335,7 +335,7 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
             }
         )
 
-    def native_edge_records(_piece):
+    def native_edge_records(_piece: object) -> list[dict[str, object]]:
         return reordered
 
     edge_id, signature = pattern_objects._seam_edge_id(
@@ -363,7 +363,7 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
         {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
     ]
 
-    def native_edge_records(_piece):
+    def native_edge_records(_piece: object) -> list[dict[str, object]]:
         return records
 
     edge_id, signature = pattern_objects._seam_edge_id(

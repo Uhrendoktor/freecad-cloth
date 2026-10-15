@@ -1,6 +1,8 @@
 """Sewing workbench registration facade."""
 
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
@@ -70,7 +72,13 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
     MenuText = "Cloth Sewing"
     ToolTip = "Sewing operations and avatar fitting"
 
-    def __init__(self, *, gui=None, toolbar_sink=None, menu_sink=None):
+    def __init__(
+        self,
+        *,
+        gui: ModuleType | None = None,
+        toolbar_sink: Callable[..., object] | None = None,
+        menu_sink: Callable[..., object] | None = None,
+    ):
         super().__init__(gui=gui, toolbar_sink=toolbar_sink, menu_sink=menu_sink)
         self.Icon = str(
             Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSewing.svg"

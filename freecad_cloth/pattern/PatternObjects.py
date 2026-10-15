@@ -1,6 +1,8 @@
 """FreeCAD document objects for the cloth pattern model."""
 
 import ast
+from collections.abc import Callable, Sequence
+from types import ModuleType
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
@@ -30,7 +32,13 @@ def _is_rectangle(points, width, height):
     return len(points) == 4 and points == _rectangle_points(width, height)
 
 
-def _boundary_shape(points, allowance=0.0, *, app_module=None, part_module=None):
+def _boundary_shape(
+    points,
+    allowance=0.0,
+    *,
+    app_module: ModuleType | None = None,
+    part_module: ModuleType | None = None,
+):
     if app_module is None:
         import FreeCAD as app_module
     if part_module is None:
@@ -109,7 +117,12 @@ def _native_edge_records(piece):
     return records
 
 
-def _native_edge_record_for_sketch_index(piece, edge, *, native_edge_records_fn=None):
+def _native_edge_record_for_sketch_index(
+    piece,
+    edge,
+    *,
+    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+):
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
@@ -138,7 +151,11 @@ def _native_edge_record_for_sketch_index(piece, edge, *, native_edge_records_fn=
     return record
 
 
-def _edge_records(piece, *, native_edge_records_fn=None):
+def _edge_records(
+    piece,
+    *,
+    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+):
     """Expose native semantic edge records, with a legacy outline fallback."""
     read_native_records = (
         _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
@@ -164,7 +181,13 @@ def _edge_records(piece, *, native_edge_records_fn=None):
     ]
 
 
-def _seam_edge_id(piece, edge, prefix, *, native_edge_records_fn=None):
+def _seam_edge_id(
+    piece,
+    edge,
+    prefix,
+    *,
+    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+):
     """Return the semantic edge id and captured signature for a seam side."""
     records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
@@ -238,7 +261,13 @@ class PatternPieceProxy:
 
     Type = "ClothPatternPiece"
 
-    def execute(self, obj, *, app_module=None, part_module=None):
+    def execute(
+        self,
+        obj,
+        *,
+        app_module: ModuleType | None = None,
+        part_module: ModuleType | None = None,
+    ):
         """Recompute the FreeCAD object from its current source properties."""
         width = float(obj.Width)
         height = float(obj.Height)

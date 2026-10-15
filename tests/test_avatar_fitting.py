@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from types import SimpleNamespace
+from typing import NoReturn
 
 from freecad_cloth.avatar.AvatarArrangement import (
     ARRANGEMENT_POINT_NAMES,
@@ -329,7 +330,7 @@ class AvatarFittingTests(unittest.TestCase):
             original_pose = str(avatar.JointPoseJSON)
             candidate = current.with_measurements(chest=original_chest + 80.0)
 
-            def fail_provider_geometry(*_args):
+            def fail_provider_geometry(*_args: object) -> NoReturn:
                 raise RuntimeError("synthetic geometry failure")
 
             with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):

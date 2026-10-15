@@ -1,5 +1,7 @@
 """FreeCAD commands for creating and editing sewing networks."""
 
+from __future__ import annotations
+
 
 def _selected_seams():
     import FreeCADGui as Gui
@@ -19,14 +21,14 @@ def _selected_pattern_edges():
 class _NetworkTaskPanelState:
     """Hold the active task panel without exposing a replaceable module attribute."""
 
-    def __init__(self):
-        self._panel = None
+    def __init__(self) -> None:
+        self._panel: object | None = None
 
-    def get(self):
+    def get(self) -> object | None:
         """Return the most recently selected panel."""
         return self._panel
 
-    def set(self, panel):
+    def set(self, panel: object) -> object:
         """Store and return a panel opened by a public command."""
         self._panel = panel
         return panel
@@ -35,7 +37,9 @@ class _NetworkTaskPanelState:
 _ACTIVE_NETWORK_TASK_PANEL_STATE = _NetworkTaskPanelState()
 
 
-def get_active_network_task_panel(*, state=None):
+def get_active_network_task_panel(
+    *, state: _NetworkTaskPanelState | None = None
+) -> object | None:
     """Return the active task panel, optionally using an injected state holder."""
     active_state = _ACTIVE_NETWORK_TASK_PANEL_STATE if state is None else state
     return active_state.get()

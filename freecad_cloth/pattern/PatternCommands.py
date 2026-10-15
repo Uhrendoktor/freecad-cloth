@@ -8,9 +8,17 @@ a normal workbench command.
 
 import ast
 import contextlib
+from collections.abc import Callable
+from types import ModuleType
+from typing import Protocol
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 from freecad_cloth.common.GarmentDocument import create_garment_document
+
+
+class _SketchDocumentObject(Protocol):
+    Name: str
+
 
 
 def create_garment(name="Garment"):
@@ -55,7 +63,12 @@ def create_pattern_piece():
     return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
 
 
-def _create_native_sketch_for_piece(obj, *, app=None, create_sketch_fn=None):
+def _create_native_sketch_for_piece(
+    obj,
+    *,
+    app: ModuleType | None = None,
+    create_sketch_fn: Callable[..., object] | None = None,
+):
     """Create/link the native Sketcher representation for a PatternPiece."""
     if app is None:
         import FreeCAD as app
@@ -81,7 +94,12 @@ def _create_native_sketch_for_piece(obj, *, app=None, create_sketch_fn=None):
     return create_sketch_fn(piece, app.ActiveDocument)
 
 
-def create_pattern_piece_with_sketch(*, app=None, create_piece_fn=None, create_sketch_fn=None):
+def create_pattern_piece_with_sketch(
+    *,
+    app: ModuleType | None = None,
+    create_piece_fn: Callable[[], object] | None = None,
+    create_sketch_fn: Callable[..., object] | None = None,
+):
     """Create a PatternPiece with native Sketcher geometry as its authority.
 
     create_pattern_piece already provisions the native Sketcher source for
@@ -212,7 +230,11 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
-def edit_pattern_sketch(*, gui=None, create_sketch_fn=None):
+def edit_pattern_sketch(
+    *,
+    gui: ModuleType | None = None,
+    create_sketch_fn: Callable[[object], _SketchDocumentObject] | None = None,
+):
     """Enter the native Sketcher editor for the selected pattern piece."""
     if gui is None:
         import FreeCADGui as gui

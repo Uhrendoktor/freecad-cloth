@@ -1,5 +1,6 @@
 """Commands for the Cloth Simulation workbench."""
 
+from collections.abc import Callable
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
@@ -68,7 +69,12 @@ def _find_drape_target(doc):
     )
 
 
-def _require_drape_target_ready(doc, *, find_target=None, target_status_fn=None):
+def _require_drape_target_ready(
+    doc,
+    *,
+    find_target: Callable[..., object] | None = None,
+    target_status_fn: Callable[..., dict[str, str]] | None = None,
+):
     if find_target is None:
         find_target = _find_drape_target
     if target_status_fn is None:
@@ -135,7 +141,7 @@ def simulate_selected(steps=None):
     return panels[0] if panels else scene
 
 
-def run_simulation(steps=30, *, simulate=None):
+def run_simulation(steps=30, *, simulate: Callable[..., object] | None = None):
     """Run an explicit batch of simulation steps on the active scene."""
     run_selected = simulate_selected if simulate is None else simulate
     return run_selected(steps)
@@ -143,9 +149,9 @@ def run_simulation(steps=30, *, simulate=None):
 
 def reset_simulation(
     *,
-    require_simulation_fn=None,
-    reset_scene_fn=None,
-    refresh_overlay_fn=None,
+    require_simulation_fn: Callable[[], tuple[object, object]] | None = None,
+    reset_scene_fn: Callable[[object], object] | None = None,
+    refresh_overlay_fn: Callable[[object], object] | None = None,
 ):
     """Reset the active simulation state without changing its authored settings."""
     require_simulation = (

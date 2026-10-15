@@ -4,7 +4,9 @@ Command implementations remain in the package tree; this module owns the
 FreeCAD workbench boundary and resolves its icon to the installed root resource.
 """
 
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
@@ -19,7 +21,13 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     MenuText = "Cloth Simulation"
     ToolTip = "3D cloth assembly and simulation"
 
-    def __init__(self, *, gui=None, toolbar_sink=None, menu_sink=None):
+    def __init__(
+        self,
+        *,
+        gui: ModuleType | None = None,
+        toolbar_sink: Callable[..., object] | None = None,
+        menu_sink: Callable[..., object] | None = None,
+    ):
         super().__init__(gui=gui, toolbar_sink=toolbar_sink, menu_sink=menu_sink)
         self.Icon = str(
             Path(__file__).resolve().parents[2] / "resources" / "icons" / "ClothSimulation.svg"
@@ -37,7 +45,13 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
             apply_seam_colors(App.ActiveDocument.Objects)
             activate_seam_overlay(App.ActiveDocument)
 
-    def Initialize(self, *, drape_commands=None, simulation_commands=None, register_fn=None):
+    def Initialize(
+        self,
+        *,
+        drape_commands: ModuleType | None = None,
+        simulation_commands: ModuleType | None = None,
+        register_fn: Callable[..., object] | None = None,
+    ):
         if self.commands:
             return
         if drape_commands is None:

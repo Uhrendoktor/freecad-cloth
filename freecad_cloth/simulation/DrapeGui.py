@@ -5,6 +5,8 @@ only stages target selection and collision settings until the user applies or
 cancels the edit, following normal FreeCAD task-panel conventions.
 """
 
+from collections.abc import Callable
+
 
 def _modules():
     import FreeCAD as App
@@ -209,7 +211,7 @@ class DrapeTargetTaskPanel:
             return None
         return self._source_objects[index]
 
-    def _apply(self, *, assign_target=None):
+    def _apply(self, *, assign_target: Callable[..., object] | None = None) -> bool:
         if self.target is None:
             return False
         source = self._selected_source()

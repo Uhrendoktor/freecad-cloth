@@ -1,4 +1,5 @@
 import unittest
+from typing import NoReturn
 
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
@@ -63,7 +64,7 @@ class DrapeVisualSanityTests(unittest.TestCase):
         triangles = ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3))
         points = ((0.1, 0.1, 0.1), (1.1, 0.1, 0.1))
 
-        def forbidden_contains(_mesh, _points):
+        def forbidden_contains(_mesh: object, _points: object) -> NoReturn:
             raise AssertionError("Trimesh acceleration should be bypassed")
 
         self.assertEqual(

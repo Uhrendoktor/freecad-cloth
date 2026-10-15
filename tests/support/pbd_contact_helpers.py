@@ -9,6 +9,8 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
+from typing import Protocol
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -25,7 +27,13 @@ def make_progress_logger(path: str | Path) -> Callable[[str], None]:
     return progress
 
 
-def events(*, gui=None, application=None) -> None:
+class _EventApplication(Protocol):
+    def processEvents(self) -> None: ...
+
+
+def events(
+    *, gui: ModuleType | None = None, application: _EventApplication | None = None
+) -> None:
     """Process pending GUI events using the supplied host adapters when available."""
     if gui is None:
         import FreeCADGui as gui
@@ -251,8 +259,12 @@ def centroid(points):
 
 
 def nearest_surface_distance(
-    garment_points, surface, *, surface_clearance_fn=None, target_clearance_fn=None
-):
+    garment_points,
+    surface,
+    *,
+    surface_clearance_fn: Callable[..., float] | None = None,
+    target_clearance_fn: Callable[..., float] | None = None,
+) -> float | None:
     """Return exact surface distance when available, otherwise a bounded vertex estimate."""
     if not garment_points or surface is None:
         return None

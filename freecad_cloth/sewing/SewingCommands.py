@@ -1,6 +1,8 @@
 """Commands for the Cloth Sewing workbench."""
 
 import contextlib
+from collections.abc import Callable
+from types import ModuleType
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
@@ -9,7 +11,7 @@ def _seams(doc):
     return [o for o in doc.Objects if getattr(o, "SeamId", "")]
 
 
-def _selected_seam(doc, *, gui=None):
+def _selected_seam(doc, *, gui: ModuleType | None = None):
     if gui is None:
         import FreeCADGui as gui
 
@@ -30,7 +32,7 @@ def _pieces_by_id(doc):
     }
 
 
-def _collect_selected_pattern_edges(*, gui=None):
+def _collect_selected_pattern_edges(*, gui: ModuleType | None = None):
     """Return all selected semantic pattern-piece edges in selection order."""
     if gui is None:
         import FreeCADGui as gui
@@ -59,7 +61,7 @@ def _collect_selected_pattern_edges(*, gui=None):
     return edges
 
 
-def _selected_pattern_edges(allow_many=False, *, gui=None):
+def _selected_pattern_edges(allow_many: bool = False, *, gui: ModuleType | None = None):
     """Return selected pattern-piece edge references after count/piece validation."""
     edges = _collect_selected_pattern_edges(gui=gui)
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
@@ -288,11 +290,11 @@ def validate_seams():
 
 def repair_selected_seam(
     *,
-    app=None,
-    gui=None,
-    edge_length_fn=None,
-    correspondence_report_fn=None,
-    repair_settings_fn=None,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    edge_length_fn: Callable[..., float] | None = None,
+    correspondence_report_fn: Callable[..., object] | None = None,
+    repair_settings_fn: Callable[..., str] | None = None,
 ):
     """Refresh semantic seam edges using explicit host and sewing services."""
     if app is None:
@@ -442,7 +444,13 @@ def focus_selected_seam_3d():
     return seam
 
 
-def _edit_selected_seam_side(side, *, app=None, gui=None, focus_fn=None):
+def _edit_selected_seam_side(
+    side,
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
     if app is None:
         import FreeCAD as app
     if gui is None:
@@ -481,15 +489,30 @@ def _edit_selected_seam_side(side, *, app=None, gui=None, focus_fn=None):
     return sketch, edge_index
 
 
-def edit_selected_seam_side_a(*, app=None, gui=None, focus_fn=None):
+def edit_selected_seam_side_a(
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
     return _edit_selected_seam_side("A", app=app, gui=gui, focus_fn=focus_fn)
 
 
-def edit_selected_seam_side_b(*, app=None, gui=None, focus_fn=None):
+def edit_selected_seam_side_b(
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
     return _edit_selected_seam_side("B", app=app, gui=gui, focus_fn=focus_fn)
 
 
-def show_sewing_2d(*, gui=None, apply_colors_fn=None, refresh_overlay_fn=None):
+def show_sewing_2d(
+    *,
+    gui: ModuleType | None = None,
+    apply_colors_fn: Callable[..., object] | None = None,
+    refresh_overlay_fn: Callable[..., object] | None = None,
+):
     """Switch to a clean 2D sewing view using explicit host/UI collaborators."""
     if gui is None:
         import FreeCADGui as gui

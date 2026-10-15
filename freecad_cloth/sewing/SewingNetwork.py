@@ -6,7 +6,7 @@ sub-ranges of an edge, so the same machinery handles free sewing and 1:1,
 1:N, M:1, and M:N relationships.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -208,7 +208,11 @@ class SewingNetworkProxy:
 
     Type = "ClothSewingNetwork"
 
-    def __init__(self, *, network_lengths_fn=None):
+    def __init__(
+        self,
+        *,
+        network_lengths_fn: Callable[..., tuple[float, float]] | None = None,
+    ) -> None:
         self._network_lengths_fn = (
             _network_lengths if network_lengths_fn is None else network_lengths_fn
         )

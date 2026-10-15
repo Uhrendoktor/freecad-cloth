@@ -163,7 +163,7 @@ class SewingNetworkTests(unittest.TestCase):
             RelativeTolerance=0.05,
         )
 
-        def network_lengths(_seams):
+        def network_lengths(_seams: object) -> tuple[float, float]:
             return 100.0, 106.0
 
         SewingNetworkProxy(network_lengths_fn=network_lengths).execute(network)

@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from collections.abc import Callable
 import unittest
 from pathlib import Path
 
@@ -140,7 +141,7 @@ class HumanoidMeshTests(unittest.TestCase):
 
             environment = {MAKEHUMAN_DATA_ENV: str(install)}
 
-            def verifier(candidate):
+            def verifier(candidate: Path) -> bool:
                 return candidate == mesh_path
 
             self.assertEqual(
@@ -174,7 +175,9 @@ class HumanoidMeshTests(unittest.TestCase):
             }
             downloaded = []
 
-            def downloader(url, destination, verifier):
+            def downloader(
+                url: str, destination: Path, verifier: Callable[[Path], bool]
+            ) -> None:
                 downloaded.append((url, destination, verifier))
 
             self.assertEqual(

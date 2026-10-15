@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from math import atan2, degrees, hypot
+from types import ModuleType
 from typing import Protocol, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import (

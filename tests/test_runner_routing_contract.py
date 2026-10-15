@@ -51,7 +51,7 @@ def test_pull_requests_are_hosted_only():
         assert "runs-on: *ci_validation_runner" in block
 
 
-def test_main_pushes_use_hosted_runners_without_fallback_dispatch():
+def test_main_pushes_use_hosted_runners_without_fallback_dispatch() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
     readiness = _job_block(source, "local_runner_readiness")
     assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in readiness

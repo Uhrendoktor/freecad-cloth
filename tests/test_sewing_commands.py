@@ -192,7 +192,7 @@ def _repair_test_modules(edge_length, pieces=()):
     return seam, doc, app, gui, services
 
 
-def _run_repair(context, edge_length):
+def _run_repair(context, edge_length) -> str:
     _seam, _doc, app, gui, services = context
     return repair_selected_seam(
         app=app,
