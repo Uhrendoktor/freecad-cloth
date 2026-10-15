@@ -144,6 +144,24 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
 
 
+def test_avatar_body_shape_gallery_is_batched_under_the_application_timeout():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(encoding="utf-8")
+    turntables = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
+
+    assert "def _body_shape_gallery_batch_range(profile_count: int)" in screenshot
+    assert "for index in range(start_index, end_index):" in screenshot
+    assert "if end_index < len(profiles):" in screenshot
+    assert "body-shape frame missing from an earlier batch" in screenshot
+    assert "CLOTH_AVATAR_GALLERY_START=0" in turntables
+    assert "CLOTH_AVATAR_GALLERY_END=3" in turntables
+    assert "CLOTH_AVATAR_GALLERY_START=3" in turntables
+    assert "CLOTH_AVATAR_GALLERY_END=7" in turntables
+    assert "_FIT_STEPS = min(original_fit_steps, 18)" in screenshot
+
+
 def test_hosted_fallback_visual_publication_is_a_release_gate():
     contract = (ROOT / "tools" / "ci" / "check_visual_asset_contract.py").read_text(
         encoding="utf-8"
