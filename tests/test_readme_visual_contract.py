@@ -214,7 +214,7 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
 
     block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     assert (
-        "CLOTH_AVATAR_SCREENSHOT_MODE=${{ github.ref == 'refs/heads/main' && "
+        "CLOTH_AVATAR_SCREENSHOT_MODE=${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' && "
         "'turntable' || 'turntable-validation' }}" in block
     )
     gallery_start = block.index("      - name: Generate wiki-only avatar body-shape gallery")
