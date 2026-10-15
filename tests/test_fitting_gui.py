@@ -103,7 +103,9 @@ def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
     }
 
     signature_before = _target_signature(target)
-    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+    assert _mesh_anchor_local_position(
+        target, anchor, vector_factory=lambda *point: tuple(point)
+    ) == (0.3, 0.5, 0.0)
 
     target.Mesh.Topology = (
         ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 1.0)),
