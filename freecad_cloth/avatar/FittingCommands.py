@@ -583,11 +583,15 @@ def _sync_visuals(scene):
     group = _fitting_marker_group(scene.Document, create=bool(marker_objects))
     if group is not None:
         if marker_objects:
-            children = set(getattr(group, "Group", ()) or ())
+            children = {
+                str(getattr(child, "Name", "") or "")
+                for child in tuple(getattr(group, "Group", ()) or ())
+            }
             for marker in marker_objects:
-                if marker not in children:
+                marker_name = str(getattr(marker, "Name", "") or "")
+                if marker_name not in children:
                     group.addObject(marker)
-                    children.add(marker)
+                    children.add(marker_name)
         elif not tuple(getattr(group, "Group", ()) or ()):
             scene.Document.removeObject(group.Name)
     for obj in marker_objects:
