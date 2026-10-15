@@ -195,24 +195,11 @@ def cleanup_pbd_package_versions(
         protected_tags = dockerfile_tags_for_shas(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
-        phase = "list_container_packages"
         owner = repo.split("/", maxsplit=1)[0]
-        packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
-        target = next(
-            (
-                package
-                for package in packages
-                if isinstance(package.get("name"), str)
-                and str(package["name"]).strip("/").lower() == PBD_PACKAGE_SUFFIX
-            ),
-            None,
-        )
-        if target is None:
-            result["status"] = "package_not_found"
-            return result
-        package_name = str(target["name"]).strip("/")
+        # The cleanup target is repository-configured; avoid a user-wide package
+        # discovery request, which is unnecessary and rejected for this token context.
+        encoded_name = quote(PBD_PACKAGE_SUFFIX, safe="/")
         phase = "list_package_versions"
-        encoded_name = quote(package_name, safe="/")
         versions = list(
             paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions")
         )
