@@ -74,6 +74,11 @@ class AvatarTaskPanel:
         ("torso", "Torso length"),
         ("front_waist", "Front waist length"),
         ("back_waist", "Back waist length"),
+        ("crotch_length", "Crotch length"),
+        ("front_rise", "Front rise"),
+        ("back_rise", "Back rise"),
+        ("shirt_length", "Shirt length"),
+        ("back_neck_to_waist", "Back neck to waist"),
     )
     POSE_FIELDS = (
         ("left_arm_angle", "Left arm"),
