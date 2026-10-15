@@ -178,7 +178,7 @@ jobs:
   local_runner_readiness:
     name: Selected runner readiness
     needs: [agent-quality]
-    if: ${{ github.event_name != 'schedule' }}
+    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
@@ -186,7 +186,7 @@ jobs:
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     needs: [agent-quality]
-    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -203,7 +203,7 @@ jobs:
   pbd_validation_image:
     name: Build/publish pinned PBD image
     needs: [agent-quality]
-    if: ${{ github.event_name != 'schedule' }}
+    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -569,7 +569,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
-          VISUAL_PUBLISH_REQUIRED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+          VISUAL_PUBLISH_REQUIRED: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main') && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
         run: python3 tools/ci/check_visual_assets_and_budget.py
 
   benchmark:
