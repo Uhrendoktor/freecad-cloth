@@ -208,6 +208,9 @@ class SewingNetworkProxy:
 
     Type = "ClothSewingNetwork"
 
+    def __init__(self, *, network_lengths_fn=None):
+        self._network_lengths_fn = _network_lengths if network_lengths_fn is None else network_lengths_fn
+
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
         seams = tuple(getattr(obj, "Seams", ()) or ())
@@ -246,7 +249,7 @@ class SewingNetworkProxy:
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             return
         try:
-            total_a, total_b = _network_lengths(seams)
+            total_a, total_b = self._network_lengths_fn(seams)
         except (KeyError, TypeError, ValueError, RuntimeError) as exc:
             reason = "Unable to resolve member geometry: " + str(exc)
             obj.Status = "Invalid"
