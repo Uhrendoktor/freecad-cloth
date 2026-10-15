@@ -151,6 +151,7 @@ class AvatarParameters:
     breast_size: float = 0.0
     phenotype_overrides: dict[str, float] = field(default_factory=dict)
     local_change_overrides: dict[str, float] = field(default_factory=dict)
+    mass_target_kg: float | None = None
 
     def __post_init__(self) -> None:
         values = dict(DEFAULT_MEASUREMENTS)
@@ -168,6 +169,8 @@ class AvatarParameters:
             "local_change_overrides",
             {str(k): float(v) for k, v in self.local_change_overrides.items()},
         )
+        if self.mass_target_kg is not None:
+            object.__setattr__(self, "mass_target_kg", float(self.mass_target_kg))
         self.validate()
 
     def validate(self) -> None:
@@ -207,6 +210,10 @@ class AvatarParameters:
         for name, value in self.local_change_overrides.items():
             if not math.isfinite(value) or not -1.0 <= value <= 1.0:
                 raise ValueError(f"Anny local morph override {name!r} must be between -1 and 1")
+        if self.mass_target_kg is not None and (
+            not math.isfinite(self.mass_target_kg) or not 25.0 <= self.mass_target_kg <= 250.0
+        ):
+            raise ValueError("target body mass must be between 25 and 250 kg")
         if not isinstance(self.pose, Pose):
             raise TypeError("pose must be a Pose")
         self.pose.validate()
@@ -230,6 +237,7 @@ class AvatarParameters:
             self.breast_size,
             self.phenotype_overrides,
             self.local_change_overrides,
+            self.mass_target_kg,
         )
 
     def to_json(self) -> str:
@@ -243,6 +251,7 @@ class AvatarParameters:
                     "phenotypes": dict(sorted(self.phenotype_overrides.items())),
                     "local_changes": dict(sorted(self.local_change_overrides.items())),
                 },
+                "clad_targets": {"mass_kg": self.mass_target_kg},
                 "shape": {
                     "gender": float(self.gender),
                     "breast_size": float(self.breast_size),
@@ -311,6 +320,10 @@ class AvatarParameters:
             local_change_overrides, dict
         ):
             raise ValueError("Anny overrides must contain parameter-to-number objects")
+        clad_targets = data.get("clad_targets", {}) if source_version >= 4 else {}
+        if not isinstance(clad_targets, dict):
+            raise ValueError("clad_targets must be an object")
+        mass_target = clad_targets.get("mass_kg")
         return cls(
             data.get("measurements", {}),
             float(data.get("skin_offset", 0)),
@@ -320,6 +333,7 @@ class AvatarParameters:
             float(shape.get("breast_size", 0.0)),
             phenotype_overrides,
             local_change_overrides,
+            None if mass_target is None else float(mass_target),
         )
 
 
