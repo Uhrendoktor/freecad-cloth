@@ -727,4 +727,3 @@ jobs:
             require_success "Visual evidence/artifact contract" "$ARTIFACT_BUDGET_RESULT"
           fi
           echo "required-validation=passed mode=$EXECUTION_MODE"
-
