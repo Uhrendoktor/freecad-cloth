@@ -42,6 +42,11 @@ DEFAULT_MEASUREMENTS = {
     "back_waist": 440.0,
     "stomach": 950.0,
     "sleeve_length": 630.0,
+    "crotch_length": 720.0,
+    "front_rise": 280.0,
+    "back_rise": 390.0,
+    "shirt_length": 700.0,
+    "back_neck_to_waist": 450.0,
 }
 
 DEFAULT_POSE_ARM_ANGLES = {
@@ -73,6 +78,11 @@ LIMITS = {
     "back_waist": (300, 650),
     "stomach": (500, 1800),
     "sleeve_length": (350, 1000),
+    "crotch_length": (500, 1200),
+    "front_rise": (200, 500),
+    "back_rise": (300, 700),
+    "shirt_length": (500, 1200),
+    "back_neck_to_waist": (300, 650),
 }
 
 
