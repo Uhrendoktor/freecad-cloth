@@ -1,12 +1,15 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 
 import json
+from collections.abc import Callable
 from contextlib import suppress
+from types import ModuleType
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
     AvatarParameters,
+    Landmark,
     Pose,
     generate_mesh,
 )
@@ -120,7 +123,13 @@ def _parameters(obj):
     return AvatarParameters(values, float(obj.SkinOffset), pose, 3, gender, breast_size)
 
 
-def _mesh_data(vertices, triangles, *, app_module=None, mesh_module=None):
+def _mesh_data(
+    vertices,
+    triangles,
+    *,
+    app_module: ModuleType | None = None,
+    mesh_module: ModuleType | None = None,
+):
     """Build the native FreeCAD mesh directly from the selected provider topology."""
     if app_module is None:
         import FreeCAD as app_module
@@ -179,7 +188,23 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
 
 
 def _rebuild(
-    obj, params=None, provider_id=None, provider_source=_MISSING, *, provider_geometry_fn=None
+    obj,
+    params=None,
+    provider_id=None,
+    provider_source=_MISSING,
+    *,
+    provider_geometry_fn: Callable[
+        ...,
+        tuple[
+            tuple[tuple[float, float, float], ...],
+            tuple[tuple[int, int, int], ...],
+            tuple[Landmark, ...],
+            str,
+            str,
+            str,
+        ],
+    ]
+    | None = None,
 ):
     """Build derived geometry before mutating persistent avatar state."""
     params = _parameters(obj) if params is None else params
@@ -390,7 +415,23 @@ def create_avatar(
 
 
 def apply_avatar_parameters(
-    obj, params, provider_id=None, provider_source=_MISSING, *, provider_geometry_fn=None
+    obj,
+    params,
+    provider_id=None,
+    provider_source=_MISSING,
+    *,
+    provider_geometry_fn: Callable[
+        ...,
+        tuple[
+            tuple[tuple[float, float, float], ...],
+            tuple[tuple[int, int, int], ...],
+            tuple[Landmark, ...],
+            str,
+            str,
+            str,
+        ],
+    ]
+    | None = None,
 ):
     """Apply validated avatar state only after successful geometry construction."""
     obj = _rebuild(
