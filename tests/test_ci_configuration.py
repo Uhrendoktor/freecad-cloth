@@ -1,9 +1,10 @@
 """Tests for the repository's single-source CI configuration contracts."""
 
 import json
-import pytest
 import tomllib
 from pathlib import Path
+
+import pytest
 
 from tools.ci.run_freecad import configured_timeout_seconds
 
