@@ -15,9 +15,9 @@ from tools.ci.validate_ci_structure import (
     WORKFLOW,
     missing_python_policy_commands,
     missing_source_rewriting_policy_commands,
-    source_rewriting_policy_tests_are_blocking,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
+    source_rewriting_policy_tests_are_blocking,
     ty_warnings_are_blocking,
 )
 
