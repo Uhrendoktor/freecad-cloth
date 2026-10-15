@@ -19,7 +19,7 @@ def test_public_simulation_command_surface_is_unique():
 def test_run_simulation_delegates_to_selected_simulation_without_implicit_creation():
     calls = []
 
-    def simulate(steps=None):
+    def simulate(steps: int | None = None) -> str:
         calls.append(steps)
         return "scene"
 
@@ -32,10 +32,10 @@ def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
     target = object()
     doc = SimpleNamespace(Objects=[target])
 
-    def find_target(_doc):
+    def find_target(_doc: object) -> object:
         return target
 
-    def ready(_target):
+    def ready(_target: object) -> dict[str, str]:
         return {"state": "ready", "message": "ok"}
 
     assert (
@@ -45,7 +45,7 @@ def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
         is target
     )
 
-    def blocked(_target):
+    def blocked(_target: object) -> dict[str, str]:
         return {"state": "stale", "message": "Drape target changed"}
 
     try:
@@ -63,10 +63,10 @@ def test_reset_simulation_resets_scene_and_recomputes():
     document = SimpleNamespace(recompute=lambda: calls.append("recompute"))
     scene = SimpleNamespace(Document=document)
 
-    def require_simulation():
+    def require_simulation() -> tuple[object, object]:
         return document, scene
 
-    def reset_scene(value):
+    def reset_scene(value: object) -> None:
         calls.append(("reset", value))
 
     assert (
