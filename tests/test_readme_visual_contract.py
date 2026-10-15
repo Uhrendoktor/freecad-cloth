@@ -144,7 +144,7 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
 
 
-def test_avatar_body_shape_gallery_is_batched_under_the_application_timeout():
+def test_avatar_body_shape_gallery_is_batched_under_the_application_timeout() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
