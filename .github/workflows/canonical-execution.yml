@@ -536,7 +536,8 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     needs: [agent-quality]
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 3 * * *' }}
+    # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
+    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}"
     runs-on: ubuntu-latest
     timeout-minutes: 4
     permissions:
