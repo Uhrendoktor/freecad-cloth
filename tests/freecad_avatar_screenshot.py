@@ -6,6 +6,7 @@ import time
 import traceback
 from math import pi
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -19,10 +20,13 @@ from pivy import coin
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 os.makedirs(OUT, exist_ok=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
-TURNTABLE_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
+TURNTABLE_FRAMES = max(12, min(72, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))))
 
 
 def log(message):
@@ -141,77 +145,76 @@ def render_turntable(view, center, frame_dir, frame_count=72):
     log("turntable-pass frames=%d" % (frame_count + 1))
 
 
-def render_body_shape_gallery(doc, view, avatar, output):
-    """Render real HM08 mannequin examples at one orthographic scale."""
-    from PIL import Image, ImageDraw, ImageFont
+_BODY_SHAPE_MEASUREMENT_FIELDS = (
+    "height",
+    "shoulder",
+    "chest",
+    "underbust",
+    "waist",
+    "high_hip",
+    "hip",
+    "upper_arm",
+    "thigh",
+)
+_BODY_SHAPE_PROFILE_ROWS = (
+    (
+        "Feminine form",
+        0.15,
+        0.55,
+        (1680, 420, 930, 810, 720, 900, 1030, 290, 535),
+    ),
+    (
+        "Masculine form",
+        0.90,
+        0.0,
+        (1800, 490, 1030, 900, 850, 930, 1010, 330, 570),
+    ),
+    ("Slim", 0.30, 0.20, (1700, 390, 820, 720, 650, 800, 890, 250, 470)),
+    ("Plus-size", 0.25, 0.75, (1680, 470, 1220, 1090, 1170, 1220, 1350, 400, 710)),
+    ("Muscular", 0.85, 0.0, (1800, 550, 1150, 1050, 780, 890, 990, 430, 640)),
+    ("Tall", 0.30, 0.35, (1950, 440, 970, 835, 790, 900, 1010, 300, 550)),
+    ("Petite", 0.25, 0.35, (1530, 415, 900, 790, 710, 860, 970, 285, 520)),
+)
 
-    from freecad_cloth.avatar.AvatarCommands import _rebuild
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS, AvatarParameters, Pose
 
-    measurement_fields = (
-        "height",
-        "shoulder",
-        "chest",
-        "underbust",
-        "waist",
-        "high_hip",
-        "hip",
-        "upper_arm",
-        "thigh",
-    )
-    profile_rows = (
-        (
-            "Feminine form",
-            0.15,
-            0.55,
-            (1680, 420, 930, 810, 720, 900, 1030, 290, 535),
-        ),
-        (
-            "Masculine form",
-            0.90,
-            0.0,
-            (1800, 490, 1030, 900, 850, 930, 1010, 330, 570),
-        ),
-        (
-            "Slim",
-            0.30,
-            0.20,
-            (1700, 390, 820, 720, 650, 800, 890, 250, 470),
-        ),
-        (
-            "Plus-size",
-            0.25,
-            0.75,
-            (1680, 470, 1220, 1090, 1170, 1220, 1350, 400, 710),
-        ),
-        (
-            "Muscular",
-            0.85,
-            0.0,
-            (1800, 550, 1150, 1050, 780, 890, 990, 430, 640),
-        ),
-        (
-            "Tall",
-            0.30,
-            0.35,
-            (1950, 440, 970, 835, 790, 900, 1010, 300, 550),
-        ),
-        (
-            "Petite",
-            0.25,
-            0.35,
-            (1530, 415, 900, 790, 710, 860, 970, 285, 520),
-        ),
-    )
-    profiles = tuple(
+def _body_shape_gallery_profiles() -> tuple[dict[str, object], ...]:
+    """Return the seven stable mannequin profiles used by the README gallery."""
+    return tuple(
         {
             "name": name,
             "gender": gender,
             "breast_size": breast_size,
-            "measurements": dict(zip(measurement_fields, values, strict=True)),
+            "measurements": dict(zip(_BODY_SHAPE_MEASUREMENT_FIELDS, values, strict=True)),
         }
-        for name, gender, breast_size, values in profile_rows
+        for name, gender, breast_size, values in _BODY_SHAPE_PROFILE_ROWS
     )
+
+
+def _body_shape_gallery_params(
+    profile: dict[str, object], skin_offset: float = 3.0
+) -> "AvatarParameters":
+    """Build the validated shape parameters for one published gallery profile."""
+    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS, AvatarParameters, Pose
+
+    measurements = dict(DEFAULT_MEASUREMENTS)
+    measurements.update(profile["measurements"])
+    return AvatarParameters(
+        measurements,
+        float(skin_offset),
+        Pose("standing"),
+        3,
+        float(profile["gender"]),
+        float(profile["breast_size"]),
+    )
+
+
+def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied: bool = False):
+    """Render real HM08 mannequin examples at one orthographic scale."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    from freecad_cloth.avatar.AvatarCommands import _rebuild
+
+    profiles = _body_shape_gallery_profiles()
 
     # The main six-side audit uses CAD edge lines; the gallery should compare silhouettes.
     avatar.ViewObject.DisplayMode = "Shaded"
@@ -243,49 +246,72 @@ def render_body_shape_gallery(doc, view, avatar, output):
     camera.height = camera_height
 
     frames = []
-    for index, profile in enumerate(profiles):
-        measurements = dict(DEFAULT_MEASUREMENTS)
-        measurements.update(profile["measurements"])
-        params = AvatarParameters(
-            measurements,
-            float(getattr(avatar, "SkinOffset", 3.0)),
-            Pose("standing"),
-            3,
-            float(profile["gender"]),
-            float(profile["breast_size"]),
-        )
-        _rebuild(avatar, params=params)
-        # Rebuild reapplies the application's CAD wireframe style; use solid
-        # shading for this silhouette comparison only.
-        avatar.ViewObject.DisplayMode = "Shaded"
-        avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
-        if hasattr(avatar.ViewObject, "SpecularColor"):
-            avatar.ViewObject.SpecularColor = (0.15, 0.15, 0.15)
-        if hasattr(avatar.ViewObject, "Shininess"):
-            avatar.ViewObject.Shininess = 5.0
-        avatar.Label = "Avatar example: " + profile["name"]
-        doc.recompute()
+    from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
 
-        bounds = avatar.Mesh.BoundBox
-        center = App.Vector(
-            0.5 * (bounds.XMin + bounds.XMax),
-            0.5 * (bounds.YMin + bounds.YMax),
-            0.5 * (bounds.ZMin + bounds.ZMax),
-        )
-        target = coin.SbVec3f(center.x, center.y, center.z)
-        camera.position = target + base_offset
-        camera.pointAt(target, coin.SbVec3f(0.0, 0.0, 1.0))
-        camera.height = camera_height
-        events()
+    original_fit_steps = anny_backend._FIT_STEPS
+    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+    gallery_started = time.monotonic()
+    log(
+        "body-shape-gallery-start profiles=%d fit_steps=%d"
+        % (len(profiles), anny_backend._FIT_STEPS)
+    )
+    try:
+        for index, profile in enumerate(profiles):
+            profile_started = time.monotonic()
+            log("body-shape-gallery-profile-start index=%d name=%s" % (index, profile["name"]))
+            params = _body_shape_gallery_params(profile, float(getattr(avatar, "SkinOffset", 3.0)))
+            reused_initial_profile = initial_profile_applied and index == 0
+            if not reused_initial_profile:
+                _rebuild(avatar, params=params)
+            log(
+                "body-shape-gallery-profile-fit index=%d name=%s elapsed_ms=%.1f reused_initial=%s"
+                % (
+                    index,
+                    profile["name"],
+                    1000.0 * (time.monotonic() - profile_started),
+                    reused_initial_profile,
+                )
+            )
+            # Rebuild reapplies the application's CAD wireframe style; use solid
+            # shading for this silhouette comparison only.
+            avatar.ViewObject.DisplayMode = "Shaded"
+            avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+            if hasattr(avatar.ViewObject, "SpecularColor"):
+                avatar.ViewObject.SpecularColor = (0.15, 0.15, 0.15)
+            if hasattr(avatar.ViewObject, "Shininess"):
+                avatar.ViewObject.Shininess = 5.0
+            avatar.Label = "Avatar example: " + profile["name"]
+            doc.recompute()
 
-        frame_path = frame_dir / ("%02d.png" % index)
-        view.saveImage(str(frame_path), 420, 560, "White")
-        if not frame_path.is_file() or frame_path.stat().st_size < 3000:
-            raise RuntimeError("body-shape frame missing or suspiciously small: " + str(frame_path))
-        with Image.open(frame_path) as source:
-            if source.size != (420, 560):
-                raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
-            frames.append(source.convert("RGB").copy())
+            bounds = avatar.Mesh.BoundBox
+            center = App.Vector(
+                0.5 * (bounds.XMin + bounds.XMax),
+                0.5 * (bounds.YMin + bounds.YMax),
+                0.5 * (bounds.ZMin + bounds.ZMax),
+            )
+            target = coin.SbVec3f(center.x, center.y, center.z)
+            camera.position = target + base_offset
+            camera.pointAt(target, coin.SbVec3f(0.0, 0.0, 1.0))
+            camera.height = camera_height
+            events()
+
+            frame_path = frame_dir / ("%02d.png" % index)
+            view.saveImage(str(frame_path), 420, 560, "White")
+            if not frame_path.is_file() or frame_path.stat().st_size < 3000:
+                raise RuntimeError(
+                    "body-shape frame missing or suspiciously small: " + str(frame_path)
+                )
+            with Image.open(frame_path) as source:
+                if source.size != (420, 560):
+                    raise RuntimeError("body-shape frame has unexpected size: " + repr(source.size))
+                frames.append(source.convert("RGB").copy())
+            log(
+                "body-shape-gallery-profile-pass index=%d name=%s elapsed_ms=%.1f"
+                % (index, profile["name"], 1000.0 * (time.monotonic() - profile_started))
+            )
+
+    finally:
+        anny_backend._FIT_STEPS = original_fit_steps
 
     def font(size, bold=False):
         """Load a readable annotation font with a portable fallback."""
@@ -386,6 +412,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
         min_opaque_pixels=10000,
     )
     log(
+        "body-shape-gallery-pass profiles=%d elapsed_ms=%.1f bytes=%d"
+        % (len(profiles), 1000.0 * (time.monotonic() - gallery_started), output_path.stat().st_size)
+    )
+    log(
         "body-shape-gallery=%s profiles=%d size=%dx%d bytes=%d distinct_rgb=%d"
         % (
             output_path,
@@ -400,6 +430,10 @@ def render_body_shape_gallery(doc, view, avatar, output):
 
 def main():
     log("avatar-script-start")
+    mode = os.environ.get("CLOTH_AVATAR_SCREENSHOT_MODE", "all").strip().lower()
+    if mode not in ("all", "turntable", "gallery"):
+        raise RuntimeError("CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, or gallery")
+    log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
@@ -412,7 +446,22 @@ def main():
 
     doc = App.newDocument("ClothAvatarVisualAudit")
     try:
-        avatar = create_avatar(attach_collision=False, doc=doc)
+        initial_profile_applied = mode == "gallery"
+        if initial_profile_applied:
+            from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
+
+            original_fit_steps = anny_backend._FIT_STEPS
+            anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+            try:
+                avatar = create_avatar(
+                    attach_collision=False,
+                    doc=doc,
+                    params=_body_shape_gallery_params(_body_shape_gallery_profiles()[0]),
+                )
+            finally:
+                anny_backend._FIT_STEPS = original_fit_steps
+        else:
+            avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
             raise RuntimeError("avatar provider did not produce a valid mesh")
         if (
@@ -420,48 +469,52 @@ def main():
             or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100
         ):
             raise RuntimeError("avatar visual fixture does not contain a real humanoid mesh")
-        avatar.ViewObject.DisplayMode = "Flat Lines"
-        avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
-        avatar.ViewObject.LineColor = (0.20, 0.20, 0.20)
-        avatar.ViewObject.LineWidth = 1.0
-        doc.recompute()
+        if mode != "gallery":
+            avatar.ViewObject.DisplayMode = "Flat Lines"
+            avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)
+            avatar.ViewObject.LineColor = (0.20, 0.20, 0.20)
+            avatar.ViewObject.LineWidth = 1.0
+            doc.recompute()
 
         view = Gui.activeDocument().activeView()
         view.setAnimationEnabled(False)
 
-        directions = (
-            ("front", "viewRear"),
-            ("rear", "viewFront"),
-            ("left", "viewLeft"),
-            ("right", "viewRight"),
-            ("top", "viewTop"),
-            ("bottom", "viewBottom"),
-        )
-        for direction, method_name in directions:
-            getattr(view, method_name)()
-            zoom_for_direction(view, direction)
-            save_png(
-                view,
-                os.path.join(OUT, f"cloth-avatar-{direction}.png"),
-                1280,
-                720,
-                f"Avatar audit {direction}",
+        if mode in ("all", "turntable"):
+            directions = (
+                ("front", "viewRear"),
+                ("rear", "viewFront"),
+                ("left", "viewLeft"),
+                ("right", "viewRight"),
+                ("top", "viewTop"),
+                ("bottom", "viewBottom"),
             )
+            for direction, method_name in directions:
+                getattr(view, method_name)()
+                zoom_for_direction(view, direction)
+                save_png(
+                    view,
+                    os.path.join(OUT, f"cloth-avatar-{direction}.png"),
+                    1280,
+                    720,
+                    f"Avatar audit {direction}",
+                )
 
-        center = avatar_center(avatar)
-        render_turntable(
-            view,
-            center,
-            os.path.join(OUT, "cloth-avatar-turntable-frames"),
-            frame_count=TURNTABLE_FRAMES,
-        )
-        render_body_shape_gallery(
-            doc,
-            view,
-            avatar,
-            os.path.join(OUT, "avatar-body-shape-gallery.png"),
-        )
-        log("avatar-script-pass")
+            center = avatar_center(avatar)
+            render_turntable(
+                view,
+                center,
+                os.path.join(OUT, "cloth-avatar-turntable-frames"),
+                frame_count=TURNTABLE_FRAMES,
+            )
+        if mode in ("all", "gallery"):
+            render_body_shape_gallery(
+                doc,
+                view,
+                avatar,
+                os.path.join(OUT, "avatar-body-shape-gallery.png"),
+                initial_profile_applied=initial_profile_applied,
+            )
+        log("avatar-script-pass mode=%s" % mode)
     finally:
         if doc.Name in App.listDocuments():
             App.closeDocument(doc.Name)

@@ -38,7 +38,12 @@ COMMAND_GROUPS = (
     ),
     ("Fitting & Avatar", ()),
 )
-TOOLBAR_COMMANDS = ("ClothSewing_CreateSeam", "ClothSewing_CreateOperation", "ClothSewing_Validate")
+TOOLBAR_COMMANDS = (
+    "ClothSewing_CreateSeam",
+    "ClothSewing_CreateOperation",
+    "ClothSewing_Validate",
+    "ClothFitting_CreateAvatar",
+)
 
 
 def _validate_sewing_command_groups(groups, expected):

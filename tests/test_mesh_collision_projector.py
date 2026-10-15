@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 from freecad_cloth.simulation.MeshCollisionProjector import (
@@ -217,3 +218,128 @@ def test_stitched_pair_reconciliation_skips_noncontacting_stitches() -> None:
 
     assert np.array_equal(stitched_positions, contact_positions)
     assert np.array_equal(stitched_normals, contact_normals)
+
+
+def test_stitched_pair_reconciliation_closes_seam_spanning_body() -> None:
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    # Both endpoints sit exactly on opposite exterior clearance shells: neither
+    # individual contact query produces a normal, but the sewn pair spans the body.
+    points = np.asarray(((-2.0, 50.0, 50.0), (102.0, 50.0, 50.0)), dtype=np.float64)
+    contact_positions, contact_normals = projector.project(points)
+    assert np.array_equal(contact_normals, np.zeros_like(contact_normals))
+    assert np.linalg.norm(contact_positions[1] - contact_positions[0]) > 25.0
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+    )
+
+    assert np.allclose(stitched_positions[0], stitched_positions[1])
+    assert np.isclose(np.linalg.norm(stitched_normals[0]), 1.0)
+    assert np.allclose(stitched_normals[0], stitched_normals[1])
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point),),
+            _cube_surface().vertices,
+            _cube_surface().triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )[0]
+        for point in stitched_positions
+    )
+
+
+def test_stitched_pair_reconciliation_rescues_near_shell_midpoint() -> None:
+    cube = _cube_surface()
+    surface = CollisionSurface(
+        tuple(tuple(float(value) * 0.4 for value in vertex) for vertex in cube.vertices),
+        cube.triangles,
+        thickness=0.0,
+    ).validate()
+    projector = MeshCollisionProjector(surface, clearance_mm=5.0)
+    # Both vertices are exactly on the clearance shell, but their midpoint is
+    # inside the mannequin. The pair should close at the nearest exterior shell.
+    points = np.asarray(((-5.0, 20.0, 20.0), (45.0, 20.0, 20.0)), dtype=np.float64)
+    contact_positions, contact_normals = projector.project(points)
+    assert np.array_equal(contact_normals, np.zeros_like(contact_normals))
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+    )
+
+    assert np.allclose(stitched_positions[0], stitched_positions[1])
+    assert np.isclose(np.linalg.norm(stitched_normals[0]), 1.0)
+    assert np.allclose(stitched_normals[0], stitched_normals[1])
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point) for point in stitched_positions),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )
+    )
+
+
+def test_stitched_pair_reconciliation_closes_safe_midpoint() -> None:
+    cube = _cube_surface()
+    surface = CollisionSurface(
+        tuple(tuple(float(value) * 0.4 for value in vertex) for vertex in cube.vertices),
+        cube.triangles,
+        thickness=0.0,
+    ).validate()
+    projector = MeshCollisionProjector(surface, clearance_mm=5.0)
+    # Both endpoints are on the exterior clearance shell. The midpoint is also
+    # safe, but independent projection alone leaves the residual seam open.
+    points = np.asarray(((-5.0, 20.0, 15.0), (-5.0, 20.0, 25.0)), dtype=np.float64)
+    contact_positions, contact_normals = projector.project(points)
+    assert np.array_equal(contact_normals, np.zeros_like(contact_normals))
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+    )
+
+    assert np.allclose(stitched_positions, ((-5.0, 20.0, 20.0), (-5.0, 20.0, 20.0)))
+    assert np.array_equal(stitched_normals, np.zeros_like(stitched_normals))
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point) for point in stitched_positions),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )
+    )
+
+
+def test_closed_mesh_orientation_repairs_local_face_winding() -> None:
+    surface = _cube_surface()
+    inconsistent = tuple(
+        (a, c, b) if face_index == 2 else (a, b, c)
+        for face_index, (a, b, c) in enumerate(surface.triangles)
+    )
+
+    oriented = orient_closed_triangle_winding(surface.vertices, inconsistent)
+    projector = MeshCollisionProjector(
+        CollisionSurface(surface.vertices, oriented, thickness=surface.thickness).validate(),
+        clearance_mm=1.0,
+    )
+    projected, normals = projector.project(((50.0, 50.0, 50.0),))
+
+    assert len(oriented) == len(inconsistent)
+    assert np.isclose(np.linalg.norm(normals[0]), 1.0)
+    assert not points_inside_closed_mesh(
+        (tuple(float(value) for value in projected[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+        chunk_size=1,
+    )[0]

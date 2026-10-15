@@ -127,7 +127,10 @@ def _mesh_data(vertices, triangles):
 
     native = Mesh.Mesh()
     vectors = [App.Vector(*point) for point in vertices]
-    native.addFacets([(vectors[a], vectors[b], vectors[c]) for a, b, c in triangles])
+    # Preserve the provider's shared vertex indices. Passing one vector triple
+    # per face builds disconnected facet topology in FreeCAD Mesh, so the
+    # downstream collision adapter cannot recognize the closed mannequin shell.
+    native.addFacets((vectors, list(triangles)), False)
     return native
 
 
@@ -151,12 +154,8 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
     )
     if provider_id == "makehuman-hm08":
         vertices, triangles, landmarks = generate_mesh(params)
-        source = "MakeHuman HM08 base mesh @ {}".format(
-            __import__(
-                "freecad_cloth.avatar.HumanoidMesh", fromlist=["MAKEHUMAN_COMMIT"]
-            ).MAKEHUMAN_COMMIT
-        )
-        return vertices, triangles, landmarks, provider_id, source, "CC0"
+        source = "Anny parametric body model / clad-body measurements"
+        return vertices, triangles, landmarks, provider_id, source, "Apache-2.0 / CC0"
     if provider_id == "freecad-geometry":
         source_obj = (
             getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
@@ -267,7 +266,12 @@ def _ensure_drape_target(obj):
     return target
 
 
-def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
+def create_avatar(
+    attach_collision=True,
+    doc=None,
+    object_name="ClothAvatar",
+    params: AvatarParameters | None = None,
+):
     import FreeCAD as App
 
     doc = doc or App.ActiveDocument or App.newDocument("ClothSewing")
@@ -293,8 +297,15 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             ["standing", "sewing", "sitting", "t_pose"],
         )
         obj.PosePreset = "standing"
+        default_pose = Pose("standing")
         for name, prop in POSE_PROPERTY_MAP.items():
-            _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
+            _set_prop(
+                obj,
+                "App::PropertyAngle",
+                prop,
+                "Pose",
+                float(getattr(default_pose, name)),
+            )
         _set_prop(
             obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
         )
@@ -336,8 +347,16 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             "Body shape",
             float(getattr(obj, "BreastSize", 0.0)),
         )
+        default_pose = Pose(str(getattr(obj, "PosePreset", "standing")))
         for name, prop in POSE_PROPERTY_MAP.items():
-            _set_prop(obj, "App::PropertyAngle", prop, "Pose", 12.0 if "arm" in name else 0.0)
+            if not hasattr(obj, prop):
+                _set_prop(
+                    obj,
+                    "App::PropertyAngle",
+                    prop,
+                    "Pose",
+                    float(getattr(default_pose, name)),
+                )
         for name, default in (
             ("AvatarMeshProvider", ""),
             ("AvatarMeshSource", ""),
@@ -354,7 +373,7 @@ def create_avatar(attach_collision=True, doc=None, object_name="ClothAvatar"):
             "Avatar",
             int(getattr(obj, "AvatarRevision", 0)),
         )
-    _rebuild(obj)
+    _rebuild(obj, params=params)
     if attach_collision:
         _ensure_collision(obj)
         _ensure_drape_target(obj)

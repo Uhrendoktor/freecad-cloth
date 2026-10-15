@@ -34,12 +34,42 @@ REQUIRED_GIFS = {
     ),
 }
 
+LOG_CASES = {
+    "avatar-provider-lifecycle": Path("artifacts/avatar-acceptance-progress.log"),
+}
+
+REQUIRED_LOG_MARKERS = {
+    "avatar-provider-lifecycle": (
+        "start",
+        "before-create-avatar",
+        "manual-pose-applied",
+        "manual-pose-reset",
+        "provider-swap-applied",
+        "pose-edit-applied",
+        "provider-document-reload-state-verified",
+        "provider-document-reloaded-and-target-refreshed",
+    ),
+}
+
 
 def main() -> int:
     """Validate a captured GUI artifact without trusting the producer log."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("case", choices=sorted(CASES))
+    parser.add_argument("case", choices=sorted((*CASES, *LOG_CASES)))
     args = parser.parse_args()
+
+    if args.case in LOG_CASES:
+        log_path = LOG_CASES[args.case]
+        if not log_path.is_file() or not log_path.stat().st_size:
+            raise SystemExit(f"missing acceptance progress log: {log_path}")
+        log_text = log_path.read_text(encoding="utf-8")
+        missing = tuple(
+            marker for marker in REQUIRED_LOG_MARKERS[args.case] if marker not in log_text
+        )
+        if missing:
+            raise SystemExit(f"{args.case}: missing progress markers: {missing}")
+        print(f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}")
+        return 0
 
     image = CASES[args.case]
     if not image.is_file() or not image.stat().st_size:

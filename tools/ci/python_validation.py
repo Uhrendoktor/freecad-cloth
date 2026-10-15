@@ -74,6 +74,7 @@ GROUPS = {
         "tests/test_avatar_pose_gui_contract.py",
         "tests/test_humanoid_mesh.py",
         "tests/test_makehuman_targets.py",
+        "tests/test_anny_avatar_backend.py",
         "tests/test_freecad_objects.py",
         "tests/test_freecad_gui_startup_contract.py",
         "tests/test_drape_gui.py",
@@ -178,7 +179,9 @@ def main() -> int:
         *tests,
     ]
     print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
-    subprocess.run(command, check=True, timeout=110, env=env)
+    # Anny-backed geometry tests perform several CPU differentiable body fits.
+    # Keep the subprocess bounded while allowing the full core inventory to finish.
+    subprocess.run(command, check=True, timeout=600, env=env)
     print(f"python-validation={args.group} passed", flush=True)
     return 0
 

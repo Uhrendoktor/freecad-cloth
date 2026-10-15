@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 from collections import defaultdict
+from contextlib import suppress
 from itertools import product
 from pathlib import Path
 
@@ -33,6 +34,7 @@ def _runtime_diagnostics():
         "freecad_coin_version": "unavailable",
         "freecad_swig_runtime": "unavailable",
         "freecadgui_module": "unavailable",
+        "freecadgui_candidates": [],
         "pivy_version": "unavailable",
         "pivy_module": "unavailable",
         "coin_version": "unavailable",
@@ -49,34 +51,18 @@ def _runtime_diagnostics():
         except (OSError, TypeError, ValueError):
             return []
 
-    candidates = []
-    for root_name in ("/opt/conda/envs/freecad", "/usr/local", "/usr/lib"):
-        root = Path(root_name)
-        if not root.exists():
-            continue
-        candidates.extend(sorted(path for path in root.rglob("*FreeCADGui*.so*") if path.is_file()))
-    info["freecadgui_candidates"] = [str(path) for path in candidates[:20]]
-
+    # FreeCADGui is imported at module load; its loaded path is authoritative.
+    # Do not recursively crawl /usr/lib or an entire Conda environment in Xvfb.
     try:
-        import importlib.util
-
-        try:
-            gui_spec = importlib.util.find_spec("FreeCADGui")
-        except (ImportError, ValueError):
-            gui_spec = None
-        gui_origin = getattr(gui_spec, "origin", None) if gui_spec is not None else None
+        gui_module = sys.modules.get("FreeCADGui") or Gui
+        gui_origin = getattr(gui_module, "__file__", None)
         info["freecadgui_module"] = str(gui_origin or "unknown")
         if gui_origin:
-            runtimes = swig_runtime_strings(gui_origin)
-            if runtimes:
-                info["freecad_swig_runtime"] = ",".join(runtimes)
-        if info["freecad_swig_runtime"] == "unavailable":
-            for candidate in candidates:
-                runtimes = swig_runtime_strings(candidate)
+            info["freecadgui_candidates"] = [str(gui_origin)]
+            if Path(gui_origin).is_file():
+                runtimes = swig_runtime_strings(gui_origin)
                 if runtimes:
-                    info["freecadgui_module"] = str(candidate)
                     info["freecad_swig_runtime"] = ",".join(runtimes)
-                    break
     except Exception as exc:
         info["freecad_runtime_error"] = repr(exc)
 
@@ -273,10 +259,8 @@ def run():
     progress_path.parent.mkdir(parents=True, exist_ok=True)
     trace = progress_path.open("w", encoding="utf-8", buffering=1)
     faulthandler.enable(file=trace, all_threads=True)
-    try:
+    with suppress(AttributeError, RuntimeError, OSError):
         faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)
-    except (AttributeError, RuntimeError, OSError):
-        pass
 
     def progress(message):
         trace.write(str(message) + "\n")
@@ -436,12 +420,13 @@ def run():
         )
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
         raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+    from freecad_cloth.avatar.AnnyAvatarBackend import build_avatar_shape_mesh
     from freecad_cloth.avatar.HierarchicalPose import _manual_pose_state
-    from freecad_cloth.avatar.HumanoidMesh import load_makehuman_mesh
 
+    pose_parameters = panel._staged_parameters()
     expected_mesh, _ = _manual_pose_state(
-        panel._staged_parameters(),
-        load_makehuman_mesh(),
+        pose_parameters,
+        build_avatar_shape_mesh(pose_parameters, include_skin_offset=False),
     )
     actual_points = tuple(avatar.Mesh.Points)
     progress("expected-mesh-bounds=" + repr(_point_bounds(expected_mesh.vertices)))
@@ -449,9 +434,6 @@ def run():
         "actual-mesh-bounds="
         + repr(_point_bounds((point.x, point.y, point.z) for point in actual_points))
     )
-    if len(actual_points) != len(expected_mesh.vertices):
-        raise RuntimeError("Pose Mode mesh vertex count does not match the authored FK mesh")
-
     # First prove the public generator and independent FK builder agree before
     # crossing into FreeCAD's native Mesh representation.
     generated_records = _point_records(generated_vertices, precision=7)
@@ -461,10 +443,46 @@ def run():
             "Public avatar mesh generator differs from the independent authored FK result"
         )
 
+    # FreeCAD's Mesh storage can coalesce coincident coordinates that remain
+    # duplicated in the provider's indexed triangle mesh. Compare distinct
+    # positions first, then match them within the native-coordinate tolerance.
     actual_values = tuple((point.x, point.y, point.z) for point in actual_points)
+
+    def unique_positions(
+        points: tuple[tuple[float, float, float], ...],
+    ) -> tuple[tuple[float, float, float], ...]:
+        unique = {}
+        for point in points:
+            key = tuple(round(float(value), 5) for value in point)
+            unique.setdefault(key, key)
+        return tuple(unique.values())
+
+    expected_unique = unique_positions(expected_mesh.vertices)
+    actual_unique = unique_positions(actual_values)
+    progress(
+        "mesh-fk-point-count raw_expected=%d raw_actual=%d distinct_expected=%d distinct_actual=%d"
+        % (
+            len(expected_mesh.vertices),
+            len(actual_values),
+            len(expected_unique),
+            len(actual_unique),
+        )
+    )
+    if len(actual_unique) != len(expected_unique):
+        raise RuntimeError(
+            "Pose Mode native mesh has %d distinct points; expected %d from the authored FK mesh "
+            "(raw expected=%d, raw actual=%d)"
+            % (
+                len(actual_unique),
+                len(expected_unique),
+                len(expected_mesh.vertices),
+                len(actual_values),
+            )
+        )
+
     max_vertex_error, mismatch = _match_native_points(
-        expected_mesh.vertices,
-        actual_values,
+        expected_unique,
+        actual_unique,
         tolerance=0.002,
     )
     progress(

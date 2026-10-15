@@ -10,10 +10,11 @@ FreeCAD Cloth is a native FreeCAD workbench extension. The repository is the sou
 - `pydantic>=2.11,<3` for validated geometry, mesh, and seam inputs.
 - `scipy>=1.14,<2` for exact spatial-index nearest-vertex clearance.
 - `shapely>=2,<3` for GEOS-backed polygon simplicity checks.
+- `anny>=0.6,<0.7` and `clad-body[anny]>=0.6.1,<0.7` for the built-in parametric mannequin and anthropometric measurement fitting; these are normal project dependencies.
 - PositionBasedDynamics for the production simulation path when simulation support is installed.
 - A FreeCAD GUI session for the visual workbench tests.
 
-The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have Pydantic v2, SciPy and Shapely available in its embedded Python environment; the canonical CI image installs them automatically. For manual installs, install the listed packages with the Python interpreter used by FreeCAD before loading the workbench.
+The exact development/CI environment is defined by `pyproject.toml` and the canonical GitHub Actions workflow. The FreeCAD runtime must have the project's dependencies available in its embedded Python environment; the canonical CI image installs and prewarms them automatically. Installing the Python project with pip installs its required dependencies as part of the normal package install. Copying the workbench folder into FreeCAD's `Mod` directory or installing it through Addon Manager does not execute `pyproject.toml`, so those installation paths must ensure the declared dependencies are installed in FreeCAD's embedded Python environment.
 
 ## User installation
 
@@ -45,11 +46,7 @@ python -m pip install -e ".[dev]"
 pre-commit install
 ```
 
-SciPy and Shapely are required dependencies for the core geometry pipeline and are installed with the main package. There is no separate geometry extra or runtime fallback path.
-
-```bash
-python -m pip install -e .
-```
+SciPy, Shapely, Anny, and clad-body are required dependencies and are installed with the main package. The built-in mannequin is a standard workbench feature; its model assets are initialized and cached on first use.
 
 The benchmark under `tools/benchmarks/benchmark_geometry_libraries.py` compares the required
 library outputs with independent test/reference calculations before reporting timings.

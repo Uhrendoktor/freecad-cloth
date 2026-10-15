@@ -132,7 +132,7 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: pyproject.toml
-      - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check -e ".[dev]"
+      - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" -e ".[dev]"
       - name: Python and architecture checks
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -311,7 +311,7 @@ jobs:
     if: ${{ github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -325,7 +325,7 @@ jobs:
           persist-credentials: false
       - name: Run pure Python validation groups
         if: ${{ matrix.group != 'gui' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@cebf4f9aabb0733dcce8e3bd57c80403b3910d98
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@6d4c0ad13e2e267c48b746d5d09b9ffc3d059128
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           command: >-
@@ -346,14 +346,15 @@ jobs:
     name: GUI acceptance (${{ matrix.case }})
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
         include:
           - {case: sewing, script: tests/freecad_sewing_creation_smoke.py, log: artifacts/sewing-creation-smoke.log, artifact: sewing-creation-smoke, stage: "true", clean: "false", env: "CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log", pre: "python3 tests/freecad_tunic_audit.py --syntax-check", validate: ""}
           - {case: avatar-pose, script: tests/freecad_avatar_pose_ui_acceptance.py, log: artifacts/avatar-pose-ui.log, artifact: avatar-pose-ui, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-pose"}
-          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
+          - {case: avatar-provider-lifecycle, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-provider-lifecycle-run.log, artifact: avatar-provider-lifecycle, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-provider-lifecycle"}
+          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
@@ -378,7 +379,7 @@ jobs:
     name: Full tunic visual and simulation audit
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 15
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -401,6 +402,7 @@ jobs:
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
 
       - uses: ./.github/actions/freecad-test
+        if: always()
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -423,6 +425,7 @@ jobs:
             summary=scene-understanding.json;visual=scene-understanding.svg
           # 8 mm bounds native SDF cost; 5 mm target thickness still controls clearance, and exact mesh projection retains the zero-penetration gate.
           environment: |
+            FREECAD_CLOTH_ANNY_FIT_STEPS=18
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
@@ -431,7 +434,7 @@ jobs:
     name: README turntable evidence
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 6
+    timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -439,7 +442,19 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", test-script: tests/freecad_avatar_screenshot.py, clean-user: "true", log-file: artifacts/avatar-gui-progress.log, environment: CLOTH_CI_DISABLE_PBD=1}
+        with:
+          image: "${{ env.FREECAD_PBD_IMAGE }}"
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-gui-progress.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          log-file: artifacts/avatar-gallery-progress.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -448,16 +463,8 @@ jobs:
           log-file: docs/images/generated/simulation-turntable-progress.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
           artifact-name: readme-turntables
-          artifact-path: |
-            docs/images/generated/*.png
-            docs/images/generated/*.gif
-            docs/images/generated/*.log
-            docs/images/generated/*.txt
-          environment: |
-            CLOTH_PBD_SUBSTEPS=10
-            CLOTH_BLANKET_STEPS=180
-            CLOTH_TURNTABLE_FRAMES=72
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          artifact-path: "docs/images/generated/*.png\ndocs/images/generated/*.gif\ndocs/images/generated/*.log\ndocs/images/generated/*.txt"
+          environment: "CLOTH_PBD_SUBSTEPS=10\nCLOTH_BLANKET_STEPS=180\nCLOTH_TURNTABLE_FRAMES=72\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
   gui-visual-examples:
     name: Blanket visual example
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]

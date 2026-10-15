@@ -76,6 +76,9 @@ ENV FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj
 # SWIG build toolchain even though FreeCAD embeds the SWIG runtime.
 RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; print('bundled-pivy-module=' + pivy.__file__); print('bundled-coin=' + coin.SoDB.getVersion()); print('bundled-coin-module=' + coin.__file__)" \
     && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.8.0+cpu" \
+    && /opt/conda/envs/freecad/bin/python -m pip install --no-cache-dir \
         pypbd==2.2.2 \
         triangle==20250106 \
         "pydantic>=2.11,<3" \
@@ -85,6 +88,8 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         "trimesh>=4,<6" \
         "scipy>=1.14,<2" \
         "shapely>=2,<3" \
+        "anny>=0.6,<0.7" \
+        "clad-body[anny]>=0.6.1,<0.7" \
         pytest \
         hypothesis==6.168.3 \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \
@@ -95,5 +100,97 @@ Import: pypbd
 Wheel: pypbd-2.2.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 SHA256: a5147c9c73e6f51e2963f664e90336a8813a4b37f19c2c20369e5b1ddad59834
 EOF
+
+# Prebuild the unedited MakeHuman body topology and local-morph basis using
+# the Anny legacy compatibility API supported by clad-body 0.6.1 used by the runtime backend.
+ENV ANNY_CACHE_DIR=/opt/freecad-cloth/cache/anny
+RUN mkdir -p "$ANNY_CACHE_DIR" && chmod 777 "$ANNY_CACHE_DIR" && \
+    /opt/conda/envs/freecad/bin/python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+import anny
+import torch
+from clad_body.load.anny import build_anny_apose
+
+# Anny 0.6 provides get_anny_root_dir(); the package-relative fallback supports
+# distributions that omit the helper.
+root = Path(anny.__file__).resolve().parent
+try:
+    from anny.paths import get_anny_root_dir
+except ImportError:
+    pass
+else:
+    root = Path(get_anny_root_dir())
+metadata = json.loads((root / "data/mpfb2/targets/target.json").read_text(encoding="utf-8"))
+terms = (
+    "measure-bust-circ", "measure-underbust-circ", "measure-waist-circ",
+    "measure-hips-circ", "measure-upperarm-circ", "measure-thigh-circ",
+    "measure-knee-circ", "measure-calf-circ", "measure-neck-circ",
+    "measure-shoulder-dist", "torso-scale-horiz", "breast-volume-vert-up",
+)
+labels = set()
+for group, group_data in metadata.items():
+    if group == "genitals" or not isinstance(group_data, dict):
+        continue
+    for category in group_data.get("categories", []):
+        opposites = category.get("opposites", {})
+        for side in ("left", "right", "unsided"):
+            positive = opposites.get(f"positive-{side}", "")
+            negative = opposites.get(f"negative-{side}", "")
+            if positive and negative and any(term in positive for term in terms):
+                labels.add(positive)
+if "breast-volume-vert-up" not in labels:
+    raise SystemExit("Anny breast morph target is missing from the installed assets")
+model = anny.create_fullbody_model(
+    rig="default",
+    topology="makehuman-tris",
+    local_changes=sorted(labels),
+    remove_unattached_vertices=False,
+    triangulate_faces=True,
+    pose_parameterization="local-bone",
+    bone_orientation="blender-rootidentity",
+    all_phenotypes=True,
+).to(dtype=torch.float32, device="cpu")
+base_mesh_vertex_indices = getattr(model, "base_mesh_vertex_indices", None)
+if base_mesh_vertex_indices is None:
+    raise SystemExit("Anny model does not expose its base-mesh vertex index map")
+base_ids = base_mesh_vertex_indices.detach().cpu().tolist()
+if base_ids[:13380] != list(range(13380)):
+    raise SystemExit("Anny topology does not preserve legacy HM08 body vertex index order")
+missing = set(labels) - set(model.local_change_labels)
+if missing:
+    raise SystemExit(f"Anny missing configured morphs: {sorted(missing)}")
+pose = build_anny_apose(model, torch.device("cpu"))
+phenotypes = {name: 0.5 for name in model.phenotype_labels}
+phenotypes.update({"gender": 0.5, "age": 0.667, "african": 1 / 3, "asian": 1 / 3, "caucasian": 1 / 3})
+local_changes = {name: 0.0 for name in model.local_change_labels}
+with torch.no_grad():
+    output = model(
+        pose_parameters=pose,
+        phenotype_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in phenotypes.items()},
+        local_changes_kwargs={name: torch.tensor([value], dtype=torch.float32) for name, value in local_changes.items()},
+        pose_parameterization="local-bone",
+        return_bone_ends=True,
+    )
+vertex_count = int(output["vertices"].shape[1])
+if vertex_count < 13380:
+    raise SystemExit(f"Anny did not preserve the HM08 body vertex prefix: {vertex_count}")
+faces = model.faces.detach().cpu().numpy()
+if faces.ndim != 2 or faces.shape[1] != 3:
+    raise SystemExit(f"Anny topology must be triangulated; received faces shape {faces.shape}")
+visible_faces = ((faces >= 0) & (faces < 13380)).all(axis=1)
+visible_face_count = int(visible_faces.sum())
+if visible_face_count < 20000:
+    raise SystemExit(
+        f"Anny has too few triangles in the canonical HM08 body prefix: {visible_face_count}"
+    )
+print(
+    f"anny-prewarm=passed vertices={vertex_count} faces={visible_face_count} "
+    f"local-change-targets={len(labels)} cache={os.environ['ANNY_CACHE_DIR']}",
+    flush=True,
+)
+PY
 
 ENV PYTHONPATH=/workspace

@@ -5,18 +5,19 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
+from freecad_cloth.avatar.AnnyAvatarBackend import (
+    build_avatar_rig_vertices,
+    build_avatar_shape_mesh,
+)
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
 from freecad_cloth.avatar.HumanoidMesh import (
+    HumanoidMeshError,
     MeshData,
     _bone_source_endpoints,
     _load_source_vertices,
-    _make_source_fitted_mapper,
-    _reoriented_triangles,
-    load_makehuman_mesh,
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
-from freecad_cloth.avatar.MakeHumanTargets import apply_measurement_targets
 from freecad_cloth.avatar.SkeletonPose import (
     AffineTransform,
     JointRotation,
@@ -27,6 +28,66 @@ from freecad_cloth.avatar.SkeletonPose import (
 
 Point = tuple[float, float, float]
 Mapper = Callable[[Point], Point]
+
+
+def _identity_point(point: Point) -> Point:
+    """Preserve a library-fitted point in FreeCAD's millimetre coordinate frame."""
+    return (float(point[0]), float(point[1]), float(point[2]))
+
+
+def _make_anny_rig_mapper(
+    source_vertices: tuple[Point, ...],
+    rig_vertices: tuple[Point, ...],
+    skeleton: dict,
+) -> Mapper:
+    """Map stable MakeHuman source points to the same indices in fitted Anny space."""
+    if len(source_vertices) != len(rig_vertices):
+        raise HumanoidMeshError(
+            "Anny's fitted vertices do not match the original MakeHuman rig index space."
+        )
+
+    def average(points: list[Point]) -> Point:
+        count = float(len(points))
+        return (
+            sum(point[0] for point in points) / count,
+            sum(point[1] for point in points) / count,
+            sum(point[2] for point in points) / count,
+        )
+
+    vertices_by_point: dict[Point, list[Point]] = {}
+    for source_point, fitted_point in zip(source_vertices, rig_vertices, strict=True):
+        key = _identity_point(source_point)
+        vertices_by_point.setdefault(key, []).append(_identity_point(fitted_point))
+    mapped_vertices = {
+        point: average(fitted_points) for point, fitted_points in vertices_by_point.items()
+    }
+
+    joint_centres: dict[Point, list[Point]] = {}
+    for indices in skeleton["joints"].values():
+        source_points = [
+            source_vertices[int(index)]
+            for index in indices
+            if 0 <= int(index) < len(source_vertices)
+        ]
+        fitted_points = [
+            rig_vertices[int(index)] for index in indices if 0 <= int(index) < len(rig_vertices)
+        ]
+        if source_points and fitted_points:
+            source_centre = average(source_points)
+            fitted_centre = average(fitted_points)
+            joint_centres.setdefault(source_centre, []).append(fitted_centre)
+    mapped_joint_centres = {
+        point: average(fitted_points) for point, fitted_points in joint_centres.items()
+    }
+
+    def map_point(point: Point) -> Point:
+        key = _identity_point(point)
+        if key in mapped_joint_centres:
+            return mapped_joint_centres[key]
+        return mapped_vertices.get(key, key)
+
+    return map_point
+
 
 LANDMARK_BONES = {
     "neck": "neck01",
@@ -113,12 +174,10 @@ def pose_world_state(
     dict[str, AffineTransform],
 ]:
     """Return the exact rig transforms used to deform the visible mannequin."""
-    source_vertices = apply_measurement_targets(_load_source_vertices(), parameters)
-    source_mesh = load_makehuman_mesh()
-    mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, 0.0, source_triangles=source_mesh.triangles
-    )
+    source_vertices = _load_source_vertices()
+    rig_vertices = build_avatar_rig_vertices(parameters)
     skeleton = load_makehuman_skeleton()
+    mapper = _make_anny_rig_mapper(source_vertices, rig_vertices, skeleton)
     rotations, pivots, _base_rotations, _base_pivots = _effective_pose_configuration(
         parameters, source_vertices, skeleton, mapper
     )
@@ -136,18 +195,12 @@ def _manual_pose_state(
     tuple[dict[str, AffineTransform], dict[str, AffineTransform]],
 ]:
     """Generate mesh and landmark transforms through one weighted-FK pipeline."""
-    source_vertices = apply_measurement_targets(_load_source_vertices(), parameters)
-    source_mesh_vertices = apply_measurement_targets(mesh.vertices, parameters)
-    mapper = _make_source_fitted_mapper(
-        source_vertices, parameters, 0.0, source_triangles=mesh.triangles
-    )
-    mesh_mapper = _make_source_fitted_mapper(
-        source_vertices,
-        parameters,
-        float(parameters.skin_offset),
-        source_triangles=mesh.triangles,
-    )
+    source_mesh = mesh
+    source_vertices = _load_source_vertices()
+    rig_vertices = build_avatar_rig_vertices(parameters)
+    padded_mesh = build_avatar_shape_mesh(parameters, include_skin_offset=True)
     skeleton = load_makehuman_skeleton()
+    mapper = _make_anny_rig_mapper(source_vertices, rig_vertices, skeleton)
     effective_rotations, effective_pivots, base_rotations, base_pivots = (
         _effective_pose_configuration(parameters, source_vertices, skeleton, mapper)
     )
@@ -161,7 +214,7 @@ def _manual_pose_state(
         effective_rotations,
         rotation_pivots=effective_pivots,
     )
-    rest_vertices = tuple(mesh_mapper(point) for point in source_mesh_vertices)
+    rest_vertices = padded_mesh.vertices
     weights = load_makehuman_weights(len(rest_vertices))
     posed_vertices = apply_weighted_fk(
         source_vertices,
@@ -174,7 +227,7 @@ def _manual_pose_state(
     )
     from freecad_cloth.avatar.MeshSanity import compact_mesh
 
-    vertices, triangles = compact_mesh(posed_vertices, _reoriented_triangles(mesh.triangles))
+    vertices, triangles = compact_mesh(posed_vertices, source_mesh.triangles)
     posed = MeshData(vertices, triangles).validate()
     return posed, (baseline_transforms, effective_transforms)
 
@@ -210,7 +263,9 @@ def transform_landmarks(
 
 def build_hierarchical_avatar_mesh(parameters: AvatarParameters) -> MeshData:
     """Build the mannequin with the shared weighted-FK deformation system."""
-    return _build_manual_mesh(parameters, load_makehuman_mesh())
+    return _build_manual_mesh(
+        parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False)
+    )
 
 
 def generate_hierarchical_mesh(
@@ -222,7 +277,7 @@ def generate_hierarchical_mesh(
 ]:
     """Return the compact mesh and landmarks from the authoritative FK state."""
     mesh, (baseline_transforms, effective_transforms) = _manual_pose_state(
-        parameters, load_makehuman_mesh()
+        parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False)
     )
     return (
         mesh.vertices,

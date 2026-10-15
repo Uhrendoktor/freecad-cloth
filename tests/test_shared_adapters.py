@@ -164,3 +164,67 @@ def test_apply_seam_colors_dispatches_refresh_through_registered_callback():
         assert calls == [document]
     finally:
         register_seam_refresh_callback(None)
+
+
+def test_freecad_collision_repairs_winding_after_native_mesh_conversion() -> None:
+    vertices = (
+        _Vertex(0, 0, 0),
+        _Vertex(100, 0, 0),
+        _Vertex(100, 100, 0),
+        _Vertex(0, 100, 0),
+        _Vertex(0, 0, 100),
+        _Vertex(100, 0, 100),
+        _Vertex(100, 100, 100),
+        _Vertex(0, 100, 100),
+    )
+    triangles = (
+        (0, 2, 1),
+        (0, 3, 2),
+        (4, 5, 6),
+        (4, 6, 7),
+        (0, 1, 5),
+        (0, 5, 4),
+        (1, 2, 6),
+        (1, 6, 5),
+        (2, 3, 7),
+        (2, 7, 6),
+        (3, 0, 4),
+        (3, 4, 7),
+    )
+    # Simulate a facet whose direction changed as FreeCAD adapted the visible
+    # avatar into its native Mesh.Topology representation.
+    inconsistent = tuple(
+        (a, c, b) if face_index == 2 else (a, b, c)
+        for face_index, (a, b, c) in enumerate(triangles)
+    )
+    surface = surface_from_freecad(
+        SimpleNamespace(
+            Mesh=SimpleNamespace(Topology=(vertices, inconsistent)),
+            Label="mannequin",
+        ),
+        thickness=5.0,
+    )
+
+    edge_owners = {}
+    for triangle in surface.triangles:
+        for first, second in (
+            (triangle[0], triangle[1]),
+            (triangle[1], triangle[2]),
+            (triangle[2], triangle[0]),
+        ):
+            edge = (min(first, second), max(first, second))
+            direction = 1 if first < second else -1
+            edge_owners.setdefault(edge, []).append(direction)
+
+    assert edge_owners
+    assert all(len(directions) == 2 for directions in edge_owners.values())
+    assert all(sum(directions) == 0 for directions in edge_owners.values())
+    assert surface.thickness == 5.0
+
+
+def test_freecad_collision_does_not_invent_closure_for_open_mesh() -> None:
+    surface = surface_from_freecad(
+        SimpleNamespace(Mesh=_mesh(), Label="open triangle"),
+    )
+
+    assert surface.triangles == ((0, 1, 2),)

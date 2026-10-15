@@ -1,4 +1,8 @@
-"""Helpers for keeping authored avatar meshes free of unreferenced vertices."""
+"""Helpers for compacting avatar meshes and orienting collision surfaces."""
+
+from freecad_cloth.shared.mesh_topology import orient_closed_triangle_winding
+
+__all__ = ["compact_mesh", "orient_closed_triangle_winding"]
 
 
 def compact_mesh(vertices, triangles):

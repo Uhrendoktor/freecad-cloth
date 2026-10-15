@@ -16,7 +16,7 @@ def test_freecad_timeout_is_positive_and_declared_once():
     configured = tomllib.loads(pyproject)["tool"]["freecad_cloth"]["ci"][
         "freecad_application_timeout_seconds"
     ]
-    assert configured > 0
+    assert configured == 120
     assert configured_timeout_seconds() == configured
     assert pyproject.count("freecad_application_timeout_seconds") == 1
 
@@ -29,11 +29,21 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     action = (ROOT / ".github" / "actions" / "freecad-test" / "action.yml").read_text(
         encoding="utf-8"
     )
+    container_action = (
+        ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
+    ).read_text(encoding="utf-8")
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     assert "timeout-seconds:" not in workflow
+    assert "freecad_application_timeout_seconds" not in workflow
     assert "timeout-seconds:" not in action
+    assert 'default: "120"' in container_action
+    assert "maximum 120 seconds" in container_action
+    assert 'if [ "$timeout_seconds" -gt 120 ]; then' in container_action
+    assert "420" not in container_action
     assert "configured_timeout_seconds()" in runner
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
+    assert '"torch==2.8.0+cpu"' in workflow
 
 
 def test_timeout_contract_is_documented():

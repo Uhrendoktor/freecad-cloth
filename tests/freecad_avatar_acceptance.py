@@ -272,11 +272,11 @@ def run_acceptance():
                 os.unlink(path)
 
 
-if __name__ == "__main__":
-    try:
-        run_acceptance()
-        print("avatar provider acceptance passed", flush=True)
-        os._exit(0)
-    except BaseException as exc:
-        print("avatar provider acceptance failed", repr(exc), flush=True)
-        os._exit(1)
+# FreeCAD's macro runner does not preserve the normal CLI __name__ contract.
+try:
+    run_acceptance()
+    print("avatar provider acceptance passed", flush=True)
+    os._exit(0)
+except BaseException as exc:
+    print("avatar provider acceptance failed", repr(exc), flush=True)
+    os._exit(1)

@@ -89,6 +89,7 @@ def test_sewing_toolbar_is_stable_and_registered():
         "ClothSewing_CreateSeam",
         "ClothSewing_CreateOperation",
         "ClothSewing_Validate",
+        "ClothFitting_CreateAvatar",
     )
     workbench = ClothSewingWorkbench()
     workbench.Initialize()

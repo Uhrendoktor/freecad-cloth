@@ -78,7 +78,7 @@ class AvatarTaskPanel:
         ("right_elbow_angle", "Right elbow bend"),
     )
     PROVIDERS = (
-        ("makehuman-hm08", "MakeHuman HM08 humanoid mesh"),
+        ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
         (
             "freecad-geometry",
             "Imported surface only; no skeleton, skin weights, or animation are imported",
@@ -134,7 +134,7 @@ class AvatarTaskPanel:
         provider_row = QtWidgets.QHBoxLayout()
         for key, label in self.PROVIDERS:
             button = QtWidgets.QToolButton()
-            button.setText("MakeHuman" if key == "makehuman-hm08" else "FreeCAD geometry")
+            button.setText("Anny body model" if key == "makehuman-hm08" else "FreeCAD geometry")
             button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolTip(label)

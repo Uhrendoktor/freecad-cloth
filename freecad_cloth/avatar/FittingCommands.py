@@ -108,6 +108,34 @@ def _target_signature(target):
     mesh_topology = _mesh_topology(target)
     if mesh_topology is not None:
         vertices, triangles = mesh_topology
+        if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
+            # Avatar FK can repack/deduplicate vertices while preserving native
+            # FacetN identity. Surface anchors store facet ordinal + barycentric
+            # coordinates, so vertex indices and the current vertex count are not
+            # part of avatar identity. Keep the source/provider and facet count in
+            # the signature, and separately sign a selected provider's geometry.
+            provider_source = getattr(target, "ProviderSource", None)
+            source_signature = (
+                _target_signature(provider_source)
+                if provider_source is not None and provider_source is not target
+                else None
+            )
+            payload = json.dumps(
+                {
+                    "avatar_type": "ClothAvatar",
+                    "provider_id": str(getattr(target, "AvatarProviderId", "")),
+                    "mesh_provider": str(getattr(target, "AvatarMeshProvider", "")),
+                    "mesh_source": str(getattr(target, "AvatarMeshSource", "")),
+                    "triangle_count": len(triangles),
+                    "declared_triangle_count": int(
+                        getattr(target, "MeshTriangleCount", len(triangles))
+                    ),
+                    "provider_source_signature": source_signature,
+                },
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("ascii")
+            return "avatar-mesh-topology:" + hashlib.sha256(payload).hexdigest()
         payload = json.dumps(
             {"vertex_count": len(vertices), "triangles": triangles},
             separators=(",", ":"),

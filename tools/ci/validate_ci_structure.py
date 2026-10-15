@@ -57,6 +57,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
     "freecad_cloth/simulation/MeshCollisionProjector.py",
     "freecad_cloth/avatar/MakeHumanTargets.py",
+    "freecad_cloth/avatar/AnnyAvatarBackend.py",
 )
 PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Gui.py",

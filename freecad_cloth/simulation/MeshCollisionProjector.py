@@ -227,16 +227,19 @@ def project_stitched_pairs(
     stitches: Sequence[tuple[int, int]],
     pinned_indices: Sequence[int] = (),
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Close zero-rest-length stitch groups after contact projection.
+    """Close stitch groups after contact projection, including near-shell residuals.
 
     The native PBD pass projects stitches before the backend's position-level
     collision response. Independent contact corrections can therefore separate
-    two vertices that were sewn together, especially when the nearest body
-    triangles have different normals. Reconcile each connected stitch group at
-    a shared point, then project that point to the same exterior clearance shell.
-    Only groups touched by the preceding contact projection are reconciled;
-    non-contacting stitches remain the native solver's responsibility. Groups
-    containing fixed particles are left unchanged to preserve pins.
+    two sewn vertices. Reconcile contact-touched groups at a shared point and
+    project that point to the exterior clearance shell.
+
+    A residual stitch can also stall when both endpoints sit just outside the
+    shell on different sides of a curved body. Probe the midpoint of near-closed
+    groups and share it between endpoints: project it to the exterior shell if
+    needed, or use it unchanged when the projector reports that it is already
+    safe. Groups beyond the capture distance and groups containing fixed
+    particles remain unchanged, avoiding early capture of distant stitches.
     """
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
@@ -246,11 +249,6 @@ def project_stitched_pairs(
         raise ValueError("stitched collision normals must match the position array")
     if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
         raise ValueError("stitched collision positions and normals must be finite")
-
-    # Contact-free steps are common in a preview. Avoid rebuilding stitch
-    # connectivity when no particle was projected.
-    if not bool(np.any(normals)):
-        return corrected, normals
 
     particle_count = len(corrected)
     pinned = {int(index) for index in pinned_indices}
@@ -293,25 +291,68 @@ def project_stitched_pairs(
 
     eligible_groups: list[list[int]] = []
     shared_points: list[npt.NDArray[np.float64]] = []
+    near_shell_groups: list[list[int]] = []
+    near_shell_midpoints: list[npt.NDArray[np.float64]] = []
     for group in groups.values():
         if len(group) < 2 or pinned.intersection(group):
-            continue
-        if not bool(np.any(np.linalg.norm(normals[group], axis=1) > 1e-7)):
             continue
         points = corrected[group]
         if float(np.linalg.norm(points - points[0], axis=1).max()) <= 1e-7:
             continue
-        eligible_groups.append(group)
-        shared_points.append(points.mean(axis=0))
+        if bool(np.any(np.linalg.norm(normals[group], axis=1) > 1e-7)):
+            eligible_groups.append(group)
+            shared_points.append(points.mean(axis=0))
+            continue
+        # Prefer target-surface evidence over endpoint distance. A sewn pair may span
+        # the body while both endpoints remain outside the collision shell; its shared
+        # midpoint is still a valid stitch repair candidate when it lies inside the
+        # target. The AABB and signed local-plane checks below reject remote unrelated
+        # stitches without discarding those through-surface residuals.
+        midpoint = points.mean(axis=0)
+        if not bool(
+            np.all((midpoint >= projector._bounds_min) & (midpoint <= projector._bounds_max))
+        ):
+            continue
+        centroid_distance, closest_face_id = projector._tree.query(
+            midpoint,
+            k=1,
+            eps=0.0,
+            workers=1,
+        )
+        closest_face = int(closest_face_id)
+        closest_plane_distance = float(
+            np.dot(
+                midpoint - projector._centroids[closest_face],
+                projector._normals[closest_face],
+            )
+        )
+        # Mirror the projector's broad phase: a zero normal means "safe" both
+        # near the clearance shell and far away. Only reconcile midpoints that
+        # are plausible surface candidates; remote stitches remain untouched.
+        if float(centroid_distance) > projector._search_radius_mm and closest_plane_distance >= 0.0:
+            continue
+        near_shell_groups.append(group)
+        near_shell_midpoints.append(midpoint)
 
-    if not shared_points:
-        return corrected, normals
+    # Reconcile close residual stitches at their shared midpoint. If collision
+    # correction is needed, the shared point is projected to the exterior shell;
+    # if its normal is zero, the midpoint is already safe and can be shared as-is.
+    # Pairs beyond capture_distance and groups containing pinned particles remain
+    # under the native solver.
+    if near_shell_midpoints:
+        midpoint_points, midpoint_normals = projector.project(
+            np.asarray(near_shell_midpoints, dtype=np.float64)
+        )
+        for index, group in enumerate(near_shell_groups):
+            corrected[group] = midpoint_points[index]
+            normals[group] = midpoint_normals[index]
 
-    projected_points, projected_normals = projector.project(
-        np.asarray(shared_points, dtype=np.float64)
-    )
-    for index, group in enumerate(eligible_groups):
-        corrected[group] = projected_points[index]
-        normals[group] = projected_normals[index]
+    if shared_points:
+        projected_points, projected_normals = projector.project(
+            np.asarray(shared_points, dtype=np.float64)
+        )
+        for index, group in enumerate(eligible_groups):
+            corrected[group] = projected_points[index]
+            normals[group] = projected_normals[index]
 
     return corrected, normals
