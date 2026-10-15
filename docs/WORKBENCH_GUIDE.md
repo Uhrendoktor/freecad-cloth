@@ -56,7 +56,11 @@ After pattern, seam or target edits: recompute, inspect the stale/invalid reason
 
 Use the public `ClothPattern_CreateGarment` command to create a production garment document. The FCStd document remains the only persistence authority: the native `Garment` root contains deterministic `Patterns`, `Sewing`, `Fabric`, `Avatar`, and `Simulation` groups. A persisted native `FabricMaterial` object lives in the Fabric group; pattern, sewing, fitting, avatar/target, and simulation outputs are linked into the corresponding group when the garment root exists. Existing standalone object-creation commands remain supported in documents without a Garment root.
 
-Generated fitting snap points and bounding-volume display features are collected under the top-level `Fitting / Arrangement Markers (automatic)` group, separate from the authoritative `FittingScene`. When a point or volume is deleted, its obsolete generated feature is removed too. Source geometry, collision targets, and solver objects are retained because they remain authoritative inputs or dependencies.
+Generated fitting snap points and bounding-volume display features are collected under the top-level
+`Fitting / Arrangement Markers (automatic)` group, separate from the authoritative `FittingScene`.
+When a point or volume is deleted, its obsolete generated feature is removed too. Source geometry,
+collision targets, and solver objects are retained because they remain authoritative inputs or
+dependencies.
 
 ## Document authority
 
