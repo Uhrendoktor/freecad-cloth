@@ -202,7 +202,6 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     assert [version["id"] for version in stale] == [1]
 
 
-
 def test_package_cleanup_lists_known_nested_package_directly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -217,25 +216,26 @@ def test_package_cleanup_lists_known_nested_package_directly(
         lambda _repo, _protected_shas: {"current-tag"},
     )
 
-    def fake_paginated_api_items(endpoint: str, **_kwargs: object):
+    def fake_paginated_api_items(
+        endpoint: str, **_kwargs: object
+    ) -> list[dict[str, object]]:
         endpoints.append(endpoint)
-        return iter(
-            [
-                {
-                    "id": 11,
-                    "created_at": "2026-08-01T00:00:00Z",
-                    "updated_at": "2026-08-01T00:00:00Z",
-                    "metadata": {"container": {"tags": ["old-unreferenced-tag"]}},
-                }
-            ]
-        )
+        return [
+            {
+                "id": 11,
+                "created_at": "2026-08-01T00:00:00Z",
+                "updated_at": "2026-08-01T00:00:00Z",
+                "metadata": {"container": {"tags": ["old-unreferenced-tag"]}},
+            }
+        ]
 
     monkeypatch.setattr(
         maintenance_cleanup, "paginated_api_items", fake_paginated_api_items
     )
-    monkeypatch.setattr(
-        maintenance_cleanup, "gh_delete", lambda *args: deleted.append(args)
-    )
+    def fake_gh_delete(*args: str) -> None:
+        deleted.append(args)
+
+    monkeypatch.setattr(maintenance_cleanup, "gh_delete", fake_gh_delete)
 
     result = maintenance_cleanup.cleanup_pbd_package_versions(
         "example-owner/repo",
@@ -249,6 +249,7 @@ def test_package_cleanup_lists_known_nested_package_directly(
     assert result["status"] == "passed"
     assert result["deleted"] == 1
     assert len(deleted) == 1
+
 
 def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
     from tools.ci import maintenance_cleanup
