@@ -194,3 +194,32 @@ def test_visual_publisher_preserves_script_local_import_invocation():
 
 
 print("GUI visual contract checks passed")
+
+
+def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
+    avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
+        encoding="utf-8"
+    )
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'if mode in ("all", "turntable"):' in avatar_screenshot
+    assert 'if mode in ("all", "turntable", "turntable-validation"):' in avatar_screenshot
+    validation_capture = avatar_screenshot.split(
+        'if mode in ("all", "turntable", "turntable-validation"):', 1
+    )[1].split('if mode in ("all", "gallery"):', 1)[0]
+    assert '"cloth-avatar-turntable-frames"' in validation_capture
+    assert "render_turntable(" in validation_capture
+
+    block = workflow.split("  gui-turntables:", 1)[1].split(
+        "  gui-visual-examples:", 1
+    )[0]
+    assert (
+        "CLOTH_AVATAR_SCREENSHOT_MODE=${{ github.ref == 'refs/heads/main' && "
+        "'turntable' || 'turntable-validation' }}" in block
+    )
+    gallery_start = block.index("      - name: Generate wiki-only avatar body-shape gallery")
+    gallery_end = block.find("\n      - ", gallery_start + 8)
+    gallery_step = block[gallery_start : gallery_end if gallery_end != -1 else len(block)]
+    assert "if: ${{ github.ref == 'refs/heads/main' }}" in gallery_step

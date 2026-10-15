@@ -431,7 +431,7 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
 def main():
     log("avatar-script-start")
     mode = os.environ.get("CLOTH_AVATAR_SCREENSHOT_MODE", "all").strip().lower()
-    if mode not in ("all", "turntable", "gallery"):
+    if mode not in ("all", "turntable", "turntable-validation", "gallery"):
         raise RuntimeError("CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, or gallery")
     log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
@@ -499,6 +499,7 @@ def main():
                     f"Avatar audit {direction}",
                 )
 
+        if mode in ("all", "turntable", "turntable-validation"):
             center = avatar_center(avatar)
             render_turntable(
                 view,

@@ -445,8 +445,10 @@ jobs:
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=${{ github.ref == 'refs/heads/main' && 'turntable' || 'turntable-validation' }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+      - name: Generate wiki-only avatar body-shape gallery
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
