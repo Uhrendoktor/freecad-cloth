@@ -141,8 +141,9 @@ def test_collection_contract_passes_when_every_requested_module_collects():
 
 def test_collection_contract_rejects_a_requested_module_with_zero_items():
     import os
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
 
     from tools.ci.pytest_collection_contract import validate_collection_contract
 
