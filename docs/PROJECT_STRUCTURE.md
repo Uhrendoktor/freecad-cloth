@@ -9,8 +9,7 @@ freecad_cloth/
 - sewing/ — sewing graph + sewing UI
 - avatar/ — avatar + fitting
 - simulation/ — drape + solver + diagnostics
-- gui.py — common FreeCAD workbench registration
-- bootstrap.py — shared startup and idempotent registration for both FreeCAD loader layouts
+- gui.py — shared FreeCAD GUI registration primitives and loader bootstrap
 
 Ownership rules:
 
@@ -26,7 +25,7 @@ Canonical implementations:
 - shared/collision.py is the only collision-surface value contract.
 - simulation/SimulationQualityRuntime.py is the only quality-aware runtime integration.
 
-The classic root Init.py/InitGui.py loader and the modern freecad/freecad_cloth loader are thin adapters into freecad_cloth/bootstrap.py. The shared bootstrap owns icon-path setup, command-contract validation, and idempotent registration of all three workbenches; the adapters contain no registration or domain implementation.
+The classic root Init.py/InitGui.py loader and the modern freecad/freecad_cloth loader are thin adapters into freecad_cloth/gui.py. The shared GUI module owns icon-path setup, command-contract validation, and idempotent registration of all three workbenches; the adapters contain no registration or domain implementation.
 
 The repository root is reserved for FreeCAD bootstrap files, sitecustomize.py, metadata, documentation and tooling.
 
@@ -35,4 +34,4 @@ Historical internal paths are migrated at callers. A compatibility surface requi
 
 ## Loader layouts
 
-The repository supports both the classic root FreeCAD loader and the modern package loader layouts. Both delegate registration to freecad_cloth.bootstrap.initialize_workbenches, which resolves icons relative to the installation root and imports the single authoritative implementation package.
+The repository supports both the classic root FreeCAD loader and the modern package loader layouts. Both delegate registration to freecad_cloth.gui.initialize_workbenches, which resolves icons relative to the installation root and imports the single authoritative implementation package.
