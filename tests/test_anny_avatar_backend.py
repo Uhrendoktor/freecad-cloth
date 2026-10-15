@@ -129,6 +129,20 @@ def test_hip_fitting_keeps_the_pre_hip_mesh_origin() -> None:
     assert not np.array_equal(stable[4], baseline[4])
 
 
+def test_reference_only_garment_lengths_do_not_change_the_fitted_surface() -> None:
+    baseline = AvatarParameters()
+    changed = baseline.with_measurements(
+        crotch_length=baseline.measurement("crotch_length") + 80.0,
+        front_rise=baseline.measurement("front_rise") + 25.0,
+        shirt_length=baseline.measurement("shirt_length") + 60.0,
+    )
+
+    baseline_mesh = build_avatar_shape_mesh(baseline, include_skin_offset=False)
+    changed_mesh = build_avatar_shape_mesh(changed, include_skin_offset=False)
+
+    assert changed_mesh == baseline_mesh
+
+
 def test_hip_only_shape_edits_do_not_change_rig_vertex_space() -> None:
     parameters = AvatarParameters()
     hip_changed = parameters.with_measurements(hip=parameters.measurement("hip") + 120.0)
