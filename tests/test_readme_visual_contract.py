@@ -196,7 +196,7 @@ def test_visual_publisher_preserves_script_local_import_invocation():
 print("GUI visual contract checks passed")
 
 
-def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
+def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders() -> None:
     avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
         encoding="utf-8"
     )
@@ -223,7 +223,7 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
     assert "if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}" in gallery_step
 
 
-def test_wiki_visual_generation_is_limited_to_publication_events():
+def test_wiki_visual_generation_is_limited_to_publication_events() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
