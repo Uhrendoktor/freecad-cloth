@@ -23,7 +23,6 @@ def register_workbench_deactivation_callback(
     _WORKBENCH_DEACTIVATION_CALLBACK = callback
 
 
-
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     """Small common registration shell for all Cloth workbenches."""
 
