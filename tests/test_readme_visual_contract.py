@@ -238,12 +238,12 @@ def test_wiki_visual_generation_is_limited_to_publication_events() -> None:
     assert visual_block.count("if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}") == 3
 
 
-def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized():
+def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() -> None:
     workflows = ROOT / ".github" / "workflows"
     shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
     commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
-    trigger_header = shared.split("\\nconcurrency:", 1)[0]
+    trigger_header = shared.split("\nconcurrency:", 1)[0]
 
     assert "workflow_call:" in trigger_header
     assert "  push:" not in trigger_header
@@ -259,7 +259,7 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized():
     assert "Required validation gate" in shared
 
 
-def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree():
+def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )

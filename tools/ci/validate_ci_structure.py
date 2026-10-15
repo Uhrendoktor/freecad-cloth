@@ -225,15 +225,31 @@ def main() -> int:
     lines = text.splitlines()
     if len(lines) > 750:
         raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
-    trigger_block = text.split("\\nconcurrency:", 1)[0]
-    if "workflow_call:" not in trigger_block or re.search(r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block):
-        raise SystemExit("canonical-execution.yml must be callable only; event triggers belong in the two entry workflows")
+    trigger_block = text.split("\nconcurrency:", 1)[0]
+    if "workflow_call:" not in trigger_block or re.search(
+        r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
+    ):
+        raise SystemExit(
+            "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+        )
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
-    if "pull_request:" not in commit_workflow or "merge_group:" not in commit_workflow or "&& 'fast' ||" not in commit_workflow:
-        raise SystemExit("commit-validation.yml must run fast PR feedback and full merge-group validation")
-    if "push:" not in publication_workflow or "branches: [main]" not in publication_workflow or "execution_mode: publication" not in publication_workflow:
-        raise SystemExit("main-publication.yml must be main-only and call canonical publication mode")
+    if (
+        "pull_request:" not in commit_workflow
+        or "merge_group:" not in commit_workflow
+        or "&& 'fast' ||" not in commit_workflow
+    ):
+        raise SystemExit(
+            "commit-validation.yml must run fast PR feedback and full merge-group validation"
+        )
+    if (
+        "push:" not in publication_workflow
+        or "branches: [main]" not in publication_workflow
+        or "execution_mode: publication" not in publication_workflow
+    ):
+        raise SystemExit(
+            "main-publication.yml must be main-only and call canonical publication mode"
+        )
     if "Required validation gate" not in text or "No successful merge-group full-validation run" not in text:
         raise SystemExit("reusable workflow must enforce mode-specific validation and refuse unvalidated publication")
     if "pull_request_target" in text:
