@@ -6,10 +6,16 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
 
-def _modules():
+class _WidgetLayout(Protocol):
+    """Minimal layout contract needed by the dynamically loaded PySide UI."""
+
+    def addWidget(self, widget: object) -> None: ...
+
+
+def _modules() -> tuple[object, object, object]:
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -378,7 +384,7 @@ class AvatarTaskPanel:
         parent.addWidget(group)
         self._measurement_groups.append(group)
 
-    def _add_mass_target_group(self, parent):
+    def _add_mass_target_group(self, parent: _WidgetLayout) -> None:
         """Expose clad-body's differentiable body-mass target without mixing units."""
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox("Body composition")
@@ -405,11 +411,11 @@ class AvatarTaskPanel:
         parent.addWidget(group)
         self.mass_group = group
 
-    def _mass_target_toggled(self, enabled):
+    def _mass_target_toggled(self, enabled: bool) -> None:
         self.mass_target.setEnabled(bool(enabled))
         self._staged_changed()
 
-    def _add_advanced_group(self, parent):
+    def _add_advanced_group(self, parent: _WidgetLayout) -> None:
         """Add lazy-loaded, searchable Anny controls without cluttering the common editor."""
         _, _, QtWidgets = _modules()
         try:
@@ -474,7 +480,7 @@ class AvatarTaskPanel:
         advanced_layout.addWidget(self.advanced_tabs)
         parent.addWidget(self.advanced_content)
 
-    def _advanced_category(self, name, kind):
+    def _advanced_category(self, name: str, kind: str) -> str:
         """Group raw model labels into scannable families while preserving search terms."""
         if kind == "phenotype":
             labels = {
@@ -508,11 +514,20 @@ class AvatarTaskPanel:
         return "Other body morphs"
 
     @staticmethod
-    def _display_parameter_name(name):
+    def _display_parameter_name(name: str) -> str:
         """Turn model labels into a readable label without losing their exact API name."""
         return str(name).replace("_", " ").replace("-", " ").strip().title()
 
-    def _append_advanced_control(self, kind, name, default, value, page_key, low, high):
+    def _append_advanced_control(
+        self,
+        kind: str,
+        name: str,
+        default: float,
+        value: float,
+        page_key: str,
+        low: float,
+        high: float,
+    ) -> None:
         _, _, QtWidgets = _modules()
         page = self._advanced_pages[page_key]
         category = self._advanced_category(name, kind)
@@ -570,7 +585,7 @@ class AvatarTaskPanel:
             )
         )
 
-    def _toggle_advanced_parameters(self, expanded):
+    def _toggle_advanced_parameters(self, expanded: bool) -> None:
         """Populate the long-tail parameter editor only when the user opens it."""
         self.advanced_content.setVisible(bool(expanded))
         try:
@@ -630,7 +645,7 @@ class AvatarTaskPanel:
         elif expanded:
             self._filter_advanced_parameters(self.advanced_search.text())
 
-    def _filter_advanced_parameters(self, text):
+    def _filter_advanced_parameters(self, text: str) -> None:
         """Filter parameter rows live across both advanced tabs."""
         query = str(text).strip().casefold()
         visible_by_group = {}
@@ -652,7 +667,7 @@ class AvatarTaskPanel:
             if target_page is not None:
                 self.advanced_tabs.setCurrentIndex(target_page)
 
-    def _advanced_parameter_changed(self, kind, name, value):
+    def _advanced_parameter_changed(self, kind: str, name: str, value: float) -> None:
         """Persist only non-default overrides while keeping defaults discoverable in the UI."""
         default = self._advanced_phenotype_defaults.get(name, 0.5) if kind == "phenotype" else 0.0
         overrides = (
@@ -666,7 +681,7 @@ class AvatarTaskPanel:
             overrides[name] = float(value)
         self._staged_changed()
 
-    def _reset_advanced_parameters(self):
+    def _reset_advanced_parameters(self) -> None:
         """Clear every advanced parameter override in one staged operation."""
         self._advanced_phenotype_overrides.clear()
         self._advanced_local_change_overrides.clear()
