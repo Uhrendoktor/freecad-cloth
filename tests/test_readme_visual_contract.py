@@ -212,9 +212,7 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
     assert '"cloth-avatar-turntable-frames"' in validation_capture
     assert "render_turntable(" in validation_capture
 
-    block = workflow.split("  gui-turntables:", 1)[1].split(
-        "  gui-visual-examples:", 1
-    )[0]
+    block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     assert (
         "CLOTH_AVATAR_SCREENSHOT_MODE=${{ github.ref == 'refs/heads/main' && "
         "'turntable' || 'turntable-validation' }}" in block
