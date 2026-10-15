@@ -548,6 +548,7 @@ jobs:
         with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
       - name: Retention cleanup
         env:
+          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   artifact-budget:
