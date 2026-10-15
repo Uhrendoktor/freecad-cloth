@@ -1,6 +1,9 @@
 name: Commit validation
 run-name: Commit validation
 
+# Draft PRs keep quick feedback; ready PRs require this full-validation check before merge.
+# The main repository ruleset must require the "Required pre-merge validation" check.
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
