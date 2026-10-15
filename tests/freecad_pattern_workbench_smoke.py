@@ -9,6 +9,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 import InitGui
+from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
 
@@ -24,7 +25,7 @@ def process_events():
 
 
 def main():
-    workbench = InitGui.ClothPatternWorkbench()
+    workbench = ClothPatternWorkbench()
     Gui.activateWorkbench("Cloth Pattern")
     workbench.Initialize()
     assert workbench.MenuText == "Cloth Pattern"
