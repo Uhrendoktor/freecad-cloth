@@ -60,7 +60,7 @@ def main():
     import FreeCADGui as Gui
 
     checkpoint("FREECAD_SMOKE IMPORTED_GUI")
-    import InitGui
+    import InitGui as _init_gui
     from freecad_cloth.pattern.workbench import ClothPatternWorkbench
     from freecad_cloth.sewing.workbench import ClothSewingWorkbench
     from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
