@@ -41,6 +41,8 @@ MEASUREMENT_FIELDS = (
     ("shoulder", "shoulder_width_cm"),
     ("inseam", "inseam_cm"),
     ("neck", "neck_cm"),
+    ("stomach", "stomach_cm"),
+    ("sleeve_length", "sleeve_length_cm"),
 )
 
 # Measurement-specific target shapes provide controlled, local adjustments.
@@ -55,6 +57,8 @@ _LOCAL_CHANGE_TERMS = (
     "measure-knee-circ",
     "measure-calf-circ",
     "measure-neck-circ",
+    "measure-stomach-circ",
+    "measure-sleeve-length",
     "measure-shoulder-dist",
     "torso-scale-horiz",
 )
