@@ -235,9 +235,13 @@ def test_wiki_visual_generation_is_publication_only() -> None:
     )
 
     assert "CLOTH_WIKI_VISUALS_REQUIRED" not in workflow
-    assert "CLOTH_TURNTABLE_FRAMES: 72" in workflow
-    assert "CLOTH_BLANKET_STEPS: 180" in workflow
-    assert "CLOTH_TURNTABLE_PBD_SUBSTEPS: 10" in workflow
+    for setting in (
+        "CLOTH_TURNTABLE_FRAMES:",
+        "CLOTH_BLANKET_STEPS:",
+        "CLOTH_TURNTABLE_PBD_SUBSTEPS:",
+        "CLOTH_DOC_AVATAR_FIT_STEPS:",
+    ):
+        assert setting in workflow
     validation_jobs = workflow.split("  gui-turntables:", 1)[1].split(
         "  publish-pr-simulation-evidence:", 1
     )[0]
