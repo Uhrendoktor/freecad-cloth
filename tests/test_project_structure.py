@@ -282,11 +282,18 @@ def test_manifest_declares_all_bundled_workbenches():
 
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
-    classic = (root / "InitGui.py").read_text(encoding="utf-8")
-    modern = (root / "freecad" / "freecad_cloth" / "init_gui.py").read_text(encoding="utf-8")
+    loaders = (
+        root / "InitGui.py",
+        root / "freecad" / "freecad_cloth" / "init_gui.py",
+    )
+    bootstrap = (root / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
+    for loader in loaders:
+        source = loader.read_text(encoding="utf-8")
+        assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+        assert "initialize_workbenches(" in source
+        assert "Gui.addWorkbench(" not in source
     for workbench in ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"):
-        assert workbench in classic
-        assert workbench in modern
+        assert f'("{workbench}",' in bootstrap
     assert (
         "loader layouts"
         in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
