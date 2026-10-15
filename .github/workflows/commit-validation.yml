@@ -1,8 +1,8 @@
 name: Commit validation
 run-name: Commit validation
 
-# Draft PRs keep quick feedback; ready PRs require this full-validation check before merge.
-# The main repository ruleset must require the "Required pre-merge validation" check.
+# PR updates run fast feedback; full validation runs on merge-queue candidates.
+# The main ruleset must require the merge queue and "Required pre-merge validation".
 
 on:
   pull_request:
@@ -69,7 +69,7 @@ jobs:
 
   full-validation:
     name: Full validation
-    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false) || github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full') }}
+    if: ${{ github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full') }}
     permissions:
       actions: write
       contents: write
@@ -126,6 +126,10 @@ jobs:
           }
           if [ "$EVENT_NAME" = "pull_request" ]; then
             require_success "Fast PR feedback" "$FAST_RESULT"
+          elif [ "$EVENT_NAME" = "merge_group" ]; then
+            require_success "Full validation" "$FULL_RESULT"
+          else
+            echo "::error::Unexpected event for the pre-merge gate: $EVENT_NAME"
+            exit 1
           fi
-          require_success "Full validation" "$FULL_RESULT"
           echo "required-pre-merge-validation=passed event=$EVENT_NAME"
