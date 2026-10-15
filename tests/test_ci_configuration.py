@@ -74,7 +74,7 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup
 
 
-def test_one_shot_retention_run_bypasses_runner_fallback():
+def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
     """Retention can finish on GitHub-hosted runners without watchdog cancellation."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
