@@ -175,9 +175,7 @@ class HumanoidMeshTests(unittest.TestCase):
             }
             downloaded = []
 
-            def downloader(
-                url: str, destination: Path, verifier: Callable[[Path], bool]
-            ) -> None:
+            def downloader(url: str, destination: Path, verifier: Callable[[Path], bool]) -> None:
                 downloaded.append((url, destination, verifier))
 
             self.assertEqual(

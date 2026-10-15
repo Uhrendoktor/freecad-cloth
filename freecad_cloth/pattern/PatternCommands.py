@@ -20,7 +20,6 @@ class _SketchDocumentObject(Protocol):
     Name: str
 
 
-
 def create_garment(name="Garment"):
     """Create a production FreeCAD document with the native garment hierarchy."""
     return create_garment_document(name=name, label="Garment")

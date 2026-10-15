@@ -31,9 +31,7 @@ class _EventApplication(Protocol):
     def processEvents(self) -> None: ...
 
 
-def events(
-    *, gui: ModuleType | None = None, application: _EventApplication | None = None
-) -> None:
+def events(*, gui: ModuleType | None = None, application: _EventApplication | None = None) -> None:
     """Process pending GUI events using the supplied host adapters when available."""
     if gui is None:
         import FreeCADGui as gui

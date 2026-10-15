@@ -37,9 +37,7 @@ class _NetworkTaskPanelState:
 _ACTIVE_NETWORK_TASK_PANEL_STATE = _NetworkTaskPanelState()
 
 
-def get_active_network_task_panel(
-    *, state: _NetworkTaskPanelState | None = None
-) -> object | None:
+def get_active_network_task_panel(*, state: _NetworkTaskPanelState | None = None) -> object | None:
     """Return the active task panel, optionally using an injected state holder."""
     active_state = _ACTIVE_NETWORK_TASK_PANEL_STATE if state is None else state
     return active_state.get()
