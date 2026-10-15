@@ -270,9 +270,11 @@ def _weighted_triangle_point(vertices, triangle, weights):
     )
 
 
-def _mesh_anchor_local_position(target, anchor):
+def _mesh_anchor_local_position(
+    target, anchor, *, vector_factory: Callable[..., object] | None = None
+):
     """Resolve a mesh anchor against current vertices, preserving its material location."""
-    topology = _mesh_topology(target)
+    topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
         return tuple(float(value) for value in anchor.get("local_point", (0.0, 0.0, 0.0)))
     vertices, triangles = topology
@@ -285,9 +287,11 @@ def _mesh_anchor_local_position(target, anchor):
     return _weighted_triangle_point(vertices, triangles[triangle_index], weights)
 
 
-def _mesh_anchor_coordinates(target, local_point):
+def _mesh_anchor_coordinates(
+    target, local_point, *, vector_factory: Callable[..., object] | None = None
+):
     """Find the closest mesh triangle and retain its barycentric hit coordinate."""
-    topology = _mesh_topology(target)
+    topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None:
         return None
     vertices, triangles = topology
