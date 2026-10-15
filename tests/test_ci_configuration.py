@@ -74,7 +74,6 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup
 
 
-
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash():
     from hashlib import sha256
 
