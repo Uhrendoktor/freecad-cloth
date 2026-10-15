@@ -532,9 +532,11 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
             current.pose.right_elbow_angle,
             tuple(values.values()),
         ),
-        3,
+        4,
         current.gender,
         current.breast_size,
+        current.phenotype_overrides,
+        current.local_change_overrides,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -578,9 +580,11 @@ def set_avatar_skin_offset(offset):
         current.measurements,
         float(offset),
         current.pose,
-        3,
+        4,
         current.gender,
         current.breast_size,
+        current.phenotype_overrides,
+        current.local_change_overrides,
     )
     return apply_avatar_parameters(obj, candidate)
 
