@@ -15,7 +15,7 @@ class _WidgetLayout(Protocol):
     def addWidget(self, widget: object) -> None: ...
 
 
-def _modules() -> tuple[object, object, object]:
+def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
