@@ -109,7 +109,7 @@ def _native_edge_records(piece):
     return records
 
 
-def _native_edge_record_for_sketch_index(piece, edge):
+def _native_edge_record_for_sketch_index(piece, edge, *, native_edge_records_fn=None):
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
@@ -126,7 +126,10 @@ def _native_edge_record_for_sketch_index(piece, edge):
         raise MissingEdgeReference(
             f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
         )
-    records = _native_edge_records(piece) or ()
+    read_native_records = (
+        _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
+    )
+    records = read_native_records(piece) or ()
     record = next((value for value in records if str(value["id"]) == semantic_id), None)
     if record is None:
         raise MissingEdgeReference(
@@ -135,9 +138,12 @@ def _native_edge_record_for_sketch_index(piece, edge):
     return record
 
 
-def _edge_records(piece):
+def _edge_records(piece, *, native_edge_records_fn=None):
     """Expose native semantic edge records, with a legacy outline fallback."""
-    native = _native_edge_records(piece)
+    read_native_records = (
+        _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
+    )
+    native = read_native_records(piece)
     if native is not None:
         return native
     points = _parse_points(getattr(piece, "SewingOutline", ""))
@@ -158,17 +164,19 @@ def _edge_records(piece):
     ]
 
 
-def _seam_edge_id(piece, edge, prefix):
+def _seam_edge_id(piece, edge, prefix, *, native_edge_records_fn=None):
     """Return the semantic edge id and captured signature for a seam side."""
-    records = _edge_records(piece)
+    records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
         proxy = getattr(piece, "Proxy", None)
         execute = getattr(proxy, "execute", None)
         if callable(execute):
             execute(piece)
-            records = _edge_records(piece)
+            records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     if isinstance(edge, int):
-        native = _native_edge_record_for_sketch_index(piece, edge)
+        native = _native_edge_record_for_sketch_index(
+            piece, edge, native_edge_records_fn=native_edge_records_fn
+        )
         if native is not None:
             record = native
         else:
