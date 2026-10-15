@@ -209,7 +209,9 @@ class SewingNetworkProxy:
     Type = "ClothSewingNetwork"
 
     def __init__(self, *, network_lengths_fn=None):
-        self._network_lengths_fn = _network_lengths if network_lengths_fn is None else network_lengths_fn
+        self._network_lengths_fn = (
+            _network_lengths if network_lengths_fn is None else network_lengths_fn
+        )
 
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties."""
