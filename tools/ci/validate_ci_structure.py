@@ -234,12 +234,16 @@ def main() -> int:
         )
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
+    full_validation_workflow = commit_workflow.split("  full-validation:", 1)[1].split(
+        "  scheduled-validation:", 1
+    )[0]
     if (
         "pull_request:" not in commit_workflow
         or "merge_group:" not in commit_workflow
         or "execution_mode: fast" not in commit_workflow
         or "execution_mode: full" not in commit_workflow
-        or "github.event.pull_request.draft == false" not in commit_workflow
+        or "if: ${{ github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch'" not in full_validation_workflow
+        or "github.event.pull_request" in full_validation_workflow
         or "name: Required pre-merge validation" not in commit_workflow
     ):
         raise SystemExit(
@@ -255,8 +259,8 @@ def main() -> int:
         )
     if (
         "Required validation gate" not in text
-        or "No successful full-validation run" not in text
-        or "for event in pull_request merge_group; do" not in text
+        or "No successful merge-group full-validation run" not in text
+        or "--event merge_group --status success" not in text
         or "Required pre-merge validation" not in commit_workflow
     ):
         raise SystemExit(
