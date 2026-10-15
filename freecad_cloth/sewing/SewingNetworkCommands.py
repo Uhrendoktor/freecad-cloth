@@ -16,12 +16,29 @@ def _selected_pattern_edges():
     return select_edges(allow_many=False)
 
 
-_ACTIVE_NETWORK_TASK_PANEL = None
+class _NetworkTaskPanelState:
+    """Hold the active task panel without exposing a replaceable module attribute."""
+
+    def __init__(self):
+        self._panel = None
+
+    def get(self):
+        """Return the most recently selected panel."""
+        return self._panel
+
+    def set(self, panel):
+        """Store and return a panel opened by a public command."""
+        self._panel = panel
+        return panel
 
 
-def get_active_network_task_panel():
-    """Return the sewing-network task panel most recently opened by a public command."""
-    return _ACTIVE_NETWORK_TASK_PANEL
+_ACTIVE_NETWORK_TASK_PANEL_STATE = _NetworkTaskPanelState()
+
+
+def get_active_network_task_panel(*, state=None):
+    """Return the active task panel, optionally using an injected state holder."""
+    active_state = _ACTIVE_NETWORK_TASK_PANEL_STATE if state is None else state
+    return active_state.get()
 
 
 def create_network_from_selection():
@@ -81,13 +98,11 @@ def create_free_sewing_from_selection(open_editor=True):
     network = add_sewing_network(doc, seam_objects, relationship_id, "SewingNetwork%d" % index)
     doc.recompute()
     if open_editor:
-        global _ACTIVE_NETWORK_TASK_PANEL
-        _ACTIVE_NETWORK_TASK_PANEL = show_sewing_network_task(network)
+        _ACTIVE_NETWORK_TASK_PANEL_STATE.set(show_sewing_network_task(network))
     return network
 
 
 def edit_selected_network():
-    global _ACTIVE_NETWORK_TASK_PANEL
     import FreeCADGui as Gui
 
     from freecad_cloth.sewing.SewingNetworkGui import show_sewing_network_task
@@ -102,8 +117,7 @@ def edit_selected_network():
     )
     if network is None:
         raise ValueError("select a sewing network before editing it")
-    _ACTIVE_NETWORK_TASK_PANEL = show_sewing_network_task(network)
-    return _ACTIVE_NETWORK_TASK_PANEL
+    return _ACTIVE_NETWORK_TASK_PANEL_STATE.set(show_sewing_network_task(network))
 
 
 def _has_selected_seams():
