@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from typing import Protocol, cast
 
 
 def _scene(doc):
@@ -432,33 +433,56 @@ _FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"
 _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 
 
-def _fitting_marker_group(doc: object, create: bool = False) -> object | None:
+class _FittingMarkerGroup(Protocol):
+    """Small structural interface for the FreeCAD presentation group."""
+
+    TypeId: str
+    Label: str
+    Name: str
+    Group: tuple[object, ...]
+
+    def addObject(self, obj: object) -> None: ...
+
+
+class _FittingDocument(Protocol):
+    """Document API used to organize generated marker features."""
+
+    Objects: tuple[object, ...]
+
+    def getObject(self, name: str) -> object | None: ...
+
+    def addObject(self, type_id: str, name: str) -> _FittingMarkerGroup: ...
+
+    def removeObject(self, name: str) -> None: ...
+
+
+def _fitting_marker_group(
+    doc: _FittingDocument, create: bool = False
+) -> _FittingMarkerGroup | None:
     """Return the presentation-only container for generated fitting display aids."""
-    group = getattr(doc, "getObject")(_FITTING_MARKER_GROUP_NAME)
+    group = doc.getObject(_FITTING_MARKER_GROUP_NAME)
     if group is None and create:
-        group = getattr(doc, "addObject")("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
+        group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
     if group is not None:
         if str(getattr(group, "TypeId", "")) != "App::DocumentObjectGroup":
             raise RuntimeError(
                 f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
                 "is used by a non-group object"
             )
-        setattr(group, "Label", _FITTING_MARKER_GROUP_LABEL)
+        group = cast(_FittingMarkerGroup, group)
+        group.Label = _FITTING_MARKER_GROUP_LABEL
     return group
 
 
-def _remove_stale_fitting_markers(doc: object, wanted_names: set[str]) -> None:
+def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str]) -> None:
     """Remove obsolete generated marker features, never authored geometry."""
-    remove_object = getattr(doc, "removeObject", None)
-    if not callable(remove_object):
-        return
-    for obj in tuple(getattr(doc, "Objects", ()) or ()):
+    for obj in tuple(doc.Objects or ()):
         name = str(getattr(obj, "Name", "") or "")
         role = str(getattr(obj, "FittingType", "") or "")
         is_arrangement_marker = role == "ArrangementPoint" and name.startswith("ArrangementPoint_")
         is_volume_marker = role == "BoundingVolume" and name.startswith("BoundingVolume_")
         if name and name not in wanted_names and (is_arrangement_marker or is_volume_marker):
-            remove_object(name)
+            doc.removeObject(name)
 
 
 def _sync_visuals(scene):
@@ -587,7 +611,7 @@ def _sync_visuals(scene):
             for marker in marker_objects:
                 marker_name = str(getattr(marker, "Name", "") or "")
                 if marker_name not in children:
-                    getattr(group, "addObject")(marker)
+                    group.addObject(marker)
                     children.add(marker_name)
         elif not tuple(getattr(group, "Group", ()) or ()):
             scene.Document.removeObject(str(getattr(group, "Name", "")))
