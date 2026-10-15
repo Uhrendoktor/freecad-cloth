@@ -435,7 +435,7 @@ class AvatarTaskPanel:
         self.advanced_content.setVisible(False)
 
         help_text = QtWidgets.QLabel(
-            "Advanced values override the fitted shape. Phenotypes use 0–1; body morphs use −1–1. "
+            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; body morphs use -1 to 1. "
             "Primary Gender blend and Breast fullness remain in Body shape."
         )
         help_text.setWordWrap(True)
@@ -540,9 +540,9 @@ class AvatarTaskPanel:
         box.setToolTip(
             f"Anny parameter: {name}\nDefault: {default:.3f}\n"
             + (
-                "Normalized phenotype, range 0–1. Applied after measurement fitting."
+                "Normalized phenotype, range 0 to 1. Applied after measurement fitting."
                 if kind == "phenotype"
-                else "Local body morph, range −1–1. Applied after measurement fitting."
+                else "Local body morph, range -1 to 1. Applied after measurement fitting."
             )
         )
         label.setToolTip(name)
@@ -634,7 +634,7 @@ class AvatarTaskPanel:
         """Filter parameter rows live across both advanced tabs."""
         query = str(text).strip().casefold()
         visible_by_group = {}
-        visible_by_page = {key: False for key in self._advanced_pages}
+        visible_by_page = dict.fromkeys(self._advanced_pages, False)
         for item in self._advanced_rows:
             matches = not query or query in str(item["row"].property("clothSearchText"))
             item["row"].setVisible(matches)
