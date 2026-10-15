@@ -60,7 +60,7 @@ def test_freecad_entry_points_remain_at_root():
     assert gui.count("initialize_workbenches(") == 1
 
 
-def test_classic_and_modern_loaders_share_registration_implementation():
+def test_classic_and_modern_loaders_share_registration_implementation() -> None:
     root = Path(__file__).resolve().parents[1]
     gui = (root / "freecad_cloth" / "gui.py").read_text(encoding="utf-8")
     for path in (
