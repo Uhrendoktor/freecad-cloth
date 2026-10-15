@@ -105,7 +105,7 @@ def test_sketcher_authority_matches_semantic_edge_endpoints():
         SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
     )
 
-    def record_for_edge(_obj, _edge):
+    def record_for_edge(_obj: object, _edge: object) -> dict[str, tuple[tuple[float, float], tuple[float, float]]]:
         return {"points": ((80.0, 50.0), (0.0, 50.0))}
 
     assert _native_edge(piece, 2, native_edge_record_fn=record_for_edge) is right
@@ -121,7 +121,7 @@ def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal(
     )
     seam = SimpleNamespace(EdgeAId="native-edge-7", EdgeASignature="signature", EdgeA=1)
 
-    def resolve_edge(_obj, edge_id, _signature):
+    def resolve_edge(_obj: object, edge_id: str, _signature: str) -> dict[str, str | int]:
         return {"id": edge_id, "ordinal": 1}
 
     assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 7
@@ -131,7 +131,7 @@ def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
     piece = SimpleNamespace(GeometryAuthority="Legacy")
     seam = SimpleNamespace(EdgeAId="legacy-edge-3", EdgeASignature="signature", EdgeA=3)
 
-    def resolve_edge(_obj, edge_id, _signature):
+    def resolve_edge(_obj: object, edge_id: str, _signature: str) -> dict[str, str | int]:
         return {"id": edge_id, "ordinal": 3}
 
     assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 3
