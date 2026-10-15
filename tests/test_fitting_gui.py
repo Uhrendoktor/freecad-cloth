@@ -152,7 +152,9 @@ def test_mesh_topology_normalizes_placement_transformed_vertices():
         "barycentric": (0.2, 0.3, 0.5),
         "local_point": (0.3, 0.5, 0.0),
     }
-    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+    assert _mesh_anchor_local_position(
+        target, anchor, vector_factory=lambda *point: tuple(point)
+    ) == (0.3, 0.5, 0.0)
 
 
 def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():
