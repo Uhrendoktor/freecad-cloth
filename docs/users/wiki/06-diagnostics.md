@@ -13,7 +13,7 @@ Use diagnostics only after the current simulation and target have passed validit
 1. Inspect the garment from **front, rear, left, right, top, and bottom**.
 2. In every view, check collision penetration, seam continuity, detached panels, self-intersection/inversion, and hem/opening shape.
 3. Review stress or drape diagnostics only when the result is current. Read any stale/invalid reason and rebuild the affected state before interpreting a map.
-4. If an issue appears, stop at the first visibly failing state and use the simple-collision ladder or [simulation review guide](../SIMULATION_REVIEW.md) to isolate the cause.
+4. If an issue appears, stop at the first visibly failing state and use the simple-collision ladder or [simulation review guide](../../developers/SIMULATION_REVIEW.md) to isolate the cause.
 5. Save or export only after the inspected result and its diagnostics describe the same document state.
 
 **Verify the result:** all views come from one current simulation result, the garment reads as one coherent object, and diagnostic interpretation does not depend on color alone or on a single flattering camera angle.
@@ -81,4 +81,4 @@ Relevant implementation/tests include:
 - <code>tests/freecad_pbd_contact_diagnostics.py</code>
 - <code>tests/freecad_screenshot_source.py</code>
 
-The release policy is documented in [docs/SIMULATION_REVIEW.md](../SIMULATION_REVIEW.md) and [docs/RELEASE_GATES.md](../RELEASE_GATES.md).
+The release policy is documented in [Simulation review](../../developers/SIMULATION_REVIEW.md) and [Release gates](../../developers/RELEASE_GATES.md).

@@ -97,10 +97,10 @@ def test_shared_contract_is_freecad_independent():
 
 def test_human_documentation_contract():
     root = Path(__file__).resolve().parents[1]
-    user_guide = root / "docs" / "USER_GUIDE.md"
+    user_guide = root / "docs" / "users" / "USER_GUIDE.md"
     docs_readme = root / "docs" / "README.md"
     assert user_guide.is_file()
-    assert "USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
+    assert "users/USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
 
 
 def test_canonical_workflow_pr_validation_contract():
@@ -296,7 +296,9 @@ def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned()
         assert f'("{workbench}",' in bootstrap
     assert (
         "loader layouts"
-        in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()
+        in (root / "docs" / "developers" / "PROJECT_STRUCTURE.md")
+        .read_text(encoding="utf-8")
+        .lower()
     )
 
 

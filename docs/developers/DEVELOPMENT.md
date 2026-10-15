@@ -1,4 +1,6 @@
-# Development and agent guide
+# Development guide
+
+This guide covers human development and validation workflows. AI-agent execution, task-prompt, and state-file guidance lives in [Agent workflow guidelines](../agents/WORKFLOW_GUIDELINES.md); the root [`AGENTS.md`](../../AGENTS.md) remains authoritative.
 
 ## Python runtime baseline
 
@@ -16,9 +18,9 @@ Use fully qualified package imports in implementation and tests, for example `fr
 
 Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation` own their domain implementations; `common` is infrastructure only; `shared` contains host/domain-neutral immutable contracts. Domain adapters belong with their owning domain. Duplicate implementation files and compatibility-only architectural namespaces are prohibited.
 
-## Agent-oriented verification
+## Automated quality and verification gates
 
-In addition to the normal lint/test gates, the development environment enforces deterministic safeguards for multi-agent reliability:
+The CI toolchain enforces deterministic quality safeguards in addition to the normal lint/test gates:
 
 - Blocking CI runs one Pyright configuration in standard mode across the reviewed headless/core inventory; a top-level `strict` path list opts the three deterministic simulation core modules into strict analysis. A second configuration is prohibited.
 - A syntax-aware AST policy gate blocks explicit `Any` references across Python source, including type aliases and variable/class annotations that Ruff ANN401 does not inspect.
@@ -31,7 +33,7 @@ In addition to the normal lint/test gates, the development environment enforces 
 - ty runs as a blocking type-check gate on the deterministic three-module core profile; warning-level diagnostics fail CI.
 - Pull-request CI rejects newly introduced Python clones across production code, tests, and CI tooling while tolerating legacy duplication.
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
-- Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
+- Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](../agents/AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
 
 These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
 
@@ -77,24 +79,6 @@ Choose the smallest evidence set that proves the change:
 
 A passing utility script is not a substitute for public workbench acceptance.
 
-## Agent execution contract
-
-Before changing code, verify the target branch HEAD and read only the canonical documentation relevant to the requested change. Inspect a governing issue/PR only when its number is known or the task is explicitly about its work.
-
-Do not enumerate the repository's entire issue/PR history. Do not ingest all open issues or PRs because they are linked from a task. Closed issues, merged PRs, old branches, historical runs and artifact archives are not current context.
-
-When a task depends on a live coordination issue, use the current issue body as the coordination summary and inspect child issues only for the specific hypothesis being tested. Do not treat historical child-issue prose as implementation authority.
-
-Re-cut implementation branches from the current target HEAD. Before merge: inspect the diff and changed files, verify terminal-green CI for the exact head, merge, verify the merge, then delete the source branch when permitted.
-
-When an issue is closed, use an explicit GitHub state reason (`completed`, `duplicate`, or `not_planned`) and record the reason in the issue conversation. Do not close an unresolved engineering problem merely to reduce queue size.
-
-## Task prompt contract
-
-For non-trivial agent work, use the seven-field prompt contract in the root `AGENTS.md`. That file is the canonical prompt schema; this document defines the execution behavior around it.
-
-Keep prompts bounded, omit historical conversations and large logs, and give links or identifiers so the agent can inspect only the relevant evidence.
-
 ## UI/UX contract
 
 Task panels follow **Context → Primary action → Secondary actions → Parameters → Recovery**.
@@ -110,10 +94,6 @@ Simulation presents target validity before Run/Step. `Run` is primary, `Step` is
 **MVP:** make a repeatable garment workflow with robust semantic references/topology repair, 1:N/M:N/free sewing, arrangement points, mannequin measurements/poses, generic CAD targets, quality/material presets, pinning and production-oriented 2D output.
 
 **Production:** add higher-fidelity replaceable human providers, richer target/subelement selection, fit/stress/strain/pressure diagnostics, grading/nesting/manufacturing validation, advanced construction and optional solver benchmarks.
-
-## Agent state
-
-Keep `AGENT_STATUS.md` and `TOOL_STATE.md` compact. They are current-state summaries, not historical experiment logs.
 
 ## Simulation review evidence
 

@@ -31,9 +31,14 @@ The overview shows the complete sequence and the resulting visual states. Each s
 
 ## Understand and audit the result
 
-- [End-to-end overview](00-overview.md) — workflow map, stage outputs, and common failure points.
-- [Data model, persistence, and architecture](07-data-model.md) — what is saved, what is rebuilt, and why the boundaries matter.
-- [Validation and visual evidence](08-validation.md) — automated acceptance, screenshot provenance, and human-review order.
+The [end-to-end overview](00-overview.md) maps the stages and expected outputs.
+
+## Engineering reference
+
+The pages below are developer references for understanding behavior behind the user workflow; they are not additional steps for operating the workbench.
+
+- [Data model, persistence, and architecture](../../developers/DATA_MODEL.md) — what is saved, rebuilt, and invalidated.
+- [Validation and visual evidence](../../developers/VALIDATION.md) — automated acceptance, screenshot provenance, and review order.
 
 ## How these pages are written
 
@@ -41,7 +46,7 @@ Feature pages begin with a practical workflow, then explain the feature, the res
 
 Screenshots should show the current UI or geometry that the text discusses. GIFs demonstrate changing state—such as selecting a seam, snapping a piece, or rotating a joint—but are optional visual aids: all required actions and expected results are also described in text. Color is never the only identifier for a seam.
 
-For the contributor rules behind the page structure, alt text, screenshots, provenance, and review checklist, see the [Documentation guide](../DOCUMENTATION_GUIDE.md).
+For the contributor rules behind the page structure, alt text, screenshots, provenance, and review checklist, see the [Documentation guide](../../developers/DOCUMENTATION_GUIDE.md).
 
 ## Visual evidence source and terminology
 

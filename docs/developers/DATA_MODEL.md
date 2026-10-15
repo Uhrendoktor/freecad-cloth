@@ -1,7 +1,7 @@
 # 07 · Data model, persistence and architecture
 
 
-Use this page when you need to decide whether a value should be edited, saved, rebuilt, or invalidated. For the user-facing sequence, begin with the [user guide](../USER_GUIDE.md); for recovery steps, use [troubleshooting](../TROUBLESHOOTING.md).
+Use this page when you need to decide whether a value should be edited, saved, rebuilt, or invalidated. For the user-facing sequence, begin with the [user guide](../users/USER_GUIDE.md); for recovery steps, use [troubleshooting](../users/TROUBLESHOOTING.md).
 
 ## The authority rule
 
@@ -96,4 +96,4 @@ PositionBasedDynamics is the production physics runtime.
 | Simulation | <code>freecad_cloth/simulation/</code> |
 | Shared diagnostics / document adapters | <code>freecad_cloth/common/</code> and <code>freecad_cloth/shared/</code> |
 
-For the full engineering contract, see [docs/ARCHITECTURE.md](../ARCHITECTURE.md) and [docs/PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md).
+For the full engineering contract, see [Architecture](ARCHITECTURE.md) and [Project structure](PROJECT_STRUCTURE.md).

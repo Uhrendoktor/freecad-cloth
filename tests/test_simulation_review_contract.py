@@ -8,7 +8,7 @@ def test_review_protocol_and_templates_exist():
     publisher = (ROOT / ".github/actions/publish-visual-evidence/action.yml").read_text(
         encoding="utf-8"
     )
-    protocol = (ROOT / "docs/SIMULATION_REVIEW.md").read_text(encoding="utf-8")
+    protocol = (ROOT / "docs/developers/SIMULATION_REVIEW.md").read_text(encoding="utf-8")
 
     assert "publish-pr-simulation-evidence:" in workflow
     assert "needs: [agent-quality, gui-tunic-visual]" in workflow

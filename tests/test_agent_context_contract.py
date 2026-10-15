@@ -22,15 +22,15 @@ def test_issue_agent_metadata_is_not_project_state():
 
 def test_repository_has_one_canonical_roadmap_and_no_duplicate_packaging_proposal():
     root_roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
-    assert root_roadmap.count("docs/ROADMAP.md") == 1
+    assert root_roadmap.count("docs/developers/ROADMAP.md") == 1
     assert "2026 Supervisor Replan" not in root_roadmap
     assert not (ROOT / "PACKAGING_PROPOSAL.md").exists()
 
 
 def test_planning_and_live_state_documents_are_explicitly_separated():
     docs_readme = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
-    roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
-    research = (ROOT / "docs" / "RESEARCH.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "docs" / "developers" / "ROADMAP.md").read_text(encoding="utf-8")
+    research = (ROOT / "docs" / "developers" / "RESEARCH.md").read_text(encoding="utf-8")
     assert "Use this page as the documentation map." in docs_readme
     assert "historical baseline" in roadmap
     assert "not a current implementation or release-status record" in research
@@ -43,7 +43,7 @@ def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue(
 
 
 def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
-    architecture = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture = (ROOT / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
     assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture
     assert "canonical immutable in-memory/value representation" in architecture
@@ -52,7 +52,7 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
 
 def test_packaging_metadata_has_explicit_authority_split():
     root = ROOT
-    architecture = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture = (root / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     manifest = (root / "package.xml").read_text(encoding="utf-8")
     pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
     assert "package.xml" in architecture
@@ -63,9 +63,13 @@ def test_packaging_metadata_has_explicit_authority_split():
 
 
 def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
-    feature_matrix = (ROOT / "docs" / "FEATURE_MATRIX.md").read_text(encoding="utf-8")
-    library = (ROOT / "docs" / "LIBRARY_EVALUATION.md").read_text(encoding="utf-8")
-    benchmark = (ROOT / "docs" / "BENCHMARK_DRIVEN_IMPROVEMENTS.md").read_text(encoding="utf-8")
+    feature_matrix = (ROOT / "docs" / "developers" / "FEATURE_MATRIX.md").read_text(
+        encoding="utf-8"
+    )
+    library = (ROOT / "docs" / "developers" / "LIBRARY_EVALUATION.md").read_text(encoding="utf-8")
+    benchmark = (ROOT / "docs" / "developers" / "BENCHMARK_DRIVEN_IMPROVEMENTS.md").read_text(
+        encoding="utf-8"
+    )
     assert "not an implementation checklist" in feature_matrix
     assert "Those issues are closed" in library
     assert "not a live task list" in benchmark
@@ -73,7 +77,7 @@ def test_historical_planning_docs_do_not_present_closed_issues_as_active_work():
 
 def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
     for path in (
-        ROOT / "docs" / "DEVELOPMENT.md",
+        ROOT / "docs" / "developers" / "DEVELOPMENT.md",
         ROOT / ".github" / "ISSUE_TEMPLATE" / "simulation-review.md",
     ):
         text = path.read_text(encoding="utf-8")
@@ -81,8 +85,8 @@ def test_live_coordination_documents_do_not_hardcode_a_specific_issue():
         assert "AGENT_STATUS.md" in text
 
 
-def test_development_guide_points_to_the_canonical_prompt_schema():
-    root = ROOT / "docs" / "DEVELOPMENT.md"
+def test_agent_guidelines_point_to_the_canonical_prompt_schema():
+    root = ROOT / "docs" / "agents" / "WORKFLOW_GUIDELINES.md"
     text = root.read_text(encoding="utf-8")
     assert "seven-field prompt contract in the root `AGENTS.md`" in text
     assert "1. Objective." not in text

@@ -53,7 +53,7 @@ library outputs with independent test/reference calculations before reporting ti
 
 The canonical GUI tests run inside the published FreeCAD CI environment because they exercise the actual GUI, solver backend and rendering path.
 
-The project keeps one canonical GitHub Actions workflow. See [DEVELOPMENT.md](DEVELOPMENT.md) for the validation matrix and [CI configuration](CI_CONFIGURATION.md) for the single authoritative runtime-budget setting.
+The project keeps one canonical GitHub Actions workflow. See [DEVELOPMENT.md](../developers/DEVELOPMENT.md) for the validation matrix and [CI configuration](../developers/CI_CONFIGURATION.md) for the single authoritative runtime-budget setting.
 
 ## Troubleshooting
 
