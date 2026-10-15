@@ -67,9 +67,7 @@ def test_maintenance_cleanup_receives_github_cli_token():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    cleanup = workflow.split("  maintenance-cleanup:", 1)[1].split(
-        "  artifact-budget:", 1
-    )[0]
+    cleanup = workflow.split("  maintenance-cleanup:", 1)[1].split("  artifact-budget:", 1)[0]
 
     assert "GH_TOKEN: ${{ github.token }}" in cleanup
     assert "actions: write" in cleanup
