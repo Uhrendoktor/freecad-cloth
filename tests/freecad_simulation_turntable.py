@@ -439,6 +439,10 @@ def build_simulation_state(doc):
 
 def main():
     total_started = time.monotonic()
+    documentation_capture_only = (
+        os.environ.get("CLOTH_DOCUMENTATION_CAPTURE_ONLY", "").strip().lower()
+        in {"1", "true", "yes"}
+    )
     with open(LOG, "w", encoding="utf-8"):
         pass
     window = wait_for_gui_ready()
@@ -487,75 +491,80 @@ def main():
         scene.Steps = steps
         doc.recompute()
         events()
-        if (
-            int(scene.Steps) != steps
-            or float(scene.SimulatedTime) <= 0.0
-            or not bool(scene.FiniteState)
-        ):
-            raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
-        if panel.Mesh.CountFacets <= 50:
-            raise RuntimeError("blanket drape mesh is too small")
-        final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
-        max_penetration = maximum_box_penetration(
-            final_positions,
-            (
-                float(cube.Shape.BoundBox.XMin),
-                float(cube.Shape.BoundBox.XMax),
-                float(cube.Shape.BoundBox.YMin),
-                float(cube.Shape.BoundBox.YMax),
-                float(cube.Shape.BoundBox.ZMin),
-                float(cube.Shape.BoundBox.ZMax),
-            ),
-        )
-        log(f"collision-penetration=passed max_penetration_mm={max_penetration:.3f}")
-        if max_penetration > 3.0:
-            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
-        log(
-            "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
-            % (
-                float(scene.ParticleDistance),
-                int(scene.SolverIterations),
-                int(scene.ParticleCount),
-                steps,
+        if documentation_capture_only:
+            log(
+                "stage=documentation-capture-only steps=%d simulated_time_s=%.3f"
+                % (steps, float(scene.SimulatedTime))
             )
-        )
-        initial_z = _center_z(initial_positions)
-        final_z = _center_z(final_positions)
-        displacement = abs(final_z - initial_z)
-        minimum_z = min(float(position[2]) for position in final_positions)
-        cube_top = float(cube.Shape.BoundBox.ZMax)
-        log(
-            f"blanket-motion-diagnostic max_centroid_displacement_mm={displacement:.2f} final_centroid_z_mm={final_z:.2f} min_z_mm={minimum_z:.2f} cube_top_z_mm={cube_top:.2f}"
-        )
-        log(
-            "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
-            % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
-        )
-        if displacement < 40.0:
-            raise RuntimeError(
-                f"blanket moved only {displacement:.2f} mm; expected real draping motion"
+        else:
+            if (
+                int(scene.Steps) != steps
+                or float(scene.SimulatedTime) <= 0.0
+                or not bool(scene.FiniteState)
+            ):
+                raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
+            if panel.Mesh.CountFacets <= 50:
+                raise RuntimeError("blanket drape mesh is too small")
+            final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
+            max_penetration = maximum_box_penetration(
+                final_positions,
+                (
+                    float(cube.Shape.BoundBox.XMin),
+                    float(cube.Shape.BoundBox.XMax),
+                    float(cube.Shape.BoundBox.YMin),
+                    float(cube.Shape.BoundBox.YMax),
+                    float(cube.Shape.BoundBox.ZMin),
+                    float(cube.Shape.BoundBox.ZMax),
+                ),
             )
-        if minimum_z > cube_top + 35.0:
-            raise RuntimeError(
-                f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
+            log(f"collision-penetration=passed max_penetration_mm={max_penetration:.3f}")
+            if max_penetration > 3.0:
+                raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
+            log(
+                "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
+                % (
+                    float(scene.ParticleDistance),
+                    int(scene.SolverIterations),
+                    int(scene.ParticleCount),
+                    steps,
+                )
             )
-
-        validation_started = time.monotonic()
-        log("stage=validation-start")
-        panel.ViewObject.Visibility = True
-        cube.ViewObject.Visibility = True
-        doc.recompute()
-        _shape, drape = validate_blanket_drape(panel, cube)
-        log(
-            "stage=validation-pass state={} clearance_mm={} elapsed_ms={:.1f}".format(
-                drape.state,
-                "none"
-                if drape.target_vertex_clearance is None
-                else f"{drape.target_vertex_clearance:.2f}",
-                1000.0 * (time.monotonic() - validation_started),
+            initial_z = _center_z(initial_positions)
+            final_z = _center_z(final_positions)
+            displacement = abs(final_z - initial_z)
+            minimum_z = min(float(position[2]) for position in final_positions)
+            cube_top = float(cube.Shape.BoundBox.ZMax)
+            log(
+                f"blanket-motion-diagnostic max_centroid_displacement_mm={displacement:.2f} final_centroid_z_mm={final_z:.2f} min_z_mm={minimum_z:.2f} cube_top_z_mm={cube_top:.2f}"
             )
-        )
-
+            log(
+                "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
+                % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
+            )
+            if displacement < 40.0:
+                raise RuntimeError(
+                    f"blanket moved only {displacement:.2f} mm; expected real draping motion"
+                )
+            if minimum_z > cube_top + 35.0:
+                raise RuntimeError(
+                    f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
+                )
+    
+            validation_started = time.monotonic()
+            log("stage=validation-start")
+            panel.ViewObject.Visibility = True
+            cube.ViewObject.Visibility = True
+            doc.recompute()
+            _shape, drape = validate_blanket_drape(panel, cube)
+            log(
+                "stage=validation-pass state={} clearance_mm={} elapsed_ms={:.1f}".format(
+                    drape.state,
+                    "none"
+                    if drape.target_vertex_clearance is None
+                    else f"{drape.target_vertex_clearance:.2f}",
+                    1000.0 * (time.monotonic() - validation_started),
+                )
+            )
         draped_started = time.monotonic()
         render_turntable(
             view,
