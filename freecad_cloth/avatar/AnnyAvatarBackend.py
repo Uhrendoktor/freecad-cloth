@@ -1004,8 +1004,11 @@ def _fitted_body_for(
     fit_hip: bool = True,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Return the cached shape and rig-indexed vertices for the selected fit contract."""
+    fit_measurement_keys = {name for name, _key in MEASUREMENT_FIELDS}
     measurement_values = {
-        str(name): float(value) for name, value in parameters.measurements.items()
+        str(name): float(value)
+        for name, value in parameters.measurements.items()
+        if str(name) in fit_measurement_keys
     }
     if not fit_hip:
         # Hip circumference controls visible hip surface only, not the skeleton.
