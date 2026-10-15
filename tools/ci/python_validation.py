@@ -128,6 +128,7 @@ GROUPS = {
         "tests/test_workbench_contract.py",
         "tests/test_shared_adapters.py",
         "tests/test_workbench_registration.py",
+        "tests/test_ui_design.py",
     ),
 }
 

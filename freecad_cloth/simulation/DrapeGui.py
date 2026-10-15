@@ -36,7 +36,7 @@ class DrapeTargetTaskPanel:
         root = QtWidgets.QVBoxLayout(self.form)
 
         title = QtWidgets.QLabel("Drape Target")
-        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        title.setProperty("clothRole", "title")
         root.addWidget(title)
 
         source_group = QtWidgets.QGroupBox("Collision object")
@@ -77,11 +77,18 @@ class DrapeTargetTaskPanel:
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         self.status.setObjectName("ClothDrapeTargetStatus")
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, "", state="info")
         root.addWidget(self.status)
 
         controls = QtWidgets.QHBoxLayout()
         self.apply_button = QtWidgets.QPushButton("Apply & Refresh")
         self.cancel_button = QtWidgets.QPushButton("Cancel")
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.apply_button, "primary")
+        mark_button(self.cancel_button, "secondary")
         controls.addWidget(self.apply_button)
         controls.addWidget(self.cancel_button)
         root.addLayout(controls)
@@ -95,6 +102,16 @@ class DrapeTargetTaskPanel:
         self.enabled.toggled.connect(self._preview_status)
         self.apply_button.clicked.connect(self._apply)
         self.cancel_button.clicked.connect(self.reject)
+
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
+
+    def _set_status(self, text: str, state: str = "info") -> None:
+        """Update task feedback using the shared semantic status treatment."""
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, text, state=state)
 
     def _find_target(self):
         if self.doc is None:
@@ -119,8 +136,9 @@ class DrapeTargetTaskPanel:
 
     def _load(self):
         if self.target is None:
-            self.status.setText(
-                "Create a Drape Target first, or select a mannequin/FreeCAD object."
+            self._set_status(
+                "Create a Drape Target first, or select a mannequin/FreeCAD object.",
+                state="warning",
             )
             self.apply_button.setEnabled(False)
             return
@@ -165,8 +183,9 @@ class DrapeTargetTaskPanel:
     def _preview_status(self, *_args):
         if self._loading:
             return
-        self.status.setText(
-            "Staged target edits. Apply & Refresh to rebuild collision geometry; Cancel leaves the document unchanged."
+        self._set_status(
+            "Staged target edits. Apply & Refresh to rebuild collision geometry; Cancel leaves the document unchanged.",
+            state="warning",
         )
 
     def _refresh_status(self):
@@ -177,7 +196,12 @@ class DrapeTargetTaskPanel:
         message = f"Target status: {state}"
         if reason:
             message += " — " + reason
-        self.status.setText(message)
+        self._set_status(
+            message,
+            state="error"
+            if state.lower() in {"invalid", "unassigned", "stale", "blocked", "error"}
+            else "info",
+        )
 
     def _selected_source(self):
         index = self.source.currentIndex()
@@ -191,7 +215,10 @@ class DrapeTargetTaskPanel:
         source = self._selected_source()
         target_type = str(self.target_type.currentText())
         if source is None:
-            self.status.setText("Select a collision object before applying the target.")
+            self._set_status(
+                "Select a collision object before applying the target.",
+                state="warning",
+            )
             return False
         from freecad_cloth.simulation.DrapeTarget import assign_drape_target
 

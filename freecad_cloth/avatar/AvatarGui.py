@@ -95,7 +95,7 @@ class AvatarTaskPanel:
 
         title_row = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel("Parametric Human Mannequin")
-        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        title.setProperty("clothRole", "title")
         title_row.addWidget(title)
         title_row.addStretch(1)
         self.dimension_gizmo_toggle = QtWidgets.QToolButton()
@@ -251,10 +251,13 @@ class AvatarTaskPanel:
 
         controls = QtWidgets.QHBoxLayout()
         self.apply_button = QtWidgets.QPushButton("Apply & Rebuild")
-        self.rebuild_button = QtWidgets.QPushButton("Rebuild")
+        self.rebuild_button = self.apply_button  # Compatibility alias; do not duplicate the action.
         self.fit_button = QtWidgets.QPushButton("Fit view")
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.apply_button, "primary")
+        mark_button(self.fit_button, "secondary")
         controls.addWidget(self.apply_button)
-        controls.addWidget(self.rebuild_button)
         controls.addWidget(self.fit_button)
         root.addLayout(controls)
 
@@ -283,7 +286,6 @@ class AvatarTaskPanel:
         self.skin_offset.valueChanged.connect(self._staged_changed)
         self.show_measurements.toggled.connect(self._landmarks_visibility_changed)
         self.apply_button.clicked.connect(self._apply)
-        self.rebuild_button.clicked.connect(self._apply)
         self.fit_button.clicked.connect(self._fit_view)
         self.pose_mode_button.clicked.connect(self._open_pose_mode)
         self.gender_slider.valueChanged.connect(self._shape_changed)
@@ -291,6 +293,10 @@ class AvatarTaskPanel:
         self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
         self._dimension_controller = None
         self._update_shape_enabled()
+
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
 
     def _open_pose_mode(self):
         if self.avatar is None:
@@ -732,18 +738,22 @@ class AvatarTaskPanel:
         self._update_landmarks()
 
     def _refresh_status(self, message=None):
+        from freecad_cloth.common.UiDesign import set_status
+
         if self.avatar is None:
-            self.status.setText(message or "No mannequin selected.")
+            set_status(self.status, message or "No mannequin selected.", state="warning")
             return
         suffix = " | staged changes" if self._dirty else ""
-        self.status.setText(
+        set_status(
+            self.status,
             message
             or "Avatar status: {} | provider: {} | pose: {}{}".format(
                 str(getattr(self.avatar, "AvatarStatus", "Unknown")),
                 str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08")),
                 str(getattr(self.avatar, "PosePreset", "standing")),
                 suffix,
-            )
+            ),
+            state="warning" if self._dirty else "info",
         )
 
     def _fit_view(self):

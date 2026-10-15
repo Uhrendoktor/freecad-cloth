@@ -52,6 +52,15 @@ class PatternTopologyRepairTaskPanel:
         )
         outer.addWidget(self.status)
 
+        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
+
+        set_status(
+            self.status,
+            self.status.text(),
+            state="warning" if self.rows else "info",
+        )
+        apply_panel_style(self.form)
+
     def accept(self):
         from freecad_cloth.pattern.PatternTopologyRepair import apply_repair_plan
 
@@ -61,14 +70,24 @@ class PatternTopologyRepairTaskPanel:
             if combo.currentData()
         ]
         if not repairs:
-            self.status.setText("Select at least one replacement edge before applying repair.")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.status,
+                "Select at least one replacement edge before applying repair.",
+                state="warning",
+            )
             return False
         try:
             plan = apply_repair_plan(self.doc, repairs)
         except Exception as exc:
-            self.status.setText(f"Repair failed: {exc}")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, f"Repair failed: {exc}", state="error")
             return False
-        self.status.setText("Repaired %d seam side(s)." % len(plan))
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, "Repaired %d seam side(s)." % len(plan), state="success")
         self.Gui.Control.closeDialog()
         return True
 

@@ -5,6 +5,7 @@ document transaction used by other sewing task panels. Commit closes that
 transaction; Cancel aborts it. The session itself is transient UI state only.
 """
 
+import contextlib
 import re
 from typing import ClassVar
 
@@ -270,6 +271,13 @@ class SewingCreationTaskPanel:
         self._refresh_selection()
         self.preview()
 
+        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
+
+        mark_button(self.preview_button, "secondary")
+        mark_button(self.commit_button, "primary")
+        mark_button(self.cancel_button, "secondary")
+        apply_panel_style(self.form)
+
     def _builder(self):
         if self.kind == "seam":
             from freecad_cloth.sewing.SewingCommands import create_seam_from_selection
@@ -305,10 +313,13 @@ class SewingCreationTaskPanel:
     def toggle_viewport_picking(self):
         if self._viewport_picking:
             self._stop_viewport_picking()
-            self.feedback.setText(
-                "Viewport picking paused. Press Preview to review the selected edges."
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.feedback,
+                "Viewport picking paused. Press Preview to review the selected edges.",
+                state="info",
             )
-            self.feedback.setStyleSheet("")
             self.commit_button.setEnabled(False)
             return
         self._start_viewport_picking()
@@ -349,17 +360,15 @@ class SewingCreationTaskPanel:
                 "Preview to validate the relationship."
             )
         self.feedback.setText(message)
-        self.feedback.setStyleSheet("")
+
         self.commit_button.setEnabled(False)
 
     def _stop_viewport_picking(self):
         if self._viewport_view is not None and self._viewport_callback is not None:
-            try:
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 self._viewport_view.removeEventCallback(
                     "SoMouseButtonEvent", self._viewport_callback
                 )
-            except (AttributeError, RuntimeError, TypeError):
-                pass
         self._viewport_view = None
         self._viewport_callback = None
         self._viewport_picking = False
@@ -383,14 +392,13 @@ class SewingCreationTaskPanel:
             self.feedback.setText(
                 "Pick an outline edge on a PatternPiece, not a face or sewing overlay."
             )
-            self.feedback.setStyleSheet("")
             return
         obj, component = candidate
         if any(previous is obj and edge == component for previous, edge in self._viewport_picks):
             return
         if self.kind == "seam" and self._viewport_picks and self._viewport_picks[0][0] is obj:
             self.feedback.setText("Choose the counterpart edge on a different PatternPiece.")
-            self.feedback.setStyleSheet("")
+
             return
         self._viewport_picks.append((obj, component))
         self.Gui.Selection.clearSelection()
@@ -403,7 +411,7 @@ class SewingCreationTaskPanel:
                     getattr(obj, "Label", obj.Name), component
                 )
             )
-            self.feedback.setStyleSheet("")
+
             return
         if self.kind == "seam" and len(self._viewport_picks) == 2:
             self._stop_viewport_picking()
@@ -411,20 +419,28 @@ class SewingCreationTaskPanel:
                 self._viewport_picks = []
                 self._refresh_selection()
             else:
-                self.feedback.setText(
-                    "Seam preview shown. Review the matching color and A/B labels, then Commit or Cancel."
+                from freecad_cloth.common.UiDesign import set_status
+
+                set_status(
+                    self.feedback,
+                    "Seam preview shown. Review the matching color and A/B labels, then Commit or Cancel.",
+                    state="success",
                 )
 
     def _show_error(self, exc):
-        self.feedback.setText(
-            f"Preview rejected: {exc!s}. Adjust the selection, then press Preview again."
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.feedback,
+            f"Preview rejected: {exc!s}. Adjust the selection, then press Preview again.",
+            state="error",
         )
-        self.feedback.setStyleSheet("font-weight: bold;")
         self.commit_button.setEnabled(False)
 
     def _show_status(self, text):
-        self.feedback.setText(text)
-        self.feedback.setStyleSheet("")
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.feedback, text, state="success")
         self.commit_button.setEnabled(True)
 
     def preview(self):

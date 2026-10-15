@@ -144,6 +144,11 @@ class DiagnosticsTaskPanel:
         self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
         self.map_button = QtWidgets.QPushButton("Create diagnostic map")
         self.export_button = QtWidgets.QPushButton("Export analysis data…")
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.refresh_button, "secondary")
+        mark_button(self.map_button, "primary")
+        mark_button(self.export_button, "secondary")
         layout.addWidget(self.refresh_button)
         layout.addWidget(self.map_button)
         layout.addWidget(self.export_button)
@@ -153,7 +158,13 @@ class DiagnosticsTaskPanel:
         layout.addStretch(1)
         self.refresh()
 
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
+
     def refresh(self):
+        from freecad_cloth.common.UiDesign import set_status
+
         try:
             from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
@@ -170,16 +181,20 @@ class DiagnosticsTaskPanel:
                     definition["formula"], definition["units"]
                 )
             )
-            self.status.setText(
+            set_status(
+                self.status,
                 "%s map: %d faces | range %.5g … %.5g | panels %d"
-                % (metric.title(), len(values), lo, hi, len(summaries))
+                % (metric.title(), len(values), lo, hi, len(summaries)),
+                state="success",
             )
             return summaries
         except RuntimeError as exc:
-            self.status.setText(str(exc))
+            set_status(self.status, str(exc), state="error")
             return []
 
     def export_data(self):
+        from freecad_cloth.common.UiDesign import set_status
+
         try:
             from freecad_cloth.simulation.ClothDiagnostics import export_json
 
@@ -193,21 +208,27 @@ class DiagnosticsTaskPanel:
             if not path:
                 return []
             export_json(_merge_results(panels), path)
-            self.status.setText(f"Exported deterministic analysis data: {path}")
+            set_status(
+                self.status, f"Exported deterministic analysis data: {path}", state="success"
+            )
             return path
         except (OSError, RuntimeError, ValueError, TypeError) as exc:
-            self.status.setText(str(exc))
+            set_status(self.status, str(exc), state="error")
             return []
 
     def create_map(self):
+        from freecad_cloth.common.UiDesign import set_status
+
         try:
             created = create_diagnostic_map(self.scene, str(self.metric.currentText()))
-            self.status.setText(
-                "Created %d %s diagnostic mesh map(s)." % (len(created), self.metric.currentText())
+            set_status(
+                self.status,
+                "Created %d %s diagnostic mesh map(s)." % (len(created), self.metric.currentText()),
+                state="success",
             )
             return created
         except RuntimeError as exc:
-            self.status.setText(str(exc))
+            set_status(self.status, str(exc), state="error")
             return []
 
     def accept(self):

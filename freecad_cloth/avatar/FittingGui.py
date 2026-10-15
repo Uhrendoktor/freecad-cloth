@@ -803,6 +803,7 @@ class FittingTaskPanel:
         context_layout = QtWidgets.QVBoxLayout(context)
         self.context = QtWidgets.QLabel()
         self.context.setWordWrap(True)
+        self.context.setProperty("clothRole", "hint")
         context_layout.addWidget(self.context)
         root.addWidget(context)
 
@@ -868,7 +869,7 @@ class FittingTaskPanel:
 
         self.controller = DirectArrangeController(
             self.scene,
-            status_callback=self.status.setText,
+            status_callback=self._set_status,
             snap_enabled=True,
         )
         self.anchor_picker = ViewportAnchorPicker(self)
@@ -879,6 +880,19 @@ class FittingTaskPanel:
         self.fit_button.clicked.connect(self._fit_view)
         self._refresh_context()
         self.controller.activate()
+
+        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
+
+        mark_button(self.reset_button, "secondary")
+        mark_button(self.fit_button, "secondary")
+        mark_button(self.pick_surface_button, "primary")
+        apply_panel_style(self.form)
+
+    def _set_status(self, text: str, state: str = "info") -> None:
+        """Update arrange/fit feedback using the shared status vocabulary."""
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, text, state=state)
 
     def _next_anchor_name(self):
         """Return a predictable name not already used by a saved snap point."""
@@ -933,11 +947,11 @@ class FittingTaskPanel:
 
             reset_arrangement()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText(f"Reset unavailable — {exc}")
+            self._set_status(f"Reset unavailable — {exc}", state="error")
             return
         self._refresh_context()
         self._fit_view()
-        self.status.setText("Arrangement reset to the saved starting positions.")
+        self._set_status("Arrangement reset to the saved starting positions.", state="success")
 
     def _fit_view(self):
         """Fit the active FreeCAD view to the fitting scene."""

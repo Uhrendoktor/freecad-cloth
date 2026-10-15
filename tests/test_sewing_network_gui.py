@@ -93,9 +93,22 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning():
     class Label:
         def __init__(self):
             self.text = None
+            self.properties = {}
 
         def setText(self, text):
             self.text = text
+
+        def setWordWrap(self, _value: bool) -> None:
+            pass
+
+        def setProperty(self, name: str, value: str) -> None:
+            self.properties[name] = value
+
+        def style(self) -> None:
+            return None
+
+        def update(self) -> None:
+            pass
 
     class Network:
         Status = "Invalid"
@@ -218,9 +231,22 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning():
     class Label:
         def __init__(self):
             self.text = ""
+            self.properties = {}
 
         def setText(self, text):
             self.text = text
+
+        def setWordWrap(self, _value: bool) -> None:
+            pass
+
+        def setProperty(self, name: str, value: str) -> None:
+            self.properties[name] = value
+
+        def style(self) -> None:
+            return None
+
+        def update(self) -> None:
+            pass
 
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
     panel.network = Network()
@@ -489,9 +515,22 @@ def test_sewing_task_panel_accept_persists_relative_tolerance():
     class Label:
         def __init__(self):
             self.text = ""
+            self.properties = {}
 
         def setText(self, text):
             self.text = text
+
+        def setWordWrap(self, _value: bool) -> None:
+            pass
+
+        def setProperty(self, name: str, value: str) -> None:
+            self.properties[name] = value
+
+        def style(self) -> None:
+            return None
+
+        def update(self) -> None:
+            pass
 
     class Button:
         def setText(self, text):

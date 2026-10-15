@@ -873,7 +873,7 @@ class AvatarPoseTaskPanel:
 
         header = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel("Pose Mode")
-        title.setStyleSheet("font-weight: bold; font-size: 15px;")
+        title.setProperty("clothRole", "title")
         header.addWidget(title)
         header.addStretch(1)
         root.addLayout(header)
@@ -917,7 +917,7 @@ class AvatarPoseTaskPanel:
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
         self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
-        self.selected_label.setStyleSheet("font-weight: bold;")
+        self.selected_label.setProperty("clothRole", "subtitle")
         selected_layout.addWidget(self.selected_label)
 
         self.instruction_label = QtWidgets.QLabel(
@@ -992,12 +992,22 @@ class AvatarPoseTaskPanel:
         self.reset_button.setToolTip(
             "Clear manual joint rotations and return to the active preset baseline."
         )
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.reset_button, "secondary")
         action_row.addWidget(self.reset_button)
         action_row.addStretch(1)
         root.addLayout(action_row)
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.status,
+            "Ready — select a joint in the 3D view or choose a pose preset.",
+            state="info",
+        )
         root.addWidget(self.status)
 
         self._staged_joint_rotations = {}
@@ -1011,6 +1021,10 @@ class AvatarPoseTaskPanel:
 
         self.controller = SkeletonPoseController(self)
         self.controller.activate()
+
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
 
     def _find_avatar(self):
         doc = self.App.ActiveDocument

@@ -104,13 +104,26 @@ class SewingCreationSessionContractTests(unittest.TestCase):
         class _Label:
             def __init__(self):
                 self.text = ""
-                self.style = ""
+                self.style_sheet = ""
+                self.properties = {}
 
             def setText(self, value):
                 self.text = value
 
+            def setWordWrap(self, value: bool) -> None:
+                self.word_wrap = value
+
+            def setProperty(self, name: str, value: str) -> None:
+                self.properties[name] = value
+
+            def style(self) -> None:
+                return None
+
+            def update(self) -> None:
+                pass
+
             def setStyleSheet(self, value):
-                self.style = value
+                self.style_sheet = value
 
         class _Button:
             def __init__(self):

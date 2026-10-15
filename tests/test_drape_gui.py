@@ -59,9 +59,22 @@ class _Scalar:
 class _Status:
     def __init__(self):
         self.text = ""
+        self.properties = {}
 
     def setText(self, value):
         self.text = str(value)
+
+    def setWordWrap(self, _value: bool) -> None:
+        pass
+
+    def setProperty(self, name: str, value: str) -> None:
+        self.properties[name] = value
+
+    def style(self) -> None:
+        return None
+
+    def update(self) -> None:
+        pass
 
 
 def _panel():
