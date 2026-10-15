@@ -8,6 +8,7 @@ differentiable measurements before Cloth applies its authored pose.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import field
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -134,6 +135,8 @@ class AvatarParameters:
     gender: float = 0.5
     # Additional breast projection beyond the neutral base shape, 0..1.
     breast_size: float = 0.0
+    phenotype_overrides: dict[str, float] = field(default_factory=dict)
+    local_change_overrides: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         values = dict(DEFAULT_MEASUREMENTS)
@@ -141,11 +144,21 @@ class AvatarParameters:
         object.__setattr__(self, "measurements", values)
         object.__setattr__(self, "gender", float(self.gender))
         object.__setattr__(self, "breast_size", float(self.breast_size))
+        object.__setattr__(
+            self,
+            "phenotype_overrides",
+            {str(k): float(v) for k, v in self.phenotype_overrides.items()},
+        )
+        object.__setattr__(
+            self,
+            "local_change_overrides",
+            {str(k): float(v) for k, v in self.local_change_overrides.items()},
+        )
         self.validate()
 
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
-        if self.schema_version != 3:
+        if self.schema_version != 4:
             raise ValueError("unsupported avatar schema version")
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
@@ -166,6 +179,20 @@ class AvatarParameters:
             raise ValueError("gender blend must be between 0 (feminine) and 1 (masculine)")
         if not 0.0 <= float(self.breast_size) <= 1.0:
             raise ValueError("breast size must be between 0 and 1")
+        if any(not name.strip() for name in self.phenotype_overrides):
+            raise ValueError("Anny phenotype override names cannot be empty")
+        if any(name in {"gender", "cupsize"} for name in self.phenotype_overrides):
+            raise ValueError("gender and cupsize are controlled by the primary body-shape sliders")
+        for name, value in self.phenotype_overrides.items():
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f"Anny phenotype override {name!r} must be between 0 and 1")
+        if any(not name.strip() for name in self.local_change_overrides):
+            raise ValueError("Anny morph override names cannot be empty")
+        if "breast-volume-vert-up" in self.local_change_overrides:
+            raise ValueError("breast fullness is controlled by the primary body-shape slider")
+        for name, value in self.local_change_overrides.items():
+            if not math.isfinite(value) or not -1.0 <= value <= 1.0:
+                raise ValueError(f"Anny local morph override {name!r} must be between -1 and 1")
         if not isinstance(self.pose, Pose):
             raise TypeError("pose must be a Pose")
         self.pose.validate()
@@ -181,7 +208,14 @@ class AvatarParameters:
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(
-            values, self.skin_offset, self.pose, self.schema_version, self.gender, self.breast_size
+            values,
+            self.skin_offset,
+            self.pose,
+            self.schema_version,
+            self.gender,
+            self.breast_size,
+            self.phenotype_overrides,
+            self.local_change_overrides,
         )
 
     def to_json(self) -> str:
@@ -191,6 +225,10 @@ class AvatarParameters:
             {
                 "schema_version": self.schema_version,
                 "units": "mm",
+                "anny_overrides": {
+                    "phenotypes": dict(sorted(self.phenotype_overrides.items())),
+                    "local_changes": dict(sorted(self.local_change_overrides.items())),
+                },
                 "shape": {
                     "gender": float(self.gender),
                     "breast_size": float(self.breast_size),
@@ -219,7 +257,7 @@ class AvatarParameters:
         if data.get("units", "mm") != "mm":
             raise ValueError("avatar presets must use millimetres")
         source_version = int(data.get("schema_version", 1))
-        if source_version not in (1, 2, 3):
+        if source_version not in (1, 2, 3, 4):
             raise ValueError("unsupported avatar schema version")
         p = data.get("pose", {})
         preset = str(p.get("preset", "standing"))
@@ -252,13 +290,20 @@ class AvatarParameters:
             ),
         )
         shape = data.get("shape", {}) if source_version >= 3 else {}
+        anny_overrides = data.get("anny_overrides", {}) if source_version >= 4 else {}
+        phenotype_overrides = anny_overrides.get("phenotypes", {})
+        local_change_overrides = anny_overrides.get("local_changes", {})
+        if not isinstance(phenotype_overrides, dict) or not isinstance(local_change_overrides, dict):
+            raise ValueError("Anny overrides must contain parameter-to-number objects")
         return cls(
             data.get("measurements", {}),
             float(data.get("skin_offset", 0)),
             pose,
-            3,
+            4,
             float(shape.get("gender", 0.5)),
             float(shape.get("breast_size", 0.0)),
+            phenotype_overrides,
+            local_change_overrides,
         )
 
 
