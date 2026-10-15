@@ -11,7 +11,11 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
+WORKFLOW_DIR = ROOT / ".github/workflows"
+WORKFLOW = WORKFLOW_DIR / "canonical-execution.yml"
+COMMIT_VALIDATION_WORKFLOW = WORKFLOW_DIR / "commit-validation.yml"
+MAIN_PUBLICATION_WORKFLOW = WORKFLOW_DIR / "main-publication.yml"
+WORKFLOW_FILES = tuple(sorted((WORKFLOW, COMMIT_VALIDATION_WORKFLOW, MAIN_PUBLICATION_WORKFLOW)))
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
 TY_CONFIG = ROOT / "ty.toml"
@@ -214,13 +218,24 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
 
 def main() -> int:
     """Validate the repository CI structure and hard runtime contracts."""
-    files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
-    if files != [WORKFLOW]:
-        raise SystemExit(f"expected exactly one canonical workflow, found: {files}")
+    files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
+    if files != WORKFLOW_FILES:
+        raise SystemExit(f"expected thin commit/main entry points plus one reusable workflow, found: {files}")
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
-    if len(lines) > 600:
-        raise SystemExit(f"canonical workflow is {len(lines)} lines; limit is 600")
+    if len(lines) > 750:
+        raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
+    trigger_block = text.split("\\nconcurrency:", 1)[0]
+    if "workflow_call:" not in trigger_block or re.search(r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block):
+        raise SystemExit("canonical-execution.yml must be callable only; event triggers belong in the two entry workflows")
+    commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+    publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
+    if "pull_request:" not in commit_workflow or "merge_group:" not in commit_workflow or "&& 'fast' ||" not in commit_workflow:
+        raise SystemExit("commit-validation.yml must run fast PR feedback and full merge-group validation")
+    if "push:" not in publication_workflow or "branches: [main]" not in publication_workflow or "execution_mode: publication" not in publication_workflow:
+        raise SystemExit("main-publication.yml must be main-only and call canonical publication mode")
+    if "Required validation gate" not in text or "No successful merge-group full-validation run" not in text:
+        raise SystemExit("reusable workflow must enforce mode-specific validation and refuse unvalidated publication")
     if "pull_request_target" in text:
         raise SystemExit("pull_request_target is forbidden")
     missing_typecheck = missing_typecheck_commands(text)

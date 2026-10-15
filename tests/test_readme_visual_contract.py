@@ -236,3 +236,37 @@ def test_wiki_visual_generation_is_limited_to_publication_events() -> None:
         "  publish-pr-simulation-evidence:", 1
     )[0]
     assert visual_block.count("if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}") == 3
+
+
+def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized():
+    workflows = ROOT / ".github" / "workflows"
+    shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
+    commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
+    publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
+    trigger_header = shared.split("\\nconcurrency:", 1)[0]
+
+    assert "workflow_call:" in trigger_header
+    assert "  push:" not in trigger_header
+    assert "  pull_request:" not in trigger_header
+    assert "  merge_group:" not in trigger_header
+    assert "pull_request:" in commits
+    assert "merge_group:" in commits
+    assert "&& 'fast' ||" in commits
+    assert "push:" in publication
+    assert "branches: [main]" in publication
+    assert "execution_mode: publication" in publication
+    assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
+    assert "Required validation gate" in shared
+
+
+def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    assert "source_tree" in workflow
+    assert "No successful merge-group full-validation run" in workflow
+    assert 'build_visual_gif_set("turntables", Path("turntables"))' in publisher
+    assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher

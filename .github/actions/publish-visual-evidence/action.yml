@@ -26,6 +26,10 @@ inputs:
     description: Exact PR HEAD SHA for PR evidence.
     required: false
     default: ""
+  artifact-run-id:
+    description: Successful full-validation run whose artifacts represent the exact source tree.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -47,48 +51,70 @@ runs:
       with:
         name: readme-turntables
         path: turntables
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download blanket visual artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: blanket-visual-example
         path: blanket
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download tunic visual artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: tunic-visual-audit
         path: tunic
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download Pose Mode artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: avatar-pose-ui
         path: avatar-pose-ui
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download avatar shape editor artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: avatar-shape-editor
         path: avatar-shape-editor
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download arrange artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: interactive-arrange
         path: interactive-arrange
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download sewing UI artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: sewing-creation-smoke
         path: sewing
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download Surface Pen artifacts
       if: inputs.mode == 'main'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: surface-pen
         path: surface-pen
+        run-id: ${{ inputs.artifact-run-id || github.run_id }}
+        github-token: ${{ github.token }}
+    - name: Download main avatar documentation assets
+      if: inputs.mode == 'main'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: avatar-documentation-assets
+        path: avatar-doc-assets
     - name: Publish main visual evidence
       if: inputs.mode == 'main'
       shell: bash

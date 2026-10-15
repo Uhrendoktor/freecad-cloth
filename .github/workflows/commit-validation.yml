@@ -1,0 +1,61 @@
+name: Commit validation
+run-name: Commit validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+    inputs:
+      runner_mode:
+        description: Trusted execution mode; local prefers self-hosted Docker, hosted uses GitHub-hosted runners.
+        required: false
+        type: choice
+        default: local
+        options: [local, hosted]
+      fallback_source_run:
+        description: Original run ID when invoked as an automatic hosted fallback.
+        required: false
+        type: string
+        default: ""
+      diagnostic_controls:
+        description: Run diagnostic-only PBD contact controls.
+        required: false
+        type: boolean
+        default: false
+      execution_mode:
+        description: Manually dispatched runs default to full validation; PR pushes use fast feedback automatically.
+        required: false
+        type: choice
+        default: full
+        options: [full]
+      pr_number:
+        description: Optional PR number for explicitly requested full validation and simulation evidence.
+        required: false
+        type: string
+        default: ""
+  schedule:
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('commit-validation-pr-{0}', github.event.pull_request.number) || (github.event_name == 'merge_group' && format('commit-validation-merge-group-{0}', github.sha) || format('commit-validation-{0}-{1}-{2}', github.event_name, github.ref, github.workflow)) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+
+permissions:
+  actions: write
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  execute:
+    name: Execute canonical checks
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: ${{ github.event_name == 'pull_request' && 'fast' || (github.event_name == 'merge_group' && 'full' || (github.event_name == 'schedule' && 'scheduled' || inputs.execution_mode || 'full')) }}
+      runner_mode: ${{ github.event_name == 'merge_group' && 'hosted' || inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
+      fallback_source_run: ${{ inputs.fallback_source_run || '' }}
+      diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
+      pr_number: ${{ inputs.pr_number || '' }}
+    secrets: inherit

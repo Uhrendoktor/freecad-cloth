@@ -1,0 +1,41 @@
+name: Main documentation publication
+run-name: Main documentation publication
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      runner_mode:
+        description: Trusted execution mode; local prefers self-hosted Docker, hosted uses GitHub-hosted runners.
+        required: false
+        type: choice
+        default: local
+        options: [local, hosted]
+      fallback_source_run:
+        description: Original run ID when invoked as an automatic hosted fallback.
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ github.event_name == 'push' && format('main-publication-push-{0}', github.sha) || format('main-publication-{0}-{1}', github.event_name, github.ref) }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  publish:
+    name: Publish main documentation assets
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: publication
+      runner_mode: ${{ inputs.runner_mode || 'local' }}
+      fallback_source_run: ${{ inputs.fallback_source_run || '' }}
+      diagnostic_controls: false
+      pr_number: ""
+    secrets: inherit

@@ -20,6 +20,7 @@ ARTIFACT_ROOTS = (
     Path("interactive-arrange"),
     Path("sewing"),
     Path("surface-pen"),
+    Path("avatar-doc-assets"),
 )
 
 
@@ -41,22 +42,22 @@ def find_asset(asset: str) -> Path:
     raise SystemExit(f"generated visual asset not found: {asset}")
 
 
-def build_tunic_gif() -> None:
-    """Build the tunic motion GIF when it is not already present."""
-    output = Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif")
-    if output.is_file() and output.stat().st_size:
-        return
-    frames = sorted(
-        Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion-frames").glob("motion-*.png")
-    )
-    if not frames:
-        raise SystemExit("cannot build tunic motion GIF: frames are missing")
+def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
+    """Build documentation GIFs from the downloaded validation artifact layout."""
+    output_root = artifact_root / "docs" / "images" / "generated"
+    entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
+    output_root.mkdir(parents=True, exist_ok=True)
+    for entry in entries:
+        target = output_root / entry.name
+        if target.exists() or target.is_symlink():
+            raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
+        shutil.move(str(entry), str(target))
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
-        ["python3", str(source), "tunic"],
+        ["python3", str(source), kind],
         check=True,
         timeout=55,
-        cwd=Path("tunic"),
+        cwd=artifact_root,
     )
 
 
@@ -87,7 +88,9 @@ def main() -> int:
 
     source_root = Path.cwd()
     expected = documented_assets(source_root)
-    build_tunic_gif()
+    build_visual_gif_set("turntables", Path("turntables"))
+    build_visual_gif_set("blanket", Path("blanket"))
+    build_visual_gif_set("tunic", Path("tunic"))
     build_surface_pen_gif()
 
     worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "cloth-screenshot-publish"
