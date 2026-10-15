@@ -162,6 +162,7 @@ class SewingNetworkTests(unittest.TestCase):
             LengthDifference=6.0,
             RelativeTolerance=0.05,
         )
+
         def network_lengths(_seams):
             return 100.0, 106.0
 
