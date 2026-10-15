@@ -46,18 +46,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 permissions:
-  actions: read
-  contents: read
-  packages: read
+  actions: write
+  contents: write
+  packages: write
+  pull-requests: write
 
 jobs:
   fast-feedback:
     name: Fast PR feedback
     if: ${{ github.event_name == 'pull_request' }}
-    permissions:
-      actions: read
-      contents: read
-      packages: read
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
@@ -87,10 +84,6 @@ jobs:
   scheduled-validation:
     name: Scheduled static validation
     if: ${{ github.event_name == 'schedule' }}
-    permissions:
-      actions: read
-      contents: read
-      packages: read
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: scheduled
