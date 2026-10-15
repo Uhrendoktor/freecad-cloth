@@ -479,8 +479,9 @@ Implementation decisions:
 - Load the advanced parameter editor only when opened. Search covers original API labels, categories group related controls, and a single reset clears all advanced overrides.
 - Persist only non-default phenotype/morph overrides. The existing gender-blend and breast-fullness sliders remain the primary controls for those two values, avoiding duplicate widgets.
 - Apply advanced overrides after the differentiable measurement fit. This makes them genuine shape parameters, but means a manual phenotype/morph can deliberately take precedence over one or more requested measurements. The UI and documentation must explain this ordering.
-- Expand the measurement-target inputs for stomach circumference and sleeve length because clad-body documents them as differentiable for Anny. Other stored garment measures are still editable and persistent, but are not described as independent fit guarantees unless the current objective actually constrains them.
-- Keep body morph parameters distinct from pose/joint rotations; the existing Pose Mode remains the authoritative editor for the skeleton. Do not mix facial-action animation controls into the garment-measurement editor.
+- Expose all 25 entries in the clad-body registry according to their role: the editor stores the full set of usable garment lengths/circumferences, the fitting objective directly constrains its differentiable targets, body mass is an optional native-kg target, and volume/BMI/body-fat/belly-depth remain derived outputs rather than editable shape inputs.
+- The current differentiable target list includes stomach circumference and sleeve length in addition to the previous measurements; this also includes an optional mass target that tunes the global weight phenotype. Other stored garment measures remain editable but are explicitly marked as saved/reference dimensions rather than direct surface-fit constraints.
+- Keep body morph parameters distinct from pose/joint rotations; the existing Pose Mode remains the authoritative editor for the skeleton. Keep the searchable advanced section lazy-loaded and use it to expose every phenotype plus all paired local morphs declared by the installed Anny assets.
 
 References checked on 2026-10-15:
 
