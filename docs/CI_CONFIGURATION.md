@@ -32,3 +32,26 @@ python tools/ci/timeout_contract.py
 ```
 
 Changing that one value changes the effective FreeCAD application budget without a search-and-replace across workflow jobs.
+
+## Repository retention policy
+
+The canonical workflow's retention job runs daily at 03:00 UTC. A one-shot run can
+also be activated by a commit pushed to `main` whose title starts with
+`RUN MAINTENANCE CLEANUP`. The cleanup step passes the workflow token to the GitHub
+CLI; repository write permissions alone do not authenticate `gh`.
+
+The cleanup script uses conservative age and reference checks:
+
+- Delete only `agent/*` branches whose latest commit activity is older than 14 days
+  and whose branch is not the head of an open pull request.
+- Delete only completed Actions runs older than 30 days, oldest first, up to 100
+  runs per execution. Active/queued runs are not selected.
+- Prune at most 50 PBD validation container versions per execution, and only when
+  their versions are older than 30 days and their immutable tags are not used by
+  `main`, open pull-request heads, or recent/active workflow-run commits. Missing
+  or unverifiable tag metadata is retained.
+- The `freecad-ci` base image is not a target of package cleanup.
+
+If a run fails, inspect the maintenance job log before retrying. A failed listing
+or permission check should stop cleanup before deletions; do not replace these checks
+with age-only deletion.
