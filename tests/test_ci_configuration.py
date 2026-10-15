@@ -96,6 +96,7 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
         in artifact_budget
     )
 
+
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     from hashlib import sha256
 
