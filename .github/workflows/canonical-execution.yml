@@ -452,7 +452,14 @@ jobs:
           checkout: "false"
           test-script: tests/freecad_avatar_screenshot.py
           log-file: artifacts/avatar-gallery-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=0\nCLOTH_AVATAR_GALLERY_END=3\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          log-file: artifacts/avatar-gallery-final-progress.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=3\nCLOTH_AVATAR_GALLERY_END=7\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -485,7 +492,6 @@ jobs:
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
     needs: [agent-quality, gui-tunic-visual]
@@ -506,7 +512,6 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
-
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
     concurrency:
@@ -532,7 +537,6 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
           run-number: ${{ github.run_number }}
-
   maintenance-cleanup:
     name: Repository retention cleanup
     needs: [agent-quality]
@@ -568,7 +572,6 @@ jobs:
           VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
           VISUAL_PUBLISH_REQUIRED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
         run: python3 tools/ci/check_visual_assets_and_budget.py
-
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
