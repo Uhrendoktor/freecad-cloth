@@ -44,6 +44,7 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source
 
+
 def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters():
     source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(
         encoding="utf-8"
