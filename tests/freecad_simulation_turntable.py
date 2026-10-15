@@ -439,10 +439,9 @@ def build_simulation_state(doc):
 
 def main():
     total_started = time.monotonic()
-    documentation_capture_only = (
-        os.environ.get("CLOTH_DOCUMENTATION_CAPTURE_ONLY", "").strip().lower()
-        in {"1", "true", "yes"}
-    )
+    documentation_capture_only = os.environ.get(
+        "CLOTH_DOCUMENTATION_CAPTURE_ONLY", ""
+    ).strip().lower() in {"1", "true", "yes"}
     with open(LOG, "w", encoding="utf-8"):
         pass
     window = wait_for_gui_ready()
@@ -502,7 +501,9 @@ def main():
                 or float(scene.SimulatedTime) <= 0.0
                 or not bool(scene.FiniteState)
             ):
-                raise RuntimeError("blanket simulation did not reach a finite %d-step state" % steps)
+                raise RuntimeError(
+                    "blanket simulation did not reach a finite %d-step state" % steps
+                )
             if panel.Mesh.CountFacets <= 50:
                 raise RuntimeError("blanket drape mesh is too small")
             final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
@@ -539,7 +540,11 @@ def main():
             )
             log(
                 "stage=simulation-pass steps=%d simulated_time_s=%.3f elapsed_ms=%.1f"
-                % (steps, float(scene.SimulatedTime), 1000.0 * (time.monotonic() - simulation_started))
+                % (
+                    steps,
+                    float(scene.SimulatedTime),
+                    1000.0 * (time.monotonic() - simulation_started),
+                )
             )
             if displacement < 40.0:
                 raise RuntimeError(
