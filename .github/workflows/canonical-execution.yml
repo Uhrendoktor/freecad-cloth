@@ -128,8 +128,6 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" -e ".[dev]"
       - name: Python and architecture checks
-        env:
-          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           python -m compileall -q tests tools/ci
