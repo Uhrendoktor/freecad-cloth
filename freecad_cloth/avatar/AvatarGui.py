@@ -486,6 +486,7 @@ class AvatarTaskPanel:
             {
                 "name": name,
                 "kind": kind,
+                "page": page_key,
                 "row": row,
                 "group": group_data["widget"],
                 "box": box,
@@ -558,12 +559,23 @@ class AvatarTaskPanel:
         """Filter parameter rows live across both advanced tabs."""
         query = str(text).strip().casefold()
         visible_by_group = {}
+        visible_by_page = {key: False for key in self._advanced_pages}
         for item in self._advanced_rows:
             matches = not query or query in str(item["row"].property("clothSearchText"))
             item["row"].setVisible(matches)
             visible_by_group[item["group"]] = visible_by_group.get(item["group"], False) or matches
+            visible_by_page[item["page"]] = visible_by_page[item["page"]] or matches
         for group in self._advanced_groups:
             group.setVisible(visible_by_group.get(group, False))
+        if query and not visible_by_page.get(
+            "phenotypes" if self.advanced_tabs.currentIndex() == 0 else "morphs", False
+        ):
+            target_page = next(
+                (index for index, key in enumerate(self._advanced_pages) if visible_by_page[key]),
+                None,
+            )
+            if target_page is not None:
+                self.advanced_tabs.setCurrentIndex(target_page)
 
     def _advanced_parameter_changed(self, kind, name, value):
         """Persist only non-default overrides while keeping defaults discoverable in the UI."""
@@ -811,6 +823,7 @@ class AvatarTaskPanel:
         self.show_measurements.setEnabled(is_human)
         self.dimension_gizmo_toggle.setEnabled(is_human)
         self.advanced_toggle.setEnabled(is_human)
+        self.advanced_content.setEnabled(is_human)
         if not is_human and self._dimension_controller is not None:
             self._dimension_controller.deactivate()
         elif is_human and self.dimension_gizmo_toggle.isChecked():
