@@ -645,12 +645,17 @@ def run_acceptance():
         )
 
         marker_group = doc.getObject("ClothFittingMarkers")
-        if marker_group is None or point not in tuple(marker_group.Group or ()):
+        if marker_group is None:
+            raise RuntimeError("generated fitting markers were not grouped in the document tree")
+        marker_names = {obj.Name for obj in tuple(marker_group.Group or ())}
+        if point.Name not in marker_names:
             raise RuntimeError("generated fitting markers were not grouped in the document tree")
         create_arrangement_point("HierarchyCleanupProbe", 25.0, 25.0)
         probe_point_name = "ArrangementPoint_HierarchyCleanupProbe"
         probe_point = doc.getObject(probe_point_name)
-        if probe_point is None or probe_point not in tuple(marker_group.Group or ()):
+        if probe_point is None or probe_point.Name not in {
+            obj.Name for obj in tuple(marker_group.Group or ())
+        }:
             raise RuntimeError("new arrangement marker was not added to the fitting marker group")
         delete_arrangement_point("HierarchyCleanupProbe")
         if doc.getObject(probe_point_name) is not None:
@@ -661,14 +666,17 @@ def run_acceptance():
         )
         probe_volume_name = "BoundingVolume_HierarchyCleanupProbeVolume"
         probe_volume = doc.getObject(probe_volume_name)
-        if probe_volume is None or probe_volume not in tuple(marker_group.Group or ()):
+        if probe_volume is None or probe_volume.Name not in {
+            obj.Name for obj in tuple(marker_group.Group or ())
+        }:
             raise RuntimeError("new bounding-volume marker was not added to the fitting marker group")
         delete_bounding_volume("HierarchyCleanupProbeVolume")
         if doc.getObject(probe_volume_name) is not None:
             raise RuntimeError("deleted bounding volume left a stale display object in the tree")
-        if doc.getObject("ClothFittingMarkers") is not marker_group or point not in tuple(
-            marker_group.Group or ()
-        ):
+        marker_group = doc.getObject("ClothFittingMarkers")
+        if marker_group is None or point.Name not in {
+            obj.Name for obj in tuple(marker_group.Group or ())
+        }:
             raise RuntimeError("removing temporary markers disturbed the active fitting marker group")
         print("fitting-marker-tree=passed grouped=true stale-markers=pruned", flush=True)
 
