@@ -102,8 +102,8 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
 
 
 @lru_cache(maxsize=1)
-def _measurement_local_change_labels() -> tuple[str, ...]:
-    """Return only relevant local modifiers present in the installed Anny assets."""
+def _all_paired_local_change_labels() -> tuple[str, ...]:
+    """Return discoverable Anny body-morph labels, excluding genital targets."""
     try:
         import anny
     except ImportError as exc:
@@ -112,8 +112,6 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
             "'anny>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
         ) from exc
 
-    # Anny 0.6 provides get_anny_root_dir(); keep a package-relative fallback
-    # for installations that omit the helper.
     package_file = getattr(anny, "__file__", None)
     if not package_file:
         raise AnnyAvatarBackendError("Unable to resolve the installed Anny package path.")
@@ -133,7 +131,6 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
         ) from exc
 
     selected: set[str] = set()
-    wanted = (*_LOCAL_CHANGE_TERMS, _BREAST_LOCAL_CHANGE)
     for group, group_data in metadata.items():
         if group == "genitals" or not isinstance(group_data, dict):
             continue
@@ -151,7 +148,6 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
                     and positive
                     and isinstance(negative, str)
                     and negative
-                    and any(term in positive for term in wanted)
                 ):
                     selected.add(positive)
 
@@ -162,13 +158,66 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
     return tuple(sorted(selected))
 
 
-def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | dict[str, float]]:
-    """Translate Cloth's UI controls into Anny's published phenotype convention."""
-    return {
+def available_anny_local_change_labels() -> tuple[str, ...]:
+    """Return every paired, non-genital Anny body-morph parameter."""
+    return _all_paired_local_change_labels()
+
+
+@lru_cache(maxsize=1)
+def available_anny_phenotype_labels() -> tuple[str, ...]:
+    """Ask the installed Anny API which normalized phenotype inputs it exposes."""
+    try:
+        import anny
+    except ImportError as exc:
+        raise AnnyAvatarBackendError(
+            "Anny is required to inspect advanced mannequin parameters."
+        ) from exc
+    try:
+        model = anny.create_fullbody_model(
+            rig="default",
+            topology="makehuman-tris",
+            remove_unattached_vertices=False,
+            triangulate_faces=True,
+            pose_parameterization="local-bone",
+            bone_orientation="blender-rootidentity",
+            all_phenotypes=True,
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        raise AnnyAvatarBackendError(f"Unable to inspect Anny phenotype parameters: {exc}") from exc
+    labels = getattr(model, "phenotype_labels", None)
+    if labels is None:
+        raise AnnyAvatarBackendError("The installed Anny model does not expose phenotype labels.")
+    return tuple(sorted(str(label) for label in labels))
+
+
+@lru_cache(maxsize=1)
+def _measurement_local_change_labels() -> tuple[str, ...]:
+    """Return the local Anny morphs used by Cloth's anthropometric fit."""
+    wanted = (*_LOCAL_CHANGE_TERMS, _BREAST_LOCAL_CHANGE)
+    selected = tuple(
+        label
+        for label in _all_paired_local_change_labels()
+        if any(term in label for term in wanted)
+    )
+    if _BREAST_LOCAL_CHANGE not in selected:
+        raise AnnyAvatarBackendError(
+            f"Anny assets do not provide the {_BREAST_LOCAL_CHANGE!r} shape control."
+        )
+    return selected
+
+
+def _initial_phenotypes(
+    gender: float,
+    breast_size: float,
+    phenotype_overrides: dict[str, float] | None = None,
+    local_change_overrides: dict[str, float] | None = None,
+) -> dict[str, float | dict[str, float]]:
+    """Translate Cloth defaults and staged advanced overrides to Anny conventions."""
+    phenotypes: dict[str, float | dict[str, float]] = {
         # Anny's gender endpoints are male=0 and female=1; Cloth uses the
         # inverse convention for its user-facing slider.
         "gender": 1.0 - gender,
-        "age": 0.667,  # young-adult body shape
+        "age": 0.667,
         "muscle": 0.5,
         "weight": 0.5,
         "height": 0.5,
@@ -179,10 +228,20 @@ def _initial_phenotypes(gender: float, breast_size: float) -> dict[str, float | 
         "african": 1.0 / 3.0,
         "asian": 1.0 / 3.0,
         "caucasian": 1.0 / 3.0,
-        # Keep local breast fullness neutral while measurements are fitted.
-        # Both fullness controls are applied only after the fit converges.
-        "_local_changes": dict.fromkeys(_measurement_local_change_labels(), 0.0),
     }
+    for name, value in (phenotype_overrides or {}).items():
+        if name not in {"gender", "cupsize"}:
+            phenotypes[str(name)] = float(value)
+
+    local_values = dict.fromkeys(_measurement_local_change_labels(), 0.0)
+    local_values.update(
+        {str(name): float(value) for name, value in (local_change_overrides or {}).items()}
+    )
+    # Keep local breast fullness neutral while measurement fitting converges;
+    # the primary Breast fullness control is applied after fitting.
+    local_values[_BREAST_LOCAL_CHANGE] = 0.0
+    phenotypes["_local_changes"] = local_values
+    return phenotypes
 
 
 def _smoothstep_weight(edge0: float, edge1: float, value: float) -> float:
@@ -296,6 +355,8 @@ def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
+    phenotype_overrides: tuple[tuple[str, float], ...],
+    local_change_overrides: tuple[tuple[str, float], ...],
     *,
     fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
@@ -312,7 +373,11 @@ def _fit_anny_body(
         ) from exc
 
     values = dict(measurements)
-    initial_parameters = _initial_phenotypes(gender, breast_size)
+    phenotype_override_values = dict(phenotype_overrides)
+    local_override_values = dict(local_change_overrides)
+    initial_parameters = _initial_phenotypes(
+        gender, breast_size, phenotype_override_values, local_override_values
+    )
     local_values = initial_parameters.pop("_local_changes")
     if not isinstance(local_values, dict):
         raise AnnyAvatarBackendError("Anny local-change parameters were not resolved.")
@@ -362,19 +427,27 @@ def _fit_anny_body(
             + ", ".join(sorted(missing_local_changes))
         )
 
+    # Anny releases can expose additional phenotype controls. Every normalized
+    # input starts neutral unless Cloth has an explicit default or saved override.
+    phenotype_values = {str(name): 0.5 for name in model.phenotype_labels} | phenotype_values
+    unknown_phenotypes = set(phenotype_override_values) - set(model.phenotype_labels)
+    if unknown_phenotypes:
+        raise AnnyAvatarBackendError(
+            "Saved Anny phenotype overrides are unavailable in this model: "
+            + ", ".join(sorted(unknown_phenotypes))
+        )
+    unknown_local_changes = set(local_override_values) - set(model.local_change_labels)
+    if unknown_local_changes:
+        raise AnnyAvatarBackendError(
+            "Saved Anny morph overrides are unavailable in this model: "
+            + ", ".join(sorted(unknown_local_changes))
+        )
     phenotype_kwargs = {
         name: torch.tensor(
             [phenotype_values[name]], dtype=torch.float32, device="cpu", requires_grad=True
         )
         for name in model.phenotype_labels
-        if name in phenotype_values
     }
-    missing_phenotypes = set(model.phenotype_labels) - set(phenotype_kwargs)
-    if missing_phenotypes:
-        raise AnnyAvatarBackendError(
-            "Anny requires phenotype controls that Cloth has not initialized: "
-            + ", ".join(sorted(missing_phenotypes))
-        )
 
     local_kwargs = {
         name: torch.tensor(
@@ -663,6 +736,13 @@ def _fit_anny_body(
     # that edit visible on the rig-compatible HM08 surface. Apply both after fitting
     # so the anthropometry optimizer cannot absorb the requested fullness.
     with torch.no_grad():
+        # Advanced inputs are deliberately applied after the anthropometric fit:
+        # setting a phenotype/morph is authoritative for that control, even when
+        # it means its resulting measurement differs from the requested target.
+        for name, value in phenotype_override_values.items():
+            body.phenotype_kwargs[name].fill_(float(value))
+        for name, value in local_override_values.items():
+            body.local_changes_kwargs[name].fill_(float(value))
         cupsize_control.fill_(float(breast_size))
         breast_volume_control.fill_(float(breast_size))
     first_parameter = next(iter(body.phenotype_kwargs.values()))
@@ -862,10 +942,19 @@ def _cached_fitted_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
     breast_size: float,
+    phenotype_overrides: tuple[tuple[str, float], ...],
+    local_change_overrides: tuple[tuple[str, float], ...],
     fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Cache fitted surface and full rig vertices so viewport events do not refit."""
-    return _fit_anny_body(measurements, gender, breast_size, fit_hip=fit_hip)
+    return _fit_anny_body(
+        measurements,
+        gender,
+        breast_size,
+        phenotype_overrides,
+        local_change_overrides,
+        fit_hip=fit_hip,
+    )
 
 
 def _fitted_body_for(
@@ -884,7 +973,12 @@ def _fitted_body_for(
         measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
     key = tuple(sorted(measurement_values.items()))
     return _cached_fitted_body(
-        key, float(parameters.gender), float(parameters.breast_size), fit_hip
+        key,
+        float(parameters.gender),
+        float(parameters.breast_size),
+        tuple(sorted(parameters.phenotype_overrides.items())),
+        tuple(sorted(parameters.local_change_overrides.items())),
+        fit_hip,
     )
 
 
