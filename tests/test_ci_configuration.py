@@ -107,8 +107,8 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
 
 
 def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch) -> None:
-    from hashlib import sha256
     import re
+    from hashlib import sha256
 
     from tools.ci import maintenance_cleanup
 
