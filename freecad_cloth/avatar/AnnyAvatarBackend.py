@@ -135,7 +135,7 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
         ) from exc
 
     selected: set[str] = set()
-    for _group, group_data in metadata.items():
+    for group_data in metadata.values():
         if not isinstance(group_data, dict):
             continue
         for category in group_data.get("categories", []):
