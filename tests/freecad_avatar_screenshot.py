@@ -208,6 +208,20 @@ def _body_shape_gallery_params(
     )
 
 
+def _body_shape_gallery_batch_range(profile_count: int) -> tuple[int, int]:
+    """Return a validated half-open profile range for a bounded gallery run."""
+    try:
+        start = int(os.environ.get("CLOTH_AVATAR_GALLERY_START", "0"))
+        end = int(os.environ.get("CLOTH_AVATAR_GALLERY_END", str(profile_count)))
+    except ValueError as error:
+        raise RuntimeError("avatar gallery batch bounds must be integers") from error
+    if not 0 <= start < end <= profile_count:
+        raise RuntimeError(
+            f"invalid avatar gallery batch range {start}:{end} for {profile_count} profiles"
+        )
+    return start, end
+
+
 def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied: bool = False):
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
@@ -225,6 +239,10 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     output_path.parent.mkdir(parents=True, exist_ok=True)
     frame_dir = output_path.parent / ".avatar-body-shape-gallery-frames"
     frame_dir.mkdir(parents=True, exist_ok=True)
+    start_index, end_index = _body_shape_gallery_batch_range(len(profiles))
+    if start_index == 0:
+        for previous_frame in frame_dir.glob("*.png"):
+            previous_frame.unlink()
 
     # Fit the camera once, then preserve the orthographic scale for all seven
     # variations so tall/short and slim/plus-size silhouettes remain comparable.
@@ -252,11 +270,12 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     anny_backend._FIT_STEPS = min(original_fit_steps, 18)
     gallery_started = time.monotonic()
     log(
-        "body-shape-gallery-start profiles=%d fit_steps=%d"
-        % (len(profiles), anny_backend._FIT_STEPS)
+        "body-shape-gallery-start profiles=%d fit_steps=%d batch=%d:%d"
+        % (len(profiles), anny_backend._FIT_STEPS, start_index, end_index)
     )
     try:
-        for index, profile in enumerate(profiles):
+        for index in range(start_index, end_index):
+            profile = profiles[index]
             profile_started = time.monotonic()
             log("body-shape-gallery-profile-start index=%d name=%s" % (index, profile["name"]))
             params = _body_shape_gallery_params(profile, float(getattr(avatar, "SkinOffset", 3.0)))
@@ -312,6 +331,25 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
 
     finally:
         anny_backend._FIT_STEPS = original_fit_steps
+
+    if end_index < len(profiles):
+        log(
+            "body-shape-gallery-batch-pass start=%d end=%d elapsed_ms=%.1f"
+            % (start_index, end_index, 1000.0 * (time.monotonic() - gallery_started))
+        )
+        return
+
+    # Each batch runs in a separate FreeCAD process. Reload all seven rendered
+    # frames only after the final batch, then compose the same complete gallery.
+    frames = []
+    for index in range(len(profiles)):
+        frame_path = frame_dir / ("%02d.png" % index)
+        if not frame_path.is_file():
+            raise RuntimeError("body-shape frame missing from an earlier batch: " + str(frame_path))
+        with Image.open(frame_path) as rendered:
+            if rendered.size != (420, 560):
+                raise RuntimeError("body-shape frame has unexpected size: " + repr(rendered.size))
+            frames.append(rendered.convert("RGB").copy())
 
     def font(size, bold=False):
         """Load a readable annotation font with a portable fallback."""
