@@ -178,7 +178,6 @@ jobs:
   local_runner_readiness:
     name: Selected runner readiness
     needs: [agent-quality]
-    # Retention-only pushes must not wait for the local runner.
     if: ${{ github.event_name != 'schedule' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
@@ -187,7 +186,6 @@ jobs:
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     needs: [agent-quality]
-    # The one-shot retention run is hosted already; do not let fallback cancel it.
     if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
