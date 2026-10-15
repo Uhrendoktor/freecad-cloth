@@ -132,7 +132,7 @@ class AvatarParameters:
     # remains a target setting rather than a visible layer on the avatar.
     skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
-    schema_version: int = 3
+    schema_version: int = 4
     # 0 = feminine, 0.5 = neutral, 1 = masculine. This is a body-shape
     # blend, not a claim about identity; downstream geometry uses it as one
     # normalized morphology control.
