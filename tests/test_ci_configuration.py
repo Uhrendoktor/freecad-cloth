@@ -171,6 +171,51 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob(
         raise AssertionError("missing protected Dockerfile content must fail closed")
 
 
+def test_package_cleanup_uses_authenticated_user_package_endpoints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.ci import maintenance_cleanup
+
+    requested_endpoints: list[str] = []
+
+    def fake_dockerfile_tags_for_shas(repo_name: str, protected_shas: set[str]) -> set[str]:
+        assert repo_name == "Uhrendoktor/freecad-cloth"
+        assert protected_shas == {"1" * 40}
+        return {"protected-dockerfile-tag"}
+
+    def fake_paginated_api_items(
+        endpoint: str,
+        *,
+        collection_key: str | None = None,
+        page_size: int = 100,
+    ) -> list[dict[str, object]]:
+        requested_endpoints.append(endpoint)
+        if endpoint == "user/packages?package_type=container":
+            return [{"name": "freecad-cloth/pbd-validation"}]
+        if endpoint == "user/packages/container/freecad-cloth/pbd-validation/versions":
+            return []
+        raise AssertionError(f"unexpected package API endpoint: {endpoint}")
+
+    monkeypatch.setattr(
+        maintenance_cleanup, "dockerfile_tags_for_shas", fake_dockerfile_tags_for_shas
+    )
+    monkeypatch.setattr(maintenance_cleanup, "paginated_api_items", fake_paginated_api_items)
+
+    result = maintenance_cleanup.cleanup_pbd_package_versions(
+        "Uhrendoktor/freecad-cloth",
+        {"1" * 40},
+        maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
+    )
+
+    assert result["status"] == "passed"
+    assert result["versions_seen"] == 0
+    assert result["deleted"] == 0
+    assert requested_endpoints == [
+        "user/packages?package_type=container",
+        "user/packages/container/freecad-cloth/pbd-validation/versions",
+    ]
+
+
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
     from tools.ci.maintenance_cleanup import stale_package_versions
 

@@ -196,14 +196,17 @@ def cleanup_pbd_package_versions(
         result["protected_tags"] = len(protected_tags)
 
         phase = "list_container_packages"
-        owner = repo.split("/", maxsplit=1)[0]
-        packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
+        packages = list(paginated_api_items("user/packages?package_type=container"))
         target = next(
             (
                 package
                 for package in packages
                 if isinstance(package.get("name"), str)
-                and str(package["name"]).strip("/").lower() == PBD_PACKAGE_SUFFIX
+                and str(package["name"]).strip("/").lower()
+                in {
+                    PBD_PACKAGE_SUFFIX,
+                    PBD_PACKAGE_SUFFIX.rsplit("/", maxsplit=1)[-1],
+                }
             ),
             None,
         )
@@ -213,9 +216,7 @@ def cleanup_pbd_package_versions(
         package_name = str(target["name"]).strip("/")
         phase = "list_package_versions"
         encoded_name = quote(package_name, safe="/")
-        versions = list(
-            paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions")
-        )
+        versions = list(paginated_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         result["pending"] = len(stale)
@@ -229,7 +230,7 @@ def cleanup_pbd_package_versions(
                 "api",
                 "--method",
                 "DELETE",
-                f"users/{owner}/packages/container/{encoded_name}/versions/{version_id}",
+                f"user/packages/container/{encoded_name}/versions/{version_id}",
             )
             deleted += 1
             result["pending"] = len(stale) - deleted
