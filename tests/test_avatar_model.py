@@ -74,7 +74,7 @@ def test_invalid_shape_values_are_rejected():
             raise AssertionError(f"invalid shape value was accepted: {changes}")
 
 
-def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits():
+def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> None:
     parameters = AvatarParameters(
         phenotype_overrides={"age": 0.41, "weight": 0.67},
         local_change_overrides={"measure-waist-circ-incr": 0.2},
@@ -92,7 +92,7 @@ def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits():
     assert edited.mass_target_kg == 68.5
 
 
-def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls():
+def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls() -> None:
     import pytest
 
     for field_values in (
