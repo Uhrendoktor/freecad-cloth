@@ -46,15 +46,19 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 permissions:
-  actions: write
-  contents: write
-  packages: write
-  pull-requests: write
+  actions: read
+  contents: read
+  packages: read
 
 jobs:
   fast-feedback:
     name: Fast PR feedback
     if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
@@ -62,7 +66,6 @@ jobs:
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
-    secrets: inherit
 
   full-validation:
     name: Full validation
@@ -79,11 +82,15 @@ jobs:
       fallback_source_run: ${{ inputs.fallback_source_run || '' }}
       diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
       pr_number: ${{ inputs.pr_number || '' }}
-    secrets: inherit
 
   scheduled-validation:
     name: Scheduled static validation
     if: ${{ github.event_name == 'schedule' }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: scheduled
@@ -91,7 +98,6 @@ jobs:
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
-    secrets: inherit
 
   required-pre-merge-validation:
     name: Required pre-merge validation
