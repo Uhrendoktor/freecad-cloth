@@ -425,6 +425,7 @@ jobs:
             summary=scene-understanding.json;visual=scene-understanding.svg
           # 8 mm bounds native SDF cost; 5 mm target thickness still controls clearance, and exact mesh projection retains the zero-penetration gate.
           environment: |
+            FREECAD_CLOTH_ANNY_FIT_STEPS=18
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0

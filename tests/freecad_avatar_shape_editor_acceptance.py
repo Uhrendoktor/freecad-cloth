@@ -19,7 +19,9 @@ import FreeCADGui as Gui
 
 from tests.support.freecad_input import UiGifRecorder, focus_main_window
 
-HEAD_LOCALITY_TOLERANCE_MM = 0.0005
+# FreeCAD's fitted-mesh/FK rebuild shows sub-micrometre residual movement at the head;
+# keep native vertex correspondence and point counts exact while filtering only that numerical noise.
+HEAD_LOCALITY_TOLERANCE_MM = 0.001
 
 
 class _Event:
