@@ -26,7 +26,13 @@ def register_workbench_deactivation_callback(
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     """Small common registration shell for all Cloth workbenches."""
 
-    def __init__(self, *, gui=None, toolbar_sink=None, menu_sink=None):
+    def __init__(
+        self,
+        *,
+        gui: object | None = None,
+        toolbar_sink: Callable[..., object] | None = None,
+        menu_sink: Callable[..., object] | None = None,
+    ):
         if Gui is not None:
             super().__init__()
         self._gui = Gui if gui is None else gui
@@ -97,7 +103,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 # disable the overlay that the incoming workbench just enabled.
                 if self._gui is not None:
                     try:
-                        active = self._gui.activeWorkbench()
+                        active = getattr(self._gui, "activeWorkbench")()
                         active_name = str(active.name()).lower()
                     except (AttributeError, RuntimeError, TypeError):
                         active_name = ""
