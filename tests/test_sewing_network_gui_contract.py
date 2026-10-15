@@ -45,9 +45,7 @@ class SewingNetworkGuiContractTests(unittest.TestCase):
         sentinel = object()
         state = SewingNetworkCommands._NetworkTaskPanelState()
         state.set(sentinel)
-        self.assertIs(
-            SewingNetworkCommands.get_active_network_task_panel(state=state), sentinel
-        )
+        self.assertIs(SewingNetworkCommands.get_active_network_task_panel(state=state), sentinel)
 
 
 if __name__ == "__main__":
