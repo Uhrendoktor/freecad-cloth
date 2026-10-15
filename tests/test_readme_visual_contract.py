@@ -204,40 +204,60 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders() -> N
         encoding="utf-8"
     )
 
-    assert 'if mode in ("all", "turntable", "documentation"):' in avatar_screenshot
-    assert 'if mode in ("all", "turntable", "turntable-validation"):' in avatar_screenshot
+    assert 'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):' in avatar_screenshot
     validation_capture = avatar_screenshot.split(
-        'if mode in ("all", "turntable", "turntable-validation"):', 1
+        'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):', 1
     )[1].split('if mode in ("all", "gallery", "documentation"):', 1)[0]
     assert '"cloth-avatar-turntable-frames"' in validation_capture
     assert "render_turntable(" in validation_capture
 
-    block = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    assert (
-        "CLOTH_AVATAR_SCREENSHOT_MODE=${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' && "
-        "'turntable' || 'turntable-validation' }}" in block
-    )
-    gallery_start = block.index("      - name: Generate wiki-only avatar body-shape gallery")
-    gallery_end = block.find("\n      - ", gallery_start + 8)
-    gallery_step = block[gallery_start : gallery_end if gallery_end != -1 else len(block)]
-    assert "if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}" in gallery_step
+    validation_job = workflow.split("  gui-turntables:", 1)[1].split(
+        "  gui-visual-examples:", 1
+    )[0]
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation" in validation_job
+    assert "Generate wiki-only avatar body-shape gallery" not in validation_job
+    assert "build_visual_gifs.py" not in validation_job
+    assert "cloth-avatar-turntable-frames/**" not in validation_job
+
+    documentation_job = workflow.split("  gui-documentation-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in documentation_job
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation-turntable" in documentation_job
+    assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in documentation_job
+    assert "CLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}" in documentation_job
 
 
-def test_wiki_visual_generation_is_limited_to_publication_events() -> None:
+def test_wiki_visual_generation_is_publication_only() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
 
-    assert "CLOTH_WIKI_VISUALS_REQUIRED:" in workflow
-    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
-    assert "inputs.fallback_source_run != ''" in workflow
-    assert workflow.count('if [ "$CLOTH_WIKI_VISUALS_REQUIRED" = "true" ]; then') == 2
-    visual_block = workflow.split("  gui-turntables:", 1)[1].split(
+    assert "CLOTH_WIKI_VISUALS_REQUIRED" not in workflow
+    assert "CLOTH_TURNTABLE_FRAMES: 72" in workflow
+    assert "CLOTH_BLANKET_STEPS: 180" in workflow
+    assert "CLOTH_TURNTABLE_PBD_SUBSTEPS: 10" in workflow
+    validation_jobs = workflow.split("  gui-turntables:", 1)[1].split(
         "  publish-pr-simulation-evidence:", 1
     )[0]
-    assert visual_block.count("if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}") == 3
+    assert "ImageMagick for main GIF publication" not in validation_jobs
+    assert "build_visual_gifs.py" not in validation_jobs
+    documentation_job = workflow.split("  gui-documentation-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert "if: ${{ inputs.execution_mode == 'publication'" in documentation_job
 
 
+def test_documentation_turntable_capture_does_not_run_simulation_release_gates() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    simulation = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(
+        encoding="utf-8"
+    )
+    assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in workflow
+    assert "if documentation_capture_only:" in simulation
+    assert "stage=documentation-capture-only" in simulation
 def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() -> None:
     workflows = ROOT / ".github" / "workflows"
     shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
@@ -254,7 +274,11 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "merge_group:" in commits
     assert "execution_mode: fast" in commits
     assert "execution_mode: full" in commits
-    assert "github.event.pull_request.draft == false" in commits
+    full_job = commits.split("  full-validation:", 1)[1].split("  scheduled-validation:", 1)[0]
+    assert "github.event_name == 'merge_group'" in full_job
+    assert "github.event.pull_request" not in full_job
+    gate_job = commits.split("  required-pre-merge-validation:", 1)[1]
+    assert "github.event.pull_request.draft == false" in gate_job
     assert "name: Required pre-merge validation" in commits
     assert "  push:" not in commits
     assert "  pull_request:" not in publication
