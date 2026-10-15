@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
-from tools.ci import check_pydantic_models
 from tools.ci.check_pydantic_models import (
     repository_violations,
     serialization_exception_is_justified,
@@ -39,33 +36,23 @@ def test_pydantic_dataclass_is_accepted() -> None:
     assert standard_dataclass_decorators(source, "sample.py") == ()
 
 
-def test_freecad_exception_requires_a_serialization_incompatibility_reason(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_freecad_exception_requires_a_serialization_incompatibility_reason() -> None:
     """Do not let generic convenience/performance notes bypass Pydantic."""
     path = "freecad_cloth/example.py"
-    monkeypatch.setattr(
-        check_pydantic_models,
-        "FREECAD_SERIALIZATION_EXCEPTIONS",
-        {
-            path: (
-                "FreeCAD internal serialization is incompatible with this Pydantic field.",
-                "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason",
-            )
-        },
+    regression_test = (
+        "tests/test_pydantic_models_policy.py"
+        "#test_freecad_exception_requires_a_serialization_incompatibility_reason"
     )
-    assert serialization_exception_is_justified(path)
-    monkeypatch.setattr(
-        check_pydantic_models,
-        "FREECAD_SERIALIZATION_EXCEPTIONS",
-        {
-            path: (
-                "Performance overhead",
-                "tests/test_pydantic_models_policy.py#test_freecad_exception_requires_a_serialization_incompatibility_reason",
-            )
-        },
-    )
-    assert not serialization_exception_is_justified(path)
+    justified = {
+        path: (
+            "FreeCAD internal serialization is incompatible with this Pydantic field.",
+            regression_test,
+        )
+    }
+    unjustified = {path: ("Performance overhead", regression_test)}
+
+    assert serialization_exception_is_justified(path, exceptions=justified)
+    assert not serialization_exception_is_justified(path, exceptions=unjustified)
 
 
 def test_all_production_records_follow_the_pydantic_policy() -> None:

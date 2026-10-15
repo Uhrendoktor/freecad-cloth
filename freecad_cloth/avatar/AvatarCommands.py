@@ -120,13 +120,15 @@ def _parameters(obj):
     return AvatarParameters(values, float(obj.SkinOffset), pose, 3, gender, breast_size)
 
 
-def _mesh_data(vertices, triangles):
+def _mesh_data(vertices, triangles, *, app_module=None, mesh_module=None):
     """Build the native FreeCAD mesh directly from the selected provider topology."""
-    import FreeCAD as App
-    import Mesh
+    if app_module is None:
+        import FreeCAD as app_module
+    if mesh_module is None:
+        import Mesh as mesh_module
 
-    native = Mesh.Mesh()
-    vectors = [App.Vector(*point) for point in vertices]
+    native = mesh_module.Mesh()
+    vectors = [app_module.Vector(*point) for point in vertices]
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the
     # downstream collision adapter cannot recognize the closed mannequin shell.
@@ -176,7 +178,9 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
     raise ValueError(f"unsupported avatar provider: {provider_id}")
 
 
-def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
+def _rebuild(
+    obj, params=None, provider_id=None, provider_source=_MISSING, *, provider_geometry_fn=None
+):
     """Build derived geometry before mutating persistent avatar state."""
     params = _parameters(obj) if params is None else params
     params.validate()
@@ -187,7 +191,8 @@ def _rebuild(obj, params=None, provider_id=None, provider_source=_MISSING):
 
     # All potentially fallible geometry/provider work happens before any
     # persistent avatar properties or derived mesh are changed.
-    vertices, triangles, landmarks, provider_id, source, license_name = _provider_geometry(
+    build_geometry = _provider_geometry if provider_geometry_fn is None else provider_geometry_fn
+    vertices, triangles, landmarks, provider_id, source, license_name = build_geometry(
         obj, params, provider_id, provider_source
     )
     native_mesh = _mesh_data(vertices, triangles)
@@ -384,13 +389,16 @@ def create_avatar(
     return obj
 
 
-def apply_avatar_parameters(obj, params, provider_id=None, provider_source=_MISSING):
+def apply_avatar_parameters(
+    obj, params, provider_id=None, provider_source=_MISSING, *, provider_geometry_fn=None
+):
     """Apply validated avatar state only after successful geometry construction."""
     obj = _rebuild(
         obj,
         params=params,
         provider_id=provider_id,
         provider_source=provider_source,
+        provider_geometry_fn=provider_geometry_fn,
     )
     _ensure_collision(obj)
     target = obj.Document.getObject("DrapeTarget")

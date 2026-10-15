@@ -59,7 +59,7 @@ def _geometry_round(value, digits=5):
     return 0.0 if rounded == 0.0 else rounded
 
 
-def _mesh_topology(target):
+def _mesh_topology(target, *, vector_factory=None):
     """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
@@ -75,11 +75,15 @@ def _mesh_topology(target):
             # space, so normalize here before calculating or resolving barycentric
             # coordinates; _anchor_world_position applies Placement exactly once.
             try:
-                import FreeCAD as App
+                if vector_factory is None:
+                    import FreeCAD as App
 
+                    make_vector = App.Vector
+                else:
+                    make_vector = vector_factory
                 inverse_placement = placement.inverse()
                 points = tuple(
-                    _point_xyz(inverse_placement.multVec(App.Vector(*point))) for point in points
+                    _point_xyz(inverse_placement.multVec(make_vector(*point))) for point in points
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 raise ValueError(

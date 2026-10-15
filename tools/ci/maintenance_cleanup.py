@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 
 PAGE_SIZE = 100
@@ -29,16 +29,21 @@ def epoch(value: str) -> float:
 
 
 def paginated_api_items(
-    endpoint: str, *, collection_key: str | None = None, page_size: int = PAGE_SIZE
+    endpoint: str,
+    *,
+    collection_key: str | None = None,
+    page_size: int = PAGE_SIZE,
+    fetch_json: Callable[..., object] | None = None,
 ) -> Iterator[dict[str, object]]:
     """Yield every item from a paginated GitHub API list endpoint."""
     if page_size <= 0:
         raise ValueError("page size must be positive")
+    load_json = gh_json if fetch_json is None else fetch_json
     page = 1
     while True:
         separator = "&" if "?" in endpoint else "?"
         url = f"{endpoint}{separator}per_page={page_size}&page={page}"
-        payload = gh_json("api", url)
+        payload = load_json("api", url)
         if collection_key is None:
             items = payload
         else:

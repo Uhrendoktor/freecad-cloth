@@ -40,7 +40,7 @@ env:
   CLOTH_PBD_SUBSTEPS: 8
   CLOTH_PBD_COLLISION_MODE: mesh
   CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
-  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
+  CLOTH_CI_RUNNER_MODE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'hosted' || inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
 permissions:
   actions: read
   contents: read
@@ -116,7 +116,7 @@ jobs:
   agent-quality:
     name: Static, architecture, workflow, and security gates
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: &ten_minute_timeout 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -179,16 +179,16 @@ jobs:
     name: Selected runner readiness
     needs: [agent-quality]
     if: ${{ github.event_name != 'schedule' }}
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 2
+    runs-on: &ci_validation_runner ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: &two_minute_timeout 2
     steps:
       - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     needs: [agent-quality]
-    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && (github.event_name != 'push' || github.ref != 'refs/heads/main') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: *two_minute_timeout
     permissions:
       actions: write
       contents: read
@@ -230,8 +230,8 @@ jobs:
     name: Diagnostic PBD contact controls
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 8
+    runs-on: *ci_validation_runner
+    timeout-minutes: &standard_freecad_job_timeout 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -266,8 +266,8 @@ jobs:
     name: Simulation collision ladder
     if: ${{ github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 8
+    runs-on: *ci_validation_runner
+    timeout-minutes: *standard_freecad_job_timeout
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -298,18 +298,18 @@ jobs:
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-            CLOTH_SIMULATION_BACKEND=position-based-dynamics
-            CLOTH_CI_ENABLE_PBD=1
-            CLOTH_PBD_SUBSTEPS=8
-            CLOTH_PBD_COLLISION_MODE=mesh
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
+            CLOTH_SIMULATION_BACKEND=${{ env.CLOTH_SIMULATION_BACKEND }}
+            CLOTH_CI_ENABLE_PBD=${{ env.CLOTH_CI_ENABLE_PBD }}
+            CLOTH_PBD_SUBSTEPS=${{ env.CLOTH_PBD_SUBSTEPS }}
+            CLOTH_PBD_COLLISION_MODE=${{ env.CLOTH_PBD_COLLISION_MODE }}
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=${{ env.CLOTH_PBD_COLLISION_TOLERANCE_MM }}
 
   python:
     name: Python validation (${{ matrix.group }})
     if: ${{ github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 8
+    runs-on: *ci_validation_runner
+    timeout-minutes: *standard_freecad_job_timeout
     strategy:
       fail-fast: false
       matrix:
@@ -343,8 +343,8 @@ jobs:
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 8
+    runs-on: *ci_validation_runner
+    timeout-minutes: *standard_freecad_job_timeout
     strategy:
       fail-fast: false
       matrix:
@@ -376,7 +376,7 @@ jobs:
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: *ci_validation_runner
     timeout-minutes: 15
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -426,13 +426,13 @@ jobs:
             FREECAD_CLOTH_ANNY_FIT_STEPS=18
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=${{ env.CLOTH_PBD_COLLISION_TOLERANCE_MM }}
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 10
+    runs-on: *ci_validation_runner
+    timeout-minutes: *ten_minute_timeout
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -466,7 +466,7 @@ jobs:
   gui-visual-examples:
     name: Blanket visual example
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: *ci_validation_runner
     timeout-minutes: 6
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -491,7 +491,7 @@ jobs:
     needs: [agent-quality, gui-tunic-visual]
     if: ${{ needs.gui-tunic-visual.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: &five_minute_timeout 5
     permissions:
       contents: write
       pull-requests: write
@@ -515,7 +515,7 @@ jobs:
     needs: [agent-quality, gui-tunic-visual, gui-turntables, gui-visual-examples, gui-simple]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: *five_minute_timeout
     permissions:
       contents: write
       actions: read
@@ -573,7 +573,7 @@ jobs:
     name: Workbench benchmark (${{ matrix.workbench }})
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: *ci_validation_runner
     timeout-minutes: 5
     strategy:
       fail-fast: false

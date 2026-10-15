@@ -122,15 +122,11 @@ def test_show_2d_does_not_select_seams_over_their_colors():
         Document=SimpleNamespace(Objects=[piece, seam]), activeView=lambda: view
     )
     gui = SimpleNamespace(Selection=Selection, activeDocument=lambda: active)
-    previous_gui = sys.modules.get("FreeCADGui")
-    sys.modules["FreeCADGui"] = gui
-    try:
-        show_sewing_2d()
-    finally:
-        if previous_gui is None:
-            sys.modules.pop("FreeCADGui", None)
-        else:
-            sys.modules["FreeCADGui"] = previous_gui
+    show_sewing_2d(
+        gui=gui,
+        apply_colors_fn=lambda _objects: None,
+        refresh_overlay_fn=lambda _document: None,
+    )
 
     assert Selection.cleared == 1
     assert Selection.added == []

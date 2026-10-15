@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch
 
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeFailureClassifier import classify_drape, summarize_classification
@@ -59,14 +58,20 @@ class DrapeVisualSanityTests(unittest.TestCase):
         )
         triangles = ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3))
         points = ((0.1, 0.1, 0.1), (1.1, 0.1, 0.1))
-        with patch(
-            "trimesh.Trimesh.contains",
-            side_effect=AssertionError("Trimesh acceleration should be bypassed"),
-        ):
-            self.assertEqual(
-                points_inside_closed_mesh(points, vertices, triangles, prefer_trimesh=False),
-                (True, False),
-            )
+
+        def forbidden_contains(_mesh, _points):
+            raise AssertionError("Trimesh acceleration should be bypassed")
+
+        self.assertEqual(
+            points_inside_closed_mesh(
+                points,
+                vertices,
+                triangles,
+                prefer_trimesh=False,
+                contains_fn=forbidden_contains,
+            ),
+            (True, False),
+        )
 
     def test_point_containment_rejects_invalid_indices_and_nonfinite_coordinates(self):
         vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))

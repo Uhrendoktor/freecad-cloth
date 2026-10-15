@@ -209,7 +209,7 @@ class DrapeTargetTaskPanel:
             return None
         return self._source_objects[index]
 
-    def _apply(self):
+    def _apply(self, *, assign_target=None):
         if self.target is None:
             return False
         source = self._selected_source()
@@ -220,12 +220,14 @@ class DrapeTargetTaskPanel:
                 state="warning",
             )
             return False
-        from freecad_cloth.simulation.DrapeTarget import assign_drape_target
+        if assign_target is None:
+            from freecad_cloth.simulation.DrapeTarget import assign_drape_target
 
+            assign_target = assign_drape_target
         self.target.CollisionDeflection = self.deflection.value()
         self.target.CollisionThickness = self.thickness.value()
         self.target.Enabled = self.enabled.isChecked()
-        assign_drape_target(self.target, source, target_type)
+        assign_target(self.target, source, target_type)
         if self.doc is not None:
             self.doc.recompute()
         self._refresh_status()

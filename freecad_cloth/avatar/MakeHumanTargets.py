@@ -166,25 +166,26 @@ def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
     return "makehuman"
 
 
-def target_directory() -> Path | None:
+def target_directory(environ: Mapping[str, str] | None = None) -> Path | None:
     """Find installed MakeHuman target files or a data directory with targets.npz.
 
     Set FREECAD_CLOTH_MAKEHUMAN_TARGETS to a targets directory, a MakeHuman
     data directory, or a checkout of makehuman-assets to select another library.
     """
+    settings = os.environ if environ is None else environ
     candidates: list[Path] = []
-    configured = os.environ.get(TARGETS_ENV, "").strip()
+    configured = settings.get(TARGETS_ENV, "").strip()
     if configured:
         base = Path(configured).expanduser()
         candidates.extend(
             (base / "targets", base / "data" / "targets", base / "base" / "targets", base)
         )
     home = Path.home()
-    configured_home = os.environ.get("MH_HOME_LOCATION", "").strip()
+    configured_home = settings.get("MH_HOME_LOCATION", "").strip()
     if configured_home:
         custom_data = Path(configured_home).expanduser() / "v1py3" / "data"
         candidates.extend((custom_data / "targets", custom_data))
-    local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+    local_app_data = settings.get("LOCALAPPDATA", "").strip()
     if local_app_data:
         windows_data = Path(local_app_data) / "makehuman" / "v1py3" / "data"
         candidates.extend((windows_data / "targets", windows_data))
@@ -336,7 +337,10 @@ def apply_targets(
 
 
 def apply_measurement_targets(
-    vertices: Sequence[Point], parameters: AvatarParameters
+    vertices: Sequence[Point],
+    parameters: AvatarParameters,
+    *,
+    target_root: Path | None = None,
 ) -> tuple[Point, ...]:
     """Apply compatible MakeHuman targets before exact circumference fitting.
 
@@ -344,7 +348,7 @@ def apply_measurement_targets(
     corrects torso circumference contours in millimetres. Target shape quality
     is additive and does not override numeric torso measurements.
     """
-    root = target_directory()
+    root = target_directory() if target_root is None else target_root
     if root is None:
         return tuple((float(p[0]), float(p[1]), float(p[2])) for p in vertices)
 

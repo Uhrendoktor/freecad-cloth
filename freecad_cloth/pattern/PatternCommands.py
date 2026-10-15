@@ -55,12 +55,17 @@ def create_pattern_piece():
     return create_pattern_piece_from_parameters("PatternPiece", 100.0, 60.0, 0.0, 0.0)
 
 
-def _create_native_sketch_for_piece(obj):
+def _create_native_sketch_for_piece(obj, *, app=None, create_sketch_fn=None):
     """Create/link the native Sketcher representation for a PatternPiece."""
-    import FreeCAD as App
+    if app is None:
+        import FreeCAD as app
 
     from freecad_cloth.pattern.PatternModel import PatternPiece
-    from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+    if create_sketch_fn is None:
+        from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+        create_sketch_fn = create_sketch_for_piece
 
     try:
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
@@ -73,22 +78,23 @@ def _create_native_sketch_for_piece(obj):
         grainline_angle=float(getattr(obj, "GrainlineAngle", 0.0)),
         id=str(obj.PieceId),
     )
-    return create_sketch_for_piece(piece, App.ActiveDocument)
+    return create_sketch_fn(piece, app.ActiveDocument)
 
 
-def create_pattern_piece_with_sketch():
+def create_pattern_piece_with_sketch(*, app=None, create_piece_fn=None, create_sketch_fn=None):
     """Create a PatternPiece with native Sketcher geometry as its authority.
 
     create_pattern_piece already provisions the native Sketcher source for
     normal runtime callers. Keep this public command idempotent so it does not
     attach a second Sketch to the same PatternPiece.
     """
-    import FreeCAD as App
-
-    obj = create_pattern_piece()
+    if app is None:
+        import FreeCAD as app
+    create_piece = create_pattern_piece if create_piece_fn is None else create_piece_fn
+    obj = create_piece()
     if getattr(obj, "Sketch", None) is None:
-        _create_native_sketch_for_piece(obj)
-    App.ActiveDocument.recompute()
+        _create_native_sketch_for_piece(obj, app=app, create_sketch_fn=create_sketch_fn)
+    app.ActiveDocument.recompute()
     return obj
 
 
@@ -206,14 +212,15 @@ def edit_pattern_piece():
     show_pattern_piece_task(obj)
 
 
-def edit_pattern_sketch():
+def edit_pattern_sketch(*, gui=None, create_sketch_fn=None):
     """Enter the native Sketcher editor for the selected pattern piece."""
-    import FreeCADGui as Gui
+    if gui is None:
+        import FreeCADGui as gui
 
     obj = next(
         (
             o
-            for o in Gui.Selection.getSelection()
+            for o in gui.Selection.getSelection()
             if getattr(o, "PatternType", "") == "PatternPiece"
         ),
         None,
@@ -222,10 +229,13 @@ def edit_pattern_sketch():
         raise ValueError("select a pattern piece before editing its Sketcher geometry")
     sketch = getattr(obj, "Sketch", None)
     if sketch is None:
-        sketch = _create_native_sketch_for_piece(obj)
+        sketch_creator = (
+            _create_native_sketch_for_piece if create_sketch_fn is None else create_sketch_fn
+        )
+        sketch = sketch_creator(obj)
     if sketch is None:
         raise ValueError("pattern piece has no native Sketcher representation")
-    Gui.activeDocument().setEdit(sketch.Name)
+    gui.activeDocument().setEdit(sketch.Name)
     return sketch
 
 

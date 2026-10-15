@@ -48,31 +48,17 @@ def make_face(wire):
 def test_pattern_piece_proxy_recomputes_deterministically():
     fake_freecad = SimpleNamespace(Vector=Vector)
     fake_part = SimpleNamespace(makePolygon=make_polygon, Face=make_face)
-    previous_freecad = sys.modules.get("FreeCAD")
-    previous_part = sys.modules.get("Part")
-    sys.modules["FreeCAD"] = fake_freecad
-    sys.modules["Part"] = fake_part
-    try:
-        obj = SimpleNamespace(Width=100.0, Height=60.0, SeamAllowance=5.0)
-        proxy = PatternPieceProxy()
-        proxy.execute(obj)
-        first = [(p.x, p.y) for p in obj.Shape.points]
-        assert first == [(-5.0, -5.0), (105.0, -5.0), (105.0, 65.0), (-5.0, 65.0), (-5.0, -5.0)]
-        assert obj.SewingBoundary == "bottom,right,top,left"
-        obj.Width = 120.0
-        proxy.execute(obj)
-        second = [(p.x, p.y) for p in obj.Shape.points]
-        assert second == [(-5.0, -5.0), (125.0, -5.0), (125.0, 65.0), (-5.0, 65.0), (-5.0, -5.0)]
-        assert obj.SewingBoundary == "bottom,right,top,left"
-    finally:
-        if previous_freecad is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = previous_freecad
-        if previous_part is None:
-            sys.modules.pop("Part", None)
-        else:
-            sys.modules["Part"] = previous_part
+    obj = SimpleNamespace(Width=100.0, Height=60.0, SeamAllowance=5.0)
+    proxy = PatternPieceProxy()
+    proxy.execute(obj, app_module=fake_freecad, part_module=fake_part)
+    first = [(p.x, p.y) for p in obj.Shape.points]
+    assert first == [(-5.0, -5.0), (105.0, -5.0), (105.0, 65.0), (-5.0, 65.0), (-5.0, -5.0)]
+    assert obj.SewingBoundary == "bottom,right,top,left"
+    obj.Width = 120.0
+    proxy.execute(obj, app_module=fake_freecad, part_module=fake_part)
+    second = [(p.x, p.y) for p in obj.Shape.points]
+    assert second == [(-5.0, -5.0), (125.0, -5.0), (125.0, 65.0), (-5.0, 65.0), (-5.0, -5.0)]
+    assert obj.SewingBoundary == "bottom,right,top,left"
 
 
 def test_pattern_piece_proxy_rejects_invalid_dimensions():

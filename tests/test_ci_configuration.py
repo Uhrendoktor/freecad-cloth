@@ -61,7 +61,7 @@ def test_timeout_contract_is_documented():
     assert "freecad_application_timeout_seconds" in configuration
 
 
-def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
+def test_maintenance_cleanup_paginates_until_a_short_page():
     from tools.ci import maintenance_cleanup
 
     pages = {
@@ -76,12 +76,12 @@ def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
         requested_pages.append(page)
         return {"workflow_runs": pages[page]}
 
-    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
     items = list(
         maintenance_cleanup.paginated_api_items(
             "repos/example/repo/actions/runs?status=completed",
             collection_key="workflow_runs",
             page_size=2,
+            fetch_json=fake_gh_json,
         )
     )
 

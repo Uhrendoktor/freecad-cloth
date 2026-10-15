@@ -57,9 +57,12 @@ def standard_dataclass_decorators(
     return tuple(sorted(violations))
 
 
-def serialization_exception_is_justified(path: str) -> bool:
+def serialization_exception_is_justified(
+    path: str, *, exceptions: dict[str, tuple[str, str]] | None = None
+) -> bool:
     """Require a concrete FreeCAD serialization reason and an existing regression test."""
-    exception = FREECAD_SERIALIZATION_EXCEPTIONS.get(path)
+    configured_exceptions = FREECAD_SERIALIZATION_EXCEPTIONS if exceptions is None else exceptions
+    exception = configured_exceptions.get(path)
     if exception is None:
         return False
     reason, regression_test = exception

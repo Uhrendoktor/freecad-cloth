@@ -30,9 +30,11 @@ def _is_rectangle(points, width, height):
     return len(points) == 4 and points == _rectangle_points(width, height)
 
 
-def _boundary_shape(points, allowance=0.0):
-    import FreeCAD as App
-    import Part
+def _boundary_shape(points, allowance=0.0, *, app_module=None, part_module=None):
+    if app_module is None:
+        import FreeCAD as app_module
+    if part_module is None:
+        import Part as part_module
 
     from freecad_cloth.pattern.PatternGeometry import (
         LineSegment,
@@ -58,10 +60,11 @@ def _boundary_shape(points, allowance=0.0):
             for i in range(len(values))
         ]
         outline = seam_allowance_outline(ParametricPattern(segments), float(allowance))
-    wire = Part.makePolygon(
-        [App.Vector(x, y, 0) for x, y in outline] + [App.Vector(outline[0][0], outline[0][1], 0)]
+    wire = part_module.makePolygon(
+        [app_module.Vector(x, y, 0) for x, y in outline]
+        + [app_module.Vector(outline[0][0], outline[0][1], 0)]
     )
-    return Part.Face(wire)
+    return part_module.Face(wire)
 
 
 def _native_edge_records(piece):
@@ -227,7 +230,7 @@ class PatternPieceProxy:
 
     Type = "ClothPatternPiece"
 
-    def execute(self, obj):
+    def execute(self, obj, *, app_module=None, part_module=None):
         """Recompute the FreeCAD object from its current source properties."""
         width = float(obj.Width)
         height = float(obj.Height)
@@ -255,7 +258,9 @@ class PatternPieceProxy:
             ("bottom", "right", "top", "left")[i] if rectangle else f"edge:{i}"
             for i in range(len(points))
         )
-        obj.Shape = _boundary_shape(points, allowance)
+        obj.Shape = _boundary_shape(
+            points, allowance, app_module=app_module, part_module=part_module
+        )
 
 
 def add_pattern_piece(doc, piece: PatternPiece):

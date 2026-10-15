@@ -1,10 +1,8 @@
 import gzip
 import math
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 
@@ -66,8 +64,10 @@ class MakeHumanTargetTests(unittest.TestCase):
                 stream.write("3 0.0 0.2 -0.1\n")
             target = load_target(target_path)
             self.assertEqual(target.offsets, ((3, (0.0, 0.2, -0.1)),))
-            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
-                self.assertEqual(target_directory(), root.resolve() / "targets")
+            self.assertEqual(
+                target_directory(environ={TARGETS_ENV: str(root)}),
+                root.resolve() / "targets",
+            )
 
     def test_unmarked_target_tree_preserves_native_xyz_order(self) -> None:
         with tempfile.TemporaryDirectory(prefix="cloth-native-target-") as directory:
@@ -119,8 +119,7 @@ class MakeHumanTargetTests(unittest.TestCase):
                     ),
                 },
             )
-            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
-                self.assertEqual(target_directory(), root.resolve())
+            self.assertEqual(target_directory(environ={TARGETS_ENV: str(root)}), root.resolve())
             reference = resolve_target("torso/measure-waist-circ-incr", root)
             self.assertIsNotNone(reference)
             assert reference is not None
@@ -165,8 +164,7 @@ class MakeHumanTargetTests(unittest.TestCase):
             )
             parameters = AvatarParameters(gender=0.5, breast_size=0.5)
             vertices = ((1.0, 2.0, 3.0),)
-            with patch.dict(os.environ, {TARGETS_ENV: str(root)}):
-                fitted = apply_measurement_targets(vertices, parameters)
+            fitted = apply_measurement_targets(vertices, parameters, target_root=root)
             self.assertAlmostEqual(fitted[0][0], 1.1)
             self.assertAlmostEqual(fitted[0][1], 2.05)
             self.assertAlmostEqual(fitted[0][2], 2.9)

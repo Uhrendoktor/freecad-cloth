@@ -7,11 +7,12 @@ def _pieces(doc):
     return [o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]
 
 
-def _selected_piece(doc):
+def _selected_piece(doc, *, gui=None):
     try:
-        import FreeCADGui as Gui
+        if gui is None:
+            import FreeCADGui as gui
 
-        for obj in Gui.Selection.getSelection():
+        for obj in gui.Selection.getSelection():
             if getattr(obj, "PatternType", "") == "PatternPiece":
                 return obj
     except ImportError:
@@ -36,13 +37,14 @@ def _native_default_segment_id(piece):
     raise ValueError("selected pattern piece has no authored native edge identity")
 
 
-def _has_selected_piece():
+def _has_selected_piece(*, gui=None):
     try:
-        import FreeCADGui as Gui
+        if gui is None:
+            import FreeCADGui as gui
 
         return any(
             getattr(obj, "PatternType", "") == "PatternPiece"
-            for obj in Gui.Selection.getSelection()
+            for obj in gui.Selection.getSelection()
         )
     except (ImportError, AttributeError):
         return True
@@ -143,9 +145,10 @@ def add_internal_mark():
 
 
 class _FunctionCommand:
-    def __init__(self, function, command_name):
+    def __init__(self, function, command_name, *, gui=None):
         self.function = function
         self.command_name = command_name
+        self.gui = gui
 
     def Activated(self):
         obj = self.function()
@@ -153,7 +156,7 @@ class _FunctionCommand:
             obj.Document.recompute()
 
     def IsActive(self):
-        return _has_selected_piece()
+        return _has_selected_piece(gui=self.gui)
 
     def GetResources(self):
         return {

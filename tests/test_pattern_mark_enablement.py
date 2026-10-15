@@ -1,8 +1,5 @@
 """Regression tests for Pattern workbench mark command enablement."""
 
-import sys
-import types
-
 import freecad_cloth.pattern.PatternMarks as PatternMarks
 
 
@@ -22,20 +19,23 @@ class _Other:
     PatternType = "Other"
 
 
-def _set_gui(selection):
-    sys.modules["FreeCADGui"] = types.SimpleNamespace(Selection=selection)
+def _commands(gui):
+    return [
+        PatternMarks._FunctionCommand(PatternMarks.add_notch, "ClothPattern_AddNotch", gui=gui),
+        PatternMarks._FunctionCommand(
+            PatternMarks.add_grainline, "ClothPattern_AddGrainline", gui=gui
+        ),
+        PatternMarks._FunctionCommand(
+            PatternMarks.add_internal_mark, "ClothPattern_AddInternalMark", gui=gui
+        ),
+    ]
 
 
 def test_marks_require_selected_pattern_piece():
-    commands = [
-        PatternMarks._FunctionCommand(PatternMarks.add_notch, "ClothPattern_AddNotch"),
-        PatternMarks._FunctionCommand(PatternMarks.add_grainline, "ClothPattern_AddGrainline"),
-        PatternMarks._FunctionCommand(
-            PatternMarks.add_internal_mark, "ClothPattern_AddInternalMark"
-        ),
-    ]
     selection = _Selection([_Other()])
-    _set_gui(selection)
+    from types import SimpleNamespace
+
+    commands = _commands(SimpleNamespace(Selection=selection))
     assert all(not command.IsActive() for command in commands)
 
     selection.objects = [_Piece()]
@@ -43,8 +43,9 @@ def test_marks_require_selected_pattern_piece():
 
 
 def test_command_enablement_is_safe_without_freecad_gui():
-    sys.modules.pop("FreeCADGui", None)
-    command = PatternMarks._FunctionCommand(PatternMarks.add_notch, "ClothPattern_AddNotch")
+    command = PatternMarks._FunctionCommand(
+        PatternMarks.add_notch, "ClothPattern_AddNotch", gui=None
+    )
     assert command.IsActive()
 
 

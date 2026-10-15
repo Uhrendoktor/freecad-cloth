@@ -119,15 +119,7 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once():
         SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
         Placement=RotatedPlacement(),
     )
-    old_freecad = sys.modules.get("FreeCAD")
-    sys.modules["FreeCAD"] = FakeApp()
-    try:
-        start, end = _edge_points(piece, 1, 0.0, 1.0, z=0.2)
-    finally:
-        if old_freecad is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = old_freecad
+    start, end = _edge_points(piece, 1, 0.0, 1.0, z=0.2, vector_factory=FakeApp().Vector)
     assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
     assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
 

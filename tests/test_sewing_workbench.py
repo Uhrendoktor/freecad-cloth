@@ -83,8 +83,6 @@ def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
 
 
 def test_sketcher_authority_matches_semantic_edge_endpoints():
-    from freecad_cloth.pattern import PatternObjects
-
     class Point:
         def __init__(self, x, y):
             self.x = x
@@ -107,19 +105,13 @@ def test_sketcher_authority_matches_semantic_edge_endpoints():
         SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
     )
 
-    original = PatternObjects._native_edge_record_for_sketch_index
-    PatternObjects._native_edge_record_for_sketch_index = lambda obj, edge: {
-        "points": ((80.0, 50.0), (0.0, 50.0))
-    }
-    try:
-        assert _native_edge(piece, 2) is right
-    finally:
-        PatternObjects._native_edge_record_for_sketch_index = original
+    def record_for_edge(_obj, _edge):
+        return {"points": ((80.0, 50.0), (0.0, 50.0))}
+
+    assert _native_edge(piece, 2, native_edge_record_fn=record_for_edge) is right
 
 
 def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal():
-    from freecad_cloth.pattern import PatternObjects
-
     # PatternIR's cycle ordering can place native edge 7 at IR ordinal 1.
     # The drawing adapter must translate the semantic ID back to Sketch.Geometry[7].
     semantic_ids = tuple(f"native-edge-{index}" for index in range(8))
@@ -128,15 +120,10 @@ def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal(
         Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
     )
     seam = SimpleNamespace(EdgeAId="native-edge-7", EdgeASignature="signature", EdgeA=1)
-    original = PatternObjects._resolve_document_edge
-    PatternObjects._resolve_document_edge = lambda obj, edge_id, signature: {
-        "id": edge_id,
-        "ordinal": 1,
-    }
-    try:
-        assert _seam_edge_index(piece, seam, "A") == 7
-    finally:
-        PatternObjects._resolve_document_edge = original
+    def resolve_edge(_obj, edge_id, _signature):
+        return {"id": edge_id, "ordinal": 1}
+
+    assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 7
 
 
 def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
@@ -144,15 +131,10 @@ def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
 
     piece = SimpleNamespace(GeometryAuthority="Legacy")
     seam = SimpleNamespace(EdgeAId="legacy-edge-3", EdgeASignature="signature", EdgeA=3)
-    original = PatternObjects._resolve_document_edge
-    PatternObjects._resolve_document_edge = lambda obj, edge_id, signature: {
-        "id": edge_id,
-        "ordinal": 3,
-    }
-    try:
-        assert _seam_edge_index(piece, seam, "A") == 3
-    finally:
-        PatternObjects._resolve_document_edge = original
+    def resolve_edge(_obj, edge_id, _signature):
+        return {"id": edge_id, "ordinal": 3}
+
+    assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 3
 
 
 def test_sketcher_authority_falls_back_to_sketch_shape_edges():
@@ -202,16 +184,9 @@ def test_uniform_alignment_follows_curved_edge():
         Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]),
     )
     seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
-    oldf = sys.modules.get("FreeCAD")
-    sys.modules["FreeCAD"] = _install_fake_freecad()()
-    try:
-        endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints")
-        uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform")
-    finally:
-        if oldf is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = oldf
+    vector_factory = _install_fake_freecad()().Vector
+    endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints", vector_factory=vector_factory)
+    uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform", vector_factory=vector_factory)
     assert endpoint_pairs[1][0].y > 0
     assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
     assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
@@ -226,15 +201,9 @@ def test_reversed_correspondence_is_applied_once():
     seam = SimpleNamespace(
         EdgeA=0, StartA=0.2, EndA=0.8, EdgeB=0, StartB=0.2, EndB=0.8, ReversedB=True
     )
-    oldf = sys.modules.get("FreeCAD")
-    sys.modules["FreeCAD"] = _install_fake_freecad()()
-    try:
-        pairs = _seam_correspondence(p, p, seam, 3, "endpoints")
-    finally:
-        if oldf is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = oldf
+    pairs = _seam_correspondence(
+        p, p, seam, 3, "endpoints", vector_factory=_install_fake_freecad()().Vector
+    )
     assert pairs[0][1].x == 80
     assert pairs[-1][1].x == 20
 
@@ -279,60 +248,51 @@ def test_proxy_validation_and_reversal():
             def __init__(self, *args):
                 pass
 
-    oldf, oldp = sys.modules.get("FreeCAD"), sys.modules.get("Part")
-    sys.modules["FreeCAD"] = FakeApp()
-    sys.modules["Part"] = SimpleNamespace(
+    fake_app = FakeApp()
+    fake_part = SimpleNamespace(
         Shape=Shape,
         makePolygon=lambda x: tuple(x),
         makeLine=lambda a, b: (a, b),
         makeCompound=lambda x: tuple(x),
     )
-    try:
-        seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=True)
-        a = SimpleNamespace(
-            Width=100,
-            Height=60,
-            SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
-            Placement=Placement(),
-        )
-        b = SimpleNamespace(
-            Width=100,
-            Height=60,
-            SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
-            Placement=Placement(),
-        )
-        obj = SimpleNamespace(
-            Seam=seam,
-            PieceA=a,
-            PieceB=b,
-            Tolerance=0.5,
-            Stitches=8,
-            Alignment="endpoints",
-            Status="Incomplete",
-            LengthA=0,
-            LengthB=0,
-            LengthDifference=0,
-            StitchCount=0,
-            StitchPoints=[],
-            Shape=None,
-            ReversedB=False,
-            AssemblyPlacementB=None,
-        )
-        SewingOperationProxy().execute(obj)
-        assert obj.Status == "Valid"
-        assert obj.StitchCount == 8
-        assert len(obj.StitchPoints) == 8
-        assert obj.ReversedB is True
-        assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
-    finally:
-        if oldf is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = oldf
-        if oldp is None:
-            sys.modules.pop("Part", None)
-        else:
-            sys.modules["Part"] = oldp
+    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=True)
+    a = SimpleNamespace(
+        Width=100,
+        Height=60,
+        SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
+        Placement=Placement(),
+    )
+    b = SimpleNamespace(
+        Width=100,
+        Height=60,
+        SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
+        Placement=Placement(),
+    )
+    obj = SimpleNamespace(
+        Seam=seam,
+        PieceA=a,
+        PieceB=b,
+        Tolerance=0.5,
+        Stitches=8,
+        Alignment="endpoints",
+        Status="Incomplete",
+        LengthA=0,
+        LengthB=0,
+        LengthDifference=0,
+        StitchCount=0,
+        StitchPoints=[],
+        Shape=None,
+        ReversedB=False,
+        AssemblyPlacementB=None,
+    )
+    SewingOperationProxy().execute(
+        obj, app_module=fake_app, part_module=fake_part, vector_factory=fake_app.Vector
+    )
+    assert obj.Status == "Valid"
+    assert obj.StitchCount == 8
+    assert len(obj.StitchPoints) == 8
+    assert obj.ReversedB is True
+    assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
 
 
 def _execute_fake_proxy(
@@ -379,66 +339,57 @@ def _execute_fake_proxy(
             def __init__(self, *args):
                 pass
 
-    oldf, oldp = sys.modules.get("FreeCAD"), sys.modules.get("Part")
-    sys.modules["FreeCAD"] = FakeApp()
-    sys.modules["Part"] = SimpleNamespace(
+    fake_app = FakeApp()
+    fake_part = SimpleNamespace(
         Shape=Shape,
         makePolygon=lambda x: tuple(x),
         makeLine=lambda a, b: (a, b),
         makeCompound=lambda x: tuple(x),
     )
-    try:
-        seam = SimpleNamespace(
-            EdgeA=0,
-            StartA=start_a,
-            EndA=end_a,
-            EdgeB=0,
-            StartB=start_b,
-            EndB=end_b,
-            ReversedB=reversed_b,
-        )
-        a = SimpleNamespace(
-            Width=width_a,
-            Height=60,
-            SewingOutline=repr([(0, 0), (width_a, 0), (width_a, 60), (0, 60)]),
-            Placement=Placement(),
-        )
-        b = SimpleNamespace(
-            Width=width_b,
-            Height=60,
-            SewingOutline=repr([(0, 0), (width_b, 0), (width_b, 60), (0, 60)]),
-            Placement=Placement(),
-        )
-        obj = SimpleNamespace(
-            Seam=seam,
-            PieceA=a,
-            PieceB=b,
-            Tolerance=tolerance,
-            RelativeTolerance=relative_tolerance,
-            Stitches=4,
-            Alignment="endpoints",
-            Status="Incomplete",
-            CorrespondenceStatus="valid",
-            LengthA=0,
-            LengthB=0,
-            LengthDifference=0,
-            StitchCount=0,
-            StitchPoints=[],
-            Shape=None,
-            ReversedB=False,
-            AssemblyPlacementB=None,
-        )
-        SewingOperationProxy().execute(obj)
-        return obj
-    finally:
-        if oldf is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = oldf
-        if oldp is None:
-            sys.modules.pop("Part", None)
-        else:
-            sys.modules["Part"] = oldp
+    seam = SimpleNamespace(
+        EdgeA=0,
+        StartA=start_a,
+        EndA=end_a,
+        EdgeB=0,
+        StartB=start_b,
+        EndB=end_b,
+        ReversedB=reversed_b,
+    )
+    a = SimpleNamespace(
+        Width=width_a,
+        Height=60,
+        SewingOutline=repr([(0, 0), (width_a, 0), (width_a, 60), (0, 60)]),
+        Placement=Placement(),
+    )
+    b = SimpleNamespace(
+        Width=width_b,
+        Height=60,
+        SewingOutline=repr([(0, 0), (width_b, 0), (width_b, 60), (0, 60)]),
+        Placement=Placement(),
+    )
+    obj = SimpleNamespace(
+        Seam=seam,
+        PieceA=a,
+        PieceB=b,
+        Tolerance=tolerance,
+        RelativeTolerance=relative_tolerance,
+        Stitches=4,
+        Alignment="endpoints",
+        Status="Incomplete",
+        CorrespondenceStatus="valid",
+        LengthA=0,
+        LengthB=0,
+        LengthDifference=0,
+        StitchCount=0,
+        StitchPoints=[],
+        Shape=None,
+        ReversedB=False,
+        AssemblyPlacementB=None,
+    )
+    SewingOperationProxy().execute(
+        obj, app_module=fake_app, part_module=fake_part, vector_factory=fake_app.Vector
+    )
+    return obj
 
 
 def test_proxy_reports_symmetric_relative_mismatch():
