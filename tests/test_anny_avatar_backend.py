@@ -48,6 +48,25 @@ def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None
     )
 
 
+def test_advanced_anny_overrides_reach_the_model_inputs() -> None:
+    advanced = _initial_phenotypes(
+        gender=0.5,
+        breast_size=0.0,
+        phenotype_overrides={"age": 0.41, "weight": 0.67},
+        local_change_overrides={"measure-waist-circ-incr": 0.2},
+    )
+
+    assert advanced["age"] == 0.41
+    assert advanced["weight"] == 0.67
+    assert advanced["_local_changes"]["measure-waist-circ-incr"] == 0.2
+
+
+def test_clad_body_fitting_includes_extended_garment_measurements() -> None:
+    measurement_fields = {name for name, _key in MEASUREMENT_FIELDS}
+
+    assert {"stomach", "sleeve_length"} <= measurement_fields
+
+
 def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
     labels = _measurement_local_change_labels()
 
