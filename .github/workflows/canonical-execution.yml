@@ -97,13 +97,9 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          git -c rerere.enabled=true rebase -X ours --exec 'git checkout origin/main -- .github/workflows/canonical-execution.yml && if ! git diff --cached --quiet; then git commit --amend --allow-empty --no-edit; fi' origin/main
-          git diff --exit-code origin/main -- .github/workflows/canonical-execution.yml
-          # Reapply the two intended Anny inventory additions after preserving conflicting main hunks.
-          python -c 'import json,pathlib;p=pathlib.Path("pyrightconfig.json");d=json.loads(p.read_text());x="freecad_cloth/avatar/AnnyAvatarBackend.py";d["include"].append(x) if x not in d["include"] else None;p.write_text(json.dumps(d,indent=2)+"\n")'
-          python -c 'from pathlib import Path;p=Path("tools/ci/validate_ci_structure.py");s=p.read_text();m="    \"freecad_cloth/avatar/MakeHumanTargets.py\",\n";a="    \"freecad_cloth/avatar/AnnyAvatarBackend.py\",\n";p.write_text(s if a in s else s.replace(m,m+a))'
-          git add pyrightconfig.json tools/ci/validate_ci_structure.py
-          if ! git diff --cached --quiet; then git commit -m "ci: retain Anny Pyright inventory"; fi
+          # Rebase without conflict heuristics or generated source/configuration repair.
+          # A genuine conflict is an explicit maintainer decision; fail rather than synthesize a commit.
+          git rebase origin/main
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
@@ -149,6 +145,8 @@ jobs:
           lint-imports
           python tools/ci/check_explicit_any_annotations.py
           python tools/ci/check_pydantic_models.py
+          python tools/ci/check_no_source_rewriting.py
+          python -m pytest -q tests/test_no_source_rewriting.py
           pyright -p pyrightconfig.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
