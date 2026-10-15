@@ -183,7 +183,13 @@ def dockerfile_tags_for_shas(
 
 
 def cleanup_pbd_package_versions(
-    repo: str, protected_shas: set[str], cutoff_epoch: float
+    repo: str,
+    protected_shas: set[str],
+    cutoff_epoch: float,
+    *,
+    dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
 ) -> dict[str, object]:
     """Prune only old PBD image versions unused by main, open PRs, or retained/active runs."""
     result: dict[str, object] = {
@@ -194,23 +200,31 @@ def cleanup_pbd_package_versions(
         "protected_tags": 0,
     }
     deleted = 0
+    resolve_tags = (
+        dockerfile_tags_for_shas if dockerfile_tags_resolver is None else dockerfile_tags_resolver
+    )
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
     phase = "resolve_protected_tags"
     try:
         if not protected_shas:
             result["status"] = "skipped_no_protected_refs"
             return result
-        protected_tags = dockerfile_tags_for_shas(repo, protected_shas)
+        protected_tags = resolve_tags(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
         phase = "list_container_packages"
-        owner = repo.split("/", maxsplit=1)[0]
-        packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
+        packages = list(load_api_items("user/packages?package_type=container"))
         target = next(
             (
                 package
                 for package in packages
                 if isinstance(package.get("name"), str)
-                and str(package["name"]).strip("/").lower() == PBD_PACKAGE_SUFFIX
+                and str(package["name"]).strip("/").lower()
+                in {
+                    PBD_PACKAGE_SUFFIX,
+                    PBD_PACKAGE_SUFFIX.rsplit("/", maxsplit=1)[-1],
+                }
             ),
             None,
         )
@@ -220,9 +234,7 @@ def cleanup_pbd_package_versions(
         package_name = str(target["name"]).strip("/")
         phase = "list_package_versions"
         encoded_name = quote(package_name, safe="/")
-        versions = list(
-            paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions")
-        )
+        versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         result["pending"] = len(stale)
@@ -232,11 +244,11 @@ def cleanup_pbd_package_versions(
             if not isinstance(version_id, int):
                 raise RuntimeError("GitHub returned a package version without an integer ID")
             phase = f"delete_package_version_{version_id}"
-            gh_delete(
+            delete_api_resource(
                 "api",
                 "--method",
                 "DELETE",
-                f"users/{owner}/packages/container/{encoded_name}/versions/{version_id}",
+                f"user/packages/container/{encoded_name}/versions/{version_id}",
             )
             deleted += 1
             result["pending"] = len(stale) - deleted

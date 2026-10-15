@@ -165,6 +165,50 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
         raise AssertionError("missing protected Dockerfile content must fail closed")
 
 
+def test_package_cleanup_uses_authenticated_user_package_endpoints() -> None:
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    requested_endpoints: list[str] = []
+    deleted_arguments: list[tuple[str, ...]] = []
+
+    def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]:
+        assert repo_name == "Uhrendoktor/freecad-cloth"
+        assert protected_shas == {"1" * 40}
+        return {"protected-dockerfile-tag"}
+
+    def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
+        requested_endpoints.append(endpoint)
+        if endpoint == "user/packages?package_type=container":
+            packages: list[dict[str, object]] = [{"name": "freecad-cloth/pbd-validation"}]
+            return iter(packages)
+        if endpoint == "user/packages/container/freecad-cloth/pbd-validation/versions":
+            return iter([])
+        raise AssertionError(f"unexpected package API endpoint: {endpoint}")
+
+    def fake_delete(*args: str) -> None:
+        deleted_arguments.append(args)
+
+    result = maintenance_cleanup.cleanup_pbd_package_versions(
+        "Uhrendoktor/freecad-cloth",
+        {"1" * 40},
+        maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
+        dockerfile_tags_resolver=fake_resolve_tags,
+        api_items_loader=fake_load_items,
+        delete_resource=fake_delete,
+    )
+
+    assert result["status"] == "passed"
+    assert result["versions_seen"] == 0
+    assert result["deleted"] == 0
+    assert requested_endpoints == [
+        "user/packages?package_type=container",
+        "user/packages/container/freecad-cloth/pbd-validation/versions",
+    ]
+    assert deleted_arguments == []
+
+
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
     from tools.ci.maintenance_cleanup import stale_package_versions
 
