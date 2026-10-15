@@ -69,6 +69,24 @@ class AvatarTaskPanel:
         ("stomach", "Stomach circumference"),
         ("sleeve_length", "Sleeve length"),
     )
+    FIT_TARGETS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "height",
+            "neck",
+            "shoulder",
+            "chest",
+            "underbust",
+            "waist",
+            "hip",
+            "upper_arm",
+            "thigh",
+            "knee",
+            "calf",
+            "inseam",
+            "stomach",
+            "sleeve_length",
+        }
+    )
     PROPORTIONS = (
         ("inseam", "Inseam"),
         ("torso", "Torso length"),
@@ -344,7 +362,17 @@ class AvatarTaskPanel:
             box.setRange(1.0, 3000.0)
             box.setDecimals(1)
             box.setSuffix(" mm")
-            box.setToolTip("Staged anthropometric value in millimetres.")
+            if key in self.FIT_TARGETS:
+                tooltip = (
+                    "Target in millimetres. The Anny/clad-body fitting objective constrains "
+                    "this dimension when the mannequin is rebuilt."
+                )
+            else:
+                tooltip = (
+                    "Stored in millimetres for garment reference and derived landmarks. "
+                    "This value is not an independent constraint in the current body-surface fit."
+                )
+            box.setToolTip(tooltip)
             layout.addRow(label, box)
             self._boxes[key] = box
         parent.addWidget(group)
