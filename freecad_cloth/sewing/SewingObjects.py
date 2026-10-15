@@ -35,7 +35,7 @@ class _NativeEdge(Protocol):
 
 
 class _NativePlacement(Protocol):
-    def multVec(self, vector: _NativePoint) -> _NativePoint: ...
+    def multVec(self, _vector: _NativePoint) -> _NativePoint: ...
 
 
 class _SewingFeature(Protocol):
