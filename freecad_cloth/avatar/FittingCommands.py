@@ -473,9 +473,11 @@ def _sync_visuals(scene):
     points = tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)
     volumes = tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes)
     wanted_names = {
-        *("ArrangementPoint_" + _safe_name(point.name) for point in points),
-        *("BoundingVolume_" + _safe_name(volume.name) for volume in volumes),
+        "ArrangementPoint_" + _safe_name(point.name) for point in points
     }
+    wanted_names.update(
+        "BoundingVolume_" + _safe_name(volume.name) for volume in volumes
+    )
     _remove_stale_fitting_markers(scene.Document, wanted_names)
     point_objects = []
     volume_objects = []
