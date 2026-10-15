@@ -252,6 +252,10 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "pull_request:" in commits
     assert "merge_group:" in commits
     assert "&& 'fast' ||" in commits
+    assert "  push:" not in commits
+    assert "  pull_request:" not in publication
+    assert "  merge_group:" not in publication
+    assert "workflow_dispatch:" not in shared
     assert "push:" in publication
     assert "branches: [main]" in publication
     assert "execution_mode: publication" in publication
