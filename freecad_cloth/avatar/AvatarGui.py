@@ -379,7 +379,9 @@ class AvatarTaskPanel:
         self.advanced_search.setPlaceholderText("Filter by parameter name…")
         self.advanced_search.setClearButtonEnabled(True)
         self.reset_advanced_button = QtWidgets.QPushButton("Reset advanced")
-        self.reset_advanced_button.setToolTip("Clear all advanced overrides and restore Anny defaults.")
+        self.reset_advanced_button.setToolTip(
+            "Clear all advanced overrides and restore Anny defaults."
+        )
         search_row.addWidget(self.advanced_search, 1)
         search_row.addWidget(self.reset_advanced_button)
         advanced_layout.addLayout(search_row)
@@ -481,7 +483,9 @@ class AvatarTaskPanel:
         row_layout.addWidget(box)
         group_data["layout"].addWidget(row)
         group_data["rows"].append(row)
-        row.setProperty("clothSearchText", f"{name} {self._display_parameter_name(name)}".casefold())
+        row.setProperty(
+            "clothSearchText", f"{name} {self._display_parameter_name(name)}".casefold()
+        )
         self._advanced_rows.append(
             {
                 "name": name,
@@ -494,8 +498,8 @@ class AvatarTaskPanel:
             }
         )
         box.valueChanged.connect(
-            lambda current, control_kind=kind, parameter_name=name: self._advanced_parameter_changed(
-                control_kind, parameter_name, current
+            lambda current, control_kind=kind, parameter_name=name: (
+                self._advanced_parameter_changed(control_kind, parameter_name, current)
             )
         )
 
@@ -579,11 +583,7 @@ class AvatarTaskPanel:
 
     def _advanced_parameter_changed(self, kind, name, value):
         """Persist only non-default overrides while keeping defaults discoverable in the UI."""
-        default = (
-            self._advanced_phenotype_defaults.get(name, 0.5)
-            if kind == "phenotype"
-            else 0.0
-        )
+        default = self._advanced_phenotype_defaults.get(name, 0.5) if kind == "phenotype" else 0.0
         overrides = (
             self._advanced_phenotype_overrides
             if kind == "phenotype"
@@ -680,7 +680,9 @@ class AvatarTaskPanel:
             try:
                 stored_parameters = AvatarParameters.from_json(payload)
                 self._advanced_phenotype_overrides = dict(stored_parameters.phenotype_overrides)
-                self._advanced_local_change_overrides = dict(stored_parameters.local_change_overrides)
+                self._advanced_local_change_overrides = dict(
+                    stored_parameters.local_change_overrides
+                )
             except (TypeError, ValueError):
                 self._advanced_phenotype_overrides = {}
                 self._advanced_local_change_overrides = {}
