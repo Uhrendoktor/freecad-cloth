@@ -68,6 +68,11 @@ _FIT_STEPS = max(1, int(os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS", "40")))
 _FIT_TOLERANCE = 0.012
 
 
+def _configured_fit_steps() -> int:
+    """Resolve the current fit-step budget from explicit runtime configuration."""
+    return max(1, int(os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS", str(_FIT_STEPS))))
+
+
 class AnnyAvatarBackendError(RuntimeError):
     """Raised when Anny cannot produce a compatible avatar mesh."""
 
@@ -298,8 +303,10 @@ def _fit_anny_body(
     breast_size: float,
     *,
     fit_hip: bool,
+    fit_steps: int | None = None,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Fit an Anny body and preserve every indexed vertex for rig anchors."""
+    fit_steps = _configured_fit_steps() if fit_steps is None else max(1, int(fit_steps))
     try:
         import anny
         import torch
@@ -529,7 +536,7 @@ def _fit_anny_body(
     global_target_values = {
         key: torch.tensor(target, dtype=torch.float32) for _name, key, target in global_targets
     }
-    for _step in range(_FIT_STEPS):
+    for _step in range(fit_steps):
         global_optimizer.zero_grad(set_to_none=True)
         actual = measure_grad(body, only=global_target_keys)
         relative_errors = [
@@ -618,7 +625,7 @@ def _fit_anny_body(
     local_target_values = {
         key: torch.tensor(target, dtype=torch.float32) for _name, key, target in non_hip_targets
     }
-    for _step in range(_FIT_STEPS):
+    for _step in range(fit_steps):
         local_optimizer.zero_grad(set_to_none=True)
         actual = measure_grad(body, only=local_target_keys)
         relative_errors = [
@@ -700,7 +707,7 @@ def _fit_anny_body(
         _hip_name, hip_key, hip_target = hip_targets[0]
         hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
         hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)
-        for _step in range(_FIT_STEPS):
+        for _step in range(fit_steps):
             hip_optimizer.zero_grad(set_to_none=True)
             actual = measure_grad(body, only=[hip_key])
             relative_error = (
@@ -863,9 +870,10 @@ def _cached_fitted_body(
     gender: float,
     breast_size: float,
     fit_hip: bool,
+    fit_steps: int,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Cache fitted surface and full rig vertices so viewport events do not refit."""
-    return _fit_anny_body(measurements, gender, breast_size, fit_hip=fit_hip)
+    return _fit_anny_body(measurements, gender, breast_size, fit_hip=fit_hip, fit_steps=fit_steps)
 
 
 def _fitted_body_for(
@@ -884,7 +892,11 @@ def _fitted_body_for(
         measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
     key = tuple(sorted(measurement_values.items()))
     return _cached_fitted_body(
-        key, float(parameters.gender), float(parameters.breast_size), fit_hip
+        key,
+        float(parameters.gender),
+        float(parameters.breast_size),
+        fit_hip,
+        _configured_fit_steps(),
     )
 
 

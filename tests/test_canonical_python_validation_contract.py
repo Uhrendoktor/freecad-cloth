@@ -8,30 +8,26 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_collection_plugin_accepts_all_expected_modules(monkeypatch):
-    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
+def test_collection_plugin_accepts_all_expected_modules():
+    from tools.ci.pytest_collection_contract import validate_collection_contract
 
-    monkeypatch.setenv(
-        "CLOTH_EXPECTED_TEST_MODULES",
-        "tests/test_core.py\ntests/test_mesh.py",
-    )
-    pytest_collection_modifyitems(
+    validate_collection_contract(
         [
             SimpleNamespace(path=ROOT / "tests" / "test_core.py"),
             SimpleNamespace(path=ROOT / "tests" / "test_mesh.py"),
-        ]
+        ],
+        environ={"CLOTH_EXPECTED_TEST_MODULES": "tests/test_core.py\ntests/test_mesh.py"},
     )
 
 
-def test_collection_plugin_fails_when_a_module_collects_no_items(monkeypatch):
-    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
+def test_collection_plugin_fails_when_a_module_collects_no_items():
+    from tools.ci.pytest_collection_contract import validate_collection_contract
 
-    monkeypatch.setenv(
-        "CLOTH_EXPECTED_TEST_MODULES",
-        "tests/test_core.py\ntests/test_mesh.py",
-    )
     with pytest.raises(pytest.UsageError, match="tests/test_mesh.py"):
-        pytest_collection_modifyitems([SimpleNamespace(path=ROOT / "tests" / "test_core.py")])
+        validate_collection_contract(
+            [SimpleNamespace(path=ROOT / "tests" / "test_core.py")],
+            environ={"CLOTH_EXPECTED_TEST_MODULES": "tests/test_core.py\ntests/test_mesh.py"},
+        )
 
 
 def test_canonical_python_job_executes_pytest_contract_modules():

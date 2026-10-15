@@ -34,7 +34,8 @@ def test_pull_requests_are_hosted_only():
     assert "'ubuntu-latest'" in readiness
     assert "self-hosted" in readiness
 
-    # All validation jobs use the same explicit trust-boundary runner selector.
+    # All validation jobs reuse one authoritative trust-boundary runner selector.
+    assert "runs-on: &ci_validation_runner" in readiness
     for job in (
         "diagnostic-pbd-contact",
         "simulation-ladder",
@@ -47,14 +48,15 @@ def test_pull_requests_are_hosted_only():
     ):
         block = _job_block(source, job)
         assert "needs: [agent-quality, local_runner_readiness, pbd_validation_image]" in block
-        assert "(github.event_name == 'pull_request' || inputs.runner_mode == 'hosted')" in block
-        assert "'ubuntu-latest'" in block
+        assert "runs-on: *ci_validation_runner" in block
 
 
-def test_trusted_runs_remain_local_first():
+def test_main_pushes_use_hosted_runners_without_fallback_dispatch() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
+    readiness = _job_block(source, "local_runner_readiness")
+    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in readiness
+    assert "'ubuntu-latest'" in readiness
     for job in (
-        "local_runner_readiness",
         "diagnostic-pbd-contact",
         "simulation-ladder",
         "python",
@@ -64,9 +66,28 @@ def test_trusted_runs_remain_local_first():
         "gui-visual-examples",
         "benchmark",
     ):
-        block = _job_block(source, job)
-        assert "self-hosted" in block
-        assert "inputs.runner_mode == 'hosted'" in block
+        assert "runs-on: *ci_validation_runner" in _job_block(source, job)
+
+    watchdog = _job_block(source, "runner_watchdog")
+    assert "github.event_name != 'push' || github.ref != 'refs/heads/main'" in watchdog
+
+
+def test_trusted_runs_remain_local_first():
+    source = WORKFLOW.read_text(encoding="utf-8")
+    readiness = _job_block(source, "local_runner_readiness")
+    assert "self-hosted" in readiness
+    assert "inputs.runner_mode == 'hosted'" in readiness
+    for job in (
+        "diagnostic-pbd-contact",
+        "simulation-ladder",
+        "python",
+        "gui-simple",
+        "gui-tunic-visual",
+        "gui-turntables",
+        "gui-visual-examples",
+        "benchmark",
+    ):
+        assert "runs-on: *ci_validation_runner" in _job_block(source, job)
 
 
 def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
@@ -118,16 +139,18 @@ def test_collection_contract_passes_when_every_requested_module_collects():
     )
 
 
-def test_collection_contract_rejects_a_requested_module_with_zero_items(monkeypatch):
+def test_collection_contract_rejects_a_requested_module_with_zero_items():
     import os
     from types import SimpleNamespace
 
     import pytest
 
-    from tools.ci.pytest_collection_contract import pytest_collection_modifyitems
+    from tools.ci.pytest_collection_contract import validate_collection_contract
 
     expected = (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
-    monkeypatch.setenv("CLOTH_EXPECTED_TEST_MODULES", os.pathsep.join(map(str, expected)))
     collected = SimpleNamespace(path=expected[0])
     with pytest.raises(pytest.UsageError, match="tests/test_empty.py"):
-        pytest_collection_modifyitems([collected])
+        validate_collection_contract(
+            [collected],
+            environ={"CLOTH_EXPECTED_TEST_MODULES": os.pathsep.join(map(str, expected))},
+        )

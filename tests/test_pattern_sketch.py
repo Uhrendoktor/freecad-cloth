@@ -64,33 +64,17 @@ def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch(
         },
     )()
     calls = []
-    original_create = PatternCommands.create_pattern_piece
-    old_freecad = sys.modules.get("FreeCAD")
-    old_sketch = sys.modules.get("freecad_cloth.pattern.PatternSketch")
-
-    PatternCommands.create_pattern_piece = lambda: piece
-    sys.modules["FreeCAD"] = type("FreeCAD", (), {"ActiveDocument": document})
 
     def create_sketch_for_piece(model, doc):
         calls.append((model, doc))
         return "Sketch"
 
-    sys.modules["freecad_cloth.pattern.PatternSketch"] = type(
-        "PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece}
+    assert "ClothPattern_CreatePieceWithSketch" in PatternCommands.COMMANDS
+    result = PatternCommands.create_pattern_piece_with_sketch(
+        app=type("FreeCAD", (), {"ActiveDocument": document})(),
+        create_piece_fn=lambda: piece,
+        create_sketch_fn=create_sketch_for_piece,
     )
-    try:
-        assert "ClothPattern_CreatePieceWithSketch" in PatternCommands.COMMANDS
-        result = PatternCommands.create_pattern_piece_with_sketch()
-    finally:
-        PatternCommands.create_pattern_piece = original_create
-        if old_freecad is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = old_freecad
-        if old_sketch is None:
-            sys.modules.pop("freecad_cloth.pattern.PatternSketch", None)
-        else:
-            sys.modules["freecad_cloth.pattern.PatternSketch"] = old_sketch
 
     assert result is piece
     assert len(calls) == 1
@@ -124,32 +108,16 @@ def test_create_pattern_piece_with_sketch_does_not_duplicate_existing_native_ske
         },
     )()
     calls = []
-    original_create = PatternCommands.create_pattern_piece
-    old_freecad = sys.modules.get("FreeCAD")
-    old_sketch = sys.modules.get("freecad_cloth.pattern.PatternSketch")
-
-    PatternCommands.create_pattern_piece = lambda: piece
-    sys.modules["FreeCAD"] = type("FreeCAD", (), {"ActiveDocument": document})
 
     def create_sketch_for_piece(model, doc):
         calls.append((model, doc))
         return "UnexpectedSketch"
 
-    sys.modules["freecad_cloth.pattern.PatternSketch"] = type(
-        "PatternSketch", (), {"create_sketch_for_piece": create_sketch_for_piece}
+    result = PatternCommands.create_pattern_piece_with_sketch(
+        app=type("FreeCAD", (), {"ActiveDocument": document})(),
+        create_piece_fn=lambda: piece,
+        create_sketch_fn=create_sketch_for_piece,
     )
-    try:
-        result = PatternCommands.create_pattern_piece_with_sketch()
-    finally:
-        PatternCommands.create_pattern_piece = original_create
-        if old_freecad is None:
-            sys.modules.pop("FreeCAD", None)
-        else:
-            sys.modules["FreeCAD"] = old_freecad
-        if old_sketch is None:
-            sys.modules.pop("freecad_cloth.pattern.PatternSketch", None)
-        else:
-            sys.modules["freecad_cloth.pattern.PatternSketch"] = old_sketch
 
     assert result is piece
     assert calls == []
@@ -170,20 +138,13 @@ def test_edit_sketch_enters_native_editor_for_selected_piece():
         Sketch = SketchObject()
 
     edits = []
-    old_gui = sys.modules.get("FreeCADGui")
     gui = type("FreeCADGui", (), {})()
     gui.Selection = type("Selection", (), {"getSelection": staticmethod(lambda: [Piece()])})()
     gui.activeDocument = staticmethod(
         lambda: type("DocGui", (), {"setEdit": lambda self, name: edits.append(name)})()
     )
-    sys.modules["FreeCADGui"] = gui
-    try:
-        result = PatternCommands.edit_pattern_sketch()
-    finally:
-        if old_gui is None:
-            sys.modules.pop("FreeCADGui", None)
-        else:
-            sys.modules["FreeCADGui"] = old_gui
+
+    result = PatternCommands.edit_pattern_sketch(gui=gui)
 
     assert result.Name == "PatternSketch_front"
     assert edits == ["PatternSketch_front"]

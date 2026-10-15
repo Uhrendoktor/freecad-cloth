@@ -14,7 +14,7 @@ import json
 import math
 import os
 import tempfile
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypedDict, cast
@@ -121,8 +121,9 @@ class MeshData:
         return self
 
 
-def _default_cache_path() -> Path:
-    configured = os.environ.get(CACHE_DIR_ENV, "").strip()
+def _default_cache_path(environ: Mapping[str, str] | None = None) -> Path:
+    settings = os.environ if environ is None else environ
+    configured = settings.get(CACHE_DIR_ENV, "").strip()
     if configured:
         return Path(configured).expanduser() / DEFAULT_CACHE_NAME
     return Path.home() / ".cache" / "freecad-cloth" / DEFAULT_CACHE_NAME
@@ -250,11 +251,12 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
         raise
 
 
-def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
+def _makehuman_base_mesh_candidates(environ: Mapping[str, str] | None = None) -> tuple[Path, ...]:
     """Return conventional MakeHuman install paths without scanning the whole disk."""
+    settings = os.environ if environ is None else environ
     roots: list[Path] = []
     candidates: list[Path] = []
-    configured = os.environ.get(MAKEHUMAN_DATA_ENV, "").strip()
+    configured = settings.get(MAKEHUMAN_DATA_ENV, "").strip()
     if configured:
         explicit = Path(configured).expanduser()
         if explicit.suffix.lower() == ".obj":
@@ -284,7 +286,7 @@ def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
         )
     )
     for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
-        value = os.environ.get(variable, "").strip()
+        value = settings.get(variable, "").strip()
         if value:
             install_root = Path(value).expanduser()
             roots.extend(
@@ -295,7 +297,7 @@ def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
                 )
             )
     for variable in ("LOCALAPPDATA", "APPDATA"):
-        value = os.environ.get(variable, "").strip()
+        value = settings.get(variable, "").strip()
         if value:
             profile_root = Path(value).expanduser()
             roots.extend(
@@ -328,17 +330,31 @@ def _makehuman_base_mesh_candidates() -> tuple[Path, ...]:
     return tuple(unique)
 
 
-def _find_local_base_mesh() -> Path | None:
+def _find_local_base_mesh(
+    *,
+    environ: Mapping[str, str] | None = None,
+    verifier: Callable[[Path], bool] | None = None,
+) -> Path | None:
     """Find a local copy only if its bytes match the pinned indexed HM08 mesh."""
-    for candidate in _makehuman_base_mesh_candidates():
-        if _verified(candidate):
+    check = _verified if verifier is None else verifier
+    for candidate in _makehuman_base_mesh_candidates(environ):
+        if check(candidate):
             return candidate
     return None
 
 
-def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
+def ensure_makehuman_base(
+    path: str | os.PathLike[str] | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+    verifier: Callable[[Path], bool] | None = None,
+    downloader: Callable[[str, Path, Callable[[Path], bool]], None] | None = None,
+) -> Path:
     """Resolve a human OBJ from an explicit path, local install, or pinned download."""
-    override = os.environ.get(CACHE_ENV, "").strip()
+    settings = os.environ if environ is None else environ
+    check = _verified if verifier is None else verifier
+    download = _download if downloader is None else downloader
+    override = settings.get(CACHE_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
         if not destination.is_file():
@@ -350,14 +366,14 @@ def ensure_makehuman_base(path: str | os.PathLike[str] | None = None) -> Path:
             raise HumanoidMeshError(f"{CACHE_ENV} points to a missing humanoid mesh: {destination}")
         return destination
 
-    destination = _default_cache_path()
-    if _verified(destination):
+    destination = _default_cache_path(settings)
+    if check(destination):
         return destination
-    local_mesh = _find_local_base_mesh()
+    local_mesh = _find_local_base_mesh(environ=settings, verifier=check)
     if local_mesh is not None:
         return local_mesh
     try:
-        _download(MAKEHUMAN_BASE_URL, destination, _verified)
+        download(MAKEHUMAN_BASE_URL, destination, check)
     except Exception as exc:
         raise HumanoidMeshError(
             "unable to obtain the pinned MakeHuman HM08 base mesh; set "

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Callable
 from typing import Protocol, cast
 
 
@@ -60,7 +61,7 @@ def _geometry_round(value, digits=5):
     return 0.0 if rounded == 0.0 else rounded
 
 
-def _mesh_topology(target):
+def _mesh_topology(target, *, vector_factory: Callable[..., object] | None = None):
     """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
@@ -76,11 +77,15 @@ def _mesh_topology(target):
             # space, so normalize here before calculating or resolving barycentric
             # coordinates; _anchor_world_position applies Placement exactly once.
             try:
-                import FreeCAD as App
+                if vector_factory is None:
+                    import FreeCAD as App
 
+                    make_vector = App.Vector
+                else:
+                    make_vector = vector_factory
                 inverse_placement = placement.inverse()
                 points = tuple(
-                    _point_xyz(inverse_placement.multVec(App.Vector(*point))) for point in points
+                    _point_xyz(inverse_placement.multVec(make_vector(*point))) for point in points
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 raise ValueError(
@@ -265,9 +270,11 @@ def _weighted_triangle_point(vertices, triangle, weights):
     )
 
 
-def _mesh_anchor_local_position(target, anchor):
+def _mesh_anchor_local_position(
+    target, anchor, *, vector_factory: Callable[..., object] | None = None
+):
     """Resolve a mesh anchor against current vertices, preserving its material location."""
-    topology = _mesh_topology(target)
+    topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
         return tuple(float(value) for value in anchor.get("local_point", (0.0, 0.0, 0.0)))
     vertices, triangles = topology
@@ -280,9 +287,11 @@ def _mesh_anchor_local_position(target, anchor):
     return _weighted_triangle_point(vertices, triangles[triangle_index], weights)
 
 
-def _mesh_anchor_coordinates(target, local_point):
+def _mesh_anchor_coordinates(
+    target, local_point, *, vector_factory: Callable[..., object] | None = None
+):
     """Find the closest mesh triangle and retain its barycentric hit coordinate."""
-    topology = _mesh_topology(target)
+    topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None:
         return None
     vertices, triangles = topology

@@ -4,8 +4,6 @@ import json
 import tomllib
 from pathlib import Path
 
-import pytest
-
 from tools.ci.run_freecad import configured_timeout_seconds
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,7 +108,7 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
 
 
-def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
     import re
     from hashlib import sha256
 
@@ -144,69 +142,63 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch: pytest.Mo
             }
         }
 
-    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
-
     tags = maintenance_cleanup.dockerfile_tags_for_shas(
-        "owner/repo", set(contents_by_sha), batch_size=2
+        "owner/repo", set(contents_by_sha), batch_size=2, fetch_json=fake_gh_json
     )
 
     assert tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}
     assert len(queries) == 3
 
 
-def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> None:
     from tools.ci import maintenance_cleanup
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         assert args[:3] == ("api", "graphql", "-f")
         return {"data": {"repository": {"file0": None}}}
 
-    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
-
     try:
-        maintenance_cleanup.dockerfile_tags_for_shas("owner/repo", {"1" * 40})
+        maintenance_cleanup.dockerfile_tags_for_shas(
+            "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
+        )
     except RuntimeError as exc:
         assert "Dockerfile content missing" in str(exc)
     else:
         raise AssertionError("missing protected Dockerfile content must fail closed")
 
 
-def test_package_cleanup_uses_authenticated_user_package_endpoints(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_package_cleanup_uses_authenticated_user_package_endpoints() -> None:
+    from collections.abc import Iterator
+
     from tools.ci import maintenance_cleanup
 
     requested_endpoints: list[str] = []
+    deleted_arguments: list[tuple[str, ...]] = []
 
-    def fake_dockerfile_tags_for_shas(repo_name: str, protected_shas: set[str]) -> set[str]:
+    def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]:
         assert repo_name == "Uhrendoktor/freecad-cloth"
         assert protected_shas == {"1" * 40}
         return {"protected-dockerfile-tag"}
 
-    def fake_paginated_api_items(
-        endpoint: str,
-        *,
-        collection_key: str | None = None,
-        page_size: int = 100,
-    ) -> list[dict[str, object]]:
+    def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         requested_endpoints.append(endpoint)
         if endpoint == "user/packages?package_type=container":
-            return [{"name": "freecad-cloth/pbd-validation"}]
+            packages: list[dict[str, object]] = [{"name": "freecad-cloth/pbd-validation"}]
+            return iter(packages)
         if endpoint == "user/packages/container/freecad-cloth/pbd-validation/versions":
-            return []
+            return iter([])
         raise AssertionError(f"unexpected package API endpoint: {endpoint}")
 
-    monkeypatch.setattr(
-        maintenance_cleanup, "dockerfile_tags_for_shas", fake_dockerfile_tags_for_shas
-    )
-    monkeypatch.setattr(maintenance_cleanup, "paginated_api_items", fake_paginated_api_items)
+    def fake_delete(*args: str) -> None:
+        deleted_arguments.append(args)
 
     result = maintenance_cleanup.cleanup_pbd_package_versions(
         "Uhrendoktor/freecad-cloth",
         {"1" * 40},
         maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
+        dockerfile_tags_resolver=fake_resolve_tags,
+        api_items_loader=fake_load_items,
+        delete_resource=fake_delete,
     )
 
     assert result["status"] == "passed"
@@ -216,6 +208,7 @@ def test_package_cleanup_uses_authenticated_user_package_endpoints(
         "user/packages?package_type=container",
         "user/packages/container/freecad-cloth/pbd-validation/versions",
     ]
+    assert deleted_arguments == []
 
 
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
@@ -249,7 +242,7 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     assert [version["id"] for version in stale] == [1]
 
 
-def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
+def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
     from tools.ci import maintenance_cleanup
 
     pages = {
@@ -258,18 +251,18 @@ def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
     }
     requested_pages = []
 
-    def fake_gh_json(*args):
+    def fake_gh_json(*args: str) -> dict[str, list[dict[str, int]]]:
         endpoint = args[1]
         page = int(endpoint.rsplit("page=", maxsplit=1)[1])
         requested_pages.append(page)
         return {"workflow_runs": pages[page]}
 
-    monkeypatch.setattr(maintenance_cleanup, "gh_json", fake_gh_json)
     items = list(
         maintenance_cleanup.paginated_api_items(
             "repos/example/repo/actions/runs?status=completed",
             collection_key="workflow_runs",
             page_size=2,
+            fetch_json=fake_gh_json,
         )
     )
 
@@ -371,4 +364,6 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=10" in gallery_invocation
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
-    assert "timeout-minutes: 10" in gallery_job
+    assert "timeout-minutes: &ten_minute_timeout 10" in workflow
+    assert workflow.count("timeout-minutes: &ten_minute_timeout 10") == 1
+    assert "timeout-minutes: *ten_minute_timeout" in gallery_job

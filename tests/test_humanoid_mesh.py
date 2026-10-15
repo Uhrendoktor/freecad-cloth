@@ -2,8 +2,8 @@ import json
 import os
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -139,14 +139,14 @@ class HumanoidMeshTests(unittest.TestCase):
             mesh_path.parent.mkdir(parents=True)
             mesh_path.write_text("fixture", encoding="utf-8")
 
-            with (
-                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
-                patch(
-                    "freecad_cloth.avatar.HumanoidMesh._verified",
-                    side_effect=lambda candidate: candidate == mesh_path,
-                ),
-            ):
-                self.assertEqual(_find_local_base_mesh(), mesh_path)
+            environment = {MAKEHUMAN_DATA_ENV: str(install)}
+
+            def verifier(candidate: Path) -> bool:
+                return candidate == mesh_path
+
+            self.assertEqual(
+                _find_local_base_mesh(environ=environment, verifier=verifier), mesh_path
+            )
 
     def test_local_mesh_discovery_ignores_unverified_install_mesh(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -155,14 +155,11 @@ class HumanoidMeshTests(unittest.TestCase):
             mesh_path.parent.mkdir(parents=True)
             mesh_path.write_text("different revision", encoding="utf-8")
 
-            with (
-                patch.dict(os.environ, {MAKEHUMAN_DATA_ENV: str(install)}),
-                patch(
-                    "freecad_cloth.avatar.HumanoidMesh._verified",
-                    return_value=False,
-                ),
-            ):
-                self.assertIsNone(_find_local_base_mesh())
+            self.assertIsNone(
+                _find_local_base_mesh(
+                    environ={MAKEHUMAN_DATA_ENV: str(install)}, verifier=lambda _path: False
+                )
+            )
 
     def test_local_mesh_discovery_avoids_download(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -171,24 +168,25 @@ class HumanoidMeshTests(unittest.TestCase):
             mesh_path.parent.mkdir(parents=True)
             mesh_path.write_text("fixture", encoding="utf-8")
             cache = Path(directory) / "cache"
+            environment = {
+                MAKEHUMAN_DATA_ENV: str(install),
+                "FREECAD_CLOTH_AVATAR_MESH": "",
+                "FREECAD_CLOTH_AVATAR_CACHE": str(cache),
+            }
+            downloaded = []
 
-            with (
-                patch.dict(
-                    os.environ,
-                    {
-                        MAKEHUMAN_DATA_ENV: str(install),
-                        "FREECAD_CLOTH_AVATAR_MESH": "",
-                        "FREECAD_CLOTH_AVATAR_CACHE": str(cache),
-                    },
+            def downloader(url: str, destination: Path, verifier: Callable[[Path], bool]) -> None:
+                downloaded.append((url, destination, verifier))
+
+            self.assertEqual(
+                ensure_makehuman_base(
+                    environ=environment,
+                    verifier=lambda candidate: candidate == mesh_path,
+                    downloader=downloader,
                 ),
-                patch(
-                    "freecad_cloth.avatar.HumanoidMesh._verified",
-                    side_effect=lambda candidate: candidate == mesh_path,
-                ),
-                patch("freecad_cloth.avatar.HumanoidMesh._download") as download,
-            ):
-                self.assertEqual(ensure_makehuman_base(), mesh_path)
-                download.assert_not_called()
+                mesh_path,
+            )
+            self.assertEqual(downloaded, [])
 
     def test_real_source_height_axis_is_makehuman_y_up_and_fits_to_z(self):
         source = load_makehuman_mesh()

@@ -6,7 +6,7 @@ feature-domain behavior.
 """
 
 from types import ModuleType
-from typing import Protocol
+from typing import Protocol, cast
 
 
 class _Style(Protocol):
@@ -144,7 +144,7 @@ def _refresh_widget_style(widget: _StyledWidget) -> None:
     widget.update()
 
 
-def apply_panel_style(panel: _Panel | None) -> None:
+def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None = None) -> None:
     """Apply restrained palette-aware styling to one panel and normalize spacing.
 
     The supplied widget is the styling boundary. This deliberately avoids
@@ -157,11 +157,13 @@ def apply_panel_style(panel: _Panel | None) -> None:
     if layout is not None:
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
-    for nested_layout in panel.findChildren(QtWidgets.QLayout):
+    if layout_type is None:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        layout_type = cast(type[object], QtWidgets.QLayout)
+    for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
 
 

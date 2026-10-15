@@ -1,10 +1,7 @@
 """Tests for the Qt UI design helpers that do not require a FreeCAD runtime."""
 
-import sys
 from collections.abc import Callable
-from types import ModuleType, SimpleNamespace
-
-import pytest
+from types import SimpleNamespace
 
 from freecad_cloth.common.UiDesign import (
     PANEL_STYLE,
@@ -85,9 +82,7 @@ def test_mark_button_assigns_role_and_refreshes_style() -> None:
     assert [event[0] for event in button._style.events] == ["unpolish", "polish"]
 
 
-def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     class _QtLayout:
         pass
 
@@ -119,12 +114,8 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts(
             self.requested_child_type = widget_type
             return self.nested_layouts
 
-    pyside = ModuleType("PySide")
-    pyside.QtWidgets = SimpleNamespace(QLayout=_QtLayout)
-    monkeypatch.setitem(sys.modules, "PySide", pyside)
-
     panel = _Panel()
-    apply_panel_style(panel)
+    apply_panel_style(panel, layout_type=_QtLayout)
 
     assert panel.stylesheet == PANEL_STYLE
     assert panel.outer_layout.margins == (8, 8, 8, 8)

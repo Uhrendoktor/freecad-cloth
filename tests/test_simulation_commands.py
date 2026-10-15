@@ -1,6 +1,5 @@
 """Behavioral tests for Simulation workbench command lifecycle helpers."""
 
-import sys
 from types import SimpleNamespace
 
 from freecad_cloth.simulation import SimulationCommands
@@ -17,67 +16,67 @@ def test_public_simulation_command_surface_is_unique():
     ]
 
 
-def test_run_simulation_delegates_to_selected_simulation_without_implicit_creation(monkeypatch):
+def test_run_simulation_delegates_to_selected_simulation_without_implicit_creation():
     calls = []
-    monkeypatch.setattr(
-        SimulationCommands,
-        "simulate_selected",
-        lambda steps=None: calls.append(steps) or "scene",
-    )
-    assert SimulationCommands.run_simulation() == "scene"
-    assert SimulationCommands.run_simulation(7) == "scene"
+
+    def simulate(steps: int | None = None) -> str:
+        calls.append(steps)
+        return "scene"
+
+    assert SimulationCommands.run_simulation(simulate=simulate) == "scene"
+    assert SimulationCommands.run_simulation(7, simulate=simulate) == "scene"
     assert calls == [30, 7]
 
 
-def test_require_drape_target_ready_returns_target_and_rejects_blocked_state(monkeypatch):
+def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
     target = object()
     doc = SimpleNamespace(Objects=[target])
 
-    monkeypatch.setattr(
-        SimulationCommands,
-        "_find_drape_target",
-        lambda _doc: target,
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "freecad_cloth.simulation.DrapeTarget",
-        SimpleNamespace(target_status=lambda _target: {"state": "ready", "message": "ok"}),
-    )
-    assert SimulationCommands._require_drape_target_ready(doc) is target
+    def find_target(_doc: object) -> object:
+        return target
 
-    monkeypatch.setitem(
-        sys.modules,
-        "freecad_cloth.simulation.DrapeTarget",
-        SimpleNamespace(
-            target_status=lambda _target: {
-                "state": "stale",
-                "message": "Drape target changed",
-            }
-        ),
+    def ready(_target: object) -> dict[str, str]:
+        return {"state": "ready", "message": "ok"}
+
+    assert (
+        SimulationCommands._require_drape_target_ready(
+            doc, find_target=find_target, target_status_fn=ready
+        )
+        is target
     )
+
+    def blocked(_target: object) -> dict[str, str]:
+        return {"state": "stale", "message": "Drape target changed"}
+
     try:
-        SimulationCommands._require_drape_target_ready(doc)
+        SimulationCommands._require_drape_target_ready(
+            doc, find_target=find_target, target_status_fn=blocked
+        )
     except RuntimeError as exc:
         assert str(exc) == "Drape target changed"
     else:
         raise AssertionError("blocked drape targets must stop simulation")
 
 
-def test_reset_simulation_resets_scene_and_recomputes(monkeypatch):
+def test_reset_simulation_resets_scene_and_recomputes():
     calls = []
     document = SimpleNamespace(recompute=lambda: calls.append("recompute"))
     scene = SimpleNamespace(Document=document)
-    monkeypatch.setattr(
-        SimulationCommands,
-        "_require_simulation",
-        lambda: (document, scene),
+
+    def require_simulation() -> tuple[object, object]:
+        return document, scene
+
+    def reset_scene(value: object) -> None:
+        calls.append(("reset", value))
+
+    assert (
+        SimulationCommands.reset_simulation(
+            require_simulation_fn=require_simulation,
+            reset_scene_fn=reset_scene,
+            refresh_overlay_fn=lambda _document: None,
+        )
+        is scene
     )
-    monkeypatch.setitem(
-        sys.modules,
-        "freecad_cloth.simulation.SimulationObjects",
-        SimpleNamespace(reset_scene=lambda value: calls.append(("reset", value))),
-    )
-    assert SimulationCommands.reset_simulation() is scene
     assert calls == [("reset", scene), "recompute"]
 
 

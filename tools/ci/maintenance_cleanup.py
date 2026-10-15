@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
@@ -34,16 +34,21 @@ def epoch(value: str) -> float:
 
 
 def paginated_api_items(
-    endpoint: str, *, collection_key: str | None = None, page_size: int = PAGE_SIZE
+    endpoint: str,
+    *,
+    collection_key: str | None = None,
+    page_size: int = PAGE_SIZE,
+    fetch_json: Callable[..., object] | None = None,
 ) -> Iterator[dict[str, object]]:
     """Yield every item from a paginated GitHub API list endpoint."""
     if page_size <= 0:
         raise ValueError("page size must be positive")
+    load_json = gh_json if fetch_json is None else fetch_json
     page = 1
     while True:
         separator = "&" if "?" in endpoint else "?"
         url = f"{endpoint}{separator}per_page={page_size}&page={page}"
-        payload = gh_json("api", url)
+        payload = load_json("api", url)
         if collection_key is None:
             items = payload
         else:
@@ -127,6 +132,7 @@ def dockerfile_tags_for_shas(
     protected_shas: set[str],
     *,
     batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
+    fetch_json: Callable[..., object] | None = None,
 ) -> set[str]:
     """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA."""
     if batch_size <= 0:
@@ -134,6 +140,7 @@ def dockerfile_tags_for_shas(
     if not protected_shas:
         return set()
 
+    load_json = gh_json if fetch_json is None else fetch_json
     owner, repository_name = repo.split("/", maxsplit=1)
     ordered_shas = sorted(protected_shas)
     tags: set[str] = set()
@@ -156,7 +163,7 @@ def dockerfile_tags_for_shas(
             f'owner: "{owner}", name: "{repository_name}"'
             f") {{ {' '.join(fields)} }} }}"
         )
-        payload = gh_json("api", "graphql", "-f", f"query={query}")
+        payload = load_json("api", "graphql", "-f", f"query={query}")
         if not isinstance(payload, dict):
             raise RuntimeError("GitHub GraphQL returned a non-object response")
         if payload.get("errors"):
@@ -176,7 +183,13 @@ def dockerfile_tags_for_shas(
 
 
 def cleanup_pbd_package_versions(
-    repo: str, protected_shas: set[str], cutoff_epoch: float
+    repo: str,
+    protected_shas: set[str],
+    cutoff_epoch: float,
+    *,
+    dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
 ) -> dict[str, object]:
     """Prune only old PBD image versions unused by main, open PRs, or retained/active runs."""
     result: dict[str, object] = {
@@ -187,16 +200,21 @@ def cleanup_pbd_package_versions(
         "protected_tags": 0,
     }
     deleted = 0
+    resolve_tags = (
+        dockerfile_tags_for_shas if dockerfile_tags_resolver is None else dockerfile_tags_resolver
+    )
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
     phase = "resolve_protected_tags"
     try:
         if not protected_shas:
             result["status"] = "skipped_no_protected_refs"
             return result
-        protected_tags = dockerfile_tags_for_shas(repo, protected_shas)
+        protected_tags = resolve_tags(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
         phase = "list_container_packages"
-        packages = list(paginated_api_items("user/packages?package_type=container"))
+        packages = list(load_api_items("user/packages?package_type=container"))
         target = next(
             (
                 package
@@ -216,7 +234,7 @@ def cleanup_pbd_package_versions(
         package_name = str(target["name"]).strip("/")
         phase = "list_package_versions"
         encoded_name = quote(package_name, safe="/")
-        versions = list(paginated_api_items(f"user/packages/container/{encoded_name}/versions"))
+        versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         result["pending"] = len(stale)
@@ -226,7 +244,7 @@ def cleanup_pbd_package_versions(
             if not isinstance(version_id, int):
                 raise RuntimeError("GitHub returned a package version without an integer ID")
             phase = f"delete_package_version_{version_id}"
-            gh_delete(
+            delete_api_resource(
                 "api",
                 "--method",
                 "DELETE",
