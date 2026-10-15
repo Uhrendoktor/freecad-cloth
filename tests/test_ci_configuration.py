@@ -165,3 +165,22 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
     assert quality.count("pyright -p ") == 1
     assert config["strict"] == list(strict_core)
+
+
+def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
+    """The seven-profile README gallery must finish inside the unchanged FreeCAD cap."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    gallery_job = workflow.split("  gui-turntables:", maxsplit=1)[1].split(
+        "  gui-visual-examples:", maxsplit=1
+    )[0]
+    gallery_invocation = gallery_job.split(
+        "log-file: artifacts/avatar-gallery-progress.log", maxsplit=1
+    )[1].split("       - uses:", maxsplit=1)[0]
+
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=gallery" in gallery_invocation
+    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=10" in gallery_invocation
+    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
+    assert "freecad_application_timeout_seconds" not in gallery_job
+    assert "timeout-minutes: 10" in gallery_job
