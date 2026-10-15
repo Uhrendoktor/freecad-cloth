@@ -69,7 +69,7 @@ jobs:
           persist-credentials: true
       - name: Rebase requested PR branch onto current main and dispatch exact-head validation
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           ACTIVATION_TITLE: ${{ github.event.head_commit.message }}
         shell: bash
         run: |
