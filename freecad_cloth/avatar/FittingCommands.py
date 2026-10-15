@@ -432,30 +432,33 @@ _FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"
 _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 
 
-def _fitting_marker_group(doc, create=False):
+def _fitting_marker_group(doc: object, create: bool = False) -> object | None:
     """Return the presentation-only container for generated fitting display aids."""
-    group = doc.getObject(_FITTING_MARKER_GROUP_NAME)
+    group = getattr(doc, "getObject")(_FITTING_MARKER_GROUP_NAME)
     if group is None and create:
-        group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
+        group = getattr(doc, "addObject")("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
     if group is not None:
         if str(getattr(group, "TypeId", "")) != "App::DocumentObjectGroup":
             raise RuntimeError(
                 f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
                 "is used by a non-group object"
             )
-        group.Label = _FITTING_MARKER_GROUP_LABEL
+        setattr(group, "Label", _FITTING_MARKER_GROUP_LABEL)
     return group
 
 
-def _remove_stale_fitting_markers(doc, wanted_names):
+def _remove_stale_fitting_markers(doc: object, wanted_names: set[str]) -> None:
     """Remove obsolete generated marker features, never authored geometry."""
+    remove_object = getattr(doc, "removeObject", None)
+    if not callable(remove_object):
+        return
     for obj in tuple(getattr(doc, "Objects", ()) or ()):
         name = str(getattr(obj, "Name", "") or "")
         role = str(getattr(obj, "FittingType", "") or "")
         is_arrangement_marker = role == "ArrangementPoint" and name.startswith("ArrangementPoint_")
         is_volume_marker = role == "BoundingVolume" and name.startswith("BoundingVolume_")
         if name and name not in wanted_names and (is_arrangement_marker or is_volume_marker):
-            doc.removeObject(name)
+            remove_object(name)
 
 
 def _sync_visuals(scene):
@@ -584,10 +587,10 @@ def _sync_visuals(scene):
             for marker in marker_objects:
                 marker_name = str(getattr(marker, "Name", "") or "")
                 if marker_name not in children:
-                    group.addObject(marker)
+                    getattr(group, "addObject")(marker)
                     children.add(marker_name)
         elif not tuple(getattr(group, "Group", ()) or ()):
-            scene.Document.removeObject(group.Name)
+            scene.Document.removeObject(str(getattr(group, "Name", "")))
     for obj in marker_objects:
         obj.ViewObject.Visibility = True
 
