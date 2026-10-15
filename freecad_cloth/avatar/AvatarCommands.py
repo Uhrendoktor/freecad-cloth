@@ -119,12 +119,14 @@ def _parameters(obj):
     shape_payload = {}
     phenotype_overrides = {}
     local_change_overrides = {}
+    mass_target_kg = None
     if payload:
         with suppress(TypeError, ValueError):
             stored_parameters = AvatarParameters.from_json(payload)
             shape_payload = json.loads(payload).get("shape", {})
             phenotype_overrides = dict(stored_parameters.phenotype_overrides)
             local_change_overrides = dict(stored_parameters.local_change_overrides)
+            mass_target_kg = stored_parameters.mass_target_kg
     gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
     breast_size = float(
         getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
@@ -138,6 +140,7 @@ def _parameters(obj):
         breast_size,
         phenotype_overrides,
         local_change_overrides,
+        mass_target_kg,
     )
 
 
@@ -508,6 +511,7 @@ def set_avatar_pose(pose):
         current.breast_size,
         current.phenotype_overrides,
         current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 
