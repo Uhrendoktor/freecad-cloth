@@ -83,21 +83,18 @@ def test_one_shot_retention_run_bypasses_runner_fallback():
         "github.event_name == 'push' && github.ref == 'refs/heads/main' && "
         "startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
     )
-    readiness = workflow.split("  local_runner_readiness:", 1)[1].split(
-        "  runner_watchdog:", 1
-    )[0]
-    watchdog = workflow.split("  runner_watchdog:", 1)[1].split(
-        "  pbd_validation_image:", 1
-    )[0]
-    image = workflow.split("  pbd_validation_image:", 1)[1].split(
-        "  diagnostic-pbd-contact:", 1
-    )[0]
+    readiness = workflow.split("  local_runner_readiness:", 1)[1].split("  runner_watchdog:", 1)[0]
+    watchdog = workflow.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
+    image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
     artifact_budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
 
     assert f"!({activation})" in readiness
     assert f"!({activation})" in watchdog
     assert f"!({activation})" in image
-    assert "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')" in artifact_budget
+    assert (
+        "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
+        in artifact_budget
+    )
 
 
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
