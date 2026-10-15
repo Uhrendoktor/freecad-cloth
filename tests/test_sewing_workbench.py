@@ -105,7 +105,9 @@ def test_sketcher_authority_matches_semantic_edge_endpoints():
         SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
     )
 
-    def record_for_edge(_obj: object, _edge: object) -> dict[str, tuple[tuple[float, float], tuple[float, float]]]:
+    def record_for_edge(
+        _obj: object, _edge: object
+    ) -> dict[str, tuple[tuple[float, float], tuple[float, float]]]:
         return {"points": ((80.0, 50.0), (0.0, 50.0))}
 
     assert _native_edge(piece, 2, native_edge_record_fn=record_for_edge) is right
