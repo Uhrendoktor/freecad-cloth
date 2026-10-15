@@ -103,7 +103,9 @@ def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
     }
 
     signature_before = _target_signature(target)
-    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+    assert _mesh_anchor_local_position(
+        target, anchor, vector_factory=lambda *point: tuple(point)
+    ) == (0.3, 0.5, 0.0)
 
     target.Mesh.Topology = (
         ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 1.0)),
@@ -114,9 +116,7 @@ def test_mesh_anchor_follows_vertex_deformation_when_topology_is_stable():
     assert _mesh_anchor_local_position(target, anchor) == (0.6, 1.0, 0.5)
 
 
-def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
-    import sys
-
+def test_mesh_topology_normalizes_placement_transformed_vertices():
     class Placement:
         def __init__(self, translation):
             self.translation = tuple(translation)
@@ -144,9 +144,7 @@ def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
         Mesh=SimpleNamespace(Topology=(placed_vertices, triangles)),
         Placement=Placement(translation),
     )
-    monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(Vector=lambda *point: tuple(point)))
-
-    vertices, faces = _mesh_topology(target)
+    vertices, faces = _mesh_topology(target, vector_factory=lambda *point: tuple(point))
     assert vertices == local_vertices
     assert faces == triangles
     anchor = {
@@ -154,7 +152,9 @@ def test_mesh_topology_normalizes_placement_transformed_vertices(monkeypatch):
         "barycentric": (0.2, 0.3, 0.5),
         "local_point": (0.3, 0.5, 0.0),
     }
-    assert _mesh_anchor_local_position(target, anchor) == (0.3, 0.5, 0.0)
+    assert _mesh_anchor_local_position(
+        target, anchor, vector_factory=lambda *point: tuple(point)
+    ) == (0.3, 0.5, 0.0)
 
 
 def test_mesh_anchor_signature_changes_when_triangle_connectivity_changes():

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 PAGE_SIZE = 100
 MAX_RUN_DELETIONS_PER_RUN = 100
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
+DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 
@@ -34,16 +34,21 @@ def epoch(value: str) -> float:
 
 
 def paginated_api_items(
-    endpoint: str, *, collection_key: str | None = None, page_size: int = PAGE_SIZE
+    endpoint: str,
+    *,
+    collection_key: str | None = None,
+    page_size: int = PAGE_SIZE,
+    fetch_json: Callable[..., object] | None = None,
 ) -> Iterator[dict[str, object]]:
     """Yield every item from a paginated GitHub API list endpoint."""
     if page_size <= 0:
         raise ValueError("page size must be positive")
+    load_json = gh_json if fetch_json is None else fetch_json
     page = 1
     while True:
         separator = "&" if "?" in endpoint else "?"
         url = f"{endpoint}{separator}per_page={page_size}&page={page}"
-        payload = gh_json("api", url)
+        payload = load_json("api", url)
         if collection_key is None:
             items = payload
         else:
@@ -122,23 +127,69 @@ def stale_package_versions(
     return stale
 
 
-def dockerfile_tag_for_sha(repo: str, sha: str) -> str:
-    """Resolve the immutable PBD tag for a commit's authoritative Dockerfile."""
-    payload = gh_json("api", f"repos/{repo}/contents/docker/freecad-ci/Dockerfile?ref={sha}")
-    if not isinstance(payload, dict) or payload.get("encoding") != "base64":
-        raise RuntimeError(f"could not verify Dockerfile contents for protected ref {sha}")
-    encoded = payload.get("content")
-    if not isinstance(encoded, str):
-        raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
-    try:
-        contents = base64.b64decode(encoded)
-    except ValueError as exc:
-        raise RuntimeError(f"invalid Dockerfile content for protected ref {sha}") from exc
-    return pbd_validation_tag(contents)
+def dockerfile_tags_for_shas(
+    repo: str,
+    protected_shas: set[str],
+    *,
+    batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
+    fetch_json: Callable[..., object] | None = None,
+) -> set[str]:
+    """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA."""
+    if batch_size <= 0:
+        raise ValueError("Dockerfile query batch size must be positive")
+    if not protected_shas:
+        return set()
+
+    load_json = gh_json if fetch_json is None else fetch_json
+    owner, repository_name = repo.split("/", maxsplit=1)
+    ordered_shas = sorted(protected_shas)
+    tags: set[str] = set()
+    for offset in range(0, len(ordered_shas), batch_size):
+        batch = ordered_shas[offset : offset + batch_size]
+        aliases: dict[str, str] = {}
+        fields: list[str] = []
+        for index, sha in enumerate(batch):
+            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
+                raise RuntimeError(f"invalid protected commit SHA: {sha!r}")
+            alias = f"file{index}"
+            aliases[alias] = sha
+            fields.append(
+                f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
+                "{ ... on Blob { text } }"
+            )
+
+        query = (
+            "query { repository("
+            f'owner: "{owner}", name: "{repository_name}"'
+            f") {{ {' '.join(fields)} }} }}"
+        )
+        payload = load_json("api", "graphql", "-f", f"query={query}")
+        if not isinstance(payload, dict):
+            raise RuntimeError("GitHub GraphQL returned a non-object response")
+        if payload.get("errors"):
+            raise RuntimeError("GitHub GraphQL could not verify protected Dockerfile contents")
+        data = payload.get("data")
+        repository_data = data.get("repository") if isinstance(data, dict) else None
+        if not isinstance(repository_data, dict):
+            raise RuntimeError("GitHub GraphQL omitted the protected repository data")
+
+        for alias, sha in aliases.items():
+            blob = repository_data.get(alias)
+            dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
+            if not isinstance(dockerfile_text, str):
+                raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
+            tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
+    return tags
 
 
 def cleanup_pbd_package_versions(
-    repo: str, protected_shas: set[str], cutoff_epoch: float
+    repo: str,
+    protected_shas: set[str],
+    cutoff_epoch: float,
+    *,
+    dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
 ) -> dict[str, object]:
     """Prune only old PBD image versions unused by main, open PRs, or retained/active runs."""
     result: dict[str, object] = {
@@ -149,21 +200,31 @@ def cleanup_pbd_package_versions(
         "protected_tags": 0,
     }
     deleted = 0
+    resolve_tags = (
+        dockerfile_tags_for_shas if dockerfile_tags_resolver is None else dockerfile_tags_resolver
+    )
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+    phase = "resolve_protected_tags"
     try:
         if not protected_shas:
             result["status"] = "skipped_no_protected_refs"
             return result
-        protected_tags = {dockerfile_tag_for_sha(repo, sha) for sha in sorted(protected_shas)}
+        protected_tags = resolve_tags(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
-        owner = repo.split("/", maxsplit=1)[0]
-        packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
+        phase = "list_container_packages"
+        packages = list(load_api_items("user/packages?package_type=container"))
         target = next(
             (
                 package
                 for package in packages
                 if isinstance(package.get("name"), str)
-                and str(package["name"]).strip("/").lower() == PBD_PACKAGE_SUFFIX
+                and str(package["name"]).strip("/").lower()
+                in {
+                    PBD_PACKAGE_SUFFIX,
+                    PBD_PACKAGE_SUFFIX.rsplit("/", maxsplit=1)[-1],
+                }
             ),
             None,
         )
@@ -171,10 +232,9 @@ def cleanup_pbd_package_versions(
             result["status"] = "package_not_found"
             return result
         package_name = str(target["name"]).strip("/")
-        encoded_name = quote(package_name, safe="")
-        versions = list(
-            paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions")
-        )
+        phase = "list_package_versions"
+        encoded_name = quote(package_name, safe="/")
+        versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         result["pending"] = len(stale)
@@ -183,11 +243,12 @@ def cleanup_pbd_package_versions(
             version_id = version.get("id")
             if not isinstance(version_id, int):
                 raise RuntimeError("GitHub returned a package version without an integer ID")
-            gh_delete(
+            phase = f"delete_package_version_{version_id}"
+            delete_api_resource(
                 "api",
                 "--method",
                 "DELETE",
-                f"users/{owner}/packages/container/{encoded_name}/versions/{version_id}",
+                f"user/packages/container/{encoded_name}/versions/{version_id}",
             )
             deleted += 1
             result["pending"] = len(stale) - deleted
@@ -201,7 +262,7 @@ def cleanup_pbd_package_versions(
         result["status"] = (
             "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
         )
-        result["error"] = detail
+        result["error"] = f"{phase}: {detail}"
         return result
     except (RuntimeError, ValueError, KeyError, TypeError) as exc:
         result["deleted"] = deleted

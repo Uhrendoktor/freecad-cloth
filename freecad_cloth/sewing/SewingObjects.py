@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from math import atan2, degrees, hypot
+from types import ModuleType
 from typing import Protocol, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import (
@@ -34,7 +35,7 @@ class _NativeEdge(Protocol):
 
 
 class _NativePlacement(Protocol):
-    def multVec(self, vector: _NativePoint) -> _NativePoint: ...
+    def multVec(self, _vector: _NativePoint) -> _NativePoint: ...
 
 
 class _SewingFeature(Protocol):
@@ -107,7 +108,12 @@ def _edge_endpoint_pair(
     )
 
 
-def _native_edge(piece: object, edge: int) -> _NativeEdge | None:
+def _native_edge(
+    piece: object,
+    edge: int,
+    *,
+    native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> _NativeEdge | None:
     """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
@@ -125,11 +131,13 @@ def _native_edge(piece: object, edge: int) -> _NativeEdge | None:
             sketch_edges = tuple(getattr(sketch_shape, "Edges", ()) or ())
             if sketch_edges:
                 try:
-                    from freecad_cloth.pattern.PatternObjects import (
-                        _native_edge_record_for_sketch_index,
-                    )
+                    if native_edge_record_fn is None:
+                        from freecad_cloth.pattern.PatternObjects import (
+                            _native_edge_record_for_sketch_index,
+                        )
 
-                    record = _native_edge_record_for_sketch_index(piece, index)
+                        native_edge_record_fn = _native_edge_record_for_sketch_index
+                    record = native_edge_record_fn(piece, index)
                     expected = record.get("points") if record is not None else None
                     if expected is not None and len(expected) == 2:
                         tolerance = 1e-7
@@ -224,14 +232,23 @@ def _edge_length(piece: object, edge: int) -> float:
     return _polyline_length(points)
 
 
-def _seam_edge_index(piece: object, seam: object, prefix: str) -> int:
+def _seam_edge_index(
+    piece: object,
+    seam: object,
+    prefix: str,
+    *,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> int:
     """Resolve a semantic edge to the index space used by the native geometry reader."""
     edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
     if edge_id:
-        from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+        if resolve_document_edge_fn is None:
+            from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+
+            resolve_document_edge_fn = _resolve_document_edge
 
         signature = str(getattr(seam, "EdgeASignature" if prefix == "A" else "EdgeBSignature", ""))
-        record = _resolve_document_edge(piece, edge_id, signature)
+        record = resolve_document_edge_fn(piece, edge_id, signature)
         if str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher":
             # PatternIR orders its boundary cycle by semantic identity/connectivity;
             # record["ordinal"] is an IR boundary ordinal, not a Sketch.Geometry index.
@@ -266,16 +283,25 @@ def _seam_length(piece: object, seam: object, prefix: str) -> float:
 
 
 def _edge_points(
-    piece: object, edge: int, start: float = 0.0, end: float = 1.0, z: float = 0.2
+    piece: object,
+    edge: int,
+    start: float = 0.0,
+    end: float = 1.0,
+    z: float = 0.2,
+    *,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> tuple[_NativePoint, _NativePoint]:
     """Return seam-range endpoints after the piece Placement is applied."""
-    import FreeCAD as App
+    if vector_factory is None:
+        import FreeCAD as App
+
+        vector_factory = App.Vector
 
     points = _edge_polyline(piece, edge)
     p0 = _sample_polyline(points, start)
     p1 = _sample_polyline(points, end)
-    local0 = App.Vector(p0[0], p0[1], z)
-    local1 = App.Vector(p1[0], p1[1], z)
+    local0 = vector_factory(p0[0], p0[1], z)
+    local1 = vector_factory(p1[0], p1[1], z)
     placement = getattr(piece, "Placement", None)
     if placement is not None:
         native_placement = cast(_NativePlacement, placement)
@@ -297,9 +323,14 @@ def _edge_samples(
     count: int,
     z: float = 0.2,
     transform_to_world: bool = True,
+    *,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> list[_NativePoint]:
     """Return evenly arc-length-spaced points over a normalized edge range."""
-    import FreeCAD as App
+    if vector_factory is None:
+        import FreeCAD as App
+
+        vector_factory = App.Vector
 
     if count < 2:
         raise ValueError("correspondence requires at least two samples")
@@ -308,7 +339,7 @@ def _edge_samples(
     for i in range(count):
         t = float(i) / float(count - 1)
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
-        value = App.Vector(p[0], p[1], z)
+        value = vector_factory(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
         native_value = cast(_NativePoint, value)
         values.append(
@@ -319,40 +350,58 @@ def _edge_samples(
     return values
 
 
-def _alignment_placement(piece_a: object, piece_b: object, seam: object) -> object:
+def _alignment_placement(
+    piece_a: object,
+    piece_b: object,
+    seam: object,
+    *,
+    app_module: ModuleType | None = None,
+    vector_factory: Callable[..., _NativePoint] | None = None,
+) -> object:
     """Return a Placement that moves B's seam onto A's seam endpoints."""
-    import FreeCAD as App
+    if app_module is None:
+        import FreeCAD as app_module
+    if vector_factory is None:
+        vector_factory = app_module.Vector
 
     a0, a1 = _edge_points(
         piece_a,
         _resolved_edge(piece_a, seam, "A"),
         float(seam.StartA),
         float(seam.EndA),
+        vector_factory=vector_factory,
     )
     b0, b1 = _edge_points(
         piece_b,
         _resolved_edge(piece_b, seam, "B"),
         float(seam.StartB),
         float(seam.EndB),
+        vector_factory=vector_factory,
     )
     if bool(getattr(seam, "ReversedB", False)):
         b0, b1 = b1, b0
     avx, avy = a1.x - a0.x, a1.y - a0.y
     bvx, bvy = b1.x - b0.x, b1.y - b0.y
     if hypot(avx, avy) < 1e-12 or hypot(bvx, bvy) < 1e-12:
-        return App.Placement()
+        return app_module.Placement()
     angle = degrees(atan2(avy, avx) - atan2(bvy, bvx))
     import math
 
     radians = math.radians(angle)
     rx = b0.x * math.cos(radians) - b0.y * math.sin(radians)
     ry = b0.x * math.sin(radians) + b0.y * math.cos(radians)
-    translation = App.Vector(a0.x - rx, a0.y - ry, a0.z - b0.z)
-    return App.Placement(translation, App.Rotation(App.Vector(0, 0, 1), angle))
+    translation = vector_factory(a0.x - rx, a0.y - ry, a0.z - b0.z)
+    return app_module.Placement(translation, app_module.Rotation(vector_factory(0, 0, 1), angle))
 
 
 def _seam_correspondence(
-    piece_a: object, piece_b: object, seam: object, count: int, alignment: str = "endpoints"
+    piece_a: object,
+    piece_b: object,
+    seam: object,
+    count: int,
+    alignment: str = "endpoints",
+    *,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> list[tuple[_NativePoint, _NativePoint]]:
     """Build deterministic A/B stitch points from the same semantic seam."""
     if count < 2:
@@ -362,8 +411,12 @@ def _seam_correspondence(
         raise ValueError(f"unsupported sewing alignment: {alignment}")
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
-    a_points = _edge_samples(piece_a, edge_a, float(seam.StartA), float(seam.EndA), count)
-    b_points = _edge_samples(piece_b, edge_b, float(seam.StartB), float(seam.EndB), count)
+    a_points = _edge_samples(
+        piece_a, edge_a, float(seam.StartA), float(seam.EndA), count, vector_factory=vector_factory
+    )
+    b_points = _edge_samples(
+        piece_b, edge_b, float(seam.StartB), float(seam.EndB), count, vector_factory=vector_factory
+    )
     if bool(getattr(seam, "ReversedB", False)):
         b_points.reverse()
     return list(zip(a_points, b_points, strict=False))
@@ -374,9 +427,17 @@ class SewingOperationProxy:
 
     Type = "ClothSewingOperation"
 
-    def execute(self, obj: _SewingFeature) -> None:
+    def execute(
+        self,
+        obj: _SewingFeature,
+        *,
+        app_module: ModuleType | None = None,
+        part_module: ModuleType | None = None,
+        vector_factory: Callable[..., _NativePoint] | None = None,
+    ) -> None:
         """Recompute the FreeCAD object from its current source properties."""
-        import Part
+        if part_module is None:
+            import Part as part_module
 
         seam = getattr(obj, "Seam", None)
         piece_a = getattr(obj, "PieceA", None)
@@ -386,7 +447,7 @@ class SewingOperationProxy:
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             obj.StitchCount = 0
             obj.StitchPoints = []
-            obj.Shape = Part.Shape()
+            obj.Shape = part_module.Shape()
             return
         seam_status = str(getattr(seam, "Status", "Valid"))
         if seam_status != "Valid":
@@ -394,7 +455,7 @@ class SewingOperationProxy:
             obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
             obj.StitchCount = 0
             obj.StitchPoints = []
-            obj.Shape = Part.Shape()
+            obj.Shape = part_module.Shape()
             return
         la = _seam_length(piece_a, seam, "A")
         lb = _seam_length(piece_b, seam, "B")
@@ -436,16 +497,30 @@ class SewingOperationProxy:
                 or getattr(seam, "Name", "")
             )
         pairs = _seam_correspondence(
-            piece_a, piece_b, seam, obj.StitchCount, getattr(obj, "Alignment", "endpoints")
+            piece_a,
+            piece_b,
+            seam,
+            obj.StitchCount,
+            getattr(obj, "Alignment", "endpoints"),
+            vector_factory=vector_factory,
         )
-        obj.AssemblyPlacementB = _alignment_placement(piece_a, piece_b, seam)
+        obj.AssemblyPlacementB = _alignment_placement(
+            piece_a,
+            piece_b,
+            seam,
+            app_module=app_module,
+            vector_factory=vector_factory,
+        )
         obj.StitchPoints = []
         for pa, pb in pairs:
             obj.StitchPoints.append(
                 f"{pa.x:.6f},{pa.y:.6f},{pa.z:.6f}|{pb.x:.6f},{pb.y:.6f},{pb.z:.6f}"
             )
-        obj.Shape = Part.makeCompound(
-            [Part.makePolygon([p for p, _ in pairs]), Part.makePolygon([p for _, p in pairs])]
+        obj.Shape = part_module.makeCompound(
+            [
+                part_module.makePolygon([p for p, _ in pairs]),
+                part_module.makePolygon([p for _, p in pairs]),
+            ]
         )
 
 

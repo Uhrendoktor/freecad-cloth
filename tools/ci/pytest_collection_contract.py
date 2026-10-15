@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 import pytest
@@ -24,9 +24,9 @@ def missing_requested_modules(
     )
 
 
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Fail this same pytest run if an explicitly requested module collects no tests."""
-    raw_paths = os.environ.get("CLOTH_EXPECTED_TEST_MODULES", "")
+def validate_collection_contract(items: Iterable[object], *, environ: Mapping[str, str]) -> None:
+    """Validate explicit pytest module requirements from a supplied environment."""
+    raw_paths = environ.get("CLOTH_EXPECTED_TEST_MODULES", "")
     if not raw_paths:
         raise pytest.UsageError("CLOTH_EXPECTED_TEST_MODULES must be set by python_validation.py")
     expected_paths: list[str] = []
@@ -37,3 +37,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     missing = missing_requested_modules(expected_paths, (item.path for item in items))
     if missing:
         raise pytest.UsageError("pytest modules collected no test items: " + ", ".join(missing))
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Pytest hook that enforces the explicit requested-module contract."""
+    validate_collection_contract(items, environ=os.environ)

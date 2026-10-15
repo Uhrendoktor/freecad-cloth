@@ -7,11 +7,12 @@ This repository uses a small, current-state-first agent contract. Do not reconst
 1. The checked-out branch and its current HEAD are the implementation truth. Verify the target HEAD before making state claims.
 2. `AGENT_STATUS.md` and `TOOL_STATE.md` are compact live coordination records. Reconcile their recorded SHA/state with the actual branch before relying on them.
 3. Use the canonical docs only for the topic they govern:
-   - `docs/ARCHITECTURE.md` — data authority, dependencies, invalidation.
-   - `docs/PROJECT_STRUCTURE.md` — file/module ownership.
-   - `docs/DEVELOPMENT.md` — testing, CI, contribution and agent workflow.
-   - `docs/ROADMAP.md` — durable roadmap and release boundaries, not live status.
-   - `docs/RESEARCH.md` — design research, not implementation status.
+   - `docs/developers/ARCHITECTURE.md` — data authority, dependencies, invalidation.
+   - `docs/developers/PROJECT_STRUCTURE.md` — file/module ownership.
+   - `docs/developers/DEVELOPMENT.md` — development setup, testing, CI, and contribution workflow.
+   - `docs/agents/WORKFLOW_GUIDELINES.md` — agent execution, prompt, review, and state-file guidance subordinate to this file.
+   - `docs/developers/ROADMAP.md` — durable roadmap and release boundaries, not live status.
+   - `docs/developers/RESEARCH.md` — design research, not implementation status.
 4. A named current issue/PR is task-local evidence. Read it only when it governs the task.
 5. Closed issues/PRs, old branches, old commits, old workflow runs, and old artifacts are historical evidence only. Never use them as current state unless the task explicitly asks for historical reconstruction.
 
@@ -50,7 +51,7 @@ Keep historical context out of the prompt unless it changes the decision. State 
 
 ## Repository structure
 
-Implementation code belongs under `freecad_cloth/`. The repository intentionally has two FreeCAD loader adapters: classic root `Init.py`/`InitGui.py` and modern namespaced `freecad/freecad_cloth/{__init__.py,init_gui.py}`. They are alternate loader surfaces for the same implementation and must stay aligned; `freecad/` is not a second implementation tree. `docs/ARCHITECTURE.md` and `docs/PROJECT_STRUCTURE.md` define the package boundaries.
+Implementation code belongs under `freecad_cloth/`. The repository intentionally has two FreeCAD loader adapters: classic root `Init.py`/`InitGui.py` and modern namespaced `freecad/freecad_cloth/{__init__.py,init_gui.py}`. Both delegate startup to `freecad_cloth.bootstrap.initialize_workbenches`; do not duplicate registration logic in either adapter. `freecad/` is a loader namespace, not a second implementation tree. `docs/developers/ARCHITECTURE.md` and `docs/developers/PROJECT_STRUCTURE.md` define the package boundaries.
 
 `freecad_cloth.sewing.SeamGraph` is the canonical seam-graph implementation. `freecad_cloth.pattern.SeamReference` owns semantic edge references; `freecad_cloth.sewing.SeamReference` exists only as a legacy compatibility import. New code should import the owning module directly.
 
@@ -62,7 +63,7 @@ For multi-step refactors or architectural changes, use `.agent/PLANS.md` as the 
 
 ## Documentation contract
 
-Public Python APIs in `freecad_cloth/` and `tools/` require docstrings. Use a one-line summary first, then document non-obvious behavior, invariants, side effects, exceptions and lifecycle restrictions. Keep architecture in `docs/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing issue/PR.
+Public Python APIs in `freecad_cloth/` and `tools/` require docstrings. Use a one-line summary first, then document non-obvious behavior, invariants, side effects, exceptions and lifecycle restrictions. Keep architecture in `docs/developers/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing issue/PR.
 
 ## Verification
 

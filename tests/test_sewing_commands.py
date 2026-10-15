@@ -88,7 +88,7 @@ def test_seam_overlay_preferences_can_be_changed_and_restored():
         set_seam_overlay_respect_depth(original_depth)
 
 
-def test_selected_pattern_edges_requires_two_different_pieces(monkeypatch):
+def test_selected_pattern_edges_requires_two_different_pieces():
     class Selection:
         def __init__(self, selections):
             self._selections = selections
@@ -103,26 +103,24 @@ def test_selected_pattern_edges_requires_two_different_pieces(monkeypatch):
     selection = type("SelectionEx", (), {"Object": first, "SubElementNames": ["Edge1"]})()
     selection_b = type("SelectionEx", (), {"Object": second, "SubElementNames": ["Edge3"]})()
     gui = type("Gui", (), {"Selection": Selection([selection, selection_b])})
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-    assert _selected_pattern_edges() == [(first, 0), (second, 2)]
+    assert _selected_pattern_edges(gui=gui) == [(first, 0), (second, 2)]
 
 
-def test_selected_pattern_edges_rejects_incomplete_selection(monkeypatch):
+def test_selected_pattern_edges_rejects_incomplete_selection():
     class Selection:
         def getSelectionEx(self):
             return []
 
     gui = type("Gui", (), {"Selection": Selection()})
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
     try:
-        _selected_pattern_edges()
+        _selected_pattern_edges(gui=gui)
     except ValueError as exc:
         assert "exactly two edges" in str(exc)
     else:
         raise AssertionError("expected invalid selection to be rejected")
 
 
-def test_selected_pattern_edges_ignores_malformed_and_duplicate_subelements(monkeypatch):
+def test_selected_pattern_edges_ignores_malformed_and_duplicate_subelements():
     class Selection:
         def getSelectionEx(self):
             return [
@@ -142,11 +140,10 @@ def test_selected_pattern_edges_ignores_malformed_and_duplicate_subelements(monk
 
     first, second = Piece(), Piece()
     gui = type("Gui", (), {"Selection": Selection()})
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-    assert _selected_pattern_edges() == [(first, 0), (second, 1)]
+    assert _selected_pattern_edges(gui=gui) == [(first, 0), (second, 1)]
 
 
-def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order(monkeypatch):
+def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order():
     class Selection:
         def getSelectionEx(self):
             return [
@@ -163,8 +160,7 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order(m
 
     first, second = Piece(), Piece()
     gui = type("Gui", (), {"Selection": Selection()})
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-    assert _selected_pattern_edges(allow_many=True) == [
+    assert _selected_pattern_edges(allow_many=True, gui=gui) == [
         (first, 1),
         (first, 3),
         (second, 0),
@@ -172,7 +168,7 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order(m
     ]
 
 
-def _repair_test_modules(monkeypatch, edge_length, pieces=()):
+def _repair_test_modules(edge_length, pieces=()):
     seam = SimpleNamespace(
         SeamId="seam-1",
         PieceA="piece-a",
@@ -189,26 +185,22 @@ def _repair_test_modules(monkeypatch, edge_length, pieces=()):
     gui = SimpleNamespace(Selection=SimpleNamespace(getSelection=lambda: [seam]))
     doc = SimpleNamespace(Objects=[seam, *pieces], recompute=lambda: None)
     app = SimpleNamespace(ActiveDocument=doc)
-    sewing_gui = SimpleNamespace(
+    services = SimpleNamespace(
         correspondence_report=lambda *args: {"status": "ok"},
         repair_correspondence_settings=lambda *args: "repaired",
     )
-    SimpleNamespace(_edge_length=edge_length)
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-    monkeypatch.setitem(sys.modules, "FreeCAD", app)
-    import freecad_cloth.sewing.SewingGui as sewing_gui_module
-    import freecad_cloth.sewing.SewingObjects as sewing_objects_module
+    return seam, doc, app, gui, services
 
-    monkeypatch.setattr(
-        sewing_gui_module, "correspondence_report", sewing_gui.correspondence_report
+
+def _run_repair(context, edge_length) -> str:
+    _seam, _doc, app, gui, services = context
+    return repair_selected_seam(
+        app=app,
+        gui=gui,
+        edge_length_fn=edge_length,
+        correspondence_report_fn=services.correspondence_report,
+        repair_settings_fn=services.repair_correspondence_settings,
     )
-    monkeypatch.setattr(
-        sewing_gui_module,
-        "repair_correspondence_settings",
-        sewing_gui.repair_correspondence_settings,
-    )
-    monkeypatch.setattr(sewing_objects_module, "_edge_length", edge_length)
-    return seam, doc
 
 
 def _pattern_piece(piece_id):
@@ -219,13 +211,13 @@ def _pattern_piece(piece_id):
     )
 
 
-def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkeypatch):
+def test_repair_selected_seam_wraps_missing_piece_with_actionable_context():
     def edge_length(_piece, _edge):
         raise AssertionError("edge lookup must not run when the piece is missing")
 
-    _repair_test_modules(monkeypatch, edge_length)
+    context = _repair_test_modules(edge_length)
     try:
-        repair_selected_seam()
+        _run_repair(context, edge_length)
     except ValueError as exc:
         assert "cannot determine seam lengths for repair" in str(exc)
         assert "piece-a" in str(exc)
@@ -234,15 +226,15 @@ def test_repair_selected_seam_wraps_missing_piece_with_actionable_context(monkey
         raise AssertionError("expected missing pattern pieces to be reported")
 
 
-def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause(monkeypatch):
+def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause():
     def edge_length(_piece, edge):
         raise ValueError(f"seam edge {edge} is outside the pattern boundary")
 
-    _repair_test_modules(
-        monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
+    context = _repair_test_modules(
+        edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
     )
     try:
-        repair_selected_seam()
+        _run_repair(context, edge_length)
     except ValueError as exc:
         assert "outside the pattern boundary" in str(exc)
         assert isinstance(exc.__cause__, ValueError)
@@ -250,38 +242,37 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause(monkeypatc
         raise AssertionError("expected invalid seam edge to be reported")
 
 
-def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error(monkeypatch):
+def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error():
     def edge_length(_piece, _edge):
         raise RuntimeError("unexpected solver/runtime failure")
 
-    _repair_test_modules(
-        monkeypatch, edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
+    context = _repair_test_modules(
+        edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
     )
     try:
-        repair_selected_seam()
+        _run_repair(context, edge_length)
     except RuntimeError as exc:
         assert str(exc) == "unexpected solver/runtime failure"
     else:
         raise AssertionError("unexpected runtime errors must not be swallowed")
 
 
-def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edges(monkeypatch):
+def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edges():
     def edge_length(_piece, edge):
         return 10.0 + edge
 
-    seam, _doc = _repair_test_modules(
-        monkeypatch,
-        edge_length,
-        (_pattern_piece("piece-a"), _pattern_piece("piece-b")),
+    context = _repair_test_modules(
+        edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
     )
-    assert repair_selected_seam() == "repaired"
+    assert _run_repair(context, edge_length) == "repaired"
+    seam = context[0]
     assert seam.EdgeAId == "piece-a:edge:0"
     assert seam.EdgeBId == "piece-b:edge:1"
     assert seam.EdgeASignature != "stale-a"
     assert seam.EdgeBSignature != "stale-b"
 
 
-def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(monkeypatch):
+def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing():
     import freecad_cloth.sewing.SewingCommands as commands_module
 
     class Selection:
@@ -333,11 +324,11 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing(mon
         activeDocument=lambda: active_document,
         activateWorkbench=lambda name: active_document.calls.append(("activateWorkbench", name)),
     )
-    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
-    monkeypatch.setitem(sys.modules, "FreeCAD", SimpleNamespace(ActiveDocument=active_document))
-    monkeypatch.setattr(commands_module, "focus_selected_seam_3d", lambda: None)
+    app = SimpleNamespace(ActiveDocument=active_document)
 
-    edited_sketch, edge_index = commands_module.edit_selected_seam_side_a()
+    edited_sketch, edge_index = commands_module.edit_selected_seam_side_a(
+        app=app, gui=gui, focus_fn=lambda: None
+    )
 
     assert edited_sketch is sketch
     assert edge_index == 2

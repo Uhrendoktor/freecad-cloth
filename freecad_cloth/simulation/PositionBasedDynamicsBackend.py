@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from copy import deepcopy
 from typing import Protocol, TypeAlias, cast
 
@@ -155,35 +155,36 @@ class _NativePBDAPI(Protocol):
     TimeStepController: _NativePBDStepConstants
 
 
-def _pbd_collision_config() -> PBDCollisionConfig:
+def _pbd_collision_config(environ: Mapping[str, str] | None = None) -> PBDCollisionConfig:
     """Parse and validate all numeric PBD environment settings together."""
+    settings = os.environ if environ is None else environ
     return PBDCollisionConfig.model_validate(
         {
-            "substeps": int(os.environ.get("CLOTH_PBD_SUBSTEPS", str(_PBD_SUBSTEPS_DEFAULT))),
+            "substeps": int(settings.get("CLOTH_PBD_SUBSTEPS", str(_PBD_SUBSTEPS_DEFAULT))),
             "collision_tolerance_mm": float(
-                os.environ.get(
+                settings.get(
                     "CLOTH_PBD_COLLISION_TOLERANCE_MM",
                     str(_PBD_COLLISION_TOLERANCE_DEFAULT_MM),
                 )
             ),
-            "collision_voxel_mm": float(os.environ.get("CLOTH_PBD_COLLISION_VOXEL_MM", "12.0")),
+            "collision_voxel_mm": float(settings.get("CLOTH_PBD_COLLISION_VOXEL_MM", "12.0")),
         }
     )
 
 
-def _pbd_substeps() -> int:
+def _pbd_substeps(environ: Mapping[str, str] | None = None) -> int:
     """Return validated solver substep count from runtime configuration."""
-    return _pbd_collision_config().substeps
+    return _pbd_collision_config(environ).substeps
 
 
-def _pbd_collision_tolerance_mm() -> float:
+def _pbd_collision_tolerance_mm(environ: Mapping[str, str] | None = None) -> float:
     """Return finite non-negative collision tolerance in millimetres."""
-    return _pbd_collision_config().collision_tolerance_mm
+    return _pbd_collision_config(environ).collision_tolerance_mm
 
 
-def _pbd_collision_voxel_mm() -> float:
+def _pbd_collision_voxel_mm(environ: Mapping[str, str] | None = None) -> float:
     """Return finite collision voxel dimension in millimetres."""
-    return _pbd_collision_config().collision_voxel_mm
+    return _pbd_collision_config(environ).collision_voxel_mm
 
 
 def _pbd_collision_effective_tolerance_mm(

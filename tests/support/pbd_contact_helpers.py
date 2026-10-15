@@ -9,6 +9,8 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
+from typing import Protocol
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -25,18 +27,27 @@ def make_progress_logger(path: str | Path) -> Callable[[str], None]:
     return progress
 
 
-def events() -> None:
-    """Process pending FreeCAD GUI events without owning the application loop."""
-    import FreeCADGui as Gui
+class _EventApplication(Protocol):
+    def processEvents(self) -> None: ...
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
-    Gui.updateGui()
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.processEvents()
+
+def events(*, gui: ModuleType | None = None, application: _EventApplication | None = None) -> None:
+    """Process pending GUI events using the supplied host adapters when available."""
+    if gui is None:
+        import FreeCADGui as gui
+
+    qt_widgets = None
+    if application is None:
+        try:
+            from PySide import QtWidgets as qt_widgets
+        except ImportError:
+            from PySide2 import QtWidgets as qt_widgets
+
+    gui.updateGui()
+    if application is None:
+        application = qt_widgets.QApplication.instance()
+    if application is not None:
+        application.processEvents()
 
 
 def ensure_gui_ready() -> None:
@@ -245,7 +256,13 @@ def centroid(points):
     return tuple(sum(p[i] for p in points) / n for i in range(3))
 
 
-def nearest_surface_distance(garment_points, surface):
+def nearest_surface_distance(
+    garment_points,
+    surface,
+    *,
+    surface_clearance_fn: Callable[..., float] | None = None,
+    target_clearance_fn: Callable[..., float] | None = None,
+) -> float | None:
     """Return exact surface distance when available, otherwise a bounded vertex estimate."""
     if not garment_points or surface is None:
         return None
@@ -255,17 +272,21 @@ def nearest_surface_distance(garment_points, surface):
         return None
     if triangles:
         try:
-            from freecad_cloth.common.MeshValidation import nearest_surface_clearance
+            if surface_clearance_fn is None:
+                from freecad_cloth.common.MeshValidation import nearest_surface_clearance
 
-            return float(nearest_surface_clearance(garment_points, vertices, triangles))
+                surface_clearance_fn = nearest_surface_clearance
+            return float(surface_clearance_fn(garment_points, vertices, triangles))
         except (ImportError, RuntimeError, ValueError):
             pass
 
     sample = vertices[:: max(1, len(vertices) // 4096)]
     try:
-        from freecad_cloth.common.MeshValidation import nearest_target_clearance
+        if target_clearance_fn is None:
+            from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
-        return float(nearest_target_clearance(garment_points, sample))
+            target_clearance_fn = nearest_target_clearance
+        return float(target_clearance_fn(garment_points, sample))
     except ImportError:
         # SciPy is optional in some embedded FreeCAD builds. Keep the same sampled-vertex
         # estimate without the quadratic Python loop used by the emergency fallback.

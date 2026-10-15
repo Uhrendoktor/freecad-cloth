@@ -1,6 +1,8 @@
 """Commands for the Cloth Sewing workbench."""
 
 import contextlib
+from collections.abc import Callable
+from types import ModuleType
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
@@ -9,10 +11,11 @@ def _seams(doc):
     return [o for o in doc.Objects if getattr(o, "SeamId", "")]
 
 
-def _selected_seam(doc):
-    import FreeCADGui as Gui
+def _selected_seam(doc, *, gui: ModuleType | None = None):
+    if gui is None:
+        import FreeCADGui as gui
 
-    for obj in Gui.Selection.getSelection():
+    for obj in gui.Selection.getSelection():
         if getattr(obj, "SeamId", ""):
             return obj
     seams = _seams(doc)
@@ -29,13 +32,14 @@ def _pieces_by_id(doc):
     }
 
 
-def _collect_selected_pattern_edges():
+def _collect_selected_pattern_edges(*, gui: ModuleType | None = None):
     """Return all selected semantic pattern-piece edges in selection order."""
-    import FreeCADGui as Gui
+    if gui is None:
+        import FreeCADGui as gui
 
     edges = []
     seen = set()
-    for selection in Gui.Selection.getSelectionEx():
+    for selection in gui.Selection.getSelectionEx():
         obj = selection.Object
         if getattr(obj, "PatternType", "") != "PatternPiece":
             continue
@@ -57,9 +61,9 @@ def _collect_selected_pattern_edges():
     return edges
 
 
-def _selected_pattern_edges(allow_many=False):
+def _selected_pattern_edges(allow_many: bool = False, *, gui: ModuleType | None = None):
     """Return selected pattern-piece edge references after count/piece validation."""
-    edges = _collect_selected_pattern_edges()
+    edges = _collect_selected_pattern_edges(gui=gui)
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
         raise ValueError(f"select {count} edges on pattern pieces")
@@ -284,24 +288,48 @@ def validate_seams():
     ]
 
 
-def repair_selected_seam():
-    import FreeCAD as App
+def repair_selected_seam(
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    edge_length_fn: Callable[..., float] | None = None,
+    correspondence_report_fn: Callable[..., object] | None = None,
+    repair_settings_fn: Callable[..., str] | None = None,
+):
+    """Refresh semantic seam edges using explicit host and sewing services."""
+    if app is None:
+        import FreeCAD as app
+    if gui is None:
+        import FreeCADGui as gui
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         raise ValueError("open a document before repairing a seam")
-    seam = _selected_seam(doc)
-    from freecad_cloth.sewing.SewingGui import correspondence_report, repair_correspondence_settings
+    seam = _selected_seam(doc, gui=gui)
+    if correspondence_report_fn is None or repair_settings_fn is None:
+        from freecad_cloth.sewing.SewingGui import (
+            correspondence_report as default_correspondence_report,
+        )
+        from freecad_cloth.sewing.SewingGui import (
+            repair_correspondence_settings as default_repair_settings,
+        )
+
+        if correspondence_report_fn is None:
+            correspondence_report_fn = default_correspondence_report
+        if repair_settings_fn is None:
+            repair_settings_fn = default_repair_settings
 
     length_a = float(getattr(seam, "LengthA", 0.0))
     length_b = float(getattr(seam, "LengthB", 0.0))
     if length_a <= 0.0 or length_b <= 0.0:
         pieces = _pieces_by_id(doc)
         try:
-            from freecad_cloth.sewing.SewingObjects import _edge_length
+            if edge_length_fn is None:
+                from freecad_cloth.sewing.SewingObjects import _edge_length
 
-            length_a = _edge_length(pieces[str(seam.PieceA)], int(seam.EdgeA))
-            length_b = _edge_length(pieces[str(seam.PieceB)], int(seam.EdgeB))
+                edge_length_fn = _edge_length
+            length_a = edge_length_fn(pieces[str(seam.PieceA)], int(seam.EdgeA))
+            length_b = edge_length_fn(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
             raise ValueError(f"cannot determine seam lengths for repair: {exc}") from exc
     # Refresh only the existing semantic edge IDs. Never use a changed ordinal
@@ -339,8 +367,8 @@ def repair_selected_seam():
         setattr(seam, edge_attr, edge_index)
         setattr(seam, sig_attr, signature)
 
-    report = correspondence_report(seam, length_a, length_b, 0.05)
-    message = repair_correspondence_settings(seam, report)
+    report = correspondence_report_fn(seam, length_a, length_b, 0.05)
+    message = repair_settings_fn(seam, report)
     doc.recompute()
     return message
 
@@ -416,14 +444,22 @@ def focus_selected_seam_3d():
     return seam
 
 
-def _edit_selected_seam_side(side):
-    import FreeCAD as App
-    import FreeCADGui as Gui
+def _edit_selected_seam_side(
+    side,
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
+    if app is None:
+        import FreeCAD as app
+    if gui is None:
+        import FreeCADGui as gui
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         raise ValueError("open a document before editing a seam")
-    seam = _selected_seam(doc)
+    seam = _selected_seam(doc, gui=gui)
     side = str(side).upper()
     if side not in {"A", "B"}:
         raise ValueError("seam side must be A or B")
@@ -439,42 +475,66 @@ def _edit_selected_seam_side(side):
         raise ValueError(
             f"seam side {side} is not present in the Sketcher semantic edge map"
         ) from exc
-    focus_selected_seam_3d()
-    if Gui.activeDocument().getInEdit():
-        Gui.activeDocument().resetEdit()
-    Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(piece)
-    Gui.activateWorkbench("SketcherWorkbench")
-    Gui.activeDocument().setEdit(sketch.Name)
-    Gui.Selection.clearSelection()
-    Gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
+    if focus_fn is None:
+        focus_fn = focus_selected_seam_3d
+    focus_fn()
+    if gui.activeDocument().getInEdit():
+        gui.activeDocument().resetEdit()
+    gui.Selection.clearSelection()
+    gui.Selection.addSelection(piece)
+    gui.activateWorkbench("SketcherWorkbench")
+    gui.activeDocument().setEdit(sketch.Name)
+    gui.Selection.clearSelection()
+    gui.Selection.addSelection(sketch, "Edge%d" % (edge_index + 1))
     return sketch, edge_index
 
 
-def edit_selected_seam_side_a():
-    return _edit_selected_seam_side("A")
+def edit_selected_seam_side_a(
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
+    return _edit_selected_seam_side("A", app=app, gui=gui, focus_fn=focus_fn)
 
 
-def edit_selected_seam_side_b():
-    return _edit_selected_seam_side("B")
+def edit_selected_seam_side_b(
+    *,
+    app: ModuleType | None = None,
+    gui: ModuleType | None = None,
+    focus_fn: Callable[[], object] | None = None,
+):
+    return _edit_selected_seam_side("B", app=app, gui=gui, focus_fn=focus_fn)
 
 
-def show_sewing_2d():
-    import FreeCADGui as Gui
+def show_sewing_2d(
+    *,
+    gui: ModuleType | None = None,
+    apply_colors_fn: Callable[..., object] | None = None,
+    refresh_overlay_fn: Callable[..., object] | None = None,
+):
+    """Switch to a clean 2D sewing view using explicit host/UI collaborators."""
+    if gui is None:
+        import FreeCADGui as gui
 
-    if not Gui.activeDocument():
+    if not gui.activeDocument():
         return
-    from freecad_cloth.sewing.SewingView import apply_seam_colors
+    if apply_colors_fn is None:
+        from freecad_cloth.sewing.SewingView import apply_seam_colors
 
-    document = Gui.activeDocument().Document
-    apply_seam_colors(document.Objects)
-    Gui.Selection.clearSelection()
-    view = Gui.activeDocument().activeView()
+        apply_colors_fn = apply_seam_colors
+
+    document = gui.activeDocument().Document
+    apply_colors_fn(document.Objects)
+    gui.Selection.clearSelection()
+    view = gui.activeDocument().activeView()
     view.viewTop()
     view.fitAll()
-    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+    if refresh_overlay_fn is None:
+        from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
-    refresh_seam_overlay(document)
+        refresh_overlay_fn = refresh_seam_overlay
+    refresh_overlay_fn(document)
 
 
 def _build_seam_overlay_options_dialog():

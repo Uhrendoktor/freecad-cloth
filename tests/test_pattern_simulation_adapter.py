@@ -334,12 +334,13 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
                 ),
             }
         )
-    original = pattern_objects._native_edge_records
-    pattern_objects._native_edge_records = lambda _piece: reordered
-    try:
-        edge_id, signature = pattern_objects._seam_edge_id(piece, 5, "A")
-    finally:
-        pattern_objects._native_edge_records = original
+
+    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+        return reordered
+
+    edge_id, signature = pattern_objects._seam_edge_id(
+        piece, 5, "A", native_edge_records_fn=native_edge_records
+    )
     assert edge_id == "piece:edge:5"
     assert (
         signature
@@ -361,12 +362,13 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     records = [
         {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
     ]
-    original = pattern_objects._native_edge_records
-    pattern_objects._native_edge_records = lambda _piece: records
-    try:
-        edge_id, signature = pattern_objects._seam_edge_id(piece, "piece:edge:2", "A")
-    finally:
-        pattern_objects._native_edge_records = original
+
+    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+        return records
+
+    edge_id, signature = pattern_objects._seam_edge_id(
+        piece, "piece:edge:2", "A", native_edge_records_fn=native_edge_records
+    )
     assert edge_id == "piece:edge:2"
     assert (
         signature

@@ -74,14 +74,16 @@ def test_sewing_toolbar_is_a_unique_subset_of_registered_commands():
     assert len(SEWING_TOOLBAR_COMMANDS) == len(set(SEWING_TOOLBAR_COMMANDS))
 
 
-def test_sewing_registration_uses_nested_menus_and_toolbar_subset(monkeypatch):
-    import freecad_cloth.gui as gui_module
-
-    monkeypatch.setattr(gui_module, "Gui", object())
-    workbench = ClothSewingWorkbench()
+def test_sewing_registration_uses_nested_menus_and_toolbar_subset():
     calls = []
-    workbench.appendToolbar = lambda name, commands: calls.append(("toolbar", name, list(commands)))
-    workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
+
+    def toolbar_sink(name: str, commands: list[str]) -> None:
+        calls.append(("toolbar", name, list(commands)))
+
+    def menu_sink(name: str, commands: list[str]) -> None:
+        calls.append(("menu", name, list(commands)))
+
+    workbench = ClothSewingWorkbench(gui=object(), toolbar_sink=toolbar_sink, menu_sink=menu_sink)
     workbench._register_groups(
         SEWING_COMMAND_GROUPS,
         toolbar_name=workbench.MenuText,
@@ -113,26 +115,19 @@ def test_sewing_command_group_validator_rejects_invalid_groups():
 
 
 def test_workbench_registration_is_idempotent():
-    import freecad_cloth.gui as gui_module
-
-    original_gui = gui_module.Gui
-    gui_module.Gui = object()
-    try:
-        workbench = ClothSewingWorkbench()
-        calls = []
-        workbench.appendToolbar = lambda name, commands: calls.append(
-            ("toolbar", name, list(commands))
-        )
-        workbench.appendMenu = lambda name, commands: calls.append(("menu", name, list(commands)))
-        workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
-        first_calls = list(calls)
-        workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
-        assert calls == first_calls
-        assert workbench.commands == [
-            command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
-        ]
-    finally:
-        gui_module.Gui = original_gui
+    calls = []
+    workbench = ClothSewingWorkbench(
+        gui=object(),
+        toolbar_sink=lambda name, commands: calls.append(("toolbar", name, list(commands))),
+        menu_sink=lambda name, commands: calls.append(("menu", name, list(commands))),
+    )
+    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
+    first_calls = list(calls)
+    workbench._register_groups(SEWING_COMMAND_GROUPS, toolbar_name=workbench.MenuText)
+    assert calls == first_calls
+    assert workbench.commands == [
+        command for _group, commands in SEWING_COMMAND_GROUPS for command in commands
+    ]
 
 
 def test_public_command_surfaces_are_nonempty_and_unique():
@@ -164,16 +159,22 @@ def test_public_command_surfaces_preserve_authoring_boundaries():
     } <= set(AvatarCommands.COMMANDS)
 
 
-def test_simulation_workbench_exposes_avatar_entrypoints(monkeypatch):
-    import freecad_cloth.simulation.DrapeCommands as DrapeCommands
+def test_simulation_workbench_exposes_avatar_entrypoints():
+    from types import SimpleNamespace
+
     from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench
 
-    monkeypatch.setattr(DrapeCommands, "register_gui_commands", lambda: True)
-    workbench = ClothSimulationWorkbench()
+    drape_commands = SimpleNamespace(
+        register_gui_commands=lambda: True, COMMANDS=["ClothSimulation_DrapeFake"]
+    )
+    simulation_commands = SimpleNamespace(COMMANDS=["ClothSimulation_RunFake"])
     registered = []
-    workbench.register = lambda groups: registered.extend(groups)
-
-    workbench.Initialize()
+    workbench = ClothSimulationWorkbench()
+    workbench.Initialize(
+        drape_commands=drape_commands,
+        simulation_commands=simulation_commands,
+        register_fn=lambda groups: registered.extend(groups),
+    )
 
     assert registered[0] == ("Avatar & Fitting", AVATAR_ENTRY_COMMANDS)
     assert AVATAR_ENTRY_COMMANDS == (

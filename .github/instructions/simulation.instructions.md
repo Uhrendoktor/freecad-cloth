@@ -1,5 +1,5 @@
 ---
-applyTo: "freecad_cloth/simulation/**/*.py,tests/freecad_*.py,docs/SIMULATION_REVIEW.md"
+applyTo: "freecad_cloth/simulation/**/*.py,tests/freecad_*.py,docs/developers/SIMULATION_REVIEW.md"
 ---
 
 - Keep document-persistent state as authority; solver state is derived and rebuildable.

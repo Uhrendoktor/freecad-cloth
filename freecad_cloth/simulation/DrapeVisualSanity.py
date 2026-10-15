@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from math import dist, isfinite
 from statistics import median
 
@@ -101,6 +101,7 @@ def points_inside_closed_mesh(
     *,
     chunk_size: int = 32,
     prefer_trimesh: bool = True,
+    contains_fn: Callable[[object, object], object] | None = None,
 ) -> tuple[bool, ...]:
     """Classify points with optional Trimesh acceleration and a vectorized ray fallback.
 
@@ -128,7 +129,11 @@ def points_inside_closed_mesh(
             mesh = trimesh.Trimesh(vertices=vertex_data, faces=faces, process=False)
             if mesh.is_watertight:
                 try:
-                    contained = mesh.contains(point_data)
+                    contained = (
+                        mesh.contains(point_data)
+                        if contains_fn is None
+                        else contains_fn(mesh, point_data)
+                    )
                 except (ImportError, RuntimeError, ValueError):
                     # Trimesh's spatial-index backend is optional for diagnostics.
                     pass

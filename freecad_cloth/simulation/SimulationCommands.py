@@ -1,5 +1,7 @@
 """Commands for the Cloth Simulation workbench."""
 
+from collections.abc import Callable
+
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
@@ -68,11 +70,21 @@ def _find_drape_target(doc):
     )
 
 
-def _require_drape_target_ready(doc):
-    from freecad_cloth.simulation.DrapeTarget import target_status
+def _require_drape_target_ready(
+    doc,
+    *,
+    find_target: Callable[..., object] | None = None,
+    target_status_fn: Callable[..., dict[str, str]] | None = None,
+):
+    if find_target is None:
+        find_target = _find_drape_target
+    if target_status_fn is None:
+        from freecad_cloth.simulation.DrapeTarget import target_status
 
-    target = _find_drape_target(doc)
-    status = target_status(target)
+        target_status_fn = target_status
+
+    target = find_target(doc)
+    status = target_status_fn(target)
     if status["state"] != "ready":
         raise RuntimeError(status["message"])
     return target
@@ -130,21 +142,34 @@ def simulate_selected(steps=None):
     return panels[0] if panels else scene
 
 
-def run_simulation(steps=30):
+def run_simulation(steps=30, *, simulate: Callable[..., object] | None = None):
     """Run an explicit batch of simulation steps on the active scene."""
-    return simulate_selected(steps)
+    run_selected = simulate_selected if simulate is None else simulate
+    return run_selected(steps)
 
 
-def reset_simulation():
+def reset_simulation(
+    *,
+    require_simulation_fn: Callable[[], tuple[object, object]] | None = None,
+    reset_scene_fn: Callable[[object], object] | None = None,
+    refresh_overlay_fn: Callable[[object], object] | None = None,
+):
     """Reset the active simulation state without changing its authored settings."""
-    _doc, scene = _require_simulation()
-    from freecad_cloth.simulation.SimulationObjects import reset_scene
+    require_simulation = (
+        _require_simulation if require_simulation_fn is None else require_simulation_fn
+    )
+    _doc, scene = require_simulation()
+    if reset_scene_fn is None:
+        from freecad_cloth.simulation.SimulationObjects import reset_scene
 
-    reset_scene(scene)
+        reset_scene_fn = reset_scene
+    reset_scene_fn(scene)
     scene.Document.recompute()
-    from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
+    if refresh_overlay_fn is None:
+        from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
-    refresh_seam_overlay(scene.Document)
+        refresh_overlay_fn = refresh_seam_overlay
+    refresh_overlay_fn(scene.Document)
     return scene
 
 

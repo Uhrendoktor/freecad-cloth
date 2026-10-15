@@ -21,11 +21,12 @@ def test_documentation_navigation_has_the_expected_entry_points():
     docs = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
 
     for target in (
-        "INSTALLATION.md",
-        "EXAMPLES.md",
-        "USER_GUIDE.md",
-        "wiki/README.md",
-        "TROUBLESHOOTING.md",
-        "WORKBENCH_GUIDE.md",
+        "users/INSTALLATION.md",
+        "users/EXAMPLES.md",
+        "users/USER_GUIDE.md",
+        "users/wiki/README.md",
+        "users/TROUBLESHOOTING.md",
+        "users/WORKBENCH_GUIDE.md",
+        "developers/CI_CONFIGURATION.md",
     ):
         assert target in docs

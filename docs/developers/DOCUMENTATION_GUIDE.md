@@ -12,10 +12,10 @@ Separate the four common documentation needs:
 
 | Type | Reader's question | FreeCAD Cloth entry point |
 | --- | --- | --- |
-| Tutorial | "Can you guide me through a first successful result?" | [User guide](USER_GUIDE.md) |
-| How-to guide | "How do I complete this task?" | [Feature guides](wiki/README.md) and [Troubleshooting](TROUBLESHOOTING.md) |
-| Reference | "What does this field, command, state, or boundary mean?" | [Workbench guide](WORKBENCH_GUIDE.md), [Data model](wiki/07-data-model.md) |
-| Explanation | "Why does the product work this way?" | [Architecture](ARCHITECTURE.md), [Data model](wiki/07-data-model.md), [Validation](wiki/08-validation.md) |
+| Tutorial | "Can you guide me through a first successful result?" | [User guide](../users/USER_GUIDE.md) |
+| How-to guide | "How do I complete this task?" | [Feature guides](../users/wiki/README.md) and [Troubleshooting](../users/TROUBLESHOOTING.md) |
+| Reference | "What does this field, command, state, or boundary mean?" | [Workbench guide](../users/WORKBENCH_GUIDE.md), [Data model](DATA_MODEL.md) |
+| Explanation | "Why does the product work this way?" | [Architecture](ARCHITECTURE.md), [Data model](DATA_MODEL.md), [Validation](VALIDATION.md) |
 
 The distinctions are useful because an onboarding tutorial, a task recipe, and a technical contract need different levels of context. Do not force every page into four separate folders. Let reader goals and existing content determine the structure, and make links between related page types explicit.
 
@@ -46,7 +46,7 @@ Visuals should answer a question that is hard to answer from text alone: where t
 - Avoid repeated images unless they teach a distinct task. A hero image introduces the product; a task GIF should demonstrate an interaction; a multi-view set should support geometry review.
 - Do not hand-edit generated UI or geometry evidence. Correct the capture fixture and regenerate through the canonical path.
 
-Public visual assets are published to the docs/screenshots branch at the generated-image path referenced by the [README](../README.md) and [wiki index](wiki/README.md). That branch is a publication target, not the authoritative copy of the feature implementation.
+Public visual assets are published to the docs/screenshots branch at the generated-image path referenced by the [README](../../README.md) and [wiki index](../users/wiki/README.md). That branch is a publication target, not the authoritative copy of the feature implementation.
 
 ## Describe the actual product
 
@@ -65,14 +65,14 @@ Do not present a research note, roadmap item, or hypothesis as an implemented fe
 
 ## Information architecture
 
-Keep the root [README](../README.md) concise enough to act as an orientation page. It should answer what the workbench is, what to try first, and where to go next.
+Keep the root [README](../../README.md) concise enough to act as an orientation page. It should answer what the workbench is, what to try first, and where to go next.
 
-- [Installation](INSTALLATION.md) owns requirements, installation, and replacement instructions.
-- [User guide](USER_GUIDE.md) owns the first end-to-end learning path.
-- [Examples](EXAMPLES.md) owns the simple-first validation ladder and example scope.
-- [Troubleshooting](TROUBLESHOOTING.md) owns recovery steps.
-- [Visual wiki](wiki/README.md) owns feature discovery and links to per-feature visual evidence.
-- [Workbench guide](WORKBENCH_GUIDE.md) owns detailed commands and interaction contracts.
+- [Installation](../users/INSTALLATION.md) owns requirements, installation, and replacement instructions.
+- [User guide](../users/USER_GUIDE.md) owns the first end-to-end learning path.
+- [Examples](../users/EXAMPLES.md) owns the simple-first validation ladder and example scope.
+- [Troubleshooting](../users/TROUBLESHOOTING.md) owns recovery steps.
+- [Visual wiki](../users/wiki/README.md) owns feature discovery and links to per-feature visual evidence.
+- [Workbench guide](../users/WORKBENCH_GUIDE.md) owns detailed commands and interaction contracts.
 - Architecture, project structure, tests, and release documents own engineering contracts.
 
 If a procedure is needed in several places, document it once and link to it. A page can add a short symptom-specific hint, but should not introduce a competing recovery path.

@@ -77,18 +77,18 @@ def test_pbd_step_schema_rejects_nonfinite_gravity():
         PBDStepInput(dt=1 / 60, iterations=8, gravity=(0.0, math.nan, -9810.0))
 
 
-def test_pbd_config_rejects_nonfinite_environment_settings(monkeypatch):
-    monkeypatch.setenv("CLOTH_PBD_COLLISION_TOLERANCE_MM", "nan")
+def test_pbd_config_rejects_nonfinite_environment_settings():
     with pytest.raises(ValidationError):
-        _pbd_collision_tolerance_mm()
-    monkeypatch.setenv("CLOTH_PBD_COLLISION_TOLERANCE_MM", "1.0")
-    monkeypatch.setenv("CLOTH_PBD_COLLISION_VOXEL_MM", "inf")
+        _pbd_collision_tolerance_mm({"CLOTH_PBD_COLLISION_TOLERANCE_MM": "nan"})
     with pytest.raises(ValidationError):
-        _pbd_collision_voxel_mm()
-    monkeypatch.setenv("CLOTH_PBD_COLLISION_VOXEL_MM", "12")
-    monkeypatch.setenv("CLOTH_PBD_SUBSTEPS", "0")
+        _pbd_collision_voxel_mm(
+            {
+                "CLOTH_PBD_COLLISION_TOLERANCE_MM": "1.0",
+                "CLOTH_PBD_COLLISION_VOXEL_MM": "inf",
+            }
+        )
     with pytest.raises(ValidationError):
-        _pbd_substeps()
+        _pbd_substeps({"CLOTH_PBD_SUBSTEPS": "0"})
 
 
 @pytest.mark.parametrize("index", [1.5, True, -1, "1"])

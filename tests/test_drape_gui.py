@@ -159,7 +159,7 @@ def test_missing_target_disables_apply_and_reports_action():
     assert "Create a Drape Target first" in panel.status.text
 
 
-def test_apply_persists_target_values_and_recomputes(monkeypatch):
+def test_apply_persists_target_values_and_recomputes():
     panel = _panel()
     source = object()
     target = SimpleNamespace(CollisionDeflection=1.0, CollisionThickness=2.0, Enabled=True)
@@ -177,14 +177,10 @@ def test_apply_persists_target_values_and_recomputes(monkeypatch):
     panel._source_objects = [source]
     panel.doc = SimpleNamespace(recompute=lambda: document_calls.append("recompute"))
 
-    monkeypatch.setattr(
-        "freecad_cloth.simulation.DrapeTarget.assign_drape_target",
-        lambda target_obj, source_obj, target_type: assigned.append(
-            (target_obj, source_obj, target_type)
-        ),
-    )
+    def assign_target(target_obj: object, source_obj: object, target_type: str) -> None:
+        assigned.append((target_obj, source_obj, target_type))
 
-    assert panel._apply() is True
+    assert panel._apply(assign_target=assign_target) is True
     assert (target.CollisionDeflection, target.CollisionThickness, target.Enabled) == (
         0.35,
         3.0,

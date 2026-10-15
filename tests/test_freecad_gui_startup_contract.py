@@ -87,9 +87,9 @@ def test_freecad_extension_package_uses_namespace_gui_entry_point():
     assert not (ROOT / "freecad" / "__init__.py").exists()
     assert (extension / "__init__.py").is_file()
     source = (extension / "init_gui.py").read_text(encoding="utf-8")
-    assert "Gui.addWorkbench(ClothPatternWorkbench())" in source
-    assert "Gui.addWorkbench(ClothSimulationWorkbench())" in source
-    assert "Gui.addWorkbench(ClothSewingWorkbench())" in source
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+    assert "initialize_workbenches(ROOT)" in source
+    assert "Gui.addWorkbench(" not in source
     assert "from freecad_cloth." in source
 
 

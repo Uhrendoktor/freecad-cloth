@@ -116,4 +116,4 @@ Pattern-domain tests also cover persistence, references and topology behavior.
 
 Implementation is concentrated under `freecad_cloth/pattern/`. The package boundary is the durable source map; individual compatibility modules should not be treated as public API.
 
-Further detail: [Workbench guide](../WORKBENCH_GUIDE.md) and [Architecture](../ARCHITECTURE.md).
+Further detail: [Workbench guide](../WORKBENCH_GUIDE.md) and [Architecture](../../developers/ARCHITECTURE.md).

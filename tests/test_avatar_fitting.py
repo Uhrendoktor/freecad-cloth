@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest import mock
+from typing import NoReturn
 
 from freecad_cloth.avatar.AvatarArrangement import (
     ARRANGEMENT_POINT_NAMES,
@@ -211,11 +211,12 @@ class AvatarFittingTests(unittest.TestCase):
 
         freecad = SimpleNamespace(Vector=lambda *point: tuple(float(value) for value in point))
         mesh_module = SimpleNamespace(Mesh=create_mesh)
-        with mock.patch.dict("sys.modules", {"FreeCAD": freecad, "Mesh": mesh_module}):
-            result = _mesh_data(
-                ((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)),
-                ((0, 1, 2), (0, 2, 3)),
-            )
+        result = _mesh_data(
+            ((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)),
+            ((0, 1, 2), (0, 2, 3)),
+            app_module=freecad,
+            mesh_module=mesh_module,
+        )
 
         self.assertIs(result, created[0])
         expected_vertices = [
@@ -328,15 +329,14 @@ class AvatarFittingTests(unittest.TestCase):
             original_chest = float(avatar.Chest)
             original_pose = str(avatar.JointPoseJSON)
             candidate = current.with_measurements(chest=original_chest + 80.0)
-            with (
-                mock.patch.object(
-                    AvatarCommands,
-                    "_provider_geometry",
-                    side_effect=RuntimeError("synthetic geometry failure"),
-                ),
-                self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"),
-            ):
-                AvatarCommands.apply_avatar_parameters(avatar, candidate)
+
+            def fail_provider_geometry(*_args: object) -> NoReturn:
+                raise RuntimeError("synthetic geometry failure")
+
+            with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
+                AvatarCommands.apply_avatar_parameters(
+                    avatar, candidate, provider_geometry_fn=fail_provider_geometry
+                )
             self.assertEqual(float(avatar.Chest), original_chest)
             self.assertEqual(str(avatar.JointPoseJSON), original_pose)
             rebuilt_mesh = tuple(

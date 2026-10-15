@@ -43,12 +43,9 @@ class SewingNetworkGuiContractTests(unittest.TestCase):
 
     def test_active_network_task_panel_accessor_is_deterministic(self):
         sentinel = object()
-        old = SewingNetworkCommands._ACTIVE_NETWORK_TASK_PANEL
-        try:
-            SewingNetworkCommands._ACTIVE_NETWORK_TASK_PANEL = sentinel
-            self.assertIs(SewingNetworkCommands.get_active_network_task_panel(), sentinel)
-        finally:
-            SewingNetworkCommands._ACTIVE_NETWORK_TASK_PANEL = old
+        state = SewingNetworkCommands._NetworkTaskPanelState()
+        state.set(sentinel)
+        self.assertIs(SewingNetworkCommands.get_active_network_task_panel(state=state), sentinel)
 
 
 if __name__ == "__main__":
