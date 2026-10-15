@@ -220,7 +220,7 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
     gallery_start = block.index("      - name: Generate wiki-only avatar body-shape gallery")
     gallery_end = block.find("\n      - ", gallery_start + 8)
     gallery_step = block[gallery_start : gallery_end if gallery_end != -1 else len(block)]
-    assert "if: ${{ github.ref == 'refs/heads/main' }}" in gallery_step
+    assert "if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}" in gallery_step
 
 
 def test_wiki_visual_generation_is_limited_to_publication_events():
