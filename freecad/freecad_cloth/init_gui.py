@@ -1,29 +1,8 @@
-"""FreeCAD 1.1 GUI entry point for FreeCAD Cloth."""
+"""FreeCAD 1.1 namespaced GUI entry point for FreeCAD Cloth."""
 
 from pathlib import Path
 
+from freecad_cloth.bootstrap import initialize_workbenches
+
 ROOT = Path(__file__).resolve().parents[2]
-
-import FreeCADGui as Gui
-
-ICON_DIR = ROOT / "resources" / "icons"
-if ICON_DIR.is_dir():
-    Gui.addIconPath(str(ICON_DIR))
-
-from freecad_cloth.avatar import AvatarCommands
-from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-from freecad_cloth.sewing.workbench import ClothSewingWorkbench
-from freecad_cloth.simulation.workbench import (
-    AVATAR_ENTRY_COMMANDS,
-    ClothSimulationWorkbench,
-)
-
-if not set(AVATAR_ENTRY_COMMANDS).issubset(AvatarCommands.COMMANDS):
-    raise RuntimeError("Cloth Simulation avatar menu references unregistered commands")
-
-if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-    Gui.addWorkbench(ClothPatternWorkbench())
-if "ClothSimulationWorkbench" not in Gui.listWorkbenches():
-    Gui.addWorkbench(ClothSimulationWorkbench())
-if "ClothSewingWorkbench" not in Gui.listWorkbenches():
-    Gui.addWorkbench(ClothSewingWorkbench())
+initialize_workbenches(ROOT)

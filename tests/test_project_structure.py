@@ -42,12 +42,13 @@ def test_only_bootstrap_python_files_remain_at_root():
     }
 
 
-def test_root_initgui_does_not_swallow_drapetarget_import_errors():
+def test_root_initgui_delegates_without_swallowing_bootstrap_errors():
     root = Path(__file__).resolve().parents[1]
     source = (root / "InitGui.py").read_text(encoding="utf-8")
-    assert "import freecad_cloth.simulation.DrapeTarget" not in source
-    assert "target execute/recompute guard" not in source
-    assert "Gui = None" in source
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+    assert "initialize_workbenches(" in source
+    assert "except Exception" not in source
+    assert "freecad_cloth.simulation.DrapeTarget" not in source
 
 
 def test_freecad_entry_points_remain_at_root():
@@ -55,9 +56,28 @@ def test_freecad_entry_points_remain_at_root():
     assert (root / "Init.py").is_file()
     assert (root / "InitGui.py").is_file()
     gui = (root / "InitGui.py").read_text(encoding="utf-8")
-    assert "Gui.addWorkbench(ClothPatternWorkbench())" in gui
-    assert "Gui.addWorkbench(ClothSewingWorkbench())" in gui
-    assert "Gui.addWorkbench(ClothSimulationWorkbench())" in gui
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in gui
+    assert gui.count("initialize_workbenches(") == 1
+
+
+def test_classic_and_modern_loaders_share_registration_implementation() -> None:
+    root = Path(__file__).resolve().parents[1]
+    bootstrap = (root / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
+    for path in (
+        root / "InitGui.py",
+        root / "freecad" / "freecad_cloth" / "init_gui.py",
+    ):
+        source = path.read_text(encoding="utf-8")
+        assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+        assert source.count("initialize_workbenches(") == 1
+        assert "Gui.addWorkbench(" not in source
+    for workbench in (
+        "ClothPatternWorkbench",
+        "ClothSimulationWorkbench",
+        "ClothSewingWorkbench",
+    ):
+        assert f'("{workbench}",' in bootstrap
+    assert bootstrap.count("Gui.addWorkbench(workbench_type())") == 1
 
 
 def test_shared_contract_is_freecad_independent():
@@ -262,11 +282,18 @@ def test_manifest_declares_all_bundled_workbenches():
 
 def test_freecad_classic_and_modern_loader_surfaces_are_documented_and_aligned():
     root = Path(__file__).resolve().parents[1]
-    classic = (root / "InitGui.py").read_text(encoding="utf-8")
-    modern = (root / "freecad" / "freecad_cloth" / "init_gui.py").read_text(encoding="utf-8")
+    loaders = (
+        root / "InitGui.py",
+        root / "freecad" / "freecad_cloth" / "init_gui.py",
+    )
+    bootstrap = (root / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
+    for loader in loaders:
+        source = loader.read_text(encoding="utf-8")
+        assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+        assert "initialize_workbenches(" in source
+        assert "Gui.addWorkbench(" not in source
     for workbench in ("ClothPatternWorkbench", "ClothSewingWorkbench", "ClothSimulationWorkbench"):
-        assert workbench in classic
-        assert workbench in modern
+        assert f'("{workbench}",' in bootstrap
     assert (
         "loader layouts"
         in (root / "docs" / "PROJECT_STRUCTURE.md").read_text(encoding="utf-8").lower()

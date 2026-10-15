@@ -53,12 +53,9 @@ def test_command_ids_exist_and_are_unique():
 
 def test_init_gui_is_bootstrap_only():
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.pattern.workbench import ClothPatternWorkbench" in source
-    assert "from freecad_cloth.sewing.workbench import ClothSewingWorkbench" in source
-    assert (
-        "from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench"
-        in source
-    )
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+    assert "initialize_workbenches(Path(__file__).resolve().parent)" in source
+    assert "Gui.addWorkbench(" not in source
     for legacy in (
         "import PatternCommands",
         "import SewingNetworkCommands",
