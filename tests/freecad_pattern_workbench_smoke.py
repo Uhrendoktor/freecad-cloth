@@ -8,10 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import InitGui
-from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+import InitGui as _init_gui
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
+from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 
 
 def process_events():
