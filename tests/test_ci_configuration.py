@@ -236,4 +236,5 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=10" in gallery_invocation
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
-    assert "timeout-minutes: 10" in gallery_job
+    assert "timeout-minutes: &ten_minute_timeout 10" in workflow
+    assert "timeout-minutes: *ten_minute_timeout" in gallery_job
