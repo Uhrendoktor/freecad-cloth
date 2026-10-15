@@ -114,7 +114,7 @@ A single attractive camera angle can hide collision penetration, a detached pane
 3. Inspect stress or other diagnostic overlays only when the simulation and target are current.
 4. Save the document and export from authoritative pattern geometry when needed.
 
-**Verify the result:** the garment remains a coherent object from multiple angles and all diagnostic views describe the same current state. See [Diagnostics](wiki/06-diagnostics.md) and the [simulation review guide](SIMULATION_REVIEW.md).
+**Verify the result:** the garment remains a coherent object from multiple angles and all diagnostic views describe the same current state. See [Diagnostics](wiki/06-diagnostics.md) and the [simulation review guide](../developers/SIMULATION_REVIEW.md).
 
 ## What is saved
 
@@ -124,7 +124,7 @@ The saved FreeCAD document is authoritative.
 - **Derived:** generated simulation mesh, solver particles and constraints, and collision acceleration data.
 - **Transient:** selection highlights, hover labels, and in-progress drag previews.
 
-A change to an authoritative input can invalidate dependent derived state. Refresh or rebuild that state rather than bypassing a stale guard. See the [data model](wiki/07-data-model.md).
+A change to an authoritative input can invalidate dependent derived state. Refresh or rebuild that state rather than bypassing a stale guard. See the [data model](../developers/DATA_MODEL.md).
 
 ## Recovery guide
 
@@ -134,7 +134,7 @@ A change to an authoritative input can invalidate dependent derived state. Refre
 | A seam becomes invalid after editing a sketch | Recompute, inspect the reported reference, then repair or recreate the seam explicitly. |
 | Pieces are badly arranged | Reset/rearrange before attempting to tune simulation settings. |
 | The target or simulation is stale | Refresh/rebuild the affected target or derived scene, then run again. |
-| Simulation explodes, collapses, or penetrates | Stop at the first invalid state and follow [Simulation review](SIMULATION_REVIEW.md). |
+| Simulation explodes, collapses, or penetrates | Stop at the first invalid state and follow [Simulation review](../developers/SIMULATION_REVIEW.md). |
 | Local visuals disagree with published evidence | Compare the source commit and the canonical FreeCAD/solver environment; do not hand-edit screenshots. |
 
 ## Next steps

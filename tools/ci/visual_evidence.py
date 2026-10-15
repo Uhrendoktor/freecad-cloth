@@ -17,7 +17,10 @@ ASSET_RE = re.compile(re.escape(PREFIX) + r"""([^\s'"<>\)]+)""")
 
 def documented_assets(source_root: Path) -> set[str]:
     """Return the generated visual assets referenced by the public documentation."""
-    documents = [source_root / "README.md", *sorted((source_root / "docs" / "wiki").glob("*.md"))]
+    documents = [
+        source_root / "README.md",
+        *sorted((source_root / "docs").rglob("*.md")),
+    ]
     assets: set[str] = set()
     for document in documents:
         if not document.is_file():

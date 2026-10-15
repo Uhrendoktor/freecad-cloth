@@ -54,7 +54,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
 def test_timeout_contract_is_documented():
     """The human documentation points to the authoritative configuration."""
     docs = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
-    configuration = (ROOT / "docs" / "CI_CONFIGURATION.md").read_text(encoding="utf-8")
+    configuration = (ROOT / "docs" / "developers" / "CI_CONFIGURATION.md").read_text(encoding="utf-8")
 
     assert "CI configuration" in docs
     assert "pyproject.toml" in configuration

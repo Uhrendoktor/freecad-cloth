@@ -1,58 +1,31 @@
 # FreeCAD Cloth documentation
 
-Use this page as the documentation map. Choose the task you are trying to accomplish rather than starting with repository internals.
+Use this page as the documentation map. Choose the section for your audience; the three groups have different goals and are intentionally kept separate.
 
-## I want to use FreeCAD Cloth
+## Choose your audience
 
-| Goal | Start here | What you get |
+| Audience | Start here | Purpose |
 | --- | --- | --- |
-| Install it | [Installation](INSTALLATION.md) | Requirements, installation and first-run checks |
-| Get a first successful simulation | [Examples](EXAMPLES.md) | Small Blanket over Cube tutorial before the full garment |
-| Learn the normal garment workflow | [User guide](USER_GUIDE.md) | Pattern → Sewing → Fitting → Pose → Simulation → Diagnosis |
-| Learn feature behavior | [Visual wiki](wiki/README.md) | Feature pages with screenshots, persistent state, failure cases and evidence |
-| Solve a problem | [Troubleshooting](TROUBLESHOOTING.md) | Symptom → likely cause → recovery path |
-| Look up workbench behavior | [Workbench guide](WORKBENCH_GUIDE.md) | Commands, workflow details and document structure |
+| FreeCAD users | [User documentation](users/README.md) | Installation, garment workflows, feature guides, examples, and troubleshooting |
+| Software developers | [Developer documentation](developers/README.md) | Architecture, code organization, development, testing, design decisions, and release validation |
+| AI agents | [Agent documentation and guidelines](agents/README.md) | Agent-specific reference material and pointers to the repository's authoritative agent instructions |
 
-## I want to understand or change the project
+## Common destinations
 
-| Goal | Start here | What you get |
-| --- | --- | --- |
-| Understand the architecture | [Architecture](ARCHITECTURE.md) | Authorities, boundaries, lifecycle and dependency direction |
-| Find code ownership | [Project structure](PROJECT_STRUCTURE.md) | Package boundaries and canonical module locations |
-| Change the project safely | [Development](DEVELOPMENT.md) | Tests, CI, GUI validation and contribution rules |
-| Configure CI | [CI configuration](CI_CONFIGURATION.md) | Authoritative FreeCAD application timeout and consumers |
-| Understand durable design choices | [Decisions](DECISIONS.md) | Architectural decisions and rationale |
-| Check release/evidence rules | [Release gates](RELEASE_GATES.md) | Acceptance and visual-evidence requirements |
-| Inspect planned capabilities | [Roadmap](ROADMAP.md) | Durable future work, not current status |
-| Read design research | [Research](RESEARCH.md) | Design rationale and external references |
+- [Install FreeCAD Cloth](users/INSTALLATION.md)
+- [Follow the end-to-end garment workflow](users/USER_GUIDE.md)
+- [Try the examples](users/EXAMPLES.md)
+- [Browse visual feature guides](users/wiki/README.md)
+- [Troubleshoot common problems](users/TROUBLESHOOTING.md)
+- [Look up workbench commands](users/WORKBENCH_GUIDE.md)
+- [Set up a development environment](developers/DEVELOPMENT.md)
+- [Read the CI configuration](developers/CI_CONFIGURATION.md)
+- [Understand the package boundaries](developers/ARCHITECTURE.md)
 
-## Reading order for a new user
+## Documentation boundaries
 
-1. [Installation](INSTALLATION.md)
-2. [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube)
-3. [User guide](USER_GUIDE.md)
-4. The relevant [visual wiki](wiki/README.md) page
-5. [Troubleshooting](TROUBLESHOOTING.md) when something behaves unexpectedly
+- User documentation explains what to do in FreeCAD and how to confirm or recover from the result.
+- Developer documentation explains how the software is structured, built, tested, and maintained.
+- Agent documentation covers AI-agent-specific instructions and artifacts. The root [`AGENTS.md`](../AGENTS.md) remains the repository-wide agent contract; this index does not replace it.
 
-Start with the blanket when diagnosing an installation, target or simulation problem. It removes most garment-specific variables before you move to the tunic.
-
-## Documentation authority
-
-Each kind of information has one intended home:
-
-| Information | Canonical home |
-| --- | --- |
-| Project orientation | root [README](../README.md) |
-| User-facing feature behavior | [wiki/](wiki/README.md) |
-| Step-by-step workflows | [USER_GUIDE.md](USER_GUIDE.md) and [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md) |
-| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Code/package ownership | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) |
-| Durable decisions | [DECISIONS.md](DECISIONS.md) |
-| Testing/CI/contributor workflow | [DEVELOPMENT.md](DEVELOPMENT.md) |
-| Current coordination state | `AGENT_STATUS.md` / `TOOL_STATE.md` |
-| Task-local evidence | GitHub issue/PR and its exact CI artifacts |
-| Research | [RESEARCH.md](RESEARCH.md) |
-
-Current coordination files are snapshots, not architectural authorities. Verify implementation claims against the current branch and HEAD before treating a status statement as current fact.
-
-Generated images are evidence artifacts. The current source, executable tests and canonical workflow remain authoritative.
+When one audience needs a topic owned by another, link to the canonical page rather than copying it.

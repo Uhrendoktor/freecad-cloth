@@ -157,7 +157,7 @@ def test_hosted_fallback_visual_publication_is_a_release_gate():
 
 
 def test_pose_visual_audit_exposes_all_avatar_renders():
-    pose = (ROOT / "docs" / "wiki" / "04-pose.md").read_text(encoding="utf-8")
+    pose = (ROOT / "docs" / "users" / "wiki" / "04-pose.md").read_text(encoding="utf-8")
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
 
     for asset in (

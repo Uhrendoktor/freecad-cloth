@@ -6,9 +6,9 @@
 
 | Gate | Evidence |
 |---|---|
-| Installation | [INSTALLATION.md](INSTALLATION.md) describes user and developer setup |
-| User workflow | [WORKBENCH_GUIDE.md](WORKBENCH_GUIDE.md) covers Pattern → Sewing → Arrange → Simulate → Iterate |
-| Example ladder | [EXAMPLES.md](EXAMPLES.md) contains basic and advanced paths |
+| Installation | [INSTALLATION.md](../users/INSTALLATION.md) describes user and developer setup |
+| User workflow | [WORKBENCH_GUIDE.md](../users/WORKBENCH_GUIDE.md) covers Pattern → Sewing → Arrange → Simulate → Iterate |
+| Example ladder | [EXAMPLES.md](../users/EXAMPLES.md) contains basic and advanced paths |
 | Python quality | canonical non-GUI test set and compileall pass |
 | Native FreeCAD GUI | Xvfb workbench smoke tests pass |
 | Realtime preview performance | Fast-profile two-panel tunic fixture (>100 particles) records >= 120 timer intervals; mean and p95 are <= 33.33 ms with finite state and exact tick/step accounting |
