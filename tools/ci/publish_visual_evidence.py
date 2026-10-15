@@ -21,6 +21,7 @@ ARTIFACT_ROOTS = (
     Path("sewing"),
     Path("surface-pen"),
     Path("avatar-doc-assets"),
+    Path("turntable-doc-assets"),
 )
 
 
@@ -88,7 +89,7 @@ def main() -> int:
 
     source_root = Path.cwd()
     expected = documented_assets(source_root)
-    build_visual_gif_set("turntables", Path("turntables"))
+    build_visual_gif_set("turntables", Path("turntable-doc-assets"))
     build_visual_gif_set("blanket", Path("blanket"))
     build_visual_gif_set("tunic", Path("tunic"))
     build_surface_pen_gif()
