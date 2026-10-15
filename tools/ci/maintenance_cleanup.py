@@ -216,9 +216,7 @@ def cleanup_pbd_package_versions(
         package_name = str(target["name"]).strip("/")
         phase = "list_package_versions"
         encoded_name = quote(package_name, safe="/")
-        versions = list(
-            paginated_api_items(f"user/packages/container/{encoded_name}/versions")
-        )
+        versions = list(paginated_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         result["pending"] = len(stale)
