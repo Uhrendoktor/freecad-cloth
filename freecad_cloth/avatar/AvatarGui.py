@@ -539,6 +539,10 @@ class AvatarTaskPanel:
                         1.0,
                     )
                 for name in available_anny_local_change_labels():
+                    # Breast fullness has a dedicated primary slider and cannot
+                    # be independently overridden by a local morph value.
+                    if name == "breast-volume-vert-up":
+                        continue
                     default = 0.0
                     value = float(self._advanced_local_change_overrides.get(name, default))
                     self._append_advanced_control(
