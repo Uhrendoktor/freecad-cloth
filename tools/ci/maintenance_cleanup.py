@@ -157,9 +157,7 @@ def cleanup_pbd_package_versions(
         result["protected_tags"] = len(protected_tags)
 
         owner = repo.split("/", maxsplit=1)[0]
-        packages = list(
-            paginated_api_items(f"users/{owner}/packages?package_type=container")
-        )
+        packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
         target = next(
             (
                 package
@@ -174,11 +172,7 @@ def cleanup_pbd_package_versions(
             return result
         package_name = str(target["name"]).strip("/")
         encoded_name = quote(package_name, safe="")
-        versions = list(
-            paginated_api_items(
-                f"users/{owner}/packages/container/{encoded_name}/versions"
-            )
-        )
+        versions = list(paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
         selected = stale[:MAX_PACKAGE_VERSION_DELETIONS_PER_RUN]
@@ -200,7 +194,11 @@ def cleanup_pbd_package_versions(
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or str(exc)).strip().replace("\n", " ")[:240]
         result["deleted"] = deleted
-        result["status"] = "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
+        result["status"] = (
+            "permission_denied"
+            if "403" in detail or "forbidden" in detail.lower()
+            else "api_error"
+        )
         result["error"] = detail
         return result
     except (RuntimeError, ValueError, KeyError, TypeError) as exc:
