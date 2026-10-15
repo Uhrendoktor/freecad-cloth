@@ -62,7 +62,11 @@ For multi-step refactors or architectural changes, use `.agent/PLANS.md` as the 
 
 ## Documentation contract
 
-Public Python APIs in `freecad_cloth/` and `tools/` require docstrings. Use a one-line summary first, then document non-obvious behavior, invariants, side effects, exceptions and lifecycle restrictions. Keep architecture in `docs/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing issue/PR.
+Every tracked Python module, class, function, method, nested function, test, and private helper must have a descriptive docstring. Use Google-style Args, Returns/Yields, and Raises sections when applicable. Describe every parameter other than the conventional self/cls receiver, every non-None return value, and every explicitly raised exception whose class is statically visible. Type annotations are mandatory for every parameter and return value.
+
+Ruff selects ALL rules with preview checks enabled over every tracked .py and .pyi file. The only ignored rule codes are those Ruff documents as incompatible with its formatter. There is no per-file ignore list, inline `noqa`, or legacy-debt baseline. New Ruff releases automatically add newly available rules under ALL/preview; any new findings must be fixed rather than grandfathered.
+
+Docstrings explain behavior and contracts, not merely repeat symbol names. Include assumptions, units, valid ranges, invariants, side effects, lifecycle constraints, failure behavior, and recovery implications where relevant. Keep architecture in `docs/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing issue/PR.
 
 ## Verification
 

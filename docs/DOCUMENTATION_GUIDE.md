@@ -77,6 +77,36 @@ Keep the root [README](../README.md) concise enough to act as an orientation pag
 
 If a procedure is needed in several places, document it once and link to it. A page can add a short symptom-specific hint, but should not introduce a competing recovery path.
 
+## Python API docstrings
+
+Use Google-style docstrings consistently. Every tracked Python module, class, function, method, nested function, private helper, and test must be documented. Type annotations describe machine-checkable types; docstring sections explain semantics a type alone cannot express.
+
+For every function or method:
+
+- Start with a concise sentence describing behavior or intent. Do not restate the function name or use a placeholder.
+- Add Args whenever the function has parameters beyond the conventional self/cls receiver. Describe every parameter, including keyword-only parameters and *args/**kwargs; state units, valid ranges, mutation, defaults, and special cases where relevant.
+- Add matching type annotations for every parameter and return value. Describe each non-None result in Returns; use Yields for generator output. Explain meaning, validity, ordering, ownership, and copy/live-state behavior when relevant.
+- Add Raises when the function explicitly raises exceptions. Name each relevant exception and describe the condition that triggers it.
+- Describe side effects, state transitions, persistence, invalidation, preconditions, postconditions, and lifecycle restrictions not obvious from the signature. For FreeCAD APIs, distinguish persistent document state from derived meshes/solver data and transient GUI state.
+
+Example:
+
+    def project_point(point: Vector, tolerance_mm: float) -> Projection:
+        """Project a point onto the target surface within the supplied tolerance.
+
+        Args:
+            point: World-space point to project, expressed in millimetres.
+            tolerance_mm: Maximum accepted projection distance; must be non-negative.
+
+        Returns:
+            Closest valid surface projection, including its normal and distance.
+
+        Raises:
+            ValueError: If the tolerance is negative or no valid projection exists.
+        """
+
+The repository gate checks docstring presence, parameter coverage, return/yield descriptions, raised exception descriptions, placeholders, and Ruff suppression comments. Ruff checks type annotations and all rules compatible with its formatter across the entire Python inventory. The small ignored-code list exists only because Ruff documents those codes as formatter-incompatible, not to exempt legacy code. There is no per-file suppression or baseline. Reviewers must check prose against implementation, tests, and observable behavior.
+
 ## Validate every documentation change
 
 Run the lightweight Markdown link check after editing:

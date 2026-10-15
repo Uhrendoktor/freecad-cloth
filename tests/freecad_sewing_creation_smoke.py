@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
@@ -18,7 +19,9 @@ import Part
 from pivy import coin
 
 import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
+import importlib
+
+importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,

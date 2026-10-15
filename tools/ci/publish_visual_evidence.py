@@ -1,6 +1,7 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Publish the exact README/wiki visual asset inventory to docs/screenshots."""
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 import argparse
 import os

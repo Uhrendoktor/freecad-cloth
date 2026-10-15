@@ -43,7 +43,16 @@ CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi
 
 ## Documentation contract
 
-Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+The documentation contract covers every tracked Python source and stub, including modules, classes, functions, methods, nested functions, private helpers, and tests. Google-style docstrings are canonical:
+
+- Args describes every parameter except the conventional self/cls receiver, including units, valid ranges, defaults, mutation, and special cases where relevant.
+- Returns describes every non-None result; generators use Yields. Matching Python return annotations are mandatory.
+- Raises describes explicitly raised exception types and the conditions that cause them.
+- Summaries explain purpose and observable behavior instead of repeating the symbol name. Document invariants, persistence, side effects, lifecycle restrictions, and failure/recovery behavior when relevant.
+
+Ruff selects ALL rules with preview checks enabled over every tracked .py and .pyi file. The only ignored codes are those Ruff documents as incompatible with its formatter; the policy has no per-file ignores, inline Ruff suppressions, or legacy-debt baseline. Ruff upgrades automatically expose new rules under ALL/preview. Every finding must be fixed in source, including findings in tests and old modules. Type annotations are mandatory, explicit Any is prohibited, and Pyright/ty and repository AST policies continue to validate separate typing and architecture contracts.
+
+Comments explain non-obvious reasons, compatibility constraints, or performance trade-offs; they do not replace contract documentation. Automated checks can verify presence and structure, but human review must still confirm that prose is accurate and consistent with implementation and observable behavior.
 
 ## Non-negotiable CI contract
 

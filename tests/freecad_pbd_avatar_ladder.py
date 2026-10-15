@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Screenshot-backed avatar complexity ladder for the diagnostic harness.
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 avatar ladder manifest.
@@ -92,7 +93,10 @@ def _surface_signed_clearance(
     if proximity_mesh is not None:
         try:
             import numpy as np
-            import trimesh  # noqa: F401
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                raise ImportError("trimesh.Trimesh is unavailable")
 
             if points:
                 trace("before-trimesh-nearest")
