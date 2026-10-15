@@ -452,9 +452,7 @@ def _remove_stale_fitting_markers(doc, wanted_names):
     for obj in tuple(getattr(doc, "Objects", ()) or ()):
         name = str(getattr(obj, "Name", "") or "")
         role = str(getattr(obj, "FittingType", "") or "")
-        is_arrangement_marker = role == "ArrangementPoint" and name.startswith(
-            "ArrangementPoint_"
-        )
+        is_arrangement_marker = role == "ArrangementPoint" and name.startswith("ArrangementPoint_")
         is_volume_marker = role == "BoundingVolume" and name.startswith("BoundingVolume_")
         if name and name not in wanted_names and (is_arrangement_marker or is_volume_marker):
             doc.removeObject(name)
@@ -472,12 +470,8 @@ def _sync_visuals(scene):
     anchor_records = _anchor_records(scene)
     points = tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)
     volumes = tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes)
-    wanted_names = {
-        "ArrangementPoint_" + _safe_name(point.name) for point in points
-    }
-    wanted_names.update(
-        "BoundingVolume_" + _safe_name(volume.name) for volume in volumes
-    )
+    wanted_names = {"ArrangementPoint_" + _safe_name(point.name) for point in points}
+    wanted_names.update("BoundingVolume_" + _safe_name(volume.name) for volume in volumes)
     _remove_stale_fitting_markers(scene.Document, wanted_names)
     point_objects = []
     volume_objects = []
