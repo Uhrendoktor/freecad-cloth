@@ -114,7 +114,7 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     assert [version["id"] for version in stale] == [1]
 
 
-def test_maintenance_cleanup_paginates_until_a_short_page():
+def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
     from tools.ci import maintenance_cleanup
 
     pages = {
@@ -123,7 +123,7 @@ def test_maintenance_cleanup_paginates_until_a_short_page():
     }
     requested_pages = []
 
-    def fake_gh_json(*args):
+    def fake_gh_json(*args: str) -> dict[str, list[dict[str, int]]]:
         endpoint = args[1]
         page = int(endpoint.rsplit("page=", maxsplit=1)[1])
         requested_pages.append(page)
