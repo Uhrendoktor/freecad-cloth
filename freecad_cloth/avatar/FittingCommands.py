@@ -3,6 +3,7 @@
 import hashlib
 import json
 from collections.abc import Callable
+from typing import Protocol, cast
 
 
 def _scene(doc):
@@ -433,6 +434,62 @@ def arrangement_anchor_status(point):
     return _anchor_record_status(scene, target, {"geometry_signature": expected}, document=document)
 
 
+_FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"
+_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
+
+
+class _FittingMarkerGroup(Protocol):
+    """Small structural interface for the FreeCAD presentation group."""
+
+    TypeId: str
+    Label: str
+    Name: str
+    Group: tuple[object, ...]
+
+    def addObject(self, obj: object) -> None: ...
+
+
+class _FittingDocument(Protocol):
+    """Document API used to organize generated marker features."""
+
+    Objects: tuple[object, ...]
+
+    def getObject(self, name: str) -> object | None: ...
+
+    def addObject(self, type_id: str, name: str) -> _FittingMarkerGroup: ...
+
+    def removeObject(self, name: str) -> None: ...
+
+
+def _fitting_marker_group(
+    doc: _FittingDocument, create: bool = False
+) -> _FittingMarkerGroup | None:
+    """Return the presentation-only container for generated fitting display aids."""
+    group = doc.getObject(_FITTING_MARKER_GROUP_NAME)
+    if group is None and create:
+        group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
+    if group is not None:
+        if str(getattr(group, "TypeId", "")) != "App::DocumentObjectGroup":
+            raise RuntimeError(
+                f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
+                "is used by a non-group object"
+            )
+        group = cast(_FittingMarkerGroup, group)
+        group.Label = _FITTING_MARKER_GROUP_LABEL
+    return group
+
+
+def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str]) -> None:
+    """Remove obsolete generated marker features, never authored geometry."""
+    for obj in tuple(doc.Objects or ()):
+        name = str(getattr(obj, "Name", "") or "")
+        role = str(getattr(obj, "FittingType", "") or "")
+        is_arrangement_marker = role == "ArrangementPoint" and name.startswith("ArrangementPoint_")
+        is_volume_marker = role == "BoundingVolume" and name.startswith("BoundingVolume_")
+        if name and name not in wanted_names and (is_arrangement_marker or is_volume_marker):
+            doc.removeObject(name)
+
+
 def _sync_visuals(scene):
     """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
     import FreeCAD as App
@@ -445,6 +502,9 @@ def _sync_visuals(scene):
     anchor_records = _anchor_records(scene)
     points = tuple(ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)
     volumes = tuple(BoundingVolume.from_string(v) for v in scene.BoundingVolumes)
+    wanted_names = {"ArrangementPoint_" + _safe_name(point.name) for point in points}
+    wanted_names.update("BoundingVolume_" + _safe_name(volume.name) for volume in volumes)
+    _remove_stale_fitting_markers(scene.Document, wanted_names)
     point_objects = []
     volume_objects = []
     existing = {o.Name: o for o in scene.Document.Objects}
@@ -545,7 +605,22 @@ def _sync_visuals(scene):
         volume_objects.append(obj)
     scene.ArrangementPointObjects = [obj.Name for obj in point_objects]
     scene.BoundingVolumeObjects = [obj.Name for obj in volume_objects]
-    for obj in point_objects + volume_objects:
+    marker_objects = point_objects + volume_objects
+    group = _fitting_marker_group(scene.Document, create=bool(marker_objects))
+    if group is not None:
+        if marker_objects:
+            children = {
+                str(getattr(child, "Name", "") or "")
+                for child in tuple(getattr(group, "Group", ()) or ())
+            }
+            for marker in marker_objects:
+                marker_name = str(getattr(marker, "Name", "") or "")
+                if marker_name not in children:
+                    group.addObject(marker)
+                    children.add(marker_name)
+        elif not tuple(getattr(group, "Group", ()) or ()):
+            scene.Document.removeObject(str(getattr(group, "Name", "")))
+    for obj in marker_objects:
         obj.ViewObject.Visibility = True
 
 

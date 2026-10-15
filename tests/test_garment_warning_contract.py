@@ -43,3 +43,16 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'link_garment_object(scene, "Simulation", doc)' in source
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source
+
+
+def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters() -> None:
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
+    assert '_FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"' in source
+    assert '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"' in source
+    assert "group.addObject(marker)" in source
+    assert "doc.removeObject(name)" in source
+    assert "name.startswith(" in source and '"ArrangementPoint_"' in source
+    assert 'name.startswith("BoundingVolume_")' in source
+    start = source.index("class _FittingProxy")
+    end = source.index("COMMANDS", start)
+    assert "_sync_visuals(" not in source[start:end]

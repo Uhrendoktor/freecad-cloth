@@ -61,6 +61,59 @@ def test_timeout_contract_is_documented():
     assert "freecad_application_timeout_seconds" in configuration
 
 
+def test_maintenance_cleanup_receives_github_cli_token() -> None:
+    """The scheduled cleanup has the token needed for gh API reads and deletes."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    cleanup = workflow.split("  maintenance-cleanup:", 1)[1].split("  artifact-budget:", 1)[0]
+
+    assert "GH_TOKEN: ${{ github.token }}" in cleanup
+    assert "actions: write" in cleanup
+    assert "contents: write" in cleanup
+    assert "packages: write" in cleanup
+
+
+def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
+    from hashlib import sha256
+
+    from tools.ci.maintenance_cleanup import pbd_validation_tag
+
+    contents = b"FROM freecad:stable\n"
+    assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
+
+
+def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
+    from tools.ci.maintenance_cleanup import stale_package_versions
+
+    versions = [
+        {
+            "id": 1,
+            "created_at": "2026-08-01T00:00:00Z",
+            "updated_at": "2026-08-01T00:00:00Z",
+            "metadata": {"container": {"tags": ["old-dockerfile-tag"]}},
+        },
+        {
+            "id": 2,
+            "created_at": "2026-08-01T00:00:00Z",
+            "updated_at": "2026-08-01T00:00:00Z",
+            "metadata": {"container": {"tags": ["protected-dockerfile-tag"]}},
+        },
+        {
+            "id": 3,
+            "created_at": "2026-08-01T00:00:00Z",
+            "updated_at": "2026-10-01T00:00:00Z",
+            "metadata": {"container": {"tags": ["recently-updated-tag"]}},
+        },
+        {"id": 4, "created_at": "2026-08-01T00:00:00Z"},
+    ]
+    cutoff = 1_789_430_400  # 2026-09-15T00:00:00Z
+
+    stale = stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
+
+    assert [version["id"] for version in stale] == [1]
+
+
 def test_maintenance_cleanup_paginates_until_a_short_page():
     from tools.ci import maintenance_cleanup
 
@@ -165,3 +218,22 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
     assert quality.count("pyright -p ") == 1
     assert config["strict"] == list(strict_core)
+
+
+def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
+    """The seven-profile README gallery must finish inside the unchanged FreeCAD cap."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    gallery_job = workflow.split("  gui-turntables:", maxsplit=1)[1].split(
+        "  gui-visual-examples:", maxsplit=1
+    )[0]
+    gallery_invocation = gallery_job.split(
+        "log-file: artifacts/avatar-gallery-progress.log", maxsplit=1
+    )[1].split("       - uses:", maxsplit=1)[0]
+
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=gallery" in gallery_invocation
+    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=10" in gallery_invocation
+    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
+    assert "freecad_application_timeout_seconds" not in gallery_job
+    assert "timeout-minutes: 10" in gallery_job

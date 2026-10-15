@@ -156,27 +156,56 @@ def points_inside_closed_mesh(
     if not bool(np.any(usable)):
         return tuple(False for _ in validated_points)
     a = a[usable]
+    b = b[usable]
+    c = c[usable]
     edge_one = edge_one[usable]
     edge_two = edge_two[usable]
     pvec = pvec[usable]
     determinant = determinant[usable]
+    # Precompute triangle AABBs once. A ray can only hit a triangle when it
+    # intersects that triangle's box; the slab test below rejects impossible
+    # candidates before constructing any point-by-triangle cross-product arrays.
+    bounds_min = np.minimum(np.minimum(a, b), c)
+    bounds_max = np.maximum(np.maximum(a, b), c)
     results = np.zeros(len(point_data), dtype=bool)
     step = max(1, int(chunk_size))
+    ray_x, ray_y, ray_z = (float(value) for value in ray)
     for start in range(0, len(point_data), step):
         chunk = point_data[start : start + step]
-        tvec = chunk[:, None, :] - a[None, :, :]
-        u = np.einsum("ctd,td->ct", tvec, pvec) / determinant[None, :]
-        qvec = np.cross(tvec, edge_one[None, :, :])
-        v = np.einsum("d,ctd->ct", ray, qvec) / determinant[None, :]
-        distance = np.einsum("td,ctd->ct", edge_two, qvec) / determinant[None, :]
-        hits = (
-            (u >= -1e-9)
-            & (u <= 1.0 + 1e-9)
-            & (v >= -1e-9)
-            & (u + v <= 1.0 + 1e-9)
-            & (distance > 1e-9)
-        )
-        results[start : start + len(chunk)] = np.count_nonzero(hits, axis=1) % 2 == 1
+        for offset, point in enumerate(chunk):
+            # Ray direction components are positive, so each axis interval is
+            # (bound - origin) / direction. Overlapping intervals are necessary
+            # for an intersection; keep the original strict positive-hit rule.
+            tx0 = (bounds_min[:, 0] - point[0]) / ray_x
+            tx1 = (bounds_max[:, 0] - point[0]) / ray_x
+            ty0 = (bounds_min[:, 1] - point[1]) / ray_y
+            ty1 = (bounds_max[:, 1] - point[1]) / ray_y
+            tz0 = (bounds_min[:, 2] - point[2]) / ray_z
+            tz1 = (bounds_max[:, 2] - point[2]) / ray_z
+            enter = np.maximum(np.maximum(tx0, ty0), tz0)
+            leave = np.minimum(np.minimum(tx1, ty1), tz1)
+            candidates = leave > np.maximum(enter, 1e-9)
+            if not bool(np.any(candidates)):
+                continue
+
+            candidate_a = a[candidates]
+            candidate_edge_one = edge_one[candidates]
+            candidate_edge_two = edge_two[candidates]
+            candidate_pvec = pvec[candidates]
+            candidate_determinant = determinant[candidates]
+            tvec = point[None, :] - candidate_a
+            u = np.einsum("td,td->t", tvec, candidate_pvec) / candidate_determinant
+            qvec = np.cross(tvec, candidate_edge_one)
+            v = np.einsum("d,td->t", ray, qvec) / candidate_determinant
+            distance = np.einsum("td,td->t", candidate_edge_two, qvec) / candidate_determinant
+            hits = (
+                (u >= -1e-9)
+                & (u <= 1.0 + 1e-9)
+                & (v >= -1e-9)
+                & (u + v <= 1.0 + 1e-9)
+                & (distance > 1e-9)
+            )
+            results[start + offset] = np.count_nonzero(hits) % 2 == 1
     return tuple(bool(value) for value in results)
 
 
