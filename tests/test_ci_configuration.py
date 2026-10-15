@@ -41,6 +41,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     assert "maximum 120 seconds" in container_action
     assert 'if [ "$timeout_seconds" -gt 120 ]; then' in container_action
     assert "420" not in container_action
+    assert "--no-deps -e ." in action
+    assert '"numpy>=1.26,<3"' in action
+    assert '"pydantic>=2.11,<3"' in action
+    assert '"Pillow>=11,<13"' in action
+    assert "install --disable-pip-version-check -e ." not in action
     assert "configured_timeout_seconds()" in runner
     assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
     assert '"torch==2.8.0+cpu"' in workflow

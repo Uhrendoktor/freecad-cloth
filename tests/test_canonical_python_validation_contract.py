@@ -266,3 +266,85 @@ def test_tunic_manifest_gate_preserves_the_legacy_metrics_contract() -> None:
     legacy_metrics["p95_frame_ms"] = 50.1
     with pytest.raises(SystemExit, match="realtime performance gate failed"):
         _validate_realtime_metrics(legacy_metrics)
+
+
+def _valid_workbench_benchmark_metrics(workbench: str = "Pattern") -> dict[str, object]:
+    """Build an artifact matching the production workbench benchmark schema."""
+    return {
+        "schema": 2,
+        "python": "3.12.14",
+        "freecad_version": ["1", "1", "0", "build"],
+        "repeats": 7,
+        "workbenches": {
+            workbench: {
+                "class_lookup_ms": 0.0,
+                "construct_ms": 0.039,
+                "initialize_ms": 0.253,
+                "initialize_samples": 7,
+                "registered_commands": 18,
+                "python_files": 24,
+                "nonblank_loc": 6065,
+                "related_test_files": 1,
+                "related_tests": ["test_pattern.py"],
+                "cloth_command_tokens": 93,
+            }
+        },
+    }
+
+
+def test_workbench_benchmark_validator_accepts_matching_schema_two_artifact() -> None:
+    """Fresh workbench output satisfies its own strict, distinct schema contract."""
+    from tools.ci.validate_workbench_benchmark import validate_metrics
+
+    assert validate_metrics(_valid_workbench_benchmark_metrics(), "Pattern") == []
+
+
+def test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count() -> None:
+    """Schema drift and incomplete repeated initialization remain blocking."""
+    from tools.ci.validate_workbench_benchmark import validate_metrics
+
+    metrics = _valid_workbench_benchmark_metrics()
+    metrics["schema"] = 1
+    workbenches = metrics["workbenches"]
+    assert isinstance(workbenches, dict)
+    pattern = workbenches["Pattern"]
+    assert isinstance(pattern, dict)
+    pattern["initialize_samples"] = 6
+
+    errors = validate_metrics(metrics, "Pattern")
+
+    assert "schema must be 2" in errors
+    assert "initialize_samples must equal repeats" in errors
+
+
+def test_workbench_benchmark_validator_rejects_wrong_matrix_entry_and_nonfinite_timing() -> None:
+    """A stale artifact for another matrix job or malformed timing cannot pass."""
+    from tools.ci.validate_workbench_benchmark import validate_metrics
+
+    metrics = _valid_workbench_benchmark_metrics()
+    assert "workbenches must contain only 'Sewing'" in validate_metrics(metrics, "Sewing")
+
+    workbenches = metrics["workbenches"]
+    assert isinstance(workbenches, dict)
+    pattern = workbenches["Pattern"]
+    assert isinstance(pattern, dict)
+    pattern["initialize_ms"] = float("nan")
+
+    assert "initialize_ms must be a finite non-negative number" in validate_metrics(
+        metrics, "Pattern"
+    )
+
+
+def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> None:
+    """Workbench startup output must not be routed through the realtime PBD validator."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    benchmark_job = workflow.split("  benchmark:", maxsplit=1)[1]
+
+    assert "tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json" in benchmark_job
+    assert "validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job
+    assert (
+        "python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json"
+        in workflow
+    )

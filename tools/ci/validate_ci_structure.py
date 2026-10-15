@@ -32,6 +32,7 @@ REQUIRED = (
     ROOT / "tools/ci/timeout_contract.py",
     ROOT / "tools/ci/check_pydantic_models.py",
     ROOT / "tools/ci/check_no_source_rewriting.py",
+    ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
 # Stage semantic type checking deliberately: these paths form the reviewed
