@@ -139,7 +139,11 @@ def test_new_production_modules_cannot_escape_pyright_scope() -> None:
     assert (
         pyright_coverage_contract_violations(
             config_text,
-            ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/NewSimulationGui.py"),
+            (
+                "freecad_cloth/common/new_model.py",
+                "freecad_cloth/simulation/NewSimulationGui.py",
+                "freecad_cloth/bootstrap.py",
+            ),
         )
         == ()
     )

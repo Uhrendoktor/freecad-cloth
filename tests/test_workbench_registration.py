@@ -136,6 +136,8 @@ def test_workbench_command_groups_do_not_overlap():
             seen[command] = workbench
 
 
-def test_root_bootstrap_registers_exactly_the_three_package_workbenches():
+def test_root_loader_delegates_registration_to_shared_bootstrap():
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    assert source.count("Gui.addWorkbench(") == 3
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
+    assert source.count("initialize_workbenches(") == 1
+    assert "Gui.addWorkbench(" not in source

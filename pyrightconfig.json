@@ -24,7 +24,8 @@
   "exclude": [
     "**/*Gui.py",
     "**/*Commands.py",
-    "**/workbench.py"
+    "**/workbench.py",
+    "freecad_cloth/bootstrap.py"
   ],
   "strict": [
     "freecad_cloth/simulation/DrapeFailureClassifier.py",

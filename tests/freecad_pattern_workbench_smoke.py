@@ -1,5 +1,6 @@
 """FreeCAD GUI smoke test for the Cloth Pattern Design workbench."""
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -8,9 +9,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 import FreeCADGui as Gui
 
-import InitGui
+importlib.import_module("InitGui")
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece
 from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
+from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 
 
 def process_events():
@@ -24,7 +26,7 @@ def process_events():
 
 
 def main():
-    workbench = InitGui.ClothPatternWorkbench()
+    workbench = ClothPatternWorkbench()
     Gui.activateWorkbench("Cloth Pattern")
     workbench.Initialize()
     assert workbench.MenuText == "Cloth Pattern"
