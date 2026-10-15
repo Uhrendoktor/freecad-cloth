@@ -74,7 +74,7 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup
 
 
-def test_pbd_validation_tag_matches_workflow_dockerfile_hash():
+def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     from hashlib import sha256
 
     from tools.ci.maintenance_cleanup import pbd_validation_tag
@@ -83,7 +83,7 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash():
     assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
 
 
-def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions():
+def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
     from tools.ci.maintenance_cleanup import stale_package_versions
 
     versions = [
