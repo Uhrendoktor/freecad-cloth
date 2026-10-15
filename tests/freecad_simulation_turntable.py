@@ -549,7 +549,7 @@ def main():
                 raise RuntimeError(
                     f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
                 )
-    
+
             validation_started = time.monotonic()
             log("stage=validation-start")
             panel.ViewObject.Visibility = True
