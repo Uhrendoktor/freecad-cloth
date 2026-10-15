@@ -115,6 +115,18 @@ runs:
       with:
         name: avatar-documentation-assets
         path: avatar-doc-assets
+    - name: Download main avatar turntable frames
+      if: inputs.mode == 'main'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: avatar-turntable-documentation-frames
+        path: turntable-doc-assets
+    - name: Download main simulation turntable frames
+      if: inputs.mode == 'main'
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: simulation-turntable-documentation-frames
+        path: turntable-doc-assets
     - name: Publish main visual evidence
       if: inputs.mode == 'main'
       shell: bash
