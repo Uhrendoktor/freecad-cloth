@@ -190,6 +190,30 @@ def available_anny_phenotype_labels() -> tuple[str, ...]:
     return tuple(sorted(str(label) for label in labels))
 
 
+def default_anny_phenotype_values(
+    gender: float = 0.5,
+    breast_size: float = 0.0,
+) -> dict[str, float]:
+    """Return effective default values for every phenotype in this Anny model."""
+    defaults = {
+        "gender": 1.0 - float(gender),
+        "age": 0.667,
+        "muscle": 0.5,
+        "weight": 0.5,
+        "height": 0.5,
+        "proportions": 0.5,
+        "cupsize": float(breast_size),
+        "firmness": 0.5,
+        "african": 1.0 / 3.0,
+        "asian": 1.0 / 3.0,
+        "caucasian": 1.0 / 3.0,
+    }
+    return {
+        name: float(defaults.get(name, 0.5))
+        for name in available_anny_phenotype_labels()
+    }
+
+
 @lru_cache(maxsize=1)
 def _measurement_local_change_labels() -> tuple[str, ...]:
     """Return the local Anny morphs used by Cloth's anthropometric fit."""
