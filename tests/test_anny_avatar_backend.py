@@ -6,6 +6,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _adapt_clad_body_pose_alias,
     _apply_front_breast_fullness,
     _canonicalize_anny_vertices,
+    _clad_measurement_targets,
     _initial_phenotypes,
     _localize_hip_fit_delta,
     _measurement_local_change_labels,
@@ -59,6 +60,16 @@ def test_advanced_anny_overrides_reach_the_model_inputs() -> None:
     assert advanced["age"] == 0.41
     assert advanced["weight"] == 0.67
     assert advanced["_local_changes"]["measure-waist-circ-incr"] == 0.2
+
+
+def test_clad_body_targets_convert_mm_to_cm_and_keep_mass_in_kg() -> None:
+    values = dict(AvatarParameters().measurements)
+    targets = _clad_measurement_targets(values, 68.5)
+    target_map = {name: (key, target) for name, key, target in targets}
+
+    assert target_map["height"] == ("height_cm", 175.0)
+    assert target_map["sleeve_length"] == ("sleeve_length_cm", 63.0)
+    assert target_map["mass_target_kg"] == ("mass_kg", 68.5)
 
 
 def test_clad_body_fitting_includes_extended_garment_measurements() -> None:
