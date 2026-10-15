@@ -40,6 +40,13 @@ PROPERTY_MAP = {
     "torso": "Torso",
     "front_waist": "Front_Waist",
     "back_waist": "Back_Waist",
+    "stomach": "Stomach",
+    "sleeve_length": "Sleeve_Length",
+    "crotch_length": "Crotch_Length",
+    "front_rise": "Front_Rise",
+    "back_rise": "Back_Rise",
+    "shirt_length": "Shirt_Length",
+    "back_neck_to_waist": "Back_Neck_To_Waist",
 }
 SHAPE_PROPERTY_MAP = {
     "gender": "GenderBlend",
@@ -113,14 +120,31 @@ def _parameters(obj):
         tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
     shape_payload = {}
+    phenotype_overrides = {}
+    local_change_overrides = {}
+    mass_target_kg = None
     if payload:
         with suppress(TypeError, ValueError):
+            stored_parameters = AvatarParameters.from_json(payload)
             shape_payload = json.loads(payload).get("shape", {})
+            phenotype_overrides = dict(stored_parameters.phenotype_overrides)
+            local_change_overrides = dict(stored_parameters.local_change_overrides)
+            mass_target_kg = stored_parameters.mass_target_kg
     gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
     breast_size = float(
         getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
     )
-    return AvatarParameters(values, float(obj.SkinOffset), pose, 3, gender, breast_size)
+    return AvatarParameters(
+        values,
+        float(obj.SkinOffset),
+        pose,
+        4,
+        gender,
+        breast_size,
+        phenotype_overrides,
+        local_change_overrides,
+        mass_target_kg,
+    )
 
 
 def _mesh_data(
@@ -531,9 +555,12 @@ def set_avatar_pose(pose):
         current.measurements,
         current.skin_offset,
         Pose(str(pose)),
-        3,
+        4,
         current.gender,
         current.breast_size,
+        current.phenotype_overrides,
+        current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -563,9 +590,12 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
             current.pose.right_elbow_angle,
             tuple(values.values()),
         ),
-        3,
+        4,
         current.gender,
         current.breast_size,
+        current.phenotype_overrides,
+        current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -609,9 +639,12 @@ def set_avatar_skin_offset(offset):
         current.measurements,
         float(offset),
         current.pose,
-        3,
+        4,
         current.gender,
         current.breast_size,
+        current.phenotype_overrides,
+        current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 

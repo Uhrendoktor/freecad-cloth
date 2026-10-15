@@ -468,3 +468,24 @@ MakeHuman provides macro controls for gender, age, muscle, weight, height and pr
 FreeCAD Cloth keeps the same separation: the gender blend changes localized body proportions; breast fullness is an independent shape control; height, circumference and length values remain named millimetre measurements. The viewport handles are transient Coin overlay geometry and stage edits in the existing task panel; Apply & Rebuild remains the only commit boundary. They deliberately do not add document objects or reuse Surface Pen callbacks.
 
 **Scope note:** the current integration uses a deterministic, localized procedural shape deformation on the pinned HM08 base mesh. It does not yet import MakeHuman's complete library of target-morph files, so breast and gender controls are useful parametric fitting controls rather than a claim of full CLO3D/MakeHuman morph fidelity. The saved parameter schema is migrated forward with neutral defaults for existing documents.
+
+## Full mannequin parameter access (2026-10-15)
+
+The Anny public API separates normalized phenotype inputs (0–1) from local shape changes (−1–1). Its body model exposes the authoritative `phenotype_labels` and `local_change_labels`; `clad-body` exposes a differentiable fitting surface for a subset of anthropometric measurements. The UI should query those labels from the installed libraries instead of hardcoding an incomplete parameter list.
+
+Implementation decisions:
+
+- Keep the common editor compact: named millimetre measurements, broad body-shape controls, and viewport handles stay immediately visible.
+- Load the advanced parameter editor only when opened. Search covers original API labels, categories group related controls, and a single reset clears all advanced overrides.
+- Persist only non-default phenotype/morph overrides. The existing gender-blend and breast-fullness sliders remain the primary controls for those two values, avoiding duplicate widgets.
+- Apply advanced overrides after the differentiable measurement fit. This makes them genuine shape parameters, but means a manual phenotype/morph can deliberately take precedence over one or more requested measurements. The UI and documentation must explain this ordering.
+- Expose all 25 entries in the clad-body registry according to their role: the editor stores the full set of usable garment lengths/circumferences, the fitting objective directly constrains its differentiable targets, body mass is an optional native-kg target, and volume/BMI/body-fat/belly-depth remain derived outputs rather than editable shape inputs.
+- The current differentiable target list includes sleeve length in addition to the previous stable measurements and offers an optional mass target that tunes the global weight phenotype. Although clad-body exposes a differentiable `stomach_cm` metric, its sign-only global gradient drove Anny's fitted vertices to NaN in the current optimizer, so stomach circumference remains editable and saved but is explicitly marked as a reference dimension until a stable fitting strategy is validated. Other stored garment measures are likewise marked as saved/reference dimensions rather than direct surface-fit constraints.
+- Keep body morph parameters distinct from pose/joint rotations; the existing Pose Mode remains the authoritative editor for the skeleton. Keep the searchable advanced section lazy-loaded and use it to expose every phenotype plus all paired local morphs declared by the installed Anny assets.
+
+References checked on 2026-10-15:
+
+- Anny model API and normalized control ranges: https://github.com/naver/anny/blob/main/README.md
+- clad-body measurement registry, differentiable measurement targets, and parameter-sensitivity guidance: https://github.com/datar-psa/clad-body
+- User interaction and measurement-editor acceptance: `tests/freecad_avatar_shape_editor_acceptance.py`
+- Runtime implementation: `freecad_cloth/avatar/AvatarGui.py`, `freecad_cloth/avatar/AvatarModel.py`, and `freecad_cloth/avatar/AnnyAvatarBackend.py`
