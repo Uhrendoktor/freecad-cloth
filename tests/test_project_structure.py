@@ -193,8 +193,8 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated():
     publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split(
         "  gui-turntables:", 1
     )[0]
-    assert "permissions:" not in bootstrap
-    assert "freecad-test@" in bootstrap
+    assert "permissions:" not in gui
+    assert "freecad-test@" in gui
     assert "contents: write" in publish
     assert "pull-requests: write" in publish
     assert "runs-on: ubuntu-latest" in publish
