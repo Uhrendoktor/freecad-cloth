@@ -43,31 +43,10 @@ The correct fix is to refresh the authoritative input or rebuild derived state, 
 
 Stop at the first visibly invalid state.
 
-Review the [simulation visual-review guide](SIMULATION_REVIEW.md), starting with the simple collision ladder before the full garment. Do not treat a finite solver exit or one good camera angle as proof of correctness.
+Review the [simulation visual-review guide](../developers/SIMULATION_REVIEW.md), starting with the simple collision ladder before the full garment. Do not treat a finite solver exit or one good camera angle as proof of correctness.
 
 ## Local results differ from canonical visual evidence
 
 Compare the exact FreeCAD, Triangle, PositionBasedDynamics and source-commit versions.
 
 The canonical workflow publishes evidence from the exact execution it validates. Generated screenshots should not be hand-edited to make them match.
-
-## An agent is unsure which document is authoritative
-
-Use this hierarchy:
-
-1. current branch and current HEAD;
-2. `docs/ARCHITECTURE.md` for architecture;
-3. `docs/PROJECT_STRUCTURE.md` for code ownership;
-4. `AGENT_STATUS.md` / `TOOL_STATE.md` for live coordination snapshots;
-5. issue/PR evidence for task-local work.
-
-Historical issue/PR text and research documents do not override current implementation.
-
-## Developer documentation validation
-
-Run:
-
-```bash
-python tools/check_markdown_contract.py
-python tools/ci/timeout_contract.py
-```

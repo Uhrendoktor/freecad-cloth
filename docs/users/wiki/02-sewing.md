@@ -87,7 +87,7 @@ The canonical workflow also exercises the sewn garment through the visual tunic 
 
 Implementation is concentrated under `freecad_cloth/sewing/`. The package boundary is the durable source map; individual compatibility modules should not be treated as public API.
 
-See [Architecture](../ARCHITECTURE.md) for semantic ownership and dependency direction.
+See [Architecture](../../developers/ARCHITECTURE.md) for semantic ownership and dependency direction.
 
 ## Viewport-first picking and seam identity
 

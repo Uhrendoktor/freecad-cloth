@@ -82,7 +82,7 @@ A release should be considered visually auditable when:
 - diagnostics operate on valid/current state;
 - known capability boundaries are written down.
 
-See [docs/RELEASE_GATES.md](../RELEASE_GATES.md) and [docs/SIMULATION_REVIEW.md](../SIMULATION_REVIEW.md).
+See [Release gates](RELEASE_GATES.md) and [Simulation review](SIMULATION_REVIEW.md).
 
 ## Why this wiki exists
 

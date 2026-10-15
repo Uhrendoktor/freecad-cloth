@@ -7,7 +7,7 @@ Architecture:
 - Cloth domain objects own garment meaning.
 - Derived meshes, collision data and solver state are rebuildable.
 - PositionBasedDynamics is the production runtime solver.
-- `docs/ARCHITECTURE.md` and `docs/PROJECT_STRUCTURE.md` define the detailed boundaries.
+- `docs/developers/ARCHITECTURE.md` and `docs/developers/PROJECT_STRUCTURE.md` define the detailed boundaries.
 
 Current state:
 - Verify the current branch HEAD before making state claims.
