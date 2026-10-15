@@ -48,7 +48,14 @@ def contract_errors() -> list[str]:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     publisher_text = PUBLISH_ACTION.read_text(encoding="utf-8")
     publisher_script_text = PUBLISHER_SCRIPT.read_text(encoding="utf-8")
-    production_config = chr(10).join((workflow_text, publisher_text, publisher_script_text))
+    gif_builder = PUBLISHER_SCRIPT.with_name("build_visual_gifs.py")
+    wired_gif_builder = (
+        'with_name("build_visual_gifs.py")' in publisher_script_text and gif_builder.is_file()
+    )
+    production_sources = [workflow_text, publisher_text, publisher_script_text]
+    if wired_gif_builder:
+        production_sources.append(gif_builder.relative_to(ROOT).as_posix())
+    production_config = chr(10).join(production_sources)
     required_upload_patterns = (
         "docs/images/generated/*.png",
         "docs/images/generated/*.gif",
