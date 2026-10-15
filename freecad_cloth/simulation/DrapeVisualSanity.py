@@ -160,8 +160,8 @@ def points_inside_closed_mesh(
     # Precompute triangle AABBs once. A ray can only hit a triangle when it
     # intersects that triangle's box; the slab test below rejects impossible
     # candidates before constructing any point-by-triangle cross-product arrays.
-    bounds_min = np.minimum(np.minimum(a, b[usable]), c[usable])
-    bounds_max = np.maximum(np.maximum(a, b[usable]), c[usable])
+    bounds_min = np.minimum(np.minimum(a, b), c)
+    bounds_max = np.maximum(np.maximum(a, b), c)
     results = np.zeros(len(point_data), dtype=bool)
     step = max(1, int(chunk_size))
     ray_x, ray_y, ray_z = (float(value) for value in ray)
