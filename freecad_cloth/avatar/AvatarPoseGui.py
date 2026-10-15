@@ -1215,9 +1215,11 @@ class AvatarPoseTaskPanel:
             measurements,
             float(getattr(self.avatar, "SkinOffset", 0.0)),
             current_pose,
-            3,
+            4,
             float(getattr(self.avatar, "GenderBlend", 0.5)),
             float(getattr(self.avatar, "BreastSize", 0.0)),
+            dict(stored.phenotype_overrides),
+            dict(stored.local_change_overrides),
         )
 
     @staticmethod
