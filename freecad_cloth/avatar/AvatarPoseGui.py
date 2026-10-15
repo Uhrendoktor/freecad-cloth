@@ -1244,6 +1244,8 @@ class AvatarPoseTaskPanel:
             "torso": "Torso",
             "front_waist": "Front_Waist",
             "back_waist": "Back_Waist",
+            "stomach": "Stomach",
+            "sleeve_length": "Sleeve_Length",
         }
 
     def _select_preset(self, preset):
@@ -1286,9 +1288,11 @@ class AvatarPoseTaskPanel:
                         params.pose.right_elbow_angle,
                         params.pose.joint_rotations,
                     ),
-                    3,
+                    4,
                     params.gender,
                     params.breast_size,
+                    dict(params.phenotype_overrides),
+                    dict(params.local_change_overrides),
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
