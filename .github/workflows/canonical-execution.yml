@@ -452,14 +452,14 @@ jobs:
           checkout: "false"
           test-script: tests/freecad_avatar_screenshot.py
           log-file: artifacts/avatar-gallery-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=0\nCLOTH_AVATAR_GALLERY_END=3\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=0\nCLOTH_AVATAR_GALLERY_END=3\nFREECAD_CLOTH_ANNY_FIT_STEPS=10\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_avatar_screenshot.py
           log-file: artifacts/avatar-gallery-final-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=3\nCLOTH_AVATAR_GALLERY_END=7\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nCLOTH_AVATAR_GALLERY_START=3\nCLOTH_AVATAR_GALLERY_END=7\nFREECAD_CLOTH_ANNY_FIT_STEPS=10\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
