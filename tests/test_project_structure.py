@@ -174,6 +174,9 @@ def test_seam_graph_has_one_canonical_implementation():
 
 def test_no_code_imports_removed_seam_reference_namespace():
     root = Path(__file__).resolve().parents[1]
+    instructions = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "freecad_cloth.pattern.SeamReference" in instructions
+    assert "freecad_cloth.sewing.SeamReference" not in instructions
     offenders = []
     for path in root.glob("freecad_cloth/**/*.py"):
         source = path.read_text(encoding="utf-8")

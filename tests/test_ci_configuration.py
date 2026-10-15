@@ -99,6 +99,20 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
     )
 
 
+def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
+    """The dead-code gate must include unchanged modules, not only PR diffs."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    quality = workflow.split("      - name: Python and architecture checks", 1)[1].split(
+        "      - name: Workflow linters", 1
+    )[0]
+
+    assert "python tools/check_dead_code.py" in quality
+    assert "xargs -r python tools/check_dead_code.py" not in quality
+    assert "changed-python.txt" not in quality
+
+
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     from hashlib import sha256
 

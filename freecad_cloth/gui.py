@@ -53,15 +53,10 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     def normalize_commands(commands):
         return list(dict.fromkeys(str(c) for c in commands if str(c)))
 
-    # Compatibility aliases retained while top-level InitGui.py migrates to the
-    # package boundary. Existing tests and third-party scripts may use these
-    # historical private names; removing them is a separate API migration.
+    # Compatibility alias for historical callers; new code should use the public name.
     @staticmethod
     def _normalize_commands(commands):
         return ClothWorkbenchBase.normalize_commands(commands)
-
-    def _register(self, commands):
-        self._register_groups(((self.MenuText, commands),))
 
     def _register_groups(self, groups, toolbar_name=None, toolbar_commands=None):
         if self.commands:

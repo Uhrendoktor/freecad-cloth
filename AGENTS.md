@@ -53,7 +53,7 @@ Keep historical context out of the prompt unless it changes the decision. State 
 
 Implementation code belongs under `freecad_cloth/`. The repository intentionally has two FreeCAD loader adapters: classic root `Init.py`/`InitGui.py` and modern namespaced `freecad/freecad_cloth/{__init__.py,init_gui.py}`. Both delegate startup to `freecad_cloth.bootstrap.initialize_workbenches`; do not duplicate registration logic in either adapter. `freecad/` is a loader namespace, not a second implementation tree. `docs/developers/ARCHITECTURE.md` and `docs/developers/PROJECT_STRUCTURE.md` define the package boundaries.
 
-`freecad_cloth.sewing.SeamGraph` is the canonical seam-graph implementation. `freecad_cloth.pattern.SeamReference` owns semantic edge references; `freecad_cloth.sewing.SeamReference` exists only as a legacy compatibility import. New code should import the owning module directly.
+`freecad_cloth.sewing.SeamGraph` is the canonical seam-graph implementation. `freecad_cloth.pattern.SeamReference` owns semantic edge references. New code should import the owning module directly.
 
 There is exactly one canonical CI workflow: `.github/workflows/canonical-execution.yml`. Do not create parallel workflows or weaken acceptance checks.
 
