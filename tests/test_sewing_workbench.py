@@ -120,6 +120,7 @@ def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal(
         Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
     )
     seam = SimpleNamespace(EdgeAId="native-edge-7", EdgeASignature="signature", EdgeA=1)
+
     def resolve_edge(_obj, edge_id, _signature):
         return {"id": edge_id, "ordinal": 1}
 
@@ -127,10 +128,9 @@ def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal(
 
 
 def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
-    from freecad_cloth.pattern import PatternObjects
-
     piece = SimpleNamespace(GeometryAuthority="Legacy")
     seam = SimpleNamespace(EdgeAId="legacy-edge-3", EdgeASignature="signature", EdgeA=3)
+
     def resolve_edge(_obj, edge_id, _signature):
         return {"id": edge_id, "ordinal": 3}
 

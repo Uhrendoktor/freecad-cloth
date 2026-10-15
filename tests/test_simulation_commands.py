@@ -18,9 +18,11 @@ def test_public_simulation_command_surface_is_unique():
 
 def test_run_simulation_delegates_to_selected_simulation_without_implicit_creation():
     calls = []
+
     def simulate(steps=None):
         calls.append(steps)
         return "scene"
+
     assert SimulationCommands.run_simulation(simulate=simulate) == "scene"
     assert SimulationCommands.run_simulation(7, simulate=simulate) == "scene"
     assert calls == [30, 7]
@@ -29,11 +31,13 @@ def test_run_simulation_delegates_to_selected_simulation_without_implicit_creati
 def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
     target = object()
     doc = SimpleNamespace(Objects=[target])
+
     def find_target(_doc):
         return target
 
     def ready(_target):
         return {"state": "ready", "message": "ok"}
+
     assert (
         SimulationCommands._require_drape_target_ready(
             doc, find_target=find_target, target_status_fn=ready
@@ -43,6 +47,7 @@ def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
 
     def blocked(_target):
         return {"state": "stale", "message": "Drape target changed"}
+
     try:
         SimulationCommands._require_drape_target_ready(
             doc, find_target=find_target, target_status_fn=blocked
@@ -57,6 +62,7 @@ def test_reset_simulation_resets_scene_and_recomputes():
     calls = []
     document = SimpleNamespace(recompute=lambda: calls.append("recompute"))
     scene = SimpleNamespace(Document=document)
+
     def require_simulation():
         return document, scene
 

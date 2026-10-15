@@ -139,8 +139,10 @@ class HumanoidMeshTests(unittest.TestCase):
             mesh_path.write_text("fixture", encoding="utf-8")
 
             environment = {MAKEHUMAN_DATA_ENV: str(install)}
+
             def verifier(candidate):
                 return candidate == mesh_path
+
             self.assertEqual(
                 _find_local_base_mesh(environ=environment, verifier=verifier), mesh_path
             )

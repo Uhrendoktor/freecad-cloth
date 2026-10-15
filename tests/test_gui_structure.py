@@ -76,6 +76,7 @@ def test_sewing_toolbar_is_a_unique_subset_of_registered_commands():
 
 def test_sewing_registration_uses_nested_menus_and_toolbar_subset():
     calls = []
+
     def toolbar_sink(name, commands):
         calls.append(("toolbar", name, list(commands)))
 
