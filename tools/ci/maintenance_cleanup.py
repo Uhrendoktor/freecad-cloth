@@ -194,6 +194,7 @@ def cleanup_pbd_package_versions(
         "protected_tags": 0,
     }
     deleted = 0
+    phase = "resolve_protected_tags"
     try:
         if not protected_shas:
             result["status"] = "skipped_no_protected_refs"
@@ -201,6 +202,7 @@ def cleanup_pbd_package_versions(
         protected_tags = dockerfile_tags_for_shas(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
+        phase = "list_container_packages"
         owner = repo.split("/", maxsplit=1)[0]
         packages = list(paginated_api_items(f"users/{owner}/packages?package_type=container"))
         target = next(
@@ -216,7 +218,8 @@ def cleanup_pbd_package_versions(
             result["status"] = "package_not_found"
             return result
         package_name = str(target["name"]).strip("/")
-        encoded_name = quote(package_name, safe="")
+        phase = "list_package_versions"
+        encoded_name = quote(package_name, safe="/")
         versions = list(
             paginated_api_items(f"users/{owner}/packages/container/{encoded_name}/versions")
         )
@@ -228,6 +231,7 @@ def cleanup_pbd_package_versions(
             version_id = version.get("id")
             if not isinstance(version_id, int):
                 raise RuntimeError("GitHub returned a package version without an integer ID")
+            phase = f"delete_package_version_{version_id}"
             gh_delete(
                 "api",
                 "--method",
@@ -246,7 +250,7 @@ def cleanup_pbd_package_versions(
         result["status"] = (
             "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
         )
-        result["error"] = detail
+        result["error"] = f"{phase}: {detail}"
         return result
     except (RuntimeError, ValueError, KeyError, TypeError) as exc:
         result["deleted"] = deleted
