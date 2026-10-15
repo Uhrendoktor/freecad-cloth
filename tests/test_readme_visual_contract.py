@@ -204,11 +204,11 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders() -> N
         encoding="utf-8"
     )
 
-    assert 'if mode in ("all", "turntable"):' in avatar_screenshot
+    assert 'if mode in ("all", "turntable", "documentation"):' in avatar_screenshot
     assert 'if mode in ("all", "turntable", "turntable-validation"):' in avatar_screenshot
     validation_capture = avatar_screenshot.split(
         'if mode in ("all", "turntable", "turntable-validation"):', 1
-    )[1].split('if mode in ("all", "gallery"):', 1)[0]
+    )[1].split('if mode in ("all", "gallery", "documentation"):', 1)[0]
     assert '"cloth-avatar-turntable-frames"' in validation_capture
     assert "render_turntable(" in validation_capture
 
