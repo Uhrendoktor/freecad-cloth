@@ -40,7 +40,7 @@ class AvatarStandingPoseTests(unittest.TestCase):
         legacy_v2 = dict(legacy)
         legacy_v2["schema_version"] = 2
         migrated_v2 = AvatarParameters.from_json(json.dumps(legacy_v2))
-        self.assertEqual(migrated_v2.schema_version, 3)
+        self.assertEqual(migrated_v2.schema_version, 4)
         self.assertEqual((migrated_v2.gender, migrated_v2.breast_size), (0.5, 0.0))
 
     def test_generator_and_builder_share_the_same_fk_mesh(self):
