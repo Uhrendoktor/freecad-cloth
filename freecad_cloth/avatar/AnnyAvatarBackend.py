@@ -376,6 +376,15 @@ def _localize_hip_fit_delta(
     return reference + (fitted - reference) * hip_band[:, None]
 
 
+def _clad_measurement_targets(
+    values: dict[str, float],
+    mass_target_kg: float | None,
+) -> tuple[tuple[str, str, float], ...]:
+    """Build target values with explicit unit conversions for clad-body."""
+    targets = _clad_measurement_targets(values, mass_target_kg)
+    return targets
+
+
 def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
