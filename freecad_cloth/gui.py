@@ -5,11 +5,20 @@ non-GUI tests can import the package outside a FreeCAD process.
 """
 
 from collections.abc import Callable
+from typing import Protocol, cast
 
 try:
     import FreeCADGui as Gui
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
     Gui = None
+
+
+class _ActiveWorkbench(Protocol):
+    def name(self) -> str: ...
+
+
+class _WorkbenchGui(Protocol):
+    def activeWorkbench(self) -> _ActiveWorkbench: ...
 
 
 _WORKBENCH_DEACTIVATION_CALLBACK: Callable[[], None] | None = None
@@ -35,7 +44,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     ):
         if Gui is not None:
             super().__init__()
-        self._gui = Gui if gui is None else gui
+        self._gui = cast(_WorkbenchGui | None, Gui if gui is None else gui)
         self._toolbar_sink = toolbar_sink
         self._menu_sink = menu_sink
         self.commands = []
@@ -103,7 +112,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 # disable the overlay that the incoming workbench just enabled.
                 if self._gui is not None:
                     try:
-                        active = getattr(self._gui, "activeWorkbench")()
+                        active = self._gui.activeWorkbench()
                         active_name = str(active.name()).lower()
                     except (AttributeError, RuntimeError, TypeError):
                         active_name = ""
