@@ -61,7 +61,6 @@ def test_timeout_contract_is_documented():
     assert "freecad_application_timeout_seconds" in configuration
 
 
-
 def test_maintenance_cleanup_receives_github_cli_token():
     """The scheduled cleanup has the token needed for gh API reads and deletes."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
