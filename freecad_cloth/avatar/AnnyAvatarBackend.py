@@ -382,6 +382,7 @@ def _fit_anny_body(
     breast_size: float,
     phenotype_overrides: tuple[tuple[str, float], ...],
     local_change_overrides: tuple[tuple[str, float], ...],
+    mass_target_kg: float | None,
     *,
     fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
@@ -589,6 +590,8 @@ def _fit_anny_body(
         (parameter_name, key, float(values[parameter_name]) / 10.0)
         for parameter_name, key in MEASUREMENT_FIELDS
     )
+    if mass_target_kg is not None:
+        targets += (("mass_target_kg", "mass_kg", float(mass_target_kg)),)
     # Keep global shape fitting independent of hip-only edits while retaining
     # the other measurements that define the whole-body silhouette.
     global_targets = tuple(
@@ -596,7 +599,11 @@ def _fit_anny_body(
         for target in targets
         if target[0] != "hip" and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
     )
-    local_targets = tuple(target for target in targets if target[0] not in {"height", "inseam"})
+    local_targets = tuple(
+        target
+        for target in targets
+        if target[0] not in {"height", "inseam", "mass_target_kg"}
+    )
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
     global_phenotype_names = {"height", "weight", "muscle", "proportions"}
@@ -969,6 +976,7 @@ def _cached_fitted_body(
     breast_size: float,
     phenotype_overrides: tuple[tuple[str, float], ...],
     local_change_overrides: tuple[tuple[str, float], ...],
+    mass_target_kg: float | None,
     fit_hip: bool,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
     """Cache fitted surface and full rig vertices so viewport events do not refit."""
@@ -978,6 +986,7 @@ def _cached_fitted_body(
         breast_size,
         phenotype_overrides,
         local_change_overrides,
+        mass_target_kg,
         fit_hip=fit_hip,
     )
 
@@ -1003,6 +1012,7 @@ def _fitted_body_for(
         float(parameters.breast_size),
         tuple(sorted(parameters.phenotype_overrides.items())),
         tuple(sorted(parameters.local_change_overrides.items())),
+        parameters.mass_target_kg,
         fit_hip,
     )
 
