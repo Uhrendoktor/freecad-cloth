@@ -73,6 +73,7 @@ def test_maintenance_cleanup_receives_github_cli_token():
     assert "actions: write" in cleanup
     assert "contents: write" in cleanup
 
+
 def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
     from tools.ci import maintenance_cleanup
 
