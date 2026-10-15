@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Callable
 
 
 def _scene(doc):
@@ -59,7 +60,7 @@ def _geometry_round(value, digits=5):
     return 0.0 if rounded == 0.0 else rounded
 
 
-def _mesh_topology(target, *, vector_factory=None):
+def _mesh_topology(target, *, vector_factory: Callable[..., object] | None = None):
     """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
