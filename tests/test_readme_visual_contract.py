@@ -204,16 +204,17 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders() -> N
         encoding="utf-8"
     )
 
-    assert 'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):' in avatar_screenshot
+    assert (
+        'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):'
+        in avatar_screenshot
+    )
     validation_capture = avatar_screenshot.split(
         'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):', 1
     )[1].split('if mode in ("all", "gallery", "documentation"):', 1)[0]
     assert '"cloth-avatar-turntable-frames"' in validation_capture
     assert "render_turntable(" in validation_capture
 
-    validation_job = workflow.split("  gui-turntables:", 1)[1].split(
-        "  gui-visual-examples:", 1
-    )[0]
+    validation_job = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
     assert "CLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation" in validation_job
     assert "Generate wiki-only avatar body-shape gallery" not in validation_job
     assert "build_visual_gifs.py" not in validation_job
@@ -252,9 +253,7 @@ def test_documentation_turntable_capture_does_not_run_simulation_release_gates()
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    simulation = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(
-        encoding="utf-8"
-    )
+    simulation = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in workflow
     assert "if documentation_capture_only:" in simulation
     assert "stage=documentation-capture-only" in simulation
@@ -302,12 +301,8 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
 
 
 def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(
-        encoding="utf-8"
-    )
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     assert "source_tree" in workflow
     assert "--event merge_group --status success" in workflow
     assert "Required pre-merge validation" in workflow
@@ -315,6 +310,9 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
     )[0]
-    assert "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]" in doc_assets
+    assert (
+        "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]"
+        in doc_assets
+    )
     assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
