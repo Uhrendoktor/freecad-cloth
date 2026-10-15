@@ -37,7 +37,6 @@ def events() -> None:
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
-    Gui.updateGui()
 
 
 def ensure_gui_ready() -> None:

@@ -235,7 +235,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_contact_diagnostics.py
@@ -244,14 +244,14 @@ jobs:
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
             CLOTH_PBD_SUBSTEPS=1
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
           environment: CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -271,7 +271,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_cube_ladder.py
@@ -331,7 +331,7 @@ jobs:
           environment: CLOTH_CI_ENABLE_PBD=0
       - name: Run GUI Python validation
         if: ${{ matrix.group == 'gui' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tools/ci/python_validation.py
@@ -360,7 +360,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
@@ -381,7 +381,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
@@ -439,21 +439,21 @@ jobs:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: "${{ env.FREECAD_PBD_IMAGE }}"
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
           environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_avatar_screenshot.py
           log-file: artifacts/avatar-gallery-progress.log
           environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nFREECAD_CLOTH_ANNY_FIT_STEPS=18\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -474,7 +474,7 @@ jobs:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_visual_examples.py
@@ -582,7 +582,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@53953fc6aaa9761edc12304295086b6338deaebd
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_workbench_benchmark.py
@@ -594,4 +594,4 @@ jobs:
             CLOTH_BENCHMARK_OUTPUT=artifacts/benchmark.json
             CLOTH_BENCHMARK_REPEATS=7
       - run: test -s artifacts/benchmark.json
-      - run: python3 tools/ci/validate_realtime_benchmark.py artifacts/benchmark.json
+      - run: python3 tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json "${{ matrix.workbench }}"

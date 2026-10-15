@@ -1,6 +1,7 @@
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -20,3 +21,26 @@ def test_surface_distance_fallback_uses_spatial_index(monkeypatch):
     surface = SimpleNamespace(vertices=vertices, triangles=((0, 1, 2),))
 
     assert nearest_surface_distance(garment_points, surface) == pytest.approx(5.0)
+
+
+def test_events_processes_qt_events_after_one_gui_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid a second synchronous FreeCAD refresh during each simulation checkpoint."""
+    calls = []
+    gui = ModuleType("FreeCADGui")
+
+    def update_gui() -> None:
+        calls.append("gui-update")
+
+    gui.updateGui = update_gui
+    application = SimpleNamespace(processEvents=lambda: calls.append("qt-events"))
+    widgets = SimpleNamespace(QApplication=SimpleNamespace(instance=lambda: application))
+    pyside = ModuleType("PySide")
+    pyside.QtWidgets = widgets
+    monkeypatch.setitem(sys.modules, "FreeCADGui", gui)
+    monkeypatch.setitem(sys.modules, "PySide", pyside)
+
+    from tests.support.pbd_contact_helpers import events
+
+    events()
+
+    assert calls == ["gui-update", "qt-events"]
