@@ -193,4 +193,16 @@ def test_visual_publisher_preserves_script_local_import_invocation():
     assert "python3 tools/ci/publish_visual_evidence.py" in action
 
 
+def test_avatar_gallery_respects_configured_fit_steps() -> None:
+    source = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(encoding="utf-8")
+
+    assert (
+        'gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"'
+        in source
+    )
+    assert "os.environ[fit_steps_key] = gallery_fit_steps" in source
+    assert 'log("body-shape-gallery-start profiles=%d fit_steps=%s"' in source
+    assert 'os.environ[fit_steps_key] = "18"' not in source
+
+
 print("GUI visual contract checks passed")
