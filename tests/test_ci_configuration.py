@@ -1,6 +1,7 @@
 """Tests for the repository's single-source CI configuration contracts."""
 
 import json
+import pytest
 import tomllib
 from pathlib import Path
 
@@ -106,7 +107,7 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
 
 
-def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch) -> None:
+def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch: pytest.MonkeyPatch) -> None:
     import re
     from hashlib import sha256
 
@@ -121,7 +122,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch) -> None:
     }
     queries = []
 
-    def fake_gh_json(*args):
+    def fake_gh_json(*args: str) -> dict[str, object]:
         assert args[:3] == ("api", "graphql", "-f")
         query_arg = args[3]
         assert query_arg.startswith("query=")
@@ -150,10 +151,12 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries(monkeypatch) -> None:
     assert len(queries) == 3
 
 
-def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob(monkeypatch) -> None:
+def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from tools.ci import maintenance_cleanup
 
-    def fake_gh_json(*args):
+    def fake_gh_json(*args: str) -> dict[str, object]:
         assert args[:3] == ("api", "graphql", "-f")
         return {"data": {"repository": {"file0": None}}}
 
