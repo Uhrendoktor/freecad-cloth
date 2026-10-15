@@ -1246,6 +1246,11 @@ class AvatarPoseTaskPanel:
             "back_waist": "Back_Waist",
             "stomach": "Stomach",
             "sleeve_length": "Sleeve_Length",
+            "crotch_length": "Crotch_Length",
+            "front_rise": "Front_Rise",
+            "back_rise": "Back_Rise",
+            "shirt_length": "Shirt_Length",
+            "back_neck_to_waist": "Back_Neck_To_Waist",
         }
 
     def _select_preset(self, preset):
