@@ -212,10 +212,7 @@ def default_anny_phenotype_values(
         "asian": 1.0 / 3.0,
         "caucasian": 1.0 / 3.0,
     }
-    return {
-        name: float(defaults.get(name, 0.5))
-        for name in available_anny_phenotype_labels()
-    }
+    return {name: float(defaults.get(name, 0.5)) for name in available_anny_phenotype_labels()}
 
 
 @lru_cache(maxsize=1)
