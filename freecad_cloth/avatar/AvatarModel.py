@@ -297,7 +297,9 @@ class AvatarParameters:
         anny_overrides = data.get("anny_overrides", {}) if source_version >= 4 else {}
         phenotype_overrides = anny_overrides.get("phenotypes", {})
         local_change_overrides = anny_overrides.get("local_changes", {})
-        if not isinstance(phenotype_overrides, dict) or not isinstance(local_change_overrides, dict):
+        if not isinstance(phenotype_overrides, dict) or not isinstance(
+            local_change_overrides, dict
+        ):
             raise ValueError("Anny overrides must contain parameter-to-number objects")
         return cls(
             data.get("measurements", {}),
