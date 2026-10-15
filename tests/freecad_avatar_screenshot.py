@@ -248,9 +248,10 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     frames = []
     fit_steps_key = "FREECAD_CLOTH_ANNY_FIT_STEPS"
     original_fit_steps = os.environ.get(fit_steps_key)
-    os.environ[fit_steps_key] = "18"
+    gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"
+    os.environ[fit_steps_key] = gallery_fit_steps
     gallery_started = time.monotonic()
-    log("body-shape-gallery-start profiles=%d fit_steps=18" % len(profiles))
+    log("body-shape-gallery-start profiles=%d fit_steps=%s" % (len(profiles), gallery_fit_steps))
     try:
         for index, profile in enumerate(profiles):
             profile_started = time.monotonic()
@@ -449,7 +450,8 @@ def main():
         if initial_profile_applied:
             fit_steps_key = "FREECAD_CLOTH_ANNY_FIT_STEPS"
             original_fit_steps = os.environ.get(fit_steps_key)
-            os.environ[fit_steps_key] = "18"
+            gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"
+            os.environ[fit_steps_key] = gallery_fit_steps
             try:
                 avatar = create_avatar(
                     attach_collision=False,
