@@ -5,6 +5,7 @@ non-GUI tests can import the package outside a FreeCAD process.
 """
 
 from collections.abc import Callable
+
 try:
     import FreeCADGui as Gui
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
