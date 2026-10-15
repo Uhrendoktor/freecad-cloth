@@ -265,7 +265,7 @@ class AvatarDimensionController:
                 value = float(m["height"]) if key == "height" else float(m[key])
                 label = item["label"]
                 if self._hover_key == key or self._drag_key == key:
-                    label = "{}  {:.0f} mm".format(label, value)
+                    label = f"{label}  {value:.0f} mm"
                 self._add_label(coin, point, label, color)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             # Numeric fields remain available if a FreeCAD build lacks a Coin API.
