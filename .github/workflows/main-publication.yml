@@ -23,14 +23,18 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: write
-  contents: write
-  packages: write
-  pull-requests: write
+  actions: read
+  contents: read
+  packages: read
 
 jobs:
   publish:
     name: Publish main documentation assets
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: publication
@@ -38,4 +42,3 @@ jobs:
       fallback_source_run: ${{ inputs.fallback_source_run || '' }}
       diagnostic_controls: false
       pr_number: ""
-    secrets: inherit
