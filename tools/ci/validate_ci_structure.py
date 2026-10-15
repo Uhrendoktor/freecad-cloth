@@ -31,6 +31,7 @@ REQUIRED = (
     ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/timeout_contract.py",
     ROOT / "tools/ci/check_pydantic_models.py",
+    ROOT / "tools/ci/check_no_source_rewriting.py",
 )
 
 # Stage semantic type checking deliberately: these paths form the reviewed
@@ -77,7 +78,12 @@ TYPECHECK_COMMANDS = (
     "python tools/ci/check_changed_python_types.py",
 )
 
-PYTHON_POLICY_COMMANDS = ("python tools/ci/check_pydantic_models.py",)
+PYTHON_POLICY_COMMANDS = (
+    "python tools/ci/check_pydantic_models.py",
+    "python tools/ci/check_no_source_rewriting.py",
+    "python -m pytest -q tests/test_no_source_rewriting.py",
+)
+SOURCE_REWRITING_POLICY_COMMANDS = ("python tools/ci/check_no_source_rewriting.py",)
 
 RUFF_COMMANDS = (
     'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
@@ -96,9 +102,25 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required data-model policy gates missing from the canonical workflow."""
+    """Return required repository Python policy gates missing from the canonical workflow."""
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
+
+
+def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
+    """Require the blocking source-rewriting prohibition in the canonical workflow."""
+    command_lines = {line.strip() for line in workflow_text.splitlines()}
+    return tuple(
+        command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
+    )
+
+
+def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
+    """Require policy regression tests in the blocking pytest step."""
+    return any(
+        "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
+        for line in workflow_text.splitlines()
+    )
 
 
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
