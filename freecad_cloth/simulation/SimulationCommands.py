@@ -1,6 +1,7 @@
 """Commands for the Cloth Simulation workbench."""
 
 from collections.abc import Callable
+
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
 

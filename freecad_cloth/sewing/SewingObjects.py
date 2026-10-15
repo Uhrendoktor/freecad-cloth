@@ -108,7 +108,12 @@ def _edge_endpoint_pair(
     )
 
 
-def _native_edge(piece: object, edge: int, *, native_edge_record_fn=None) -> _NativeEdge | None:
+def _native_edge(
+    piece: object,
+    edge: int,
+    *,
+    native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> _NativeEdge | None:
     """Return the authoritative native Sketcher/Shape edge when available."""
     try:
         index = int(edge)
@@ -228,7 +233,11 @@ def _edge_length(piece: object, edge: int) -> float:
 
 
 def _seam_edge_index(
-    piece: object, seam: object, prefix: str, *, resolve_document_edge_fn=None
+    piece: object,
+    seam: object,
+    prefix: str,
+    *,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
 ) -> int:
     """Resolve a semantic edge to the index space used by the native geometry reader."""
     edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
@@ -280,7 +289,7 @@ def _edge_points(
     end: float = 1.0,
     z: float = 0.2,
     *,
-    vector_factory=None,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> tuple[_NativePoint, _NativePoint]:
     """Return seam-range endpoints after the piece Placement is applied."""
     if vector_factory is None:
@@ -315,7 +324,7 @@ def _edge_samples(
     z: float = 0.2,
     transform_to_world: bool = True,
     *,
-    vector_factory=None,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> list[_NativePoint]:
     """Return evenly arc-length-spaced points over a normalized edge range."""
     if vector_factory is None:
@@ -346,8 +355,8 @@ def _alignment_placement(
     piece_b: object,
     seam: object,
     *,
-    app_module=None,
-    vector_factory=None,
+    app_module: ModuleType | None = None,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> object:
     """Return a Placement that moves B's seam onto A's seam endpoints."""
     if app_module is None:
@@ -392,7 +401,7 @@ def _seam_correspondence(
     count: int,
     alignment: str = "endpoints",
     *,
-    vector_factory=None,
+    vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> list[tuple[_NativePoint, _NativePoint]]:
     """Build deterministic A/B stitch points from the same semantic seam."""
     if count < 2:
@@ -419,7 +428,12 @@ class SewingOperationProxy:
     Type = "ClothSewingOperation"
 
     def execute(
-        self, obj: _SewingFeature, *, app_module=None, part_module=None, vector_factory=None
+        self,
+        obj: _SewingFeature,
+        *,
+        app_module: ModuleType | None = None,
+        part_module: ModuleType | None = None,
+        vector_factory: Callable[..., _NativePoint] | None = None,
     ) -> None:
         """Recompute the FreeCAD object from its current source properties."""
         if part_module is None:

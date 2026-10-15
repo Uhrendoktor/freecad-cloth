@@ -1,8 +1,8 @@
 import json
 import os
 import tempfile
-from collections.abc import Callable
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import ValidationError

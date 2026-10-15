@@ -80,7 +80,7 @@ def test_sewing_registration_uses_nested_menus_and_toolbar_subset():
     def toolbar_sink(name: str, commands: list[str]) -> None:
         calls.append(("toolbar", name, list(commands)))
 
-    def menu_sink(name: list[str], commands: list[str]) -> None:
+    def menu_sink(name: str, commands: list[str]) -> None:
         calls.append(("menu", name, list(commands)))
 
     workbench = ClothSewingWorkbench(gui=object(), toolbar_sink=toolbar_sink, menu_sink=menu_sink)
