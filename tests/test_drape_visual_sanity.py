@@ -50,7 +50,9 @@ class DrapeVisualSanityTests(unittest.TestCase):
         # The second point is inside the mesh AABB but outside the tetrahedron.
         # The third is outside the AABB entirely.
         points = ((0.1, 0.1, 0.1), (0.8, 0.8, 0.1), (1.1, 0.1, 0.1))
-        self.assertEqual(points_inside_closed_mesh(points, vertices, triangles), (True, False, False))
+        self.assertEqual(
+            points_inside_closed_mesh(points, vertices, triangles), (True, False, False)
+        )
 
     def test_bulk_containment_can_bypass_trimesh_acceleration(self) -> None:
         vertices = (
