@@ -334,6 +334,7 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
                 ),
             }
         )
+
     def native_edge_records(_piece):
         return reordered
 
@@ -361,6 +362,7 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     records = [
         {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
     ]
+
     def native_edge_records(_piece):
         return records
 
