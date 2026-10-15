@@ -162,14 +162,10 @@ class SewingNetworkTests(unittest.TestCase):
             LengthDifference=6.0,
             RelativeTolerance=0.05,
         )
-        import freecad_cloth.sewing.SewingNetwork as module
+        def network_lengths(_seams):
+            return 100.0, 106.0
 
-        old = module._network_lengths
-        module._network_lengths = lambda seams: (100.0, 106.0)
-        try:
-            SewingNetworkProxy().execute(network)
-        finally:
-            module._network_lengths = old
+        SewingNetworkProxy(network_lengths_fn=network_lengths).execute(network)
         self.assertEqual(network.Status, "Length mismatch")
         self.assertEqual(network.CorrespondenceStatus, "length_mismatch")
 
