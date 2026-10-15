@@ -61,14 +61,22 @@ def main():
 
     checkpoint("FREECAD_SMOKE IMPORTED_GUI")
     import InitGui
+    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+    from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
     checkpoint("FREECAD_SMOKE IMPORTED_INITGUI")
     workbenches = (
-        InitGui.ClothPatternWorkbench(),
-        InitGui.ClothSimulationWorkbench(),
-        InitGui.ClothSewingWorkbench(),
+        ClothPatternWorkbench(),
+        ClothSimulationWorkbench(),
+        ClothSewingWorkbench(),
     )
     assert all(w.GetClassName() == "Gui::PythonWorkbench" for w in workbenches)
+    assert {
+        "ClothPatternWorkbench",
+        "ClothSimulationWorkbench",
+        "ClothSewingWorkbench",
+    }.issubset(set(Gui.listWorkbenches()))
     assert [w.MenuText for w in workbenches] == [
         "Cloth Pattern",
         "Cloth Simulation",
