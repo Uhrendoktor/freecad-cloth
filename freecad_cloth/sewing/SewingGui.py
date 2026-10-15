@@ -179,6 +179,11 @@ class SewingTaskPanel:
         self._begin_transaction()
         self._refresh()
 
+        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
+
+        set_status(self.seam_info, self.seam_info.text(), state="info")
+        apply_panel_style(self.form)
+
     def _range_spin(self, value):
         _App, _Gui, _QtCore, QtWidgets = _gui_modules()
         box = QtWidgets.QDoubleSpinBox()
@@ -217,7 +222,14 @@ class SewingTaskPanel:
         return False
 
     def _refresh(self):
-        self.status.setText(str(self.obj.Status))
+        from freecad_cloth.common.UiDesign import set_status
+
+        current_status = str(self.obj.Status)
+        set_status(
+            self.status,
+            current_status,
+            state="success" if current_status.lower() == "valid" else "error",
+        )
         self.lengths.setText(
             f"{float(self.obj.LengthA):.2f} / {float(self.obj.LengthB):.2f} mm (Δ {float(self.obj.LengthDifference):.2f})"
         )
@@ -228,10 +240,15 @@ class SewingTaskPanel:
             float(getattr(self.obj, "RelativeTolerance", 0.05)),
         )
         if report is None:
-            self.correspondence.setText("No seam correspondence")
+            set_status(self.correspondence, "No seam correspondence", state="warning")
             return
-        self.correspondence.setText(
-            f"{report.status} — {report.message} (severity {report.severity}, ratio {report.length_ratio:.4f}); recovery: {report.recovery}"
+        set_status(
+            self.correspondence,
+            (
+                f"{report.status} — {report.message} (severity {report.severity}, "
+                f"ratio {report.length_ratio:.4f}); recovery: {report.recovery}"
+            ),
+            state="success" if str(report.status).lower() in {"valid", "ok"} else "error",
         )
         self.reverse_button.setText(
             "Unreverse B" if bool(getattr(self.seam, "ReversedB", False)) else "Reverse B"

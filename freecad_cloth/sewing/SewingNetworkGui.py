@@ -149,6 +149,10 @@ class SewingNetworkTaskPanel:
         self._begin_transaction()
         self._refresh_status()
 
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
+
     def _begin_transaction(self):
         """Start one FreeCAD undo transaction for the complete network edit."""
         doc = self.App.ActiveDocument
@@ -235,30 +239,46 @@ class SewingNetworkTaskPanel:
         return True
 
     def _refresh_status(self):
+        from freecad_cloth.common.UiDesign import set_status
+
         errors = network_reference_errors(self.network)
-        self.warning.setText(
+        set_status(
+            self.warning,
             "Invalid seam references: " + "; ".join("{} ({})".format(*item) for item in errors)
             if errors
-            else ""
+            else "",
+            state="error" if errors else "info",
         )
-        self.status.setText(
+        network_status = str(getattr(self.network, "Status", ""))
+        set_status(
+            self.status,
             "%s | segments: %d | Δ %.3f mm%s"
             % (
-                str(getattr(self.network, "Status", "")),
+                network_status,
                 int(getattr(self.network, "SegmentCount", 0)),
                 float(getattr(self.network, "LengthDifference", 0.0)),
                 " | invalid: " + ", ".join("{} ({})".format(*item) for item in errors)
                 if errors
                 else "",
-            )
+            ),
+            state=(
+                "error" if errors else ("success" if network_status.lower() == "valid" else "info")
+            ),
         )
-        self.correspondence.setText(
+        correspondence_status = str(getattr(self.network, "CorrespondenceStatus", ""))
+        set_status(
+            self.correspondence,
             "{} — severity {} — {} — recovery: {}".format(
-                str(getattr(self.network, "CorrespondenceStatus", "")),
+                correspondence_status,
                 str(getattr(self.network, "CorrespondenceSeverity", "")),
                 str(getattr(self.network, "CorrespondenceMessage", "")),
                 str(getattr(self.network, "CorrespondenceRecovery", "")),
-            )
+            ),
+            state=(
+                "error"
+                if errors or correspondence_status.lower() not in {"valid", "ok"}
+                else "success"
+            ),
         )
 
     def update(self):

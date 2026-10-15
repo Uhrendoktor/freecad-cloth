@@ -234,6 +234,9 @@ class SimulationQualityTaskPanel:
         self.advanced_toggle.toggled.connect(self._set_expert_visibility)
         self._set_expert_visibility(False)
         self._load()
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
 
     @staticmethod
     def _double(low, high, value, decimals):
@@ -260,7 +263,7 @@ class SimulationQualityTaskPanel:
         for widget in getattr(self, "_expert_widgets", ()):
             widget.setVisible(bool(enabled))
         if enabled:
-            self.status.setText(
+            self._set_status(
                 "Expert controls enabled. Presets remain the recommended starting point."
             )
 
@@ -283,8 +286,9 @@ class SimulationQualityTaskPanel:
 
     def open_arrange_fit(self):
         if self.scene is None:
-            self.status.setText(
-                "Create or select a Cloth Simulation object before opening Arrange / Fit."
+            self._set_status(
+                "Create or select a Cloth Simulation object before opening Arrange / Fit.",
+                state="warning",
             )
             return
         try:
@@ -292,12 +296,13 @@ class SimulationQualityTaskPanel:
 
             open_arrange_fit_from_simulation(self.scene)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText(f"Arrange / Fit unavailable — {exc}")
+            self._set_status(f"Arrange / Fit unavailable — {exc}", state="error")
 
     def snap_to_target(self):
         if self.scene is None:
-            self.status.setText(
-                "Create or select a Cloth Simulation object before snapping pieces to target."
+            self._set_status(
+                "Create or select a Cloth Simulation object before snapping pieces to target.",
+                state="warning",
             )
             return
         try:
@@ -308,7 +313,7 @@ class SimulationQualityTaskPanel:
             snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
             self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText(f"Target-aware arrangement unavailable — {exc}")
+            self._set_status(f"Target-aware arrangement unavailable — {exc}", state="error")
 
     def reset_arrangement(self):
         try:
@@ -316,7 +321,7 @@ class SimulationQualityTaskPanel:
 
             reset_arrangement_from_simulation()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status.setText(f"Arrangement reset unavailable — {exc}")
+            self._set_status(f"Arrangement reset unavailable — {exc}", state="error")
             return
         self._refresh()
 
@@ -349,6 +354,12 @@ class SimulationQualityTaskPanel:
             self._refresh("Drape target refreshed.")
         except Exception as exc:
             self._refresh(f"Drape target recovery blocked — {exc}")
+
+    def _set_status(self, text: str, state: str = "info") -> None:
+        """Update status feedback with a palette-aware semantic state."""
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, text, state=state)
 
     def _ensure_scene(self):
         if self.scene is None:
@@ -536,7 +547,10 @@ class SimulationQualityTaskPanel:
             self.snap_to_target_button.setEnabled(False)
             self.refresh_target_button.setEnabled(False)
             self.target_context.setText("No simulation scene is selected.")
-            self.status.setText(message or "Create or select a Cloth Simulation object.")
+            self._set_status(
+                message or "Create or select a Cloth Simulation object.",
+                state="warning",
+            )
             return
         from freecad_cloth.simulation.DrapeTarget import target_status
 
@@ -588,7 +602,14 @@ class SimulationQualityTaskPanel:
             pin_status = "Pinning: Automatic — using %d selected pin(s)" % selected
         else:
             pin_status = "Pinning: Automatic — legacy boundary pins will be used"
-        self.status.setText(f"{text} | {pin_status}")
+        status_state = (
+            "error"
+            if blocked
+            or not bool(getattr(self.scene, "FiniteState", True))
+            or bool(message and "blocked" in message.lower())
+            else ("success" if message else "info")
+        )
+        self._set_status(f"{text} | {pin_status}", state=status_state)
 
     def accept(self):
         if self.scene is not None:

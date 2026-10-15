@@ -97,6 +97,11 @@ class PatternPieceTaskPanel:
             self._original = None
         self._mode_changed(self.mode.currentText())
 
+        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
+
+        mark_button(self.edit_sketch, "secondary")
+        apply_panel_style(self.form)
+
     def _edit_sketch(self):
         if not self._sketch_authoritative or self.obj is None:
             return
@@ -241,6 +246,10 @@ class PatternDraftingTaskPanel:
             )
         )
         self._redraw(QtGui, QtCore)
+
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
 
     def _selection_changed(self):
         selected = self.scene.selectedItems()

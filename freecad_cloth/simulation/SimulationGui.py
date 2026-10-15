@@ -58,6 +58,11 @@ class SimulationTaskPanel:
         layout.addRow("Areal density", self.density)
         root.addWidget(material)
 
+        advanced_content = QtWidgets.QWidget()
+        advanced_layout = QtWidgets.QVBoxLayout(advanced_content)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.setSpacing(6)
+
         solver = QtWidgets.QGroupBox("Solver")
         layout = QtWidgets.QFormLayout(solver)
         self.iterations = self._spin(1, 100, int(getattr(scene, "Iterations", 8)))
@@ -74,7 +79,7 @@ class SimulationTaskPanel:
         layout.addRow("Gravity Y", self.gravity_y)
         layout.addRow("Gravity Z", self.gravity_z)
         layout.addRow("Steps", self.steps)
-        root.addWidget(solver)
+        advanced_layout.addWidget(solver)
 
         collision = QtWidgets.QGroupBox("Drape target collision")
         layout = QtWidgets.QFormLayout(collision)
@@ -86,7 +91,7 @@ class SimulationTaskPanel:
         layout.addRow("Thickness", self.thickness)
         layout.addRow("Mesh deflection", self.deflection)
         layout.addRow("Legacy sphere radius", self.collision_radius)
-        root.addWidget(collision)
+        advanced_layout.addWidget(collision)
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
@@ -96,12 +101,23 @@ class SimulationTaskPanel:
         self.seams.setToolTip("Particle pairs such as 3-27 separated by semicolons")
         layout.addRow("Pinned vertices", self.pins)
         layout.addRow("Seam pairs", self.seams)
-        root.addWidget(sewing)
+        advanced_layout.addWidget(sewing)
+        from freecad_cloth.common.UiDesign import make_disclosure
+
+        self.advanced_section, self.advanced_toggle = make_disclosure(
+            "Advanced solver, collision & sewing settings", advanced_content, QtCore, QtWidgets
+        )
+        root.addWidget(self.advanced_section)
 
         controls = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
         self.run_button = QtWidgets.QPushButton("Run 30 steps")
         self.reset_button = QtWidgets.QPushButton("Reset")
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.step_button, "secondary")
+        mark_button(self.run_button, "primary")
+        mark_button(self.reset_button, "danger")
         self.step_button.setObjectName("ClothSimulationStepButton")
         self.run_button.setObjectName("ClothSimulationRunButton")
         self.reset_button.setObjectName("ClothSimulationResetButton")
@@ -139,6 +155,10 @@ class SimulationTaskPanel:
         self.deflection.valueChanged.connect(self._collision_changed)
         self.status.setText("Select a simulation scene or create one with Create Simulation.")
         self._load_scene_values()
+        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
+
+        set_status(self.status, self.status.text(), state="info")
+        apply_panel_style(self.form)
 
     @staticmethod
     def _join(values):

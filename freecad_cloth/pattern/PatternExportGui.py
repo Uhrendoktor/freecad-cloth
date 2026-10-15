@@ -59,6 +59,9 @@ class PatternExportTaskPanel:
         self.curve_samples.setValue(64)
         self.path = QtWidgets.QLineEdit()
         self.browse = QtWidgets.QPushButton("Browse…")
+        from freecad_cloth.common.UiDesign import mark_button
+
+        mark_button(self.browse, "secondary")
         self.browse.clicked.connect(self._browse)
         path_row = QtWidgets.QHBoxLayout()
         path_row.addWidget(self.path)
@@ -80,6 +83,10 @@ class PatternExportTaskPanel:
         layout.addRow("Status", self.status)
         self.format.currentTextChanged.connect(self._format_changed)
         self._format_changed(self.format.currentText())
+
+        from freecad_cloth.common.UiDesign import apply_panel_style
+
+        apply_panel_style(self.form)
 
     def _format_changed(self, value):
         is_pdf = str(value).lower() == "pdf"
@@ -123,10 +130,15 @@ class PatternExportTaskPanel:
                 overlap_mm=float(self.pdf_overlap.value()),
             )
         except (OSError, ValueError, RuntimeError) as exc:
-            self.status.setText(f"Export blocked: {exc}")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, f"Export blocked: {exc}", state="error")
             return False
         metadata = result["metadata"]
-        self.status.setText(
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.status,
             "Exported %s | %s | edges=%d | seams=%d | scale=%s | read-only source"
             % (
                 Path(path).name,
@@ -134,7 +146,8 @@ class PatternExportTaskPanel:
                 len(metadata.get("edge_ids", ())),
                 len(metadata.get("seam_ids", ())),
                 metadata.get("scale", 1.0),
-            )
+            ),
+            state="success",
         )
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
