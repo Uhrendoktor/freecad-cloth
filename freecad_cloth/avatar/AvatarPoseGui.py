@@ -1220,6 +1220,7 @@ class AvatarPoseTaskPanel:
             float(getattr(self.avatar, "BreastSize", 0.0)),
             dict(stored.phenotype_overrides),
             dict(stored.local_change_overrides),
+            stored.mass_target_kg,
         )
 
     @staticmethod
@@ -1298,6 +1299,7 @@ class AvatarPoseTaskPanel:
                     params.breast_size,
                     dict(params.phenotype_overrides),
                     dict(params.local_change_overrides),
+                    params.mass_target_kg,
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
