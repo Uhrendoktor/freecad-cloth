@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
@@ -14,6 +13,7 @@ from urllib.parse import quote
 PAGE_SIZE = 100
 MAX_RUN_DELETIONS_PER_RUN = 100
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
+DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 
@@ -122,19 +122,57 @@ def stale_package_versions(
     return stale
 
 
-def dockerfile_tag_for_sha(repo: str, sha: str) -> str:
-    """Resolve the immutable PBD tag for a commit's authoritative Dockerfile."""
-    payload = gh_json("api", f"repos/{repo}/contents/docker/freecad-ci/Dockerfile?ref={sha}")
-    if not isinstance(payload, dict) or payload.get("encoding") != "base64":
-        raise RuntimeError(f"could not verify Dockerfile contents for protected ref {sha}")
-    encoded = payload.get("content")
-    if not isinstance(encoded, str):
-        raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
-    try:
-        contents = base64.b64decode(encoded)
-    except ValueError as exc:
-        raise RuntimeError(f"invalid Dockerfile content for protected ref {sha}") from exc
-    return pbd_validation_tag(contents)
+def dockerfile_tags_for_shas(
+    repo: str,
+    protected_shas: set[str],
+    *,
+    batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
+) -> set[str]:
+    """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA."""
+    if batch_size <= 0:
+        raise ValueError("Dockerfile query batch size must be positive")
+    if not protected_shas:
+        return set()
+
+    owner, repository_name = repo.split("/", maxsplit=1)
+    ordered_shas = sorted(protected_shas)
+    tags: set[str] = set()
+    for offset in range(0, len(ordered_shas), batch_size):
+        batch = ordered_shas[offset : offset + batch_size]
+        aliases: dict[str, str] = {}
+        fields: list[str] = []
+        for index, sha in enumerate(batch):
+            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
+                raise RuntimeError(f"invalid protected commit SHA: {sha!r}")
+            alias = f"file{index}"
+            aliases[alias] = sha
+            fields.append(
+                f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
+                "{ ... on Blob { text } }"
+            )
+
+        query = (
+            "query { repository("
+            f'owner: "{owner}", name: "{repository_name}"'
+            f") {{ {' '.join(fields)} }} }}"
+        )
+        payload = gh_json("api", "graphql", "-f", f"query={query}")
+        if not isinstance(payload, dict):
+            raise RuntimeError("GitHub GraphQL returned a non-object response")
+        if payload.get("errors"):
+            raise RuntimeError("GitHub GraphQL could not verify protected Dockerfile contents")
+        data = payload.get("data")
+        repository_data = data.get("repository") if isinstance(data, dict) else None
+        if not isinstance(repository_data, dict):
+            raise RuntimeError("GitHub GraphQL omitted the protected repository data")
+
+        for alias, sha in aliases.items():
+            blob = repository_data.get(alias)
+            dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
+            if not isinstance(dockerfile_text, str):
+                raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
+            tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
+    return tags
 
 
 def cleanup_pbd_package_versions(
@@ -153,7 +191,7 @@ def cleanup_pbd_package_versions(
         if not protected_shas:
             result["status"] = "skipped_no_protected_refs"
             return result
-        protected_tags = {dockerfile_tag_for_sha(repo, sha) for sha in sorted(protected_shas)}
+        protected_tags = dockerfile_tags_for_shas(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
         owner = repo.split("/", maxsplit=1)[0]
