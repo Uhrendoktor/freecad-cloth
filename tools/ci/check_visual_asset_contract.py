@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tools" / "ci" / "visual_asset_sources.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "canonical-execution.yml"
 PUBLISH_ACTION = ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml"
+PUBLISHER_SCRIPT = ROOT / "tools" / "ci" / "publish_visual_evidence.py"
 
 
 def contract_errors() -> list[str]:
@@ -46,7 +47,8 @@ def contract_errors() -> list[str]:
     )
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     publisher_text = PUBLISH_ACTION.read_text(encoding="utf-8")
-    production_config = workflow_text + chr(10) + publisher_text
+    publisher_script_text = PUBLISHER_SCRIPT.read_text(encoding="utf-8")
+    production_config = chr(10).join((workflow_text, publisher_text, publisher_script_text))
     required_upload_patterns = (
         "docs/images/generated/*.png",
         "docs/images/generated/*.gif",
