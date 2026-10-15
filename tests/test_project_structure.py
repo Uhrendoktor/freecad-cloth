@@ -56,7 +56,7 @@ def test_freecad_entry_points_remain_at_root():
     assert (root / "Init.py").is_file()
     assert (root / "InitGui.py").is_file()
     gui = (root / "InitGui.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.bootstrap import initialize_workbenches" in bootstrap
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in gui
     assert gui.count("initialize_workbenches(") == 1
 
 
