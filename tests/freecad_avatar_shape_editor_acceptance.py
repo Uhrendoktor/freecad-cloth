@@ -336,6 +336,47 @@ def run():
 
         panel = AvatarTaskPanel(avatar)
         Gui.Control.showDialog(panel)
+
+        # The advanced editor must discover the installed Anny controls, stage
+        # both parameter families, support cross-tab search, and reset cleanly.
+        panel.advanced_toggle.setChecked(True)
+        _events()
+        if not panel._advanced_controls_built:
+            raise RuntimeError("advanced Anny parameters did not load on demand")
+        age_control = next(
+            (
+                item
+                for item in panel._advanced_rows
+                if item["kind"] == "phenotype" and item["name"] == "age"
+            ),
+            None,
+        )
+        waist_morph = next(
+            (
+                item
+                for item in panel._advanced_rows
+                if item["kind"] == "morph" and "measure-waist-circ" in item["name"]
+            ),
+            None,
+        )
+        if age_control is None or waist_morph is None:
+            raise RuntimeError("advanced Anny phenotype/body-morph parameters are incomplete")
+        age_control["box"].setValue(min(1.0, age_control["default"] + 0.05))
+        waist_morph["box"].setValue(0.1)
+        advanced_staged = panel._staged_parameters()
+        if not advanced_staged.phenotype_overrides or not advanced_staged.local_change_overrides:
+            raise RuntimeError("advanced Anny parameter edits were not staged")
+        panel.advanced_search.setText("measure-waist-circ")
+        _events()
+        if not waist_morph["row"].isVisible() or panel.advanced_tabs.currentIndex() != 1:
+            raise RuntimeError("advanced parameter search did not reveal the matching body morph")
+        panel.advanced_search.clear()
+        panel.reset_advanced_button.click()
+        if panel._advanced_phenotype_overrides or panel._advanced_local_change_overrides:
+            raise RuntimeError("Reset advanced did not clear all advanced overrides")
+        panel.advanced_toggle.setChecked(False)
+        _events()
+
         focus_main_window(Gui, size=(1280, 720))
         active = Gui.activeDocument()
         if active is None:
