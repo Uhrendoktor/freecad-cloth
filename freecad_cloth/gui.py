@@ -1,12 +1,10 @@
-"""Shared GUI registration primitives and bootstrap for the FreeCAD loaders.
+"""Shared GUI registration primitives.
 
 This module intentionally imports FreeCAD lazily so packaging/build metadata and
 non-GUI tests can import the package outside a FreeCAD process.
 """
 
 from collections.abc import Callable
-from pathlib import Path
-
 try:
     import FreeCADGui as Gui
 except ImportError:  # pragma: no cover - exercised outside FreeCAD
@@ -23,37 +21,6 @@ def register_workbench_deactivation_callback(
     global _WORKBENCH_DEACTIVATION_CALLBACK
     _WORKBENCH_DEACTIVATION_CALLBACK = callback
 
-
-def initialize_workbenches(installation_root: Path) -> None:
-    """Register the Cloth workbenches from either supported FreeCAD loader layout."""
-    if Gui is None:
-        return
-
-    icon_dir = Path(installation_root).resolve() / "resources" / "icons"
-    if icon_dir.is_dir():
-        Gui.addIconPath(str(icon_dir))
-
-    from freecad_cloth.avatar import AvatarCommands
-    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-    from freecad_cloth.sewing.workbench import ClothSewingWorkbench
-    from freecad_cloth.simulation.workbench import (
-        AVATAR_ENTRY_COMMANDS,
-        ClothSimulationWorkbench,
-    )
-
-    if not set(AVATAR_ENTRY_COMMANDS).issubset(AvatarCommands.COMMANDS):
-        raise RuntimeError("Cloth Simulation avatar menu references unregistered commands")
-
-    workbenches = (
-        ("ClothPatternWorkbench", ClothPatternWorkbench),
-        ("ClothSimulationWorkbench", ClothSimulationWorkbench),
-        ("ClothSewingWorkbench", ClothSewingWorkbench),
-    )
-    registered = set(Gui.listWorkbenches())
-    for workbench_name, workbench_type in workbenches:
-        if workbench_name not in registered:
-            Gui.addWorkbench(workbench_type())
-            registered.add(workbench_name)
 
 
 class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
