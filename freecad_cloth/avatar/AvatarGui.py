@@ -137,6 +137,7 @@ class AvatarTaskPanel:
         self._advanced_rows = []
         self._advanced_groups = []
         self._add_shape_group(content_layout)
+        self._add_mass_target_group(content_layout)
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
         self._add_advanced_group(content_layout)
@@ -307,6 +308,8 @@ class AvatarTaskPanel:
         self.gender_slider.valueChanged.connect(self._shape_changed)
         self.breast_slider.valueChanged.connect(self._shape_changed)
         self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
+        self.mass_target_enabled.toggled.connect(self._mass_target_toggled)
+        self.mass_target.valueChanged.connect(self._staged_changed)
         self.advanced_toggle.toggled.connect(self._toggle_advanced_parameters)
         self.advanced_search.textChanged.connect(self._filter_advanced_parameters)
         self.reset_advanced_button.clicked.connect(self._reset_advanced_parameters)
@@ -346,6 +349,37 @@ class AvatarTaskPanel:
             self._boxes[key] = box
         parent.addWidget(group)
         self._measurement_groups.append(group)
+
+    def _add_mass_target_group(self, parent):
+        """Expose clad-body's differentiable body-mass target without mixing units."""
+        _, _, QtWidgets = _modules()
+        group = QtWidgets.QGroupBox("Body composition")
+        layout = QtWidgets.QFormLayout(group)
+        self.mass_target_enabled = QtWidgets.QCheckBox("Fit target body mass")
+        self.mass_target_enabled.setToolTip(
+            "Optionally constrain clad-body's differentiable mass_kg measurement. "
+            "When enabled, the fit adjusts Anny's global weight phenotype."
+        )
+        layout.addRow(self.mass_target_enabled)
+        self.mass_target = QtWidgets.QDoubleSpinBox()
+        self.mass_target.setRange(25.0, 250.0)
+        self.mass_target.setDecimals(1)
+        self.mass_target.setSingleStep(0.5)
+        self.mass_target.setSuffix(" kg")
+        self.mass_target.setValue(70.0)
+        self.mass_target.setKeyboardTracking(False)
+        self.mass_target.setEnabled(False)
+        self.mass_target.setToolTip(
+            "Target body mass in kilograms. Disabled by default so the body shape is "
+            "controlled by the main measurement targets and Anny phenotypes."
+        )
+        layout.addRow("Target mass", self.mass_target)
+        parent.addWidget(group)
+        self.mass_group = group
+
+    def _mass_target_toggled(self, enabled):
+        self.mass_target.setEnabled(bool(enabled))
+        self._staged_changed()
 
     def _add_advanced_group(self, parent):
         """Add lazy-loaded, searchable Anny controls without cluttering the common editor."""
@@ -685,9 +719,11 @@ class AvatarTaskPanel:
         from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
         payload = str(getattr(self.avatar, "ParametersJSON", "") or "")
+        mass_target = None
         if payload:
             try:
                 stored_parameters = AvatarParameters.from_json(payload)
+                mass_target = stored_parameters.mass_target_kg
                 self._advanced_phenotype_overrides = dict(stored_parameters.phenotype_overrides)
                 self._advanced_local_change_overrides = dict(
                     stored_parameters.local_change_overrides
@@ -727,6 +763,13 @@ class AvatarTaskPanel:
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self._pose_property(key), pose_values[key])))
             box.blockSignals(False)
+        self.mass_target_enabled.blockSignals(True)
+        self.mass_target_enabled.setChecked(mass_target is not None)
+        self.mass_target_enabled.blockSignals(False)
+        self.mass_target.blockSignals(True)
+        self.mass_target.setValue(70.0 if mass_target is None else float(mass_target))
+        self.mass_target.blockSignals(False)
+        self.mass_target.setEnabled(mass_target is not None)
         self.skin_offset.blockSignals(True)
         self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
         self.skin_offset.blockSignals(False)
@@ -833,6 +876,7 @@ class AvatarTaskPanel:
         self.skin_offset.setEnabled(is_human)
         self.show_measurements.setEnabled(is_human)
         self.dimension_gizmo_toggle.setEnabled(is_human)
+        self.mass_group.setEnabled(is_human)
         self.advanced_toggle.setEnabled(is_human)
         self.advanced_content.setEnabled(is_human)
         if not is_human and self._dimension_controller is not None:
@@ -901,6 +945,7 @@ class AvatarTaskPanel:
             self.breast_slider.value() / 100.0,
             dict(self._advanced_phenotype_overrides),
             dict(self._advanced_local_change_overrides),
+            self.mass_target.value() if self.mass_target_enabled.isChecked() else None,
         )
 
     def _apply(self):
