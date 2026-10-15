@@ -375,6 +375,15 @@ def run():
         if panel._advanced_phenotype_overrides or panel._advanced_local_change_overrides:
             raise RuntimeError("Reset advanced did not clear all advanced overrides")
         panel.advanced_toggle.setChecked(False)
+
+        # Mass is an optional native-unit clad-body target, separate from mm fields.
+        panel.mass_target_enabled.setChecked(True)
+        panel.mass_target.setValue(68.5)
+        if panel._staged_parameters().mass_target_kg != 68.5:
+            raise RuntimeError("body-mass target did not stage in kilograms")
+        panel.mass_target_enabled.setChecked(False)
+        if panel._staged_parameters().mass_target_kg is not None:
+            raise RuntimeError("disabling the body-mass target did not remove the constraint")
         _events()
 
         focus_main_window(Gui, size=(1280, 720))
