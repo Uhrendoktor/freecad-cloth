@@ -223,3 +223,18 @@ def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders():
     gallery_end = block.find("\n      - ", gallery_start + 8)
     gallery_step = block[gallery_start : gallery_end if gallery_end != -1 else len(block)]
     assert "if: ${{ github.ref == 'refs/heads/main' }}" in gallery_step
+
+
+def test_wiki_visual_generation_is_limited_to_publication_events():
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "CLOTH_WIKI_VISUALS_REQUIRED:" in workflow
+    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
+    assert "inputs.fallback_source_run != ''" in workflow
+    assert workflow.count('if [ "$CLOTH_WIKI_VISUALS_REQUIRED" = "true" ]; then') == 2
+    visual_block = workflow.split("  gui-turntables:", 1)[1].split(
+        "  publish-pr-simulation-evidence:", 1
+    )[0]
+    assert visual_block.count("if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}") == 3
