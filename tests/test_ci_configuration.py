@@ -202,6 +202,54 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     assert [version["id"] for version in stale] == [1]
 
 
+
+def test_package_cleanup_lists_known_nested_package_directly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.ci import maintenance_cleanup
+
+    endpoints: list[str] = []
+    deleted: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr(
+        maintenance_cleanup,
+        "dockerfile_tags_for_shas",
+        lambda _repo, _protected_shas: {"current-tag"},
+    )
+
+    def fake_paginated_api_items(endpoint: str, **_kwargs: object):
+        endpoints.append(endpoint)
+        return iter(
+            [
+                {
+                    "id": 11,
+                    "created_at": "2026-08-01T00:00:00Z",
+                    "updated_at": "2026-08-01T00:00:00Z",
+                    "metadata": {"container": {"tags": ["old-unreferenced-tag"]}},
+                }
+            ]
+        )
+
+    monkeypatch.setattr(
+        maintenance_cleanup, "paginated_api_items", fake_paginated_api_items
+    )
+    monkeypatch.setattr(
+        maintenance_cleanup, "gh_delete", lambda *args: deleted.append(args)
+    )
+
+    result = maintenance_cleanup.cleanup_pbd_package_versions(
+        "example-owner/repo",
+        {"protected-sha"},
+        maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
+    )
+
+    assert endpoints == [
+        "users/example-owner/packages/container/freecad-cloth/pbd-validation/versions"
+    ]
+    assert result["status"] == "passed"
+    assert result["deleted"] == 1
+    assert len(deleted) == 1
+
 def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
     from tools.ci import maintenance_cleanup
 
