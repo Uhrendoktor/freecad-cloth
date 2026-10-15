@@ -546,6 +546,7 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
         current.breast_size,
         current.phenotype_overrides,
         current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 
@@ -594,6 +595,7 @@ def set_avatar_skin_offset(offset):
         current.breast_size,
         current.phenotype_overrides,
         current.local_change_overrides,
+        current.mass_target_kg,
     )
     return apply_avatar_parameters(obj, candidate)
 
