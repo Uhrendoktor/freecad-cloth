@@ -25,7 +25,7 @@ class AvatarStandingPoseTests(unittest.TestCase):
             "pose": {"preset": "standing", "left_arm_angle": 12, "right_arm_angle": 12},
         }
         migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual(migrated.schema_version, 3)
+        self.assertEqual(migrated.schema_version, 4)
         self.assertEqual((migrated.gender, migrated.breast_size), (0.5, 0.0))
         self.assertEqual(
             (migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (70.0, 70.0)
