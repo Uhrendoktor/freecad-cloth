@@ -1,6 +1,6 @@
 name: Canonical execution engine
 run-name: Canonical execution engine
-# CI iteration policy: gather the complete matrix before each repair batch.
+# Execution mode is caller-selected: fast PR feedback, full merge-queue validation, or documentation publication.
 on:
   workflow_call:
     inputs:
@@ -41,7 +41,10 @@ env:
   CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
   CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
   CLOTH_CI_EXECUTION_MODE: ${{ inputs.execution_mode }}
-  CLOTH_WIKI_VISUALS_REQUIRED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+  CLOTH_TURNTABLE_FRAMES: 72
+  CLOTH_BLANKET_STEPS: 180
+  CLOTH_TURNTABLE_PBD_SUBSTEPS: 10
+  CLOTH_DOC_AVATAR_FIT_STEPS: 10
 permissions:
   actions: read
   contents: read
@@ -437,42 +440,27 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - name: Install ImageMagick for main GIF publication
-        if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}
-        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: "${{ env.FREECAD_PBD_IMAGE }}"
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' && 'turntable' || 'turntable-validation' }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - name: Generate wiki-only avatar body-shape gallery
-        if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
-        with:
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          checkout: "false"
-          test-script: tests/freecad_avatar_screenshot.py
-          log-file: artifacts/avatar-gallery-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nFREECAD_CLOTH_ANNY_FIT_STEPS=10\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_simulation_turntable.py
           log-file: docs/images/generated/simulation-turntable-progress.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$CLOTH_WIKI_VISUALS_REQUIRED" = "true" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s python3 tools/ci/validate_manifests.py turntables
           artifact-name: readme-turntables
           artifact-path: |
             docs/images/generated/*.png
             docs/images/generated/*.gif
             docs/images/generated/*.log
             docs/images/generated/*.txt
-            docs/images/generated/cloth-avatar-turntable-frames/**
-            docs/images/generated/cloth-simulation-arranged-turntable-frames/**
-            docs/images/generated/cloth-simulation-draped-turntable-frames/**
-          environment: "CLOTH_PBD_SUBSTEPS=10\nCLOTH_BLANKET_STEPS=180\nCLOTH_TURNTABLE_FRAMES=72\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_PBD_SUBSTEPS=${{ env.CLOTH_TURNTABLE_PBD_SUBSTEPS }}\nCLOTH_BLANKET_STEPS=${{ env.CLOTH_BLANKET_STEPS }}\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
   gui-visual-examples:
     name: Blanket visual example
     if: ${{ inputs.execution_mode == 'full' }}
@@ -482,9 +470,6 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - name: Install ImageMagick for main GIF publication
-        if: ${{ env.CLOTH_WIKI_VISUALS_REQUIRED == 'true' }}
-        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -492,7 +477,7 @@ jobs:
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py blanket && if [ "$CLOTH_WIKI_VISUALS_REQUIRED" = "true" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated/blanket-example && python3 tools/ci/build_visual_gifs.py blanket; fi'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s python3 tools/ci/validate_manifests.py blanket
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
@@ -539,30 +524,28 @@ jobs:
         run: |
           set -euo pipefail
           source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
-          for event in pull_request merge_group; do
-            runs="$(gh run list --repo "${REPOSITORY}" --workflow commit-validation.yml --event "${event}" --status success --limit 100 --json databaseId,headSha)"
-            while IFS=$'\t' read -r run_id head_sha; do
-              [ -n "${run_id}" ] || continue
-              gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"
-              [ "${gate_result}" = "1" ] || continue
-              candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
-              if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
-                echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
-                echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
-                echo "validation-artifacts-run=${run_id} event=${event} validated_sha=${head_sha} tree=${source_tree}"
-                exit 0
-              fi
-            done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
-          done
-          echo "::error::No successful full-validation run with Required pre-merge validation matched source tree ${source_tree}; refusing to publish unvalidated assets."
+          runs="$(gh run list --repo "${REPOSITORY}" --workflow commit-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
+          while IFS=$'\t' read -r run_id head_sha; do
+            [ -n "${run_id}" ] || continue
+            gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"
+            [ "${gate_result}" = "1" ] || continue
+            candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
+            if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+              echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+              echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
+              exit 0
+            fi
+          done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
+          echo "::error::No successful merge-group full-validation run with Required pre-merge validation matched source tree ${source_tree}; refusing to publish unvalidated assets."
           exit 1
 
-  gui-avatar-doc-assets:
-    name: Main-only avatar stills and body-shape gallery
+  gui-documentation-assets:
+    name: Main-only documentation stills and animation frames
     if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
     needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: 8
+    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -572,19 +555,45 @@ jobs:
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-documentation-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation\nFREECAD_CLOTH_ANNY_FIT_STEPS=10\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation\nFREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
           artifact-name: avatar-documentation-assets
           artifact-path: |
             docs/images/generated/cloth-avatar-*.png
             docs/images/generated/avatar-body-shape-gallery.png
             artifacts/avatar-documentation-progress.log
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-turntable-documentation.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation-turntable\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: avatar-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-avatar-turntable-frames/**
+            artifacts/avatar-turntable-documentation.log
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_simulation_turntable.py
+          clean-user: "true"
+          log-file: artifacts/simulation-turntable-documentation.log
+          environment: "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true\nCLOTH_PBD_SUBSTEPS=${{ env.CLOTH_TURNTABLE_PBD_SUBSTEPS }}\nCLOTH_BLANKET_STEPS=${{ env.CLOTH_BLANKET_STEPS }}\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: simulation-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/**
+            docs/images/generated/cloth-simulation-draped-turntable-frames/**
+            docs/images/generated/simulation-turntable-progress.log
+            artifacts/simulation-turntable-documentation.log
 
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
     concurrency:
       group: canonical-main-visual-publisher
       cancel-in-progress: false
-    needs: [find-validation-artifacts, gui-avatar-doc-assets]
+    needs: [find-validation-artifacts, gui-documentation-assets]
     if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -598,7 +607,7 @@ jobs:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@f63948fe20421061904324bcef128a4fcfc69965
+      - uses: ./.github/actions/publish-visual-evidence
         with:
           source-sha: ${{ github.sha }}
           repository: ${{ github.repository }}
