@@ -80,7 +80,7 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash():
 
     from tools.ci.maintenance_cleanup import pbd_validation_tag
 
-    contents = b"FROM freecad:stable\\n"
+    contents = b"FROM freecad:stable\n"
     assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
 
 
@@ -113,7 +113,6 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     stale = stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
 
     assert [version["id"] for version in stale] == [1]
-
 
 
 def test_maintenance_cleanup_paginates_until_a_short_page(monkeypatch):
