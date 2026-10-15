@@ -128,8 +128,6 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: timeout --signal=TERM --kill-after=5s 60s python -m pip install --disable-pip-version-check --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" -e ".[dev]"
       - name: Python and architecture checks
-        env:
-          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           python -m compileall -q tests tools/ci
@@ -151,10 +149,8 @@ jobs:
           ast-grep scan --min-severity error --color never freecad_cloth
           ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
           python tools/ci/check_changed_python_types.py
-          git diff --name-only --diff-filter=ACMRT origin/"$BASE_REF"...HEAD -- '*.py' > "$RUNNER_TEMP/changed-python.txt" || true
-          if [ -s "$RUNNER_TEMP/changed-python.txt" ]; then
-            xargs -r python tools/check_dead_code.py < "$RUNNER_TEMP/changed-python.txt"
-          fi
+          # Scan the complete statically analyzable core surface on every run.
+          python tools/check_dead_code.py
           python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py tests/test_changed_python_types.py tests/test_pydantic_models_policy.py tests/test_ui_design.py
           crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
       - name: Workflow linters
