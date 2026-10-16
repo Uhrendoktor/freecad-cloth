@@ -367,17 +367,18 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    gallery_job = workflow.split("  gui-turntables:", maxsplit=1)[1].split(
-        "  gui-visual-examples:", maxsplit=1
+    gallery_job = workflow.split("  gui-documentation-assets:", maxsplit=1)[1].split(
+        "  publish-readme-turntables:", maxsplit=1
     )[0]
     gallery_invocation = gallery_job.split(
-        "log-file: artifacts/avatar-gallery-progress.log", maxsplit=1
-    )[1].split("       - uses:", maxsplit=1)[0]
+        "log-file: artifacts/avatar-documentation-progress.log", maxsplit=1
+    )[1].split("      - uses:", maxsplit=1)[0]
 
-    assert "CLOTH_AVATAR_SCREENSHOT_MODE=gallery" in gallery_invocation
-    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=10" in gallery_invocation
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation
+    assert (
+        "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
+    )
+    assert "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
-    assert "timeout-minutes: &ten_minute_timeout 10" in workflow
-    assert workflow.count("timeout-minutes: &ten_minute_timeout 10") == 1
-    assert "timeout-minutes: *ten_minute_timeout" in gallery_job
+    assert "timeout-minutes: 12" in gallery_job

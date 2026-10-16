@@ -193,16 +193,138 @@ def test_visual_publisher_preserves_script_local_import_invocation():
     assert "python3 tools/ci/publish_visual_evidence.py" in action
 
 
-def test_avatar_gallery_respects_configured_fit_steps() -> None:
-    source = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(encoding="utf-8")
+print("GUI visual contract checks passed")
+
+
+def test_pull_request_turntable_validation_skips_wiki_only_avatar_renders() -> None:
+    avatar_screenshot = (ROOT / "tests" / "freecad_avatar_screenshot.py").read_text(
+        encoding="utf-8"
+    )
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert (
-        'gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"'
-        in source
+        'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):'
+        in avatar_screenshot
     )
-    assert "os.environ[fit_steps_key] = gallery_fit_steps" in source
-    assert 'log("body-shape-gallery-start profiles=%d fit_steps=%s"' in source
-    assert 'os.environ[fit_steps_key] = "18"' not in source
+    validation_capture = avatar_screenshot.split(
+        'if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):', 1
+    )[1].split('if mode in ("all", "gallery", "documentation"):', 1)[0]
+    assert '"cloth-avatar-turntable-frames"' in validation_capture
+    assert "render_turntable(" in validation_capture
+
+    validation_job = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation" in validation_job
+    assert "Generate wiki-only avatar body-shape gallery" not in validation_job
+    assert "build_visual_gifs.py" not in validation_job
+    assert "cloth-avatar-turntable-frames/**" not in validation_job
+
+    documentation_job = workflow.split("  gui-documentation-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in documentation_job
+    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation-turntable" in documentation_job
+    assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in documentation_job
+    assert "CLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}" in documentation_job
 
 
-print("GUI visual contract checks passed")
+def test_wiki_visual_generation_is_publication_only() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "CLOTH_WIKI_VISUALS_REQUIRED" not in workflow
+    for setting in (
+        "CLOTH_TURNTABLE_FRAMES:",
+        "CLOTH_BLANKET_STEPS:",
+        "CLOTH_TURNTABLE_PBD_SUBSTEPS:",
+        "CLOTH_DOC_AVATAR_FIT_STEPS:",
+    ):
+        assert setting in workflow
+    validation_jobs = workflow.split("  gui-turntables:", 1)[1].split(
+        "  publish-pr-simulation-evidence:", 1
+    )[0]
+    assert "ImageMagick for main GIF publication" not in validation_jobs
+    assert "build_visual_gifs.py" not in validation_jobs
+    documentation_job = workflow.split("  gui-documentation-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert "if: ${{ inputs.execution_mode == 'publication'" in documentation_job
+
+
+def test_documentation_turntable_capture_does_not_run_simulation_release_gates() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    simulation = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
+    assert "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true" in workflow
+    assert "if documentation_capture_only:" in simulation
+    assert "stage=documentation-capture-only" in simulation
+
+
+def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() -> None:
+    workflows = ROOT / ".github" / "workflows"
+    shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
+    commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
+    merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
+    publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
+    trigger_header = shared.split("\nenv:", 1)[0]
+
+    assert "workflow_call:" in trigger_header
+    assert "\nconcurrency:\n" not in shared.split("\njobs:\n", 1)[0]
+    assert "  push:" not in trigger_header
+    assert "  pull_request:" not in trigger_header
+    assert "  merge_group:" not in trigger_header
+    assert "pull_request:" in commits
+    assert "merge_group:" not in commits
+    assert "execution_mode: fast" in commits
+    assert "name: Required pre-merge validation" not in commits
+    assert "merge_group:" in merge
+    assert "pull_request:" not in merge
+    assert "execution_mode: full" in merge
+    assert "if: ${{ always() }}" in merge
+    assert "needs: [full-validation]" in merge
+    assert "name: Required pre-merge validation" in merge
+    assert "  push:" not in commits
+    assert "  pull_request:" not in publication
+    assert "  merge_group:" not in publication
+    assert "workflow_dispatch:" not in shared
+    assert "push:" in publication
+    assert "branches: [main]" in publication
+    assert "execution_mode: publication" in publication
+    assert "workflow_run:" not in commits
+    assert "workflow_run:" not in merge
+    assert "workflow_run:" not in publication
+    assert "\nenv:\n" not in commits
+    assert "\nenv:\n" not in merge
+    assert "\nenv:\n" not in publication
+    assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
+    assert "Required validation gate" in shared
+    watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
+    watchdog_source = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
+    assert "inputs.runner_mode != 'hosted'" in watchdog
+    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in watchdog_source
+
+
+def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
+    assert "source_tree" in workflow
+    assert "--event merge_group --status success" in workflow
+    merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Required pre-merge validation" in merge_workflow
+    assert "No successful merge-group full-validation run" in workflow
+    doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
+        "  publish-readme-turntables:", 1
+    )[0]
+    assert (
+        "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]"
+        in doc_assets
+    )
+    assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
+    assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
