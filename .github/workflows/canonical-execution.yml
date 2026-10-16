@@ -270,7 +270,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           timeout-seconds: "360"
