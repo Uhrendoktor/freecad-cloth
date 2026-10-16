@@ -556,7 +556,7 @@ class SimulationQualityTaskPanel:
 
     def _refresh_workflow(self) -> None:
         """Refresh the user-facing setup checklist from authoritative document state."""
-        from freecad_cloth.simulation.WorkflowReadiness import build_workflow_checklist
+        from freecad_cloth.simulation.WorkflowReadinessGui import build_workflow_checklist
 
         for step in build_workflow_checklist(self.scene):
             label = self.workflow_labels[step.key]
