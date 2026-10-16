@@ -272,7 +272,7 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     trigger_header = shared.split("\nenv:", 1)[0]
 
     assert "workflow_call:" in trigger_header
-    assert "\\nconcurrency:\\n" not in shared.split("\njobs:\n", 1)[0]
+    assert "\nconcurrency:\n" not in shared.split("\njobs:\n", 1)[0]
     assert "  push:" not in trigger_header
     assert "  pull_request:" not in trigger_header
     assert "  merge_group:" not in trigger_header
@@ -296,9 +296,9 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "workflow_run:" not in commits
     assert "workflow_run:" not in merge
     assert "workflow_run:" not in publication
-    assert "\\nenv:\\n" not in commits
-    assert "\\nenv:\\n" not in merge
-    assert "\\nenv:\\n" not in publication
+    assert "\nenv:\n" not in commits
+    assert "\nenv:\n" not in merge
+    assert "\nenv:\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
     watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
