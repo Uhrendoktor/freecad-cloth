@@ -19,7 +19,6 @@ def _job_block(source: str, job: str) -> str:
     return "".join(block)
 
 
-
 def test_one_canonical_workflow():
     workflow_dir = ROOT / ".github" / "workflows"
     workflows = sorted(path.name for path in workflow_dir.glob("*.yml"))
@@ -32,7 +31,6 @@ def test_one_canonical_workflow():
     shared = WORKFLOW.read_text(encoding="utf-8")
     assert "workflow_call:" in shared
     assert "workflow_run:" not in shared
-
 
 
 def test_pull_requests_are_hosted_only():
@@ -69,7 +67,6 @@ def test_pull_requests_are_hosted_only():
         assert "'self-hosted'" in block
 
 
-
 def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
     workflow_dir = ROOT / ".github" / "workflows"
     publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
@@ -82,8 +79,9 @@ def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> No
     assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in watchdog
     assert "inputs.runner_mode != 'hosted'" in watchdog
     assert "tools/ci/runner_watchdog.py" in watchdog
-    assert "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}" in watchdog
-
+    assert (
+        "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}" in watchdog
+    )
 
 
 def test_trusted_runs_remain_local_first():
@@ -109,7 +107,6 @@ def test_trusted_runs_remain_local_first():
         assert "inputs.runner_mode == 'hosted'" in block
 
 
-
 def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
     source = WORKFLOW.read_text(encoding="utf-8")
     watchdog = _job_block(source, "runner_watchdog")
@@ -126,7 +123,6 @@ def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
     assert 'f"fallback_source_run={run_id}"' in script
     assert 'f"repos/{repo}/actions/runs/{run_id}/cancel"' in script
     assert "/actions/runners" not in source + script
-
 
 
 def test_no_privileged_runner_discovery_or_second_workflow():

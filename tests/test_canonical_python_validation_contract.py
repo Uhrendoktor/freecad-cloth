@@ -76,7 +76,6 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "mode: pr" in publisher
 
 
-
 def test_main_visual_publisher_uses_local_visual_action_with_pinned_downloads() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"

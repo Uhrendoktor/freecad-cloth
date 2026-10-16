@@ -103,7 +103,6 @@ def test_human_documentation_contract():
     assert "users/USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
 
 
-
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
     workflows = root / ".github" / "workflows"
