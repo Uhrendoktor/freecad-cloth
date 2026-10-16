@@ -44,7 +44,7 @@ This gallery gives a static overview of each major stage; the recordings above s
 | --- | --- | --- |
 | Pattern | Build on native Sketcher geometry and add garment semantics, notches, marks, and grainlines | [Pattern authoring](docs/users/wiki/01-pattern.md) |
 | Sewing | Pick matching edges, inspect A/B identity and direction, and commit validated seams | [Sewing and correspondence](docs/users/wiki/02-sewing.md) |
-| Avatar shape | Adjust body proportions and garment-facing dimensions directly in the viewport | [Avatar shape and dimensions](docs/users/wiki/09-avatar-shape.md) |
+| Avatar shape | Adjust body proportions, all saved garment dimensions, and the optional mass target; search the full Anny phenotype and body-morph controls in Advanced | [Avatar shape and dimensions](docs/users/wiki/09-avatar-shape.md) |
 | Fitting | Place pieces directly in the viewport and use arrangement snapping | [Direct fitting](docs/users/wiki/03-fitting.md) |
 | Pose | Rotate mannequin joints, use symmetry, and enter exact angles when needed | [Pose Mode](docs/users/wiki/04-pose.md) |
 | Simulation | Choose a target, material, quality, and pinning mode before running cloth | [Cloth simulation](docs/users/wiki/05-simulation.md) |

@@ -8,7 +8,7 @@ inputs:
     description: Shell command to execute in the container.
     required: true
   timeout-seconds:
-    description: Hard container command timeout in seconds; maximum 120 seconds; the harness adds 10 seconds for diagnostics.
+    description: Hard container command timeout in seconds; maximum 360 seconds; the harness adds 10 seconds for diagnostics.
     required: false
     default: "120"
   environment:
@@ -64,8 +64,8 @@ runs:
           fi
         } >"$env_file"
         timeout_seconds="$TIMEOUT_SECONDS"
-        if [ "$timeout_seconds" -gt 120 ]; then
-          echo "timeout-seconds must be <= 120" >&2
+        if [ "$timeout_seconds" -gt 360 ]; then
+          echo "timeout-seconds must be <= 360" >&2
           exit 2
         fi
         command_to_run="$INPUT_COMMAND"

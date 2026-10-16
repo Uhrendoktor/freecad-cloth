@@ -319,8 +319,13 @@ def main() -> int:
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
     freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if "timeout-seconds:" in freecad:
-        raise SystemExit("freecad-test must not define a second application timeout")
+    if (
+        'default: "120"' not in freecad
+        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad
+    ):
+        raise SystemExit("freecad-test must pass its default-120 timeout to the container action")
+    if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad:
+        raise SystemExit("freecad-test must scope non-default budgets to the FreeCAD process")
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

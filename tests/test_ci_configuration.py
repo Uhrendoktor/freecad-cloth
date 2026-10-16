@@ -34,12 +34,17 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     ).read_text(encoding="utf-8")
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
-    assert "timeout-seconds:" not in workflow
+    simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
+    assert workflow.count("timeout-seconds:") == 1
+    assert 'timeout-seconds: "360"' in simulation_ladder
     assert "freecad_application_timeout_seconds" not in workflow
-    assert "timeout-seconds:" not in action
+    assert 'default: "120"' in action
+    assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in action
+    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action
     assert 'default: "120"' in container_action
-    assert "maximum 120 seconds" in container_action
-    assert 'if [ "$timeout_seconds" -gt 120 ]; then' in container_action
+    assert "maximum 360 seconds" in container_action
+    assert 'if [ "$timeout_seconds" -gt 360 ]; then' in container_action
+    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner
     assert "420" not in container_action
     assert "--no-deps -e ." in action
     assert '"numpy>=1.26,<3"' in action

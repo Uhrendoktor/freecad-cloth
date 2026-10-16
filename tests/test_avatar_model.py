@@ -74,6 +74,41 @@ def test_invalid_shape_values_are_rejected():
             raise AssertionError(f"invalid shape value was accepted: {changes}")
 
 
+def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> None:
+    parameters = AvatarParameters(
+        phenotype_overrides={"age": 0.41, "weight": 0.67},
+        local_change_overrides={"measure-waist-circ-incr": 0.2},
+        mass_target_kg=68.5,
+    )
+
+    restored = AvatarParameters.from_json(parameters.to_json())
+    edited = parameters.with_measurements(waist=780.0)
+
+    assert parameters.schema_version == 4
+    assert restored == parameters
+    assert edited.phenotype_overrides == parameters.phenotype_overrides
+    assert edited.local_change_overrides == parameters.local_change_overrides
+    assert restored.mass_target_kg == 68.5
+    assert edited.mass_target_kg == 68.5
+
+
+def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls() -> None:
+    import pytest
+
+    for field_values in (
+        {"phenotype_overrides": {"age": -0.01}},
+        {"phenotype_overrides": {"age": 1.01}},
+        {"local_change_overrides": {"waist-shape": -1.01}},
+        {"local_change_overrides": {"waist-shape": 1.01}},
+        {"phenotype_overrides": {"gender": 0.1}},
+        {"local_change_overrides": {"breast-volume-vert-up": 0.5}},
+        {"mass_target_kg": 24.9},
+        {"mass_target_kg": 250.1},
+    ):
+        with pytest.raises(ValueError):
+            AvatarParameters(**field_values)
+
+
 def test_skin_offset_changes_collision_geometry():
     base = AvatarParameters(skin_offset=0)
     padded = AvatarParameters(skin_offset=8)

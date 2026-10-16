@@ -6,9 +6,11 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _adapt_clad_body_pose_alias,
     _apply_front_breast_fullness,
     _canonicalize_anny_vertices,
+    _clad_measurement_targets,
     _initial_phenotypes,
     _localize_hip_fit_delta,
     _measurement_local_change_labels,
+    _split_clad_targets,
     build_avatar_rig_vertices,
     build_avatar_shape_mesh,
 )
@@ -46,6 +48,51 @@ def test_shape_controls_are_not_mixed_into_anthropometric_measurements() -> None
     assert len({measurement for _name, measurement in MEASUREMENT_FIELDS}) == len(
         MEASUREMENT_FIELDS
     )
+
+
+def test_advanced_anny_overrides_reach_the_model_inputs() -> None:
+    advanced = _initial_phenotypes(
+        gender=0.5,
+        breast_size=0.0,
+        phenotype_overrides={"age": 0.41, "weight": 0.67},
+        local_change_overrides={"measure-waist-circ-incr": 0.2},
+    )
+
+    assert advanced["age"] == 0.41
+    assert advanced["weight"] == 0.67
+    assert advanced["_local_changes"]["measure-waist-circ-incr"] == 0.2
+
+
+def test_clad_body_targets_convert_mm_to_cm_and_keep_mass_in_kg() -> None:
+    values = dict(AvatarParameters().measurements)
+    targets = _clad_measurement_targets(values, 68.5)
+    target_map = {name: (key, target) for name, key, target in targets}
+
+    assert target_map["height"] == ("height_cm", 175.0)
+    assert target_map["sleeve_length"] == ("sleeve_length_cm", 63.0)
+    assert target_map["mass_target_kg"] == ("mass_kg", 68.5)
+
+
+def test_clad_body_sleeve_length_is_local_and_cannot_trade_off_with_height() -> None:
+    targets = _clad_measurement_targets(dict(AvatarParameters().measurements), 68.5)
+    global_targets, local_targets = _split_clad_targets(targets)
+    global_names = {name for name, _key, _target in global_targets}
+    local_names = {name for name, _key, _target in local_targets}
+
+    assert "height" in global_names
+    assert "sleeve_length" not in global_names
+    assert "sleeve_length" in local_names
+    assert "mass_target_kg" in global_names
+    assert "mass_target_kg" not in local_names
+
+
+def test_clad_body_fitting_includes_stable_extended_garment_measurements() -> None:
+    measurement_fields = {name for name, _key in MEASUREMENT_FIELDS}
+
+    assert "sleeve_length" in measurement_fields
+    # clad-body reports stomach circumference, but its sign-only global
+    # gradients can drive Anny's fitted vertices to NaN in this optimizer.
+    assert "stomach" not in measurement_fields
 
 
 def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
@@ -97,6 +144,20 @@ def test_hip_fitting_keeps_the_pre_hip_mesh_origin() -> None:
     assert np.array_equal(stable[:4], baseline[:4])
     assert np.max(np.abs(recentered[:4] - baseline[:4])) > 0.1
     assert not np.array_equal(stable[4], baseline[4])
+
+
+def test_reference_only_garment_lengths_do_not_change_the_fitted_surface() -> None:
+    baseline = AvatarParameters()
+    changed = baseline.with_measurements(
+        crotch_length=baseline.measurement("crotch_length") + 80.0,
+        front_rise=baseline.measurement("front_rise") + 25.0,
+        shirt_length=baseline.measurement("shirt_length") + 60.0,
+    )
+
+    baseline_mesh = build_avatar_shape_mesh(baseline, include_skin_offset=False)
+    changed_mesh = build_avatar_shape_mesh(changed, include_skin_offset=False)
+
+    assert changed_mesh == baseline_mesh
 
 
 def test_hip_only_shape_edits_do_not_change_rig_vertex_space() -> None:

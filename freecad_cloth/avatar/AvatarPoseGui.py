@@ -1215,9 +1215,12 @@ class AvatarPoseTaskPanel:
             measurements,
             float(getattr(self.avatar, "SkinOffset", 0.0)),
             current_pose,
-            3,
+            4,
             float(getattr(self.avatar, "GenderBlend", 0.5)),
             float(getattr(self.avatar, "BreastSize", 0.0)),
+            dict(stored.phenotype_overrides),
+            dict(stored.local_change_overrides),
+            stored.mass_target_kg,
         )
 
     @staticmethod
@@ -1242,6 +1245,13 @@ class AvatarPoseTaskPanel:
             "torso": "Torso",
             "front_waist": "Front_Waist",
             "back_waist": "Back_Waist",
+            "stomach": "Stomach",
+            "sleeve_length": "Sleeve_Length",
+            "crotch_length": "Crotch_Length",
+            "front_rise": "Front_Rise",
+            "back_rise": "Back_Rise",
+            "shirt_length": "Shirt_Length",
+            "back_neck_to_waist": "Back_Neck_To_Waist",
         }
 
     def _select_preset(self, preset):
@@ -1284,9 +1294,12 @@ class AvatarPoseTaskPanel:
                         params.pose.right_elbow_angle,
                         params.pose.joint_rotations,
                     ),
-                    3,
+                    4,
                     params.gender,
                     params.breast_size,
+                    dict(params.phenotype_overrides),
+                    dict(params.local_change_overrides),
+                    params.mass_target_kg,
                 )
             vertices, triangles, _landmarks = generate_mesh(params)
             self.avatar.Mesh = _mesh_data(vertices, triangles)
