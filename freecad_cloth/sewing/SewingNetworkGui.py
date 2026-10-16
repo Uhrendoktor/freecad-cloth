@@ -4,6 +4,8 @@ The panel exposes the persisted M:N relationship directly and refuses to
 silently edit a network whose canonical seam references are invalid.
 """
 
+from itertools import starmap
+
 
 def _modules():
     import FreeCAD as App
@@ -30,7 +32,7 @@ def validate_network_for_edit(network):
     """Raise a clear error when a persisted network contains invalid seams."""
     errors = network_reference_errors(network)
     if errors:
-        details = ", ".join("{}: {}".format(*item) for item in errors)
+        details = ", ".join(starmap("{}: {}".format, errors))
         raise ValueError("cannot edit sewing network with invalid seam references: " + details)
     return True
 
@@ -81,7 +83,7 @@ class SewingNetworkTaskPanel:
         self.warning.setWordWrap(True)
         self.warning.setObjectName("ClothSewingNetworkReferenceWarning")
         self.warning.setText(
-            "Invalid seam references: " + "; ".join("{} ({})".format(*item) for item in errors)
+            "Invalid seam references: " + "; ".join(starmap("{} ({})".format, errors))
             if errors
             else ""
         )
@@ -244,7 +246,7 @@ class SewingNetworkTaskPanel:
         errors = network_reference_errors(self.network)
         set_status(
             self.warning,
-            "Invalid seam references: " + "; ".join("{} ({})".format(*item) for item in errors)
+            "Invalid seam references: " + "; ".join(starmap("{} ({})".format, errors))
             if errors
             else "",
             state="error" if errors else "info",
@@ -257,9 +259,7 @@ class SewingNetworkTaskPanel:
                 network_status,
                 int(getattr(self.network, "SegmentCount", 0)),
                 float(getattr(self.network, "LengthDifference", 0.0)),
-                " | invalid: " + ", ".join("{} ({})".format(*item) for item in errors)
-                if errors
-                else "",
+                " | invalid: " + ", ".join(starmap("{} ({})".format, errors)) if errors else "",
             ),
             state=(
                 "error" if errors else ("success" if network_status.lower() == "valid" else "info")

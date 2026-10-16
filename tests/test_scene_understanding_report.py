@@ -105,7 +105,8 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
     assert stages["simulation"] == "not_reached"
     assert stages["drape"] == "not_reached"
     issues = report["issues"]
-    assert isinstance(issues, list) and len(issues) == 1
+    assert isinstance(issues, list)
+    assert len(issues) == 1
     issue = issues[0]
     assert isinstance(issue, dict)
     assert issue["edge_ids"] == ["pattern-piece-1:edge:3", "pattern-piece-1:edge:2"]
@@ -193,7 +194,7 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
     (output_root / "drape-visual-metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
     progress.write_text(
         "script-start\\ntunic-simulation-start\\n"
-        + "drape-metrics="
+        "drape-metrics="
         + json.dumps(metrics["panels"][0])
         + "\\nscenario-pass\\nscript-end exit-code=0\\n",
         encoding="utf-8",
@@ -203,13 +204,15 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
 
     status = report["status"]
     fit_assessment = report["fit_assessment"]
-    assert isinstance(status, dict) and isinstance(fit_assessment, dict)
+    assert isinstance(status, dict)
+    assert isinstance(fit_assessment, dict)
     assert status["result"] == "review_required"
     assert status["failed_stage"] is None
     assert fit_assessment["state"] == "review_required"
     observed = fit_assessment["observed_final_panel_z_mm"]
     deviations = fit_assessment["deviations_mm"]
-    assert isinstance(observed, dict) and isinstance(deviations, dict)
+    assert isinstance(observed, dict)
+    assert isinstance(deviations, dict)
     assert abs(float(observed["minimum"]) - 663.158) < 0.001
     assert abs(float(observed["maximum"]) - 1235.459) < 0.001
     assert abs(float(deviations["cloth_top_below_shoulder_reference"]) - 112.041) < 0.001
@@ -258,7 +261,8 @@ def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> N
     pattern = report["pattern"]
     assert isinstance(pattern, dict)
     pieces = pattern["pieces"]
-    assert isinstance(pieces, list) and len(pieces) == 1
+    assert isinstance(pieces, list)
+    assert len(pieces) == 1
     piece = pieces[0]
     assert isinstance(piece, dict)
     boundary_order = piece["boundary_order"]
@@ -293,7 +297,8 @@ def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> N
 
     status = report["status"]
     stages = report["stages"]
-    assert isinstance(status, dict) and isinstance(stages, dict)
+    assert isinstance(status, dict)
+    assert isinstance(stages, dict)
     assert status["result"] == "blocked"
     assert status["failed_stage"] == "pattern_representation"
     assert stages["pattern_topology"] == "valid"

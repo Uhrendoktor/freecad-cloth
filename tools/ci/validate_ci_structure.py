@@ -98,19 +98,39 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
 
     Exact-line matching is intentional: a failing command inside an AND chain
     can be exempt from Bash errexit handling, allowing CI to continue.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Required blocking type-check commands absent as standalone lines.
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required repository Python policy gates missing from the canonical workflow."""
+    """Return required repository Python policy gates missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Python policy commands that are missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
 
 
 def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Require the blocking source-rewriting prohibition in the canonical workflow."""
+    """Require the blocking source-rewriting prohibition in the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Source-rewriting policy commands missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(
         command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
@@ -118,7 +138,14 @@ def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, .
 
 
 def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
-    """Require policy regression tests in the blocking pytest step."""
+    """Require policy regression tests in the blocking pytest step.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Whether the policy regression test is run by a blocking test command.
+    """
     return any(
         "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
         for line in workflow_text.splitlines()
@@ -126,7 +153,15 @@ def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
 
 
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
-    """Return whether a source path is covered by one include entry."""
+    """Return whether a source path is covered by one include entry.
+
+    Args:
+        path: Repository-relative source path being checked.
+        include: Pyright include entries that define the checked scope.
+
+    Returns:
+        Whether an include entry covers the supplied source path.
+    """
     normalized = Path(path).as_posix()
     for entry in include:
         target = Path(entry).as_posix()
@@ -138,12 +173,27 @@ def _pyright_path_is_included(path: str, include: list[str]) -> bool:
 
 
 def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
-    """Return whether a source path is covered by a declared exclusion pattern."""
+    """Return whether a source path is covered by a declared exclusion pattern.
+
+    Args:
+        path: Repository-relative source path being checked.
+        exclude: Pyright exclusion patterns to compare against the path.
+
+    Returns:
+        Whether any exclusion pattern matches the source path.
+    """
     return any(fnmatch.fnmatchcase(Path(path).as_posix(), pattern) for pattern in exclude)
 
 
 def added_production_python_modules(base: str) -> tuple[str, ...]:
-    """Find new production Python modules added relative to a pull request base."""
+    """Find new production Python modules added relative to a pull request base.
+
+    Args:
+        base: Target branch used as the comparison base.
+
+    Returns:
+        Newly added production Python module paths.
+    """
     result = subprocess.run(
         [
             "git",
@@ -174,6 +224,13 @@ def pyright_coverage_contract_violations(
     Semantic coverage is widened incrementally; changing the scope requires an
     explicit inventory update alongside diagnostic triage. Every changed Python
     file is independently subject to the annotation-debt non-regression gate.
+
+    Args:
+        config_text: Contents of the Pyright configuration file.
+        added_modules: Newly added production modules to verify against the scope.
+
+    Returns:
+        Pyright coverage-contract violations found in the configuration.
     """
     try:
         config = json.loads(config_text)
@@ -204,7 +261,14 @@ def pyright_coverage_contract_violations(
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
-    """Return whether ty is configured to fail when it emits warnings."""
+    """Return whether ty is configured to fail when it emits warnings.
+
+    Args:
+        config_text: TOML configuration consumed by the ty type checker.
+
+    Returns:
+        Whether warning diagnostics are configured to fail the command.
+    """
     try:
         config = tomllib.loads(config_text)
     except tomllib.TOMLDecodeError:
@@ -214,7 +278,14 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
 
 
 def main() -> int:
-    """Validate the repository CI structure and hard runtime contracts."""
+    """Validate the repository CI structure and hard runtime contracts.
+
+    Raises:
+        SystemExit: Raised when a required workflow or type-check gate is missing.
+
+    Returns:
+        Process status indicating whether the CI structure is valid.
+    """
     files = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
     if files != [WORKFLOW]:
         raise SystemExit(f"expected exactly one canonical workflow, found: {files}")

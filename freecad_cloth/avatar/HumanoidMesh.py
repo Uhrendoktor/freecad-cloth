@@ -244,10 +244,10 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
                     handle.write(chunk)
         if not verifier(Path(temporary)):
             raise HumanoidMeshError("downloaded MakeHuman asset failed verification")
-        os.replace(temporary, destination)
+        Path(temporary).replace(destination)
     except Exception:
         with contextlib.suppress(OSError):
-            os.unlink(temporary)
+            Path(temporary).unlink()
         raise
 
 
@@ -475,7 +475,7 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
         raise HumanoidMeshError(f"unable to parse MakeHuman skeleton {source}: {exc}") from exc
     if not _valid_skeleton_payload(payload):
         raise HumanoidMeshError(f"MakeHuman skeleton has invalid bones or joints: {source}")
-    return cast(SkeletonData, payload)
+    return cast("SkeletonData", payload)
 
 
 def _joint_point(

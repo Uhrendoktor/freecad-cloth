@@ -251,11 +251,19 @@ def render_motion(
 
 
 def _load_cloth_modules():
-    global inspect_drape, maximum_box_penetration, mesh_shape_sanity
-    global validate_mesh, rectangle, quality_piece_mesh
-    global create_pattern_piece_from_selected_sketch
-    global create_simulation_scene, set_drape_target_source
-    global QualitySimulationProxy, ensure_quality_properties, validate_png_capture
+    global \
+        inspect_drape, \
+        maximum_box_penetration, \
+        mesh_shape_sanity, \
+        validate_mesh, \
+        rectangle, \
+        quality_piece_mesh, \
+        create_pattern_piece_from_selected_sketch, \
+        create_simulation_scene, \
+        set_drape_target_source, \
+        QualitySimulationProxy, \
+        ensure_quality_properties, \
+        validate_png_capture
 
     site.addsitedir(str(ROOT))
 

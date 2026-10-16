@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import pathlib
 import sys
 import traceback
 
@@ -19,7 +20,7 @@ ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-os.makedirs(OUT, exist_ok=True)
+pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "gui-progress.log")
 MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
 METRICS = os.path.join(OUT, "drape-visual-metrics.json")
@@ -27,7 +28,7 @@ TUNIC_PRODUCTION_AUDIT = os.environ.get("CLOTH_TUNIC_AUDIT_PROFILE") == "product
 
 
 def log(message):
-    with open(LOG, "a", encoding="utf-8") as handle:
+    with pathlib.Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
@@ -143,10 +144,10 @@ def save(name, state, proof):
     path = os.path.join(OUT, name)
     if image.isNull() or (image.width(), image.height()) != (1280, 720):
         raise RuntimeError(f"invalid GUI capture for {state}")
-    if not image.save(path) or os.path.getsize(path) < 20000:
+    if not image.save(path) or pathlib.Path(path).stat().st_size < 20000:
         raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
-    with open(MANIFEST, "a", encoding="utf-8") as handle:
+    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
@@ -160,12 +161,12 @@ def save_view(name, state, proof):
     view.redraw()
     events()
     path = os.path.join(OUT, name)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pathlib.Path(os.path.dirname(path)).mkdir(exist_ok=True, parents=True)
     view.saveImage(path, 1280, 720, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
+    if not pathlib.Path(path).is_file() or pathlib.Path(path).stat().st_size < 5000:
         raise RuntimeError(f"failed or suspiciously small 3D-view screenshot: {path}")
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
-    with open(MANIFEST, "a", encoding="utf-8") as handle:
+    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
@@ -182,8 +183,8 @@ GARMENT_E2E_LOG = os.environ.get("CLOTH_GARMENT_E2E_LOG", "/workspace/artifacts/
 
 
 def run_canonical_acceptance():
-    os.makedirs(os.path.dirname(GARMENT_E2E_LOG), exist_ok=True)
-    with open(GARMENT_E2E_LOG, "w", encoding="utf-8"):
+    pathlib.Path(os.path.dirname(GARMENT_E2E_LOG)).mkdir(exist_ok=True, parents=True)
+    with pathlib.Path(GARMENT_E2E_LOG).open("w", encoding="utf-8"):
         pass
     for path, name, marker in (
         (
@@ -204,7 +205,7 @@ def run_canonical_acceptance():
     ):
         if name == "freecad_garment_e2e_smoke":
             with (
-                open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle,
+                pathlib.Path(GARMENT_E2E_LOG).open("a", encoding="utf-8") as handle,
                 contextlib.redirect_stdout(handle),
             ):
                 load_and_run(os.path.join(ROOT, path), name)
@@ -590,7 +591,7 @@ def write_drape_metrics(
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
     }
-    with open(METRICS, "w", encoding="utf-8") as handle:
+    with pathlib.Path(METRICS).open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
@@ -731,8 +732,7 @@ def _polyline_distance_fraction(
         nearest_y = float(start[1]) + fraction * dy
         distance = math.hypot(float(point[0]) - nearest_x, float(point[1]) - nearest_y)
         candidate = (distance, (offset + fraction * length) / total)
-        if candidate < best:
-            best = candidate
+        best = min(best, candidate)
     return best
 
 
@@ -1530,7 +1530,9 @@ def _run_production_tunic_drape(
                 )
             )
 
-    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    pathlib.Path(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")).mkdir(
+        exist_ok=True, parents=True
+    )
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -2360,7 +2362,9 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    pathlib.Path(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")).mkdir(
+        exist_ok=True, parents=True
+    )
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -2512,7 +2516,7 @@ def simulation():
             )
     from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
-    with open(METRICS, encoding="utf-8") as handle:
+    with pathlib.Path(METRICS).open(encoding="utf-8") as handle:
         # This fixture is intentionally unpinned: gravity may place the free-draped
         # hem below the authored hip reference without indicating detachment, collapse,
         # or collision failure. Keep those other fail-closed diagnostics authoritative.

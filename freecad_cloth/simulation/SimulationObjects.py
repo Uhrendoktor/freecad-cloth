@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from itertools import starmap
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -320,7 +321,7 @@ def _polyline_parameter(point, polyline):
 def _mesh_constraints(positions, triangles):
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
 
-    particles = [Particle(*p) for p in positions]
+    particles = list(starmap(Particle, positions))
     edges = set()
     constraints = []
     for a, b, c in triangles:
@@ -602,7 +603,7 @@ class SimulationProxy:
         obj.DrapePanels = panels[: len(pieces)]
         panels = list(obj.DrapePanels)
 
-        particles = [Particle(*p) for p in positions]
+        particles = list(starmap(Particle, positions))
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
         seam_pairs, seam_pair_records = _seam_pair_records(
             resolved.pattern,

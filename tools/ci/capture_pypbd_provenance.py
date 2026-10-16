@@ -8,7 +8,14 @@ from pathlib import Path
 
 
 def main() -> int:
-    """Capture and validate the PBD provenance record."""
+    """Capture and validate the PBD provenance record.
+
+    Raises:
+        SystemExit: When the container returns an empty provenance record.
+
+    Returns:
+        Process status indicating whether provenance was captured successfully.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("image")
     parser.add_argument("output", type=Path)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Measure the three public Cloth workbench boundaries."""
 
 from __future__ import annotations
@@ -13,6 +13,10 @@ import statistics
 import sys
 import time
 import traceback
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import NoReturn
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKBENCHES = {
@@ -35,21 +39,52 @@ TEST_HINTS = {
 class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
 
-    def appendToolbar(self, _name, _commands):
-        """Provide the public appendToolbar operation."""
-        return None
+    def append_toolbar(self, name: str, commands: list[str]) -> None:
+        """Accept toolbar registration without creating GUI state during timing runs.
 
-    def appendMenu(self, _name, _commands):
-        """Provide the public appendMenu operation."""
-        return None
+        Args:
+            name: Toolbar label supplied by the workbench.
+            commands: Command identifiers that would normally populate the toolbar.
+        """
+        del name, commands
+        return
 
-    def appendContextMenu(self, _name, _commands):
-        """Provide the public appendContextMenu operation."""
-        return None
+    def append_menu(self, name: str, commands: list[str]) -> None:
+        """Accept menu registration without creating GUI state during timing runs.
+
+        Args:
+            name: Menu label supplied by the workbench.
+            commands: Command identifiers that would normally populate the menu.
+        """
+        del name, commands
+        return
+
+    def append_context_menu(self, name: str, commands: list[str]) -> None:
+        """Accept context-menu registration without creating GUI state during timing runs.
+
+        Args:
+            name: Context-menu label supplied by the workbench.
+            commands: Command identifiers that would normally populate the menu.
+        """
+        del name, commands
+        return
+
+# Expose the mixed-case names required by FreeCAD without defining non-PEP-8 methods.
+setattr(BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar)
+setattr(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
+setattr(
+    BenchmarkWorkbenchBackend,
+    "appendContextMenu",
+    BenchmarkWorkbenchBackend.append_context_menu,
+)
 
 
 def trace(message: str) -> None:
-    """Provide the public trace operation."""
+    """Write a benchmark diagnostic to the temporary trace file and console.
+
+    Args:
+        message: Diagnostic text describing the current benchmark stage.
+    """
     with (
         contextlib.suppress(OSError),
         pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8") as handle,
@@ -58,8 +93,16 @@ def trace(message: str) -> None:
     print(message, flush=True)
 
 
-def fail(context: str, exc: BaseException) -> None:
-    """Provide the public fail operation."""
+def fail(context: str, exc: BaseException) -> NoReturn:
+    """Record a benchmark failure and stop the process with a non-zero status.
+
+    Args:
+        context: Stage or operation that failed.
+        exc: Original exception whose traceback should be preserved.
+
+    Raises:
+        SystemExit: Always raised after recording the diagnostic and traceback.
+    """
     detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     trace(f"benchmark: FAILURE: {context}: {exc!r}")
     with contextlib.suppress(OSError):
@@ -68,15 +111,29 @@ def fail(context: str, exc: BaseException) -> None:
 
 
 def source_lines(path: pathlib.Path) -> int:
-    """Provide the public source lines operation."""
+    """Count non-blank source lines, returning zero when the file cannot be read.
+
+    Args:
+        path: Python source file whose non-blank lines are counted.
+
+    Returns:
+        Number of non-blank lines, or zero for an unreadable or undecodable file.
+    """
     try:
         return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
     except (UnicodeDecodeError, OSError):
         return 0
 
 
-def static_metrics(name: str) -> dict:
-    """Provide the public static metrics operation."""
+def static_metrics(name: str) -> dict[str, object]:
+    """Collect source-size, related-test, and command-token metrics for a workbench.
+
+    Args:
+        name: Workbench key present in the package-directory and test-hint inventories.
+
+    Returns:
+        Inventory metrics, non-blank source-line count, and related test filenames.
+    """
     directory = PACKAGE_DIRS[name]
     py_files = sorted(directory.glob("*.py"))
     tests = [
@@ -96,12 +153,31 @@ def static_metrics(name: str) -> dict:
 
 
 def median_ms(samples: list[float]) -> float:
-    """Provide the public median ms operation."""
+    """Convert the median duration from seconds to rounded milliseconds.
+
+    Args:
+        samples: Measured durations in seconds.
+
+    Returns:
+        Median duration in milliseconds, rounded to three decimal places.
+    """
     return round(statistics.median(samples) * 1000.0, 3)
 
 
-def runtime_metrics(name: str, repeats: int) -> dict:
-    """Provide the public runtime metrics operation."""
+def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
+    """Measure import, construction, and GUI initialization time for a workbench.
+
+    Args:
+        name: Workbench key used to resolve its implementation module and class.
+        repeats: Number of independent lookup, construction, and initialization samples.
+
+    Returns:
+        Median timings, completed sample count, and the median registered-command count.
+
+    Raises:
+        RuntimeError: If FreeCAD registers an unexpected number of workbenches.
+        SystemExit: If importing, constructing, or initializing the workbench fails.
+    """
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
     try:
@@ -157,8 +233,8 @@ def runtime_metrics(name: str, repeats: int) -> dict:
     }
 
 
-def close_gui():
-    """Provide the public close gui operation."""
+def close_gui() -> None:
+    """Close the FreeCAD main window and quit its Qt application when available."""
     try:
         import FreeCADGui as Gui
         from PySide import QtWidgets
@@ -177,7 +253,11 @@ def close_gui():
 
 
 def main() -> None:
-    """Provide the public main operation."""
+    """Run the selected workbench measurements and write a JSON benchmark artifact.
+
+    Raises:
+        SystemExit: If the repeat count is invalid or a required FreeCAD step fails.
+    """
     trace("benchmark: script entered")
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="artifacts/workbench-benchmark/benchmark.json")

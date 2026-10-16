@@ -20,10 +20,14 @@ PUBLISH_ACTION = ROOT / ".github" / "actions" / "publish-visual-evidence" / "act
 
 
 def contract_errors() -> list[str]:
-    """Validate exact documentation inventory and mapped generation sources."""
+    """Validate exact documentation inventory and mapped generation sources.
+
+    Returns:
+        Contract violations found in the documentation and producer mappings.
+    """
     errors: list[str] = []
     try:
-        payload = cast(JSONValue, json.loads(MANIFEST.read_text(encoding="utf-8")))
+        payload = cast("JSONValue", json.loads(MANIFEST.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"cannot read visual asset manifest: {exc}"]
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
@@ -85,7 +89,11 @@ def contract_errors() -> list[str]:
 
 
 def main() -> int:
-    """Run the contract for every event; merge pushes also require live publication."""
+    """Run the contract for every event; merge pushes also require live publication.
+
+    Returns:
+        Process status indicating whether all visual asset requirements passed.
+    """
     errors = contract_errors()
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     ref = os.environ.get("GITHUB_REF", "")

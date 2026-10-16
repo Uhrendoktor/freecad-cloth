@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# Copyright (C) 2026 Uhrendoktor
+
 """Merge per-workbench benchmark JSON files into one reviewable artifact."""
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ import sys
 
 
 def main() -> None:
-    """Provide the public main operation."""
+    """Merge per-workbench results into benchmark.json in the given directory."""
     root = pathlib.Path(sys.argv[1])
     names = ["Pattern", "Sewing", "Simulation"]
     data = [json.loads((root / f"{name}.json").read_text(encoding="utf-8")) for name in names]

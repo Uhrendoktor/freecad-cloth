@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Screenshot-backed avatar complexity ladder for the diagnostic harness.
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 avatar ladder manifest.
@@ -8,25 +9,31 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
 
-# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_HELPER_DIR = Path(__file__).resolve().parent / "support"
-if str(_HELPER_DIR) not in sys.path:
-    sys.path.insert(0, str(_HELPER_DIR))
+# Add the tests directory so the shared bootstrap is importable in FreeCAD AppRun.
+_TEST_DIR = Path(__file__).resolve().parent
+if str(_TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(_TEST_DIR))
+_ladder_bootstrap = importlib.import_module("freecad_pbd_ladder_bootstrap")
+(
+    _REPO_ROOT,
+    _HELPER_DIR,
+    OUT,
+    _BOOT_LOG,
+    _TRACE_HANDLE,
+) = _ladder_bootstrap.initialize_ladder(__file__, "avatar")
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
-OUT.mkdir(parents=True, exist_ok=True)
-_BOOT_LOG = OUT / "avatar-ladder-bootstrap.log"
-_TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
 
+def _boot(message: str) -> None:
+    """Append a startup checkpoint to this ladder run trace.
 
-def _boot(message):
+    Args:
+        message: Short description of the import or initialization checkpoint.
+    """
     _TRACE_HANDLE.write(str(message) + "\n")
     _TRACE_HANDLE.flush()
 
@@ -54,6 +61,8 @@ except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
 _boot("before-support-helper-import")
+from itertools import starmap
+
 from pbd_contact_helpers import build_piece as _build_piece
 from pbd_contact_helpers import build_scene as _build_scene
 from pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
@@ -92,7 +101,10 @@ def _surface_signed_clearance(
     if proximity_mesh is not None:
         try:
             import numpy as np
-            import trimesh  # noqa: F401
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                raise ImportError("trimesh.Trimesh is unavailable")
 
             if points:
                 trace("before-trimesh-nearest")
@@ -243,7 +255,7 @@ def _build_avatar_scene(doc):
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    target_vertices = [App.Vector(*vertex) for vertex in getattr(target_surface, "vertices", ())]
+    target_vertices = list(starmap(App.Vector, getattr(target_surface, "vertices", ())))
     if not target_vertices:
         raise RuntimeError(
             "diagnostic avatar DrapeTarget has no authoritative world-space vertices"

@@ -126,7 +126,6 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 QtCore.QTimer.singleShot(0, finish_deactivation)
             except ImportError:
                 finish_deactivation()
-        return
 
     def ContextMenu(self, recipient):
         if self._gui is not None and recipient in ("view", "tree") and self.commands:
