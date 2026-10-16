@@ -238,7 +238,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_contact_diagnostics.py
@@ -247,14 +247,14 @@ jobs:
             CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1
             CLOTH_PBD_SUBSTEPS=1
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/pbd-contact-diagnostics
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/pbd-contact-diagnostics/cube-ladder-run.log
           environment: CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -274,9 +274,10 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "360"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
           environment: |
@@ -334,7 +335,7 @@ jobs:
           environment: CLOTH_CI_ENABLE_PBD=0
       - name: Run GUI Python validation
         if: ${{ matrix.group == 'gui' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tools/ci/python_validation.py
@@ -363,7 +364,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
@@ -384,7 +385,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
@@ -440,14 +441,14 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: "${{ env.FREECAD_PBD_IMAGE }}"
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
           environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -470,7 +471,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_visual_examples.py
@@ -567,7 +568,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_avatar_screenshot.py
@@ -579,7 +580,7 @@ jobs:
             docs/images/generated/cloth-avatar-*.png
             docs/images/generated/avatar-body-shape-gallery.png
             artifacts/avatar-documentation-progress.log
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -591,7 +592,7 @@ jobs:
           artifact-path: |
             docs/images/generated/cloth-avatar-turntable-frames/**
             artifacts/avatar-turntable-documentation.log
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -684,7 +685,7 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@deaefecf71ef3115134a2c01ef92956f72584c38
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_workbench_benchmark.py

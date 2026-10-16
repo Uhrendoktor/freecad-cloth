@@ -213,27 +213,10 @@ def cleanup_pbd_package_versions(
         protected_tags = resolve_tags(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
-        phase = "list_container_packages"
-        packages = list(load_api_items("user/packages?package_type=container"))
-        target = next(
-            (
-                package
-                for package in packages
-                if isinstance(package.get("name"), str)
-                and str(package["name"]).strip("/").lower()
-                in {
-                    PBD_PACKAGE_SUFFIX,
-                    PBD_PACKAGE_SUFFIX.rsplit("/", maxsplit=1)[-1],
-                }
-            ),
-            None,
-        )
-        if target is None:
-            result["status"] = "package_not_found"
-            return result
-        package_name = str(target["name"]).strip("/")
+        # The target is fixed by this repository. Encode its slash as part of the package-name path parameter.
+        # Skip namespace-wide discovery, which returns HTTP 400 with the workflow installation token.
         phase = "list_package_versions"
-        encoded_name = quote(package_name, safe="/")
+        encoded_name = quote(PBD_PACKAGE_SUFFIX, safe="")
         versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
         result["versions_seen"] = len(versions)
         stale = stale_package_versions(versions, protected_tags, cutoff_epoch)

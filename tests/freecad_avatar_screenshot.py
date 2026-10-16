@@ -202,7 +202,7 @@ def _body_shape_gallery_params(
         measurements,
         float(skin_offset),
         Pose("standing"),
-        3,
+        4,
         float(profile["gender"]),
         float(profile["breast_size"]),
     )

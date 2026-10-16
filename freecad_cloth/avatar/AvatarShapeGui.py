@@ -14,8 +14,8 @@ import math
 class AvatarDimensionController:
     """Show and drag measurement handles in the active FreeCAD viewport."""
 
-    HIT_RADIUS = 18.0
-    RING_SEGMENTS = 48
+    HIT_RADIUS = 24.0
+    RING_SEGMENTS = 64
     DRAG_AXIS_LENGTH = 100.0
 
     def __init__(self, panel):
@@ -263,7 +263,10 @@ class AvatarDimensionController:
                 marker.addChild(points)
                 self.overlay.addChild(marker)
                 value = float(m["height"]) if key == "height" else float(m[key])
-                self._add_label(coin, point, "{}  {:.0f} mm".format(item["label"], value), color)
+                label = item["label"]
+                if self._hover_key == key or self._drag_key == key:
+                    label = f"{label}  {value:.0f} mm"
+                self._add_label(coin, point, label, color)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             # Numeric fields remain available if a FreeCAD build lacks a Coin API.
             return

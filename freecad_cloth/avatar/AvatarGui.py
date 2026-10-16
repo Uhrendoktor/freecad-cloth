@@ -6,7 +6,13 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
-from typing import ClassVar
+from typing import ClassVar, Protocol
+
+
+class _WidgetLayout(Protocol):
+    """Minimal layout contract needed by the dynamically loaded PySide UI."""
+
+    def addWidget(self, widget: object) -> None: ...
 
 
 def _modules():
@@ -43,6 +49,13 @@ class AvatarTaskPanel:
         "torso": "Torso",
         "front_waist": "Front_Waist",
         "back_waist": "Back_Waist",
+        "stomach": "Stomach",
+        "sleeve_length": "Sleeve_Length",
+        "crotch_length": "Crotch_Length",
+        "front_rise": "Front_Rise",
+        "back_rise": "Back_Rise",
+        "shirt_length": "Shirt_Length",
+        "back_neck_to_waist": "Back_Neck_To_Waist",
     }
     SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {
         "gender": "GenderBlend",
@@ -64,12 +77,36 @@ class AvatarTaskPanel:
         ("knee", "Knee"),
         ("calf", "Calf"),
         ("ankle", "Ankle"),
+        ("stomach", "Stomach circumference"),
+        ("sleeve_length", "Sleeve length"),
+    )
+    FIT_TARGETS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "height",
+            "neck",
+            "shoulder",
+            "chest",
+            "underbust",
+            "waist",
+            "hip",
+            "upper_arm",
+            "thigh",
+            "knee",
+            "calf",
+            "inseam",
+            "sleeve_length",
+        }
     )
     PROPORTIONS = (
         ("inseam", "Inseam"),
         ("torso", "Torso length"),
         ("front_waist", "Front waist length"),
         ("back_waist", "Back waist length"),
+        ("crotch_length", "Crotch length"),
+        ("front_rise", "Front rise"),
+        ("back_rise", "Back rise"),
+        ("shirt_length", "Shirt length"),
+        ("back_neck_to_waist", "Back neck to waist"),
     )
     POSE_FIELDS = (
         ("left_arm_angle", "Left arm"),
@@ -98,6 +135,11 @@ class AvatarTaskPanel:
         title.setProperty("clothRole", "title")
         title_row.addWidget(title)
         title_row.addStretch(1)
+        root.addLayout(title_row)
+
+        # Keep the long title and viewport actions on separate rows so the task
+        # pane's minimum width is controlled by the editor, not by its heading.
+        action_row = QtWidgets.QHBoxLayout()
         self.dimension_gizmo_toggle = QtWidgets.QToolButton()
         self.dimension_gizmo_toggle.setText("3D Dimensions")
         self.dimension_gizmo_toggle.setCheckable(True)
@@ -106,13 +148,14 @@ class AvatarTaskPanel:
             "Show transient viewport handles for height, shoulder breadth, chest, waist and hip. "
             "Drag a handle to stage a dimension; Apply & Rebuild commits it."
         )
-        title_row.addWidget(self.dimension_gizmo_toggle)
+        action_row.addWidget(self.dimension_gizmo_toggle)
         self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
         self.pose_mode_button.setToolTip(
             "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
         )
-        title_row.addWidget(self.pose_mode_button)
-        root.addLayout(title_row)
+        action_row.addWidget(self.pose_mode_button)
+        action_row.addStretch(1)
+        root.addLayout(action_row)
 
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -121,9 +164,17 @@ class AvatarTaskPanel:
         self._boxes = {}
         self._pose_boxes = {}
         self._measurement_groups = []
+        self._advanced_controls_built = False
+        self._advanced_phenotype_overrides = {}
+        self._advanced_local_change_overrides = {}
+        self._advanced_phenotype_defaults = {}
+        self._advanced_rows = []
+        self._advanced_groups = []
         self._add_shape_group(content_layout)
+        self._add_mass_target_group(content_layout)
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
+        self._add_advanced_group(content_layout)
 
         provider = QtWidgets.QGroupBox("Avatar provider")
         provider_layout = QtWidgets.QVBoxLayout(provider)
@@ -291,6 +342,11 @@ class AvatarTaskPanel:
         self.gender_slider.valueChanged.connect(self._shape_changed)
         self.breast_slider.valueChanged.connect(self._shape_changed)
         self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
+        self.mass_target_enabled.toggled.connect(self._mass_target_toggled)
+        self.mass_target.valueChanged.connect(self._staged_changed)
+        self.advanced_toggle.toggled.connect(self._toggle_advanced_parameters)
+        self.advanced_search.textChanged.connect(self._filter_advanced_parameters)
+        self.reset_advanced_button.clicked.connect(self._reset_advanced_parameters)
         self._dimension_controller = None
         self._update_shape_enabled()
 
@@ -322,11 +378,331 @@ class AvatarTaskPanel:
             box.setRange(1.0, 3000.0)
             box.setDecimals(1)
             box.setSuffix(" mm")
-            box.setToolTip("Staged anthropometric value in millimetres.")
+            if key in self.FIT_TARGETS:
+                tooltip = (
+                    "Target in millimetres. The Anny/clad-body fitting objective constrains "
+                    "this dimension when the mannequin is rebuilt."
+                )
+            else:
+                tooltip = (
+                    "Stored in millimetres for garment reference and derived landmarks. "
+                    "This value is not an independent constraint in the current body-surface fit."
+                )
+            box.setToolTip(tooltip)
             layout.addRow(label, box)
             self._boxes[key] = box
         parent.addWidget(group)
         self._measurement_groups.append(group)
+
+    def _add_mass_target_group(self, parent: _WidgetLayout) -> None:
+        """Expose clad-body's differentiable body-mass target without mixing units."""
+        _, _, QtWidgets = _modules()
+        group = QtWidgets.QGroupBox("Body composition")
+        layout = QtWidgets.QFormLayout(group)
+        self.mass_target_enabled = QtWidgets.QCheckBox("Fit target body mass")
+        self.mass_target_enabled.setToolTip(
+            "Optionally constrain clad-body's differentiable mass_kg measurement. "
+            "When enabled, the fit adjusts Anny's global weight phenotype."
+        )
+        layout.addRow(self.mass_target_enabled)
+        self.mass_target = QtWidgets.QDoubleSpinBox()
+        self.mass_target.setRange(25.0, 250.0)
+        self.mass_target.setDecimals(1)
+        self.mass_target.setSingleStep(0.5)
+        self.mass_target.setSuffix(" kg")
+        self.mass_target.setValue(70.0)
+        self.mass_target.setKeyboardTracking(False)
+        self.mass_target.setEnabled(False)
+        self.mass_target.setToolTip(
+            "Target body mass in kilograms. Disabled by default so the body shape is "
+            "controlled by the main measurement targets and Anny phenotypes."
+        )
+        layout.addRow("Target mass", self.mass_target)
+        parent.addWidget(group)
+        self.mass_group = group
+
+    def _mass_target_toggled(self, enabled: bool) -> None:
+        self.mass_target.setEnabled(bool(enabled))
+        self._staged_changed()
+
+    def _add_advanced_group(self, parent: _WidgetLayout) -> None:
+        """Add lazy-loaded, searchable Anny controls without cluttering the common editor."""
+        _, _, QtWidgets = _modules()
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+
+        self.advanced_toggle = QtWidgets.QToolButton()
+        self.advanced_toggle.setText("Advanced Anny parameters")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setChecked(False)
+        self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
+        self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        self.advanced_toggle.setToolTip(
+            "Reveal every normalized Anny phenotype and every paired local-morph target in the installed model. "
+            "These overrides are applied after anthropometric fitting and may change resulting measurements."
+        )
+        parent.addWidget(self.advanced_toggle)
+
+        self.advanced_content = QtWidgets.QWidget()
+        advanced_layout = QtWidgets.QVBoxLayout(self.advanced_content)
+        advanced_layout.setContentsMargins(4, 4, 4, 4)
+        self.advanced_content.setVisible(False)
+
+        help_text = QtWidgets.QLabel(
+            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; body morphs use -1 to 1. "
+            "Primary Gender blend and Breast fullness remain in Body shape."
+        )
+        help_text.setWordWrap(True)
+        advanced_layout.addWidget(help_text)
+
+        search_row = QtWidgets.QHBoxLayout()
+        self.advanced_search = QtWidgets.QLineEdit()
+        self.advanced_search.setPlaceholderText("Filter by parameter name…")
+        self.advanced_search.setClearButtonEnabled(True)
+        self.reset_advanced_button = QtWidgets.QPushButton("Reset advanced")
+        self.reset_advanced_button.setToolTip(
+            "Clear all advanced overrides and restore Anny defaults."
+        )
+        search_row.addWidget(self.advanced_search, 1)
+        search_row.addWidget(self.reset_advanced_button)
+        advanced_layout.addLayout(search_row)
+
+        self.advanced_tabs = QtWidgets.QTabWidget()
+        self._advanced_pages = {}
+        for page_key, page_title in (("phenotypes", "Phenotypes"), ("morphs", "Body morphs")):
+            scroll = QtWidgets.QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setMinimumHeight(230)
+            contents = QtWidgets.QWidget()
+            page_layout = QtWidgets.QVBoxLayout(contents)
+            page_layout.setContentsMargins(4, 4, 4, 4)
+            page_layout.setSpacing(6)
+            scroll.setWidget(contents)
+            self.advanced_tabs.addTab(scroll, page_title)
+            self._advanced_pages[page_key] = {
+                "scroll": scroll,
+                "contents": contents,
+                "layout": page_layout,
+                "groups": {},
+            }
+        advanced_layout.addWidget(self.advanced_tabs)
+        parent.addWidget(self.advanced_content)
+
+    def _advanced_category(self, name: str, kind: str) -> str:
+        """Group raw model labels into scannable families while preserving search terms."""
+        if kind == "phenotype":
+            labels = {
+                "age": "Age",
+                "gender": "Gender",
+                "muscle": "Muscle",
+                "weight": "Weight",
+                "height": "Height",
+                "proportions": "Proportions",
+                "cupsize": "Cup size",
+                "firmness": "Firmness",
+                "african": "Race blend",
+                "asian": "Race blend",
+                "caucasian": "Race blend",
+            }
+            return labels.get(name, "Other phenotypes")
+        if name.startswith("measure-"):
+            return "Anthropometric morphs"
+        if name.startswith("breast-"):
+            return "Breast shape"
+        if name.startswith("stomach-") or name.startswith("belly-"):
+            return "Abdomen shape"
+        if name.startswith(("arm-", "hand-", "shoulder-")):
+            return "Arms and shoulders"
+        if name.startswith(("leg-", "thigh-", "knee-", "calf-", "foot-")):
+            return "Legs and feet"
+        if name.startswith(("torso-", "waist-", "hip-", "chest-", "neck-")):
+            return "Torso"
+        if name.startswith(("head-", "face-", "nose-", "eye-", "mouth-", "ear-")):
+            return "Head and face"
+        return "Other body morphs"
+
+    @staticmethod
+    def _display_parameter_name(name: str) -> str:
+        """Turn model labels into a readable label without losing their exact API name."""
+        return str(name).replace("_", " ").replace("-", " ").strip().title()
+
+    def _append_advanced_control(
+        self,
+        kind: str,
+        name: str,
+        default: float,
+        value: float,
+        page_key: str,
+        low: float,
+        high: float,
+    ) -> None:
+        _, _, QtWidgets = _modules()
+        page = self._advanced_pages[page_key]
+        category = self._advanced_category(name, kind)
+        if category not in page["groups"]:
+            group = QtWidgets.QGroupBox(category)
+            group_layout = QtWidgets.QVBoxLayout(group)
+            group_layout.setContentsMargins(6, 6, 6, 6)
+            group_layout.setSpacing(3)
+            page["layout"].addWidget(group)
+            page["groups"][category] = {"widget": group, "layout": group_layout, "rows": []}
+            self._advanced_groups.append(group)
+        group_data = page["groups"][category]
+
+        row = QtWidgets.QWidget()
+        row_layout = QtWidgets.QHBoxLayout(row)
+        row_layout.setContentsMargins(2, 1, 2, 1)
+        label = QtWidgets.QLabel(self._display_parameter_name(name))
+        label.setMinimumWidth(100)
+        label.setMaximumWidth(170)
+        label.setWordWrap(True)
+        box = QtWidgets.QDoubleSpinBox()
+        box.setDecimals(3)
+        box.setSingleStep(0.01)
+        box.setRange(float(low), float(high))
+        box.setValue(float(value))
+        box.setKeyboardTracking(False)
+        box.setToolTip(
+            f"Anny parameter: {name}\nDefault: {default:.3f}\n"
+            + (
+                "Normalized phenotype, range 0 to 1. Applied after measurement fitting."
+                if kind == "phenotype"
+                else "Local body morph, range -1 to 1. Applied after measurement fitting."
+            )
+        )
+        label.setToolTip(name)
+        row_layout.addWidget(label, 1)
+        row_layout.addWidget(box)
+        group_data["layout"].addWidget(row)
+        group_data["rows"].append(row)
+        row.setProperty(
+            "clothSearchText", f"{name} {self._display_parameter_name(name)}".casefold()
+        )
+        self._advanced_rows.append(
+            {
+                "name": name,
+                "kind": kind,
+                "page": page_key,
+                "row": row,
+                "group": group_data["widget"],
+                "box": box,
+                "default": float(default),
+            }
+        )
+        box.valueChanged.connect(
+            lambda current, control_kind=kind, parameter_name=name: (
+                self._advanced_parameter_changed(control_kind, parameter_name, current)
+            )
+        )
+
+    def _toggle_advanced_parameters(self, expanded: bool) -> None:
+        """Populate the long-tail parameter editor only when the user opens it."""
+        self.advanced_content.setVisible(bool(expanded))
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        self.advanced_toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        if expanded and not self._advanced_controls_built:
+            try:
+                from freecad_cloth.avatar.AnnyAvatarBackend import (
+                    available_anny_local_change_labels,
+                    available_anny_phenotype_labels,
+                    default_anny_phenotype_values,
+                )
+
+                self._advanced_phenotype_defaults = default_anny_phenotype_values(
+                    gender=self.gender_slider.value() / 100.0,
+                    breast_size=self.breast_slider.value() / 100.0,
+                )
+                for name in available_anny_phenotype_labels():
+                    # These have dedicated primary controls in Body shape.
+                    if name in {"gender", "cupsize"}:
+                        continue
+                    default = float(self._advanced_phenotype_defaults[name])
+                    value = float(self._advanced_phenotype_overrides.get(name, default))
+                    self._append_advanced_control(
+                        "phenotype",
+                        name,
+                        default,
+                        value,
+                        "phenotypes",
+                        0.0,
+                        1.0,
+                    )
+                for name in available_anny_local_change_labels():
+                    # Breast fullness has a dedicated primary slider and cannot
+                    # be independently overridden by a local morph value.
+                    if name == "breast-volume-vert-up":
+                        continue
+                    default = 0.0
+                    value = float(self._advanced_local_change_overrides.get(name, default))
+                    self._append_advanced_control(
+                        "morph", name, default, value, "morphs", -1.0, 1.0
+                    )
+                for page in self._advanced_pages.values():
+                    page["layout"].addStretch(1)
+                self._advanced_controls_built = True
+                self._filter_advanced_parameters(self.advanced_search.text())
+            except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                self.status.setText(
+                    "Advanced Anny parameters could not be loaded. "
+                    f"The standard measurement controls remain available: {exc}"
+                )
+                self.advanced_content.setVisible(False)
+                self.advanced_toggle.setChecked(False)
+                return
+        elif expanded:
+            self._filter_advanced_parameters(self.advanced_search.text())
+
+    def _filter_advanced_parameters(self, text: str) -> None:
+        """Filter parameter rows live across both advanced tabs."""
+        query = str(text).strip().casefold()
+        visible_by_group = {}
+        visible_by_page = dict.fromkeys(self._advanced_pages, False)
+        for item in self._advanced_rows:
+            matches = not query or query in str(item["row"].property("clothSearchText"))
+            item["row"].setVisible(matches)
+            visible_by_group[item["group"]] = visible_by_group.get(item["group"], False) or matches
+            visible_by_page[item["page"]] = visible_by_page[item["page"]] or matches
+        for group in self._advanced_groups:
+            group.setVisible(visible_by_group.get(group, False))
+        if query and not visible_by_page.get(
+            "phenotypes" if self.advanced_tabs.currentIndex() == 0 else "morphs", False
+        ):
+            target_page = next(
+                (index for index, key in enumerate(self._advanced_pages) if visible_by_page[key]),
+                None,
+            )
+            if target_page is not None:
+                self.advanced_tabs.setCurrentIndex(target_page)
+
+    def _advanced_parameter_changed(self, kind: str, name: str, value: float) -> None:
+        """Persist only non-default overrides while keeping defaults discoverable in the UI."""
+        default = self._advanced_phenotype_defaults.get(name, 0.5) if kind == "phenotype" else 0.0
+        overrides = (
+            self._advanced_phenotype_overrides
+            if kind == "phenotype"
+            else self._advanced_local_change_overrides
+        )
+        if abs(float(value) - float(default)) <= 0.0005:
+            overrides.pop(name, None)
+        else:
+            overrides[name] = float(value)
+        self._staged_changed()
+
+    def _reset_advanced_parameters(self) -> None:
+        """Clear every advanced parameter override in one staged operation."""
+        self._advanced_phenotype_overrides.clear()
+        self._advanced_local_change_overrides.clear()
+        for item in self._advanced_rows:
+            box = item["box"]
+            box.blockSignals(True)
+            box.setValue(float(item["default"]))
+            box.blockSignals(False)
+        self._staged_changed()
 
     def _add_shape_group(self, parent):
         """Build compact macro-shape controls; precise dimensions stay below."""
@@ -353,12 +729,14 @@ class AvatarTaskPanel:
         gender_container = QtWidgets.QWidget()
         gender_container.setLayout(gender_row)
         self.gender_value = QtWidgets.QLabel("Neutral")
-        self.gender_value.setMinimumWidth(90)
-        gender_value_row = QtWidgets.QHBoxLayout()
-        gender_value_row.addWidget(gender_container, 1)
-        gender_value_row.addWidget(self.gender_value)
+        self.gender_value.setMinimumWidth(64)
+        self.gender_value.setAlignment(QtCore.Qt.AlignRight)
         gender_wrapper = QtWidgets.QWidget()
-        gender_wrapper.setLayout(gender_value_row)
+        gender_layout = QtWidgets.QVBoxLayout(gender_wrapper)
+        gender_layout.setContentsMargins(0, 0, 0, 0)
+        gender_layout.setSpacing(2)
+        gender_layout.addWidget(gender_container)
+        gender_layout.addWidget(self.gender_value, 0, QtCore.Qt.AlignRight)
         layout.addRow("Gender blend", gender_wrapper)
 
         breast_row = QtWidgets.QHBoxLayout()
@@ -375,7 +753,7 @@ class AvatarTaskPanel:
         breast_container = QtWidgets.QWidget()
         breast_container.setLayout(breast_row)
         self.breast_value = QtWidgets.QLabel("0%")
-        self.breast_value.setMinimumWidth(90)
+        self.breast_value.setMinimumWidth(64)
         breast_value_row = QtWidgets.QHBoxLayout()
         breast_value_row.addWidget(breast_container, 1)
         breast_value_row.addWidget(self.breast_value)
@@ -395,6 +773,21 @@ class AvatarTaskPanel:
                 button.setEnabled(False)
             self.provider_source.setEnabled(False)
             return
+        from freecad_cloth.avatar.AvatarModel import AvatarParameters
+
+        payload = str(getattr(self.avatar, "ParametersJSON", "") or "")
+        mass_target = None
+        if payload:
+            try:
+                stored_parameters = AvatarParameters.from_json(payload)
+                mass_target = stored_parameters.mass_target_kg
+                self._advanced_phenotype_overrides = dict(stored_parameters.phenotype_overrides)
+                self._advanced_local_change_overrides = dict(
+                    stored_parameters.local_change_overrides
+                )
+            except (TypeError, ValueError):
+                self._advanced_phenotype_overrides = {}
+                self._advanced_local_change_overrides = {}
         for key, box in self._boxes.items():
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
@@ -427,6 +820,13 @@ class AvatarTaskPanel:
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self._pose_property(key), pose_values[key])))
             box.blockSignals(False)
+        self.mass_target_enabled.blockSignals(True)
+        self.mass_target_enabled.setChecked(mass_target is not None)
+        self.mass_target_enabled.blockSignals(False)
+        self.mass_target.blockSignals(True)
+        self.mass_target.setValue(70.0 if mass_target is None else float(mass_target))
+        self.mass_target.blockSignals(False)
+        self.mass_target.setEnabled(mass_target is not None)
         self.skin_offset.blockSignals(True)
         self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
         self.skin_offset.blockSignals(False)
@@ -533,6 +933,9 @@ class AvatarTaskPanel:
         self.skin_offset.setEnabled(is_human)
         self.show_measurements.setEnabled(is_human)
         self.dimension_gizmo_toggle.setEnabled(is_human)
+        self.mass_group.setEnabled(is_human)
+        self.advanced_toggle.setEnabled(is_human)
+        self.advanced_content.setEnabled(is_human)
         if not is_human and self._dimension_controller is not None:
             self._dimension_controller.deactivate()
         elif is_human and self.dimension_gizmo_toggle.isChecked():
@@ -594,9 +997,12 @@ class AvatarTaskPanel:
                 pose.right_elbow_angle,
                 tuple(self._staged_joint_rotations.values()),
             ),
-            3,
+            4,
             self.gender_slider.value() / 100.0,
             self.breast_slider.value() / 100.0,
+            dict(self._advanced_phenotype_overrides),
+            dict(self._advanced_local_change_overrides),
+            self.mass_target.value() if self.mass_target_enabled.isChecked() else None,
         )
 
     def _apply(self):
