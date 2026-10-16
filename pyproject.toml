@@ -51,7 +51,7 @@ dev = [
 ]
 
 [tool.freecad_cloth.ci]
-freecad_application_timeout_seconds = 360
+freecad_application_timeout_seconds = 120
 
 [tool.setuptools.packages.find]
 include = ["freecad_cloth*"]

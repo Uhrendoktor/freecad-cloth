@@ -1,37 +1,41 @@
 # CI configuration
 
-The repository has one authoritative setting for the FreeCAD application runtime budget.
+The repository has one authoritative default for the FreeCAD application runtime budget.
 
 ## Authoritative setting
 
-The value lives in `pyproject.toml`, in the `[tool.freecad_cloth.ci]` table under
-`freecad_application_timeout_seconds`. That file is the sole source for the runtime limit.
+The default value lives in `pyproject.toml`, in the `[tool.freecad_cloth.ci]` table under
+`freecad_application_timeout_seconds`. The normal budget remains **120 seconds** and should not
+be raised globally to make a slow test pass.
 
-Change the value in `pyproject.toml` when the accepted FreeCAD application budget changes.
-
-The number must not be copied into documentation, individual test scripts or multiple workflow defaults. CI consumers are expected to read or validate against this setting.
+The cube simulation collision ladder is the sole explicit exception because its five-rung diagnostic
+was observed to time out at rung 5 after rungs 1–4 completed with finite results. Only that invocation
+requests 360 seconds. The override is bounded to 360 seconds and passed through the composite action
+to both the container and FreeCAD process. Simulation settings and acceptance thresholds remain unchanged.
 
 ## Consumers
 
-The reusable FreeCAD test action no longer defines a second application timeout. Canonical workflow jobs do not pass one either. `tools/ci/run_freecad.py⟧ reads the configured value directly from `pyproject.toml⟧.
-
-The separate container timeout remains infrastructure policy and is intentionally independent from the FreeCAD application budget.
+The reusable FreeCAD test action defaults to 120 seconds and only sets
+`FREECAD_APPLICATION_TIMEOUT_SECONDS` when a caller explicitly requests a non-default budget.
+`tools/ci/run_freecad.py` reads the configured default from `pyproject.toml` unless that validated,
+scoped environment override is present. The container budget is the separate outer bound; it defaults
+to 120 seconds and permits at most 360 seconds for the documented diagnostic exception.
 
 ## What the timeout applies to
 
 The **application budget** covers a single FreeCAD acceptance, screenshot or simulation invocation.
-
 It is distinct from infrastructure budgets such as container setup, image pulls/builds and artifact publication.
 
 ## Changing the budget
 
-Change the single value in `pyproject.toml`, then run:
+Change the single default value in `pyproject.toml`, then run:
 
 ```bash
 python tools/ci/timeout_contract.py
 ```
 
-Changing that one value changes the effective FreeCAD application budget without a search-and-replace across workflow jobs.
+Use an explicit action input only for a documented diagnostic requiring more time. Do not introduce
+per-test script timers or duplicated workflow defaults.
 
 ## Repository retention policy
 

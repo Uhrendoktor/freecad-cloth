@@ -29,7 +29,16 @@ def configured_timeout_seconds() -> float:
         raise RuntimeError(
             "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
         )
-    return float(value)
+    override = os.environ.get("FREECAD_APPLICATION_TIMEOUT_SECONDS")
+    if override is None:
+        return float(value)
+    try:
+        override_seconds = int(override)
+    except ValueError as exc:
+        raise RuntimeError("FREECAD_APPLICATION_TIMEOUT_SECONDS must be an integer") from exc
+    if not 1 <= override_seconds <= 360:
+        raise RuntimeError("FREECAD_APPLICATION_TIMEOUT_SECONDS must be between 1 and 360")
+    return float(override_seconds)
 
 
 def _stage_workbench(source: Path) -> None:

@@ -94,6 +94,7 @@ runs:
           ${{ inputs.environment }}
           CLOTH_CI_STAGE_WORKBENCH=${{ inputs.stage-workbench }}
           CLOTH_CI_CLEAN_USER=${{ inputs.clean-user }}
+          ${{ inputs.timeout-seconds != '120' && format('FREECAD_APPLICATION_TIMEOUT_SECONDS={0}', inputs.timeout-seconds) || '' }}
         command: >-
           python3 /workspace/tools/ci/run_freecad.py
           --log-file /workspace/${{ inputs.log-file }}
