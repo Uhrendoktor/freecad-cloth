@@ -560,7 +560,9 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     )[1].split("      - uses:", maxsplit=1)[0]
 
     assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation
-    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
+    assert (
+        "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
+    )
     assert "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
