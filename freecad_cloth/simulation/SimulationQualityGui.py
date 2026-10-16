@@ -554,7 +554,7 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0)
         self._refresh("Simulation reset; quality and fabric values retained.")
 
-    def _refresh_workflow(self):
+    def _refresh_workflow(self) -> None:
         """Refresh the user-facing setup checklist from authoritative document state."""
         from freecad_cloth.simulation.WorkflowReadiness import build_workflow_checklist
 
