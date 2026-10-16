@@ -367,8 +367,10 @@ def test_python_sources_do_not_import_removed_architecture_modules():
                 if isinstance(node, ast.ImportFrom):
                     if node.module:
                         imported.add(node.module)
-                    for alias in node.names:
-                        imported.add(f"{node.module}.{alias.name}" if node.module else alias.name)
+                    imported.update(
+                        f"{node.module}.{alias.name}" if node.module else alias.name
+                        for alias in node.names
+                    )
                 elif isinstance(node, ast.Import):
                     imported.update(alias.name for alias in node.names)
                 offenders.extend(

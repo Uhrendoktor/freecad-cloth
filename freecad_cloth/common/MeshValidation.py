@@ -169,8 +169,8 @@ def nearest_target_clearance(
     SciPy's exact KDTree query is the single production implementation. Coordinates
     are validated before indexing, and an unrepresentable result fails closed.
     """
-    garment = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
-    target = validate_points3d(cast(Iterable[Iterable[Real]], target_vertices))
+    garment = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
+    target = validate_points3d(cast("Iterable[Iterable[Real]]", target_vertices))
     if not garment or not target:
         raise ValueError("garment and target vertices are required")
 
@@ -191,7 +191,7 @@ def nearest_surface_clearance(
 ) -> float:
     """Return minimum point-to-surface distance using Trimesh and Rtree."""
     validated = _validate_arrays(target_vertices, target_triangles)
-    garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
+    garment_vertices = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
         raise ValueError("garment vertices are required")

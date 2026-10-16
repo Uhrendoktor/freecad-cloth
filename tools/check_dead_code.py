@@ -20,7 +20,14 @@ ALLOWED_ROOTS = (
 
 
 def allowed(path: Path) -> bool:
-    """Return whether a path is in a statically analyzable core surface."""
+    """Return whether a path is in a statically analyzable core surface.
+
+    Args:
+        path: Candidate source path to classify.
+
+    Returns:
+        Whether the resolved path belongs to an eligible core directory and file type.
+    """
     try:
         resolved = path.resolve()
         relative = resolved.relative_to(ROOT)
@@ -32,7 +39,11 @@ def allowed(path: Path) -> bool:
 
 
 def main() -> int:
-    """Run Vulture at 100% confidence for selected files."""
+    """Run Vulture at 100% confidence for selected files.
+
+    Returns:
+        Vulture's process status, or zero when no eligible paths remain.
+    """
     candidates = [Path(value) for value in sys.argv[1:]]
     if not candidates:
         candidates = [

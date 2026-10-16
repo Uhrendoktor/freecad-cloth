@@ -51,7 +51,8 @@ def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters() -> None:
     assert '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"' in source
     assert "group.addObject(marker)" in source
     assert "doc.removeObject(name)" in source
-    assert "name.startswith(" in source and '"ArrangementPoint_"' in source
+    assert "name.startswith(" in source
+    assert '"ArrangementPoint_"' in source
     assert 'name.startswith("BoundingVolume_")' in source
     start = source.index("class _FittingProxy")
     end = source.index("COMMANDS", start)

@@ -192,7 +192,7 @@ def _stage(name):
     print(message, flush=True)
     stage_file = os.environ.get("SKETCHER_STAGE_FILE")
     if stage_file:
-        with open(stage_file, "a", encoding="utf-8") as handle:
+        with Path(stage_file).open("a", encoding="utf-8") as handle:
             handle.write(message + "\n")
             handle.flush()
 
@@ -210,7 +210,7 @@ def _record(message):
     print(line, flush=True)
     stage_file = os.environ.get("SKETCHER_STAGE_FILE")
     if stage_file:
-        with open(stage_file, "a", encoding="utf-8") as handle:
+        with Path(stage_file).open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
             handle.flush()
 
@@ -471,7 +471,7 @@ def run_acceptance():
                 print(callback_traceback, flush=True)
                 stage_file = os.environ.get("SKETCHER_STAGE_FILE")
                 if stage_file:
-                    with open(stage_file, "a", encoding="utf-8") as handle:
+                    with Path(stage_file).open("a", encoding="utf-8") as handle:
                         handle.write("callback-traceback-begin\\n")
                         handle.write(callback_traceback)
                         if not callback_traceback.endswith("\\n"):

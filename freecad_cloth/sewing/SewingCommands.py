@@ -185,7 +185,7 @@ def create_mn_sewing_from_selection():
     from freecad_cloth.sewing.SewingObjects import _edge_length
 
     for member in side_a + side_b:
-        lengths[(member.piece_id, member.edge)] = _edge_length(pieces[member.piece_id], member.edge)
+        lengths[member.piece_id, member.edge] = _edge_length(pieces[member.piece_id], member.edge)
     existing_ids = {
         str(getattr(obj, "RelationshipId", ""))
         for obj in doc.Objects

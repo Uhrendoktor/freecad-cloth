@@ -1,6 +1,8 @@
 import contextlib
 import json
+import math
 import os
+import pathlib
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -186,7 +188,7 @@ class AvatarFittingTests(unittest.TestCase):
         z_span = max(v[2] for v in fitted.vertices) - min(v[2] for v in fitted.vertices)
         self.assertAlmostEqual(z_span, 1750.0)
         self.assertAlmostEqual(x_span, 440.0 + 1.5 * 310.0, delta=1e-6)
-        self.assertAlmostEqual(y_span, 980.0 / 3.141592653589793, delta=1e-6)
+        self.assertAlmostEqual(y_span, 980.0 / math.pi, delta=1e-6)
         self.assertLess(x_span / z_span, 0.6)
         self.assertLess(y_span / z_span, 0.25)
 
@@ -453,7 +455,7 @@ class AvatarFittingTests(unittest.TestCase):
                 App.closeDocument(doc.Name)
             if path:
                 with contextlib.suppress(OSError):
-                    os.unlink(path)
+                    pathlib.Path(path).unlink()
 
 
 def test_fitting_stage_status_without_simulation_is_not_actionable():

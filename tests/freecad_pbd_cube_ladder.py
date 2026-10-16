@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Screenshot-backed cube complexity ladder for the diagnostic harness.
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 cube ladder manifest.
@@ -8,25 +9,31 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
 
-# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_HELPER_DIR = Path(__file__).resolve().parent / "support"
-if str(_HELPER_DIR) not in sys.path:
-    sys.path.insert(0, str(_HELPER_DIR))
+# Add the tests directory so the shared bootstrap is importable in FreeCAD AppRun.
+_TEST_DIR = Path(__file__).resolve().parent
+if str(_TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(_TEST_DIR))
+_ladder_bootstrap = importlib.import_module("freecad_pbd_ladder_bootstrap")
+(
+    _REPO_ROOT,
+    _HELPER_DIR,
+    OUT,
+    _BOOT_LOG,
+    _TRACE_HANDLE,
+) = _ladder_bootstrap.initialize_ladder(__file__, "cube")
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
-OUT.mkdir(parents=True, exist_ok=True)
-_BOOT_LOG = OUT / "cube-ladder-bootstrap.log"
-_TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
 
+def _boot(message: str) -> None:
+    """Append a startup checkpoint to this ladder run trace.
 
-def _boot(message):
+    Args:
+        message: Short description of the import or initialization checkpoint.
+    """
     _TRACE_HANDLE.write(str(message) + "\n")
     _TRACE_HANDLE.flush()
 
@@ -82,7 +89,10 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
     if proximity_mesh is not None:
         try:
             import numpy as np
-            import trimesh  # noqa: F401
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                raise ImportError("trimesh.Trimesh is unavailable")
 
             if points:
                 _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))

@@ -105,7 +105,7 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
 
     # clad-body 0.6.1 still supplies root_relative_world on every forward call.
     # Anny 0.6 translates that alias only in the factory, not in forward().
-    cast(_ForwardModel, model).forward = compatible_forward
+    cast("_ForwardModel", model).forward = compatible_forward
 
 
 @lru_cache(maxsize=1)
@@ -699,7 +699,7 @@ def _fit_anny_body(
 
     if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") == "1":
         with torch.no_grad():
-            global_output = cast(_AnnyCallableModel, body.model)(
+            global_output = cast("_AnnyCallableModel", body.model)(
                 pose_parameters=pose,
                 phenotype_kwargs=body.phenotype_kwargs,
                 local_changes_kwargs=body.local_changes_kwargs,
@@ -783,7 +783,7 @@ def _fit_anny_body(
                 if name not in breast_names and name not in hip_change_names:
                     value.clamp_(-1.0, 1.0)
 
-    model = cast(_AnnyCallableModel, body.model)
+    model = cast("_AnnyCallableModel", body.model)
     if body.phenotype_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
     if body.local_changes_kwargs is None:

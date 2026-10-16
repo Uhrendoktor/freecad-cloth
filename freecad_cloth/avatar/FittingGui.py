@@ -8,6 +8,7 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
+from itertools import starmap
 
 from freecad_cloth.shared.viewport_gizmo_style import (
     SNAP_CENTER_RADIUS,
@@ -67,7 +68,6 @@ class SimpleScreenPoint:
 
 def arrangement_rotation(point):
     """Return the Z rotation implied by an arrangement point wrap direction."""
-
     base = float(getattr(point, "RotationZ", 0.0))
     return {
         "front": base,
@@ -257,7 +257,7 @@ class DirectArrangeController:
             return None
         point = nearest_arrangement_point(
             screen_position,
-            tuple(SimpleScreenPoint(sx, sy, point) for sx, sy, point in candidates),
+            tuple(starmap(SimpleScreenPoint, candidates)),
             self.SNAP_PIXEL_RADIUS,
         )
         return getattr(point, "source", None)

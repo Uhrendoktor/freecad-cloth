@@ -491,7 +491,6 @@ class _PatternExportCommand:
 
     def Activated(self):
         self.panel = export_pattern()
-        return
 
     def IsActive(self):
         import FreeCAD as App

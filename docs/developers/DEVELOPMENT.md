@@ -45,8 +45,16 @@ CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi
 
 ## Documentation contract
 
-Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+The documentation contract covers every tracked Python source and stub, including modules, classes, functions, methods, nested functions, private helpers, and tests. Google-style docstrings are canonical:
 
+- `Args` describes every parameter except the conventional `self`/`cls` receiver, including keyword-only parameters and `*args`/`**kwargs`. Explain units, valid ranges, defaults, mutation, and special cases where relevant.
+- `Returns` describes every non-`None` result; generators use `Yields`. Include matching Python type annotations and explain validity, ordering, ownership, and copy/live-state behavior where relevant.
+- `Raises` describes explicitly raised exception types and the conditions that cause them.
+- Summaries explain purpose and observable behavior instead of repeating the symbol name. Document invariants, persistence, side effects, lifecycle restrictions, and failure/recovery behavior where relevant.
+
+Ruff selects `ALL` rules with preview checks enabled over every tracked `.py` and `.pyi` file. Only codes documented by Ruff as incompatible with its formatter may be ignored. There are no per-file ignores, inline Ruff suppressions, or legacy-debt baselines; every finding must be fixed, including findings in tests and old modules. Type annotations are mandatory, explicit `Any` is prohibited, and Pyright/`ty` plus repository AST policies continue to validate separate typing and architecture contracts.
+
+The automated documentation gate checks docstring presence, parameter coverage, return/yield descriptions, explicitly raised exception descriptions, placeholders, and Ruff suppression comments. These mechanical checks do not replace review: confirm that the prose is accurate and consistent with implementation and observable behavior.
 ## Non-negotiable CI contract
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.

@@ -12,6 +12,7 @@ import contextlib
 import json
 import math
 import os
+from itertools import starmap
 from pathlib import Path
 
 import FreeCAD as App
@@ -261,7 +262,7 @@ def _style_mesh(obj):
 
 def _debug_line(doc, name, points, color, width=4.0):
     feature = doc.addObject("Part::Feature", name)
-    feature.Shape = Part.makePolygon([App.Vector(*p) for p in points])
+    feature.Shape = Part.makePolygon(list(starmap(App.Vector, points)))
     try:
         feature.ViewObject.LineColor = color
         feature.ViewObject.LineWidth = width

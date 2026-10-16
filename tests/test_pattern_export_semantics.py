@@ -300,7 +300,8 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     )
     previous = coordinates[apex_index - 1]
     following = coordinates[(apex_index + 1) % len(coordinates)]
-    assert previous[0] == 110.0 and following[0] == 110.0
+    assert previous[0] == 110.0
+    assert following[0] == 110.0
     assert (previous[1] - 35.0) * (following[1] - 35.0) < 0
     assert cut_path.attrib["data-notch-ids"] == "right-notch"
 

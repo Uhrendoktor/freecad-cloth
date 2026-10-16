@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from itertools import starmap
+
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
@@ -122,7 +124,7 @@ def _create_demo_tunic_piece(
         (-half_width, 0.0, half_height * 0.35),
     ]
     wire = Part.makePolygon(
-        [App.Vector(*point) for point in outline_points] + [App.Vector(*outline_points[0])]
+        list(starmap(App.Vector, outline_points)) + [App.Vector(*outline_points[0])]
     )
     shape = Part.Face(wire).extrude(App.Vector(0.0, float(extrusion_sign) * 3.0, 0.0))
     piece = doc.addObject("Part::Feature", object_name)

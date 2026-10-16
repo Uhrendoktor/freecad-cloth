@@ -1,13 +1,13 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Publish the exact README/wiki visual asset inventory to docs/screenshots."""
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 import argparse
 import os
 import shutil
 import subprocess
 from pathlib import Path
-
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 ARTIFACT_ROOTS = (
@@ -24,12 +24,27 @@ ARTIFACT_ROOTS = (
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status."""
+    """Run a subprocess command and fail on a non-zero exit status.
+
+    Args:
+        args: Executable name followed by the command-line arguments to run.
+        cwd: Optional working directory in which the command should execute.
+    """
     subprocess.run(args, cwd=cwd, check=True)
 
 
 def find_asset(asset: str) -> Path:
-    """Locate a generated visual asset using deterministic artifact-root precedence."""
+    """Locate a generated visual asset using deterministic artifact-root precedence.
+
+    Args:
+        asset: Filename of the generated image or animation to locate.
+
+    Returns:
+        Path to the unique matching visual asset.
+
+    Raises:
+        SystemExit: If the asset is absent or matches multiple files in one artifact root.
+    """
     for root in ARTIFACT_ROOTS:
         if not root.is_dir():
             continue
@@ -42,7 +57,11 @@ def find_asset(asset: str) -> Path:
 
 
 def build_tunic_gif() -> None:
-    """Build the tunic motion GIF when it is not already present."""
+    """Build the tunic motion GIF when it is not already present.
+
+    Raises:
+        SystemExit: If source frames are unavailable for generating the animation.
+    """
     output = Path("tunic/docs/images/generated/cloth-tunic-mannequin-motion.gif")
     if output.is_file() and output.stat().st_size:
         return
@@ -61,7 +80,11 @@ def build_tunic_gif() -> None:
 
 
 def build_surface_pen_gif() -> None:
-    """Build a Surface Pen interaction GIF from real FreeCAD UI captures."""
+    """Build a Surface Pen interaction GIF from real FreeCAD UI captures.
+
+    Raises:
+        SystemExit: If the captured workflow does not contain exactly four frames.
+    """
     from build_visual_gifs import build, image_tool
 
     root = Path("surface-pen")
@@ -72,7 +95,14 @@ def build_surface_pen_gif() -> None:
 
 
 def main() -> int:
-    """Publish and validate the repository visual evidence inventory."""
+    """Publish and validate the repository visual evidence inventory.
+
+    Raises:
+        SystemExit: If the published visual inventory does not satisfy its contract.
+
+    Returns:
+        Process status indicating that the visual evidence inventory was published and verified.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--source-sha", required=True)

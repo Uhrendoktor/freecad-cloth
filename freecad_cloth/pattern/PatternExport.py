@@ -761,8 +761,7 @@ def export_pattern_piece(
             margin_mm=margin_mm,
             overlap_mm=overlap_mm,
         )
-        with open(str(path), "wb") as handle:
-            handle.write(content)
+        Path(str(path)).write_bytes(content)
         return validate_pdf_export(
             pattern,
             content,
@@ -782,8 +781,7 @@ def export_pattern_piece(
         if normalized_format == "svg"
         else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)
     )
-    with open(str(path), "w", encoding="utf-8", newline="") as handle:
-        handle.write(content)
+    Path(str(path)).write_text(content, encoding="utf-8", newline="")
     return validate_export(
         pattern,
         content,

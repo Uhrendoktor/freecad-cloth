@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable
 from contextlib import suppress
+from itertools import starmap
 from types import ModuleType
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
@@ -161,7 +162,7 @@ def _mesh_data(
         import Mesh as mesh_module
 
     native = mesh_module.Mesh()
-    vectors = [app_module.Vector(*point) for point in vertices]
+    vectors = list(starmap(app_module.Vector, vertices))
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the
     # downstream collision adapter cannot recognize the closed mannequin shell.

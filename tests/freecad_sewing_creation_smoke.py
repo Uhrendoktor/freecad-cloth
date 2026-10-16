@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
@@ -11,14 +12,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import contextlib
+import importlib
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 from pivy import coin
 
-import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
+importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
@@ -307,7 +308,8 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
                 set_seam_highlights_enabled(enabled)
             controller = refresh_seam_overlay(document) if enabled else None
             if enabled:
-                assert controller is not None and controller.root is not None
+                assert controller is not None
+                assert controller.root is not None
                 controller.refresh(
                     document,
                     active_seam_id=hovered,
@@ -782,9 +784,11 @@ try:
         ),
         None,
     )
-    assert curved_preview is not None and curved_preview.Status == "Valid"
+    assert curved_preview is not None
+    assert curved_preview.Status == "Valid"
     assert len(curved_preview.Seams) == 3
-    assert curved_preview.SideACount == 2 and curved_preview.SideBCount == 2
+    assert curved_preview.SideACount == 2
+    assert curved_preview.SideBCount == 2
 
     curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (-5.0, 40.0)])
     curved_a.Shape = _curved_shape(100.0, 105.0, 90.0)
@@ -945,7 +949,8 @@ try:
 
     network_panel = get_active_network_task_panel()
     assert network_panel is not None
-    assert getattr(network_panel, "form", None) is not None and network_panel.form.isVisible()
+    assert getattr(network_panel, "form", None) is not None
+    assert network_panel.form.isVisible()
     evidence_label = getattr(network_panel, "correspondence", None)
     assert evidence_label is not None
     assert str(evidence_label.objectName()) == "ClothSewingNetworkCorrespondenceEvidence"

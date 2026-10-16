@@ -349,7 +349,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     ankle_z = float(m["ankle"]) / 2.0
     shoulder_half = float(m["shoulder"]) / 2.0
     # Hip circumference changes the pelvis envelope, not the leg stance width.
-    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * 3.141592653589793) * 0.42)
+    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * math.pi) * 0.42)
     side_y = 230.0 if params.pose.preset == "sitting" else 0.0
     knees = {
         "left": (-leg_x, side_y, pelvis_z - 15.0)
@@ -367,10 +367,10 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right"),
     ):
         angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
-        a = angle * 3.141592653589793 / 180.0
+        a = angle * math.pi / 180.0
         ex = side * shoulder_half + side * 125.0 * __import__("math").cos(a)
         ez = shoulder_z - 125.0 * __import__("math").sin(a)
-        fa = (angle - elbow_value) * 3.141592653589793 / 180.0
+        fa = (angle - elbow_value) * math.pi / 180.0
         wx = ex + side * 120.0 * __import__("math").cos(fa)
         wz = ez - 120.0 * __import__("math").sin(fa)
         wrists[label] = (wx, 0.0, wz)

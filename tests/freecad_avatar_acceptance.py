@@ -281,7 +281,7 @@ def run_acceptance():
             App.closeDocument(doc.Name)
         if path:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
 
 
 # FreeCAD's macro runner does not preserve the normal CLI __name__ contract.

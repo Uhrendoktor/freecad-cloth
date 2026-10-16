@@ -429,7 +429,7 @@ Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
 
 def validate_finite_number(value: object) -> float:
     """Return a finite real input as float, rejecting bool/string coercion."""
-    return FiniteScalar(value=cast(FiniteNumber, value)).value
+    return FiniteScalar(value=cast("FiniteNumber", value)).value
 
 
 def validate_point2d(value: object) -> Point2D:

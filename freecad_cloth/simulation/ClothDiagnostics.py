@@ -11,6 +11,8 @@ from math import sqrt
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
+import pathlib
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 METRIC_DEFINITIONS = {
@@ -54,8 +56,7 @@ def export_json(result: "DiagnosticResult", path) -> dict:
 
     payload = export_payload(result)
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    with open(str(path), "w", encoding="utf-8", newline="") as handle:
-        handle.write(content)
+    pathlib.Path(str(path)).write_text(content, encoding="utf-8", newline="")
     return payload
 
 

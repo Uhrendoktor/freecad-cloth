@@ -278,7 +278,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if collision_mode != "mesh":
             raise ValueError("PositionBasedDynamics supports only mesh collision mode")
 
-        self._pbd = cast(_NativePBDAPI, pypbd)
+        self._pbd = cast("_NativePBDAPI", pypbd)
         self._initial = deepcopy(system)
         validated_mesh = MeshArrays.model_validate(
             {

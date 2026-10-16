@@ -295,7 +295,7 @@ class SeamGraph:
         values = tuple(raw_values)
         if len(values) < 2:
             raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
-        return cast(tuple[int, ...], values)
+        return cast("tuple[int, ...]", values)
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:

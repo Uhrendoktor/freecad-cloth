@@ -175,7 +175,7 @@ class QualitySimulationProxy:
         if callable(snapshot):
             snapshot_result = snapshot()
             positions, finite_state = cast(
-                tuple[tuple[tuple[float, float, float], ...], bool],
+                "tuple[tuple[tuple[float, float, float], ...], bool]",
                 snapshot_result,
             )
         else:
