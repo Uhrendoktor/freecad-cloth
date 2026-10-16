@@ -435,6 +435,71 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
         raise AssertionError("missing branch activity must fail closed")
 
 
+def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
+    activity = {
+        "1" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
+        "2" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
+        "3" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
+    }
+    branches: list[dict[str, object]] = [
+        {"name": "main", "protected": True, "commit": {"sha": "1" * 40}},
+        {
+            "name": "simulation-evidence/pr-2500",
+            "protected": False,
+            "commit": {"sha": "2" * 40},
+        },
+        {
+            "name": "fix/closed-pr-head",
+            "protected": False,
+            "commit": {"sha": "1" * 40},
+        },
+        {
+            "name": "fix/recent-unsubmitted-work",
+            "protected": False,
+            "commit": {"sha": "3" * 40},
+        },
+    ]
+    endpoints: list[str] = []
+
+    def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
+        endpoints.append(endpoint)
+        if endpoint.endswith("head=owner:fix%2Fclosed-pr-head"):
+            return iter(
+                [
+                    {
+                        "state": "closed",
+                        "head": {
+                            "ref": "fix/closed-pr-head",
+                            "sha": "1" * 40,
+                            "repo": {"full_name": "owner/repo"},
+                        },
+                    }
+                ]
+            )
+        return iter([])
+
+    matched = maintenance_cleanup.closed_pr_head_shas_by_branch(
+        "owner/repo",
+        branches,
+        set(),
+        "main",
+        activity,
+        cutoff,
+        api_items_loader=fake_load_items,
+    )
+
+    assert matched == {"fix/closed-pr-head": {"1" * 40}}
+    assert endpoints == [
+        "repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head",
+        "repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work",
+    ]
+
+
 def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs() -> None:
     from tools.ci import maintenance_cleanup
 
