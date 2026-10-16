@@ -201,7 +201,7 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         requested_endpoints.append(endpoint)
-        if endpoint == "user/packages/container/freecad-cloth/pbd-validation/versions":
+        if endpoint == "user/packages/container/freecad-cloth%2Fpbd-validation/versions":
             return iter([])
         raise AssertionError(f"unexpected package API endpoint: {endpoint}")
 
@@ -220,7 +220,9 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
     assert result["status"] == "passed"
     assert result["versions_seen"] == 0
     assert result["deleted"] == 0
-    assert requested_endpoints == ["user/packages/container/freecad-cloth/pbd-validation/versions"]
+    assert requested_endpoints == [
+        "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
+    ]
     assert deleted_arguments == []
 
 
@@ -260,7 +262,7 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     from tools.ci import maintenance_cleanup
 
-    endpoint = "user/packages/container/freecad-cloth/pbd-validation/versions"
+    endpoint = "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
     endpoints: list[str] = []
     deleted: list[tuple[str, ...]] = []
 
@@ -303,7 +305,7 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
             "api",
             "--method",
             "DELETE",
-            "user/packages/container/freecad-cloth/pbd-validation/versions/11",
+            "user/packages/container/freecad-cloth%2Fpbd-validation/versions/11",
         )
     ]
 
