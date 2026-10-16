@@ -181,7 +181,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
         raise AssertionError("missing protected Dockerfile content must fail closed")
 
 
-def test_package_cleanup_uses_authenticated_user_package_endpoints() -> None:
+def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> None:
     from collections.abc import Iterator
 
     from tools.ci import maintenance_cleanup
@@ -196,9 +196,6 @@ def test_package_cleanup_uses_authenticated_user_package_endpoints() -> None:
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         requested_endpoints.append(endpoint)
-        if endpoint == "user/packages?package_type=container":
-            packages: list[dict[str, object]] = [{"name": "freecad-cloth/pbd-validation"}]
-            return iter(packages)
         if endpoint == "user/packages/container/freecad-cloth/pbd-validation/versions":
             return iter([])
         raise AssertionError(f"unexpected package API endpoint: {endpoint}")
@@ -218,10 +215,7 @@ def test_package_cleanup_uses_authenticated_user_package_endpoints() -> None:
     assert result["status"] == "passed"
     assert result["versions_seen"] == 0
     assert result["deleted"] == 0
-    assert requested_endpoints == [
-        "user/packages?package_type=container",
-        "user/packages/container/freecad-cloth/pbd-validation/versions",
-    ]
+    assert requested_endpoints == ["user/packages/container/freecad-cloth/pbd-validation/versions"]
     assert deleted_arguments == []
 
 
@@ -254,6 +248,59 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     stale = stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
 
     assert [version["id"] for version in stale] == [1]
+
+
+def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listing() -> None:
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    endpoint = "user/packages/container/freecad-cloth/pbd-validation/versions"
+    endpoints: list[str] = []
+    deleted: list[tuple[str, ...]] = []
+
+    def fake_resolve_tags(_repo_name: str, _protected_shas: set[str]) -> set[str]:
+        return {"current-tag"}
+
+    def fake_load_items(requested_endpoint: str) -> Iterator[dict[str, object]]:
+        endpoints.append(requested_endpoint)
+        if requested_endpoint != endpoint:
+            raise AssertionError(f"unexpected package API endpoint: {requested_endpoint}")
+        return iter(
+            [
+                {
+                    "id": 11,
+                    "created_at": "2026-08-01T00:00:00Z",
+                    "updated_at": "2026-08-01T00:00:00Z",
+                    "metadata": {"container": {"tags": ["old-unreferenced-tag"]}},
+                }
+            ]
+        )
+
+    def fake_delete(*args: str) -> None:
+        deleted.append(args)
+
+    result = maintenance_cleanup.cleanup_pbd_package_versions(
+        "example-owner/repo",
+        {"protected-sha"},
+        maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
+        dockerfile_tags_resolver=fake_resolve_tags,
+        api_items_loader=fake_load_items,
+        delete_resource=fake_delete,
+    )
+
+    assert endpoints == [endpoint]
+    assert result["status"] == "passed"
+    assert result["versions_seen"] == 1
+    assert result["deleted"] == 1
+    assert deleted == [
+        (
+            "api",
+            "--method",
+            "DELETE",
+            "user/packages/container/freecad-cloth/pbd-validation/versions/11",
+        )
+    ]
 
 
 def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
