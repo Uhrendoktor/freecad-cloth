@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 PAGE_SIZE = 100
-BRANCH_RETENTION_DAYS = 14
+BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
 MAX_RUN_DELETIONS_PER_RUN = 100
@@ -172,6 +172,7 @@ def stale_unprotected_branches(
         name = branch.get("name")
         if (
             not isinstance(name, str)
+            or name.startswith("simulation-evidence/")
             or name == default_branch
             or name in open_heads
             or branch.get("protected") is not False
@@ -387,6 +388,7 @@ def main() -> int:
         commit = branch.get("commit")
         if (
             not isinstance(name, str)
+            or name.startswith("simulation-evidence/")
             or name == default_branch
             or name in open_heads
             or branch.get("protected") is not False
