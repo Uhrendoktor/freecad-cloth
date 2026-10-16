@@ -2,11 +2,18 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.simulation.WorkflowReadiness import build_workflow_checklist
+from freecad_cloth.simulation.WorkflowReadiness import WorkflowStep, build_workflow_checklist
 
 
 def _piece(name: str) -> SimpleNamespace:
-    """Create a minimal PatternPiece-like test object."""
+    """Create a minimal PatternPiece-like test object.
+
+    Args:
+        name: Stable fake document-object name.
+
+    Returns:
+        A namespace exposing the PatternPiece discriminator and name.
+    """
     return SimpleNamespace(Name=name, PatternType="PatternPiece")
 
 
@@ -16,7 +23,16 @@ def _scene(
     *,
     fitting: object | None = None,
 ) -> SimpleNamespace:
-    """Create a minimal simulation and document for checklist tests."""
+    """Create a minimal simulation and document for checklist tests.
+
+    Args:
+        pieces: Pattern pieces assigned to the fake simulation.
+        extra_objects: Other document objects, such as semantic seams.
+        fitting: Optional persistent fitting-scene stand-in.
+
+    Returns:
+        A namespace exposing a simulation, its target and its document.
+    """
     objects = (*pieces, *extra_objects)
     if fitting is not None:
         objects = (*objects, fitting)
@@ -29,15 +45,31 @@ def _scene(
 
 
 def _target_status(_target: object | None, state: str = "ready") -> dict[str, object]:
-    """Return a deterministic target status for tests."""
+    """Return a deterministic target status for tests.
+
+    Args:
+        _target: Target reference, unused by this deterministic fixture.
+        state: Status string to return.
+
+    Returns:
+        The state and user-facing message expected from the target provider.
+    """
     return {
         "state": state,
         "message": "Drape target is current" if state == "ready" else "Drape target needs refresh",
     }
 
 
-def _by_key(scene: object | None, state: str = "ready") -> dict[str, object]:
-    """Index checklist rows by stable key for readable assertions."""
+def _by_key(scene: object | None, state: str = "ready") -> dict[str, WorkflowStep]:
+    """Index checklist rows by stable key for readable assertions.
+
+    Args:
+        scene: Simulation scene being checked, or None.
+        state: Target state returned by the deterministic fake provider.
+
+    Returns:
+        Checklist steps indexed by their stable key.
+    """
     return {
         step.key: step
         for step in build_workflow_checklist(
@@ -102,7 +134,16 @@ def test_sewn_and_fully_placed_garment_reports_ready_arrangement() -> None:
 
 def test_target_inspection_failure_fails_closed() -> None:
     """Unexpected target-status failures must not advertise simulation readiness."""
+
     def fail(_target: object | None) -> dict[str, object]:
+        """Raise a deterministic failure while inspecting the target.
+
+        Args:
+            _target: Target reference, unused by the failing fixture.
+
+        Raises:
+            RuntimeError: Always, to emulate a stale collision-cache inspection failure.
+        """
         raise RuntimeError("stale collision cache")
 
     rows = {
