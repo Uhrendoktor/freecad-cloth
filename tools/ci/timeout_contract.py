@@ -48,10 +48,17 @@ def main() -> int:
         raise SystemExit(
             "only the cube simulation ladder may request the explicit 360-second runtime override"
         )
-    if 'default: "120"' not in action or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in action:
-        raise SystemExit("FreeCAD test action must pass its default-120 timeout through to the container")
+    if (
+        'default: "120"' not in action
+        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in action
+    ):
+        raise SystemExit(
+            "FreeCAD test action must pass its default-120 timeout through to the container"
+        )
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in action:
-        raise SystemExit("FreeCAD test action must pass non-default runtime overrides to run_freecad.py")
+        raise SystemExit(
+            "FreeCAD test action must pass non-default runtime overrides to run_freecad.py"
+        )
     if 'default: "120"' not in container_action or "maximum 360 seconds" not in container_action:
         raise SystemExit("FreeCAD container must default to 120 seconds and cap overrides at 360")
     if 'if [ "$timeout_seconds" -gt 360 ]; then' not in container_action:
