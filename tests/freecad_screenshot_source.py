@@ -2362,9 +2362,7 @@ def simulation():
     for key in ("patterns", "target", "simulation"):
         if readiness_states[key] != "ready":
             raise RuntimeError(
-                "workflow readiness row {} should be ready, got {}".format(
-                    key, readiness_states[key]
-                )
+                f"workflow readiness row {key} should be ready, got {readiness_states[key]}"
             )
     log("simulation-workflow-readiness=" + json.dumps(readiness_states, sort_keys=True))
     save(
