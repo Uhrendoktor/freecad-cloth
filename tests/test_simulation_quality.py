@@ -247,9 +247,7 @@ def _readiness_target_status(
     return {
         "state": state,
         "message": (
-            "Drape target is current"
-            if state == "ready"
-            else "Drape target needs refresh"
+            "Drape target is current" if state == "ready" else "Drape target needs refresh"
         ),
     }
 
@@ -298,9 +296,7 @@ def test_readiness_distinguishes_unassigned_document_pieces() -> None:
 
 def test_readiness_unsewn_multi_piece_setup_is_reviewable() -> None:
     """Missing sewing prompts a review without hard-blocking diagnostic cases."""
-    scene = _readiness_scene(
-        (_readiness_piece("Front"), _readiness_piece("Back"))
-    )
+    scene = _readiness_scene((_readiness_piece("Front"), _readiness_piece("Back")))
     rows = _readiness_rows(scene)
     assert rows["patterns"].state == "ready"
     assert rows["sewing"].state == "review"
