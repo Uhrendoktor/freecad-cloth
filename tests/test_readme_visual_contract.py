@@ -269,10 +269,10 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
     merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
-    trigger_header = shared.split("\\nenv:", 1)[0]
+    trigger_header = shared.split("\nenv:", 1)[0]
 
     assert "workflow_call:" in trigger_header
-    assert "\\nconcurrency:\\n" not in shared.split("\\njobs:\\n", 1)[0]
+    assert "\\nconcurrency:\\n" not in shared.split("\njobs:\n", 1)[0]
     assert "  push:" not in trigger_header
     assert "  pull_request:" not in trigger_header
     assert "  merge_group:" not in trigger_header
@@ -283,7 +283,7 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "merge_group:" in merge
     assert "pull_request:" not in merge
     assert "execution_mode: full" in merge
-    assert "if: \${{ always() }}" in merge
+    assert "if: ${{ always() }}" in merge
     assert "needs: [full-validation]" in merge
     assert "name: Required pre-merge validation" in merge
     assert "  push:" not in commits
