@@ -46,10 +46,12 @@ CLI; repository write permissions alone do not authenticate `gh`.
 
 The cleanup script uses conservative age and reference checks:
 
-- Delete unprotected branches in any namespace when their latest commit activity is older than
-  14 days, excluding the repository default branch and every branch that is the head of an
-  open pull request. Missing or unverifiable activity is retained. Process the oldest branches
-  first, up to 250 branch deletions per execution; report any stale branches left pending.
+- Delete unprotected source branches in any namespace when their latest commit activity is older than
+  7 days, excluding the repository default branch, every branch that is the head of an open pull
+  request, and `simulation-evidence/*` branches. Evidence branches are retained because PR comments
+  link directly to files on those refs. Missing or unverifiable activity is retained. Process the
+  oldest eligible branches first, up to 250 branch deletions per execution; report stale branches
+  left pending.
 - Delete only completed Actions runs older than 30 days, oldest first, up to 100
   runs per execution. Active/queued runs are not selected.
 - Prune at most 50 PBD validation container versions per execution, and only when

@@ -475,6 +475,11 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
             "protected": False,
             "commit": {"sha": "7" * 40},
         },
+        {
+            "name": "maintenance/old-closed-work",
+            "protected": False,
+            "commit": {"sha": "8" * 40},
+        },
     ]
     activity = {
         "2" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
@@ -482,6 +487,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "4" * 40: maintenance_cleanup.epoch("2026-08-15T00:00:00Z"),
         "5" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
         "6" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
+        "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
     }
 
     stale = maintenance_cleanup.stale_unprotected_branches(
@@ -489,7 +495,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
     )
 
     assert [branch["name"] for branch in stale] == [
-        "simulation-evidence/pr-2500",
+        "maintenance/old-closed-work",
         "fix/old-closed-work",
     ]
 
