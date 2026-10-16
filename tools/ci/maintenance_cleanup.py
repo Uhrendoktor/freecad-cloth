@@ -1,4 +1,4 @@
-"""Remove stale agent branches, completed runs, and unreferenced PBD images safely."""
+"""Remove stale unprotected branches, completed runs, and unreferenced PBD images safely."""
 
 from __future__ import annotations
 
@@ -11,6 +11,9 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 PAGE_SIZE = 100
+BRANCH_RETENTION_DAYS = 14
+MAX_BRANCH_DELETIONS_PER_RUN = 250
+BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
 MAX_RUN_DELETIONS_PER_RUN = 100
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
@@ -87,6 +90,103 @@ def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
         author = commit_data.get("author")
         date = author.get("date") if isinstance(author, dict) else None
     return epoch(date) if isinstance(date, str) else None
+
+
+def branch_activity_epochs(
+    repo: str,
+    commit_shas: set[str],
+    *,
+    batch_size: int = BRANCH_COMMIT_QUERY_BATCH_SIZE,
+    fetch_json: Callable[..., object] | None = None,
+) -> dict[str, float]:
+    """Resolve commit activity timestamps in bounded GraphQL batches.
+
+    Missing or unverifiable commit data raises before the caller can select any
+    branch for deletion, so a partial GitHub response cannot turn into cleanup.
+    """
+    if batch_size <= 0:
+        raise ValueError("branch commit query batch size must be positive")
+    if not commit_shas:
+        return {}
+
+    load_json = gh_json if fetch_json is None else fetch_json
+    owner, repository_name = repo.split("/", maxsplit=1)
+    ordered_shas = sorted(commit_shas)
+    activity_epochs: dict[str, float] = {}
+    for offset in range(0, len(ordered_shas), batch_size):
+        batch = ordered_shas[offset : offset + batch_size]
+        aliases: dict[str, str] = {}
+        fields: list[str] = []
+        for index, sha in enumerate(batch):
+            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
+                raise RuntimeError(f"invalid branch commit SHA: {sha!r}")
+            alias = f"commit{index}"
+            aliases[alias] = sha
+            fields.append(
+                f'{alias}: object(expression: "{sha}") '
+                "{ ... on Commit { committedDate authoredDate } }"
+            )
+
+        query = (
+            "query { repository("
+            f'owner: "{owner}", name: "{repository_name}"'
+            f") {{ {' '.join(fields)} }} }}"
+        )
+        payload = load_json("api", "graphql", "-f", f"query={query}")
+        if not isinstance(payload, dict):
+            raise RuntimeError("GitHub GraphQL returned a non-object branch activity response")
+        if payload.get("errors"):
+            raise RuntimeError("GitHub GraphQL could not verify branch activity")
+        data = payload.get("data")
+        repository_data = data.get("repository") if isinstance(data, dict) else None
+        if not isinstance(repository_data, dict):
+            raise RuntimeError("GitHub GraphQL omitted branch activity repository data")
+
+        for alias, sha in aliases.items():
+            commit_data = repository_data.get(alias)
+            if not isinstance(commit_data, dict):
+                raise RuntimeError(f"commit activity missing for branch head {sha}")
+            committed_date = commit_data.get("committedDate")
+            authored_date = commit_data.get("authoredDate")
+            date = committed_date if isinstance(committed_date, str) else authored_date
+            if not isinstance(date, str):
+                raise RuntimeError(f"commit activity is unverifiable for branch head {sha}")
+            activity_epochs[sha] = epoch(date)
+    return activity_epochs
+
+
+def stale_unprotected_branches(
+    branches: list[dict[str, object]],
+    open_heads: set[str],
+    default_branch: str,
+    activity_epochs: dict[str, float],
+    cutoff_epoch: float,
+) -> list[dict[str, object]]:
+    """Return unprotected, non-default branches inactive before the cutoff.
+
+    Open pull-request heads and branches with missing activity evidence are
+    retained. Results are ordered oldest first for predictable bounded cleanup.
+    """
+    stale: list[tuple[float, dict[str, object]]] = []
+    for branch in branches:
+        name = branch.get("name")
+        if (
+            not isinstance(name, str)
+            or name == default_branch
+            or name in open_heads
+            or branch.get("protected") is not False
+        ):
+            continue
+        commit = branch.get("commit")
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if not isinstance(sha, str):
+            continue
+        activity = activity_epochs.get(sha)
+        if activity is None or activity >= cutoff_epoch:
+            continue
+        stale.append((activity, branch))
+    stale.sort(key=lambda item: (item[0], str(item[1].get("name", ""))))
+    return [branch for _, branch in stale]
 
 
 def pbd_validation_tag(dockerfile_contents: bytes) -> str:
@@ -255,10 +355,10 @@ def cleanup_pbd_package_versions(
 
 
 def main() -> int:
-    """Remove stale agent branches, runs, and unreferenced PBD image versions."""
+    """Remove stale unprotected branches, runs, and unreferenced PBD image versions."""
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
-    branch_cutoff = (now - timedelta(days=14)).timestamp()
+    branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
     run_cutoff = (now - timedelta(days=30)).timestamp()
 
     pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
@@ -273,24 +373,43 @@ def main() -> int:
             if isinstance(sha, str):
                 protected_shas.add(sha)
 
-    removed_branches = 0
-    for branch in paginated_api_items(f"repos/{repo}/branches"):
+    repository_data = gh_json("api", f"repos/{repo}")
+    default_branch = (
+        repository_data.get("default_branch") if isinstance(repository_data, dict) else None
+    )
+    if not isinstance(default_branch, str):
+        raise RuntimeError("GitHub repository metadata omitted the default branch")
+
+    branches = list(paginated_api_items(f"repos/{repo}/branches"))
+    branch_shas: set[str] = set()
+    for branch in branches:
         name = branch.get("name")
         commit = branch.get("commit")
-        if not isinstance(name, str) or not name.startswith("agent/") or name in open_heads:
+        if (
+            not isinstance(name, str)
+            or name == default_branch
+            or name in open_heads
+            or branch.get("protected") is not False
+        ):
             continue
-        if not isinstance(commit, dict) or not isinstance(commit.get("sha"), str):
-            continue
-        data = gh_json("api", f"repos/{repo}/commits/{commit['sha']}")
-        if not isinstance(data, dict):
-            continue
-        commit_data = data.get("commit")
-        if not isinstance(commit_data, dict):
-            continue
-        activity_epoch = branch_activity_epoch(commit_data)
-        if activity_epoch is not None and activity_epoch < branch_cutoff:
-            gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
-            removed_branches += 1
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if isinstance(sha, str):
+            branch_shas.add(sha)
+
+    # Resolve all candidate activity before deleting anything; incomplete GraphQL data
+    # aborts the branch pass instead of treating an unknown branch as stale.
+    activity_epochs = branch_activity_epochs(repo, branch_shas)
+    stale_branches = stale_unprotected_branches(
+        branches, open_heads, default_branch, activity_epochs, branch_cutoff
+    )
+    selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
+    removed_branches = 0
+    for branch in selected_branches:
+        name = branch.get("name")
+        if not isinstance(name, str):
+            raise RuntimeError("GitHub returned a stale branch without a name")
+        gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
+        removed_branches += 1
 
     runs = list(
         paginated_api_items(
@@ -328,7 +447,9 @@ def main() -> int:
     package_result = cleanup_pbd_package_versions(repo, protected_shas, run_cutoff)
     print(
         "maintenance-cleanup=passed "
+        f"branches_seen={len(branches)} "
         f"removed_branches={removed_branches} "
+        f"stale_branches_pending={len(stale_branches) - len(selected_branches)} "
         f"removed_runs={len(selected)} stale_runs_pending={len(stale) - len(selected)} "
         f"package_cleanup={package_result['status']} "
         f"package_versions_seen={package_result['versions_seen']} "
