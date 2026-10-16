@@ -53,10 +53,9 @@ jobs:
     name: Fast PR feedback
     if: ${{ github.event_name == 'pull_request' }}
     permissions:
-      actions: write
-      contents: write
-      packages: write
-      pull-requests: write
+      actions: read
+      contents: read
+      packages: read
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
