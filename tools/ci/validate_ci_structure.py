@@ -281,8 +281,8 @@ def main() -> int:
         )
     if (
         "Required validation gate" not in text
-        or "No successful merge-group full-validation run" not in text
-        or "--event merge_group --status success" not in text
+        or "No successful full-validation run matched source tree" not in text
+        or '--event "${event}" --status success' not in text
         or "Explicit full validation / Required validation gate" not in text
         or "Required pre-merge validation" not in merge_workflow
     ):

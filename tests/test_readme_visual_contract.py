@@ -315,7 +315,7 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     )
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     assert "source_tree" in workflow
-    assert "--event merge_group --status success" in workflow
+    assert '--event "${event}" --status success' in workflow
     merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
         encoding="utf-8"
     )
