@@ -2335,7 +2335,42 @@ def simulation():
             "Step",
             "Run 30",
             "Reset",
+            "Workflow readiness",
+            "Pattern pieces:",
+            "Sewing:",
+            "Drape target:",
+            "Arrangement:",
+            "Simulation:",
         ),
+    )
+    readiness_labels = getattr(simulation_panel, "workflow_labels", {})
+    expected_readiness_keys = {
+        "patterns",
+        "sewing",
+        "target",
+        "arrangement",
+        "simulation",
+    }
+    if set(readiness_labels) != expected_readiness_keys:
+        raise RuntimeError("simulation panel did not expose all five workflow readiness rows")
+    if any(not readiness_labels[key].isVisible() for key in expected_readiness_keys):
+        raise RuntimeError("one or more workflow readiness rows are not visible")
+    readiness_states = {
+        key: str(readiness_labels[key].property("workflowState"))
+        for key in sorted(expected_readiness_keys)
+    }
+    for key in ("patterns", "target", "simulation"):
+        if readiness_states[key] != "ready":
+            raise RuntimeError(
+                "workflow readiness row {} should be ready, got {}".format(
+                    key, readiness_states[key]
+                )
+            )
+    log("simulation-workflow-readiness=" + json.dumps(readiness_states, sort_keys=True))
+    save(
+        "simulation-workflow-readiness.png",
+        "Simulation workflow readiness checklist",
+        "visible five-stage setup checklist for assigned native Sketcher tunic pieces and current drape target",
     )
     view = Gui.activeDocument().activeView()
     # FreeCAD animates viewFront/viewRear transitions by default. Capturing while
