@@ -135,7 +135,9 @@ def run_acceptance():
             "arrangement",
             "simulation",
         }:
-            raise RuntimeError("simulation panel did not expose the complete workflow readiness checklist")
+            raise RuntimeError(
+                "simulation panel did not expose the complete workflow readiness checklist"
+            )
         if panel.workflow_labels["patterns"].property("workflowState") != "ready":
             raise RuntimeError("workflow checklist did not recognize the assigned pattern pieces")
         if panel.workflow_labels["target"].property("workflowState") != "ready":
