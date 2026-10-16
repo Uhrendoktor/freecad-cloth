@@ -256,6 +256,9 @@ def main() -> int:
         "pull_request:" not in commit_workflow
         or "merge_group:" in commit_workflow
         or "execution_mode: fast" not in commit_workflow
+        or "explicit-full-validation:" not in commit_workflow
+        or "[full-validation]" not in commit_workflow
+        or "types: [opened, synchronize, reopened, ready_for_review, edited]" not in commit_workflow
         or "workflow_dispatch:" not in commit_workflow
         or "merge_group:" not in merge_workflow
         or "execution_mode: full" not in full_validation_workflow
@@ -280,6 +283,7 @@ def main() -> int:
         "Required validation gate" not in text
         or "No successful merge-group full-validation run" not in text
         or "--event merge_group --status success" not in text
+        or "Explicit full validation / Required validation gate" not in text
         or "Required pre-merge validation" not in merge_workflow
     ):
         raise SystemExit(

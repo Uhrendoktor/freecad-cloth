@@ -158,6 +158,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     assert "cancel-in-progress: true" in merge_workflow
     assert "required-pre-merge-validation:" in merge_workflow
     assert "required-pre-merge-validation:" not in commit_workflow
+    assert "Explicit full validation" in commit_workflow
     assert "artifact-budget:" in workflow
     budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
     for producer in (

@@ -1,12 +1,12 @@
 name: Commit validation
 run-name: Commit validation
 
-# PR updates run fast feedback; full validation runs on merge-queue candidates.
-# The main ruleset must require the merge queue and "Required pre-merge validation".
+# PR updates run fast feedback by default. Add [full-validation] to the PR title for an explicit full run.
+# Merge-queue candidates always receive the dedicated Required pre-merge validation gate.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
     inputs:
       runner_mode:
@@ -51,7 +51,7 @@ permissions:
 jobs:
   fast-feedback:
     name: Fast PR feedback
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[full-validation]') }}
     # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
       actions: write
@@ -65,6 +65,22 @@ jobs:
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
+
+  explicit-full-validation:
+    name: Explicit full validation
+    if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[full-validation]') }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: full
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ${{ github.event.pull_request.number }}
 
   full-validation:
     name: Full validation

@@ -279,6 +279,8 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "pull_request:" in commits
     assert "merge_group:" not in commits
     assert "execution_mode: fast" in commits
+    assert "[full-validation]" in commits
+    assert "explicit-full-validation:" in commits
     assert "name: Required pre-merge validation" not in commits
     assert "merge_group:" in merge
     assert "pull_request:" not in merge
@@ -318,7 +320,9 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         encoding="utf-8"
     )
     assert "Required pre-merge validation" in merge_workflow
-    assert "No successful merge-group full-validation run" in workflow
+    assert "find_validated_run merge-validation.yml merge_group" in workflow
+    assert "find_validated_run commit-validation.yml pull_request" in workflow
+    assert "No successful full-validation run" in workflow
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
     )[0]

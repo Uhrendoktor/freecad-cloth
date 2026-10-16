@@ -515,7 +515,7 @@ jobs:
       validated_sha: ${{ steps.lookup.outputs.validated_sha }}
     steps:
       - id: lookup
-        name: Find successful merge-group validation with the same Git tree
+        name: Find successful full validation with the same Git tree
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -524,21 +524,39 @@ jobs:
         run: |
           set -euo pipefail
           source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
-          runs="$(gh run list --repo "${REPOSITORY}" --workflow merge-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
-          while IFS=$'\t' read -r run_id head_sha; do
-            [ -n "${run_id}" ] || continue
-            gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"
-            [ "${gate_result}" = "1" ] || continue
-            candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
-            if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
-              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
-              echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
-              echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
-              exit 0
-            fi
-          done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
-          echo "::error::No successful merge-group full-validation run with Required pre-merge validation matched source tree ${source_tree}; refusing to publish unvalidated assets."
-          exit 1
+
+          find_validated_run() {
+            local workflow="$1"
+            local event="$2"
+            local gate_name="$3"
+            local runs=""
+            runs="$(gh run list --repo "${REPOSITORY}" --workflow "${workflow}" --event "${event}" --status success --limit 100 --json databaseId,headSha)"
+            while read -r run_id head_sha; do
+              [ -n "${run_id}" ] || continue
+              gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" | jq --arg gate "${gate_name}" '[.jobs[] | select(.name == $gate and .conclusion == "success")] | length')"
+              [ "${gate_result}" = "1" ] || continue
+              candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
+              if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+                printf "%s %s\n" "${run_id}" "${head_sha}"
+                return 0
+              fi
+            done < <(printf "%s" "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
+            return 1
+          }
+
+          # Preferred path: the dedicated merge-queue gate validated this exact tree.
+          if matched="$(find_validated_run merge-validation.yml merge_group "Required pre-merge validation")"; then
+            read -r run_id head_sha <<< "${matched}"
+          # Alternate explicit path: the full suite ran for this exact PR tree.
+          elif matched="$(find_validated_run commit-validation.yml pull_request "Explicit full validation / Required validation gate")"; then
+            read -r run_id head_sha <<< "${matched}"
+          else
+            echo "::error::No successful full-validation run matched source tree ${source_tree}; refusing to publish unvalidated assets."
+            exit 1
+          fi
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+          echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
 
   gui-documentation-assets:
     name: Main-only documentation stills and animation frames
