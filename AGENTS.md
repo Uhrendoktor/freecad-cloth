@@ -55,7 +55,7 @@ Implementation code belongs under `freecad_cloth/`. The repository intentionally
 
 `freecad_cloth.sewing.SeamGraph` is the canonical seam-graph implementation. `freecad_cloth.pattern.SeamReference` owns semantic edge references. New code should import the owning module directly.
 
-There is exactly one canonical CI workflow: `.github/workflows/canonical-execution.yml`. Do not create parallel workflows or weaken acceptance checks.
+`canonical-execution.yml` is the single reusable workflow for shared CI jobs. Event-specific entry points are `commit-validation.yml` (fast PR feedback), `merge-validation.yml` (full merge-queue validation), and `main-publication.yml` (main-only documentation publication). Do not add a second execution engine, recursive workflow triggers, or weaker acceptance checks.
 
 ## Planning contract
 

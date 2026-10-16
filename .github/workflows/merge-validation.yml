@@ -1,0 +1,54 @@
+name: Merge validation
+run-name: Merge validation
+
+# Runs only for merge-queue candidates; the required gate never passes as a skipped
+# job on an ordinary PR commit.
+on:
+  merge_group:
+    types: [checks_requested]
+
+concurrency:
+  group: ${{ format('merge-validation-{0}', github.sha) }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
+jobs:
+  full-validation:
+    name: Full validation
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: full
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ""
+
+  required-pre-merge-validation:
+    name: Required pre-merge validation
+    if: ${{ always() }}
+    needs: [full-validation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Require full validation for the merge-queue candidate
+        env:
+          FULL_RESULT: ${{ needs.full-validation.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$FULL_RESULT" != "success" ]; then
+            echo "::error::Full validation must succeed before merging (result=$FULL_RESULT)"
+            exit 1
+          fi
+          echo "required-pre-merge-validation=passed event=merge_group"

@@ -41,7 +41,7 @@ def main() -> int:
             "gh",
             "workflow",
             "run",
-            "canonical-execution.yml",
+            os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml"),
             "--repo",
             repo,
             "--ref",

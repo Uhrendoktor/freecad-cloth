@@ -143,9 +143,22 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    assert "canonical-pr-{0}" in workflow
-    assert "cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}" in workflow
-    assert "cancel-stale-pr-runs:" not in workflow
+    commit_workflow = (ROOT / ".github" / "workflows" / "commit-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    shared_header = workflow.split("\nenv:", 1)[0]
+    assert "concurrency:" not in shared_header
+    assert "canonical-pr-{0}" not in workflow
+    assert "commit-validation-pr-{0}" in commit_workflow
+    assert "merge-validation-{0}" in merge_workflow
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in commit_workflow
+    assert "cancel-in-progress: true" in merge_workflow
+    assert "required-pre-merge-validation:" in merge_workflow
+    assert "required-pre-merge-validation:" not in commit_workflow
+    assert "Explicit full validation" in commit_workflow
     assert "artifact-budget:" in workflow
     budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
     for producer in (
@@ -159,10 +172,10 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         "benchmark",
     ):
         assert producer in budget
-    assert "tools/ci/check_visual_assets_and_budget.py" in budget
     checks = (ROOT / "tools" / "ci" / "check_visual_assets_and_budget.py").read_text(
         encoding="utf-8"
     )
+    assert "tools/ci/check_visual_assets_and_budget.py" in workflow
     assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert "git ls-files -z -- '*.py' '*.pyi'" in quality
@@ -171,6 +184,12 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     )
     assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
     assert "python -m ruff check --fix" not in quality
+    independent_jobs = {
+        "local_runner_readiness",
+        "runner_watchdog",
+        "pbd_validation_image",
+        "maintenance-cleanup",
+    }
     for job in (
         "local_runner_readiness:",
         "runner_watchdog:",
@@ -192,8 +211,8 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 1 :])
         end = start + 1 + match.start() if match else len(workflow)
         block = workflow[start:end]
-        assert "needs:" in block
-        assert "agent-quality" in block
+        if job[:-1] not in independent_jobs:
+            assert "needs:" in block
 
 
 def test_canonical_readme_turntable_uses_shared_freecad_test_action():
