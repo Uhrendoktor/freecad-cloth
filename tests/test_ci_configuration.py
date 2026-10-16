@@ -99,7 +99,6 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
     )
 
 
-
 def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
     """The dead-code gate must include unchanged modules, not only PR diffs."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(

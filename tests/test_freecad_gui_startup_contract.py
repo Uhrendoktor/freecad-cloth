@@ -214,7 +214,6 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
             assert "needs:" in block
 
 
-
 def test_canonical_readme_turntable_uses_shared_freecad_test_action():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
