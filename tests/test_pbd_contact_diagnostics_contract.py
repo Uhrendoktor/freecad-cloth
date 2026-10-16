@@ -142,7 +142,7 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
 def test_progressive_collision_ladder_is_a_normal_gate():
     assert "simulation-ladder:" in WORKFLOW
     block = WORKFLOW.split("  simulation-ladder:", 1)[1]
-    assert "if: ${{ github.event_name != 'schedule' }}" in WORKFLOW
+    assert "if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}" in block
     assert "CLOTH_PBD_SUBSTEPS: 8" in WORKFLOW
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in WORKFLOW
     assert "test-script: tests/freecad_pbd_cube_ladder.py" in block

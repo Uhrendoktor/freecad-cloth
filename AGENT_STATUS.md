@@ -5,8 +5,8 @@ Compact live supervisor/recovery record. Do not use this file as an experiment l
 ## Repository
 - Repository: Uhrendoktor/freecad-cloth
 - Default branch: main
-- Last audited main HEAD: `f8cedb341775d412536610e2289f2ac11e250c7c`
-- Canonical workflow: .github/workflows/canonical-execution.yml; exactly one workflow.
+- Last audited main HEAD: `cb0e94965190b59f398824b66f0cc804828ec59b`
+- Reusable CI engine: `.github/workflows/canonical-execution.yml`; entry points: `commit-validation.yml` (fast PR), `merge-validation.yml` (full merge-queue validation), and `main-publication.yml` (main-only documentation publication).
 - Root coordination ledger: #2492.
 - No production Tissu contact repair is merged.
 

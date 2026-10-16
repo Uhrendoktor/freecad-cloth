@@ -1,0 +1,115 @@
+name: Commit validation
+run-name: Commit validation
+
+# PR updates run fast feedback by default. Add [full-validation] to the PR title for an explicit full run.
+# Merge-queue candidates always receive the dedicated Required pre-merge validation gate.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  workflow_dispatch:
+    inputs:
+      runner_mode:
+        description: Trusted execution mode; local prefers self-hosted Docker, hosted uses GitHub-hosted runners.
+        required: false
+        type: choice
+        default: local
+        options: [local, hosted]
+      fallback_source_run:
+        description: Original run ID when invoked as an automatic hosted fallback.
+        required: false
+        type: string
+        default: ""
+      diagnostic_controls:
+        description: Run diagnostic-only PBD contact controls.
+        required: false
+        type: boolean
+        default: false
+      execution_mode:
+        description: Manually dispatched runs use full validation.
+        required: false
+        type: choice
+        default: full
+        options: [full]
+      pr_number:
+        description: Optional PR number for explicitly requested full validation and simulation evidence.
+        required: false
+        type: string
+        default: ""
+  schedule:
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('commit-validation-pr-{0}', github.event.pull_request.number) || format('commit-validation-{0}-{1}-{2}', github.event_name, github.ref, github.workflow) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
+jobs:
+  fast-feedback:
+    name: Fast PR feedback
+    if: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[full-validation]') }}
+    # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: fast
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ""
+
+  explicit-full-validation:
+    name: Explicit full validation
+    if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[full-validation]') }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: full
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ${{ github.event.pull_request.number }}
+
+  full-validation:
+    name: Full validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full' }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: full
+      runner_mode: ${{ inputs.runner_mode || 'local' }}
+      fallback_source_run: ${{ inputs.fallback_source_run || '' }}
+      diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
+      pr_number: ${{ inputs.pr_number || '' }}
+
+  scheduled-validation:
+    name: Scheduled static validation
+    if: ${{ github.event_name == 'schedule' }}
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: scheduled
+      runner_mode: hosted
+      fallback_source_run: ""
+      diagnostic_controls: false
+      pr_number: ""

@@ -76,7 +76,7 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head():
     assert "mode: pr" in publisher
 
 
-def test_main_visual_publisher_pins_surface_pen_artifact_download_revision() -> None:
+def test_main_visual_publisher_uses_local_visual_action_with_pinned_downloads() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -84,12 +84,15 @@ def test_main_visual_publisher_pins_surface_pen_artifact_download_revision() -> 
     match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    # This immutable revision adds the required Surface Pen artifact download.
-    assert "@f63948fe20421061904324bcef128a4fcfc69965" in publisher
+    action = (ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml").read_text(
+        encoding="utf-8"
+    )
 
-
-# Exact-head validation recut marker; behavior unchanged.
-# Final exact-head cube diagnostic trigger marker; behavior unchanged.
+    assert "uses: ./.github/actions/publish-visual-evidence" in publisher
+    assert "Download Surface Pen artifacts" in action
+    assert "name: surface-pen" in action
+    assert "turntable-doc-assets" in action
+    assert re.search(r"uses: actions/download-artifact@[0-9a-f]{40}", action)
 
 
 def test_group_collection_is_checked_during_the_execution_run():
