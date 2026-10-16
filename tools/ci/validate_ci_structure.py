@@ -17,7 +17,14 @@ COMMIT_VALIDATION_WORKFLOW = WORKFLOW_DIR / "commit-validation.yml"
 MERGE_VALIDATION_WORKFLOW = WORKFLOW_DIR / "merge-validation.yml"
 MAIN_PUBLICATION_WORKFLOW = WORKFLOW_DIR / "main-publication.yml"
 WORKFLOW_FILES = tuple(
-    sorted((WORKFLOW, COMMIT_VALIDATION_WORKFLOW, MERGE_VALIDATION_WORKFLOW, MAIN_PUBLICATION_WORKFLOW))
+    sorted(
+        (
+            WORKFLOW,
+            COMMIT_VALIDATION_WORKFLOW,
+            MERGE_VALIDATION_WORKFLOW,
+            MAIN_PUBLICATION_WORKFLOW,
+        )
+    )
 )
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
@@ -225,7 +232,7 @@ def main() -> int:
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
         raise SystemExit(
-            f"expected thin commit/main entry points plus one reusable workflow, found: {files}"
+            f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
         )
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
