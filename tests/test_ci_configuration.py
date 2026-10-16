@@ -397,14 +397,10 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         query_arg = args[3]
         assert query_arg.startswith("query=")
         query = query_arg.removeprefix("query=")
-        aliases = re.findall(
-            r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query
-        )
+        aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
         assert aliases
         query_batches.append(query)
-        repository_data: dict[str, object] = {
-            alias: dates_by_sha[sha] for alias, sha in aliases
-        }
+        repository_data: dict[str, object] = {alias: dates_by_sha[sha] for alias, sha in aliases}
         return {"data": {"repository": repository_data}}
 
     shas = set(dates_by_sha)
