@@ -6,8 +6,9 @@ solver step is allowed.
 """
 
 from collections.abc import Callable, Mapping
-from pydantic.dataclasses import dataclass
 from typing import Literal
+
+from pydantic.dataclasses import dataclass
 
 WorkflowState = Literal["ready", "next", "review", "blocked", "info"]
 
