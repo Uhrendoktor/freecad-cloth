@@ -91,7 +91,7 @@ def test_trusted_runs_remain_local_first():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "default: local" in commit
     assert "default: local" in publication
-    local_selector = "fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"docker\"]')"
+    local_selector = 'fromJSON(\'["self-hosted","linux","x64","docker"]\')'
     for job in (
         "diagnostic-pbd-contact",
         "simulation-ladder",

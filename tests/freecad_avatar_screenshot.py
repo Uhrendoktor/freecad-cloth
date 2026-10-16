@@ -250,10 +250,7 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     gallery_fit_steps = max(1, min(int(original_fit_steps or "40"), 18))
     os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = str(gallery_fit_steps)
     gallery_started = time.monotonic()
-    log(
-        "body-shape-gallery-start profiles=%d fit_steps=%d"
-        % (len(profiles), gallery_fit_steps)
-    )
+    log("body-shape-gallery-start profiles=%d fit_steps=%d" % (len(profiles), gallery_fit_steps))
     try:
         for index, profile in enumerate(profiles):
             profile_started = time.monotonic()
