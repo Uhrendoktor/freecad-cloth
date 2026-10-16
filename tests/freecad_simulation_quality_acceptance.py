@@ -128,6 +128,20 @@ def run_acceptance():
             raise RuntimeError(
                 "simulation panel did not expose the Arrange / Fit / target-snap bridge"
             )
+        if not hasattr(panel, "workflow_labels") or set(panel.workflow_labels) != {
+            "patterns",
+            "sewing",
+            "target",
+            "arrangement",
+            "simulation",
+        }:
+            raise RuntimeError("simulation panel did not expose the complete workflow readiness checklist")
+        if panel.workflow_labels["patterns"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the assigned pattern pieces")
+        if panel.workflow_labels["target"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the current drape target")
+        if panel.workflow_labels["simulation"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the minimum simulation inputs")
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
         panel.quality.setCurrentText("Final")
