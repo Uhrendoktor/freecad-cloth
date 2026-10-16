@@ -174,7 +174,11 @@ def build_workflow_checklist(
     else:
         fitting_pieces = tuple(getattr(fitting_scene, "PatternPieces", ()) or ())
         placements = tuple(getattr(fitting_scene, "PiecePlacements", ()) or ())
-        if assigned_pieces and len(fitting_pieces) >= len(assigned_pieces) and len(placements) >= len(assigned_pieces):
+        if (
+            assigned_pieces
+            and len(fitting_pieces) >= len(assigned_pieces)
+            and len(placements) >= len(assigned_pieces)
+        ):
             arrangement_step = WorkflowStep(
                 "arrangement",
                 "Arrangement",
