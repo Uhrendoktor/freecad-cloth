@@ -80,7 +80,8 @@ def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> No
     assert "inputs.runner_mode != 'hosted'" in watchdog
     assert "tools/ci/runner_watchdog.py" in watchdog
     assert (
-        "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}" in watchdog
+        "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}"
+        in watchdog
     )
 
 
