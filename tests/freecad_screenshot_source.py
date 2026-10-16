@@ -2335,12 +2335,6 @@ def simulation():
             "Step",
             "Run 30",
             "Reset",
-            "Workflow readiness",
-            "Pattern pieces:",
-            "Sewing:",
-            "Drape target:",
-            "Arrangement:",
-            "Simulation:",
         ),
     )
     readiness_labels = getattr(simulation_panel, "workflow_labels", {})
@@ -2355,6 +2349,18 @@ def simulation():
         raise RuntimeError("simulation panel did not expose all five workflow readiness rows")
     if any(not readiness_labels[key].isVisible() for key in expected_readiness_keys):
         raise RuntimeError("one or more workflow readiness rows are not visible")
+    expected_row_text = {
+        "patterns": "Pattern pieces:",
+        "sewing": "Sewing:",
+        "target": "Drape target:",
+        "arrangement": "Arrangement:",
+        "simulation": "Simulation:",
+    }
+    for key, required_text in expected_row_text.items():
+        if required_text not in str(readiness_labels[key].text()):
+            raise RuntimeError(
+                f"workflow readiness row {key} is missing its expected label {required_text!r}"
+            )
     readiness_states = {
         key: str(readiness_labels[key].property("workflowState"))
         for key in sorted(expected_readiness_keys)
