@@ -393,6 +393,26 @@ def _clad_measurement_targets(
     return targets
 
 
+def _split_clad_targets(
+    targets: tuple[tuple[str, str, float], ...],
+) -> tuple[tuple[tuple[str, str, float], ...], tuple[tuple[str, str, float], ...]]:
+    """Keep global silhouette targets separate from localized measurements.
+
+    Sleeve length uses a local arm morph. Feeding it into the global phenotype
+    optimizer lets it trade off against height and can produce an over-tall body.
+    """
+    global_targets = tuple(
+        target
+        for target in targets
+        if target[0] not in {"hip", "sleeve_length"}
+        and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
+    )
+    local_targets = tuple(
+        target for target in targets if target[0] not in {"height", "inseam", "mass_target_kg"}
+    )
+    return global_targets, local_targets
+
+
 def _fit_anny_body(
     measurements: tuple[tuple[str, float], ...],
     gender: float,
@@ -611,16 +631,9 @@ def _fit_anny_body(
     )
     if mass_target_kg is not None:
         targets += (("mass_target_kg", "mass_kg", float(mass_target_kg)),)
-    # Keep global shape fitting independent of hip-only edits while retaining
-    # the other measurements that define the whole-body silhouette.
-    global_targets = tuple(
-        target
-        for target in targets
-        if target[0] != "hip" and target[0] not in _BREAST_SHAPE_MEASUREMENT_FIELDS
-    )
-    local_targets = tuple(
-        target for target in targets if target[0] not in {"height", "inseam", "mass_target_kg"}
-    )
+    # Keep hip and sleeve-only targets out of the global phenotype fit. Sleeve
+    # length is constrained later with its local arm morph to preserve body height.
+    global_targets, local_targets = _split_clad_targets(targets)
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
         raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
     global_phenotype_names = {"height", "weight", "muscle", "proportions"}
