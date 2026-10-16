@@ -398,7 +398,7 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         assert query_arg.startswith("query=")
         query = query_arg.removeprefix("query=")
         aliases = re.findall(
-            r'(commit\\d+): object\\(expression: "([0-9a-f]{40})"\\)', query
+            r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query
         )
         assert aliases
         query_batches.append(query)
@@ -444,13 +444,41 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
 
     cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
     branches: list[dict[str, object]] = [
-        {"name": "main", "protected": True, "commit": {"sha": "1" * 40}},
-        {"name": "simulation-evidence/pr-2500", "protected": False, "commit": {"sha": "2" * 40}},
-        {"name": "fix/old-closed-work", "protected": False, "commit": {"sha": "3" * 40}},
-        {"name": "agent/open-pr", "protected": False, "commit": {"sha": "4" * 40}},
-        {"name": "fix/recent-work", "protected": False, "commit": {"sha": "5" * 40}},
-        {"name": "release/protected-by-github", "protected": True, "commit": {"sha": "6" * 40}},
-        {"name": "docs/unverifiable", "protected": False, "commit": {"sha": "7" * 40}},
+        {
+            "name": "main",
+            "protected": True,
+            "commit": {"sha": "1" * 40},
+        },
+        {
+            "name": "simulation-evidence/pr-2500",
+            "protected": False,
+            "commit": {"sha": "2" * 40},
+        },
+        {
+            "name": "fix/old-closed-work",
+            "protected": False,
+            "commit": {"sha": "3" * 40},
+        },
+        {
+            "name": "agent/open-pr",
+            "protected": False,
+            "commit": {"sha": "4" * 40},
+        },
+        {
+            "name": "fix/recent-work",
+            "protected": False,
+            "commit": {"sha": "5" * 40},
+        },
+        {
+            "name": "release/protected-by-github",
+            "protected": True,
+            "commit": {"sha": "6" * 40},
+        },
+        {
+            "name": "docs/unverifiable",
+            "protected": False,
+            "commit": {"sha": "7" * 40},
+        },
     ]
     activity = {
         "2" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
