@@ -270,9 +270,14 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
           timeout-seconds: "360"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
