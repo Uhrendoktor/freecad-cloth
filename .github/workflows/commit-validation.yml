@@ -52,10 +52,12 @@ jobs:
   fast-feedback:
     name: Fast PR feedback
     if: ${{ github.event_name == 'pull_request' }}
+    # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
-      actions: read
-      contents: read
-      packages: read
+      actions: write
+      contents: write
+      packages: write
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
