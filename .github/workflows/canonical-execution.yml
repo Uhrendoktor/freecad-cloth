@@ -273,6 +273,7 @@ jobs:
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "360"
           test-script: tests/freecad_pbd_cube_ladder.py
           log-file: artifacts/simulation-ladder/cube-ladder-run.log
           environment: |

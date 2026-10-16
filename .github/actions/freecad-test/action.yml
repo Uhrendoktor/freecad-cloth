@@ -31,6 +31,10 @@ inputs:
     description: Optional arguments passed after the test script.
     required: false
     default: ""
+  timeout-seconds:
+    description: Hard FreeCAD/container command timeout in seconds (maximum 360); defaults to 120.
+    required: false
+    default: "120"
   environment:
     description: Optional newline-delimited KEY=VALUE environment entries.
     required: false
@@ -84,6 +88,7 @@ runs:
       uses: ./.github/actions/freecad-container
       with:
         image: ${{ inputs.image }}
+        timeout-seconds: ${{ inputs.timeout-seconds }}
         runner-writable-path: ${{ inputs.observation-files != '' && inputs.observation-root || '' }}
         environment: |
           ${{ inputs.environment }}
