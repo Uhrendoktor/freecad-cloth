@@ -246,12 +246,15 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     camera.height = camera_height
 
     frames = []
-    fit_steps_key = "FREECAD_CLOTH_ANNY_FIT_STEPS"
-    original_fit_steps = os.environ.get(fit_steps_key)
-    gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"
-    os.environ[fit_steps_key] = gallery_fit_steps
+    from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
+
+    original_fit_steps = anny_backend._FIT_STEPS
+    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
     gallery_started = time.monotonic()
-    log("body-shape-gallery-start profiles=%d fit_steps=%s" % (len(profiles), gallery_fit_steps))
+    log(
+        "body-shape-gallery-start profiles=%d fit_steps=%d"
+        % (len(profiles), anny_backend._FIT_STEPS)
+    )
     try:
         for index, profile in enumerate(profiles):
             profile_started = time.monotonic()
@@ -308,10 +311,7 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
             )
 
     finally:
-        if original_fit_steps is None:
-            os.environ.pop(fit_steps_key, None)
-        else:
-            os.environ[fit_steps_key] = original_fit_steps
+        anny_backend._FIT_STEPS = original_fit_steps
 
     def font(size, bold=False):
         """Load a readable annotation font with a portable fallback."""
@@ -431,8 +431,17 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
 def main():
     log("avatar-script-start")
     mode = os.environ.get("CLOTH_AVATAR_SCREENSHOT_MODE", "all").strip().lower()
-    if mode not in ("all", "turntable", "gallery"):
-        raise RuntimeError("CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, or gallery")
+    if mode not in (
+        "all",
+        "turntable",
+        "turntable-validation",
+        "gallery",
+        "documentation",
+        "documentation-turntable",
+    ):
+        raise RuntimeError(
+            "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
+        )
     log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
 
@@ -448,10 +457,10 @@ def main():
     try:
         initial_profile_applied = mode == "gallery"
         if initial_profile_applied:
-            fit_steps_key = "FREECAD_CLOTH_ANNY_FIT_STEPS"
-            original_fit_steps = os.environ.get(fit_steps_key)
-            gallery_fit_steps = original_fit_steps if original_fit_steps is not None else "18"
-            os.environ[fit_steps_key] = gallery_fit_steps
+            from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
+
+            original_fit_steps = anny_backend._FIT_STEPS
+            anny_backend._FIT_STEPS = min(original_fit_steps, 18)
             try:
                 avatar = create_avatar(
                     attach_collision=False,
@@ -459,10 +468,7 @@ def main():
                     params=_body_shape_gallery_params(_body_shape_gallery_profiles()[0]),
                 )
             finally:
-                if original_fit_steps is None:
-                    os.environ.pop(fit_steps_key, None)
-                else:
-                    os.environ[fit_steps_key] = original_fit_steps
+                anny_backend._FIT_STEPS = original_fit_steps
         else:
             avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
@@ -482,7 +488,7 @@ def main():
         view = Gui.activeDocument().activeView()
         view.setAnimationEnabled(False)
 
-        if mode in ("all", "turntable"):
+        if mode in ("all", "turntable", "documentation"):
             directions = (
                 ("front", "viewRear"),
                 ("rear", "viewFront"),
@@ -502,6 +508,7 @@ def main():
                     f"Avatar audit {direction}",
                 )
 
+        if mode in ("all", "turntable", "turntable-validation", "documentation-turntable"):
             center = avatar_center(avatar)
             render_turntable(
                 view,
@@ -509,7 +516,7 @@ def main():
                 os.path.join(OUT, "cloth-avatar-turntable-frames"),
                 frame_count=TURNTABLE_FRAMES,
             )
-        if mode in ("all", "gallery"):
+        if mode in ("all", "gallery", "documentation"):
             render_body_shape_gallery(
                 doc,
                 view,

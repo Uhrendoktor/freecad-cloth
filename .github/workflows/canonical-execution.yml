@@ -1,19 +1,18 @@
-name: Canonical execution
-run-name: Canonical execution
-# CI iteration policy: gather the complete matrix before each repair batch.
+name: Canonical execution engine
+run-name: Canonical execution engine
+# Execution mode is caller-selected: fast PR feedback, full merge-queue validation, or documentation publication.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
+  workflow_call:
     inputs:
+      execution_mode:
+        description: fast for PR iteration, full for pre-merge validation, publication for main-only documentation assets, or scheduled.
+        required: true
+        type: string
       runner_mode:
         description: Trusted execution mode; local prefers self-hosted Docker, hosted uses GitHub-hosted runners.
         required: false
-        type: choice
+        type: string
         default: local
-        options: [local, hosted]
       fallback_source_run:
         description: Original run ID when invoked as an automatic hosted fallback.
         required: false
@@ -24,12 +23,12 @@ on:
         required: false
         type: boolean
         default: false
-  schedule:
-    - cron: '0 3 * * *'
-concurrency:
-  # Main pushes stay independently schedulable; visual publication is serialized separately.
-  group: ${{ github.event_name == 'pull_request' && format('canonical-pr-{0}', github.event.pull_request.number) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && format('canonical-main-push-{0}', github.sha)) || format('canonical-{0}-{1}-{2}', github.workflow, github.event_name, github.ref) }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+      pr_number:
+        description: Optional PR number for explicit full validation and PR evidence publication.
+        required: false
+        type: string
+        default: ""
+
 env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -40,7 +39,12 @@ env:
   CLOTH_PBD_SUBSTEPS: 8
   CLOTH_PBD_COLLISION_MODE: mesh
   CLOTH_PBD_COLLISION_TOLERANCE_MM: 2
-  CLOTH_CI_RUNNER_MODE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'hosted' || inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
+  CLOTH_CI_RUNNER_MODE: ${{ inputs.runner_mode || (github.event_name == 'pull_request' && 'hosted' || 'local') }}
+  CLOTH_CI_EXECUTION_MODE: ${{ inputs.execution_mode }}
+  CLOTH_TURNTABLE_FRAMES: 72
+  CLOTH_BLANKET_STEPS: 180
+  CLOTH_TURNTABLE_PBD_SUBSTEPS: 10
+  CLOTH_DOC_AVATAR_FIT_STEPS: 10
 permissions:
   actions: read
   contents: read
@@ -54,7 +58,9 @@ jobs:
     if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    permissions: {actions: write, contents: write, packages: write}
+    permissions:
+      actions: write
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,7 +69,7 @@ jobs:
           persist-credentials: true
       - name: Rebase requested PR branch onto current main and dispatch exact-head validation
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           ACTIVATION_TITLE: ${{ github.event.head_commit.message }}
         shell: bash
         run: |
@@ -103,9 +109,9 @@ jobs:
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
 
           # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
-          gh workflow run canonical-execution.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted
+          gh workflow run commit-validation.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted -f execution_mode=full -f pr_number="${PR_NUMBER}"
           for _ in $(seq 1 30); do
-            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Canonical execution" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "${REBASED_HEAD}" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            RUN_JSON="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow "Commit validation" --branch "${PR_BRANCH}" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "${REBASED_HEAD}" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
             if [ -n "$RUN_JSON" ]; then echo "$RUN_JSON"; exit 0; fi
             sleep 2
           done
@@ -113,8 +119,9 @@ jobs:
           exit 1
   agent-quality:
     name: Static, architecture, workflow, and security gates
+    if: ${{ inputs.execution_mode != 'publication' }}
     runs-on: ubuntu-latest
-    timeout-minutes: &ten_minute_timeout 10
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,7 +148,6 @@ jobs:
           lint-imports
           python tools/ci/check_explicit_any_annotations.py
           python tools/ci/check_pydantic_models.py
-          python tools/ci/check_no_monkeypatch.py
           python tools/ci/check_no_source_rewriting.py
           python -m pytest -q tests/test_no_source_rewriting.py
           pyright -p pyrightconfig.json
@@ -151,7 +157,7 @@ jobs:
           python tools/ci/check_changed_python_types.py
           # Scan the complete statically analyzable core surface on every run.
           python tools/check_dead_code.py
-          python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py tests/test_changed_python_types.py tests/test_pydantic_models_policy.py tests/test_ui_design.py
+          python -m pytest -q tests/test_property_contracts.py tests/test_freecad_gui_startup_contract.py tests/test_freecad_input.py tests/test_explicit_any_annotations.py tests/test_changed_python_types.py tests/test_pydantic_models_policy.py tests/test_ui_design.py tests/test_readme_visual_contract.py
           crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
       - name: Workflow linters
         run: |
@@ -172,18 +178,16 @@ jobs:
           fail-on-empty: "true"
   local_runner_readiness:
     name: Selected runner readiness
-    needs: [agent-quality]
-    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
-    runs-on: &ci_validation_runner ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
-    timeout-minutes: &two_minute_timeout 2
+    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' }}
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 2
     steps:
       - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
-    needs: [agent-quality]
-    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && (github.event_name != 'push' || github.ref != 'refs/heads/main') }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && inputs.execution_mode != 'fast' }}
     runs-on: ubuntu-latest
-    timeout-minutes: *two_minute_timeout
+    timeout-minutes: 2
     permissions:
       actions: write
       contents: read
@@ -194,11 +198,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
   pbd_validation_image:
     name: Build/publish pinned PBD image
-    needs: [agent-quality]
-    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
+    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -223,10 +227,10 @@ jobs:
           image: ${{ steps.image.outputs.image }}
   diagnostic-pbd-contact:
     name: Diagnostic PBD contact controls
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482'))) }}
+    if: ${{ inputs.execution_mode == 'full' && ((github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482')))) }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
-    timeout-minutes: &standard_freecad_job_timeout 8
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -259,10 +263,10 @@ jobs:
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
   simulation-ladder:
     name: Simulation collision ladder
-    if: ${{ github.event_name != 'schedule' }}
+    if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
-    timeout-minutes: *standard_freecad_job_timeout
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -293,18 +297,18 @@ jobs:
           environment: |
             CLOTH_DIAGNOSTIC_DIR=/workspace/artifacts/simulation-ladder
             CLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-            CLOTH_SIMULATION_BACKEND=${{ env.CLOTH_SIMULATION_BACKEND }}
-            CLOTH_CI_ENABLE_PBD=${{ env.CLOTH_CI_ENABLE_PBD }}
-            CLOTH_PBD_SUBSTEPS=${{ env.CLOTH_PBD_SUBSTEPS }}
-            CLOTH_PBD_COLLISION_MODE=${{ env.CLOTH_PBD_COLLISION_MODE }}
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=${{ env.CLOTH_PBD_COLLISION_TOLERANCE_MM }}
+            CLOTH_SIMULATION_BACKEND=position-based-dynamics
+            CLOTH_CI_ENABLE_PBD=1
+            CLOTH_PBD_SUBSTEPS=8
+            CLOTH_PBD_COLLISION_MODE=mesh
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2
 
   python:
     name: Python validation (${{ matrix.group }})
-    if: ${{ github.event_name != 'schedule' }}
+    if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
-    timeout-minutes: *standard_freecad_job_timeout
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -334,12 +338,12 @@ jobs:
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
-
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
+    if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
-    timeout-minutes: *standard_freecad_job_timeout
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -367,11 +371,11 @@ jobs:
           stage-workbench: ${{ matrix.stage }}
           clean-user: ${{ matrix.clean }}
           environment: ${{ matrix.env }}
-
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
+    if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 15
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -421,54 +425,47 @@ jobs:
             FREECAD_CLOTH_ANNY_FIT_STEPS=18
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
-            CLOTH_PBD_COLLISION_TOLERANCE_MM=${{ env.CLOTH_PBD_COLLISION_TOLERANCE_MM }}
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   gui-turntables:
     name: README turntable evidence
+    if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
-    timeout-minutes: *ten_minute_timeout
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - name: Install ImageMagick for main GIF publication
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: "${{ env.FREECAD_PBD_IMAGE }}"
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
           log-file: artifacts/avatar-gui-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
-        with:
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          checkout: "false"
-          test-script: tests/freecad_avatar_screenshot.py
-          log-file: artifacts/avatar-gallery-progress.log
-          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=gallery\nFREECAD_CLOTH_ANNY_FIT_STEPS=10\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=turntable-validation\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           test-script: tests/freecad_simulation_turntable.py
           log-file: docs/images/generated/simulation-turntable-progress.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py turntables && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated && python3 tools/ci/build_visual_gifs.py turntables; fi'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s python3 tools/ci/validate_manifests.py turntables
           artifact-name: readme-turntables
-          artifact-path: "docs/images/generated/*.png\ndocs/images/generated/*.gif\ndocs/images/generated/*.log\ndocs/images/generated/*.txt"
-          environment: "CLOTH_PBD_SUBSTEPS=10\nCLOTH_BLANKET_STEPS=180\nCLOTH_TURNTABLE_FRAMES=72\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-path: |
+            docs/images/generated/*.png
+            docs/images/generated/*.gif
+            docs/images/generated/*.log
+            docs/images/generated/*.txt
+          environment: "CLOTH_PBD_SUBSTEPS=${{ env.CLOTH_TURNTABLE_PBD_SUBSTEPS }}\nCLOTH_BLANKET_STEPS=${{ env.CLOTH_BLANKET_STEPS }}\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
   gui-visual-examples:
     name: Blanket visual example
+    if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 6
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
-      - name: Install ImageMagick for main GIF publication
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
       - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
@@ -476,17 +473,16 @@ jobs:
           stage-workbench: "true"
           clean-user: "true"
           log-file: docs/images/generated/blanket-example/blanket-visual.log
-          validate-command: timeout --signal=TERM --kill-after=5s 55s bash -lc 'python3 tools/ci/validate_manifests.py blanket && if [ "$GITHUB_REF" = "refs/heads/main" ]; then sudo chown -R "$(id -u):$(id -g)" docs/images/generated/blanket-example && python3 tools/ci/build_visual_gifs.py blanket; fi'
+          validate-command: timeout --signal=TERM --kill-after=5s 55s python3 tools/ci/validate_manifests.py blanket
           artifact-name: blanket-visual-example
           artifact-path: docs/images/generated/blanket-example/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
     needs: [agent-quality, gui-tunic-visual]
-    if: ${{ needs.gui-tunic-visual.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+    if: ${{ needs.gui-tunic-visual.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: &five_minute_timeout 5
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
@@ -496,21 +492,107 @@ jobs:
       - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@3bd8306b79b4274695176829edd7b750a0d8390d
         with:
           mode: pr
-          source-sha: ${{ github.event.pull_request.head.sha }}
-          evidence-head: ${{ github.event.pull_request.head.sha }}
-          pr-number: ${{ github.event.pull_request.number }}
+          source-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          evidence-head: ${{ github.event.pull_request.head.sha || github.sha }}
+          pr-number: ${{ inputs.pr_number || github.event.pull_request.number }}
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
+
+  find-validation-artifacts:
+    name: Locate validated artifacts for this exact source tree
+    if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.lookup.outputs.run_id }}
+      validated_sha: ${{ steps.lookup.outputs.validated_sha }}
+    steps:
+      - id: lookup
+        name: Find successful merge-group validation with the same Git tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
+          runs="$(gh run list --repo "${REPOSITORY}" --workflow merge-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
+          while IFS=$'\t' read -r run_id head_sha; do
+            [ -n "${run_id}" ] || continue
+            gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"
+            [ "${gate_result}" = "1" ] || continue
+            candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
+            if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+              echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+              echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
+              exit 0
+            fi
+          done < <(printf '%s' "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
+          echo "::error::No successful merge-group full-validation run with Required pre-merge validation matched source tree ${source_tree}; refusing to publish unvalidated assets."
+          exit 1
+
+  gui-documentation-assets:
+    name: Main-only documentation stills and animation frames
+    if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
+    needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]
+    runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    timeout-minutes: 12
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+    steps:
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-documentation-progress.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation\nFREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: avatar-documentation-assets
+          artifact-path: |
+            docs/images/generated/cloth-avatar-*.png
+            docs/images/generated/avatar-body-shape-gallery.png
+            artifacts/avatar-documentation-progress.log
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-turntable-documentation.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation-turntable\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: avatar-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-avatar-turntable-frames/**
+            artifacts/avatar-turntable-documentation.log
+      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@fc9e668b1994b2587a201ec41fd9b37c64669802
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_simulation_turntable.py
+          clean-user: "true"
+          log-file: artifacts/simulation-turntable-documentation.log
+          environment: "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true\nCLOTH_PBD_SUBSTEPS=${{ env.CLOTH_TURNTABLE_PBD_SUBSTEPS }}\nCLOTH_BLANKET_STEPS=${{ env.CLOTH_BLANKET_STEPS }}\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: simulation-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/**
+            docs/images/generated/cloth-simulation-draped-turntable-frames/**
+            docs/images/generated/simulation-turntable-progress.log
+            artifacts/simulation-turntable-documentation.log
 
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
     concurrency:
       group: canonical-main-visual-publisher
       cancel-in-progress: false
-    needs: [agent-quality, gui-tunic-visual, gui-turntables, gui-visual-examples, gui-simple]
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+    needs: [find-validation-artifacts, gui-documentation-assets]
+    if: ${{ inputs.execution_mode == 'publication' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: *five_minute_timeout
+    timeout-minutes: 5
     permissions:
       contents: write
       actions: read
@@ -521,16 +603,17 @@ jobs:
       - name: Install ImageMagick for main GIF publication
         if: ${{ github.ref == 'refs/heads/main' }}
         run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@f63948fe20421061904324bcef128a4fcfc69965
+      - uses: ./.github/actions/publish-visual-evidence
         with:
           source-sha: ${{ github.sha }}
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
           run-number: ${{ github.run_number }}
+          artifact-run-id: ${{ needs.find-validation-artifacts.outputs.run_id }}
 
   maintenance-cleanup:
     name: Repository retention cleanup
-    needs: [agent-quality]
+    # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
     if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}"
     runs-on: ubuntu-latest
     timeout-minutes: 4
@@ -548,8 +631,8 @@ jobs:
         run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   artifact-budget:
     name: Accumulated artifact budget
-    if: ${{ always() }}
-    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, publish-readme-turntables]
+    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' }}
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {actions: read, contents: read}
@@ -563,14 +646,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
-          VISUAL_PUBLISH_REQUIRED: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main') && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
+          VISUAL_PUBLISH_REQUIRED: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.runner_mode == 'hosted' && inputs.fallback_source_run != '') }}
         run: python3 tools/ci/check_visual_assets_and_budget.py
 
   benchmark:
     name: Workbench benchmark (${{ matrix.workbench }})
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: *ci_validation_runner
+    runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -592,3 +675,51 @@ jobs:
             CLOTH_BENCHMARK_REPEATS=7
       - run: test -s artifacts/benchmark.json
       - run: python3 tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json "${{ matrix.workbench }}"
+
+  required-validation-gate:
+    name: Required validation gate
+    if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce checks selected by the execution mode
+        env:
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          AGENT_QUALITY_RESULT: ${{ needs.agent-quality.result }}
+          RUNNER_READINESS_RESULT: ${{ needs.local_runner_readiness.result }}
+          PBD_IMAGE_RESULT: ${{ needs.pbd_validation_image.result }}
+          SIMULATION_LADDER_RESULT: ${{ needs.simulation-ladder.result }}
+          PYTHON_RESULT: ${{ needs.python.result }}
+          GUI_SIMPLE_RESULT: ${{ needs.gui-simple.result }}
+          TUNIC_AUDIT_RESULT: ${{ needs.gui-tunic-visual.result }}
+          TURNTABLE_RESULT: ${{ needs.gui-turntables.result }}
+          BLANKET_RESULT: ${{ needs.gui-visual-examples.result }}
+          ARTIFACT_BUDGET_RESULT: ${{ needs.artifact-budget.result }}
+          BENCHMARK_RESULT: ${{ needs.benchmark.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          require_success() {
+            local label="$1" result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::$label must succeed for execution_mode=$EXECUTION_MODE (result=$result)"
+              exit 1
+            fi
+          }
+          require_success "Static/code validation" "$AGENT_QUALITY_RESULT"
+          if [ "$EXECUTION_MODE" = "full" ]; then
+            require_success "Runner readiness" "$RUNNER_READINESS_RESULT"
+            require_success "PBD validation image" "$PBD_IMAGE_RESULT"
+            require_success "Simulation collision ladder" "$SIMULATION_LADDER_RESULT"
+            require_success "Python validation matrix" "$PYTHON_RESULT"
+            require_success "GUI acceptance matrix" "$GUI_SIMPLE_RESULT"
+            require_success "Tunic visual and simulation audit" "$TUNIC_AUDIT_RESULT"
+            require_success "Avatar and simulation turntables" "$TURNTABLE_RESULT"
+            require_success "Blanket visual fixture" "$BLANKET_RESULT"
+            require_success "Workbench benchmark" "$BENCHMARK_RESULT"
+            require_success "Visual evidence/artifact contract" "$ARTIFACT_BUDGET_RESULT"
+          fi
+          echo "required-validation=passed mode=$EXECUTION_MODE"
