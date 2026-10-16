@@ -149,12 +149,12 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
         encoding="utf-8"
     )
-    shared_header = workflow.split("\\nenv:", 1)[0]
+    shared_header = workflow.split("\nenv:", 1)[0]
     assert "concurrency:" not in shared_header
     assert "canonical-pr-{0}" not in workflow
     assert "commit-validation-pr-{0}" in commit_workflow
     assert "merge-validation-{0}" in merge_workflow
-    assert "cancel-in-progress: \${{ github.event_name == 'pull_request' }}" in commit_workflow
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in commit_workflow
     assert "cancel-in-progress: true" in merge_workflow
     assert "required-pre-merge-validation:" in merge_workflow
     assert "required-pre-merge-validation:" not in commit_workflow
@@ -206,8 +206,8 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         "artifact-budget:",
         "benchmark:",
     ):
-        start = workflow.index(f"\\n  {job}")
-        match = re.search(r"\\n  [A-Za-z0-9_-]+:\\n", workflow[start + 1 :])
+        start = workflow.index(f"\n  {job}")
+        match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 1 :])
         end = start + 1 + match.start() if match else len(workflow)
         block = workflow[start:end]
         if job[:-1] not in independent_jobs:
