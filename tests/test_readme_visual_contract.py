@@ -267,24 +267,25 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     workflows = ROOT / ".github" / "workflows"
     shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
     commits = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
+    merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
-    trigger_header = shared.split("\nenv:", 1)[0]
+    trigger_header = shared.split("\\nenv:", 1)[0]
 
     assert "workflow_call:" in trigger_header
-    assert "\nconcurrency:\n" not in shared.split("\njobs:\n", 1)[0]
+    assert "\\nconcurrency:\\n" not in shared.split("\\njobs:\\n", 1)[0]
     assert "  push:" not in trigger_header
     assert "  pull_request:" not in trigger_header
     assert "  merge_group:" not in trigger_header
     assert "pull_request:" in commits
-    assert "merge_group:" in commits
+    assert "merge_group:" not in commits
     assert "execution_mode: fast" in commits
-    assert "execution_mode: full" in commits
-    full_job = commits.split("  full-validation:", 1)[1].split("  scheduled-validation:", 1)[0]
-    assert "github.event_name == 'merge_group'" in full_job
-    assert "github.event.pull_request" not in full_job
-    gate_job = commits.split("  required-pre-merge-validation:", 1)[1]
-    assert "github.event.pull_request.draft == false" in gate_job
-    assert "name: Required pre-merge validation" in commits
+    assert "name: Required pre-merge validation" not in commits
+    assert "merge_group:" in merge
+    assert "pull_request:" not in merge
+    assert "execution_mode: full" in merge
+    assert "if: \${{ always() }}" in merge
+    assert "needs: [full-validation]" in merge
+    assert "name: Required pre-merge validation" in merge
     assert "  push:" not in commits
     assert "  pull_request:" not in publication
     assert "  merge_group:" not in publication
@@ -293,9 +294,11 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "branches: [main]" in publication
     assert "execution_mode: publication" in publication
     assert "workflow_run:" not in commits
+    assert "workflow_run:" not in merge
     assert "workflow_run:" not in publication
-    assert "\nenv:\n" not in commits
-    assert "\nenv:\n" not in publication
+    assert "\\nenv:\\n" not in commits
+    assert "\\nenv:\\n" not in merge
+    assert "\\nenv:\\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
     watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
@@ -311,7 +314,10 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     assert "source_tree" in workflow
     assert "--event merge_group --status success" in workflow
-    assert "Required pre-merge validation" in workflow
+    merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Required pre-merge validation" in merge_workflow
     assert "No successful merge-group full-validation run" in workflow
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1

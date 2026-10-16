@@ -14,8 +14,11 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
 WORKFLOW = WORKFLOW_DIR / "canonical-execution.yml"
 COMMIT_VALIDATION_WORKFLOW = WORKFLOW_DIR / "commit-validation.yml"
+MERGE_VALIDATION_WORKFLOW = WORKFLOW_DIR / "merge-validation.yml"
 MAIN_PUBLICATION_WORKFLOW = WORKFLOW_DIR / "main-publication.yml"
-WORKFLOW_FILES = tuple(sorted((WORKFLOW, COMMIT_VALIDATION_WORKFLOW, MAIN_PUBLICATION_WORKFLOW)))
+WORKFLOW_FILES = tuple(
+    sorted((WORKFLOW, COMMIT_VALIDATION_WORKFLOW, MERGE_VALIDATION_WORKFLOW, MAIN_PUBLICATION_WORKFLOW))
+)
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
 TY_CONFIG = ROOT / "ty.toml"
@@ -236,22 +239,27 @@ def main() -> int:
             "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
         )
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+    merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
-    full_validation_workflow = commit_workflow.split("  full-validation:", 1)[1].split(
-        "  scheduled-validation:", 1
+    full_validation_workflow = merge_workflow.split("  full-validation:", 1)[1].split(
+        "  required-pre-merge-validation:", 1
     )[0]
+    merge_gate = merge_workflow.split("  required-pre-merge-validation:", 1)[1]
     if (
         "pull_request:" not in commit_workflow
-        or "merge_group:" not in commit_workflow
+        or "merge_group:" in commit_workflow
         or "execution_mode: fast" not in commit_workflow
-        or "execution_mode: full" not in commit_workflow
-        or "if: ${{ github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch'"
-        not in full_validation_workflow
-        or "github.event.pull_request" in full_validation_workflow
-        or "name: Required pre-merge validation" not in commit_workflow
+        or "workflow_dispatch:" not in commit_workflow
+        or "merge_group:" not in merge_workflow
+        or "execution_mode: full" not in full_validation_workflow
+        or "workflow_dispatch:" in merge_workflow
+        or "if: ${{ always() }}" not in merge_gate
+        or "needs: [full-validation]" not in merge_gate
+        or "name: Required pre-merge validation" not in merge_workflow
+        or "pull_request:" in merge_workflow
     ):
         raise SystemExit(
-            "commit-validation.yml must run fast feedback, full validation, and a required pre-merge gate"
+            "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
         )
     if (
         "push:" not in publication_workflow
@@ -265,7 +273,7 @@ def main() -> int:
         "Required validation gate" not in text
         or "No successful merge-group full-validation run" not in text
         or "--event merge_group --status success" not in text
-        or "Required pre-merge validation" not in commit_workflow
+        or "Required pre-merge validation" not in merge_workflow
     ):
         raise SystemExit(
             "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
@@ -344,7 +352,7 @@ def main() -> int:
         raise SystemExit(
             "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
         )
-    ci_files = [WORKFLOW, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
+    ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
         for match in re.finditer(r"uses:\s+([^\s#]+)", ci_text):

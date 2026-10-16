@@ -524,7 +524,7 @@ jobs:
         run: |
           set -euo pipefail
           source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
-          runs="$(gh run list --repo "${REPOSITORY}" --workflow commit-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
+          runs="$(gh run list --repo "${REPOSITORY}" --workflow merge-validation.yml --event merge_group --status success --limit 100 --json databaseId,headSha)"
           while IFS=$'\t' read -r run_id head_sha; do
             [ -n "${run_id}" ] || continue
             gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Required pre-merge validation" and .conclusion == "success")] | length')"

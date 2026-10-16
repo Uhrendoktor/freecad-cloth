@@ -146,16 +146,18 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     commit_workflow = (ROOT / ".github" / "workflows" / "commit-validation.yml").read_text(
         encoding="utf-8"
     )
-    shared_header = workflow.split("\nenv:", 1)[0]
+    merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    shared_header = workflow.split("\\nenv:", 1)[0]
     assert "concurrency:" not in shared_header
     assert "canonical-pr-{0}" not in workflow
     assert "commit-validation-pr-{0}" in commit_workflow
-    assert "commit-validation-merge-group-{0}" in commit_workflow
-    assert (
-        "cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}"
-        in commit_workflow
-    )
-    assert "cancel-stale-pr-runs:" not in workflow
+    assert "merge-validation-{0}" in merge_workflow
+    assert "cancel-in-progress: \${{ github.event_name == 'pull_request' }}" in commit_workflow
+    assert "cancel-in-progress: true" in merge_workflow
+    assert "required-pre-merge-validation:" in merge_workflow
+    assert "required-pre-merge-validation:" not in commit_workflow
     assert "artifact-budget:" in workflow
     budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
     for producer in (
@@ -169,10 +171,10 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         "benchmark",
     ):
         assert producer in budget
-    assert "tools/ci/check_visual_assets_and_budget.py" in budget
     checks = (ROOT / "tools" / "ci" / "check_visual_assets_and_budget.py").read_text(
         encoding="utf-8"
     )
+    assert "tools/ci/check_visual_assets_and_budget.py" in workflow
     assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     assert "git ls-files -z -- '*.py' '*.pyi'" in quality
@@ -204,12 +206,13 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
         "artifact-budget:",
         "benchmark:",
     ):
-        start = workflow.index(f"\n  {job}")
-        match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 1 :])
+        start = workflow.index(f"\\n  {job}")
+        match = re.search(r"\\n  [A-Za-z0-9_-]+:\\n", workflow[start + 1 :])
         end = start + 1 + match.start() if match else len(workflow)
         block = workflow[start:end]
         if job[:-1] not in independent_jobs:
             assert "needs:" in block
+
 
 
 def test_canonical_readme_turntable_uses_shared_freecad_test_action():
