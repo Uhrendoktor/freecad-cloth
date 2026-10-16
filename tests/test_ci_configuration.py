@@ -220,7 +220,9 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
     assert result["status"] == "passed"
     assert result["versions_seen"] == 0
     assert result["deleted"] == 0
-    assert requested_endpoints == ["user/packages/container/freecad-cloth%2Fpbd-validation/versions"]
+    assert requested_endpoints == [
+        "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
+    ]
     assert deleted_arguments == []
 
 
