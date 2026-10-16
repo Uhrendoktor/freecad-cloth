@@ -363,6 +363,137 @@ def test_maintenance_cleanup_falls_back_to_author_date_when_needed():
     )
 
 
+def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> None:
+    import re
+
+    from tools.ci import maintenance_cleanup
+
+    dates_by_sha: dict[str, dict[str, str | None]] = {
+        "1" * 40: {
+            "committedDate": "2026-07-01T00:00:00Z",
+            "authoredDate": "2026-06-30T00:00:00Z",
+        },
+        "2" * 40: {
+            "committedDate": "2026-08-01T00:00:00Z",
+            "authoredDate": "2026-07-31T00:00:00Z",
+        },
+        "3" * 40: {
+            "committedDate": "2026-09-01T00:00:00Z",
+            "authoredDate": "2026-08-31T00:00:00Z",
+        },
+        "4" * 40: {
+            "committedDate": "2026-10-01T00:00:00Z",
+            "authoredDate": "2026-09-30T00:00:00Z",
+        },
+        "5" * 40: {
+            "committedDate": None,
+            "authoredDate": "2026-10-05T00:00:00Z",
+        },
+    }
+    query_batches: list[str] = []
+
+    def fake_gh_json(*args: str) -> dict[str, object]:
+        assert args[:3] == ("api", "graphql", "-f")
+        query_arg = args[3]
+        assert query_arg.startswith("query=")
+        query = query_arg.removeprefix("query=")
+        aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
+        assert aliases
+        query_batches.append(query)
+        repository_data: dict[str, object] = {alias: dates_by_sha[sha] for alias, sha in aliases}
+        return {"data": {"repository": repository_data}}
+
+    shas = set(dates_by_sha)
+    activities = maintenance_cleanup.branch_activity_epochs(
+        "owner/repo", shas, batch_size=2, fetch_json=fake_gh_json
+    )
+
+    assert activities == {
+        "1" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "2" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
+        "3" * 40: maintenance_cleanup.epoch("2026-09-01T00:00:00Z"),
+        "4" * 40: maintenance_cleanup.epoch("2026-10-01T00:00:00Z"),
+        "5" * 40: maintenance_cleanup.epoch("2026-10-05T00:00:00Z"),
+    }
+    assert len(query_batches) == 3
+
+
+def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
+    from tools.ci import maintenance_cleanup
+
+    def fake_gh_json(*args: str) -> dict[str, object]:
+        assert args[:3] == ("api", "graphql", "-f")
+        return {"data": {"repository": {"commit0": None}}}
+
+    try:
+        maintenance_cleanup.branch_activity_epochs(
+            "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
+        )
+    except RuntimeError as exc:
+        assert "commit activity missing" in str(exc)
+    else:
+        raise AssertionError("missing branch activity must fail closed")
+
+
+def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs() -> None:
+    from tools.ci import maintenance_cleanup
+
+    cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
+    branches: list[dict[str, object]] = [
+        {
+            "name": "main",
+            "protected": True,
+            "commit": {"sha": "1" * 40},
+        },
+        {
+            "name": "simulation-evidence/pr-2500",
+            "protected": False,
+            "commit": {"sha": "2" * 40},
+        },
+        {
+            "name": "fix/old-closed-work",
+            "protected": False,
+            "commit": {"sha": "3" * 40},
+        },
+        {
+            "name": "agent/open-pr",
+            "protected": False,
+            "commit": {"sha": "4" * 40},
+        },
+        {
+            "name": "fix/recent-work",
+            "protected": False,
+            "commit": {"sha": "5" * 40},
+        },
+        {
+            "name": "release/protected-by-github",
+            "protected": True,
+            "commit": {"sha": "6" * 40},
+        },
+        {
+            "name": "docs/unverifiable",
+            "protected": False,
+            "commit": {"sha": "7" * 40},
+        },
+    ]
+    activity = {
+        "2" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "3" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
+        "4" * 40: maintenance_cleanup.epoch("2026-08-15T00:00:00Z"),
+        "5" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
+        "6" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
+    }
+
+    stale = maintenance_cleanup.stale_unprotected_branches(
+        branches, {"agent/open-pr"}, "main", activity, cutoff
+    )
+
+    assert [branch["name"] for branch in stale] == [
+        "simulation-evidence/pr-2500",
+        "fix/old-closed-work",
+    ]
+
+
 def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff():
     from tools.ci import maintenance_cleanup
 
