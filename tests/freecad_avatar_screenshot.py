@@ -246,14 +246,13 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     camera.height = camera_height
 
     frames = []
-    from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
-
-    original_fit_steps = anny_backend._FIT_STEPS
-    anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+    original_fit_steps = os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS")
+    gallery_fit_steps = max(1, min(int(original_fit_steps or "40"), 18))
+    os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = str(gallery_fit_steps)
     gallery_started = time.monotonic()
     log(
         "body-shape-gallery-start profiles=%d fit_steps=%d"
-        % (len(profiles), anny_backend._FIT_STEPS)
+        % (len(profiles), gallery_fit_steps)
     )
     try:
         for index, profile in enumerate(profiles):
@@ -311,7 +310,10 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
             )
 
     finally:
-        anny_backend._FIT_STEPS = original_fit_steps
+        if original_fit_steps is None:
+            os.environ.pop("FREECAD_CLOTH_ANNY_FIT_STEPS", None)
+        else:
+            os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = original_fit_steps
 
     def font(size, bold=False):
         """Load a readable annotation font with a portable fallback."""
@@ -457,10 +459,9 @@ def main():
     try:
         initial_profile_applied = mode == "gallery"
         if initial_profile_applied:
-            from freecad_cloth.avatar import AnnyAvatarBackend as anny_backend
-
-            original_fit_steps = anny_backend._FIT_STEPS
-            anny_backend._FIT_STEPS = min(original_fit_steps, 18)
+            original_fit_steps = os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS")
+            gallery_fit_steps = max(1, min(int(original_fit_steps or "40"), 18))
+            os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = str(gallery_fit_steps)
             try:
                 avatar = create_avatar(
                     attach_collision=False,
@@ -468,7 +469,10 @@ def main():
                     params=_body_shape_gallery_params(_body_shape_gallery_profiles()[0]),
                 )
             finally:
-                anny_backend._FIT_STEPS = original_fit_steps
+                if original_fit_steps is None:
+                    os.environ.pop("FREECAD_CLOTH_ANNY_FIT_STEPS", None)
+                else:
+                    os.environ["FREECAD_CLOTH_ANNY_FIT_STEPS"] = original_fit_steps
         else:
             avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":

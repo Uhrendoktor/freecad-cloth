@@ -19,23 +19,40 @@ def _job_block(source: str, job: str) -> str:
     return "".join(block)
 
 
+
 def test_one_canonical_workflow():
-    workflows = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
-    workflows += sorted((ROOT / ".github" / "workflows").glob("*.yaml"))
-    assert [path.name for path in workflows] == ["canonical-execution.yml"]
+    workflow_dir = ROOT / ".github" / "workflows"
+    workflows = sorted(path.name for path in workflow_dir.glob("*.yml"))
+    assert workflows == [
+        "canonical-execution.yml",
+        "commit-validation.yml",
+        "main-publication.yml",
+        "merge-validation.yml",
+    ]
+    shared = WORKFLOW.read_text(encoding="utf-8")
+    assert "workflow_call:" in shared
+    assert "workflow_run:" not in shared
+
 
 
 def test_pull_requests_are_hosted_only():
+    workflow_dir = ROOT / ".github" / "workflows"
+    entry = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    assert "pull_request:" in source
-    assert "pull_request_target:" not in source
-    readiness = _job_block(source, "local_runner_readiness")
-    assert "github.event_name == 'pull_request'" in readiness
-    assert "'ubuntu-latest'" in readiness
-    assert "self-hosted" in readiness
+    assert "pull_request:" in entry
+    assert "pull_request_target:" not in entry
+    fast = _job_block(entry, "fast-feedback")
+    full = _job_block(entry, "explicit-full-validation")
+    assert "runner_mode: hosted" in fast
+    assert "execution_mode: fast" in fast
+    assert "runner_mode: hosted" in full
+    assert "execution_mode: full" in full
+    assert "[full-validation]" in entry
 
-    # All validation jobs reuse one authoritative trust-boundary runner selector.
-    assert "runs-on: &ci_validation_runner" in readiness
+    readiness = _job_block(source, "local_runner_readiness")
+    assert "'ubuntu-latest'" in readiness
+    assert "'self-hosted'" in readiness
+    runner_selector = "github.event_name == 'pull_request' || inputs.runner_mode == 'hosted'"
     for job in (
         "diagnostic-pbd-contact",
         "simulation-ladder",
@@ -47,36 +64,36 @@ def test_pull_requests_are_hosted_only():
         "benchmark",
     ):
         block = _job_block(source, job)
-        assert "needs: [agent-quality, local_runner_readiness, pbd_validation_image]" in block
-        assert "runs-on: *ci_validation_runner" in block
+        assert runner_selector in block
+        assert "'ubuntu-latest'" in block
+        assert "'self-hosted'" in block
 
 
-def test_main_pushes_use_hosted_runners_without_fallback_dispatch() -> None:
+
+def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
+    workflow_dir = ROOT / ".github" / "workflows"
+    publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    readiness = _job_block(source, "local_runner_readiness")
-    assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in readiness
-    assert "'ubuntu-latest'" in readiness
-    for job in (
-        "diagnostic-pbd-contact",
-        "simulation-ladder",
-        "python",
-        "gui-simple",
-        "gui-tunic-visual",
-        "gui-turntables",
-        "gui-visual-examples",
-        "benchmark",
-    ):
-        assert "runs-on: *ci_validation_runner" in _job_block(source, job)
+    assert "push:" in publication
+    assert "branches: [main]" in publication
+    assert "default: local" in publication
 
     watchdog = _job_block(source, "runner_watchdog")
-    assert "github.event_name != 'push' || github.ref != 'refs/heads/main'" in watchdog
+    assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in watchdog
+    assert "inputs.runner_mode != 'hosted'" in watchdog
+    assert "tools/ci/runner_watchdog.py" in watchdog
+    assert "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && 'main-publication.yml' || 'commit-validation.yml' }}" in watchdog
+
 
 
 def test_trusted_runs_remain_local_first():
+    workflow_dir = ROOT / ".github" / "workflows"
+    commit = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
+    publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    readiness = _job_block(source, "local_runner_readiness")
-    assert "self-hosted" in readiness
-    assert "inputs.runner_mode == 'hosted'" in readiness
+    assert "default: local" in commit
+    assert "default: local" in publication
+    local_selector = "fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"docker\"]')"
     for job in (
         "diagnostic-pbd-contact",
         "simulation-ladder",
@@ -87,7 +104,10 @@ def test_trusted_runs_remain_local_first():
         "gui-visual-examples",
         "benchmark",
     ):
-        assert "runs-on: *ci_validation_runner" in _job_block(source, job)
+        block = _job_block(source, job)
+        assert local_selector in block
+        assert "inputs.runner_mode == 'hosted'" in block
+
 
 
 def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
@@ -97,28 +117,39 @@ def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
     assert "inputs.runner_mode != 'hosted'" in watchdog
     assert "Prefer local, otherwise dispatch hosted" in watchdog
     assert "tools/ci/runner_watchdog.py" in watchdog
+    assert "FALLBACK_WORKFLOW:" in watchdog
 
     script = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
     assert "time.monotonic() + 45" in script
-    assert '"canonical-execution.yml"' in script
+    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in script
     assert '"runner_mode=hosted"' in script
     assert 'f"fallback_source_run={run_id}"' in script
     assert 'f"repos/{repo}/actions/runs/{run_id}/cancel"' in script
     assert "/actions/runners" not in source + script
 
 
+
 def test_no_privileged_runner_discovery_or_second_workflow():
-    source = WORKFLOW.read_text(encoding="utf-8")
-    assert "CLOTH_RUNNER_DISCOVERY_TOKEN" not in source
-    assert "runner_router:" not in source
-    assert "brokered_hosted_status:" not in source
-    assert "runner_heartbeat:" not in source
-    assert "sketcher-startup-diagnostic:" not in source
-    assert "*/5 * * * *" not in source
-    maintenance = _job_block(source, "maintenance-cleanup")
+    workflow_dir = ROOT / ".github" / "workflows"
+    sources = {path.name: path.read_text(encoding="utf-8") for path in workflow_dir.glob("*.yml")}
+    assert set(sources) == {
+        "canonical-execution.yml",
+        "commit-validation.yml",
+        "main-publication.yml",
+        "merge-validation.yml",
+    }
+    assert all("workflow_run:" not in source for source in sources.values())
+    shared = sources["canonical-execution.yml"]
+    assert "CLOTH_RUNNER_DISCOVERY_TOKEN" not in shared
+    assert "runner_router:" not in shared
+    assert "brokered_hosted_status:" not in shared
+    assert "runner_heartbeat:" not in shared
+    assert "sketcher-startup-diagnostic:" not in shared
+    assert "*/5 * * * *" not in shared
+    maintenance = _job_block(shared, "maintenance-cleanup")
     assert "runs-on: ubuntu-latest" in maintenance
-    assert "needs: [agent-quality]" in maintenance
     assert "github.event_name == 'schedule'" in maintenance
+    assert "RUN MAINTENANCE CLEANUP" in maintenance
 
 
 def test_pr_checkout_is_credential_free_and_uses_head_sha():

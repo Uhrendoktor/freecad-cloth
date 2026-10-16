@@ -103,16 +103,25 @@ def test_human_documentation_contract():
     assert "users/USER_GUIDE.md" in docs_readme.read_text(encoding="utf-8")
 
 
+
 def test_canonical_workflow_pr_validation_contract():
     root = Path(__file__).resolve().parents[1]
-    workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-    assert "pull_request:" in workflow
-    assert "pull_request_target:" not in workflow
-    assert "types: [opened, synchronize, reopened]" in workflow
-    assert "push:" in workflow
-    assert "branches: [main]" in workflow
+    workflows = root / ".github" / "workflows"
+    shared = (workflows / "canonical-execution.yml").read_text(encoding="utf-8")
+    commit = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
+    merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
+    publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
+
+    assert "workflow_call:" in shared
+    assert "pull_request:" not in shared
+    assert "pull_request_target:" not in shared + commit + merge + publication
+    assert "types: [opened, synchronize, reopened, ready_for_review, edited]" in commit
+    assert "workflow_dispatch:" in commit
+    assert "branches: [main]" in publication
+    assert "merge_group:" in merge
+    assert "types: [checks_requested]" in merge
+    assert "Required pre-merge validation" in merge
+    assert "Required pre-merge validation" not in commit
 
 
 def test_workbench_benchmark_merge_script_is_checked_in():
@@ -203,8 +212,8 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated():
     assert "runs-on: ubuntu-latest" in publish
     assert "publish-visual-evidence@" in publish
     assert "mode: pr" in publish
-    assert "evidence-head: ${{ github.event.pull_request.head.sha }}" in publish
-    assert "source-sha: ${{ github.event.pull_request.head.sha }}" in publish
+    assert "evidence-head: ${{ github.event.pull_request.head.sha || github.sha }}" in publish
+    assert "source-sha: ${{ github.event.pull_request.head.sha || github.sha }}" in publish
 
 
 def test_workflow_actions_use_immutable_release_pins():

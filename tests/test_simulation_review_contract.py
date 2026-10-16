@@ -15,7 +15,7 @@ def test_review_protocol_and_templates_exist():
     assert "needs.gui-tunic-visual.result == 'success'" in workflow
     assert "github.event_name == 'pull_request'" in workflow
     assert "mode: pr" in workflow
-    assert "evidence-head: ${{ github.event.pull_request.head.sha }}" in workflow
+    assert "evidence-head: ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
     assert "Download PR simulation artifact" in publisher
     assert "tunic-visual-audit" in publisher
     assert "python3 tools/ci/publish_pr_simulation_evidence.py" in publisher
