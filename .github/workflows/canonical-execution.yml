@@ -49,6 +49,7 @@ jobs:
   # Explicitly activated on main; ordinary pushes and PR checks leave this job skipped.
   # The activation commit's first title line identifies the target PR; its branch head is read live at run time.
   # Activation commit titles use RUN REBASE: PR #<number> to rebase that open PR and dispatch exact-head validation.
+  # With protected main, merge a squash PR titled exactly RUN REBASE: PR #<number> to activate it.
   guarded-rebase-pr:
     name: Rebase a PR named in an explicit activation commit
     if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}"
