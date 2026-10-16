@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.simulation.WorkflowReadiness import WorkflowStep, build_workflow_checklist
+from freecad_cloth.simulation.WorkflowReadinessGui import WorkflowStep, build_workflow_checklist
 
 
 def _piece(name: str) -> SimpleNamespace:
