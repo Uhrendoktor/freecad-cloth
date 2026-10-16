@@ -8,6 +8,7 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _canonicalize_anny_vertices,
     _clad_measurement_targets,
     _initial_phenotypes,
+    _split_clad_targets,
     _localize_hip_fit_delta,
     _measurement_local_change_labels,
     build_avatar_rig_vertices,
@@ -70,6 +71,19 @@ def test_clad_body_targets_convert_mm_to_cm_and_keep_mass_in_kg() -> None:
     assert target_map["height"] == ("height_cm", 175.0)
     assert target_map["sleeve_length"] == ("sleeve_length_cm", 63.0)
     assert target_map["mass_target_kg"] == ("mass_kg", 68.5)
+
+
+def test_clad_body_sleeve_length_is_local_and_cannot_trade_off_with_height() -> None:
+    targets = _clad_measurement_targets(dict(AvatarParameters().measurements), 68.5)
+    global_targets, local_targets = _split_clad_targets(targets)
+    global_names = {name for name, _key, _target in global_targets}
+    local_names = {name for name, _key, _target in local_targets}
+
+    assert "height" in global_names
+    assert "sleeve_length" not in global_names
+    assert "sleeve_length" in local_names
+    assert "mass_target_kg" in global_names
+    assert "mass_target_kg" not in local_names
 
 
 def test_clad_body_fitting_includes_stable_extended_garment_measurements() -> None:
