@@ -48,8 +48,9 @@ The cleanup script uses conservative age and reference checks:
 
 - Delete unprotected source branches in any namespace when their latest commit activity is older than
   7 days, excluding the repository default branch, every branch that is the head of an open pull
-  request, and `simulation-evidence/*` branches. Evidence branches are retained because PR comments
-  link directly to files on those refs. Missing or unverifiable activity is retained. Process the
+  request, and `simulation-evidence/*` branches. A branch can also be deleted sooner when its
+  current SHA exactly matches a closed PR head SHA from the same repository. Evidence branches are
+  retained because PR comments link directly to files on those refs. Missing or unverifiable activity is retained. Process the
   oldest eligible branches first, up to 250 branch deletions per execution; report stale branches
   left pending.
 - Delete only completed Actions runs older than 30 days, oldest first, up to 100
