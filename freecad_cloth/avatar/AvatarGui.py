@@ -135,6 +135,11 @@ class AvatarTaskPanel:
         title.setProperty("clothRole", "title")
         title_row.addWidget(title)
         title_row.addStretch(1)
+        root.addLayout(title_row)
+
+        # Keep the long title and viewport actions on separate rows so the task
+        # pane's minimum width is controlled by the editor, not by its heading.
+        action_row = QtWidgets.QHBoxLayout()
         self.dimension_gizmo_toggle = QtWidgets.QToolButton()
         self.dimension_gizmo_toggle.setText("3D Dimensions")
         self.dimension_gizmo_toggle.setCheckable(True)
@@ -143,13 +148,14 @@ class AvatarTaskPanel:
             "Show transient viewport handles for height, shoulder breadth, chest, waist and hip. "
             "Drag a handle to stage a dimension; Apply & Rebuild commits it."
         )
-        title_row.addWidget(self.dimension_gizmo_toggle)
+        action_row.addWidget(self.dimension_gizmo_toggle)
         self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
         self.pose_mode_button.setToolTip(
             "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
         )
-        title_row.addWidget(self.pose_mode_button)
-        root.addLayout(title_row)
+        action_row.addWidget(self.pose_mode_button)
+        action_row.addStretch(1)
+        root.addLayout(action_row)
 
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -549,7 +555,9 @@ class AvatarTaskPanel:
         row_layout = QtWidgets.QHBoxLayout(row)
         row_layout.setContentsMargins(2, 1, 2, 1)
         label = QtWidgets.QLabel(self._display_parameter_name(name))
-        label.setMinimumWidth(165)
+        label.setMinimumWidth(100)
+        label.setMaximumWidth(170)
+        label.setWordWrap(True)
         box = QtWidgets.QDoubleSpinBox()
         box.setDecimals(3)
         box.setSingleStep(0.01)
@@ -721,7 +729,7 @@ class AvatarTaskPanel:
         gender_container = QtWidgets.QWidget()
         gender_container.setLayout(gender_row)
         self.gender_value = QtWidgets.QLabel("Neutral")
-        self.gender_value.setMinimumWidth(90)
+        self.gender_value.setMinimumWidth(64)
         gender_value_row = QtWidgets.QHBoxLayout()
         gender_value_row.addWidget(gender_container, 1)
         gender_value_row.addWidget(self.gender_value)
@@ -743,7 +751,7 @@ class AvatarTaskPanel:
         breast_container = QtWidgets.QWidget()
         breast_container.setLayout(breast_row)
         self.breast_value = QtWidgets.QLabel("0%")
-        self.breast_value.setMinimumWidth(90)
+        self.breast_value.setMinimumWidth(64)
         breast_value_row = QtWidgets.QHBoxLayout()
         breast_value_row.addWidget(breast_container, 1)
         breast_value_row.addWidget(self.breast_value)
