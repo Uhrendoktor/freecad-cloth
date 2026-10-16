@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,18 +95,29 @@ def run_acceptance():
         _progress("before-create-avatar")
         avatar = create_avatar()
         _progress("after-create-avatar")
+        _progress("before-target-lookup")
         target = doc.getObject("DrapeTarget")
+        _progress(f"after-target-lookup:{target is not None}")
         if target is None:
             raise RuntimeError("avatar creation did not create a persistent DrapeTarget")
-        if target_status(target)["state"] != "ready":
-            raise RuntimeError("new mannequin target is not ready")
+        _progress("before-target-status")
+        status = target_status(target)
+        _progress(f"after-target-status:{status}")
+        if status["state"] != "ready":
+            raise RuntimeError(f"new mannequin target is not ready: {status}")
+        _progress("before-avatar-mesh-lookup")
         avatar_mesh = getattr(avatar, "Mesh", None)
+        _progress(f"after-avatar-mesh-lookup:{avatar_mesh is not None}")
         if avatar_mesh is None:
             raise RuntimeError("generated mannequin has no mesh")
+        _progress("before-mesh-topology")
         vertices, triangles = _mesh_topology(avatar_mesh)
+        _progress(f"after-mesh-topology:vertices={len(vertices)} triangles={len(triangles)}")
+        _progress("before-mesh-sanity")
         sanity = inspect_avatar_mesh(
             vertices, triangles, expected_height=float(getattr(avatar, "Height", 1750.0))
         )
+        _progress(f"after-mesh-sanity:{sanity}")
         if sanity.triangle_count < 100:
             raise RuntimeError("generated mannequin mesh is implausibly small")
         identity = avatar.Name
@@ -278,5 +290,11 @@ try:
     print("avatar provider acceptance passed", flush=True)
     os._exit(0)
 except BaseException as exc:
+    try:
+        _progress(f"acceptance-failure:{type(exc).__name__}:{exc!r}")
+        _TRACE_HANDLE.write(traceback.format_exc() + "\n")
+        _TRACE_HANDLE.flush()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
     print("avatar provider acceptance failed", repr(exc), flush=True)
     os._exit(1)
