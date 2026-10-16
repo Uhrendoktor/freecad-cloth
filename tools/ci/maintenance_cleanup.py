@@ -155,12 +155,71 @@ def branch_activity_epochs(
     return activity_epochs
 
 
+def closed_pr_head_shas_by_branch(
+    repo: str,
+    branches: list[dict[str, object]],
+    open_heads: set[str],
+    default_branch: str,
+    activity_epochs: dict[str, float],
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+) -> dict[str, set[str]]:
+    """Find recent branch heads that exactly match closed PR heads.
+
+    Such refs have no open review and have not advanced since the PR closed, so
+    they are eligible for removal even if their commit timestamp is recent.
+    Evidence refs, protected refs, the default branch, and open PR heads are
+    excluded from these lookups.
+    """
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    owner = repo.split("/", maxsplit=1)[0]
+    closed_heads: dict[str, set[str]] = {}
+    for branch in branches:
+        name = branch.get("name")
+        if (
+            not isinstance(name, str)
+            or name.startswith("simulation-evidence/")
+            or name == default_branch
+            or name in open_heads
+            or branch.get("protected") is not False
+        ):
+            continue
+        commit = branch.get("commit")
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if not isinstance(sha, str):
+            continue
+        activity = activity_epochs.get(sha)
+        if activity is None or activity < cutoff_epoch:
+            continue
+
+        encoded_head = quote(f"{owner}:{name}", safe=":")
+        pulls = list(load_api_items(f"repos/{repo}/pulls?state=closed&head={encoded_head}"))
+        for pull_request in pulls:
+            head = pull_request.get("head")
+            head_repo = head.get("repo") if isinstance(head, dict) else None
+            ref, head_sha = (
+                (head.get("ref"), head.get("sha")) if isinstance(head, dict) else (None, None)
+            )
+            full_name = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+            if (
+                pull_request.get("state") == "closed"
+                and ref == name
+                and head_sha == sha
+                and full_name == repo
+            ):
+                closed_heads.setdefault(name, set()).add(sha)
+                break
+    return closed_heads
+
+
 def stale_unprotected_branches(
     branches: list[dict[str, object]],
     open_heads: set[str],
     default_branch: str,
     activity_epochs: dict[str, float],
     cutoff_epoch: float,
+    closed_pr_head_shas: dict[str, set[str]] | None = None,
 ) -> list[dict[str, object]]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
@@ -183,7 +242,12 @@ def stale_unprotected_branches(
         if not isinstance(sha, str):
             continue
         activity = activity_epochs.get(sha)
-        if activity is None or activity >= cutoff_epoch:
+        if activity is None:
+            continue
+        closed_head_shas = (
+            closed_pr_head_shas.get(name, set()) if closed_pr_head_shas is not None else set()
+        )
+        if activity >= cutoff_epoch and sha not in closed_head_shas:
             continue
         stale.append((activity, branch))
     stale.sort(key=lambda item: (item[0], str(item[1].get("name", ""))))
@@ -401,8 +465,11 @@ def main() -> int:
     # Resolve all candidate activity before deleting anything; incomplete GraphQL data
     # aborts the branch pass instead of treating an unknown branch as stale.
     activity_epochs = branch_activity_epochs(repo, branch_shas)
+    closed_pr_heads = closed_pr_head_shas_by_branch(
+        repo, branches, open_heads, default_branch, activity_epochs, branch_cutoff
+    )
     stale_branches = stale_unprotected_branches(
-        branches, open_heads, default_branch, activity_epochs, branch_cutoff
+        branches, open_heads, default_branch, activity_epochs, branch_cutoff, closed_pr_heads
     )
     selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
     removed_branches = 0
