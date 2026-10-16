@@ -8,9 +8,9 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     _canonicalize_anny_vertices,
     _clad_measurement_targets,
     _initial_phenotypes,
-    _split_clad_targets,
     _localize_hip_fit_delta,
     _measurement_local_change_labels,
+    _split_clad_targets,
     build_avatar_rig_vertices,
     build_avatar_shape_mesh,
 )
