@@ -478,7 +478,7 @@ def _fitting_marker_group(
                 f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
                 "is used by a non-group object"
             )
-        group = cast(_FittingMarkerGroup, group)
+        group = cast("_FittingMarkerGroup", group)
         group.Label = _FITTING_MARKER_GROUP_LABEL
     return group
 

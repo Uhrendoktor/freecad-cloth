@@ -44,7 +44,7 @@ def _scene() -> _SimulationScene | None:
         ),
         None,
     )
-    return cast(_SimulationScene, scene) if scene is not None else None
+    return cast("_SimulationScene", scene) if scene is not None else None
 
 
 def _prepare(scene: _SimulationScene) -> None:

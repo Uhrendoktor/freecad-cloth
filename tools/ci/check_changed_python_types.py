@@ -30,7 +30,14 @@ RULES = (
 
 
 def changed_python_sources(base: str) -> dict[str, str | None]:
-    """Map each changed Python path to its base path, or None for newly added files."""
+    """Map each changed Python path to its base path, or None for newly added files.
+
+    Args:
+        base: Target branch name used to compute the source diff.
+
+    Returns:
+        Changed Python paths mapped to their previous names or None when newly added.
+    """
     base_ref = f"origin/{base}"
     result = subprocess.run(
         [
@@ -73,7 +80,15 @@ def annotation_regressions(
     current: Mapping[str, int],
     baseline: Mapping[str, int],
 ) -> tuple[tuple[str, int, int], ...]:
-    """Return rules whose current violation count exceeds the base count."""
+    """Return rules whose current violation count exceeds the base count.
+
+    Args:
+        current: Ruff annotation diagnostic counts for the changed source.
+        baseline: Ruff annotation diagnostic counts from the target branch.
+
+    Returns:
+        Rule names and baseline/current counts for every annotation regression.
+    """
     return tuple(
         (rule, baseline.get(rule, 0), current.get(rule, 0))
         for rule in RULES
@@ -82,7 +97,18 @@ def annotation_regressions(
 
 
 def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
-    """Count selected annotation diagnostics in source using a stable isolated Ruff run."""
+    """Count selected annotation diagnostics in source using a stable isolated Ruff run.
+
+    Args:
+        source: Python source text analyzed by Ruff.
+        filename: Logical source path used for Ruff's stdin filename.
+
+    Returns:
+        Counts of the selected annotation rules found in the source.
+
+    Raises:
+        RuntimeError: When Ruff cannot analyze the source or returns invalid JSON.
+    """
     command = [
         sys.executable,
         "-m",
@@ -116,7 +142,15 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
 
 
 def _base_source(base: str, path: str) -> str | None:
-    """Read a file from the target branch; return None when it did not exist there."""
+    """Read a file from the target branch; return None when it did not exist there.
+
+    Args:
+        base: Target branch name containing the comparison source.
+        path: Repository-relative path to read from that branch.
+
+    Returns:
+        Source text from the target branch, or None when the path is absent.
+    """
     result = subprocess.run(
         ["git", "show", f"origin/{base}:{path}"],
         check=False,
@@ -129,7 +163,14 @@ def _base_source(base: str, path: str) -> str | None:
 
 
 def main() -> int:
-    """Fail when a changed Python file adds missing-annotation violations."""
+    """Fail when a changed Python file adds missing-annotation violations.
+
+    Raises:
+        SystemExit: When a changed Python source file cannot be read as UTF-8 text.
+
+    Returns:
+        Process status indicating whether changed files avoid annotation regressions.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--base",

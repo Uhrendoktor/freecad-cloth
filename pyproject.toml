@@ -69,75 +69,32 @@ respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Broad, production-oriented static checks; only formatter conflicts and
-# FreeCAD-required host imports are excluded.
-select = [
-  "E",
-  "F",
-  "W",
-  "I",
-  "A",
-  "ANN401",
-  "B",
-  "BLE",
-  "C4",
-  "DTZ",
-  "FURB",
-  "G",
-  "LOG",
-  "PERF",
-  "PGH",
-  "PIE",
-  "RET",
-  "RUF",
-  "SIM",
-  "UP",
-  "YTT",
-]
+# Enable all Ruff rules and preview diagnostics. Only rules that Ruff documents as
+# incompatible with its own formatter are omitted; no legacy-debt baseline exists.
+select = ["ALL"]
+preview = true
 ignore = [
-  "E402",
-  "E501",
-
-  # Legacy printf interpolation remains useful in FreeCAD console/status diagnostics;
-  # replacing it wholesale with f-strings is not a semantics-preserving lint autofix.
-  "UP031",
-
-  # These rules encode local style preferences, not correctness or maintainability
-  # guarantees, and can obscure the intent of sequence and return contracts.
-  "RUF007",
-  "RUF046",
-  "RUF005",
-  "RET501",
-  "RET503",
-  "RET504",
-  "SIM105",
-  "C401",
-  "C408",
-  "C416",
-  "FURB162",
-  "FURB192",
-  "PIE810",
-  "RUF043",
-  "UP017",
-  "UP040",
+  "missing-trailing-comma",
+  "prohibited-trailing-comma",
+  "incorrect-blank-line-before-class",
+  "docstring-tab-indentation",
+  "triple-single-quotes",
+  "indentation-with-invalid-multiple",
+  "indentation-with-invalid-multiple-comment",
+  "over-indented",
+  "bad-quotes-inline-string",
+  "bad-quotes-multiline-string",
+  "bad-quotes-docstring",
+  "avoidable-escaped-quote",
+  "unnecessary-escaped-quote",
+  "tab-indentation",
 ]
 
-[tool.ruff.lint.per-file-ignores]
-# Standard unittest assertions are the native test oracle for this FreeCAD project.
-"tests/**/*.py" = ["S101"]
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
-# FreeCAD task callbacks must contain SWIG/Qt exceptions at the host boundary.
-# Broad exception handling is part of teardown, diagnostic reporting, and GUI resilience.
-"freecad_cloth/pattern/PatternCommands.py" = ["BLE001"]
-"freecad_cloth/pattern/PatternTopologyRepairGui.py" = ["BLE001"]
-"freecad_cloth/simulation/RealtimePreview.py" = ["BLE001"]
-"freecad_cloth/simulation/SimulationQualityGui.py" = ["BLE001"]
-
-# These integration/teardown runners must close the native FreeCAD process after any failure.
-"tests/freecad_*.py" = ["BLE001"]
-"tests/support/pbd_contact_helpers.py" = ["BLE001"]
-"tools/benchmark_workbenches.py" = ["BLE001"]
-"tools/ci/python_validation.py" = ["BLE001"]
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "(?i)Copyright\\s+\\(C\\)\\s+\\d{4}"
 
 [tool.ruff.format]
 docstring-code-format = true

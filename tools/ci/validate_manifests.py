@@ -15,14 +15,28 @@ CHECKPOINTS = [0, 1, 5, 15, 45, 90]
 
 
 def read(path: Path) -> dict:
-    """Read a required JSON manifest from disk."""
+    """Read a required JSON manifest from disk.
+
+    Args:
+        path: Filesystem location of the JSON manifest.
+
+    Returns:
+        Decoded manifest contents as a dictionary.
+
+    Raises:
+        SystemExit: Raised when the manifest file is missing or empty.
+    """
     if not path.is_file() or not path.stat().st_size:
         raise SystemExit(f"missing manifest: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def validate_simulation() -> None:
-    """Validate the canonical simulation collision manifests."""
+    """Validate the canonical simulation collision manifests.
+
+    Raises:
+        SystemExit: Raised when a collision manifest violates its release contract.
+    """
     specs = (
         ("cube", ROOT / "cube-ladder-manifest.json", 5, 3.0, "simulation-collision-ladder"),
         ("avatar", ROOT / "avatar-ladder-manifest.json", 5, 8.0, "simulation-avatar-ladder"),
@@ -53,7 +67,11 @@ def validate_simulation() -> None:
 
 
 def validate_turntables() -> None:
-    """Validate the canonical avatar and simulation turntable evidence."""
+    """Validate the canonical avatar and simulation turntable evidence.
+
+    Raises:
+        SystemExit: Raised when frame counts or uniqueness checks fail.
+    """
     root = Path("docs/images/generated")
     directories = (
         "cloth-avatar-turntable-frames",
@@ -106,7 +124,14 @@ def validate_turntables() -> None:
 
 
 def _validate_realtime_metrics(data: dict) -> None:
-    """Validate either legacy or schema-versioned realtime metrics without weakening gates."""
+    """Validate either legacy or schema-versioned realtime metrics without weakening gates.
+
+    Args:
+        data: Parsed JSON metrics used to verify the realtime performance contract.
+
+    Raises:
+        SystemExit: Raised when runtime metrics violate the schema or timing budget.
+    """
     if "schema_version" not in data:
         # Retain the existing contract for historical metric artifacts.
         if (
@@ -147,7 +172,14 @@ def _validate_realtime_metrics(data: dict) -> None:
 
 
 def _validate_tunic(require_canonical_e2e: bool) -> None:
-    """Validate tunic evidence produced by either the canonical or production audit."""
+    """Validate tunic evidence produced by either the canonical or production audit.
+
+    Args:
+        require_canonical_e2e: Whether to require canonical garment end-to-end evidence.
+
+    Raises:
+        SystemExit: Raised when required images, logs, metrics, or collision settings are invalid.
+    """
     generated = Path("docs/images/generated")
     progress = generated / "gui-progress.log"
     metrics = Path("artifacts/freecad-realtime/metrics.json")
@@ -261,7 +293,11 @@ def validate_tunic_production() -> None:
 
 
 def validate_blanket() -> None:
-    """Validate the canonical blanket visual evidence."""
+    """Validate the canonical blanket visual evidence.
+
+    Raises:
+        SystemExit: Raised when required blanket evidence or markers are absent.
+    """
     root = Path("docs/images/generated/blanket-example")
     log = root / "blanket-visual.log"
     if not log.is_file():
@@ -283,7 +319,11 @@ def validate_blanket() -> None:
 
 
 def validate_diagnostic() -> None:
-    """Validate the canonical diagnostic PBD evidence."""
+    """Validate the canonical diagnostic PBD evidence.
+
+    Raises:
+        SystemExit: Raised when diagnostic collision manifests are invalid.
+    """
     root = Path("artifacts/pbd-contact-diagnostics")
     for name, purpose, rung in (
         ("cube-ladder-manifest.json", "simulation-collision-ladder", range(1, 6)),
@@ -316,7 +356,11 @@ def validate_diagnostic() -> None:
 
 
 def main() -> int:
-    """Validate the requested canonical manifests and visual evidence."""
+    """Validate the requested canonical manifests and visual evidence.
+
+    Returns:
+        Process status indicating whether the selected evidence is valid.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "kind",

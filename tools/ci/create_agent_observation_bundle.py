@@ -9,7 +9,7 @@ import os
 import platform
 import sys
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 SCHEMA = "freecad-cloth.agent-observation"
@@ -32,7 +32,19 @@ class ObservationBundleError(ValueError):
 
 
 def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
-    """Resolve a relative path while rejecting traversal and symbolic links."""
+    """Resolve a relative path while rejecting traversal and symbolic links.
+
+    Args:
+        base: Trusted directory from which the relative path is resolved.
+        value: Untrusted relative path supplied by the workflow.
+        must_exist: Whether the resolved target must already exist.
+
+    Returns:
+        Resolved filesystem path contained beneath the trusted directory.
+
+    Raises:
+        ObservationBundleError: Raised when the path is unsafe or cannot be resolved.
+    """
     normalized = value.strip()
     relative = PurePosixPath(normalized)
     if (
@@ -64,7 +76,17 @@ def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
 
 
 def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]]:
-    """Parse explicit role=path lines and reject unsupported evidence roles."""
+    """Parse explicit role=path lines and reject unsupported evidence roles.
+
+    Args:
+        specifications: Lines declaring evidence roles and relative paths.
+
+    Returns:
+        Parsed role and relative-path pairs in their original order.
+
+    Raises:
+        ObservationBundleError: Raised when an entry uses an unsupported role or path.
+    """
     parsed: list[tuple[str, str]] = []
     seen: set[str] = set()
     for raw_line in specifications:
@@ -99,7 +121,14 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
 
 
 def _sha256(path: Path) -> str:
-    """Hash a file incrementally to keep peak memory usage small."""
+    """Hash a file incrementally to keep peak memory usage small.
+
+    Args:
+        path: File whose content should be hashed.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest of the file.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -108,7 +137,14 @@ def _sha256(path: Path) -> str:
 
 
 def _media_type(path: Path) -> str:
-    """Return a stable content type for common FreeCAD evidence files."""
+    """Return a stable content type for common FreeCAD evidence files.
+
+    Args:
+        path: Evidence file whose extension and name determine the media type.
+
+    Returns:
+        Best-supported media type, or the generic binary content type.
+    """
     known = {
         ".fcstd": "application/x-freecad-document",
         ".stl": "model/stl",
@@ -125,7 +161,14 @@ def _media_type(path: Path) -> str:
 
 
 def _integer_or_none(value: str | None) -> int | None:
-    """Convert an optional integer context field without failing the export."""
+    """Convert an optional integer context field without failing the export.
+
+    Args:
+        value: Optional text value expected to contain an integer.
+
+    Returns:
+        Parsed integer, or None when the field is absent or invalid.
+    """
     if not value:
         return None
     try:
@@ -135,7 +178,14 @@ def _integer_or_none(value: str | None) -> int | None:
 
 
 def _pull_request_number(environment: Mapping[str, str]) -> int | None:
-    """Read only the pull-request number from the GitHub event payload."""
+    """Read only the pull-request number from the GitHub event payload.
+
+    Args:
+        environment: Environment variables provided by the current workflow.
+
+    Returns:
+        Pull-request number from the event payload, or None when unavailable.
+    """
     event_path = environment.get("GITHUB_EVENT_PATH", "").strip()
     if not event_path:
         return None
@@ -159,7 +209,21 @@ def create_observation_bundle(
     label: str,
     environment: Mapping[str, str],
 ) -> dict[str, object]:
-    """Write the observation manifest and return its schema-versioned payload."""
+    """Write the observation manifest and return its schema-versioned payload.
+
+    Args:
+        workspace: Trusted repository workspace used for resolving evidence paths.
+        observation_root: Relative directory containing permitted evidence files.
+        specifications: Role and path declarations for the files to include.
+        label: Human-readable label attached to the observation bundle.
+        environment: Workflow environment used to record execution metadata.
+
+    Returns:
+        Schema-versioned observation manifest ready for JSON serialization.
+
+    Raises:
+        ObservationBundleError: Raised when the root or evidence declarations are invalid.
+    """
     workspace = workspace.resolve()
     root = _resolve_relative_path(workspace, observation_root, must_exist=True)
     if not root.is_dir():
@@ -211,7 +275,7 @@ def create_observation_bundle(
     manifest: dict[str, object] = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
-        "created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "label": label.strip() or None,
         "context": {
             "repository": repository,
@@ -246,7 +310,11 @@ def create_observation_bundle(
 
 
 def main() -> int:
-    """Generate an observation manifest when the opt-in action inputs are configured."""
+    """Generate an observation manifest when the opt-in action inputs are configured.
+
+    Returns:
+        Process status indicating whether observation export was completed.
+    """
     environment = os.environ
     if not environment.get("OBSERVATION_ARTIFACT_NAME", "").strip():
         print("agent observation export requires artifact-name to be set", file=sys.stderr)

@@ -314,7 +314,7 @@ def release_all_input() -> None:
 
 def _position(QtCore: ModuleType, position: tuple[float, float]) -> _QtPoint:
     """Convert a numeric viewport point to a Qt integer point."""
-    return cast(_QtPoint, QtCore.QPoint(int(round(position[0])), int(round(position[1]))))
+    return cast("_QtPoint", QtCore.QPoint(int(round(position[0])), int(round(position[1]))))
 
 
 def _button_and_modifiers(
@@ -323,7 +323,7 @@ def _button_and_modifiers(
     """Resolve default Qt mouse button and modifier values across Qt bindings."""
     resolved_button = QtCore.Qt.LeftButton if button is None else button
     resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
-    return cast(QtInputValue, resolved_button), cast(QtInputValue, resolved_modifiers)
+    return cast("QtInputValue", resolved_button), cast("QtInputValue", resolved_modifiers)
 
 
 def mouse_press(

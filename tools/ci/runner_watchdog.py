@@ -9,14 +9,25 @@ import time
 
 
 def gh(*args: str) -> str:
-    """Run a GitHub CLI command and return standard output."""
+    """Run a GitHub CLI command and return standard output.
+
+    Args:
+        args: GitHub CLI subcommand and arguments, excluding the executable name.
+
+    Returns:
+        Standard output emitted by the successful CLI command.
+    """
     return subprocess.run(
         ["gh", *args], check=True, capture_output=True, text=True, timeout=10
     ).stdout
 
 
 def main() -> int:
-    """Prefer the configured local runner and dispatch the hosted fallback when needed."""
+    """Prefer the configured local runner and dispatch the hosted fallback when needed.
+
+    Returns:
+        Process status indicating whether runner selection or fallback dispatch completed.
+    """
     repo = os.environ["REPO"]
     run_id = os.environ["GITHUB_RUN_ID"]
     ref = os.environ["GITHUB_REF_NAME"]

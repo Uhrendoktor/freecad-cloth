@@ -14,24 +14,28 @@ from pathlib import Path
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
 
-def configured_timeout_seconds() -> float:
-    """Return the authoritative FreeCAD application timeout from pyproject.toml."""
-    import tomllib
+try:
+    from freecad_timeout_config import read_application_timeout
+except ModuleNotFoundError:
+    from tools.ci.freecad_timeout_config import read_application_timeout
 
-    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    value = (
-        data.get("tool", {})
-        .get("freecad_cloth", {})
-        .get("ci", {})
-        .get("freecad_application_timeout_seconds")
-    )
-    if not isinstance(value, int) or value <= 0:
-        raise RuntimeError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
-        )
+
+def configured_timeout_seconds() -> float:
+    """Read the configured FreeCAD timeout and validate an optional runtime override.
+
+    Returns:
+        Positive application runtime budget in seconds.
+
+    Raises:
+        RuntimeError: If the configured timeout or an explicit runtime override is invalid.
+    """
+    try:
+        timeout_seconds = float(read_application_timeout(PYPROJECT))
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
     override = os.environ.get("FREECAD_APPLICATION_TIMEOUT_SECONDS")
     if override is None:
-        return float(value)
+        return timeout_seconds
     try:
         override_seconds = int(override)
     except ValueError as exc:
@@ -42,6 +46,11 @@ def configured_timeout_seconds() -> float:
 
 
 def _stage_workbench(source: Path) -> None:
+    """Copy the workbench source tree to the isolated FreeCAD module directory.
+
+    Args:
+        source: Repository root containing the workbench files to stage.
+    """
     target = Path("/tmp/freecad-mod/freecad-cloth")
     if target.exists():
         shutil.rmtree(target.parent)
@@ -59,6 +68,17 @@ def _stage_workbench(source: Path) -> None:
 
 
 def _start_display(display: str) -> tuple[subprocess.Popen[str], subprocess.Popen[str]]:
+    """Start Xvfb and Openbox and wait for the display server to respond.
+
+    Args:
+        display: X display identifier shared by FreeCAD and the window manager.
+
+    Returns:
+        Process handles for the Xvfb server and Openbox window manager.
+
+    Raises:
+        RuntimeError: Raised when the display server does not become ready in five seconds.
+    """
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp/runtime-cloth"))
     runtime.mkdir(parents=True, exist_ok=True)
     xvfb_log = Path("/tmp/xvfb.log")
@@ -92,6 +112,11 @@ def _start_display(display: str) -> tuple[subprocess.Popen[str], subprocess.Pope
 
 
 def _stop_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate a process group and wait for its processes to exit.
+
+    Args:
+        process: Leader process whose process group should be stopped.
+    """
     if process.poll() is not None:
         return
     try:
@@ -107,6 +132,13 @@ def _stop_process_tree(process: subprocess.Popen[str]) -> None:
 
 
 def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> None:
+    """Write the process result and available display-server logs to a diagnostic file.
+
+    Args:
+        path: Destination for the diagnostic log.
+        return_code: Exit status reported by the FreeCAD process, if available.
+        timed_out: Whether the application exceeded its configured runtime budget.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         f"freecad-run-return-code={return_code}",
@@ -121,7 +153,11 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
 
 
 def main() -> int:
-    """Run a FreeCAD test process with the repository runtime contract."""
+    """Run a FreeCAD test process with the repository runtime contract.
+
+    Returns:
+        Exit status reported by FreeCAD, or 124 when the runtime limit is exceeded.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-file", type=Path, required=True)
     parser.add_argument("--test-script", type=Path, required=True)

@@ -24,13 +24,13 @@ if ROOT not in sys.path:
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-os.makedirs(OUT, exist_ok=True)
+Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
 TURNTABLE_FRAMES = max(12, min(72, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))))
 
 
 def log(message):
-    with open(LOG, "a", encoding="utf-8") as handle:
+    with Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
@@ -80,9 +80,9 @@ def zoom_for_direction(view, direction):
 def save_png(view, path, width=1280, height=720, state="capture"):
     """Render only the 3D view so README images are unobstructed model evidence."""
     view.saveImage(path, width, height, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
+    if not Path(path).is_file() or Path(path).stat().st_size < 5000:
         raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
-    with open(path, "rb") as handle:
+    with Path(path).open("rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
         raise RuntimeError(f"invalid PNG capture for {state}")
@@ -92,7 +92,7 @@ def save_png(view, path, width=1280, height=720, state="capture"):
         raise RuntimeError(
             f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
         )
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+    log("screenshot=%s state=%s bytes=%d" % (path, state, Path(path).stat().st_size))
 
 
 def avatar_center(avatar):
@@ -107,7 +107,7 @@ def avatar_center(avatar):
 
 def render_turntable(view, center, frame_dir, frame_count=72):
     """Render a complete 360-degree horizontal camera orbit around the avatar."""
-    os.makedirs(frame_dir, exist_ok=True)
+    Path(frame_dir).mkdir(exist_ok=True, parents=True)
     view.setCameraType("Orthographic")
     view.viewRear()
     view.fitAll()
@@ -445,8 +445,8 @@ def main():
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
-    with open(init_gui, encoding="utf-8") as handle:
-        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
+    with Path(init_gui).open(encoding="utf-8") as handle:
+        exec(handle.read(), globals(), globals())
     events()
     hide_task_docks(window)
 

@@ -1,7 +1,7 @@
 """FreeCAD-independent derived geometry and construction marks for patterns."""
 
 from collections.abc import Iterable
-from math import atan2, cos, hypot, isfinite
+from math import atan2, cos, hypot, isfinite, pi
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -330,8 +330,8 @@ def _offset_polyline(
                 atan2(normals[index][1], normals[index][0])
                 - atan2(normals[index - 1][1], normals[index - 1][0])
             )
-            while tangent_change > 3.141592653589793:
-                tangent_change -= 2 * 3.141592653589793
+            while tangent_change > pi:
+                tangent_change -= 2 * pi
             cosine_half = max(0.25, abs(cos(tangent_change / 2)))
             scale = min(width / cosine_half, width * miter_limit)
         result.append((point[0] + normal[0] * scale, point[1] + normal[1] * scale))

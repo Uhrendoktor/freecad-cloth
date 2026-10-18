@@ -186,7 +186,8 @@ def run():
         operations = [
             obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"
         ]
-        assert len(operations) == 1 and operations[0].Status == "Valid"
+        assert len(operations) == 1
+        assert operations[0].Status == "Valid"
         operation = operations[0]
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(operation)
@@ -198,14 +199,16 @@ def run():
         assert panel.accept() is True
         close_panel()
         doc.recompute()
-        assert operation.StitchCount == 12 and operation.Alignment == "uniform"
+        assert operation.StitchCount == 12
+        assert operation.Alignment == "uniform"
         select_edges(
             (sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2)
         )
         Gui.runCommand("ClothSewing_CreateMNSewing", 0)
         process_events()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
-        assert len(networks) == 1 and len(networks[0].Seams) == 3
+        assert len(networks) == 1
+        assert len(networks[0].Seams) == 3
         network = networks[0]
 
         activate(
@@ -221,7 +224,8 @@ def run():
         scene.QualityPreset = "Fast"
         scene.Steps = 4
         doc.recompute()
-        assert int(scene.ParticleCount) > 0 and scene.FiniteState
+        assert int(scene.ParticleCount) > 0
+        assert scene.FiniteState
         working_particles = int(scene.ParticleCount)
         initial_signature = scene.Proxy.source_signature
         Gui.Selection.clearSelection()
@@ -249,19 +253,16 @@ def run():
         operation = doc.getObject(operation_name)
         network = doc.getObject(network_name)
         scene = doc.getObject("ClothSimulation")
-        assert (
-            front is not None
-            and operation is not None
-            and network is not None
-            and scene is not None
-        )
+        assert front is not None
+        assert operation is not None
+        assert network is not None
+        assert scene is not None
         assert getattr(front, "GeometryAuthority", "") == "Sketcher"
-        assert (
-            operation.Seam is not None
-            and operation.PieceA is not None
-            and operation.PieceB is not None
-        )
-        assert len(network.Seams) == 3 and scene.ClothPieces
+        assert operation.Seam is not None
+        assert operation.PieceA is not None
+        assert operation.PieceB is not None
+        assert len(network.Seams) == 3
+        assert scene.ClothPieces
 
         before_length = float(operation.LengthA)
         before_signature = scene.Proxy.source_signature
@@ -270,7 +271,8 @@ def run():
         after_length = float(operation.LengthA)
         after_signature = scene.Proxy.source_signature
         assert abs(after_length - before_length) > 1e-6
-        assert after_signature != before_signature and operation.Status == "Length mismatch"
+        assert after_signature != before_signature
+        assert operation.Status == "Length mismatch"
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(scene)
         process_events()
@@ -279,7 +281,8 @@ def run():
         scene.QualityPreset = "Balanced"
         scene.Steps = 2
         doc.recompute()
-        assert int(scene.ParticleCount) > 0 and scene.FiniteState
+        assert int(scene.ParticleCount) > 0
+        assert scene.FiniteState
         log("three PatternPieces plus sleeves: OK")
         log("native Sketcher authority: OK")
         log("persisted seam and M:N sewing network: OK")
@@ -298,7 +301,7 @@ def run():
             App.closeDocument(doc.Name)
         if path:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
         try:
             window = Gui.getMainWindow()
             if window is not None:

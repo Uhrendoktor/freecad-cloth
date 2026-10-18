@@ -41,7 +41,7 @@ def _member_length(member: SewingMember, edge_lengths) -> float:
     if callable(edge_lengths):
         length = edge_lengths(member.piece_id, member.edge)
     else:
-        length = edge_lengths[(member.piece_id, member.edge)]
+        length = edge_lengths[member.piece_id, member.edge]
     length = float(length)
     if length <= 0.0:
         raise ValueError("sewing member edge length must be positive")
@@ -161,7 +161,7 @@ def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
         piece = pieces.get(member.piece_id)
         if piece is None:
             raise ValueError(f"unknown pattern piece: {member.piece_id}")
-        result[(member.piece_id, member.edge)] = _edge_length(piece, member.edge)
+        result[member.piece_id, member.edge] = _edge_length(piece, member.edge)
     return result
 
 

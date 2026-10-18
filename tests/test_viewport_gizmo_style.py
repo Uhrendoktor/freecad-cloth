@@ -40,9 +40,12 @@ def test_pose_axis_colors_keep_the_standard_xyz_identity() -> None:
     """Keep axis identity stable for spatial recognition."""
     assert tuple(POSE_AXIS_COLORS) == ("X", "Y", "Z")
     x, y, z = (POSE_AXIS_COLORS[axis] for axis in ("X", "Y", "Z"))
-    assert x[0] > x[1] and x[0] > x[2]
-    assert y[1] > y[0] and y[1] > y[2]
-    assert z[2] > z[0] and z[2] > z[1]
+    assert x[0] > x[1]
+    assert x[0] > x[2]
+    assert y[1] > y[0]
+    assert y[1] > y[2]
+    assert z[2] > z[0]
+    assert z[2] > z[1]
     assert len({x, y, z}) == 3
 
 

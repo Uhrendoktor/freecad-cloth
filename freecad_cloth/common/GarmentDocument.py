@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD Garment document hierarchy.
 
 The FCStd document is the persistence authority.  This module only creates
@@ -130,7 +131,6 @@ def ensure_garment_hierarchy(doc, label="Garment"):
     """Create or repair the native Garment -> five-container hierarchy."""
     if doc is None:
         raise ValueError("a FreeCAD document is required")
-    import FreeCAD as App  # noqa: F401
 
     root = garment_root(doc)
     if root is None:

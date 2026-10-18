@@ -226,7 +226,7 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(reloaded.Name)
         finally:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
     finally:
         if document is not None and document.Name in App.listDocuments():
             App.closeDocument(document.Name)
@@ -347,7 +347,8 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
         reloaded.recompute()
         changed = [seam for seam in network.Seams if str(seam.Status) == "Changed reference"]
         valid = [seam for seam in network.Seams if str(seam.Status) == "Valid"]
-        assert len(changed) == 1 and len(valid) == 1
+        assert len(changed) == 1
+        assert len(valid) == 1
         assert str(network.Status) == "Invalid"
         changed_seam = changed[0]
         changed_seam.EdgeASignature = refresh_edge_reference_signature(
@@ -360,7 +361,7 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
     finally:
         try:
             if path is not None:
-                os.unlink(path)
+                Path(path).unlink()
         except OSError:
             pass
         if document is not None and document.Name in App.listDocuments():

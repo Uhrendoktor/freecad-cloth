@@ -304,11 +304,11 @@ def _edge_points(
     local1 = vector_factory(p1[0], p1[1], z)
     placement = getattr(piece, "Placement", None)
     if placement is not None:
-        native_placement = cast(_NativePlacement, placement)
-        return native_placement.multVec(cast(_NativePoint, local0)), native_placement.multVec(
-            cast(_NativePoint, local1)
+        native_placement = cast("_NativePlacement", placement)
+        return native_placement.multVec(cast("_NativePoint", local0)), native_placement.multVec(
+            cast("_NativePoint", local1)
         )
-    return cast(_NativePoint, local0), cast(_NativePoint, local1)
+    return cast("_NativePoint", local0), cast("_NativePoint", local1)
 
 
 def _resolved_edge(piece: object, seam: object, prefix: str) -> int:
@@ -341,9 +341,9 @@ def _edge_samples(
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
         value = vector_factory(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
-        native_value = cast(_NativePoint, value)
+        native_value = cast("_NativePoint", value)
         values.append(
-            cast(_NativePlacement, placement).multVec(native_value)
+            cast("_NativePlacement", placement).multVec(native_value)
             if placement is not None and transform_to_world
             else native_value
         )

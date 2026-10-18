@@ -1,6 +1,7 @@
 """FreeCAD-independent parametric 2D pattern geometry primitives."""
 
 from collections.abc import Iterable, Sequence
+from itertools import starmap
 from math import hypot, isfinite
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -132,7 +133,7 @@ class PolylineSegment:
 
     def length(self) -> float:
         """Return the geometric length represented by this object."""
-        total = sum(_distance(a, b) for a, b in zip(self.points, self.points[1:], strict=False))
+        total = sum(starmap(_distance, zip(self.points, self.points[1:], strict=False)))
         if not isfinite(total):
             raise ValueError("polyline length must be finite")
         return total
@@ -201,9 +202,7 @@ class ParametricPattern:
                 values[segment.id] = segment.length()
             else:
                 points = segment.polyline(curve_samples)
-                values[segment.id] = sum(
-                    _distance(a, b) for a, b in zip(points, points[1:], strict=False)
-                )
+                values[segment.id] = sum(starmap(_distance, zip(points, points[1:], strict=False)))
             if not isfinite(values[segment.id]):
                 raise ValueError("pattern segment lengths must be finite")
         return values

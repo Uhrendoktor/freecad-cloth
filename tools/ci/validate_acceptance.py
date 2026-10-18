@@ -53,7 +53,14 @@ REQUIRED_LOG_MARKERS = {
 
 
 def main() -> int:
-    """Validate a captured GUI artifact without trusting the producer log."""
+    """Validate a captured GUI artifact without trusting the producer log.
+
+    Raises:
+        SystemExit: When required screenshots, animation frames, GIFs, or log markers are missing.
+
+    Returns:
+        Process status indicating whether the selected acceptance evidence is valid.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted((*CASES, *LOG_CASES)))
     args = parser.parse_args()

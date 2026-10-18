@@ -326,13 +326,12 @@ class HumanoidMeshTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+            Path(path).write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
             loaded = load_makehuman_mesh(path)
             self.assertEqual(len(loaded.vertices), 3)
             self.assertEqual(loaded.triangles, ((0, 1, 2),))
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
 
 if __name__ == "__main__":

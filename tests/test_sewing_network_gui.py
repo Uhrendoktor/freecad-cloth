@@ -175,7 +175,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts():
             self.values = {(0, 2): 0.3, (0, 3): 0.7, (0, 6): 0.2, (0, 7): 0.8}
 
         def item(self, row, column):
-            return Item(self.values[(row, column)])
+            return Item(self.values[row, column])
 
     class Combo:
         def currentText(self):
@@ -210,7 +210,8 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts():
         raise AssertionError("invalid recompute was silently accepted")
     seam = panel._seams[0]
     assert (seam.StartA, seam.EndA, seam.StartB, seam.EndB) == (0.2, 0.8, 0.1, 0.9)
-    assert seam.Alignment == "uniform" and seam.ReversedB is True
+    assert seam.Alignment == "uniform"
+    assert seam.ReversedB is True
     assert App.ActiveDocument.calls == ["recompute", "recompute", "abort"]
     assert panel._transaction_active is False
 
@@ -323,7 +324,8 @@ def test_missing_reference_is_reported_without_silent_edit():
     try:
         validate_network_for_edit(Network())
     except ValueError as exc:
-        assert "invalid seam references" in str(exc) and "s-missing: Missing reference" in str(exc)
+        assert "invalid seam references" in str(exc)
+        assert "s-missing: Missing reference" in str(exc)
     else:
         raise AssertionError("missing reference was silently accepted")
 
@@ -339,10 +341,13 @@ def test_curved_correspondence_reports_reversal_and_mismatch():
         ReversedB = True
 
     report = correspondence_report(Seam(), 120.0, 121.0, 0.05)
-    assert report.status == "reversed" and report.valid and report.reversed_b
+    assert report.status == "reversed"
+    assert report.valid
+    assert report.reversed_b
     Seam.ReversedB = False
     mismatch = correspondence_report(Seam(), 100.0, 120.0, 0.05)
-    assert mismatch.status == "length_mismatch" and not mismatch.valid
+    assert mismatch.status == "length_mismatch"
+    assert not mismatch.valid
 
 
 def test_curved_correspondence_rejects_invalid_range():
@@ -356,7 +361,8 @@ def test_curved_correspondence_rejects_invalid_range():
         ReversedB = False
 
     report = correspondence_report(Seam(), 100.0, 100.0, 0.05)
-    assert report.status == "invalid_range" and not report.valid
+    assert report.status == "invalid_range"
+    assert not report.valid
 
 
 def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance():

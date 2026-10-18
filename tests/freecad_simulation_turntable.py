@@ -22,6 +22,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 import contextlib
+import pathlib
 
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
@@ -46,13 +47,13 @@ BLANKET_PARTICLE_DISTANCE = (
 BLANKET_START_Z = 115.0  # Keep the 40 mm drape-motion gate robust with the pinned solver.
 # The README fixture uses the same pinned PositionBasedDynamics mesh-collision runtime as the
 # canonical turntable job and the validated 200 mm blanket visual example.
-os.makedirs(OUT, exist_ok=True)
+pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "simulation-turntable-progress.log")
 TURNTABLE_FRAMES = max(12, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72")))
 
 
 def log(message):
-    with open(LOG, "a", encoding="utf-8") as handle:
+    with pathlib.Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
@@ -103,8 +104,8 @@ def save_png(view, path, state):
                 view.redraw()
             events()
             view.saveImage(temp_path, 640, 480, "White")
-            if os.path.isfile(temp_path) and os.path.getsize(temp_path) >= 1000:
-                with open(temp_path, "rb") as handle:
+            if pathlib.Path(temp_path).is_file() and pathlib.Path(temp_path).stat().st_size >= 1000:
+                with pathlib.Path(temp_path).open("rb") as handle:
                     header = handle.read(24)
                 valid_dimensions = (
                     header[:8] == b"\x89PNG\r\n\x1a\n"
@@ -112,13 +113,13 @@ def save_png(view, path, state):
                     and int.from_bytes(header[20:24], "big") == 480
                 )
                 if valid_dimensions and _png_has_visible_content(temp_path):
-                    os.replace(temp_path, path)
+                    pathlib.Path(temp_path).replace(path)
                     log("png-capture=passed state=%s attempts=%d" % (state, capture_index))
                     return
             log("png-capture=retry state=%s attempts=%d" % (state, capture_index))
         finally:
             with contextlib.suppress(FileNotFoundError):
-                os.remove(temp_path)
+                pathlib.Path(temp_path).unlink()
         time.sleep(0.05)
     raise RuntimeError(f"PNG capture contains no visible rendered content for {state}")
 
@@ -143,7 +144,7 @@ def combined_center(objects):
 
 
 def render_turntable(view, objects, frame_dir, frame_count=72):
-    os.makedirs(frame_dir, exist_ok=True)
+    pathlib.Path(frame_dir).mkdir(exist_ok=True, parents=True)
     visible_names = {obj.Name for obj in objects}
     visibility = []
     doc = App.ActiveDocument
@@ -194,7 +195,7 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
         events()
         frame_path = os.path.join(frame_dir, "frame-%03d.png" % frame)
         save_png(view, frame_path, "turntable frame %03d" % frame)
-        with open(frame_path, "rb") as handle:
+        with pathlib.Path(frame_path).open("rb") as handle:
             frame_hashes.append(hashlib.sha256(handle.read()).hexdigest())
         if frame == 0 or (frame + 1) % 18 == 0 or frame == frame_total - 1:
             log(
@@ -442,7 +443,7 @@ def main():
     documentation_capture_only = os.environ.get(
         "CLOTH_DOCUMENTATION_CAPTURE_ONLY", ""
     ).strip().lower() in {"1", "true", "yes"}
-    with open(LOG, "w", encoding="utf-8"):
+    with pathlib.Path(LOG).open("w", encoding="utf-8"):
         pass
     window = wait_for_gui_ready()
     log(
@@ -454,8 +455,8 @@ def main():
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        with open(init_gui, encoding="utf-8") as handle:
-            exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
+        with pathlib.Path(init_gui).open(encoding="utf-8") as handle:
+            exec(handle.read(), globals(), globals())
     events()
 
     doc = App.newDocument("ClothBlanketTurntable")

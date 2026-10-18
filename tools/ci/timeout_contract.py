@@ -5,6 +5,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+try:
+    from freecad_timeout_config import read_application_timeout
+except ModuleNotFoundError:
+    from tools.ci.freecad_timeout_config import read_application_timeout
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/canonical-execution.yml"
 TEST_ACTION = ROOT / ".github/actions/freecad-test/action.yml"
@@ -13,25 +18,26 @@ PYPROJECT = ROOT / "pyproject.toml"
 
 
 def configured_timeout() -> int:
-    """Return the authoritative FreeCAD application timeout from pyproject.toml."""
-    import tomllib
+    """Read the authoritative FreeCAD application timeout from pyproject.toml.
 
-    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    value = (
-        data.get("tool", {})
-        .get("freecad_cloth", {})
-        .get("ci", {})
-        .get("freecad_application_timeout_seconds")
-    )
-    if not isinstance(value, int) or value <= 0:
-        raise ValueError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
-        )
-    return value
+    Returns:
+        Positive application timeout in seconds.
+
+    Raises:
+        ValueError: Raised when the configured timeout is not a positive integer.
+    """
+    return read_application_timeout(PYPROJECT)
 
 
 def main() -> int:
-    """Validate that workflow and action surfaces do not define a second timeout."""
+    """Validate that workflow and action surfaces do not define a second timeout.
+
+    Raises:
+        SystemExit: Raised when a workflow, action, or configuration violates the timeout contract.
+
+    Returns:
+        Process status indicating whether the timeout contract is valid.
+    """
     expected = configured_timeout()
     if expected != 120:
         raise SystemExit("FreeCAD application runtime budget must remain at 120 seconds")

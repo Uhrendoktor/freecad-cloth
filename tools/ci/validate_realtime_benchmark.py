@@ -15,7 +15,14 @@ MIN_WARMUP_FRAMES = 30
 
 
 def _number(value: object) -> float | None:
-    """Return a finite real number; reject booleans and malformed metrics."""
+    """Return a finite real number; reject booleans and malformed metrics.
+
+    Args:
+        value: Candidate metric value to validate.
+
+    Returns:
+        Finite numeric value, or None when the value is invalid.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     number = float(value)
@@ -23,17 +30,31 @@ def _number(value: object) -> float | None:
 
 
 def _integer(value: object) -> int | None:
-    """Return an integer metric without accepting booleans or truncated floats."""
+    """Return an integer metric without accepting booleans or truncated floats.
+
+    Args:
+        value: Candidate metric value to validate.
+
+    Returns:
+        Integer value, or None when the value is not an integer.
+    """
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
 
 
 def validate_metrics(payload: object) -> list[str]:
-    """Return all acceptance failures found in a realtime metric artifact."""
+    """Return all acceptance failures found in a realtime metric artifact.
+
+    Args:
+        payload: Decoded JSON value from the saved metrics artifact.
+
+    Returns:
+        Human-readable errors for each unmet metric requirement.
+    """
     if not isinstance(payload, dict):
         return ["metrics artifact must contain a JSON object"]
-    metrics = cast(dict[str, object], payload)
+    metrics = cast("dict[str, object]", payload)
     errors: list[str] = []
 
     if _integer(metrics.get("schema_version")) != 1:
@@ -115,13 +136,13 @@ def validate_metrics(payload: object) -> list[str]:
     if not isinstance(stage_value, dict):
         errors.append("stage_timings must be a JSON object")
     else:
-        stages = cast(dict[str, object], stage_value)
+        stages = cast("dict[str, object]", stage_value)
         for name in required_stages:
             stage_value_for_name = stages.get(name)
             if not isinstance(stage_value_for_name, dict):
                 errors.append(f"stage_timings.{name} must be a JSON object")
                 continue
-            stage = cast(dict[str, object], stage_value_for_name)
+            stage = cast("dict[str, object]", stage_value_for_name)
             samples = _integer(stage.get("samples"))
             if frames is None:
                 minimum_samples = MIN_FRAMES
@@ -144,7 +165,7 @@ def validate_metrics(payload: object) -> list[str]:
     if not isinstance(profile_value, dict):
         errors.append("profile must be a JSON object")
     else:
-        profile = cast(dict[str, object], profile_value)
+        profile = cast("dict[str, object]", profile_value)
         if profile.get("quality_preset") != "Fast":
             errors.append("profile.quality_preset must be Fast")
         spacing = _number(profile.get("particle_distance_mm"))
@@ -160,7 +181,7 @@ def validate_metrics(payload: object) -> list[str]:
     if not isinstance(runtime_value, dict):
         errors.append("runtime must be a JSON object")
     else:
-        runtime = cast(dict[str, object], runtime_value)
+        runtime = cast("dict[str, object]", runtime_value)
         for key in ("platform", "python_version", "freecad_version"):
             value = runtime.get(key)
             if not isinstance(value, str) or not value:
@@ -173,7 +194,14 @@ def validate_metrics(payload: object) -> list[str]:
 
 
 def main() -> int:
-    """Read and independently validate a saved realtime metric artifact."""
+    """Read and independently validate a saved realtime metric artifact.
+
+    Raises:
+        SystemExit: Raised when the metrics file cannot be read or decoded.
+
+    Returns:
+        Process status indicating whether the realtime metrics are acceptable.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metrics", type=Path, help="path to metrics.json produced by FreeCAD")
     args = parser.parse_args()
@@ -190,7 +218,7 @@ def main() -> int:
             print(f"realtime-benchmark=failed reason={error}", flush=True)
         return 1
 
-    metrics = cast(dict[str, object], payload)
+    metrics = cast("dict[str, object]", payload)
     mean_interval = _number(metrics.get("mean_frame_interval_ms"))
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is None or p95_interval is None:

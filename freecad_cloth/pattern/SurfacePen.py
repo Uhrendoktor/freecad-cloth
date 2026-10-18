@@ -17,6 +17,7 @@ import collections.abc
 import contextlib
 import json
 import math
+from itertools import starmap
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -731,7 +732,7 @@ class SurfacePenController:
             coords.point.setValues(
                 0,
                 len(points),
-                [coin.SbVec3f(*point) for point in points],
+                list(starmap(coin.SbVec3f, points)),
             )
             line = coin.SoLineSet()
             line.numVertices.setValue(len(points))

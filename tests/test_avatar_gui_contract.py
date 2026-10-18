@@ -5,6 +5,8 @@ exercise exported panel configuration and pure helper behavior without reading
 the GUI implementation source.
 """
 
+import math
+
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
 
@@ -48,7 +50,8 @@ def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
     provider_labels = dict(AvatarTaskPanel.PROVIDERS)
     geometry_label = provider_labels["freecad-geometry"].lower()
     assert "surface only" in geometry_label
-    assert "skeleton" in geometry_label and "animation" in geometry_label
+    assert "skeleton" in geometry_label
+    assert "animation" in geometry_label
 
 
 def test_avatar_panel_exposes_the_public_task_panel_protocol():
@@ -75,7 +78,7 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
     assert self_value == 1800.0
     circumference = AvatarDimensionController._dragged_value(
-        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793, (600.0, 1600.0)
+        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * math.pi, (600.0, 1600.0)
     )
     assert circumference == 1600.0
     assert (

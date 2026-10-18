@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# Copyright (C) 2026 Uhrendoktor
+
 """Render benchmark JSON into small, reviewable PNG plots."""
 
 from __future__ import annotations
@@ -6,12 +7,27 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 
 
-def plot_metric(names, values, title, ylabel, out):
-    """Provide the public plot metric operation."""
+def plot_metric(
+    names: Sequence[str],
+    values: Sequence[int | float],
+    title: str,
+    ylabel: str,
+    out: pathlib.Path,
+) -> None:
+    """Render one workbench metric as a bar chart.
+
+    Args:
+        names: Workbench labels shown on the horizontal axis.
+        values: Numeric measurements corresponding to each label.
+        title: Descriptive title displayed above the chart.
+        ylabel: Label describing the vertical-axis values.
+        out: Destination path for the generated PNG image.
+    """
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.bar(names, values)
     ax.set_title(title)
@@ -23,7 +39,7 @@ def plot_metric(names, values, title, ylabel, out):
 
 
 def main() -> None:
-    """Provide the public main operation."""
+    """Generate benchmark plots from the supplied JSON report."""
     src = pathlib.Path(sys.argv[1])
     out = pathlib.Path(sys.argv[2])
     data = json.loads(src.read_text(encoding="utf-8"))
