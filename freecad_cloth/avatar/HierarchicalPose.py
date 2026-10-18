@@ -43,8 +43,9 @@ def _make_anny_rig_mapper(
 ) -> Mapper:
     """Map stable MakeHuman source points to the same indices in fitted Anny space."""
     if len(source_vertices) != len(rig_vertices):
+        msg = "Anny's fitted vertices do not match the original MakeHuman rig index space."
         raise HumanoidMeshError(
-            "Anny's fitted vertices do not match the original MakeHuman rig index space."
+            msg
         )
 
     def average(points: list[Point]) -> Point:

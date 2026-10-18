@@ -16,7 +16,8 @@ def normalize_points(points):
     """Provide the public normalize points operation."""
     values = tuple((float(x), float(y)) for x, y in points)
     if len(values) < 3:
-        raise ValueError("drafting boundary requires at least three points")
+        msg = "drafting boundary requires at least three points"
+        raise ValueError(msg)
     return values
 
 
@@ -34,7 +35,8 @@ def parse_points(value):
             tuple(tuple(float(v) for v in item.split(",")) for item in value.split(";"))
         )
     except (TypeError, ValueError) as exc:
-        raise ValueError("invalid drafting boundary") from exc
+        msg = "invalid drafting boundary"
+        raise ValueError(msg) from exc
 
 
 def move_point(points, index, x, y):
@@ -42,7 +44,8 @@ def move_point(points, index, x, y):
     values = list(normalize_points(points))
     index = int(index)
     if not 0 <= index < len(values):
-        raise IndexError("drafting point index out of range")
+        msg = "drafting point index out of range"
+        raise IndexError(msg)
     values[index] = (float(x), float(y))
     return tuple(values)
 
@@ -61,10 +64,12 @@ def remove_point(points, index):
     """Remove the requested point data."""
     values = list(normalize_points(points))
     if len(values) <= 3:
-        raise ValueError("a drafting boundary needs at least three points")
+        msg = "a drafting boundary needs at least three points"
+        raise ValueError(msg)
     index = int(index)
     if not 0 <= index < len(values):
-        raise IndexError("drafting point index out of range")
+        msg = "drafting point index out of range"
+        raise IndexError(msg)
     values.pop(index)
     return tuple(values)
 

@@ -370,7 +370,8 @@ def test_python_sources_do_not_import_removed_architecture_modules():
             try:
                 module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             except SyntaxError as exc:
-                raise AssertionError(f"invalid Python source {path}: {exc}") from exc
+                msg = f"invalid Python source {path}: {exc}"
+                raise AssertionError(msg) from exc
             for node in ast.walk(module):
                 imported = set()
                 if isinstance(node, ast.ImportFrom):

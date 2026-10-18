@@ -7,10 +7,9 @@ models normalize finite coordinates once and reject silent type coercion.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from math import isfinite
 from numbers import Real
-from typing import Annotated, TypeAlias, cast
+from typing import Annotated, TypeAlias, cast, TYPE_CHECKING
 
 from pydantic import (
     BaseModel,
@@ -24,17 +23,23 @@ from pydantic import (
     model_validator,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 
 def _finite_real(value: object) -> float:
     """Normalize a real number to float while rejecting bools and non-finite values."""
     if isinstance(value, bool) or not isinstance(value, Real):
-        raise ValueError("value must be a finite real number")
+        msg = "value must be a finite real number"
+        raise ValueError(msg)
     try:
         result = float(value)
     except (OverflowError, TypeError, ValueError) as exc:
-        raise ValueError("value must be a finite real number") from exc
+        msg = "value must be a finite real number"
+        raise ValueError(msg) from exc
     if not isfinite(result):
-        raise ValueError("value must be a finite real number")
+        msg = "value must be a finite real number"
+        raise ValueError(msg)
     return result
 
 
@@ -73,7 +78,8 @@ class RectangleDimensions(InputModel):
     def dimensions_are_positive(self) -> RectangleDimensions:
         """Reject zero or negative dimensions."""
         if self.width <= 0.0 or self.height <= 0.0:
-            raise ValueError("rectangle dimensions must be positive and finite")
+            msg = "rectangle dimensions must be positive and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -87,7 +93,8 @@ class SeamAllowanceOptions(InputModel):
     def allowance_is_nonnegative(self) -> SeamAllowanceOptions:
         """Reject negative offsets."""
         if self.allowance < 0.0:
-            raise ValueError("seam allowance cannot be negative")
+            msg = "seam allowance cannot be negative"
+            raise ValueError(msg)
         return self
 
 
@@ -101,7 +108,8 @@ class TriangulationOptions(InputModel):
     def area_is_positive(self) -> TriangulationOptions:
         """Require positive finite maximum triangle area when set."""
         if self.max_area is not None and self.max_area <= 0.0:
-            raise ValueError("max_area must be positive and finite")
+            msg = "max_area must be positive and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -116,7 +124,8 @@ class MeshArrays(InputModel):
         """Reject references to vertices outside the supplied array."""
         for face in self.triangles:
             if any(index < 0 or index >= len(self.vertices) for index in face):
-                raise ValueError("mesh triangle index is out of range")
+                msg = "mesh triangle index is out of range"
+                raise ValueError(msg)
         return self
 
 
@@ -130,7 +139,8 @@ class NormalizedRange(InputModel):
     def interval_is_valid(self) -> NormalizedRange:
         """Require a strictly increasing normalized interval."""
         if not 0.0 <= self.start < self.end <= 1.0:
-            raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
+            msg = "seam parameter ranges must satisfy 0 <= start < end <= 1"
+            raise ValueError(msg)
         return self
 
 
@@ -147,12 +157,15 @@ class ArcLengthSamplingInput(InputModel):
     def topology_and_range_are_valid(self) -> ArcLengthSamplingInput:
         """Validate paired coordinates and dimensional consistency."""
         if len(self.values) != len(self.points):
-            raise ValueError("arc-length sampling points must match edge vertices")
+            msg = "arc-length sampling points must match edge vertices"
+            raise ValueError(msg)
         if len(self.points) < 2:
-            raise ValueError("arc-length sampling needs at least two points")
+            msg = "arc-length sampling needs at least two points"
+            raise ValueError(msg)
         dimension = len(self.points[0])
         if dimension < 2 or any(len(point) != dimension for point in self.points):
-            raise ValueError("arc-length sampling points must have matching dimensions")
+            msg = "arc-length sampling points must have matching dimensions"
+            raise ValueError(msg)
         NormalizedRange(start=self.start, end=self.end)
         return self
 
@@ -191,9 +204,11 @@ class CorrespondenceAnalysisInput(InputModel):
     def lengths_and_tolerance_are_valid(self) -> CorrespondenceAnalysisInput:
         """Reject invalid lengths/tolerances without rejecting classifiable ranges."""
         if self.length_a <= 0.0 or self.length_b <= 0.0:
-            raise ValueError("seam lengths must be positive")
+            msg = "seam lengths must be positive"
+            raise ValueError(msg)
         if not 0.0 <= self.length_tolerance < 1.0:
-            raise ValueError("length tolerance must be in [0, 1)")
+            msg = "length tolerance must be in [0, 1)"
+            raise ValueError(msg)
         return self
 
 
@@ -209,7 +224,8 @@ class ParticleInput(InputModel):
     def inverse_mass_is_nonnegative(self) -> ParticleInput:
         """Reject a negative inverse mass."""
         if self.inv_mass < 0.0:
-            raise ValueError("inverse mass must be non-negative")
+            msg = "inverse mass must be non-negative"
+            raise ValueError(msg)
         return self
 
 
@@ -226,7 +242,8 @@ class GridInput(InputModel):
     def dimensions_are_positive(self) -> GridInput:
         """Require positive dimensions and a finite three-dimensional origin."""
         if self.width <= 0.0 or self.height <= 0.0:
-            raise ValueError("grid dimensions must be positive and finite")
+            msg = "grid dimensions must be positive and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -242,9 +259,11 @@ class DistanceConstraintInput(InputModel):
     def physical_parameters_are_nonnegative(self) -> DistanceConstraintInput:
         """Reject negative rest lengths or compliance."""
         if self.rest < 0.0:
-            raise ValueError("constraint rest length must be non-negative")
+            msg = "constraint rest length must be non-negative"
+            raise ValueError(msg)
         if self.compliance < 0.0:
-            raise ValueError("constraint compliance must be non-negative")
+            msg = "constraint compliance must be non-negative"
+            raise ValueError(msg)
         return self
 
 
@@ -270,9 +289,11 @@ class TransformMatrixInput(InputModel):
     def matrix_shape_and_scale_are_valid(self) -> TransformMatrixInput:
         """Require sixteen finite entries and a usable homogeneous scale."""
         if len(self.matrix) != 16:
-            raise ValueError("assembly transform must contain 16 values")
+            msg = "assembly transform must contain 16 values"
+            raise ValueError(msg)
         if abs(self.matrix[15]) < 1e-12:
-            raise ValueError("assembly transform has an invalid homogeneous scale")
+            msg = "assembly transform has an invalid homogeneous scale"
+            raise ValueError(msg)
         return self
 
 
@@ -288,14 +309,18 @@ class CollisionSurfaceInput(InputModel):
     def surface_is_valid(self) -> CollisionSurfaceInput:
         """Reject empty surfaces, invalid connectivity, and invalid thickness."""
         if len(self.vertices) < 3 or not self.triangles:
-            raise ValueError("collision surface needs vertices and triangles")
+            msg = "collision surface needs vertices and triangles"
+            raise ValueError(msg)
         if self.thickness < 0.0:
-            raise ValueError("collision thickness must be finite and non-negative")
+            msg = "collision thickness must be finite and non-negative"
+            raise ValueError(msg)
         if not self.region.strip():
-            raise ValueError("collision region must not be empty")
+            msg = "collision region must not be empty"
+            raise ValueError(msg)
         for triangle in self.triangles:
             if any(index < 0 or index >= len(self.vertices) for index in triangle):
-                raise ValueError("collision triangle index out of range")
+                msg = "collision triangle index out of range"
+                raise ValueError(msg)
         return self
 
 
@@ -310,7 +335,8 @@ class PBDStepInput(InputModel):
     def timestep_is_positive(self) -> PBDStepInput:
         """Reject non-positive timesteps."""
         if self.dt <= 0.0:
-            raise ValueError("dt must be positive and finite")
+            msg = "dt must be positive and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -332,7 +358,8 @@ class SimulationMeshQualityInput(InputModel):
     def spacing_is_positive(self) -> SimulationMeshQualityInput:
         """Require a positive particle spacing."""
         if self.particle_distance <= 0.0:
-            raise ValueError("particle_distance must be positive and finite")
+            msg = "particle_distance must be positive and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -349,11 +376,14 @@ class PatternPieceInput(InputModel):
     def piece_is_valid(self) -> PatternPieceInput:
         """Require identity, a usable outline, and non-negative allowance."""
         if not self.name.strip() or not self.id.strip():
-            raise ValueError("pattern piece name and id must not be empty")
+            msg = "pattern piece name and id must not be empty"
+            raise ValueError(msg)
         if len(self.outline) < 3:
-            raise ValueError("pattern piece outline needs at least three points")
+            msg = "pattern piece outline needs at least three points"
+            raise ValueError(msg)
         if self.seam_allowance < 0.0:
-            raise ValueError("seam allowance must be non-negative and finite")
+            msg = "seam allowance must be non-negative and finite"
+            raise ValueError(msg)
         return self
 
 
@@ -383,11 +413,14 @@ class PngCaptureMetrics(InputModel):
         """Reject impossible image metrics before returning them to acceptance tests."""
         total_pixels = self.width * self.height
         if self.opaque_pixels > total_pixels:
-            raise ValueError("opaque pixel count exceeds image dimensions")
+            msg = "opaque pixel count exceeds image dimensions"
+            raise ValueError(msg)
         if self.nonwhite_pixels > self.opaque_pixels:
-            raise ValueError("visible pixel count exceeds opaque pixel count")
+            msg = "visible pixel count exceeds opaque pixel count"
+            raise ValueError(msg)
         if self.distinct_rgb > self.opaque_pixels:
-            raise ValueError("distinct color count exceeds opaque pixel count")
+            msg = "distinct color count exceeds opaque pixel count"
+            raise ValueError(msg)
         return self
 
 
@@ -415,11 +448,14 @@ class MeshHealthMetrics(InputModel):
         """Enforce topology/count/bounds invariants on library-produced metrics."""
         xmin, xmax, ymin, ymax, zmin, zmax = self.bounds
         if xmin > xmax or ymin > ymax or zmin > zmax:
-            raise ValueError("mesh bounds must be ordered minimum/maximum pairs")
+            msg = "mesh bounds must be ordered minimum/maximum pairs"
+            raise ValueError(msg)
         if self.components > self.faces:
-            raise ValueError("mesh component count cannot exceed face count")
+            msg = "mesh component count cannot exceed face count"
+            raise ValueError(msg)
         if self.degenerate_faces > self.faces:
-            raise ValueError("degenerate face count cannot exceed face count")
+            msg = "degenerate face count cannot exceed face count"
+            raise ValueError(msg)
         return self
 
 

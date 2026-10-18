@@ -208,7 +208,8 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts():
     except ValueError as exc:
         assert "became invalid after edit" in str(exc)
     else:
-        raise AssertionError("invalid recompute was silently accepted")
+        msg = "invalid recompute was silently accepted"
+        raise AssertionError(msg)
     seam = panel._seams[0]
     assert (seam.StartA, seam.EndA, seam.StartB, seam.EndB) == (0.2, 0.8, 0.1, 0.9)
     assert seam.Alignment == "uniform"
@@ -309,7 +310,8 @@ def test_invalid_reference_is_reported_with_seam_identity():
     except ValueError as exc:
         assert "s2: Changed reference" in str(exc)
     else:
-        raise AssertionError("invalid reference was silently accepted")
+        msg = "invalid reference was silently accepted"
+        raise AssertionError(msg)
 
 
 def test_missing_reference_is_reported_without_silent_edit():
@@ -328,7 +330,8 @@ def test_missing_reference_is_reported_without_silent_edit():
         assert "invalid seam references" in str(exc)
         assert "s-missing: Missing reference" in str(exc)
     else:
-        raise AssertionError("missing reference was silently accepted")
+        msg = "missing reference was silently accepted"
+        raise AssertionError(msg)
 
 
 def test_curved_correspondence_reports_reversal_and_mismatch():
@@ -417,7 +420,8 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
     except ValueError as exc:
         assert "6.00%" in str(exc)
     else:
-        raise AssertionError("accept() broadened mismatch validation using legacy Tolerance")
+        msg = "accept() broadened mismatch validation using legacy Tolerance"
+        raise AssertionError(msg)
 
 
 def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance():

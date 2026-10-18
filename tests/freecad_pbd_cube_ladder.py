@@ -92,7 +92,8 @@ def _surface_signed_clearance(points, source_shape, collision_surface, proximity
             from trimesh import Trimesh
 
             if not callable(Trimesh):
-                raise ImportError("trimesh.Trimesh is unavailable")
+                msg = "trimesh.Trimesh is unavailable"
+                raise ImportError(msg)
 
             if points:
                 _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))
@@ -242,17 +243,20 @@ def _run_ladder_case(case_id):
 
         base = scene.Proxy._base_or_restore()
         if base.backend is None:
-            raise RuntimeError(f"{case_id} did not build a PositionBasedDynamics backend")
+            msg = f"{case_id} did not build a PositionBasedDynamics backend"
+            raise RuntimeError(msg)
         collision_surface = getattr(
             base.backend,
             "solver_collision_surface",
             getattr(base, "collision_surface", None),
         )
         if collision_surface is None:
-            raise RuntimeError(f"{case_id} did not expose a collision surface")
+            msg = f"{case_id} did not expose a collision surface"
+            raise RuntimeError(msg)
         solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
         if solver_triangles <= 0:
-            raise RuntimeError(f"{case_id} has no solver collision triangles")
+            msg = f"{case_id} has no solver collision triangles"
+            raise RuntimeError(msg)
         positions = _positions_tuple(base.backend)
         panel_triangles = tuple(
             triangle
@@ -262,7 +266,8 @@ def _run_ladder_case(case_id):
         target_sig = _target_signature(scene.DrapeTarget)
         source_shape = getattr(cube, "Shape", None)
         if source_shape is None or source_shape.isNull():
-            raise RuntimeError(f"{case_id} cube source shape is invalid")
+            msg = f"{case_id} cube source shape is invalid"
+            raise RuntimeError(msg)
 
         seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
         proximity_mesh = None
@@ -303,7 +308,8 @@ def _run_ladder_case(case_id):
 
         view = Gui.activeDocument().activeView()
         if view is None:
-            raise RuntimeError(f"{case_id} has no active FreeCAD view")
+            msg = f"{case_id} has no active FreeCAD view"
+            raise RuntimeError(msg)
         images = {}
         checkpoints = []
         for step in CHECKPOINTS:

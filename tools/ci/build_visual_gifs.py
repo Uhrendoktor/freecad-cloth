@@ -21,7 +21,8 @@ def image_tool() -> str:
     """
     tool = shutil.which("magick") or shutil.which("convert")
     if not tool:
-        raise SystemExit("ImageMagick is required on the CI runner")
+        msg = "ImageMagick is required on the CI runner"
+        raise SystemExit(msg)
     return tool
 
 
@@ -41,7 +42,8 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
         subprocess.TimeoutExpired: If ImageMagick exceeds the configured time limit.
     """
     if not frames:
-        raise SystemExit(f"no frames found for {output}")
+        msg = f"no frames found for {output}"
+        raise SystemExit(msg)
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [tool, "-delay", delay, "-loop", "0", *map(str, frames), "-colors", "128", str(output)],
@@ -49,7 +51,8 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
         timeout=timeout,
     )
     if not output.is_file() or not output.stat().st_size:
-        raise SystemExit(f"GIF was not produced: {output}")
+        msg = f"GIF was not produced: {output}"
+        raise SystemExit(msg)
 
 
 def main() -> int:
@@ -83,7 +86,8 @@ def main() -> int:
             for directory, output in specs:
                 frames = sorted((root / directory).glob("frame-*.png"))
                 if len(frames) != 73:
-                    raise SystemExit(f"{directory}: expected 73 frames, got {len(frames)}")
+                    msg = f"{directory}: expected 73 frames, got {len(frames)}"
+                    raise SystemExit(msg)
                 jobs.append(pool.submit(build, tool, frames, root / output, "8"))
             for job in as_completed(jobs):
                 job.result()

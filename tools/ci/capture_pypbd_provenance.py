@@ -32,7 +32,8 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(result.stdout, encoding="utf-8")
     if not args.output.stat().st_size:
-        raise SystemExit(f"empty provenance file: {args.output}")
+        msg = f"empty provenance file: {args.output}"
+        raise SystemExit(msg)
     print(f"pypbd-provenance=captured image={args.image}")
     return 0
 

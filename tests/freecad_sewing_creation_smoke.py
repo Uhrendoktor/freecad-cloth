@@ -402,7 +402,8 @@ def wait_for_task_close():
         QtCore.QTimer.singleShot(0, loop.quit)
         loop.exec()
         QtWidgets.QApplication.processEvents()
-    raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
+    msg = "task dialog did not close after the requested Commit/Cancel action"
+    raise AssertionError(msg)
 
 
 def select_edges(*items):
@@ -531,7 +532,8 @@ try:
     view_size = view.getSize()
     view_width, view_height = float(view_size[0]), float(view_size[1])
     if view_width <= 0.0 or view_height <= 0.0:
-        raise RuntimeError("seam-assignment GIF has an invalid viewport size")
+        msg = "seam-assignment GIF has an invalid viewport size"
+        raise RuntimeError(msg)
     aspect = view_width / view_height
     extent_x, extent_y = xmax - xmin, ymax - ymin
     # Reserve a clear strip on the right for FreeCAD's staged sewing task panel.
@@ -563,9 +565,12 @@ try:
         view.getCamera(),
     )
     if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
-        raise RuntimeError(
+        msg = (
             "seam-assignment GIF camera did not apply the requested world-space framing: "
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
+        )
+        raise RuntimeError(
+            msg
         )
     record(
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "

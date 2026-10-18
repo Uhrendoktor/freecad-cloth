@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import math
 import os
-from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
@@ -22,6 +21,7 @@ import numpy as np
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     import torch
 
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -96,7 +96,8 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
     """Translate clad-body 0.6.1 legacy forward calls for Anny 0.6."""
     forward = getattr(model, "forward", None)
     if not callable(forward):
-        raise AnnyAvatarBackendError("Anny model does not expose a callable forward method.")
+        msg = "Anny model does not expose a callable forward method."
+        raise AnnyAvatarBackendError(msg)
     original_forward: Callable[..., object] = forward
 
     def compatible_forward(*args: object, **kwargs: object) -> object:
@@ -115,14 +116,18 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
     try:
         import anny
     except ImportError as exc:
-        raise AnnyAvatarBackendError(
+        msg = (
             "Anny is required for parametric mannequin generation; install "
             "'anny>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7' in the FreeCAD Python environment."
+        )
+        raise AnnyAvatarBackendError(
+            msg
         ) from exc
 
     package_file = getattr(anny, "__file__", None)
     if not package_file:
-        raise AnnyAvatarBackendError("Unable to resolve the installed Anny package path.")
+        msg = "Unable to resolve the installed Anny package path."
+        raise AnnyAvatarBackendError(msg)
     root = Path(package_file).resolve().parent
     try:
         from anny.paths import get_anny_root_dir
@@ -134,8 +139,9 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError) as exc:
+        msg = f"Unable to read Anny morph-target metadata at {metadata_path}: {exc}"
         raise AnnyAvatarBackendError(
-            f"Unable to read Anny morph-target metadata at {metadata_path}: {exc}"
+            msg
         ) from exc
 
     selected: set[str] = set()
@@ -160,8 +166,9 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
                     selected.add(positive)
 
     if _BREAST_LOCAL_CHANGE not in selected:
+        msg = f"Anny assets do not provide the {_BREAST_LOCAL_CHANGE!r} shape control."
         raise AnnyAvatarBackendError(
-            f"Anny assets do not provide the {_BREAST_LOCAL_CHANGE!r} shape control."
+            msg
         )
     return tuple(sorted(selected))
 
@@ -177,8 +184,9 @@ def available_anny_phenotype_labels() -> tuple[str, ...]:
     try:
         import anny
     except ImportError as exc:
+        msg = "Anny is required to inspect advanced mannequin parameters."
         raise AnnyAvatarBackendError(
-            "Anny is required to inspect advanced mannequin parameters."
+            msg
         ) from exc
     try:
         model = anny.create_fullbody_model(
@@ -191,10 +199,12 @@ def available_anny_phenotype_labels() -> tuple[str, ...]:
             all_phenotypes=True,
         )
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        raise AnnyAvatarBackendError(f"Unable to inspect Anny phenotype parameters: {exc}") from exc
+        msg = f"Unable to inspect Anny phenotype parameters: {exc}"
+        raise AnnyAvatarBackendError(msg) from exc
     labels = getattr(model, "phenotype_labels", None)
     if labels is None:
-        raise AnnyAvatarBackendError("The installed Anny model does not expose phenotype labels.")
+        msg = "The installed Anny model does not expose phenotype labels."
+        raise AnnyAvatarBackendError(msg)
     return tuple(sorted(str(label) for label in labels))
 
 
@@ -229,8 +239,9 @@ def _measurement_local_change_labels() -> tuple[str, ...]:
         if any(term in label for term in wanted)
     )
     if _BREAST_LOCAL_CHANGE not in selected:
+        msg = f"Anny assets do not provide the {_BREAST_LOCAL_CHANGE!r} shape control."
         raise AnnyAvatarBackendError(
-            f"Anny assets do not provide the {_BREAST_LOCAL_CHANGE!r} shape control."
+            msg
         )
     return selected
 
@@ -326,9 +337,11 @@ def _canonicalize_anny_vertices(
         or reference.shape != points.shape
         or not points.shape[0]
     ):
-        raise ValueError("Anny vertices and reference must have matching shape (N, 3)")
+        msg = "Anny vertices and reference must have matching shape (N, 3)"
+        raise ValueError(msg)
     if not bool(np.isfinite(points).all() and np.isfinite(reference).all()):
-        raise ValueError("Anny vertices and reference must be finite")
+        msg = "Anny vertices and reference must be finite"
+        raise ValueError(msg)
 
     # Match clad-body's Y-up -> Z-up conversion, but make the choice using the
     # reference so a local hip morph cannot change the inferred orientation.
@@ -363,12 +376,15 @@ def _localize_hip_fit_delta(
         or fitted.shape != reference.shape
         or not len(reference)
     ):
-        raise ValueError("Anny hip-fit vertices must have matching shape (N, 3)")
+        msg = "Anny hip-fit vertices must have matching shape (N, 3)"
+        raise ValueError(msg)
     if not bool(np.isfinite(reference).all() and np.isfinite(fitted).all()):
-        raise ValueError("Anny hip-fit vertices must be finite")
+        msg = "Anny hip-fit vertices must be finite"
+        raise ValueError(msg)
     height = float(np.ptp(reference[:, 2]))
     if not math.isfinite(height) or height <= 0.0:
-        raise ValueError("Anny hip-fit reference must have a positive vertical extent")
+        msg = "Anny hip-fit reference must have a positive vertical extent"
+        raise ValueError(msg)
 
     normalized_z = (reference[:, 2] - float(reference[:, 2].min())) / height
 
@@ -433,9 +449,12 @@ def _fit_anny_body(
         from clad_body.load.anny import build_anny_apose, load_anny_from_verts
         from clad_body.measure import measure_grad
     except ImportError as exc:
-        raise AnnyAvatarBackendError(
+        msg = (
             "Anny-backed mannequin generation requires 'anny>=0.6,<0.7' and 'clad-body[anny]>=0.6.1,<0.7'. "
             "Run `python -m pip install 'anny>=0.6,<0.7' 'clad-body[anny]>=0.6.1,<0.7'` with the Python interpreter used by FreeCAD."
+        )
+        raise AnnyAvatarBackendError(
+            msg
         ) from exc
 
     values = dict(measurements)
@@ -446,7 +465,8 @@ def _fit_anny_body(
     )
     local_values = initial_parameters.pop("_local_changes")
     if not isinstance(local_values, dict):
-        raise AnnyAvatarBackendError("Anny local-change parameters were not resolved.")
+        msg = "Anny local-change parameters were not resolved."
+        raise AnnyAvatarBackendError(msg)
     phenotype_values = {
         name: float(value)
         for name, value in initial_parameters.items()
@@ -476,14 +496,18 @@ def _fit_anny_body(
     # Do not silently fit against a reordered/filtered topology.
     base_mesh_vertex_indices = getattr(model, "base_mesh_vertex_indices", None)
     if base_mesh_vertex_indices is None:
+        msg = "The installed Anny model does not expose its base-mesh vertex index map."
         raise AnnyAvatarBackendError(
-            "The installed Anny model does not expose its base-mesh vertex index map."
+            msg
         )
     base_ids = base_mesh_vertex_indices.detach().cpu().tolist()
     if base_ids[:MAKEHUMAN_BODY_VERTEX_COUNT] != list(range(MAKEHUMAN_BODY_VERTEX_COUNT)):
-        raise AnnyAvatarBackendError(
+        msg = (
             "Anny's selected topology does not preserve HM08 body vertex index order "
             "required by Cloth's saved skeleton and skinning weights."
+        )
+        raise AnnyAvatarBackendError(
+            msg
         )
 
     missing_local_changes = set(local_values) - set(model.local_change_labels)
@@ -636,7 +660,8 @@ def _fit_anny_body(
     # length is constrained later with its local arm morph to preserve body height.
     global_targets, local_targets = _split_clad_targets(targets)
     if body.phenotype_kwargs is None or body.local_changes_kwargs is None:
-        raise AnnyAvatarBackendError("Anny did not expose trainable phenotype/local-change inputs.")
+        msg = "Anny did not expose trainable phenotype/local-change inputs."
+        raise AnnyAvatarBackendError(msg)
     global_phenotype_names = {"height", "weight", "muscle", "proportions"}
     missing_global_phenotypes = global_phenotype_names - set(body.phenotype_kwargs)
     if missing_global_phenotypes:
@@ -645,7 +670,8 @@ def _fit_anny_body(
             + ", ".join(sorted(missing_global_phenotypes))
         )
     if not global_targets or not local_targets:
-        raise AnnyAvatarBackendError("Anny measurement fitting has an empty target group.")
+        msg = "Anny measurement fitting has an empty target group."
+        raise AnnyAvatarBackendError(msg)
 
     # Hold the non-hip measurement target set fixed so hip edits cannot bias
     # the global controls that determine head, neck, shoulder and arm positions.
@@ -730,12 +756,14 @@ def _fit_anny_body(
     breast_names = {_BREAST_LOCAL_CHANGE}
     hip_change_names = {name for name in body.local_changes_kwargs if "measure-hips-circ" in name}
     if not hip_change_names:
-        raise AnnyAvatarBackendError("Anny exposes no hip-specific circumference morphs.")
+        msg = "Anny exposes no hip-specific circumference morphs."
+        raise AnnyAvatarBackendError(msg)
     non_hip_targets = tuple(target for target in local_targets if target[0] != "hip")
     hip_targets = tuple(target for target in local_targets if target[0] == "hip")
     if len(hip_targets) != 1 or not non_hip_targets:
+        msg = "Anny local measurement targets cannot be separated by region."
         raise AnnyAvatarBackendError(
-            "Anny local measurement targets cannot be separated by region."
+            msg
         )
 
     # Fit every non-hip dimension without allowing the hip morph to pull the
@@ -747,7 +775,8 @@ def _fit_anny_body(
         if trainable:
             local_parameters.append(value)
     if not local_parameters:
-        raise AnnyAvatarBackendError("Anny exposes no trainable non-hip measurement morphs.")
+        msg = "Anny exposes no trainable non-hip measurement morphs."
+        raise AnnyAvatarBackendError(msg)
 
     local_optimizer = torch.optim.Adam(local_parameters, lr=0.035)
     local_target_keys = [key for _name, key, _target in non_hip_targets]
@@ -786,15 +815,19 @@ def _fit_anny_body(
 
     model = cast("_AnnyCallableModel", body.model)
     if body.phenotype_kwargs is None:
-        raise AnnyAvatarBackendError("Anny did not preserve the fitted phenotype tensors.")
+        msg = "Anny did not preserve the fitted phenotype tensors."
+        raise AnnyAvatarBackendError(msg)
     if body.local_changes_kwargs is None:
-        raise AnnyAvatarBackendError("Anny did not preserve the fitted morph tensors.")
+        msg = "Anny did not preserve the fitted morph tensors."
+        raise AnnyAvatarBackendError(msg)
     cupsize_control = body.phenotype_kwargs.get("cupsize")
     if cupsize_control is None:
-        raise AnnyAvatarBackendError("Anny did not expose its independent cupsize phenotype.")
+        msg = "Anny did not expose its independent cupsize phenotype."
+        raise AnnyAvatarBackendError(msg)
     breast_volume_control = body.local_changes_kwargs.get(_BREAST_LOCAL_CHANGE)
     if breast_volume_control is None:
-        raise AnnyAvatarBackendError("Anny did not expose its breast-volume shape target.")
+        msg = "Anny did not expose its breast-volume shape target."
+        raise AnnyAvatarBackendError(msg)
     # Cupsize provides the parametric phenotype; the localized volume target makes
     # that edit visible on the rig-compatible HM08 surface. Apply both after fitting
     # so the anthropometry optimizer cannot absorb the requested fullness.
@@ -935,14 +968,18 @@ def _fit_anny_body(
     all_vertices = fitted_body.vertices
     fitted_faces = fitted_body.faces
     if len(fitted_faces.shape) != 2 or fitted_faces.shape[1] != 3:
+        msg = "Anny's MakeHuman topology must be triangulated; expected a face array of shape (N, 3)."
         raise AnnyAvatarBackendError(
-            "Anny's MakeHuman topology must be triangulated; expected a face array of shape (N, 3)."
+            msg
         )
     if len(all_vertices) < MAKEHUMAN_BODY_VERTEX_COUNT:
-        raise AnnyAvatarBackendError(
+        msg = (
             "The installed Anny topology is incompatible with the MakeHuman rig: "
             f"expected at least {MAKEHUMAN_BODY_VERTEX_COUNT} indexed vertices, "
             f"received {len(all_vertices)}."
+        )
+        raise AnnyAvatarBackendError(
+            msg
         )
 
     # Keep display vertices and rig vertices in the same complete source-index
@@ -961,14 +998,16 @@ def _fit_anny_body(
     )
     surface_vertices = visible_vertices + surface_vertices[MAKEHUMAN_BODY_VERTEX_COUNT:]
     if len(base_ids) != len(surface_vertices) or base_ids != list(range(len(base_ids))):
+        msg = "Anny's full vertex index map does not preserve the original HM08 rig index space."
         raise AnnyAvatarBackendError(
-            "Anny's full vertex index map does not preserve the original HM08 rig index space."
+            msg
         )
     if rig_vertices is None:
         rig_vertices = surface_vertices
     elif len(rig_vertices) != len(surface_vertices):
+        msg = "Anny's hip-neutral rig snapshot does not preserve the surface vertex index space."
         raise AnnyAvatarBackendError(
-            "Anny's hip-neutral rig snapshot does not preserve the surface vertex index space."
+            msg
         )
     vertices = surface_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT]
     triangles: tuple[tuple[int, int, int], ...] = tuple(
@@ -977,9 +1016,12 @@ def _fit_anny_body(
         if len(face) == 3 and all(0 <= int(index) < MAKEHUMAN_BODY_VERTEX_COUNT for index in face)
     )
     if len(triangles) < 20_000:
-        raise AnnyAvatarBackendError(
+        msg = (
             "Anny produced too few triangles for the visible HM08 body surface: "
             f"expected at least 20000, received {len(triangles)}."
+        )
+        raise AnnyAvatarBackendError(
+            msg
         )
     # Anny's triangulation preserves the right vertex index space but may contain
     # locally reversed faces. Repair winding without changing either index set,
@@ -989,14 +1031,16 @@ def _fit_anny_body(
     try:
         triangles = orient_closed_triangle_winding(vertices, triangles)
     except ValueError as exc:
+        msg = f"Anny's visible HM08 surface is not a closed orientable mesh: {exc}"
         raise AnnyAvatarBackendError(
-            f"Anny's visible HM08 surface is not a closed orientable mesh: {exc}"
+            msg
         ) from exc
     result = MeshData(vertices, triangles)
     try:
         result.validate()
     except (TypeError, ValueError, RuntimeError) as exc:
-        raise AnnyAvatarBackendError(f"Anny produced an invalid body mesh: {exc}") from exc
+        msg = f"Anny produced an invalid body mesh: {exc}"
+        raise AnnyAvatarBackendError(msg) from exc
     return result, rig_vertices
 
 

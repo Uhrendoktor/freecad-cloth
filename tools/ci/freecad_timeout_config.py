@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import tomllib
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def read_application_timeout(project_file: Path) -> int:
@@ -29,7 +32,8 @@ def read_application_timeout(project_file: Path) -> int:
         .get("freecad_application_timeout_seconds")
     )
     if not isinstance(value, int) or value <= 0:
+        msg = "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
         raise ValueError(
-            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
+            msg
         )
     return value

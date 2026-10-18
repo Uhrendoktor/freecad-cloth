@@ -334,7 +334,8 @@ class AvatarFittingTests(unittest.TestCase):
             candidate = current.with_measurements(chest=original_chest + 80.0)
 
             def fail_provider_geometry(*_args: object) -> NoReturn:
-                raise RuntimeError("synthetic geometry failure")
+                msg = "synthetic geometry failure"
+                raise RuntimeError(msg)
 
             with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
                 AvatarCommands.apply_avatar_parameters(

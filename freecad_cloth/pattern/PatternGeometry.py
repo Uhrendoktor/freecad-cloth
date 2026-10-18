@@ -31,7 +31,8 @@ class LineSegment:
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not self.id.strip():
-            raise ValueError("segment ID must be a non-empty string")
+            msg = "segment ID must be a non-empty string"
+            raise ValueError(msg)
         object.__setattr__(self, "start", validate_point2d(self.start))
         object.__setattr__(self, "end", validate_point2d(self.end))
 
@@ -58,7 +59,8 @@ class QuadraticBezier:
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not self.id.strip():
-            raise ValueError("segment ID must be a non-empty string")
+            msg = "segment ID must be a non-empty string"
+            raise ValueError(msg)
         object.__setattr__(self, "start", validate_point2d(self.start))
         object.__setattr__(self, "control", validate_point2d(self.control))
         object.__setattr__(self, "end", validate_point2d(self.end))
@@ -91,10 +93,12 @@ class PolylineSegment:
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not self.id.strip():
-            raise ValueError("segment ID must be a non-empty string")
+            msg = "segment ID must be a non-empty string"
+            raise ValueError(msg)
         points = validate_points2d(self.points)
         if len(points) < 2:
-            raise ValueError("polyline segment needs at least two points")
+            msg = "polyline segment needs at least two points"
+            raise ValueError(msg)
         object.__setattr__(self, "points", points)
 
     @property
@@ -114,7 +118,8 @@ class PolylineSegment:
         for a, b in zip(self.points, self.points[1:], strict=False):
             total_length = lengths[-1] + _distance(a, b)
             if not isfinite(total_length):
-                raise ValueError("polyline length must be finite")
+                msg = "polyline length must be finite"
+                raise ValueError(msg)
             lengths.append(total_length)
         total = lengths[-1]
         if total <= 1e-12:
@@ -136,7 +141,8 @@ class PolylineSegment:
         """Return the geometric length represented by this object."""
         total = sum(starmap(_distance, zip(self.points, self.points[1:], strict=False)))
         if not isfinite(total):
-            raise ValueError("polyline length must be finite")
+            msg = "polyline length must be finite"
+            raise ValueError(msg)
         return total
 
 
@@ -160,7 +166,8 @@ class ParametricPattern:
             not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment))
             for segment in self.segments
         ):
-            raise TypeError("pattern segments must be supported segment types")
+            msg = "pattern segments must be supported segment types"
+            raise TypeError(msg)
         # Recheck coordinates in case a caller bypassed frozen dataclasses.
         for segment in self.segments:
             if isinstance(segment, LineSegment):
@@ -170,14 +177,17 @@ class ParametricPattern:
             else:
                 validate_points2d(segment.points)
         if len(self.segments) < 3:
-            raise ValueError("pattern needs at least three boundary segments")
+            msg = "pattern needs at least three boundary segments"
+            raise ValueError(msg)
         ids = [segment.id for segment in self.segments]
         if len(set(ids)) != len(ids):
-            raise ValueError("boundary segment IDs must be unique")
+            msg = "boundary segment IDs must be unique"
+            raise ValueError(msg)
         for index, segment in enumerate(self.segments):
             following = self.segments[(index + 1) % len(self.segments)]
             if _distance(segment.end, following.start) > 1e-7:
-                raise ValueError(f"boundary is not closed between {segment.id} and {following.id}")
+                msg = f"boundary is not closed between {segment.id} and {following.id}"
+                raise ValueError(msg)
 
     def by_id(self) -> dict[str, Segment]:
         """Provide the public by id operation."""
@@ -205,7 +215,8 @@ class ParametricPattern:
                 points = segment.polyline(curve_samples)
                 values[segment.id] = sum(starmap(_distance, zip(points, points[1:], strict=False)))
             if not isfinite(values[segment.id]):
-                raise ValueError("pattern segment lengths must be finite")
+                msg = "pattern segment lengths must be finite"
+                raise ValueError(msg)
         return values
 
 
@@ -224,31 +235,38 @@ def seam_allowance_outline(
     options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
     allowance, curve_samples = options.allowance, options.curve_samples
     if not isfinite(miter_limit) or miter_limit < 1.0:
-        raise ValueError("miter limit must be finite and at least 1")
+        msg = "miter limit must be finite and at least 1"
+        raise ValueError(msg)
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
-        raise ValueError("pattern needs at least three outline points")
+        msg = "pattern needs at least three outline points"
+        raise ValueError(msg)
     area = signed_area(points)
     if abs(area) < 1e-12:
-        raise ValueError("pattern outline must enclose a non-zero area")
+        msg = "pattern outline must enclose a non-zero area"
+        raise ValueError(msg)
     if allowance == 0.0:
         return list(points)
 
     source = Polygon(points)
     if source.is_empty or not source.is_valid or source.area <= 0.0:
-        raise ValueError("pattern outline must be a valid simple polygon")
+        msg = "pattern outline must be a valid simple polygon"
+        raise ValueError(msg)
     try:
         offset = source.buffer(allowance, join_style="mitre", mitre_limit=miter_limit)
     except GEOSException as exc:
-        raise ValueError("seam allowance offset failed") from exc
+        msg = "seam allowance offset failed"
+        raise ValueError(msg) from exc
     if offset.is_empty or not offset.is_valid or offset.geom_type != "Polygon" or offset.interiors:
-        raise ValueError("seam allowance produced invalid or unsupported polygon topology")
+        msg = "seam allowance produced invalid or unsupported polygon topology"
+        raise ValueError(msg)
 
     outline = list(
         validate_points2d([(float(x), float(y)) for x, y in offset.exterior.coords[:-1]])
     )
     if len(outline) < 3:
-        raise ValueError("seam allowance produced fewer than three boundary points")
+        msg = "seam allowance produced fewer than three boundary points"
+        raise ValueError(msg)
 
     # Keep deterministic edge ordering and the input winding for legacy callers.
     start_index = min(
@@ -272,7 +290,8 @@ def signed_area(points: Sequence[Point]) -> float:
         for i in range(len(points))
     )
     if not isfinite(area):
-        raise ValueError("pattern outline area must be finite")
+        msg = "pattern outline area must be finite"
+        raise ValueError(msg)
     return area
 
 
@@ -281,7 +300,8 @@ def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | No
     bx, by = b2[0] - b1[0], b2[1] - b1[1]
     denominator = ax * by - ay * bx
     if not isfinite(denominator):
-        raise ValueError("offset line intersection must be finite")
+        msg = "offset line intersection must be finite"
+        raise ValueError(msg)
     if abs(denominator) < 1e-12:
         return None
     cx, cy = b1[0] - a1[0], b1[1] - a1[1]
@@ -299,7 +319,8 @@ def _lerp(start: float, end: float, fraction: float) -> float:
 def _require_finite_point(point: Point) -> Point:
     """Reject non-finite values produced by otherwise finite arithmetic."""
     if not all(isfinite(value) for value in point):
-        raise ValueError("computed geometry point must be finite")
+        msg = "computed geometry point must be finite"
+        raise ValueError(msg)
     return point
 
 
@@ -320,5 +341,6 @@ def rectangle(width: float, height: float) -> ParametricPattern:
 def _distance(a: Point, b: Point) -> float:
     distance = hypot(a[0] - b[0], a[1] - b[1])
     if not isfinite(distance):
-        raise ValueError("computed segment length must be finite")
+        msg = "computed segment length must be finite"
+        raise ValueError(msg)
     return distance

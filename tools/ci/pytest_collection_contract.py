@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
 
 
 def missing_requested_modules(
@@ -45,12 +48,14 @@ def validate_collection_contract(items: Iterable[object], *, environ: Mapping[st
     """
     raw_paths = environ.get("CLOTH_EXPECTED_TEST_MODULES", "")
     if not raw_paths:
-        raise pytest.UsageError("CLOTH_EXPECTED_TEST_MODULES must be set by python_validation.py")
+        msg = "CLOTH_EXPECTED_TEST_MODULES must be set by python_validation.py"
+        raise pytest.UsageError(msg)
     expected_paths: list[str] = []
     for line in raw_paths.splitlines():
         expected_paths.extend(path for path in line.split(os.pathsep) if path)
     if not expected_paths:
-        raise pytest.UsageError("CLOTH_EXPECTED_TEST_MODULES must contain at least one path")
+        msg = "CLOTH_EXPECTED_TEST_MODULES must contain at least one path"
+        raise pytest.UsageError(msg)
     missing = missing_requested_modules(expected_paths, (item.path for item in items))
     if missing:
         raise pytest.UsageError("pytest modules collected no test items: " + ", ".join(missing))

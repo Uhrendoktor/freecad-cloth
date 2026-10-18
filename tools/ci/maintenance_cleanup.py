@@ -8,9 +8,12 @@ import json
 import os
 import string
 import subprocess
-from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 PAGE_SIZE = 100
 BRANCH_RETENTION_DAYS = 7
@@ -79,7 +82,8 @@ def paginated_api_items(
         RuntimeError: Raised when an API response has an invalid collection shape.
     """
     if page_size <= 0:
-        raise ValueError("page size must be positive")
+        msg = "page size must be positive"
+        raise ValueError(msg)
     load_json = gh_json if fetch_json is None else fetch_json
     page = 1
     while True:
@@ -90,13 +94,16 @@ def paginated_api_items(
             items = payload
         else:
             if not isinstance(payload, dict):
-                raise RuntimeError(f"GitHub API response for {endpoint} must be an object")
+                msg = f"GitHub API response for {endpoint} must be an object"
+                raise RuntimeError(msg)
             items = payload.get(collection_key)
         if not isinstance(items, list):
-            raise RuntimeError(f"GitHub API response for {endpoint} has no item list")
+            msg = f"GitHub API response for {endpoint} has no item list"
+            raise RuntimeError(msg)
         for item in items:
             if not isinstance(item, dict):
-                raise RuntimeError(f"GitHub API response for {endpoint} contains a non-object item")
+                msg = f"GitHub API response for {endpoint} contains a non-object item"
+                raise RuntimeError(msg)
             yield item
         if len(items) < page_size:
             return
@@ -167,7 +174,8 @@ def branch_activity_epochs(
         RuntimeError: If a SHA is malformed or GitHub omits verifiable commit data.
     """
     if batch_size <= 0:
-        raise ValueError("branch commit query batch size must be positive")
+        msg = "branch commit query batch size must be positive"
+        raise ValueError(msg)
     if not commit_shas:
         return {}
 
@@ -180,8 +188,9 @@ def branch_activity_epochs(
         aliases: dict[str, str] = {}
         fields: list[str] = []
         for index, sha in enumerate(batch):
-            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
-                raise RuntimeError(f"invalid branch commit SHA: {sha!r}")
+            if len(sha) != 40 or any(char not in string.hexdigits for char in sha):
+                msg = f"invalid branch commit SHA: {sha!r}"
+                raise RuntimeError(msg)
             alias = f"commit{index}"
             aliases[alias] = sha
             fields.append(
@@ -196,23 +205,28 @@ def branch_activity_epochs(
         )
         payload = load_json("api", "graphql", "-f", f"query={query}")
         if not isinstance(payload, dict):
-            raise RuntimeError("GitHub GraphQL returned a non-object branch activity response")
+            msg = "GitHub GraphQL returned a non-object branch activity response"
+            raise RuntimeError(msg)
         if payload.get("errors"):
-            raise RuntimeError("GitHub GraphQL could not verify branch activity")
+            msg = "GitHub GraphQL could not verify branch activity"
+            raise RuntimeError(msg)
         data = payload.get("data")
         repository_data = data.get("repository") if isinstance(data, dict) else None
         if not isinstance(repository_data, dict):
-            raise RuntimeError("GitHub GraphQL omitted branch activity repository data")
+            msg = "GitHub GraphQL omitted branch activity repository data"
+            raise RuntimeError(msg)
 
         for alias, sha in aliases.items():
             commit_data = repository_data.get(alias)
             if not isinstance(commit_data, dict):
-                raise RuntimeError(f"commit activity missing for branch head {sha}")
+                msg = f"commit activity missing for branch head {sha}"
+                raise RuntimeError(msg)
             committed_date = commit_data.get("committedDate")
             authored_date = commit_data.get("authoredDate")
             date = committed_date if isinstance(committed_date, str) else authored_date
             if not isinstance(date, str):
-                raise RuntimeError(f"commit activity is unverifiable for branch head {sha}")
+                msg = f"commit activity is unverifiable for branch head {sha}"
+                raise RuntimeError(msg)
             activity_epochs[sha] = epoch(date)
     return activity_epochs
 
@@ -425,7 +439,8 @@ def dockerfile_tags_for_shas(
         RuntimeError: Raised when a protected commit cannot be verified.
     """
     if batch_size <= 0:
-        raise ValueError("Dockerfile query batch size must be positive")
+        msg = "Dockerfile query batch size must be positive"
+        raise ValueError(msg)
     if not protected_shas:
         return set()
 
@@ -439,7 +454,8 @@ def dockerfile_tags_for_shas(
         fields: list[str] = []
         for index, sha in enumerate(batch):
             if len(sha) != 40 or any(char not in string.hexdigits for char in sha):
-                raise RuntimeError(f"invalid protected commit SHA: {sha!r}")
+                msg = f"invalid protected commit SHA: {sha!r}"
+                raise RuntimeError(msg)
             alias = f"file{index}"
             aliases[alias] = sha
             fields.append(
@@ -454,19 +470,23 @@ def dockerfile_tags_for_shas(
         )
         payload = load_json("api", "graphql", "-f", f"query={query}")
         if not isinstance(payload, dict):
-            raise RuntimeError("GitHub GraphQL returned a non-object response")
+            msg = "GitHub GraphQL returned a non-object response"
+            raise RuntimeError(msg)
         if payload.get("errors"):
-            raise RuntimeError("GitHub GraphQL could not verify protected Dockerfile contents")
+            msg = "GitHub GraphQL could not verify protected Dockerfile contents"
+            raise RuntimeError(msg)
         data = payload.get("data")
         repository_data = data.get("repository") if isinstance(data, dict) else None
         if not isinstance(repository_data, dict):
-            raise RuntimeError("GitHub GraphQL omitted the protected repository data")
+            msg = "GitHub GraphQL omitted the protected repository data"
+            raise RuntimeError(msg)
 
         for alias, sha in aliases.items():
             blob = repository_data.get(alias)
             dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
             if not isinstance(dockerfile_text, str):
-                raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
+                msg = f"Dockerfile content missing for protected ref {sha}"
+                raise RuntimeError(msg)
             tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
     return tags
 
@@ -529,7 +549,8 @@ def cleanup_pbd_package_versions(
         for version in selected:
             version_id = version.get("id")
             if not isinstance(version_id, int):
-                raise RuntimeError("GitHub returned a package version without an integer ID")
+                msg = "GitHub returned a package version without an integer ID"
+                raise RuntimeError(msg)
             phase = f"delete_package_version_{version_id}"
             delete_api_resource(
                 "api",
@@ -595,7 +616,8 @@ def main() -> int:
         repository_data.get("default_branch") if isinstance(repository_data, dict) else None
     )
     if not isinstance(default_branch, str):
-        raise RuntimeError("GitHub repository metadata omitted the default branch")
+        msg = "GitHub repository metadata omitted the default branch"
+        raise RuntimeError(msg)
 
     branches = list(paginated_api_items(f"repos/{repo}/branches"))
     branch_shas: set[str] = set()
@@ -628,7 +650,8 @@ def main() -> int:
     for branch in selected_branches:
         name = branch.get("name")
         if not isinstance(name, str):
-            raise RuntimeError("GitHub returned a stale branch without a name")
+            msg = "GitHub returned a stale branch without a name"
+            raise RuntimeError(msg)
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
         removed_branches += 1
 
@@ -642,7 +665,8 @@ def main() -> int:
     for run in selected:
         run_id = run.get("id")
         if not isinstance(run_id, int):
-            raise RuntimeError("GitHub returned a completed workflow run without an integer ID")
+            msg = "GitHub returned a completed workflow run without an integer ID"
+            raise RuntimeError(msg)
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}")
 
     # Images used by the current main branch, open PRs, or retained/active runs are protected.

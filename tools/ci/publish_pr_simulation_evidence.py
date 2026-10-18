@@ -117,7 +117,8 @@ def main() -> int:
     if not images:
         images = sorted(review_root.rglob("*.png"))[:18]
     if not images:
-        raise SystemExit(f"No PNG evidence was produced for PR #{args.pr_number}")
+        msg = f"No PNG evidence was produced for PR #{args.pr_number}"
+        raise SystemExit(msg)
 
     dest = worktree / f"pr-{args.pr_number}" / f"run-{args.run_id}"
     dest.mkdir(parents=True, exist_ok=True)

@@ -40,9 +40,11 @@ def configured_timeout_seconds() -> float:
     try:
         override_seconds = int(override)
     except ValueError as exc:
-        raise RuntimeError("FREECAD_APPLICATION_TIMEOUT_SECONDS must be an integer") from exc
+        msg = "FREECAD_APPLICATION_TIMEOUT_SECONDS must be an integer"
+        raise RuntimeError(msg) from exc
     if not 1 <= override_seconds <= 360:
-        raise RuntimeError("FREECAD_APPLICATION_TIMEOUT_SECONDS must be between 1 and 360")
+        msg = "FREECAD_APPLICATION_TIMEOUT_SECONDS must be between 1 and 360"
+        raise RuntimeError(msg)
     return float(override_seconds)
 
 
@@ -109,7 +111,8 @@ def _start_display(display: str) -> tuple[subprocess.Popen[str], subprocess.Pope
         subprocess.run(["sleep", "0.25"], check=False)
     xvfb.terminate()
     openbox.terminate()
-    raise RuntimeError("Xvfb did not become ready within 5 seconds")
+    msg = "Xvfb did not become ready within 5 seconds"
+    raise RuntimeError(msg)
 
 
 def _stop_process_tree(process: subprocess.Popen[str]) -> None:

@@ -8,10 +8,12 @@ create documents, start timers, or open output files during import.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
+    from collections.abc import Callable
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -57,7 +59,8 @@ def ensure_gui_ready() -> None:
 
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
+        msg = "FreeCAD GUI did not launch"
+        raise RuntimeError(msg)
     window.show()
     events()
 
@@ -220,7 +223,8 @@ def inside_outside(points, source):
             process=False,
         )
         if not target_mesh.is_watertight:
-            raise RuntimeError("target mesh is not watertight")
+            msg = "target mesh is not watertight"
+            raise RuntimeError(msg)
         states = [
             bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
         ]
@@ -240,7 +244,8 @@ def inside_outside(points, source):
 def bounds(points):
     """Return axis-aligned bounds for a non-empty point set."""
     if not points:
-        raise RuntimeError("cannot measure empty point set")
+        msg = "cannot measure empty point set"
+        raise RuntimeError(msg)
     return (
         min(p[0] for p in points),
         max(p[0] for p in points),
@@ -307,7 +312,8 @@ def target_signature(target):
     """Return stable target/source identity and topology metrics for diagnostic evidence."""
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise RuntimeError("diagnostic target has no source")
+        msg = "diagnostic target has no source"
+        raise RuntimeError(msg)
     mesh = getattr(source, "Mesh", None)
     return {
         "target_type": str(getattr(target, "TargetType", "")),
@@ -340,7 +346,8 @@ def screenshot(view, path):
     events()
     view.saveImage(str(path), 640, 360, "White")
     if not path.is_file() or path.stat().st_size <= 0:
-        raise RuntimeError(f"screenshot missing: {path}")
+        msg = f"screenshot missing: {path}"
+        raise RuntimeError(msg)
 
 
 def build_scene(doc, particle_distance=24.0):

@@ -43,15 +43,18 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
     widest horizontal span is implausibly close to the body height.
     """
     if not vertices or not triangles:
-        raise AvatarVisualSanityError("avatar mesh is empty")
+        msg = "avatar mesh is empty"
+        raise AvatarVisualSanityError(msg)
     if any(len(point) != 3 for point in vertices):
-        raise AvatarVisualSanityError("avatar vertices must be 3D coordinates")
+        msg = "avatar vertices must be 3D coordinates"
+        raise AvatarVisualSanityError(msg)
     vertex_count = len(vertices)
     if any(
         len(tri) != 3 or any(int(index) < 0 or int(index) >= vertex_count for index in tri)
         for tri in triangles
     ):
-        raise AvatarVisualSanityError("avatar mesh contains an invalid triangle index")
+        msg = "avatar mesh contains an invalid triangle index"
+        raise AvatarVisualSanityError(msg)
 
     mins = tuple(min(float(point[axis]) for point in vertices) for axis in range(3))
     maxs = tuple(max(float(point[axis]) for point in vertices) for axis in range(3))
@@ -59,19 +62,23 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
     height = spans[2]
     width, depth = max(spans[0], spans[1]), min(spans[0], spans[1])
     if not math.isfinite(height) or height <= 0.0:
-        raise AvatarVisualSanityError("avatar Z bounds do not contain a positive height")
+        msg = "avatar Z bounds do not contain a positive height"
+        raise AvatarVisualSanityError(msg)
     if expected_height is not None:
         expected_height = float(expected_height)
         if expected_height <= 0.0:
-            raise AvatarVisualSanityError("expected avatar height must be positive")
+            msg = "expected avatar height must be positive"
+            raise AvatarVisualSanityError(msg)
         if not math.isclose(height, expected_height, rel_tol=0.02, abs_tol=1.0):
+            msg = f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
             raise AvatarVisualSanityError(
-                f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
+                msg
             )
 
     ratio = width / height
     if ratio > float(max_lateral_height_ratio):
+        msg = f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
         raise AvatarVisualSanityError(
-            f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
+            msg
         )
     return AvatarVisualSanity(height, width, depth, len(triangles), ratio)

@@ -47,9 +47,11 @@ class AvatarSpec:
     def validate(self) -> "AvatarSpec":
         """Validate identity and coordinate conventions."""
         if not self.name.strip() or self.unit not in {"mm", "cm", "m"}:
-            raise ValueError("invalid avatar identity or units")
+            msg = "invalid avatar identity or units"
+            raise ValueError(msg)
         if self.coordinate_system != "RH-Z-up":
-            raise ValueError("unsupported coordinate convention")
+            msg = "unsupported coordinate convention"
+            raise ValueError(msg)
         if self.collision is not None:
             self.collision.validate()
         return self

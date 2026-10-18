@@ -108,10 +108,12 @@ class PatternPieceTaskPanel:
             return
         sketch = getattr(self.obj, "Sketch", None)
         if sketch is None:
-            raise ValueError("pattern piece has no native Sketcher representation")
+            msg = "pattern piece has no native Sketcher representation"
+            raise ValueError(msg)
         active = self.Gui.activeDocument()
         if active is None:
-            raise RuntimeError("no active FreeCAD document")
+            msg = "no active FreeCAD document"
+            raise RuntimeError(msg)
         active.setEdit(sketch.Name)
 
     def _mode_changed(self, mode):
@@ -126,15 +128,18 @@ class PatternPieceTaskPanel:
     def _validate(self):
         name = self.name.text().strip()
         if not name:
-            raise ValueError("pattern piece name must not be empty")
+            msg = "pattern piece name must not be empty"
+            raise ValueError(msg)
         if (
             not self._sketch_authoritative
             and self.mode.currentText() == "Rectangle"
             and (self.width.value() <= 0 or self.height.value() <= 0)
         ):
-            raise ValueError("pattern piece dimensions must be positive")
+            msg = "pattern piece dimensions must be positive"
+            raise ValueError(msg)
         if self.allowance.value() < 0:
-            raise ValueError("seam allowance cannot be negative")
+            msg = "seam allowance cannot be negative"
+            raise ValueError(msg)
 
     def _apply(self):
         self._validate()
@@ -368,7 +373,8 @@ def show_pattern_drafting_task(obj=None):
             None,
         )
     if obj is None:
-        raise ValueError("create a pattern piece before opening the drafting canvas")
+        msg = "create a pattern piece before opening the drafting canvas"
+        raise ValueError(msg)
     panel = PatternDraftingTaskPanel(obj)
     Gui.Control.showDialog(panel)
     return panel

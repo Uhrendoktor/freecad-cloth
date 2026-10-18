@@ -22,7 +22,8 @@ def _parse_points(value):
     try:
         return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
     except (ValueError, SyntaxError, TypeError, IndexError) as exc:
-        raise ValueError("invalid pattern boundary") from exc
+        msg = "invalid pattern boundary"
+        raise ValueError(msg) from exc
 
 
 def _rectangle_points(width, height):
@@ -132,13 +133,15 @@ def _native_edge_record_for_sketch_index(
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if edge < 0 or edge >= len(semantic_ids):
+        msg = f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
         raise MissingEdgeReference(
-            f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
+            msg
         )
     semantic_id = semantic_ids[edge]
     if not semantic_id:
+        msg = f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
         raise MissingEdgeReference(
-            f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
+            msg
         )
     read_native_records = (
         _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
@@ -146,8 +149,9 @@ def _native_edge_record_for_sketch_index(
     records = read_native_records(piece) or ()
     record = next((value for value in records if str(value["id"]) == semantic_id), None)
     if record is None:
+        msg = f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}"
         raise MissingEdgeReference(
-            f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}"
+            msg
         )
     return record
 
@@ -205,8 +209,9 @@ def _seam_edge_id(
             record = native
         else:
             if edge < 0 or edge >= len(records):
+                msg = f"seam edge {edge} is outside pattern piece {piece.PieceId}"
                 raise MissingEdgeReference(
-                    f"seam edge {edge} is outside pattern piece {piece.PieceId}"
+                    msg
                 )
             record = records[edge]
         return record["id"], capture_edge_reference(
@@ -221,8 +226,9 @@ def _seam_edge_id(
                 record["points"],
                 record.get("provenance"),
             ).signature
+    msg = f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}"
     raise MissingEdgeReference(
-        f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}"
+        msg
     )
 
 
@@ -234,7 +240,8 @@ def refresh_edge_reference_signature(piece, edge_id):
     """
     reference_id = str(edge_id or "").strip()
     if not reference_id:
-        raise MissingEdgeReference("cannot repair an empty semantic edge id")
+        msg = "cannot repair an empty semantic edge id"
+        raise MissingEdgeReference(msg)
     for record in _edge_records(piece):
         if str(record["id"]) == reference_id:
             reference = capture_edge_reference(
@@ -274,15 +281,18 @@ class PatternPieceProxy:
         height = float(obj.Height)
         allowance = float(obj.SeamAllowance)
         if width <= 0 or height <= 0:
-            raise ValueError("pattern piece dimensions must be positive")
+            msg = "pattern piece dimensions must be positive"
+            raise ValueError(msg)
         if allowance < 0:
-            raise ValueError("seam allowance cannot be negative")
+            msg = "seam allowance cannot be negative"
+            raise ValueError(msg)
         mode = str(getattr(obj, "GeometryMode", "Rectangle"))
         drafting = _parse_points(getattr(obj, "DraftingBoundary", ""))
         if mode == "Custom" or (mode == "Rectangle" and len(drafting) > 4):
             points = drafting
             if len(points) < 3:
-                raise ValueError("custom pattern outline needs at least three points")
+                msg = "custom pattern outline needs at least three points"
+                raise ValueError(msg)
             obj.Width = max(x for x, _ in points) - min(x for x, _ in points)
             obj.Height = max(y for _, y in points) - min(y for _, y in points)
             obj.GeometryMode = "Custom"

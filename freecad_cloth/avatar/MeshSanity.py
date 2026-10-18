@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 
 from freecad_cloth.shared.mesh_topology import orient_closed_triangle_winding
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = ["compact_mesh", "orient_closed_triangle_winding"]
 

@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from tools.ci.scene_understanding_report import write_report
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _invalid_topology_log() -> str:

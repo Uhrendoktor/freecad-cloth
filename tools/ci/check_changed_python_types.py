@@ -14,8 +14,11 @@ import os
 import subprocess
 import sys
 from collections import Counter
-from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 RULES = (
     "ANN001",
@@ -129,11 +132,13 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
     result = subprocess.run(command, input=source, check=False, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         detail = result.stderr.strip() or result.stdout.strip()
-        raise RuntimeError(f"Ruff could not analyze {filename}: {detail}")
+        msg = f"Ruff could not analyze {filename}: {detail}"
+        raise RuntimeError(msg)
     try:
         diagnostics = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Ruff returned invalid JSON for {filename}") from exc
+        msg = f"Ruff returned invalid JSON for {filename}"
+        raise RuntimeError(msg) from exc
     counts: Counter[str] = Counter()
     for diagnostic in diagnostics:
         code = diagnostic.get("code")
@@ -191,7 +196,8 @@ def main() -> int:
         try:
             current_source = current_path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
-            raise SystemExit(f"unable to read changed Python source {path}: {exc}") from exc
+            msg = f"unable to read changed Python source {path}: {exc}"
+            raise SystemExit(msg) from exc
 
         current_counts = _ruff_annotation_counts(current_source, path)
         previous_source = _base_source(args.base, base_path) if base_path is not None else None

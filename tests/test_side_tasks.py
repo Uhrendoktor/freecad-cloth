@@ -18,9 +18,6 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment,
-    ParametricPattern,
-    QuadraticBezier,
     rectangle,
 )
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
@@ -164,4 +161,5 @@ def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
         except RuntimeError as exc:
             assert "drape visual acceptance failed closed" in str(exc)
         else:
-            raise AssertionError("fatal drape diagnostics were accepted")
+            msg = "fatal drape diagnostics were accepted"
+            raise AssertionError(msg)

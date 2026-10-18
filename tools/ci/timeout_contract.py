@@ -41,42 +41,52 @@ def main() -> int:
     """
     expected = configured_timeout()
     if expected != 120:
-        raise SystemExit("FreeCAD application runtime budget must remain at 120 seconds")
+        msg = "FreeCAD application runtime budget must remain at 120 seconds"
+        raise SystemExit(msg)
     workflow = WORKFLOW.read_text(encoding="utf-8")
     action = TEST_ACTION.read_text(encoding="utf-8")
     container_action = CONTAINER_ACTION.read_text(encoding="utf-8")
 
     if "freecad_application_timeout_seconds" in workflow:
+        msg = "the canonical workflow must not rewrite the default FreeCAD application budget"
         raise SystemExit(
-            "the canonical workflow must not rewrite the default FreeCAD application budget"
+            msg
         )
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     if workflow.count("timeout-seconds:") != 1 or 'timeout-seconds: "360"' not in simulation_ladder:
+        msg = "only the cube simulation ladder may request the explicit 360-second runtime override"
         raise SystemExit(
-            "only the cube simulation ladder may request the explicit 360-second runtime override"
+            msg
         )
     if (
         'default: "120"' not in action
         or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in action
     ):
+        msg = "FreeCAD test action must pass its default-120 timeout through to the container"
         raise SystemExit(
-            "FreeCAD test action must pass its default-120 timeout through to the container"
+            msg
         )
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in action:
+        msg = "FreeCAD test action must pass non-default runtime overrides to run_freecad.py"
         raise SystemExit(
-            "FreeCAD test action must pass non-default runtime overrides to run_freecad.py"
+            msg
         )
     if 'default: "120"' not in container_action or "maximum 360 seconds" not in container_action:
-        raise SystemExit("FreeCAD container must default to 120 seconds and cap overrides at 360")
+        msg = "FreeCAD container must default to 120 seconds and cap overrides at 360"
+        raise SystemExit(msg)
     if 'if [ "$timeout_seconds" -gt 360 ]; then' not in container_action:
-        raise SystemExit("FreeCAD container action must enforce the 360-second absolute cap")
+        msg = "FreeCAD container action must enforce the 360-second absolute cap"
+        raise SystemExit(msg)
     run_freecad = (ROOT / "tools/ci/run_freecad.py").read_text(encoding="utf-8")
     if "def configured_timeout_seconds()" not in run_freecad:
-        raise SystemExit("run_freecad.py does not expose the authoritative timeout reader")
+        msg = "run_freecad.py does not expose the authoritative timeout reader"
+        raise SystemExit(msg)
     if "timeout_seconds = configured_timeout_seconds()" not in run_freecad:
-        raise SystemExit("run_freecad.py does not consume the authoritative application timeout")
+        msg = "run_freecad.py does not consume the authoritative application timeout"
+        raise SystemExit(msg)
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS" not in run_freecad:
-        raise SystemExit("run_freecad.py does not validate the scoped runtime override")
+        msg = "run_freecad.py does not validate the scoped runtime override"
+        raise SystemExit(msg)
 
     print(f"timeout-authority={expected}s source=pyproject.toml")
     return 0

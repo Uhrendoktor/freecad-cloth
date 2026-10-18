@@ -42,11 +42,13 @@ def process_events():
 
 def activate(name, toolbar, commands):
     if name not in Gui.listWorkbenches():
-        raise AssertionError(f"workbench is not registered: {name}")
+        msg = f"workbench is not registered: {name}"
+        raise AssertionError(msg)
     Gui.activateWorkbench(name)
     process_events()
     if Gui.activeWorkbench().name() != name:
-        raise AssertionError(f"expected active workbench {name}")
+        msg = f"expected active workbench {name}"
+        raise AssertionError(msg)
     window = Gui.getMainWindow()
     visible = (
         []
@@ -56,7 +58,8 @@ def activate(name, toolbar, commands):
         ]
     )
     if toolbar not in visible:
-        raise AssertionError(f"toolbar is not visible: {toolbar}")
+        msg = f"toolbar is not visible: {toolbar}"
+        raise AssertionError(msg)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
         raise AssertionError("commands missing from {}: {}".format(name, ",".join(missing)))
@@ -67,7 +70,8 @@ def show_panel(panel, label):
     Gui.Control.showDialog(panel)
     process_events()
     if not getattr(panel, "form", None) or not panel.form.isVisible():
-        raise AssertionError(f"task panel did not become visible: {label}")
+        msg = f"task panel did not become visible: {label}"
+        raise AssertionError(msg)
     log(f"task-panel visible={label}")
 
 
@@ -101,7 +105,8 @@ def create_native_sketch(piece):
     process_events()
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or getattr(sketch, "GeometryAuthority", "") != "Sketcher":
-        raise AssertionError("PatternPiece did not acquire native Sketcher authority")
+        msg = "PatternPiece did not acquire native Sketcher authority"
+        raise AssertionError(msg)
     return sketch
 
 
@@ -146,18 +151,21 @@ def run():
         sleeve_b_sketch = create_native_sketch(sleeve_b)
         for sketch in (front_sketch, back_sketch, sleeve_a_sketch, sleeve_b_sketch):
             if getattr(sketch, "GeometryAuthority", "") != "Sketcher":
-                raise AssertionError("Sketcher authority was not persisted")
+                msg = "Sketcher authority was not persisted"
+                raise AssertionError(msg)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(front)
         process_events()
         if "ClothPattern_CreateDrafting" in Gui.listCommands():
-            raise AssertionError("legacy PatternDrafting command is still publicly registered")
+            msg = "legacy PatternDrafting command is still publicly registered"
+            raise AssertionError(msg)
         show_panel(PatternPieceTaskPanel(front), "Pattern Piece")
         close_panel()
         Gui.runCommand("ClothPattern_EditSketch", 0)
         process_events()
         if Gui.activeDocument().getInEdit() is None:
-            raise AssertionError("public Pattern Edit Sketch command did not enter native Sketcher")
+            msg = "public Pattern Edit Sketch command did not enter native Sketcher"
+            raise AssertionError(msg)
         Gui.activeDocument().resetEdit()
         process_events()
 

@@ -471,10 +471,12 @@ class DirectArrangeController:
     def activate(self):
         """Install viewport callbacks and enable direct garment dragging."""
         if self.scene is None:
-            raise RuntimeError("a fitting scene is required for Interactive Arrange")
+            msg = "a fitting scene is required for Interactive Arrange"
+            raise RuntimeError(msg)
         self.view = self.Gui.activeDocument().activeView() if self.Gui.activeDocument() else None
         if self.view is None:
-            raise RuntimeError("an active FreeCAD 3D view is required for Interactive Arrange")
+            msg = "an active FreeCAD 3D view is required for Interactive Arrange"
+            raise RuntimeError(msg)
         if self._mouse_callback is not None:
             return
         self._refresh_anchor_overlay()

@@ -303,19 +303,22 @@ def main() -> int:
     """
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
+        msg = f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
         raise SystemExit(
-            f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
+            msg
         )
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
     if len(lines) > 750:
-        raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
+        msg = f"reusable workflow is {len(lines)} lines; limit is 750"
+        raise SystemExit(msg)
     trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
+        msg = "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
         raise SystemExit(
-            "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+            msg
         )
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
@@ -340,16 +343,18 @@ def main() -> int:
         or "name: Required pre-merge validation" not in merge_workflow
         or "pull_request:" in merge_workflow
     ):
+        msg = "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
         raise SystemExit(
-            "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
+            msg
         )
     if (
         "push:" not in publication_workflow
         or "branches: [main]" not in publication_workflow
         or "execution_mode: publication" not in publication_workflow
     ):
+        msg = "main-publication.yml must be main-only and call canonical publication mode"
         raise SystemExit(
-            "main-publication.yml must be main-only and call canonical publication mode"
+            msg
         )
     if (
         "Required validation gate" not in text
@@ -358,13 +363,16 @@ def main() -> int:
         or "Explicit full validation / Required validation gate" not in text
         or "Required pre-merge validation" not in merge_workflow
     ):
+        msg = "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
         raise SystemExit(
-            "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
+            msg
         )
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
-        raise SystemExit("concurrency belongs to entry workflows, not the shared reusable workflow")
+        msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
+        raise SystemExit(msg)
     if "pull_request_target" in text:
-        raise SystemExit("pull_request_target is forbidden")
+        msg = "pull_request_target is forbidden"
+        raise SystemExit(msg)
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
@@ -378,19 +386,23 @@ def main() -> int:
             + ", ".join(missing_python_policies)
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
+        msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
         raise SystemExit(
-            "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
+            msg
         )
     try:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise SystemExit("pyrightconfig.json must be valid JSON") from error
+        msg = "pyrightconfig.json must be valid JSON"
+        raise SystemExit(msg) from error
     if pyright_config.get("typeCheckingMode") != "standard":
+        msg = "pyrightconfig.json must use a standard baseline with a focused strict path list"
         raise SystemExit(
-            "pyrightconfig.json must use a standard baseline with a focused strict path list"
+            msg
         )
     if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
-        raise SystemExit("pyrightconfig.json strict paths must match the reviewed core inventory")
+        msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
+        raise SystemExit(msg)
     command_lines = {line.strip() for line in text.splitlines()}
     missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
     if missing_ruff:
@@ -409,31 +421,37 @@ def main() -> int:
             + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
-        raise SystemExit("ty.toml must set [terminal].error-on-warning = true")
+        msg = "ty.toml must set [terminal].error-on-warning = true"
+        raise SystemExit(msg)
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
-        raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
+        msg = "Docker lifecycle belongs in .github/actions/freecad-container"
+        raise SystemExit(msg)
     if (
         "uses: ./.github/actions/freecad-test" not in text
         and "uses: $/.github/actions/freecad-test" not in text
         and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in text
     ):
-        raise SystemExit("canonical workflow must use freecad-test")
+        msg = "canonical workflow must use freecad-test"
+        raise SystemExit(msg)
     for path in REQUIRED:
         if not path.is_file():
-            raise SystemExit(f"missing required CI component: {path}")
+            msg = f"missing required CI component: {path}"
+            raise SystemExit(msg)
     pbd_action = (ROOT / ".github/actions/pbd-image/action.yml").read_text(encoding="utf-8")
     if (
         "upload-artifact" in pbd_action
         or "docker save" in pbd_action
         or "pbd-validation-image" in pbd_action
     ):
-        raise SystemExit("PBD validation image must never be serialized as a workflow artifact")
+        msg = "PBD validation image must never be serialized as a workflow artifact"
+        raise SystemExit(msg)
     container_action = (ROOT / ".github/actions/freecad-container/action.yml").read_text(
         encoding="utf-8"
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
+        msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
         raise SystemExit(
-            "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
+            msg
         )
     ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
@@ -449,24 +467,29 @@ def main() -> int:
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
             ):
-                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+                msg = f"CI action is not pinned to a full SHA: {ci_file}: {value}"
+                raise SystemExit(msg)
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > 180:
+                msg = f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
                 raise SystemExit(
-                    f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
+                    msg
                 )
 
     if "180s" not in container_action or "timeout-seconds" not in container_action:
-        raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
+        msg = "FreeCAD container action must retain its 180-second pull contract"
+        raise SystemExit(msg)
     freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
     if (
         'default: "120"' not in freecad
         or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad
     ):
-        raise SystemExit("freecad-test must pass its default-120 timeout to the container action")
+        msg = "freecad-test must pass its default-120 timeout to the container action"
+        raise SystemExit(msg)
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad:
-        raise SystemExit("freecad-test must scope non-default budgets to the FreeCAD process")
+        msg = "freecad-test must scope non-default budgets to the FreeCAD process"
+        raise SystemExit(msg)
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

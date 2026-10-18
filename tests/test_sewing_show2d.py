@@ -163,7 +163,8 @@ def test_seam_visual_markers_reject_mismatched_correspondence():
     except ValueError as exc:
         assert "equal length" in str(exc)
     else:
-        raise AssertionError("marker builder must reject mismatched correspondence")
+        msg = "marker builder must reject mismatched correspondence"
+        raise AssertionError(msg)
 
 
 if __name__ == "__main__":

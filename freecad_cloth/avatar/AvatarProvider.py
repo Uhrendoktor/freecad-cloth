@@ -87,14 +87,17 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
     def __init__(self, source, deflection=1.0, thickness=0.0):
         if source is None:
-            raise ValueError("a FreeCAD geometry avatar provider requires a source")
+            msg = "a FreeCAD geometry avatar provider requires a source"
+            raise ValueError(msg)
         self.source = source
         self.deflection = float(deflection)
         self.thickness = float(thickness)
         if self.deflection <= 0:
-            raise ValueError("deflection must be positive")
+            msg = "deflection must be positive"
+            raise ValueError(msg)
         if self.thickness < 0:
-            raise ValueError("thickness must not be negative")
+            msg = "thickness must not be negative"
+            raise ValueError(msg)
 
     def parameters(self):
         """Return the current provider parameters."""
@@ -123,4 +126,5 @@ def provider_from_target(
         return ParametricAvatarProvider(parameters)
     if kind == "FreeCAD Geometry":
         return FreeCADGeometryAvatarProvider(source, deflection, thickness)
-    raise ValueError(f"unsupported avatar provider target type: {kind}")
+    msg = f"unsupported avatar provider target type: {kind}"
+    raise ValueError(msg)

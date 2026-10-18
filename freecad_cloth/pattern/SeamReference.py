@@ -58,11 +58,14 @@ class EdgeReference:
 
     def __post_init__(self):
         if not str(self.piece_id).strip():
-            raise ValueError("piece_id must not be empty")
+            msg = "piece_id must not be empty"
+            raise ValueError(msg)
         if not str(self.edge_id).strip():
-            raise ValueError("edge_id must not be empty")
+            msg = "edge_id must not be empty"
+            raise ValueError(msg)
         if not str(self.signature).strip():
-            raise ValueError("signature must not be empty")
+            msg = "signature must not be empty"
+            raise ValueError(msg)
 
     def as_dict(self):
         """Serialize this reference to a dictionary."""
@@ -82,16 +85,19 @@ class EdgeReference:
                 str(value["signature"]),
             )
         except KeyError as exc:
-            raise ValueError(f"edge reference is missing {exc.args[0]}") from exc
+            msg = f"edge reference is missing {exc.args[0]}"
+            raise ValueError(msg) from exc
 
 
 def semantic_edge_id(piece_id: str, ordinal: int) -> str:
     """Return the canonical fallback id used for generated polygon edges."""
     if not str(piece_id).strip():
-        raise ValueError("piece_id must not be empty")
+        msg = "piece_id must not be empty"
+        raise ValueError(msg)
     ordinal = int(ordinal)
     if ordinal < 0:
-        raise ValueError("edge ordinal must be non-negative")
+        msg = "edge ordinal must be non-negative"
+        raise ValueError(msg)
     return "%s:edge:%d" % (piece_id, ordinal)
 
 
@@ -102,7 +108,8 @@ def edge_signature(
 ) -> str:
     """Hash an edge using legacy endpoints or native PatternIR provenance."""
     if len(points) < 2:
-        raise ValueError("an edge needs at least two points")
+        msg = "an edge needs at least two points"
+        raise ValueError(msg)
     normalized = [
         (round(float(point[0]), precision), round(float(point[1]), precision)) for point in points
     ]
@@ -158,20 +165,23 @@ def resolve_edge_reference(
         (edge for edge in candidates if str(edge.get("id", "")) == reference.edge_id), None
     )
     if match is None:
+        msg = f"semantic edge reference {reference.edge_id} is missing from pattern piece {reference.piece_id}"
         raise MissingEdgeReference(
-            f"semantic edge reference {reference.edge_id} is missing from pattern piece {reference.piece_id}"
+            msg
         )
     points = match.get("points")
     if points is None:
+        msg = f"semantic edge reference {reference.edge_id} has no current geometry"
         raise ChangedEdgeReference(
-            f"semantic edge reference {reference.edge_id} has no current geometry"
+            msg
         )
     native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
     provenance = match.get("provenance") if native_reference else None
     current = edge_signature(points, provenance=provenance)
     if current != reference.signature:
+        msg = f"semantic edge reference {reference.edge_id} geometry/provenance changed"
         raise ChangedEdgeReference(
-            f"semantic edge reference {reference.edge_id} geometry/provenance changed"
+            msg
         )
     return match
 

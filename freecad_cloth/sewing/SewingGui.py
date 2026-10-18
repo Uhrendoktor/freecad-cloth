@@ -28,8 +28,9 @@ def validate_seam_for_accept(seam):
     status = seam_reference_status(seam)
     if status != "Valid":
         seam_id = str(getattr(seam, "SeamId", "")) or "<unnamed>"
+        msg = f"cannot accept sewing operation with invalid seam reference {seam_id}: {status}"
         raise ValueError(
-            f"cannot accept sewing operation with invalid seam reference {seam_id}: {status}"
+            msg
         )
     return True
 
@@ -61,7 +62,8 @@ def repair_correspondence_settings(seam, report):
     deliberately not hidden: the caller must edit the pattern or seam ranges.
     """
     if seam is None or report is None:
-        raise ValueError("a seam correspondence report is required")
+        msg = "a seam correspondence report is required"
+        raise ValueError(msg)
     if report.status == "reversed":
         seam.ReversedB = False
         return "reversed correspondence repaired"
@@ -70,8 +72,9 @@ def repair_correspondence_settings(seam, report):
         seam.StartB, seam.EndB = 0.0, 1.0
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
+        msg = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
         raise ValueError(
-            "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+            msg
         )
     return "seam correspondence is already valid"
 
@@ -268,7 +271,8 @@ class SewingTaskPanel:
 
     def focus_3d(self):
         if self.seam is None:
-            raise ValueError("no seam is assigned to this sewing operation")
+            msg = "no seam is assigned to this sewing operation"
+            raise ValueError(msg)
         self.Gui.Selection.clearSelection()
         self.Gui.Selection.addSelection(self.seam)
         from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
@@ -278,7 +282,8 @@ class SewingTaskPanel:
 
     def edit_sketch_side(self, side):
         if self.seam is None:
-            raise ValueError("no seam is assigned to this sewing operation")
+            msg = "no seam is assigned to this sewing operation"
+            raise ValueError(msg)
         self.Gui.Selection.clearSelection()
         self.Gui.Selection.addSelection(self.seam)
         from freecad_cloth.sewing.SewingCommands import _edit_selected_seam_side

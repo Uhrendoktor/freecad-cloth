@@ -197,7 +197,8 @@ class SkeletonPoseController:
         if self.view is not None:
             return
         if self.panel.avatar is None:
-            raise RuntimeError("create a Cloth Human Mannequin first")
+            msg = "create a Cloth Human Mannequin first"
+            raise RuntimeError(msg)
         if (
             str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
             != "makehuman-hm08"

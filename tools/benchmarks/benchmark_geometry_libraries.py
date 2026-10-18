@@ -12,7 +12,6 @@ machine-dependent performance thresholds and is not part of the release gate.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from math import cos, dist, isclose, sin, tau
 from random import Random
 from time import perf_counter
@@ -20,6 +19,10 @@ from time import perf_counter
 from freecad_cloth.common.MeshValidation import Point3, nearest_target_clearance
 from freecad_cloth.pattern.PatternGeometry import Point
 from freecad_cloth.pattern.PatternMesh import _self_intersects
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
@@ -128,8 +131,9 @@ def _time_clearance(count: int) -> None:
     reference_seconds = perf_counter() - started
 
     if not isclose(accelerated, reference, rel_tol=1e-9, abs_tol=1e-9):
+        msg = f"clearance mismatch for {count}x{count} points: {accelerated!r} != {reference!r}"
         raise AssertionError(
-            f"clearance mismatch for {count}x{count} points: {accelerated!r} != {reference!r}"
+            msg
         )
     print(
         f"clearance vertices={count}x{count} "
@@ -159,8 +163,9 @@ def _time_outline(count: int) -> None:
     reference_seconds = perf_counter() - started
 
     if accelerated != reference:
+        msg = f"outline predicate mismatch for {count} vertices: {accelerated!r} != {reference!r}"
         raise AssertionError(
-            f"outline predicate mismatch for {count} vertices: {accelerated!r} != {reference!r}"
+            msg
         )
     print(
         f"outline vertices={count} "
@@ -188,7 +193,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     for count in args.sizes:
         if count < 32:
-            raise SystemExit("each benchmark size must be at least 32")
+            msg = "each benchmark size must be at least 32"
+            raise SystemExit(msg)
         _time_clearance(count)
         _time_outline(count)
     return 0

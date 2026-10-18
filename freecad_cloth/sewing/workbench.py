@@ -55,7 +55,8 @@ def _validate_sewing_command_groups(groups, expected):
     for _group_name, commands in groups:
         grouped.extend(ClothWorkbenchBase.normalize_commands(commands))
     if len(grouped) != len(set(grouped)):
-        raise ValueError("Sewing workbench command groups contain duplicates")
+        msg = "Sewing workbench command groups contain duplicates"
+        raise ValueError(msg)
     if set(grouped) != set(expected):
         missing = sorted(set(expected) - set(grouped))
         extra = sorted(set(grouped) - set(expected))

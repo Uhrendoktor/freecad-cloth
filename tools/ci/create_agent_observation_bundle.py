@@ -9,9 +9,12 @@ import mimetypes
 import os
 import platform
 import sys
-from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 SCHEMA = "freecad-cloth.agent-observation"
 SCHEMA_VERSION = 1
@@ -55,24 +58,30 @@ def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
         or ".." in relative.parts
         or "\\" in normalized
     ):
-        raise ObservationBundleError(f"unsafe relative path: {value!r}")
+        msg = f"unsafe relative path: {value!r}"
+        raise ObservationBundleError(msg)
 
     candidate = base.joinpath(*relative.parts)
     cursor = base
     for part in relative.parts:
         cursor = cursor / part
         if cursor.is_symlink():
-            raise ObservationBundleError(f"symbolic links are not allowed: {value!r}")
+            msg = f"symbolic links are not allowed: {value!r}"
+            raise ObservationBundleError(msg)
     try:
         resolved = candidate.resolve(strict=must_exist)
     except FileNotFoundError as exc:
-        raise ObservationBundleError(f"required evidence is missing: {value!r}") from exc
+        msg = f"required evidence is missing: {value!r}"
+        raise ObservationBundleError(msg) from exc
     except OSError as exc:
-        raise ObservationBundleError(f"cannot resolve path {value!r}: {exc}") from exc
+        msg = f"cannot resolve path {value!r}: {exc}"
+        raise ObservationBundleError(msg) from exc
     if not resolved.is_relative_to(base.resolve()):
-        raise ObservationBundleError(f"path escapes its evidence root: {value!r}")
+        msg = f"path escapes its evidence root: {value!r}"
+        raise ObservationBundleError(msg)
     if must_exist and not resolved.exists():
-        raise ObservationBundleError(f"required evidence is missing: {value!r}")
+        msg = f"required evidence is missing: {value!r}"
+        raise ObservationBundleError(msg)
     return resolved
 
 
@@ -98,26 +107,32 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
         role = role.strip()
         relative_path = relative_path.strip()
         if not separator or role not in ROLE_SUFFIXES or not relative_path:
+            msg = "evidence entries must use an allowed role=relative/path form"
             raise ObservationBundleError(
-                "evidence entries must use an allowed role=relative/path form"
+                msg
             )
         path = PurePosixPath(relative_path)
         if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in relative_path:
-            raise ObservationBundleError(f"unsafe evidence path: {relative_path!r}")
+            msg = f"unsafe evidence path: {relative_path!r}"
+            raise ObservationBundleError(msg)
         normalized_path = path.as_posix()
         if normalized_path in seen:
-            raise ObservationBundleError(f"duplicate evidence path: {normalized_path!r}")
+            msg = f"duplicate evidence path: {normalized_path!r}"
+            raise ObservationBundleError(msg)
         if path.suffix.lower() not in ROLE_SUFFIXES[role]:
+            msg = f"unsupported evidence extension for role {role!r}: {normalized_path!r}"
             raise ObservationBundleError(
-                f"unsupported evidence extension for role {role!r}: {normalized_path!r}"
+                msg
             )
         seen.add(normalized_path)
         parsed.append((role, normalized_path))
 
     if not parsed:
-        raise ObservationBundleError("at least one explicit evidence file is required")
+        msg = "at least one explicit evidence file is required"
+        raise ObservationBundleError(msg)
     if len(parsed) > MAX_EVIDENCE_FILES:
-        raise ObservationBundleError(f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit")
+        msg = f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit"
+        raise ObservationBundleError(msg)
     return parsed
 
 
@@ -228,12 +243,14 @@ def create_observation_bundle(
     workspace = workspace.resolve()
     root = _resolve_relative_path(workspace, observation_root, must_exist=True)
     if not root.is_dir():
-        raise ObservationBundleError("observation-root must be an existing directory")
+        msg = "observation-root must be an existing directory"
+        raise ObservationBundleError(msg)
 
     output = _resolve_relative_path(root, "agent-observation.json", must_exist=False)
     if len(label) > 160 or "\n" in label or "\r" in label:
+        msg = "observation-label must be a single line of at most 160 characters"
         raise ObservationBundleError(
-            "observation-label must be a single line of at most 160 characters"
+            msg
         )
 
     parsed = _parse_evidence_specs(specifications)
@@ -242,18 +259,21 @@ def create_observation_bundle(
     for role, relative_path in parsed:
         path = _resolve_relative_path(root, relative_path, must_exist=True)
         if path == output or not path.is_file():
-            raise ObservationBundleError(f"evidence must be a regular file: {relative_path!r}")
+            msg = f"evidence must be a regular file: {relative_path!r}"
+            raise ObservationBundleError(msg)
         size_bytes = path.stat().st_size
         if size_bytes > MAX_EVIDENCE_FILE_BYTES:
+            msg = f"evidence file exceeds {MAX_EVIDENCE_FILE_BYTES} bytes: {relative_path!r}"
             raise ObservationBundleError(
-                f"evidence file exceeds {MAX_EVIDENCE_FILE_BYTES} bytes: {relative_path!r}"
+                msg
             )
         total_bytes += size_bytes
         resolved_evidence.append((role, relative_path, path, size_bytes))
 
     if total_bytes > MAX_EVIDENCE_BYTES:
+        msg = f"selected evidence totals {total_bytes} bytes; limit is {MAX_EVIDENCE_BYTES}"
         raise ObservationBundleError(
-            f"selected evidence totals {total_bytes} bytes; limit is {MAX_EVIDENCE_BYTES}"
+            msg
         )
 
     evidence: list[dict[str, object]] = []

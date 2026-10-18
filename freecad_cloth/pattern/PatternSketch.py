@@ -102,18 +102,22 @@ def _add_native_geometry(
         vectors = [App.Vector(float(point[0]), float(point[1]), 0) for point in points]
         if kind == "line":
             if len(vectors) != 2:
-                raise ValueError("line boundary segment requires exactly two endpoints")
+                msg = "line boundary segment requires exactly two endpoints"
+                raise ValueError(msg)
             geometry.append(Part.LineSegment(vectors[0], vectors[1]))
         elif kind == "bspline":
             if len(vectors) < 3:
-                raise ValueError("B-spline boundary segment requires an interior curve point")
+                msg = "B-spline boundary segment requires an interior curve point"
+                raise ValueError(msg)
             curve = Part.BSplineCurve()
             curve.interpolate(vectors)
             geometry.append(curve)
         else:
-            raise ValueError(f"unsupported surface boundary segment type: {kind}")
+            msg = f"unsupported surface boundary segment type: {kind}"
+            raise ValueError(msg)
     if len(geometry) < 3:
-        raise ValueError("surface sketch requires at least three connected boundary segments")
+        msg = "surface sketch requires at least three connected boundary segments"
+        raise ValueError(msg)
     sketch.addGeometry(geometry, False)
     constraints = [
         Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(geometry), 1)
@@ -131,7 +135,8 @@ def create_sketch_for_piece(
     try:
         import FreeCAD as App
     except ImportError as exc:
-        raise RuntimeError("FreeCAD Sketcher is required for PatternSketch") from exc
+        msg = "FreeCAD Sketcher is required for PatternSketch"
+        raise RuntimeError(msg) from exc
 
     document = document or App.ActiveDocument
     if document is None:
@@ -202,7 +207,8 @@ def sync_sketch_from_piece(sketch, piece):
     """Replace sketch geometry from a PatternPiece for migration/repair only."""
     piece.validate()
     if getattr(sketch, "PatternPieceId", None) != piece.id:
-        raise ValueError("sketch does not belong to pattern piece")
+        msg = "sketch does not belong to pattern piece"
+        raise ValueError(msg)
     sketch.clear()
     _add_geometry(sketch, piece.outline)
     sketch.SemanticEdgeIds = [f"{piece.id}:edge:{i}" for i in range(len(piece.outline))]

@@ -72,7 +72,8 @@ def test_pattern_piece_proxy_rejects_invalid_dimensions():
         return
     except ValueError:
         return
-    raise AssertionError("non-positive dimensions should fail")
+    msg = "non-positive dimensions should fail"
+    raise AssertionError(msg)
 
 
 def _set_native_boundary(sketch, arc):

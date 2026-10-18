@@ -47,7 +47,8 @@ def is_sketch_authoritative(piece) -> bool:
 def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int = CURVE_SAMPLES):
     """Resolve document PatternPieces and canonical seams into one PatternIR."""
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
 
     pieces = tuple(pieces)
     piece_objects = {}
@@ -55,9 +56,11 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
     for piece in pieces:
         piece_id = str(getattr(piece, "PieceId", "")).strip()
         if not piece_id:
-            raise ValueError("simulation PatternPiece is missing PieceId")
+            msg = "simulation PatternPiece is missing PieceId"
+            raise ValueError(msg)
         if piece_id in piece_objects:
-            raise ValueError(f"simulation PatternPieces contain duplicate PieceId: {piece_id}")
+            msg = f"simulation PatternPieces contain duplicate PieceId: {piece_id}"
+            raise ValueError(msg)
         piece_objects[piece_id] = piece
         piece_irs.append(_resolve_piece_ir(piece, curve_samples))
 
@@ -73,7 +76,8 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
             continue
         status = str(getattr(seam_obj, "Status", "Valid"))
         if status != "Valid":
-            raise ValueError(f"cannot simulate invalid seam {seam_id}: {status}")
+            msg = f"cannot simulate invalid seam {seam_id}: {status}"
+            raise ValueError(msg)
         piece_a_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_a_id)
         piece_b_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_b_id)
         edge_a = _resolve_seam_edge(piece_objects[piece_a_id], seam_obj, "A", piece_a_ir)
@@ -157,7 +161,8 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
 def resolve_piece_ir(piece, curve_samples: int = CURVE_SAMPLES):
     """Resolve one document PatternPiece for compatibility callers/tests."""
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
     return _resolve_piece_ir(piece, curve_samples)
 
 
@@ -327,7 +332,8 @@ def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attri
         provenance,
     ).signature
     if current != stored:
-        raise ChangedEdgeReference(f"semantic edge reference {edge_id} geometry/provenance changed")
+        msg = f"semantic edge reference {edge_id} geometry/provenance changed"
+        raise ChangedEdgeReference(msg)
 
 
 def _placement_signature(piece):

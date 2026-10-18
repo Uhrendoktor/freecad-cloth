@@ -21,7 +21,8 @@ def test_surface_distance_fallback_uses_spatial_index():
         Raises:
             RuntimeError: Always, to force the spatial-index fallback path.
         """
-        raise RuntimeError("surface query backend unavailable")
+        msg = "surface query backend unavailable"
+        raise RuntimeError(msg)
 
     vertices = tuple((float(index), 0.0, 0.0) for index in range(5000))
     garment_points = tuple((float(index), 0.0, 5.0) for index in range(5000))

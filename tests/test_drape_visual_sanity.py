@@ -15,7 +15,6 @@ from freecad_cloth.simulation.DrapeVisualSanity import (
     summarize,
 )
 
-
 TETRAHEDRON_VERTICES = (
     (0.0, 0.0, 0.0),
     (1.0, 0.0, 0.0),
@@ -75,7 +74,8 @@ class DrapeVisualSanityTests(_DrapeTargetFixture):
             Raises:
                 AssertionError: If the trimesh acceleration callback is invoked.
             """
-            raise AssertionError("Trimesh acceleration should be bypassed")
+            msg = "Trimesh acceleration should be bypassed"
+            raise AssertionError(msg)
 
         self.assertEqual(
             points_inside_closed_mesh(

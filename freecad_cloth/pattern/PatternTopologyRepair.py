@@ -22,7 +22,8 @@ def seam_reference_status(seam, side):
     """Return ``(valid, reason)`` for seam side ``A`` or ``B``."""
     side = str(side).upper()
     if side not in ("A", "B"):
-        raise ValueError("seam side must be A or B")
+        msg = "seam side must be A or B"
+        raise ValueError(msg)
     piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
     edge_id = str(getattr(seam, "EdgeAId" if side == "A" else "EdgeBId", ""))
     signature = str(getattr(seam, "EdgeASignature" if side == "A" else "EdgeBSignature", ""))
@@ -56,7 +57,8 @@ def current_edge_candidates(seam, side):
     """Return current semantic edge records for one seam side's piece."""
     side = str(side).upper()
     if side not in ("A", "B"):
-        raise ValueError("seam side must be A or B")
+        msg = "seam side must be A or B"
+        raise ValueError(msg)
     piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
     if piece is None:
         return []
@@ -67,12 +69,14 @@ def validate_repair_target(seam, side, edge_id):
     """Resolve an explicitly selected current edge and return its record."""
     side = str(side).upper()
     if side not in ("A", "B"):
-        raise ValueError("seam side must be A or B")
+        msg = "seam side must be A or B"
+        raise ValueError(msg)
     edge_id = str(edge_id)
     for record in current_edge_candidates(seam, side):
         if str(record.get("id")) == edge_id:
             return record
-    raise InvalidRepairTarget(f"edge {edge_id} is not a current semantic edge on seam side {side}")
+    msg = f"edge {edge_id} is not a current semantic edge on seam side {side}"
+    raise InvalidRepairTarget(msg)
 
 
 def build_repair_plan(repairs):
@@ -83,12 +87,14 @@ def build_repair_plan(repairs):
         side = str(side).upper()
         key = (id(seam), side)
         if key in seen:
-            raise TopologyRepairError(f"duplicate repair target for seam side {side}")
+            msg = f"duplicate repair target for seam side {side}"
+            raise TopologyRepairError(msg)
         seen.add(key)
         record = validate_repair_target(seam, side, edge_id)
         plan.append((seam, side, record))
     if not plan:
-        raise TopologyRepairError("no topology repairs were selected")
+        msg = "no topology repairs were selected"
+        raise TopologyRepairError(msg)
     return plan
 
 

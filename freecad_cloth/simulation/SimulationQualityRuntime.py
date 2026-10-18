@@ -83,7 +83,8 @@ def apply_quality_preset(scene, name=None):
 def quality_discretization(point_count, perimeter, particle_distance):
     """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
-        raise ValueError("point_count must be at least three")
+        msg = "point_count must be at least three"
+        raise ValueError(msg)
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 

@@ -52,7 +52,8 @@ def wait_for_gui_ready(timeout_seconds=15.0):
             return window
         events()
         time.sleep(0.05)
-    raise RuntimeError(f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s")
+    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
+    raise RuntimeError(msg)
 
 
 def hide_task_docks(window):
@@ -82,16 +83,19 @@ def save_png(view, path, width=1280, height=720, state="capture"):
     """Render only the 3D view so README images are unobstructed model evidence."""
     view.saveImage(path, width, height, "White")
     if not Path(path).is_file() or Path(path).stat().st_size < 5000:
-        raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
+        msg = f"failed or suspiciously small screenshot: {path}"
+        raise RuntimeError(msg)
     with Path(path).open("rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
-        raise RuntimeError(f"invalid PNG capture for {state}")
+        msg = f"invalid PNG capture for {state}"
+        raise RuntimeError(msg)
     rendered_width = int.from_bytes(header[16:20], "big")
     rendered_height = int.from_bytes(header[20:24], "big")
     if (rendered_width, rendered_height) != (width, height):
+        msg = f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
         raise RuntimeError(
-            f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
+            msg
         )
     log("screenshot=%s state=%s bytes=%d" % (path, state, Path(path).stat().st_size))
 
@@ -121,7 +125,8 @@ def render_turntable(view, center, frame_dir, frame_count=72):
     base_offset = base_position - center_coin
     radius = base_offset.length()
     if radius <= 0:
-        raise RuntimeError("avatar turntable camera radius is zero")
+        msg = "avatar turntable camera radius is zero"
+        raise RuntimeError(msg)
 
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     camera.pointAt(center_coin, up)
@@ -400,7 +405,8 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
 
     gallery.save(output_path, format="PNG", optimize=True)
     if output_path.stat().st_size < 20000:
-        raise RuntimeError("body-shape gallery is suspiciously small")
+        msg = "body-shape gallery is suspiciously small"
+        raise RuntimeError(msg)
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
     metrics = validate_png_capture(
@@ -439,8 +445,9 @@ def main():
         "documentation",
         "documentation-turntable",
     ):
+        msg = "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
         raise RuntimeError(
-            "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
+            msg
         )
     log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
@@ -474,12 +481,14 @@ def main():
         else:
             avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
-            raise RuntimeError("avatar provider did not produce a valid mesh")
+            msg = "avatar provider did not produce a valid mesh"
+            raise RuntimeError(msg)
         if (
             int(getattr(avatar, "MeshVertexCount", 0)) <= 100
             or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100
         ):
-            raise RuntimeError("avatar visual fixture does not contain a real humanoid mesh")
+            msg = "avatar visual fixture does not contain a real humanoid mesh"
+            raise RuntimeError(msg)
         if mode != "gallery":
             avatar.ViewObject.DisplayMode = "Flat Lines"
             avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)

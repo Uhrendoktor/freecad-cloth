@@ -7,9 +7,12 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
-from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def plot_metric(

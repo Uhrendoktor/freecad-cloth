@@ -235,9 +235,11 @@ def _piece_mesh(piece, start_height, piece_ir=None):
     boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
     segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
     if not segment_ids:
-        raise ValueError("pattern mesh semantic boundary provenance is missing")
+        msg = "pattern mesh semantic boundary provenance is missing"
+        raise ValueError(msg)
     if len(segment_ids) != len(boundary):
-        raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
+        msg = "pattern mesh boundary provenance length does not match boundary vertices"
+        raise ValueError(msg)
 
     edge_pairs = {}
     for index, segment_id in enumerate(segment_ids):
@@ -252,7 +254,8 @@ def _piece_mesh(piece, start_height, piece_ir=None):
             None,
         )
         if base is None:
-            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
+            msg = "pattern mesh boundary provenance contains an unknown semantic edge"
+            raise ValueError(msg)
         pair = (boundary[index], boundary[(index + 1) % len(boundary)])
         edge_pairs.setdefault(base, []).append(pair)
 
@@ -262,7 +265,8 @@ def _piece_mesh(piece, start_height, piece_ir=None):
         edge_id = str(boundary_ir.id)
         pairs = edge_pairs.get(edge_id)
         if not pairs:
-            raise ValueError(f"pattern mesh has no boundary provenance for semantic edge {edge_id}")
+            msg = f"pattern mesh has no boundary provenance for semantic edge {edge_id}"
+            raise ValueError(msg)
         vertex_indices = {vertex for pair in pairs for vertex in pair}
         samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
         ordered = tuple(
@@ -272,13 +276,15 @@ def _piece_mesh(piece, start_height, piece_ir=None):
             )
         )
         if len(ordered) < 2:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} has too few boundary vertices")
+            msg = f"pattern mesh semantic edge {edge_id} has too few boundary vertices"
+            raise ValueError(msg)
         actual_pairs = {frozenset(pair) for pair in pairs}
         ordered_pairs = {
             frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
         }
         if ordered_pairs != actual_pairs:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} boundary chain is disconnected")
+            msg = f"pattern mesh semantic edge {edge_id} boundary chain is disconnected"
+            raise ValueError(msg)
         by_id[edge_id] = ordered
 
     return (
@@ -337,7 +343,8 @@ def _mesh_constraints(positions, triangles):
 
 def _sample_boundary(values, start, end, count, points=None):
     if len(values) < 2:
-        raise ValueError("seam edge requires at least two boundary vertices")
+        msg = "seam edge requires at least two boundary vertices"
+        raise ValueError(msg)
     if points is not None:
         from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
@@ -402,7 +409,8 @@ def _boundary_vertices(piece_ir, edge_id, panel_data):
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"], strict=False):
         if str(boundary.id) == str(edge_id):
             return tuple(values)
-    raise ValueError(f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}")
+    msg = f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}"
+    raise ValueError(msg)
 
 
 def _collision_for_scene(obj):
@@ -520,7 +528,8 @@ class SimulationProxy:
                 self._build(obj, signature)
             backend = self.backend
             if backend is None:
-                raise RuntimeError("simulation backend was not initialized after rebuild")
+                msg = "simulation backend was not initialized after rebuild"
+                raise RuntimeError(msg)
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):

@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from freecad_cloth.common.ValidationModels import PngCaptureMetrics, PngCaptureOptions
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _capture_metrics(
@@ -24,7 +27,8 @@ def _capture_metrics(
         try:
             with Image.open(path) as probe:
                 if probe.format != "PNG":
-                    raise ValueError("invalid PNG signature")
+                    msg = "invalid PNG signature"
+                    raise ValueError(msg)
                 width, height = probe.size
                 if (
                     options.expected_width is not None
@@ -36,15 +40,18 @@ def _capture_metrics(
                         % (width, height, options.expected_width, options.expected_height)
                     )
                 if options.expected_width is not None and width != options.expected_width:
-                    raise ValueError(f"PNG width is {width}, expected {options.expected_width}")
+                    msg = f"PNG width is {width}, expected {options.expected_width}"
+                    raise ValueError(msg)
                 if options.expected_height is not None and height != options.expected_height:
-                    raise ValueError(f"PNG height is {height}, expected {options.expected_height}")
+                    msg = f"PNG height is {height}, expected {options.expected_height}"
+                    raise ValueError(msg)
                 probe.verify()
 
             # Pillow must reopen the image after verify(); load() detects truncated pixel data.
             with Image.open(path) as image:
                 if image.format != "PNG":
-                    raise ValueError("invalid PNG signature")
+                    msg = "invalid PNG signature"
+                    raise ValueError(msg)
                 image.load()
                 pixels = np.array(image.convert("RGBA"), dtype=np.uint8, copy=True)
         except (
@@ -53,7 +60,8 @@ def _capture_metrics(
             OSError,
             SyntaxError,
         ) as exc:
-            raise ValueError("invalid or unreadable PNG capture") from exc
+            msg = "invalid or unreadable PNG capture"
+            raise ValueError(msg) from exc
 
     rgb = pixels[..., :3]
     opaque = pixels[..., 3] > 8

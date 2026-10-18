@@ -47,7 +47,6 @@ class BenchmarkWorkbenchBackend:
             commands: Command identifiers that would normally populate the toolbar.
         """
         del name, commands
-        return
 
     def append_menu(self, name: str, commands: list[str]) -> None:
         """Accept menu registration without creating GUI state during timing runs.
@@ -57,7 +56,6 @@ class BenchmarkWorkbenchBackend:
             commands: Command identifiers that would normally populate the menu.
         """
         del name, commands
-        return
 
     def append_context_menu(self, name: str, commands: list[str]) -> None:
         """Accept context-menu registration without creating GUI state during timing runs.
@@ -67,17 +65,12 @@ class BenchmarkWorkbenchBackend:
             commands: Command identifiers that would normally populate the menu.
         """
         del name, commands
-        return
 
 
 # Expose the mixed-case names required by FreeCAD without defining non-PEP-8 methods.
-setattr(BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar)
-setattr(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
-setattr(
-    BenchmarkWorkbenchBackend,
-    "appendContextMenu",
-    BenchmarkWorkbenchBackend.append_context_menu,
-)
+BenchmarkWorkbenchBackend.appendToolbar = BenchmarkWorkbenchBackend.append_toolbar
+BenchmarkWorkbenchBackend.appendMenu = BenchmarkWorkbenchBackend.append_menu
+BenchmarkWorkbenchBackend.appendContextMenu = BenchmarkWorkbenchBackend.append_context_menu
 
 
 def trace(message: str) -> None:
@@ -213,7 +206,8 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
             Gui.addWorkbench(wb)
             added = set(Gui.listWorkbenches()) - existing
             if len(added) != 1:
-                raise RuntimeError(f"expected one registered workbench, got {sorted(added)!r}")
+                msg = f"expected one registered workbench, got {sorted(added)!r}"
+                raise RuntimeError(msg)
             registered_name = next(iter(added))
             wb.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
             wb.Initialize()
@@ -282,7 +276,8 @@ def main() -> None:
     else:
         args = parser.parse_args()
     if args.repeats < 3:
-        raise SystemExit("--repeats must be >= 3")
+        msg = "--repeats must be >= 3"
+        raise SystemExit(msg)
     trace("benchmark: arguments parsed")
 
     trace("benchmark: FreeCAD import starting")

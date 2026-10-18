@@ -31,7 +31,8 @@ def initialize_workbenches(installation_root: Path) -> None:
     )
 
     if not set(AVATAR_ENTRY_COMMANDS).issubset(AvatarCommands.COMMANDS):
-        raise RuntimeError("Cloth Simulation avatar menu references unregistered commands")
+        msg = "Cloth Simulation avatar menu references unregistered commands"
+        raise RuntimeError(msg)
 
     workbenches = (
         ("ClothPatternWorkbench", ClothPatternWorkbench),

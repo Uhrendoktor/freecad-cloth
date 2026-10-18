@@ -54,8 +54,10 @@ def find_asset(asset: str) -> Path:
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
-            raise SystemExit(f"ambiguous visual asset {asset} within {root}: {matches}")
-    raise SystemExit(f"generated visual asset not found: {asset}")
+            msg = f"ambiguous visual asset {asset} within {root}: {matches}"
+            raise SystemExit(msg)
+    msg = f"generated visual asset not found: {asset}"
+    raise SystemExit(msg)
 
 
 def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
@@ -76,7 +78,8 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
     for entry in entries:
         target = output_root / entry.name
         if target.exists() or target.is_symlink():
-            raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
+            msg = f"duplicate asset while normalizing {artifact_root}: {target}"
+            raise SystemExit(msg)
         shutil.move(str(entry), str(target))
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
@@ -98,7 +101,8 @@ def build_surface_pen_gif() -> None:
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
     if len(frames) != 4:
-        raise SystemExit(f"surface-pen: expected 4 captured workflow frames, got {len(frames)}")
+        msg = f"surface-pen: expected 4 captured workflow frames, got {len(frames)}"
+        raise SystemExit(msg)
     build(image_tool(), frames, root / "surface-pen-workflow.gif", "80")
 
 
@@ -212,7 +216,8 @@ def main() -> int:
         text=True,
     ).strip()
     if remote_commit != local_commit:
-        raise SystemExit(f"remote screenshot branch mismatch: {remote_commit} != {local_commit}")
+        msg = f"remote screenshot branch mismatch: {remote_commit} != {local_commit}"
+        raise SystemExit(msg)
     print(
         f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}"
     )

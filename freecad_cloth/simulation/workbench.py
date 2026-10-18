@@ -37,9 +37,9 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Activated(self):
         import FreeCAD as App
 
-        import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         from freecad_cloth.sewing.SeamOverlay import activate_seam_overlay
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+        from freecad_cloth.simulation import DrapeCommands
 
         DrapeCommands.register_gui_commands()
         if App.ActiveDocument is not None:

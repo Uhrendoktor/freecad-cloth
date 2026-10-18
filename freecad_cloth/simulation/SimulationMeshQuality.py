@@ -57,9 +57,11 @@ def quality_piece_mesh(
     boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
     segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
     if not segment_ids:
-        raise ValueError("quality mesh boundary provenance is missing")
+        msg = "quality mesh boundary provenance is missing"
+        raise ValueError(msg)
     if len(segment_ids) != len(boundary):
-        raise ValueError("quality mesh boundary provenance length does not match boundary vertices")
+        msg = "quality mesh boundary provenance length does not match boundary vertices"
+        raise ValueError(msg)
 
     edge_pairs = {}
     for index, segment_id in enumerate(segment_ids):
@@ -74,7 +76,8 @@ def quality_piece_mesh(
             None,
         )
         if base is None:
-            raise ValueError("quality mesh boundary provenance contains an unknown semantic edge")
+            msg = "quality mesh boundary provenance contains an unknown semantic edge"
+            raise ValueError(msg)
         pair = (boundary[index], boundary[(index + 1) % len(boundary)])
         edge_pairs.setdefault(base, []).append(pair)
 
@@ -84,7 +87,8 @@ def quality_piece_mesh(
         edge_id = str(boundary_ir.id)
         pairs = edge_pairs.get(edge_id)
         if not pairs:
-            raise ValueError(f"quality mesh has no boundary provenance for semantic edge {edge_id}")
+            msg = f"quality mesh has no boundary provenance for semantic edge {edge_id}"
+            raise ValueError(msg)
         vertex_indices = {vertex for pair in pairs for vertex in pair}
         authored = tuple(tuple(point[:2]) for point in boundary_ir.samples)
         ordered = tuple(
@@ -94,7 +98,8 @@ def quality_piece_mesh(
             )
         )
         if len(ordered) < 2:
-            raise ValueError(f"quality mesh semantic edge {edge_id} has too few boundary vertices")
+            msg = f"quality mesh semantic edge {edge_id} has too few boundary vertices"
+            raise ValueError(msg)
         endpoint_tolerance = 1e-7 * max(1.0, boundary_ir.length)
         first = mesh_vertices[ordered[0]]
         last = mesh_vertices[ordered[-1]]
@@ -105,8 +110,9 @@ def quality_piece_mesh(
             )
             > endpoint_tolerance
         ):
+            msg = f"quality mesh semantic edge {edge_id} does not start at its authored vertex"
             raise ValueError(
-                f"quality mesh semantic edge {edge_id} does not start at its authored vertex"
+                msg
             )
         if (
             hypot(
@@ -115,8 +121,9 @@ def quality_piece_mesh(
             )
             > endpoint_tolerance
         ):
+            msg = f"quality mesh semantic edge {edge_id} does not end at its authored vertex"
             raise ValueError(
-                f"quality mesh semantic edge {edge_id} does not end at its authored vertex"
+                msg
             )
 
         actual_pairs = {frozenset(pair) for pair in pairs}
@@ -124,7 +131,8 @@ def quality_piece_mesh(
             frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
         }
         if ordered_pairs != actual_pairs:
-            raise ValueError(f"quality mesh semantic edge {edge_id} boundary chain is disconnected")
+            msg = f"quality mesh semantic edge {edge_id} boundary chain is disconnected"
+            raise ValueError(msg)
 
         for left, right in zip(ordered, ordered[1:], strict=False):
             span = hypot(
@@ -132,8 +140,9 @@ def quality_piece_mesh(
                 float(mesh_vertices[left][1]) - float(mesh_vertices[right][1]),
             )
             if span > float(spacing) + endpoint_tolerance:
+                msg = f"quality mesh semantic edge {edge_id} exceeds requested boundary spacing"
                 raise ValueError(
-                    f"quality mesh semantic edge {edge_id} exceeds requested boundary spacing"
+                    msg
                 )
         by_id[edge_id] = ordered
 

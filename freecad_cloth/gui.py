@@ -45,7 +45,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     ):
         if Gui is not None:
             super().__init__()
-        self._gui = cast(_WorkbenchGui | None, Gui if gui is None else gui)
+        self._gui = cast("_WorkbenchGui | None", Gui if gui is None else gui)
         self._toolbar_sink = toolbar_sink
         self._menu_sink = menu_sink
         self.commands = []

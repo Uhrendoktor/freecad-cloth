@@ -56,7 +56,8 @@ class HumanoidMeshTests(unittest.TestCase):
     def _write_sized_json(path: Path, payload: object, size: int) -> None:
         encoded = json.dumps(payload, separators=(",", ":"))
         if len(encoded) > size:
-            raise AssertionError("test JSON payload is larger than the expected cache size")
+            msg = "test JSON payload is larger than the expected cache size"
+            raise AssertionError(msg)
         path.write_text(encoded + " " * (size - len(encoded)), encoding="utf-8")
 
     def test_mesh_data_rejects_non_finite_vertex_coordinates(self):

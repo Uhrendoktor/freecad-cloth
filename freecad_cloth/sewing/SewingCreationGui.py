@@ -108,7 +108,8 @@ class SewingCreationSession:
 
     def _validate_preview(self):
         if not self.created:
-            raise ValueError("Preview did not create a sewing object")
+            msg = "Preview did not create a sewing object"
+            raise ValueError(msg)
         invalid = []
         for obj in self.created:
             sewing_type = str(getattr(obj, "SewingType", ""))
@@ -159,7 +160,8 @@ class SewingCreationSession:
     def preview(self):
         """Create and validate the normal persisted objects, still uncommitted."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if self.previewed:
             self._reset_preview()
         before_names = {str(getattr(obj, "Name", "")) for obj in getattr(self.doc, "Objects", ())}
@@ -182,7 +184,8 @@ class SewingCreationSession:
     def commit(self):
         """Validate the staged objects once, then commit the document transaction."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if not self.previewed:
             self.preview()
         self.doc.recompute()
@@ -218,9 +221,11 @@ class SewingCreationTaskPanel:
     def __init__(self, kind):
         App, Gui, QtWidgets = _modules()
         if App.ActiveDocument is None:
-            raise ValueError("open a document before creating sewing")
+            msg = "open a document before creating sewing"
+            raise ValueError(msg)
         if kind not in self._TRANSACTION_NAMES:
-            raise ValueError(f"unsupported staged sewing creation: {kind}")
+            msg = f"unsupported staged sewing creation: {kind}"
+            raise ValueError(msg)
         self.App, self.Gui = App, Gui
         self.kind = kind
         self.form = QtWidgets.QWidget()

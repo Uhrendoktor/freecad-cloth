@@ -6,11 +6,13 @@ from __future__ import annotations
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping
-from typing import TypeAlias, cast
+from typing import TypeAlias, cast, TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
 
 JSONValue: TypeAlias = str | int | float | bool | list["JSONValue"] | dict[str, "JSONValue"] | None
 
@@ -35,7 +37,8 @@ def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     for artifact in artifacts:
         size = artifact.get("size_in_bytes")
         if not isinstance(size, int) or size < 0:
-            raise ValueError(f"artifact has invalid size_in_bytes: {artifact!r}")
+            msg = f"artifact has invalid size_in_bytes: {artifact!r}"
+            raise ValueError(msg)
         total += size
     return total
 
@@ -71,19 +74,24 @@ def fetch_artifact_page(
         with urlopen(request, timeout=20) as response:
             payload = cast("JSONValue", json.load(response))
     except (HTTPError, URLError) as exc:
-        raise RuntimeError(f"GitHub artifact API request failed: {exc}") from exc
+        msg = f"GitHub artifact API request failed: {exc}"
+        raise RuntimeError(msg) from exc
     except json.JSONDecodeError as exc:
-        raise RuntimeError("GitHub artifact API returned invalid JSON") from exc
+        msg = "GitHub artifact API returned invalid JSON"
+        raise RuntimeError(msg) from exc
 
     if not isinstance(payload, dict):
-        raise RuntimeError("GitHub artifact API response must be an object")
+        msg = "GitHub artifact API response must be an object"
+        raise RuntimeError(msg)
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
-        raise RuntimeError("GitHub artifact API response has no artifact list")
+        msg = "GitHub artifact API response has no artifact list"
+        raise RuntimeError(msg)
     normalized: list[Mapping[str, object]] = []
     for item in artifacts:
         if not isinstance(item, dict):
-            raise RuntimeError("GitHub artifact API returned a malformed artifact list")
+            msg = "GitHub artifact API returned a malformed artifact list"
+            raise RuntimeError(msg)
         normalized.append(item)
     return normalized
 

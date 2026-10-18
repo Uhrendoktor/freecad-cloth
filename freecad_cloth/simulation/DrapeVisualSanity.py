@@ -3,13 +3,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from math import dist, isfinite
 from statistics import median
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
@@ -225,11 +228,14 @@ def seam_correspondence_gap(
 ) -> float:
     """Return deterministic max positional gap along one authored seam correspondence."""
     if not boundary_a or not boundary_b:
-        raise ValueError("seam boundaries are required")
+        msg = "seam boundaries are required"
+        raise ValueError(msg)
     if samples < 2:
-        raise ValueError("at least two seam samples are required")
+        msg = "at least two seam samples are required"
+        raise ValueError(msg)
     if not 0 <= int(edge_a) < len(boundary_a) or not 0 <= int(edge_b) < len(boundary_b):
-        raise ValueError("seam edge index is out of range")
+        msg = "seam edge index is out of range"
+        raise ValueError(msg)
     a0 = boundary_a[int(edge_a)]
     a1 = boundary_a[(int(edge_a) + 1) % len(boundary_a)]
     b0 = boundary_b[int(edge_b)]

@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable, Iterable, Mapping, Sequence
 from copy import deepcopy
-from typing import Protocol, TypeAlias, cast
+from typing import Protocol, TypeAlias, cast, TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -28,6 +27,9 @@ from freecad_cloth.common.ValidationModels import (
 from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
@@ -214,7 +216,8 @@ def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
 def _pbd_stitch_stiffness(compliance: float) -> float:
     value = validate_finite_number(compliance)
     if value < 0.0:
-        raise ValueError("stitch compliance must be finite and non-negative")
+        msg = "stitch compliance must be finite and non-negative"
+        raise ValueError(msg)
     if value == 0.0:
         return _PBD_STITCH_STIFFNESS_DEFAULT
     return max(1.0, min(_PBD_STITCH_STIFFNESS_DEFAULT, 1.0 / value))
@@ -271,13 +274,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         try:
             import pypbd
         except ImportError as exc:
-            raise RuntimeError("simulation requires the 'pyPBD' package") from exc
+            msg = "simulation requires the 'pyPBD' package"
+            raise RuntimeError(msg) from exc
 
         collision_mode = (
             str(os.environ.get("CLOTH_PBD_COLLISION_MODE", collision_mode)).strip().lower()
         )
         if collision_mode != "mesh":
-            raise ValueError("PositionBasedDynamics supports only mesh collision mode")
+            msg = "PositionBasedDynamics supports only mesh collision mode"
+            raise ValueError(msg)
 
         self._pbd = cast("_NativePBDAPI", pypbd)
         self._initial = deepcopy(system)
@@ -436,7 +441,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 resolution,
             )
             if self._collision_sdf is None:
-                raise RuntimeError("PositionBasedDynamics failed to generate collision SDF")
+                msg = "PositionBasedDynamics failed to generate collision SDF"
+                raise RuntimeError(msg)
             _PBD_COLLISION_SDF_CACHE_KEY = cache_key
             _PBD_COLLISION_SDF_CACHE = self._collision_sdf
         else:
@@ -447,7 +453,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
 
         if self._collision_sdf is None:
-            raise RuntimeError("PositionBasedDynamics collision SDF is unavailable")
+            msg = "PositionBasedDynamics collision SDF is unavailable"
+            raise RuntimeError(msg)
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
@@ -474,13 +481,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
         particles = self._model.getParticles()
         if particles.getNumberOfParticles() != self._particle_count:
-            raise RuntimeError("PositionBasedDynamics did not preserve cloth particle ordering")
+            msg = "PositionBasedDynamics did not preserve cloth particle ordering"
+            raise RuntimeError(msg)
         pin_indices = set(self._pin_indices)
         invalid_pins = [
             index for index in pin_indices if index < 0 or index >= self._particle_count
         ]
         if invalid_pins:
-            raise ValueError(f"pin index outside system: {invalid_pins!r}")
+            msg = f"pin index outside system: {invalid_pins!r}"
+            raise ValueError(msg)
         for index in range(self._particle_count):
             particles.setMass(index, 0.0 if index in pin_indices else 1.0)
 
@@ -497,7 +506,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
         )
         if cloth_stiffness <= 0.0 or bending_stiffness <= 0.0:
-            raise ValueError("PositionBasedDynamics cloth stiffness values must be positive")
+            msg = "PositionBasedDynamics cloth stiffness values must be positive"
+            raise ValueError(msg)
 
         self._model.addClothConstraints(
             tri_model,
@@ -518,14 +528,17 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         for a, b in self._stitches:
             before = len(constraints)
             if not self._model.addDistanceConstraint_XPBD(a, b, stitch_stiffness):
-                raise RuntimeError(f"PositionBasedDynamics rejected stitch constraint {(a, b)!r}")
+                msg = f"PositionBasedDynamics rejected stitch constraint {(a, b)!r}"
+                raise RuntimeError(msg)
             constraints = self._model.getConstraints()
             if len(constraints) != before + 1:
-                raise RuntimeError("PositionBasedDynamics stitch constraint was not registered")
+                msg = "PositionBasedDynamics stitch constraint was not registered"
+                raise RuntimeError(msg)
             stitch_constraint = constraints[-1]
             if not isinstance(stitch_constraint, self._pbd.DistanceConstraint_XPBD):
+                msg = "PositionBasedDynamics returned an unexpected stitch constraint type"
                 raise RuntimeError(
-                    "PositionBasedDynamics returned an unexpected stitch constraint type"
+                    msg
                 )
             # Tissu stitches have zero rest length; PBD otherwise initializes the
             # distance constraint rest length from the endpoints' starting distance.
@@ -610,8 +623,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         )
         dt, iterations, gravity = step_input.dt, step_input.iterations, step_input.gravity
         if surface is not None and surface is not self._collision_surface:
+            msg = "PositionBasedDynamics collision surface is immutable after construction"
             raise RuntimeError(
-                "PositionBasedDynamics collision surface is immutable after construction"
+                msg
             )
 
         gx, gy, gz = (float(value) for value in gravity)
@@ -665,7 +679,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Replace the sewing constraints and rebuild from the original input model."""
         compliance = validate_finite_number(compliance)
         if compliance < 0.0:
-            raise ValueError("compliance must be finite and non-negative")
+            msg = "compliance must be finite and non-negative"
+            raise ValueError(msg)
         self._stitches = tuple(
             (pair.a, pair.b)
             for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs)

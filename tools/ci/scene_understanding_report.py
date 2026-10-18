@@ -59,7 +59,8 @@ def _literal_tuple(value: str) -> tuple[object, ...]:
     """
     parsed = ast.literal_eval(value)
     if not isinstance(parsed, tuple):
-        raise ValueError("expected a tuple in the workflow diagnostic")
+        msg = "expected a tuple in the workflow diagnostic"
+        raise ValueError(msg)
     return cast("tuple[object, ...]", parsed)
 
 
@@ -76,10 +77,12 @@ def _point(value: object) -> list[float]:
         ValueError: Raised when the point shape or coordinates are invalid.
     """
     if not isinstance(value, (tuple, list)) or len(value) < 2:
-        raise ValueError("invalid 2D point in topology diagnostics")
+        msg = "invalid 2D point in topology diagnostics"
+        raise ValueError(msg)
     result = [float(value[0]), float(value[1])]
     if not all(math.isfinite(item) for item in result):
-        raise ValueError("non-finite point in topology diagnostics")
+        msg = "non-finite point in topology diagnostics"
+        raise ValueError(msg)
     return result
 
 

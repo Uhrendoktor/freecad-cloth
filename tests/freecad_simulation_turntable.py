@@ -87,7 +87,8 @@ def wait_for_gui_ready(timeout_seconds=15.0):
             return window
         events()
         time.sleep(0.05)
-    raise RuntimeError(f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s")
+    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
+    raise RuntimeError(msg)
 
 
 def save_png(view, path, state):
@@ -122,7 +123,8 @@ def save_png(view, path, state):
             with contextlib.suppress(FileNotFoundError):
                 pathlib.Path(temp_path).unlink()
         time.sleep(0.05)
-    raise RuntimeError(f"PNG capture contains no visible rendered content for {state}")
+    msg = f"PNG capture contains no visible rendered content for {state}"
+    raise RuntimeError(msg)
 
 
 def combined_center(objects):
@@ -136,7 +138,8 @@ def combined_center(objects):
         if bound is not None and bound.isValid():
             boxes.append(bound)
     if not boxes:
-        raise RuntimeError("no visible geometry bounds")
+        msg = "no visible geometry bounds"
+        raise RuntimeError(msg)
     return App.Vector(
         0.5 * (min(b.XMin for b in boxes) + max(b.XMax for b in boxes)),
         0.5 * (min(b.YMin for b in boxes) + max(b.YMax for b in boxes)),
@@ -179,7 +182,8 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
     base_position = coin.SbVec3f(camera.position.getValue())
     base_offset = base_position - target
     if base_offset.length() <= 0:
-        raise RuntimeError("zero camera radius")
+        msg = "zero camera radius"
+        raise RuntimeError(msg)
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     frame_hashes = []
     start_angle = pi / 2.0
@@ -204,7 +208,8 @@ def _render_turntable_isolated(view, objects, frame_dir, frame_count=72):
                 % (frame_dir, frame + 1, frame_total, 1000.0 * (time.monotonic() - stage_started))
             )
     if len(frame_hashes) != frame_total or len(set(frame_hashes)) != frame_total:
-        raise RuntimeError(f"turntable frames are not all distinct: {frame_dir}")
+        msg = f"turntable frames are not all distinct: {frame_dir}"
+        raise RuntimeError(msg)
     camera.position = base_position
     camera.pointAt(target, up)
     if hasattr(view, "redraw"):
@@ -254,7 +259,8 @@ def _adopt_sketch(sketch, name):
     piece.Label = name
     App.ActiveDocument.recompute()
     if piece.Sketch is not sketch:
-        raise RuntimeError("pattern piece did not retain native sketch")
+        msg = "pattern piece did not retain native sketch"
+        raise RuntimeError(msg)
     return piece
 
 
@@ -270,20 +276,23 @@ def _opposite_top_edge_pins(piece, positions, panel_indices):
         sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
     )
     if not boundary_vertices:
-        raise RuntimeError("blanket quality mesh has no boundary vertices")
+        msg = "blanket quality mesh has no boundary vertices"
+        raise RuntimeError(msg)
     top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
     top_edge = tuple(
         index for index in boundary_vertices if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
     )
     if len(top_edge) < 2:
-        raise RuntimeError("blanket top edge has fewer than two boundary vertices")
+        msg = "blanket top edge has fewer than two boundary vertices"
+        raise RuntimeError(msg)
     top = (
         min(top_edge, key=lambda index: float(mesh_positions[index][0])),
         max(top_edge, key=lambda index: float(mesh_positions[index][0])),
     )
     span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
     if span < 0.75 * BLANKET_SIZE:
-        raise RuntimeError(f"blanket pins are not opposite top-edge corners: span={span:.3f}")
+        msg = f"blanket pins are not opposite top-edge corners: span={span:.3f}"
+        raise RuntimeError(msg)
     return tuple(int(panel_indices[top_index]) for top_index in top), span
 
 
@@ -306,7 +315,8 @@ def _nearest_pin_indices(panel_indices, positions, targets):
 
 def _center_z(points):
     if not points:
-        raise RuntimeError("empty simulation particle set")
+        msg = "empty simulation particle set"
+        raise RuntimeError(msg)
     return sum(float(p[2]) for p in points) / len(points)
 
 
@@ -329,16 +339,19 @@ def validate_blanket_drape(panel, cube):
         target_width=max(float(target_box.XLength), float(target_box.YLength)),
     )
     if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
-        raise RuntimeError(f"blanket mesh failed structural validation: {mesh_result!r}")
+        msg = f"blanket mesh failed structural validation: {mesh_result!r}"
+        raise RuntimeError(msg)
     if (
         not shape["finite"]
         or shape["edge_spike_ratio"] > 4.0
         or shape["spike_edge_fraction"] > 0.02
         or shape["footprint_aspect_ratio"] > 4.0
     ):
-        raise RuntimeError(f"blanket mesh has spike/outlier geometry: {shape!r}")
+        msg = f"blanket mesh has spike/outlier geometry: {shape!r}"
+        raise RuntimeError(msg)
     if not drape.finite or drape.state != "structurally-plausible":
-        raise RuntimeError(f"blanket drape sanity check failed: {drape!r}")
+        msg = f"blanket drape sanity check failed: {drape!r}"
+        raise RuntimeError(msg)
     log(
         "mesh-quality=passed vertices=%d faces=%d components=%d "
         "spikes=%.3f spike_fraction=%.6f aspect=%.3f drape=%s"
@@ -375,7 +388,8 @@ def build_simulation_state(doc):
         name="Blanket", allowance=0.0, grainline=0.0
     )
     if blanket.Sketch is not sketch:
-        raise RuntimeError("pattern piece did not retain native sketch")
+        msg = "pattern piece did not retain native sketch"
+        raise RuntimeError(msg)
     placement = App.Placement(App.Vector(0.0, 0.0, BLANKET_START_Z), App.Rotation())
     blanket.Placement = placement
     blanket.Sketch.Placement = placement
@@ -406,7 +420,8 @@ def build_simulation_state(doc):
 
     panels = list(scene.DrapePanels)
     if len(panels) != 1:
-        raise RuntimeError("blanket turntable must create one drape panel")
+        msg = "blanket turntable must create one drape panel"
+        raise RuntimeError(msg)
     panel = panels[0]
     proxy = scene.Proxy._base_or_restore()
     positions = tuple(proxy.backend.positions())
@@ -507,7 +522,8 @@ def main():
                     "blanket simulation did not reach a finite %d-step state" % steps
                 )
             if panel.Mesh.CountFacets <= 50:
-                raise RuntimeError("blanket drape mesh is too small")
+                msg = "blanket drape mesh is too small"
+                raise RuntimeError(msg)
             final_positions = tuple(scene.Proxy._base_or_restore().backend.positions())
             max_penetration = maximum_box_penetration(
                 final_positions,
@@ -522,7 +538,8 @@ def main():
             )
             log(f"collision-penetration=passed max_penetration_mm={max_penetration:.3f}")
             if max_penetration > 3.0:
-                raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
+                msg = f"blanket penetrated collision cube by {max_penetration:.2f} mm"
+                raise RuntimeError(msg)
             log(
                 "blanket-turntable-config particle_distance=%.1f iterations=%d particles=%d steps=%d"
                 % (
@@ -549,12 +566,14 @@ def main():
                 )
             )
             if displacement < 40.0:
+                msg = f"blanket moved only {displacement:.2f} mm; expected real draping motion"
                 raise RuntimeError(
-                    f"blanket moved only {displacement:.2f} mm; expected real draping motion"
+                    msg
                 )
             if minimum_z > cube_top + 35.0:
+                msg = f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
                 raise RuntimeError(
-                    f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
+                    msg
                 )
 
             validation_started = time.monotonic()

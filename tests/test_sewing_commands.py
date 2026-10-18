@@ -118,7 +118,8 @@ def test_selected_pattern_edges_rejects_incomplete_selection():
     except ValueError as exc:
         assert "exactly two edges" in str(exc)
     else:
-        raise AssertionError("expected invalid selection to be rejected")
+        msg = "expected invalid selection to be rejected"
+        raise AssertionError(msg)
 
 
 def test_selected_pattern_edges_ignores_malformed_and_duplicate_subelements():
@@ -214,7 +215,8 @@ def _pattern_piece(piece_id):
 
 def test_repair_selected_seam_wraps_missing_piece_with_actionable_context():
     def edge_length(_piece, _edge):
-        raise AssertionError("edge lookup must not run when the piece is missing")
+        msg = "edge lookup must not run when the piece is missing"
+        raise AssertionError(msg)
 
     context = _repair_test_modules(edge_length)
     try:
@@ -224,12 +226,14 @@ def test_repair_selected_seam_wraps_missing_piece_with_actionable_context():
         assert "piece-a" in str(exc)
         assert isinstance(exc.__cause__, KeyError)
     else:
-        raise AssertionError("expected missing pattern pieces to be reported")
+        msg = "expected missing pattern pieces to be reported"
+        raise AssertionError(msg)
 
 
 def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause():
     def edge_length(_piece, edge):
-        raise ValueError(f"seam edge {edge} is outside the pattern boundary")
+        msg = f"seam edge {edge} is outside the pattern boundary"
+        raise ValueError(msg)
 
     context = _repair_test_modules(
         edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
@@ -240,12 +244,14 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause():
         assert "outside the pattern boundary" in str(exc)
         assert isinstance(exc.__cause__, ValueError)
     else:
-        raise AssertionError("expected invalid seam edge to be reported")
+        msg = "expected invalid seam edge to be reported"
+        raise AssertionError(msg)
 
 
 def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error():
     def edge_length(_piece, _edge):
-        raise RuntimeError("unexpected solver/runtime failure")
+        msg = "unexpected solver/runtime failure"
+        raise RuntimeError(msg)
 
     context = _repair_test_modules(
         edge_length, (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
@@ -255,7 +261,8 @@ def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error():
     except RuntimeError as exc:
         assert str(exc) == "unexpected solver/runtime failure"
     else:
-        raise AssertionError("unexpected runtime errors must not be swallowed")
+        msg = "unexpected runtime errors must not be swallowed"
+        raise AssertionError(msg)
 
 
 def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edges():

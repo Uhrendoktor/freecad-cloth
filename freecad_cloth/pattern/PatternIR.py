@@ -37,14 +37,18 @@ class BoundaryIR:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
-            raise ValueError("boundary id must not be empty")
+            msg = "boundary id must not be empty"
+            raise ValueError(msg)
         if self.kind not in {"line", "arc", "bspline", "bezier", "curve"}:
-            raise ValueError("unsupported boundary kind")
+            msg = "unsupported boundary kind"
+            raise ValueError(msg)
         if len(self.samples) < 2:
-            raise ValueError("boundary needs at least two samples")
+            msg = "boundary needs at least two samples"
+            raise ValueError(msg)
         start, end = self.parameter_range
         if not end > start:
-            raise ValueError("boundary parameter range must have positive extent")
+            msg = "boundary parameter range must have positive extent"
+            raise ValueError(msg)
 
     @property
     def length(self) -> float:
@@ -68,16 +72,20 @@ class PieceIR:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
-            raise ValueError("piece id must not be empty")
+            msg = "piece id must not be empty"
+            raise ValueError(msg)
         if not self.boundaries:
-            raise ValueError("piece needs at least one boundary")
+            msg = "piece needs at least one boundary"
+            raise ValueError(msg)
         ids = [boundary.id for boundary in self.boundaries]
         if len(ids) != len(set(ids)):
-            raise ValueError("piece boundary IDs must be unique")
+            msg = "piece boundary IDs must be unique"
+            raise ValueError(msg)
         for boundary in self.boundaries:
             boundary.validate()
         if self.seam_allowance < 0.0:
-            raise ValueError("seam allowance cannot be negative")
+            msg = "seam allowance cannot be negative"
+            raise ValueError(msg)
 
 
 @pydantic_dataclass(frozen=True)
@@ -101,19 +109,25 @@ class SeamIR:
     def validate(self, pieces: Mapping[str, PieceIR]) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.id.strip():
-            raise ValueError("seam id must not be empty")
+            msg = "seam id must not be empty"
+            raise ValueError(msg)
         for piece_id, edge_id in ((self.piece_a, self.edge_a), (self.piece_b, self.edge_b)):
             if piece_id not in pieces:
-                raise ValueError(f"seam references unknown pattern piece: {piece_id}")
+                msg = f"seam references unknown pattern piece: {piece_id}"
+                raise ValueError(msg)
             if edge_id not in {edge.id for edge in pieces[piece_id].boundaries}:
-                raise ValueError(f"seam references unknown boundary: {piece_id}:{edge_id}")
+                msg = f"seam references unknown boundary: {piece_id}:{edge_id}"
+                raise ValueError(msg)
         for value in (self.start_a, self.end_a, self.start_b, self.end_b):
             if not 0.0 <= value <= 1.0:
-                raise ValueError("seam edge ranges must be normalized")
+                msg = "seam edge ranges must be normalized"
+                raise ValueError(msg)
         if self.start_a >= self.end_a or self.start_b >= self.end_b:
-            raise ValueError("seam ranges must have positive extent")
+            msg = "seam ranges must have positive extent"
+            raise ValueError(msg)
         if self.alignment not in {"endpoints", "uniform"}:
-            raise ValueError("unsupported sewing alignment")
+            msg = "unsupported sewing alignment"
+            raise ValueError(msg)
 
 
 @pydantic_dataclass(frozen=True)
@@ -128,12 +142,14 @@ class PatternIR:
         """Validate this value and raise ValueError when its state is invalid."""
         piece_map = {piece.id: piece for piece in self.pieces}
         if len(piece_map) != len(self.pieces):
-            raise ValueError("pattern piece IDs must be unique")
+            msg = "pattern piece IDs must be unique"
+            raise ValueError(msg)
         for piece in self.pieces:
             piece.validate()
         seam_ids = {seam.id for seam in self.seams}
         if len(seam_ids) != len(self.seams):
-            raise ValueError("seam IDs must be unique")
+            msg = "seam IDs must be unique"
+            raise ValueError(msg)
         for seam in self.seams:
             seam.validate(piece_map)
 
@@ -150,7 +166,8 @@ class PatternIR:
         for edge in piece.boundaries:
             if edge.id == edge_id:
                 return edge
-        raise KeyError(f"{piece_id}:{edge_id}")
+        msg = f"{piece_id}:{edge_id}"
+        raise KeyError(msg)
 
     @classmethod
     def from_graph(
@@ -203,7 +220,8 @@ class PatternIR:
         the solver layer.
         """
         if curve_samples < 2:
-            raise ValueError("curve_samples must be at least 2")
+            msg = "curve_samples must be at least 2"
+            raise ValueError(msg)
         graph.validate()
         materials = materials or {}
         pieces = []
@@ -211,7 +229,8 @@ class PatternIR:
         for piece in graph.pieces.values():
             sketch = sketches.get(piece.id)
             if sketch is None:
-                raise ValueError(f"missing Sketcher geometry for pattern piece: {piece.id}")
+                msg = f"missing Sketcher geometry for pattern piece: {piece.id}"
+                raise ValueError(msg)
             boundaries, edge_index_map = _sketch_boundaries(sketch, piece.id, curve_samples)
             edge_index_maps[piece.id] = edge_index_map
             pieces.append(
@@ -289,7 +308,8 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
 def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
     if len(geometry) < 1:
-        raise ValueError(f"Sketcher pattern needs at least one boundary geometry: {piece_id}")
+        msg = f"Sketcher pattern needs at least one boundary geometry: {piece_id}"
+        raise ValueError(msg)
 
     semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
     boundaries = []
@@ -306,8 +326,9 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
         boundaries.append(_native_boundary(native, edge_id, curve_samples))
 
     if not boundaries:
+        msg = f"Sketcher pattern has no non-construction boundary geometries: {piece_id}"
         raise ValueError(
-            f"Sketcher pattern has no non-construction boundary geometries: {piece_id}"
+            msg
         )
     return _order_sketch_boundary(boundaries, piece_id), edge_index_map
 
@@ -325,14 +346,16 @@ def _order_sketch_boundary(
     a complete boundary and does not need endpoint graph traversal.
     """
     if len({boundary.id for boundary in boundaries}) != len(boundaries):
-        raise ValueError(f"Sketcher boundary has duplicate semantic IDs: {piece_id}")
+        msg = f"Sketcher boundary has duplicate semantic IDs: {piece_id}"
+        raise ValueError(msg)
 
     if len(boundaries) == 1:
         boundary = boundaries[0]
         if _distance3(boundary.samples[0], boundary.samples[-1]) <= 1e-7:
             return tuple(boundaries)
+        msg = f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
         raise ValueError(
-            f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
+            msg
         )
 
     vertices = []
@@ -341,8 +364,9 @@ def _order_sketch_boundary(
         start = boundary.samples[0]
         end = boundary.samples[-1]
         if _distance3(start, end) <= 1e-7:
+            msg = f"Sketcher boundary contains a closed curve alongside other boundary edges: {boundary.id}"
             raise ValueError(
-                f"Sketcher boundary contains a closed curve alongside other boundary edges: {boundary.id}"
+                msg
             )
         start_vertex = _find_vertex(vertices, start)
         end_vertex = _find_vertex(vertices, end)
@@ -360,13 +384,19 @@ def _order_sketch_boundary(
         unique_incident = sorted(set(incident))
         if len(unique_incident) != 2:
             if len(unique_incident) < 2:
-                raise ValueError(
+                msg = (
                     f"Sketcher boundary is open at endpoint {vertex_index}: "
                     f"expected two connected edges, found {len(unique_incident)}"
                 )
-            raise ValueError(
+                raise ValueError(
+                    msg
+                )
+            msg = (
                 f"Sketcher boundary is ambiguous at endpoint {vertex_index}: "
                 f"expected two connected edges, found {len(unique_incident)}"
+            )
+            raise ValueError(
+                msg
             )
 
     adjacency = {index: set() for index in range(len(boundaries))}
@@ -400,13 +430,17 @@ def _order_sketch_boundary(
             if index not in visited and current_vertex in edge_vertices[index]
         ]
         if not candidates:
-            raise ValueError(
+            msg = (
                 f"Sketcher boundary is disconnected near {boundaries[current_edge].id}: "
                 "traversal cannot reach remaining edges"
             )
-        if len(candidates) != 1:
             raise ValueError(
-                f"Sketcher boundary is ambiguous while traversing from {boundaries[current_edge].id}"
+                msg
+            )
+        if len(candidates) != 1:
+            msg = f"Sketcher boundary is ambiguous while traversing from {boundaries[current_edge].id}"
+            raise ValueError(
+                msg
             )
         next_edge = candidates[0]
         edge_start, edge_end = edge_vertices[next_edge]
@@ -419,15 +453,17 @@ def _order_sketch_boundary(
                 boundaries[next_edge], samples=tuple(reversed(boundaries[next_edge].samples))
             )
         else:
-            raise ValueError(f"Sketcher boundary is disconnected near {boundaries[next_edge].id}")
+            msg = f"Sketcher boundary is disconnected near {boundaries[next_edge].id}"
+            raise ValueError(msg)
         ordered.append(oriented)
         visited.add(next_edge)
         current_edge = next_edge
         current_vertex = next_vertex
 
     if start_vertex != current_vertex:
+        msg = f"Sketcher boundary is open: traversal did not return to its start ({piece_id})"
         raise ValueError(
-            f"Sketcher boundary is open: traversal did not return to its start ({piece_id})"
+            msg
         )
     return tuple(ordered)
 
@@ -445,7 +481,8 @@ def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
         start, end = edge_vertices[index]
         if start == vertex_index or end == vertex_index:
             return index
-    raise ValueError("Sketcher boundary connectivity is inconsistent")
+    msg = "Sketcher boundary connectivity is inconsistent"
+    raise ValueError(msg)
 
 
 def _point_sort_key(point: Point3):
@@ -458,7 +495,8 @@ def _orient_boundary(boundary, edge_vertices, start_vertex):
         return boundary
     if edge_end == start_vertex:
         return replace(boundary, samples=tuple(reversed(boundary.samples)))
-    raise ValueError(f"Sketcher boundary orientation cannot start at {boundary.id}")
+    msg = f"Sketcher boundary orientation cannot start at {boundary.id}"
+    raise ValueError(msg)
 
 
 def _is_construction(sketch, index: int) -> bool:
@@ -491,12 +529,14 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     if kind is None and callable(getattr(native, "valueAt", None)):
         kind = "curve"
     if kind is None:
-        raise ValueError(f"unsupported Sketcher boundary geometry: {type(native).__name__}")
+        msg = f"unsupported Sketcher boundary geometry: {type(native).__name__}"
+        raise ValueError(msg)
 
     first = _native_parameter(native, "FirstParameter", 0.0)
     last = _native_parameter(native, "LastParameter", 1.0)
     if last <= first:
-        raise ValueError(f"invalid parameter range for Sketcher boundary: {edge_id}")
+        msg = f"invalid parameter range for Sketcher boundary: {edge_id}"
+        raise ValueError(msg)
     samples = tuple(
         _point3(_native_value(native, first + (last - first) * i / (curve_samples - 1)))
         for i in range(curve_samples)
@@ -516,7 +556,8 @@ def _native_value(native, parameter: float):
     value = getattr(native, "value", None)
     if callable(value):
         return value(parameter)
-    raise ValueError(f"Sketcher curve does not expose valueAt/value: {type(native).__name__}")
+    msg = f"Sketcher curve does not expose valueAt/value: {type(native).__name__}"
+    raise ValueError(msg)
 
 
 def _point3(point) -> Point3:
@@ -531,15 +572,19 @@ def _resolve_edge(
     reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
 ) -> str:
     if isinstance(reference, bool):
-        raise ValueError("boolean edge references are invalid")
+        msg = "boolean edge references are invalid"
+        raise ValueError(msg)
     if isinstance(reference, int):
         if edge_index_map is not None:
             if reference not in edge_index_map:
-                raise ValueError(f"edge index is outside Sketcher boundary: {piece.id}:{reference}")
+                msg = f"edge index is outside Sketcher boundary: {piece.id}:{reference}"
+                raise ValueError(msg)
             return edge_index_map[reference]
         if reference < 0 or reference >= len(piece.boundaries):
-            raise ValueError(f"edge index is outside piece boundary: {piece.id}:{reference}")
+            msg = f"edge index is outside piece boundary: {piece.id}:{reference}"
+            raise ValueError(msg)
         return piece.boundaries[reference].id
     if isinstance(reference, str) and reference in {edge.id for edge in piece.boundaries}:
         return reference
-    raise ValueError(f"unresolvable seam edge reference: {piece.id}:{reference}")
+    msg = f"unresolvable seam edge reference: {piece.id}:{reference}"
+    raise ValueError(msg)

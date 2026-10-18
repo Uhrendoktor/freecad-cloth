@@ -30,13 +30,15 @@ def metric_definition(name: str) -> dict:
     try:
         return dict(METRIC_DEFINITIONS[key])
     except KeyError as exc:
-        raise ValueError(f"unknown diagnostic metric: {name}") from exc
+        msg = f"unknown diagnostic metric: {name}"
+        raise ValueError(msg) from exc
 
 
 def export_payload(result: "DiagnosticResult") -> dict:
     """Return a deterministic, solver-neutral JSON-ready diagnostic payload."""
     if not isinstance(result, DiagnosticResult):
-        raise TypeError("result must be a DiagnosticResult")
+        msg = "result must be a DiagnosticResult"
+        raise TypeError(msg)
     return {
         "schema": 1,
         "faces": len(result.strain),
@@ -77,7 +79,8 @@ class DiagnosticResult:
         try:
             return getattr(self, str(name))
         except AttributeError as exc:
-            raise ValueError(f"unknown diagnostic metric: {name}") from exc
+            msg = f"unknown diagnostic metric: {name}"
+            raise ValueError(msg) from exc
 
 
 def _distance(a: Point3, b: Point3) -> float:
@@ -132,13 +135,17 @@ def analyze_mesh(
     solver-independent and safe to compare across materials.
     """
     if len(rest_vertices) != len(current_vertices):
-        raise ValueError("rest and current meshes must have equal vertex counts")
+        msg = "rest and current meshes must have equal vertex counts"
+        raise ValueError(msg)
     if stretch_limit <= 0:
-        raise ValueError("stretch_limit must be positive")
+        msg = "stretch_limit must be positive"
+        raise ValueError(msg)
     if clearances is not None and len(clearances) not in (len(triangles), len(current_vertices)):
-        raise ValueError("clearances must be per-face or per-vertex")
+        msg = "clearances must be per-face or per-vertex"
+        raise ValueError(msg)
     if pressures is not None and len(pressures) != len(triangles):
-        raise ValueError("pressures must be per-face")
+        msg = "pressures must be per-face"
+        raise ValueError(msg)
 
     strain = tuple(_average_edge_strain(rest_vertices, current_vertices, tri) for tri in triangles)
     stress = tuple(abs(value) / float(stretch_limit) for value in strain)

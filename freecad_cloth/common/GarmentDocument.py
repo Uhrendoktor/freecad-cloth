@@ -130,7 +130,8 @@ def ensure_fabric_material(doc, root=None):
 def ensure_garment_hierarchy(doc, label="Garment"):
     """Create or repair the native Garment -> five-container hierarchy."""
     if doc is None:
-        raise ValueError("a FreeCAD document is required")
+        msg = "a FreeCAD document is required"
+        raise ValueError(msg)
 
     root = garment_root(doc)
     if root is None:
@@ -161,7 +162,8 @@ def link_garment_object(obj, role, doc=None):
     role = str(role)
     group_role = _ROLE_TO_GROUP.get(role, role if role in GARMENT_GROUPS else None)
     if group_role is None:
-        raise ValueError(f"unsupported Garment hierarchy role: {role}")
+        msg = f"unsupported Garment hierarchy role: {role}"
+        raise ValueError(msg)
     group = garment_group(doc, group_role)
     if group is None:
         group = _ensure_group(doc, root, group_role)
@@ -175,7 +177,8 @@ def garment_structure(doc):
     """Return a deterministic native hierarchy snapshot for smoke evidence."""
     root = garment_root(doc)
     if root is None:
-        raise ValueError("document has no native Garment root")
+        msg = "document has no native Garment root"
+        raise ValueError(msg)
     structure = {
         "root": {"name": root.Name, "label": root.Label, "type": root.TypeId},
         "groups": {},
@@ -183,7 +186,8 @@ def garment_structure(doc):
     for role in GARMENT_GROUPS:
         group = garment_group(doc, role)
         if group is None:
-            raise ValueError(f"missing Garment group: {role}")
+            msg = f"missing Garment group: {role}"
+            raise ValueError(msg)
         structure["groups"][role] = [
             {
                 "name": obj.Name,

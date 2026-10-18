@@ -83,7 +83,8 @@ def _create_native_sketch_for_piece(
     try:
         points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(obj.SewingOutline))]
     except (ValueError, SyntaxError, TypeError, IndexError) as exc:
-        raise ValueError("selected pattern piece has no valid sewing outline") from exc
+        msg = "selected pattern piece has no valid sewing outline"
+        raise ValueError(msg) from exc
     piece = PatternPiece(
         obj.Label,
         points,
@@ -147,10 +148,12 @@ def create_pattern_piece_from_selected_sketch(name=None, allowance=0.0, grainlin
 
     sketch = _selected_sketch()
     if sketch is None:
-        raise ValueError("select a native Sketcher object before creating a Cloth PatternPiece")
+        msg = "select a native Sketcher object before creating a Cloth PatternPiece"
+        raise ValueError(msg)
     doc = App.ActiveDocument
     if doc is None or sketch.Document is not doc:
-        raise ValueError("selected Sketcher object must belong to the active FreeCAD document")
+        msg = "selected Sketcher object must belong to the active FreeCAD document"
+        raise ValueError(msg)
     if getattr(sketch, "GeometryAuthority", "") == "Sketcher" and getattr(
         sketch, "PatternPieceId", ""
     ):
@@ -167,13 +170,15 @@ def create_pattern_piece_from_selected_sketch(name=None, allowance=0.0, grainlin
 
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
     if not geometry:
-        raise ValueError("selected Sketcher object contains no geometry")
+        msg = "selected Sketcher object contains no geometry"
+        raise ValueError(msg)
 
     box = sketch.Shape.BoundBox
     x0, y0 = float(box.XMin), float(box.YMin)
     x1, y1 = float(box.XMax), float(box.YMax)
     if not x1 > x0 or not y1 > y0:
-        raise ValueError("selected Sketcher pattern has no usable 2D extent")
+        msg = "selected Sketcher pattern has no usable 2D extent"
+        raise ValueError(msg)
 
     piece_id = "pattern-piece-" + str(
         len([o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"]) + 1
@@ -224,7 +229,8 @@ def edit_pattern_piece():
     selection = Gui.Selection.getSelection()
     obj = next((o for o in selection if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if obj is None:
-        raise ValueError("select a pattern piece before editing it")
+        msg = "select a pattern piece before editing it"
+        raise ValueError(msg)
     from freecad_cloth.pattern.PatternGui import show_pattern_piece_task
 
     show_pattern_piece_task(obj)
@@ -248,7 +254,8 @@ def edit_pattern_sketch(
         None,
     )
     if obj is None:
-        raise ValueError("select a pattern piece before editing its Sketcher geometry")
+        msg = "select a pattern piece before editing its Sketcher geometry"
+        raise ValueError(msg)
     sketch = getattr(obj, "Sketch", None)
     if sketch is None:
         sketch_creator = (
@@ -256,7 +263,8 @@ def edit_pattern_sketch(
         )
         sketch = sketch_creator(obj)
     if sketch is None:
-        raise ValueError("pattern piece has no native Sketcher representation")
+        msg = "pattern piece has no native Sketcher representation"
+        raise ValueError(msg)
     gui.activeDocument().setEdit(sketch.Name)
     return sketch
 
@@ -274,7 +282,8 @@ def create_pattern_sketch():
         None,
     )
     if obj is None:
-        raise ValueError("select a pattern piece before creating its Sketcher representation")
+        msg = "select a pattern piece before creating its Sketcher representation"
+        raise ValueError(msg)
     return _create_native_sketch_for_piece(obj)
 
 
@@ -310,7 +319,8 @@ def create_pattern_drafting():
         ]
         obj = pieces[0] if pieces else None
     if obj is None:
-        raise ValueError("create a pattern piece before opening the drafting canvas")
+        msg = "create a pattern piece before opening the drafting canvas"
+        raise ValueError(msg)
     return show_pattern_drafting_task(obj)
 
 
@@ -354,7 +364,8 @@ def export_pattern():
     global _ACTIVE_PATTERN_EXPORT_TASK_PANEL
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a pattern document before exporting")
+        msg = "open a pattern document before exporting"
+        raise ValueError(msg)
     piece = next(
         (
             o
@@ -364,7 +375,8 @@ def export_pattern():
         next((o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"), None),
     )
     if piece is None:
-        raise ValueError("create or select a pattern piece before exporting")
+        msg = "create or select a pattern piece before exporting"
+        raise ValueError(msg)
     panel = show_pattern_export_task(piece)
     # FreeCAD task-dialog APIs have returned a boolean wrapper in some GUI
     # lifecycles even though the public panel itself is still available. Keep
@@ -381,7 +393,8 @@ def export_pattern():
         if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
             panel.form.show()
     if not hasattr(panel, "format") or not callable(getattr(panel, "accept", None)):
-        raise RuntimeError("public pattern export command did not create a valid task panel")
+        msg = "public pattern export command did not create a valid task panel"
+        raise RuntimeError(msg)
     _ACTIVE_PATTERN_EXPORT_TASK_PANEL = panel
     return panel
 
@@ -397,7 +410,8 @@ def create_pattern_mesh():
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
     piece = next((o for o in doc.Objects if getattr(o, "PatternType", "") == "PatternPiece"), None)
     if piece is None:
-        raise ValueError("create a pattern piece before creating a cloth mesh")
+        msg = "create a pattern piece before creating a cloth mesh"
+        raise ValueError(msg)
     points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(piece.SewingOutline))]
     segments = [
         LineSegment(str(i), points[i], points[(i + 1) % len(points)]) for i in range(len(points))
@@ -436,10 +450,12 @@ def add_seam():
     else:
         pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
         if len(pieces) < 2:
-            raise ValueError("select two pattern edges or create at least two pattern pieces")
+            msg = "select two pattern edges or create at least two pattern pieces"
+            raise ValueError(msg)
         piece_a, piece_b, edge_a, edge_b = pieces[0], pieces[1], 0, 0
     if piece_a.PieceId == piece_b.PieceId and edge_a == edge_b:
-        raise ValueError("a seam cannot connect an edge to itself")
+        msg = "a seam cannot connect an edge to itself"
+        raise ValueError(msg)
     base = f"{piece_a.PieceId}-e{edge_a}-{piece_b.PieceId}-e{edge_b}"
     existing = {getattr(o, "SeamId", "") for o in doc.Objects}
     seam_id, suffix = base, 2
@@ -460,9 +476,11 @@ def repair_pattern_topology():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a garment document before repairing pattern topology")
+        msg = "open a garment document before repairing pattern topology"
+        raise ValueError(msg)
     if not invalid_seam_sides(doc):
-        raise ValueError("no invalid Cloth seam references require repair")
+        msg = "no invalid Cloth seam references require repair"
+        raise ValueError(msg)
     from freecad_cloth.pattern.PatternTopologyRepairGui import show_topology_repair_task
 
     return show_topology_repair_task(doc)

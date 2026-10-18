@@ -31,29 +31,35 @@ class TriangleMesh:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if len(self.vertices) < 3:
-            raise ValueError("mesh needs at least three vertices")
+            msg = "mesh needs at least three vertices"
+            raise ValueError(msg)
         n = len(self.vertices)
         for tri in self.triangles:
             if len(set(tri)) != 3 or any(
                 type(index) is not int or index < 0 or index >= n for index in tri
             ):
-                raise ValueError("invalid triangle index")
+                msg = "invalid triangle index"
+                raise ValueError(msg)
         if len(self.boundary_vertex_indices) < 3:
-            raise ValueError("mesh needs at least three boundary vertices")
+            msg = "mesh needs at least three boundary vertices"
+            raise ValueError(msg)
         if any(
             type(index) is not int or index < 0 or index >= n
             for index in self.boundary_vertex_indices
         ):
-            raise ValueError("invalid boundary vertex index")
+            msg = "invalid boundary vertex index"
+            raise ValueError(msg)
         if any(
             len(point) != 2 or not all(isfinite(coordinate) for coordinate in point)
             for point in self.vertices
         ):
-            raise ValueError("mesh coordinates must be finite 2D points")
+            msg = "mesh coordinates must be finite 2D points"
+            raise ValueError(msg)
         if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(
             self.boundary_vertex_indices
         ):
-            raise ValueError("boundary provenance must match boundary edge count")
+            msg = "boundary provenance must match boundary edge count"
+            raise ValueError(msg)
 
     @property
     def area(self) -> float:
@@ -63,7 +69,8 @@ class TriangleMesh:
             for a, b, c in self.triangles
         )
         if not isfinite(total):
-            raise ValueError("computed mesh area must be finite")
+            msg = "computed mesh area must be finite"
+            raise ValueError(msg)
         return total
 
     def boundary_edges(self) -> tuple[tuple[int, int], ...]:
@@ -88,12 +95,15 @@ def triangulate(
     curve_samples, max_area = options_input.curve_samples, options_input.max_area
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
     if len(points) < 3:
-        raise ValueError("pattern has too few distinct boundary points")
+        msg = "pattern has too few distinct boundary points"
+        raise ValueError(msg)
     outline_area = signed_area(points)
     if abs(outline_area) < 1e-9:
-        raise ValueError("pattern has zero area")
+        msg = "pattern has zero area"
+        raise ValueError(msg)
     if _self_intersects(points):
-        raise ValueError("pattern boundary self-intersects")
+        msg = "pattern boundary self-intersects"
+        raise ValueError(msg)
     if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(
         pattern.segments
     ):
@@ -111,8 +121,9 @@ def triangulate(
         import numpy as np
         import triangle as tr
     except ImportError as exc:
+        msg = "PatternMesh requires the 'triangle' package (Shewchuk constrained Delaunay meshing)"
         raise RuntimeError(
-            "PatternMesh requires the 'triangle' package (Shewchuk constrained Delaunay meshing)"
+            msg
         ) from exc
 
     vertices_in = np.asarray(points, dtype=np.float64)
@@ -127,12 +138,15 @@ def triangulate(
     result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
     result_triangles = np.asarray(result.get("triangles", ()), dtype=np.int64)
     if len(result_vertices) == 0:
-        raise ValueError("Triangle returned no vertices")
+        msg = "Triangle returned no vertices"
+        raise ValueError(msg)
     if result_triangles.ndim != 2 or result_triangles.shape[1] != 3:
-        raise ValueError("Triangle returned no triangular faces")
+        msg = "Triangle returned no triangular faces"
+        raise ValueError(msg)
     if max_area is None and len(result_vertices) != len(points):
+        msg = "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         raise ValueError(
-            "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
+            msg
         )
 
     output_index_by_coordinate: dict[tuple[int, int], int] = {}
@@ -145,7 +159,8 @@ def triangulate(
         key = (_quantize(x), _quantize(y))
         index = output_index_by_coordinate.get(key)
         if index is None:
-            raise ValueError("Triangle dropped an authored boundary vertex")
+            msg = "Triangle dropped an authored boundary vertex"
+            raise ValueError(msg)
         boundary_indices.append(index)
 
     triangles: list[tuple[int, int, int]] = []
@@ -162,7 +177,8 @@ def triangulate(
         ):
             b, c = c, b
         if len({a, b, c}) != 3:
-            raise ValueError("Triangle returned a degenerate face")
+            msg = "Triangle returned a degenerate face"
+            raise ValueError(msg)
         triangles.append((a, b, c))
 
     vertices = tuple((float(v[0]), float(v[1])) for v in result_vertices.tolist())
@@ -171,9 +187,11 @@ def triangulate(
     expected_area = abs(signed_area(points))
     actual_area = mesh.area
     if not isfinite(expected_area) or not isfinite(actual_area):
-        raise ValueError("triangulation area must be finite")
+        msg = "triangulation area must be finite"
+        raise ValueError(msg)
     if abs(actual_area - expected_area) > 1e-6 * max(1.0, expected_area):
-        raise ValueError("triangulation area does not match pattern area")
+        msg = "triangulation area does not match pattern area"
+        raise ValueError(msg)
     return mesh
 
 
@@ -181,7 +199,8 @@ def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> Pa
     """Subdivide straight authored boundary segments without changing semantic identity."""
     spacing = float(max_spacing)
     if not isfinite(spacing) or spacing <= 0.0:
-        raise ValueError("max boundary spacing must be positive and finite")
+        msg = "max boundary spacing must be positive and finite"
+        raise ValueError(msg)
     segments = []
     for segment in pattern.segments:
         if isinstance(segment, LineSegment):
@@ -267,7 +286,8 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         point[1] - start[1],
     )
     if not all(isfinite(value) for value in with_offset):
-        raise ValueError("point-to-segment coordinate differences must be finite")
+        msg = "point-to-segment coordinate differences must be finite"
+        raise ValueError(msg)
     scale = max(abs(value) for value in with_offset)
     if scale == 0.0:
         return 0.0
@@ -292,7 +312,8 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         closest_y = sy + clamped * unit_y
         distance = hypot(px - closest_x, py - closest_y)
     if not isfinite(distance):
-        raise ValueError("computed point-to-segment distance must be finite")
+        msg = "computed point-to-segment distance must be finite"
+        raise ValueError(msg)
     return distance
 
 

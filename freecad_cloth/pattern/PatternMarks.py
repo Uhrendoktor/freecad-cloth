@@ -24,7 +24,8 @@ def _selected_piece(doc, *, gui: ModuleType | None = None):
     pieces = _pieces(doc)
     if pieces:
         return pieces[0]
-    raise ValueError("create or select a pattern piece before adding a mark")
+    msg = "create or select a pattern piece before adding a mark"
+    raise ValueError(msg)
 
 
 def _native_default_segment_id(piece):
@@ -34,11 +35,13 @@ def _native_default_segment_id(piece):
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if not piece_id:
-        raise ValueError("selected pattern piece has no authored native edge identity")
+        msg = "selected pattern piece has no authored native edge identity"
+        raise ValueError(msg)
     for semantic_id in semantic_ids:
         if semantic_id:
             return semantic_id
-    raise ValueError("selected pattern piece has no authored native edge identity")
+    msg = "selected pattern piece has no authored native edge identity"
+    raise ValueError(msg)
 
 
 def _has_selected_piece(*, gui: ModuleType | None = None):
@@ -67,15 +70,20 @@ def add_mark(
 ):
     """Add the requested mark data."""
     if not mark_type.strip():
-        raise ValueError("mark type must not be empty")
+        msg = "mark type must not be empty"
+        raise ValueError(msg)
     if not piece_id.strip():
-        raise ValueError("mark piece ID must not be empty")
+        msg = "mark piece ID must not be empty"
+        raise ValueError(msg)
     if not 0.0 <= float(position) <= 1.0:
-        raise ValueError("mark position must be between 0 and 1")
+        msg = "mark position must be between 0 and 1"
+        raise ValueError(msg)
     if float(depth) <= 0:
-        raise ValueError("mark depth must be positive")
+        msg = "mark depth must be positive"
+        raise ValueError(msg)
     if float(length) <= 0:
-        raise ValueError("mark length must be positive")
+        msg = "mark length must be positive"
+        raise ValueError(msg)
     name = "%s_%d" % (
         mark_type,
         1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]),

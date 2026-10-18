@@ -11,8 +11,11 @@ from __future__ import annotations
 import ast
 import os
 import sys
-from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 ROOT = Path(__file__).resolve().parents[2]
 _TYPE_MODULES = frozenset({"typing", "typing_extensions"})

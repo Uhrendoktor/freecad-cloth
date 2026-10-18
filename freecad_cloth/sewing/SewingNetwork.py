@@ -30,11 +30,14 @@ class SewingMember:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not str(self.piece_id).strip():
-            raise ValueError("sewing member piece id must not be empty")
+            msg = "sewing member piece id must not be empty"
+            raise ValueError(msg)
         if isinstance(self.edge, bool) or not isinstance(self.edge, int) or self.edge < 0:
-            raise ValueError("sewing member edge must be a non-negative integer")
+            msg = "sewing member edge must be a non-negative integer"
+            raise ValueError(msg)
         if not 0.0 <= float(self.start) < float(self.end) <= 1.0:
-            raise ValueError("sewing member range must be normalized with positive extent")
+            msg = "sewing member range must be normalized with positive extent"
+            raise ValueError(msg)
 
 
 def _member_length(member: SewingMember, edge_lengths) -> float:
@@ -45,14 +48,16 @@ def _member_length(member: SewingMember, edge_lengths) -> float:
         length = edge_lengths[member.piece_id, member.edge]
     length = float(length)
     if length <= 0.0:
-        raise ValueError("sewing member edge length must be positive")
+        msg = "sewing member edge length must be positive"
+        raise ValueError(msg)
     return length * (float(member.end) - float(member.start))
 
 
 def _breakpoints(lengths: Sequence[float]) -> list[float]:
     total = sum(lengths)
     if total <= 0.0:
-        raise ValueError("sewing relationship has zero total length")
+        msg = "sewing relationship has zero total length"
+        raise ValueError(msg)
     points = [0.0]
     for length in lengths:
         points.append(points[-1] + float(length) / total)
@@ -80,17 +85,21 @@ def build_mn_seams(
     """
     relationship_id = str(relationship_id).strip()
     if not relationship_id:
-        raise ValueError("relationship id must not be empty")
+        msg = "relationship id must not be empty"
+        raise ValueError(msg)
     if alignment not in {"endpoints", "uniform"}:
-        raise ValueError("alignment must be 'endpoints' or 'uniform'")
+        msg = "alignment must be 'endpoints' or 'uniform'"
+        raise ValueError(msg)
     a = tuple(side_a)
     b = tuple(side_b)
     if not a or not b:
-        raise ValueError("an M:N sewing relationship needs members on both sides")
+        msg = "an M:N sewing relationship needs members on both sides"
+        raise ValueError(msg)
     for member in a + b:
         member.validate()
     if len({m.piece_id for m in a}) != 1 or len({m.piece_id for m in b}) != 1:
-        raise ValueError("each sewing side must belong to exactly one pattern piece")
+        msg = "each sewing side must belong to exactly one pattern piece"
+        raise ValueError(msg)
 
     a_lengths = tuple(_member_length(m, edge_lengths) for m in a)
     b_lengths = tuple(_member_length(m, edge_lengths) for m in b)
@@ -147,7 +156,8 @@ def build_mn_seams(
             j += 1
 
     if not seams:
-        raise ValueError("sewing relationship produced no overlapping segments")
+        msg = "sewing relationship produced no overlapping segments"
+        raise ValueError(msg)
     for seam in seams:
         seam.validate()
     return tuple(seams)
@@ -161,7 +171,8 @@ def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
     for member in members:
         piece = pieces.get(member.piece_id)
         if piece is None:
-            raise ValueError(f"unknown pattern piece: {member.piece_id}")
+            msg = f"unknown pattern piece: {member.piece_id}"
+            raise ValueError(msg)
         result[member.piece_id, member.edge] = _edge_length(piece, member.edge)
     return result
 
@@ -185,7 +196,8 @@ def _network_lengths(seams):
         piece_a = pieces.get(str(getattr(seam, "PieceA", "")))
         piece_b = pieces.get(str(getattr(seam, "PieceB", "")))
         if piece_a is None or piece_b is None:
-            raise ValueError("sewing network references missing pattern pieces")
+            msg = "sewing network references missing pattern pieces"
+            raise ValueError(msg)
         total_a += _seam_length(piece_a, seam, "A")
         total_b += _seam_length(piece_b, seam, "B")
     return total_a, total_b
@@ -289,10 +301,12 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     seams = tuple(seams)
     relationship_id = str(relationship_id).strip()
     if not seams or not relationship_id:
-        raise ValueError("a sewing network needs seams and a relationship id")
+        msg = "a sewing network needs seams and a relationship id"
+        raise ValueError(msg)
     groups = {str(getattr(seam, "StitchGroup", "")) for seam in seams}
     if groups != {relationship_id}:
-        raise ValueError("all seams must use the network relationship id")
+        msg = "all seams must use the network relationship id"
+        raise ValueError(msg)
     obj = doc.addObject("App::FeaturePython", name)
     obj.Label = relationship_id
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingNetwork"

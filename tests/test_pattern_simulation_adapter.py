@@ -77,11 +77,13 @@ class _Piece:
 
     @property
     def SewingOutline(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy outline")
+        msg = "Sketch-authoritative adapter accessed legacy outline"
+        raise AssertionError(msg)
 
     @property
     def DraftingBoundary(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy drafting boundary")
+        msg = "Sketch-authoritative adapter accessed legacy drafting boundary"
+        raise AssertionError(msg)
 
 
 class _LegacyPiece:
@@ -262,7 +264,8 @@ def test_sketcher_authority_without_sketch_fails_closed():
     except MissingEdgeReference as exc:
         assert "Sketch-authoritative" in str(exc)
         return
-    raise AssertionError("Sketcher authority without a Sketch must not use legacy fallback")
+    msg = "Sketcher authority without a Sketch must not use legacy fallback"
+    raise AssertionError(msg)
 
 
 def test_native_sketch_edit_with_same_semantic_id_fails_closed():
@@ -286,8 +289,9 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
     except ChangedEdgeReference:
         return
+    msg = "native Sketcher geometry changes must invalidate the simulation reference"
     raise AssertionError(
-        "native Sketcher geometry changes must invalidate the simulation reference"
+        msg
     )
 
 

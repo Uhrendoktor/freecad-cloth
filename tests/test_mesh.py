@@ -190,7 +190,8 @@ def test_triangulation_rejects_nonfinite_area_limits() -> None:
         except ValueError as exc:
             assert "finite" in str(exc).lower()
         else:
-            raise AssertionError("non-finite max_area was accepted")
+            msg = "non-finite max_area was accepted"
+            raise AssertionError(msg)
 
 
 def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> None:

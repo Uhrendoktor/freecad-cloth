@@ -120,10 +120,12 @@ def _require_simulation():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("no active document")
+        msg = "no active document"
+        raise RuntimeError(msg)
     scene = _find_simulation(doc)
     if scene is None:
-        raise RuntimeError("no Cloth Simulation object in active document")
+        msg = "no Cloth Simulation object in active document"
+        raise RuntimeError(msg)
     return doc, scene
 
 
@@ -133,7 +135,8 @@ def simulate_selected(steps=None):
     _require_drape_target_ready(doc)
     count = int(steps if steps is not None else 1)
     if count < 1:
-        raise ValueError("steps must be positive")
+        msg = "steps must be positive"
+        raise ValueError(msg)
     scene.Steps = int(scene.Steps) + count
     doc.recompute()
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay

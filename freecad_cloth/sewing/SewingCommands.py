@@ -22,7 +22,8 @@ def _selected_seam(doc, *, gui: ModuleType | None = None):
     seams = _seams(doc)
     if seams:
         return seams[0]
-    raise ValueError("create or select a seam before creating a sewing operation")
+    msg = "create or select a seam before creating a sewing operation"
+    raise ValueError(msg)
 
 
 def _pieces_by_id(doc):
@@ -67,9 +68,11 @@ def _selected_pattern_edges(allow_many: bool = False, *, gui: ModuleType | None 
     edges = _collect_selected_pattern_edges(gui=gui)
     if (not allow_many and len(edges) != 2) or (allow_many and len(edges) < 2):
         count = "at least two" if allow_many else "exactly two"
-        raise ValueError(f"select {count} edges on pattern pieces")
+        msg = f"select {count} edges on pattern pieces"
+        raise ValueError(msg)
     if len({id(obj) for obj, _edge in edges}) != 2:
-        raise ValueError("a sewing relationship must connect two different pattern pieces")
+        msg = "a sewing relationship must connect two different pattern pieces"
+        raise ValueError(msg)
     return edges
 
 
@@ -138,7 +141,8 @@ def create_seam_from_selection():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before creating a seam")
+        msg = "open a document before creating a seam"
+        raise ValueError(msg)
     (piece_a, edge_a), (piece_b, edge_b) = _selected_pattern_edges()
     existing_ids = {str(getattr(seam, "SeamId", "")) for seam in _seams(doc)}
     index = len(existing_ids) + 1
@@ -161,7 +165,8 @@ def create_mn_sewing_from_selection():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before creating sewing")
+        msg = "open a document before creating sewing"
+        raise ValueError(msg)
     selected = _selected_pattern_edges(allow_many=True)
     pieces = _pieces_by_id(doc)
     piece_ids = []
@@ -170,7 +175,8 @@ def create_mn_sewing_from_selection():
         if pid not in piece_ids:
             piece_ids.append(pid)
     if len(piece_ids) != 2:
-        raise ValueError("select edges from exactly two pattern pieces")
+        msg = "select edges from exactly two pattern pieces"
+        raise ValueError(msg)
     first_piece = piece_ids[0]
     side_a = tuple(
         SewingMember(first_piece, edge)
@@ -215,8 +221,9 @@ def create_sewing_operation():
     try:
         a, b = pieces[str(seam.PieceA)], pieces[str(seam.PieceB)]
     except KeyError as exc:
+        msg = "the seam references pattern pieces that are not in the active document"
         raise ValueError(
-            "the seam references pattern pieces that are not in the active document"
+            msg
         ) from exc
     n = len([o for o in doc.Objects if getattr(o, "SewingType", "") == "SewingOperation"]) + 1
     obj = add_sewing_operation(doc, seam, a, b, "SewingOperation%d" % n)
@@ -242,7 +249,8 @@ def edit_sewing_operation():
         None,
     )
     if obj is None:
-        raise ValueError("select a sewing operation before editing it")
+        msg = "select a sewing operation before editing it"
+        raise ValueError(msg)
     from freecad_cloth.sewing.SewingGui import show_sewing_task
 
     _ACTIVE_SEWING_OPERATION_TASK_PANEL = show_sewing_task(obj)
@@ -254,7 +262,8 @@ def reverse_selected_seam():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing seam orientation")
+        msg = "open a document before changing seam orientation"
+        raise ValueError(msg)
     seam = _selected_seam(doc)
     seam.ReversedB = not bool(seam.ReversedB)
     doc.recompute()
@@ -266,7 +275,8 @@ def toggle_selected_alignment():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing seam alignment")
+        msg = "open a document before changing seam alignment"
+        raise ValueError(msg)
     seam = _selected_seam(doc)
     seam.Alignment = "uniform" if str(seam.Alignment) == "endpoints" else "endpoints"
     doc.recompute()
@@ -305,7 +315,8 @@ def repair_selected_seam(
 
     doc = app.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before repairing a seam")
+        msg = "open a document before repairing a seam"
+        raise ValueError(msg)
     seam = _selected_seam(doc, gui=gui)
     if correspondence_report_fn is None or repair_settings_fn is None:
         from freecad_cloth.sewing.SewingGui import (
@@ -332,7 +343,8 @@ def repair_selected_seam(
             length_a = edge_length_fn(pieces[str(seam.PieceA)], int(seam.EdgeA))
             length_b = edge_length_fn(pieces[str(seam.PieceB)], int(seam.EdgeB))
         except (KeyError, ValueError, TypeError, IndexError) as exc:
-            raise ValueError(f"cannot determine seam lengths for repair: {exc}") from exc
+            msg = f"cannot determine seam lengths for repair: {exc}"
+            raise ValueError(msg) from exc
     # Refresh only the existing semantic edge IDs. Never use a changed ordinal
     # to retarget a seam to another edge; topology repair is an explicit operation.
     pieces = _pieces_by_id(doc)
@@ -350,20 +362,24 @@ def repair_selected_seam(
             piece_id = str(getattr(seam, piece_attr, ""))
             piece = pieces.get(piece_id)
             if piece is None:
-                raise ValueError(f"cannot repair seam {side}: pattern piece {piece_id} is missing")
+                msg = f"cannot repair seam {side}: pattern piece {piece_id} is missing"
+                raise ValueError(msg)
             edge_id = str(getattr(seam, id_attr, "")).strip()
             if not edge_id:
-                raise ValueError(f"cannot repair seam {side}: semantic edge ID is missing")
+                msg = f"cannot repair seam {side}: semantic edge ID is missing"
+                raise ValueError(msg)
             signature = refresh_edge_reference_signature(piece, edge_id)
             record = next(
                 (item for item in _edge_records(piece) if str(item.get("id")) == edge_id),
                 None,
             )
             if record is None:
-                raise ValueError(f"cannot repair seam {side}: semantic edge ID disappeared")
+                msg = f"cannot repair seam {side}: semantic edge ID disappeared"
+                raise ValueError(msg)
             refreshed.append((edge_attr, sig_attr, int(record["ordinal"]), signature))
     except (KeyError, IndexError, TypeError, ValueError, RuntimeError) as exc:
-        raise ValueError(f"cannot refresh stale seam edge references: {exc}") from exc
+        msg = f"cannot refresh stale seam edge references: {exc}"
+        raise ValueError(msg) from exc
     for edge_attr, sig_attr, edge_index, signature in refreshed:
         setattr(seam, edge_attr, edge_index)
         setattr(seam, sig_attr, signature)
@@ -381,13 +397,15 @@ def focus_selected_seam_3d():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before focusing a seam")
+        msg = "open a document before focusing a seam"
+        raise ValueError(msg)
     seam = _selected_seam(doc)
     from freecad_cloth.sewing.SewingView import apply_seam_colors
 
     apply_seam_colors(doc.Objects)
     if getattr(seam, "Shape", None) is None or seam.Shape.isNull():
-        raise ValueError("selected seam has no presentation geometry")
+        msg = "selected seam has no presentation geometry"
+        raise ValueError(msg)
 
     pair_pieces = tuple(
         piece
@@ -459,22 +477,26 @@ def _edit_selected_seam_side(
 
     doc = app.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before editing a seam")
+        msg = "open a document before editing a seam"
+        raise ValueError(msg)
     seam = _selected_seam(doc, gui=gui)
     side = str(side).upper()
     if side not in {"A", "B"}:
-        raise ValueError("seam side must be A or B")
+        msg = "seam side must be A or B"
+        raise ValueError(msg)
     piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
     semantic_id = str(getattr(seam, "EdgeAId" if side == "A" else "EdgeBId", "")).strip()
     sketch = getattr(piece, "Sketch", None) if piece is not None else None
     if sketch is None or not semantic_id:
-        raise ValueError(f"selected seam side {side} has no native Sketcher source")
+        msg = f"selected seam side {side} has no native Sketcher source"
+        raise ValueError(msg)
     semantic_ids = tuple(str(value) for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
     try:
         edge_index = semantic_ids.index(semantic_id)
     except ValueError as exc:
+        msg = f"seam side {side} is not present in the Sketcher semantic edge map"
         raise ValueError(
-            f"seam side {side} is not present in the Sketcher semantic edge map"
+            msg
         ) from exc
     if focus_fn is None:
         focus_fn = focus_selected_seam_3d

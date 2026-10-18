@@ -42,7 +42,8 @@ def documented_assets(source_root: Path) -> set[str]:
             if asset.lower().endswith(IMAGE_SUFFIXES):
                 assets.add(asset)
     if not assets:
-        raise ValueError("README/wiki contain no generated visual references")
+        msg = "README/wiki contain no generated visual references"
+        raise ValueError(msg)
     return assets
 
 
@@ -59,7 +60,8 @@ def public_assets(published_root: Path) -> set[str]:
         ValueError: Raised when the publication directory does not exist.
     """
     if not published_root.is_dir():
-        raise ValueError(f"published image directory missing: {published_root}")
+        msg = f"published image directory missing: {published_root}"
+        raise ValueError(msg)
     return {
         path.name
         for path in published_root.iterdir()
@@ -107,8 +109,9 @@ def write_provenance(
     assets = sorted(documented_assets(source_root))
     actual = public_assets(published_root)
     if assets != sorted(actual):
+        msg = f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
         raise ValueError(
-            f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
+            msg
         )
     lines = [
         "# README/wiki visual evidence provenance",
@@ -121,7 +124,8 @@ def write_provenance(
     for asset in assets:
         path = published_root / asset
         if not path.is_file() or not path.stat().st_size:
-            raise ValueError(f"missing or empty generated asset: {asset}")
+            msg = f"missing or empty generated asset: {asset}"
+            raise ValueError(msg)
         lines.append(f"{sha256(path)}  docs/images/generated/{asset}")
     provenance.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

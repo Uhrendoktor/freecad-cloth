@@ -201,9 +201,11 @@ class SewingNetworkTaskPanel:
         try:
             value = float(self.table.item(row, column).text())
         except (TypeError, ValueError) as exc:
-            raise ValueError("range values must be numeric") from exc
+            msg = "range values must be numeric"
+            raise ValueError(msg) from exc
         if not 0.0 <= value <= 1.0:
-            raise ValueError("range values must be between 0 and 1")
+            msg = "range values must be between 0 and 1"
+            raise ValueError(msg)
         return value
 
     def accept(self):
@@ -214,7 +216,8 @@ class SewingNetworkTaskPanel:
             start_a, end_a = self._range(row, 2), self._range(row, 3)
             start_b, end_b = self._range(row, 6), self._range(row, 7)
             if start_a >= end_a or start_b >= end_b:
-                raise ValueError("seam ranges must have positive extent")
+                msg = "seam ranges must have positive extent"
+                raise ValueError(msg)
             values.append((seam, start_a, end_a, start_b, end_b))
         alignment = str(self.alignment.currentText())
         reversed_b = bool(self.reversed_b.isChecked())
@@ -228,7 +231,8 @@ class SewingNetworkTaskPanel:
             self._restore_original()
             self.App.ActiveDocument.recompute()
             self._abort_transaction()
-            raise ValueError("sewing network became invalid after edit")
+            msg = "sewing network became invalid after edit"
+            raise ValueError(msg)
         self._commit_transaction()
         self._refresh_status()
         return True

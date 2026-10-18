@@ -238,7 +238,8 @@ def _run_case(case_id, rung, scene, piece, camera):
     base = scene.Proxy._base_or_restore()
     backend = getattr(base, "backend", None)
     if backend is None:
-        raise RuntimeError(f"{case_id} did not build a simulation backend")
+        msg = f"{case_id} did not build a simulation backend"
+        raise RuntimeError(msg)
     _progress(f"{case_id}: backend={getattr(backend, 'name', '')}")
     _progress(
         "pbd-env: collision_mode={} collision_triangles={} backend_module={}".format(
@@ -255,15 +256,18 @@ def _run_case(case_id, rung, scene, piece, camera):
     )
     target = scene.DrapeTarget
     if target is None:
-        raise RuntimeError(f"{case_id} has no DrapeTarget")
+        msg = f"{case_id} has no DrapeTarget"
+        raise RuntimeError(msg)
     status = __import__(
         "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
     ).target_status(target)
     if status["state"] != "ready":
-        raise RuntimeError(f"{case_id} DrapeTarget is not ready: {status}")
+        msg = f"{case_id} DrapeTarget is not ready: {status}"
+        raise RuntimeError(msg)
     panel = next((obj for obj in scene.DrapePanels if obj.Name), None)
     if panel is None:
-        raise RuntimeError(f"{case_id} did not create a drape panel")
+        msg = f"{case_id} did not create a drape panel"
+        raise RuntimeError(msg)
     before, panel_triangles = _mesh_geometry(panel)
     solver_collision_surface = getattr(
         getattr(base, "backend", None),
@@ -276,7 +280,8 @@ def _run_case(case_id, rung, scene, piece, camera):
     )
     view = Gui.activeDocument().activeView()
     if view is None:
-        raise RuntimeError(f"{case_id} has no active FreeCAD view")
+        msg = f"{case_id} has no active FreeCAD view"
+        raise RuntimeError(msg)
     _screenshot(view, OUT / (case_id + "-step-000.png"))
     _progress(f"{case_id}: screenshot-000")
     if camera == "front":
@@ -301,7 +306,8 @@ def _run_case(case_id, rung, scene, piece, camera):
     ]
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise RuntimeError(f"{case_id} target source missing")
+        msg = f"{case_id} target source missing"
+        raise RuntimeError(msg)
     record = _case_record(
         case_id,
         rung,
@@ -354,7 +360,8 @@ def _run_control_avatar():
         scene = _build_scene(doc)
         avatar = scene.AvatarProxy.SourceObject
         if avatar is None:
-            raise RuntimeError("control-0a-avatar requires the production avatar source")
+            msg = "control-0a-avatar requires the production avatar source"
+            raise RuntimeError(msg)
 
         from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
@@ -374,7 +381,8 @@ def _run_control_avatar():
 
         box = getattr(getattr(avatar, "Mesh", None), "BoundBox", None)
         if box is None:
-            raise RuntimeError("control-0a-avatar requires mesh collision geometry")
+            msg = "control-0a-avatar requires mesh collision geometry"
+            raise RuntimeError(msg)
         shoulder_left = arrangement_world("shoulder_left")
         shoulder_right = arrangement_world("shoulder_right")
         hip_point = arrangement_world("hip")
@@ -395,7 +403,8 @@ def _run_control_avatar():
 
         z_span = shoulder_z - hip_z
         if z_span <= 1.0:
-            raise RuntimeError("control-0a-avatar has invalid shoulder/hip arrangement span")
+            msg = "control-0a-avatar has invalid shoulder/hip arrangement span"
+            raise RuntimeError(msg)
 
         candidate_offsets = (-0.24, -0.12, 0.0, 0.12, 0.24)
         candidate_z = (0.28, 0.40, 0.52, 0.64, 0.76)
@@ -419,8 +428,9 @@ def _run_control_avatar():
             if center is not None:
                 break
         if center is None:
+            msg = "control-0a-avatar could not find a deterministic interior arrangement-point probe"
             raise RuntimeError(
-                "control-0a-avatar could not find a deterministic interior arrangement-point probe"
+                msg
             )
         _progress(
             f"control-0a-avatar: interior-seed={float(center.x):.2f},{float(center.y):.2f},{float(center.z):.2f}"

@@ -41,14 +41,16 @@ def test_solver_input_rejects_invalid_indices():
     except ValueError:
         pass
     else:
-        raise AssertionError("out-of-range pin must fail")
+        msg = "out-of-range pin must fail"
+        raise AssertionError(msg)
 
     try:
         system.add_stitches(((0, 1),))
     except ValueError:
         pass
     else:
-        raise AssertionError("out-of-range stitch must fail")
+        msg = "out-of-range stitch must fail"
+        raise AssertionError(msg)
 
 
 def test_finite_checks_only_input_coordinates():
