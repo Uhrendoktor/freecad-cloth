@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 from typing import Final
 
@@ -13,6 +14,67 @@ PRODUCTION_ROOT: Final = ROOT / "freecad_cloth"
 # Every exception must name the concrete serialization incompatibility and the
 # regression test that proves why a Pydantic record cannot be used.
 FREECAD_SERIALIZATION_EXCEPTIONS: Final[dict[str, tuple[str, str]]] = {}
+
+
+def _dataclass_import_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
+    """Collect names imported from or bound to the standard dataclasses module.
+
+    Args:
+        tree: Parsed Python module whose imports should be inspected.
+
+    Returns:
+        Names that refer to the dataclass decorator and dataclasses module.
+    """
+    decorator_names: set[str] = set()
+    module_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
+            decorator_names.update(
+                alias.asname or "dataclass"
+                for alias in node.names
+                if alias.name in {"dataclass", "*"}
+            )
+        elif isinstance(node, ast.Import):
+            module_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "dataclasses"
+            )
+    return decorator_names, module_names
+
+
+def _has_freecad_serialization_reason(reason: str) -> bool:
+    """Check whether an exception explains a concrete FreeCAD serialization conflict.
+
+    Args:
+        reason: Human-readable justification supplied for the exception.
+
+    Returns:
+        Whether the reason names FreeCAD, serialization, and incompatibility.
+    """
+    normalized_reason = reason.casefold()
+    return all(
+        term in normalized_reason for term in ("freecad", "serialization", "incompatib")
+    )
+
+
+def _regression_test_reference(reference: str) -> tuple[str, str] | None:
+    """Parse and validate a repository-local regression test reference.
+
+    Args:
+        reference: Repository-relative test file and test name separated by '#'.
+
+    Returns:
+        Test file path and test name, or None when the reference is malformed.
+    """
+    test_path, separator, test_name = reference.partition("#")
+    if (
+        not separator
+        or not test_path.startswith("tests/")
+        or not test_name.startswith("test_")
+    ):
+        return None
+    return test_path, test_name
 
 
 def standard_dataclass_decorators(
@@ -33,17 +95,7 @@ def standard_dataclass_decorators(
     except SyntaxError as error:
         return (f"{filename}:{error.lineno or 1}: invalid Python syntax: {error.msg}",)
 
-    dataclass_names: set[str] = set()
-    dataclasses_modules: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
-            for alias in node.names:
-                if alias.name == "dataclass" or alias.name == "*":
-                    dataclass_names.add(alias.asname or "dataclass")
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "dataclasses":
-                    dataclasses_modules.add(alias.asname or alias.name)
+    dataclass_names, dataclasses_modules = _dataclass_import_aliases(tree)
 
     violations: list[str] = []
     for node in ast.walk(tree):
@@ -84,16 +136,10 @@ def serialization_exception_is_justified(
     if exception is None:
         return False
     reason, regression_test = exception
-    normalized_reason = reason.casefold()
-    test_reference = regression_test.split("#", maxsplit=1)
-    if (
-        "freecad" not in normalized_reason
-        or "serialization" not in normalized_reason
-        or "incompatib" not in normalized_reason
-        or len(test_reference) != 2
-        or not test_reference[0].startswith("tests/")
-        or not test_reference[1].startswith("test_")
-    ):
+    if not _has_freecad_serialization_reason(reason):
+        return False
+    test_reference = _regression_test_reference(regression_test)
+    if test_reference is None:
         return False
     test_path = ROOT / test_reference[0]
     if not test_path.is_file():
@@ -130,15 +176,16 @@ def main() -> int:
     """Run the repository policy for validated production data models.
 
     Raises:
-        SystemExit: If a production class uses a prohibited dataclass decorator.
-
     Returns:
         Zero when all production data carriers follow the Pydantic policy.
+
+    Raises:
+        SystemExit: If a production class uses a prohibited dataclass decorator.
     """
     violations = repository_violations()
     if violations:
         raise SystemExit("\n".join(violations))
-    print("pydantic-model-policy=passed")
+    sys.stdout.write("pydantic-model-policy=passed\n")
     return 0
 
 

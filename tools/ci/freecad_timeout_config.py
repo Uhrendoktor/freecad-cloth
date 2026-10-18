@@ -20,8 +20,6 @@ def read_application_timeout(project_file: Path) -> int:
         Positive application runtime budget in seconds.
 
     Raises:
-        OSError: If the configuration file cannot be read.
-        tomllib.TOMLDecodeError: If the configuration file is invalid TOML.
         ValueError: If the timeout is missing or is not a positive integer.
     """
     data = tomllib.loads(project_file.read_text(encoding="utf-8"))

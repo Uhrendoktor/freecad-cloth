@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -77,9 +78,9 @@ def main() -> int:
     """
     errors = [error for path in markdown_files() for error in check(path)]
     if errors:
-        print("\n".join(errors))
+        sys.stdout.write("\n".join(errors) + "\n")
         return 1
-    print(f"markdown-contract=passed files={len(markdown_files())}")
+    sys.stdout.write(f"markdown-contract=passed files={len(markdown_files())}\n")
     return 0
 
 
