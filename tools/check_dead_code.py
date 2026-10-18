@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
+
+from vulture.core import main as vulture_main
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_ROOTS = (
@@ -39,11 +40,34 @@ def allowed(path: Path) -> bool:
     ) and not relative.name.endswith(("Gui.py", "Commands.py", "workbench.py"))
 
 
+def _run_vulture(paths: tuple[str, ...]) -> int:
+    """Run Vulture's CLI entrypoint without spawning a separate process.
+
+    Args:
+        paths: Eligible source paths passed to Vulture's command-line interface.
+
+    Returns:
+        The same integer exit status Vulture would return to the calling shell.
+    """
+    previous_argv = sys.argv
+    try:
+        sys.argv = ["vulture", "--min-confidence", "100", *paths]
+        try:
+            vulture_main()
+        except SystemExit as error:
+            if error.code is None:
+                return 0
+            return error.code if isinstance(error.code, int) else 1
+    finally:
+        sys.argv = previous_argv
+    return 0
+
+
 def main() -> int:
     """Run Vulture at 100% confidence for selected files.
 
     Returns:
-        Vulture's process status, or zero when no eligible paths remain.
+        Vulture's exit status, or zero when no eligible paths remain.
     """
     candidates = [Path(value) for value in sys.argv[1:]]
     if not candidates:
@@ -53,11 +77,7 @@ def main() -> int:
     paths = tuple(str(path) for path in candidates if path.is_file() and allowed(path))
     if not paths:
         return 0
-    return os.spawnv(
-        os.P_WAIT,
-        sys.executable,
-        [sys.executable, "-m", "vulture", "--min-confidence", "100", *paths],
-    )
+    return _run_vulture(paths)
 
 
 if __name__ == "__main__":
