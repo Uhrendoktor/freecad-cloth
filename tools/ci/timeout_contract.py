@@ -65,11 +65,19 @@ def main() -> int:
     )
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     _require_contract(
-        condition=workflow.count("timeout-seconds:") == 1 and 'timeout-seconds: "360"' in simulation_ladder,
-        message="only the cube simulation ladder may request the explicit 360-second runtime override",
+        condition=(
+            workflow.count("timeout-seconds:") == 1
+            and 'timeout-seconds: "360"' in simulation_ladder
+        ),
+        message=(
+            "only the cube simulation ladder may request the explicit 360-second runtime override"
+        ),
     )
     _require_contract(
-        condition='default: "120"' in action and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
+        condition=(
+            'default: "120"' in action
+            and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action
+        ),
         message="FreeCAD test action must pass its default-120 timeout through to the container",
     )
     _require_contract(
@@ -77,7 +85,9 @@ def main() -> int:
         message="FreeCAD test action must pass non-default runtime overrides to run_freecad.py",
     )
     _require_contract(
-        condition='default: "120"' in container_action and "maximum 360 seconds" in container_action,
+        condition=(
+            'default: "120"' in container_action and "maximum 360 seconds" in container_action
+        ),
         message="FreeCAD container must default to 120 seconds and cap overrides at 360",
     )
     _require_contract(
