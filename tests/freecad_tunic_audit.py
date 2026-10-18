@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Production tunic visual/simulation audit entry point.
 
 The shared FreeCAD screenshot fixture owns all executable behavior. This module

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Import-safe shared FreeCAD/PBD diagnostic and ladder helpers.
 
 The module provides callable infrastructure only. It does not launch tests,

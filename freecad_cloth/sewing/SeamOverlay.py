@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient viewport overlays for semantic sewing relationships.
 
 Unlike view-property color assignment, this module draws an explicit, disposable

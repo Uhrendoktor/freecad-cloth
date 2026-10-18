@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Repository contract preventing regression to monkeypatch-based tests."""
 
 from tools.ci.check_no_monkeypatch import (

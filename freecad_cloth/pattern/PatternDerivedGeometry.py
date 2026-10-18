@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent derived geometry and construction marks for patterns."""
 
 from collections.abc import Iterable

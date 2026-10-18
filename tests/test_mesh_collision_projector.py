@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Unit tests for position-level mesh collision projection."""
 
 import numpy as np

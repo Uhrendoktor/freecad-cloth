@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pillow- and Pydantic-backed validation for FreeCAD screenshot captures."""
 
 from __future__ import annotations

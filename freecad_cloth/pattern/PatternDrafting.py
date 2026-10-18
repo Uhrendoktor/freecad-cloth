@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Compatibility-only helpers for legacy pattern-drafting documents.
 
 These parsers remain load/migration support for older documents. They are not

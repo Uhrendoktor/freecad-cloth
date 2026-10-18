@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run the canonical Python/FreeCAD validation suite inside the CI image."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize cloth scene evidence into a compact, artifact-only diagnosis dossier.
 
 This script runs on the GitHub Actions host after the FreeCAD process exits. It

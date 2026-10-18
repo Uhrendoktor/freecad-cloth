@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing PatternIR adapter for production simulation.
 
 Editable Sketcher geometry is resolved here and only solver-neutral PatternIR

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run a bounded FreeCAD process inside the CI container."""
 
 from __future__ import annotations

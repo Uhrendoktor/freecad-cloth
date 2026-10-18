@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Anny-backed avatar generation and measurement fitting.
 
 Human shape generation and anthropometric fitting are delegated to Anny and

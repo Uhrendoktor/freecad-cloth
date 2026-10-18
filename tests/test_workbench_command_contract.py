@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless/static contract checks for package-owned workbench registration."""
 
 import importlib

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Stable solver-neutral interface for the parametric Cloth avatar.
 
 The service deliberately exposes derived geometry through the existing

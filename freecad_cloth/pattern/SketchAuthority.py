@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-native Sketcher authority adapter for Cloth PatternPiece objects.
 
 The PatternPiece remains the semantic/document object, but linked Sketcher

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent manual forward-kinematics posing for the mannequin.
 
 The pose editor uses the pinned MakeHuman joint hierarchy and skinning weights.

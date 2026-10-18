@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD document objects for sewing operations."""
 
 from __future__ import annotations

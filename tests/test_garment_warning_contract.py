@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for FreeCAD Garment hierarchy/link-scope fixes."""
 
 from pathlib import Path

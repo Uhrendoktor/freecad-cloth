@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression checks for package-owned Cloth workbench registration."""
 
 import importlib

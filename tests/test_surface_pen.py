@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pure tests for the bounded 3D Pattern Pen surface-authoring contract."""
 
 from freecad_cloth.pattern.SurfacePen import (

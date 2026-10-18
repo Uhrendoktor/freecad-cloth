@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run Vulture only on high-confidence dead code in selected core surfaces."""
 
 from __future__ import annotations

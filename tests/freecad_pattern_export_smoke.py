@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real-FreeCAD smoke coverage for the public production SVG/DXF export."""
 
 import json

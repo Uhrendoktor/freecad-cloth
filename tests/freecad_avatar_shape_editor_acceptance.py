@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI acceptance and animated evidence for avatar shape editing."""
 
 from __future__ import annotations

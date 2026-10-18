@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD boundary integration for simulation quality and fabric controls.
 
 This module owns the quality-aware runtime wrapper around the canonical simulation

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-native Sketcher authoring adapter for Cloth Pattern pieces.
 
 Sketcher is the editable geometry authority. PatternPiece stores semantic

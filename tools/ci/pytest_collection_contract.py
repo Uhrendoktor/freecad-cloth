@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Fail a pytest validation group if any explicitly requested module collects no items."""
 
 from __future__ import annotations

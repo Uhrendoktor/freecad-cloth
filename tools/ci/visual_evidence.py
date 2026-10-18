@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Compute and validate the public README/wiki visual evidence contract."""
 
 from __future__ import annotations

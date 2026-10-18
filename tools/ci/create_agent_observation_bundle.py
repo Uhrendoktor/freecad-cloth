@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Create a compact, schema-versioned index of explicitly selected CI evidence."""
 
 from __future__ import annotations

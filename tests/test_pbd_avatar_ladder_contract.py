@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for the diagnostic avatar complexity ladder."""
 
 from pathlib import Path

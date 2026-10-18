@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD commands for creating and editing sewing networks."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent parametric human avatar model.
 
 Saved anthropometric measurements remain authoritative. The visible mesh is

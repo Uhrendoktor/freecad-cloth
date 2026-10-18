@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Independently validate realtime-preview performance metrics produced by FreeCAD CI."""
 
 from __future__ import annotations

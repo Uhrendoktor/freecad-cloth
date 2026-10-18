@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent surface mesh generation for pattern pieces.
 
 The mesher consumes the sewing boundary rather than the cut boundary: seam

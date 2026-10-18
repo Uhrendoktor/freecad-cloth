@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Check the accumulated artifact size for the current GitHub Actions run."""
 
 from __future__ import annotations

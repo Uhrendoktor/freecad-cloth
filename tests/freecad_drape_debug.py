@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Fast visual/structural A-B audit for the canonical tunic drape.
 
 Runs the production cloth avatar + native Sketcher tunic fixture with the selected

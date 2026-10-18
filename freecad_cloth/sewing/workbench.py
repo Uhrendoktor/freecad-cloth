@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Sewing workbench registration facade."""
 
 from collections.abc import Callable

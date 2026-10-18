@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Position-level contact projection for closed rigid collision meshes.
 
 The native PBD binding detects rigid-body contacts, but its rigid-body contacts are

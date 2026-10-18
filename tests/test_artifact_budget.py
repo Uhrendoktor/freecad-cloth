@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the accumulated GitHub Actions artifact budget."""
 
 import pytest

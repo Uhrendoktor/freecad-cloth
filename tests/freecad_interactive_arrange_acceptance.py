@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD/Xvfb acceptance and visual evidence for viewport-picked anchors and Arrange."""
 
 import json

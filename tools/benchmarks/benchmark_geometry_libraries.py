@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Benchmark for the required SciPy/GEOS geometry implementations.
 
 Run after installing package dependencies:

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral collision references shared by avatar and generic geometry."""
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
 from __future__ import annotations

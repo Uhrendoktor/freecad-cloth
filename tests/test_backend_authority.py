@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from pathlib import Path
 
 from freecad_cloth.shared.collision import surface_from_triangles

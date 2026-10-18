@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Stable semantic edge references for Cloth sewing objects.
 
 The FreeCAD workbench may expose native sub-elements such as ``Edge1`` while

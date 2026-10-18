@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for non-regression of missing-annotation debt on changed Python files."""
 
 from __future__ import annotations

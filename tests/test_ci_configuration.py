@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the repository's single-source CI configuration contracts."""
 
 import json

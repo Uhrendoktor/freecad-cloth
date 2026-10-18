@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """3D surface authoring bridge for Cloth Pattern.
 
 The surface pen is intentionally an authoring frontend, not a second pattern

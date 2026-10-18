@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression coverage for the Sewing workbench command layer."""
 
 import sys

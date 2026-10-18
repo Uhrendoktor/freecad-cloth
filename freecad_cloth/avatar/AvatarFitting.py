@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral body measurement and garment fitting-scene contracts.
 
 This module intentionally does not import FreeCAD. The document workbench uses

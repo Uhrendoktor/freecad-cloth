@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native UI handoff from Simulation to the existing Cloth fitting stage.
 
 The persistent FittingScene remains the fitting-stage authority. This bridge

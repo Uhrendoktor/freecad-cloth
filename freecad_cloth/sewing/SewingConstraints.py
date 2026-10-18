@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral sewing constraints derived from pattern seams."""
 
 from math import hypot

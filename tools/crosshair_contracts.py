@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Symbolic contracts that call production Python math implementations.
 
 CrossHair explores these contracts with symbolic inputs and reports counterexamples.

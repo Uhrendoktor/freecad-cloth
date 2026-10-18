@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Block increases in missing-annotation debt for every changed Python file.
 
 The repository has existing annotation debt. This gate compares Ruff's annotation

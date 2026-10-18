@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
 
 

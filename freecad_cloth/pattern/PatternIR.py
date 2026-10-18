@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral representation of a FreeCAD Cloth garment.
 
 The IR deliberately contains no FreeCAD or solver types. Adapters may feed it

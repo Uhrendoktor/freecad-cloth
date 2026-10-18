@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Render a deterministic simple blanket-over-cube simulation for the README."""
 
 import hashlib

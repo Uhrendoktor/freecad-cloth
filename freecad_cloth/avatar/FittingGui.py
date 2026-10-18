@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Direct-manipulation fitting UI for the Cloth Sewing workbench.
 
 The fitting scene remains authoritative; viewport movement is an interactive

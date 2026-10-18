@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for editing semantic sewing-network ranges.
 
 The panel exposes the persisted M:N relationship directly and refuses to

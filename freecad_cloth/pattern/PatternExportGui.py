@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for deterministic production pattern export."""
 
 from pathlib import Path

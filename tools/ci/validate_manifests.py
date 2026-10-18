@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate canonical simulation and visual evidence manifests."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral arrangement-point metadata for the Cloth mannequin.
 
 Arrangement points are persistent fitting metadata, not solver state. They are

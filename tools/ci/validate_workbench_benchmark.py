@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate isolated workbench startup and initialization benchmark artifacts."""
 
 from __future__ import annotations

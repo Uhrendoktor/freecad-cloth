@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate the repository CI structure and hard runtime contracts."""
 
 from __future__ import annotations

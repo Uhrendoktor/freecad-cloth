@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD commands for selecting and editing a persistent draping/collision target."""
 
 import contextlib

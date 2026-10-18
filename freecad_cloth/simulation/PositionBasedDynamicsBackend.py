@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Production PositionBasedDynamics XPBD backend.
 
 This adapter translates the headless FreeCAD cloth model and persistent

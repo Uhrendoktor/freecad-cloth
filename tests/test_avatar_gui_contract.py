@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral contract checks for the avatar task-panel boundary.
 
 The expensive visual behavior is covered by FreeCAD acceptance tests. These tests

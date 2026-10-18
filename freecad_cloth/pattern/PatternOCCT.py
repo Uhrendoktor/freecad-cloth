@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD/OCCT geometry adapter for seam allowances.
 
 This module is deliberately isolated from PatternModel so the headless semantic

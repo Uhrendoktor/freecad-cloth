@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient viewport dimension handles for the staged mannequin editor.
 
 The handles only edit staged task-panel values. They are Coin3D overlay nodes,

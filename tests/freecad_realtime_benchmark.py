@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Measure sustained cadence of the production FreeCAD realtime-preview callback."""
 
 from __future__ import annotations

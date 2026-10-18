@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate the single authoritative FreeCAD application timeout configuration."""
 
 from __future__ import annotations

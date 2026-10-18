@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 

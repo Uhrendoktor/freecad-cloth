@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject runtime rewriting or generated execution of checked-in Python source."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Simulation mesh density delegated to the Triangle constrained-Delaunay library."""
 
 from collections.abc import Sequence

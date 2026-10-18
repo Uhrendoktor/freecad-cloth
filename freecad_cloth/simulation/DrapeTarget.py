@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
 import hashlib

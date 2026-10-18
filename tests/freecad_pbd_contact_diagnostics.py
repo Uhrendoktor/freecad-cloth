@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Diagnostic controls for separating target/contact behavior from gravity and garment complexity.
 
 This script is intentionally diagnostic-only. It exercises the existing FreeCAD/PositionBasedDynamics

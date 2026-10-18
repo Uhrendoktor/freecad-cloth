@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Cloth Avatar package — human mannequin and avatar geometry providers."""
 
 __all__ = [

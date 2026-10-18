@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pydantic schemas for untrusted geometry and numerical inputs.
 
 Validate at API boundaries rather than inside numerical inner loops. These

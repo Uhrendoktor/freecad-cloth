@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Replaceable avatar-provider contract for the Cloth fitting/simulation stack.
 
 The provider boundary knows nothing about FreeCAD document implementation or

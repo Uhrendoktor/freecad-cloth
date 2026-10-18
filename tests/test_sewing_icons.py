@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from pathlib import Path
 
 from freecad_cloth.common.CommandAdapter import icon_for_command

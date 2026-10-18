@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Persisted semantic marks for the Cloth Pattern workbench."""
 
 from collections.abc import Callable

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless contract checks for Cloth workbench icon assets."""
 
 import xml.etree.ElementTree as ET

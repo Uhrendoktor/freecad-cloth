@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical public FreeCAD Pattern -> Sewing -> Fitting -> Simulation -> Export acceptance."""
 
 import hashlib

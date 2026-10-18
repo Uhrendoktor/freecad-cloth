@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """MakeHuman HM08 sparse morph-target parsing and application.
 
 Target files contain sparse per-vertex displacements. The assets remain

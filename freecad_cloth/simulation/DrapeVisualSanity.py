@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral visual sanity metrics for generated garment drapes."""
 
 from __future__ import annotations

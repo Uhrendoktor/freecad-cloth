@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the focused mannequin Pose Mode controller."""
 
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel

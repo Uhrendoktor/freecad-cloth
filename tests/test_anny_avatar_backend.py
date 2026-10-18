@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the library-backed avatar body model."""
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Capture immutable pyPBD provenance from the configured CI image."""
 
 from __future__ import annotations

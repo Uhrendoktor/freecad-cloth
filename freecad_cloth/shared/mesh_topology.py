@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Topology utilities for collision surfaces shared across geometry adapters."""
 
 from collections.abc import Sequence

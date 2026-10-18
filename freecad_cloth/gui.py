@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared GUI registration primitives.
 
 This module intentionally imports FreeCAD lazily so packaging/build metadata and

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Build documentation GIFs with bounded, parallel ImageMagick invocations."""
 
 from __future__ import annotations

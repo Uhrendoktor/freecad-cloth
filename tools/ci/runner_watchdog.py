@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Prefer the self-hosted runner and dispatch one hosted fallback after 45 seconds."""
 
 from __future__ import annotations

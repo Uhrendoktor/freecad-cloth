@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the published README/wiki visual validation path."""
 
 from pathlib import Path

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless model used to assemble deterministic inputs for PositionBasedDynamics.
 
 This module deliberately contains no physics integration or collision solver.

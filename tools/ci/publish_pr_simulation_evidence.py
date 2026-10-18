@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Publish human-reviewable PR simulation evidence without executing PR code."""
 
 from __future__ import annotations

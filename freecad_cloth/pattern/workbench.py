@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pattern workbench registration facade.
 
 Command implementations remain in the package tree; this module owns the

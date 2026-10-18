@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic basic cloth example: a blanket draped over a cube."""
 
 import os

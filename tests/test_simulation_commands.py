@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral tests for Simulation workbench command lifecycle helpers."""
 
 from types import SimpleNamespace

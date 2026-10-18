@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Hypothesis properties for library-backed geometry invariants."""
 
 from __future__ import annotations

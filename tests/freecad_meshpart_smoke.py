@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD smoke test for the optional MeshPart pattern adapter."""
 
 import sys

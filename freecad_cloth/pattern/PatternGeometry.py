@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent parametric 2D pattern geometry primitives."""
 
 from collections.abc import Iterable, Sequence

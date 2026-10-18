@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient staged creation session for semantic sewing objects.
 
 Preview creates the normal FreeCAD seam/network objects inside the same

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Read the authoritative timeout budget used by FreeCAD CI runners."""
 
 from __future__ import annotations

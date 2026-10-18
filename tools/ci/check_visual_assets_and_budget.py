@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run both CI inventory and artifact-budget checks, even if either fails."""
 
 from __future__ import annotations

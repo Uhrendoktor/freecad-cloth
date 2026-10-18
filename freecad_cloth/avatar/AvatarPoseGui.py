@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused 3D posing UI for the merged Cloth mannequin skeleton.
 
 PoseMode is intentionally separate from the anthropometric avatar editor. The

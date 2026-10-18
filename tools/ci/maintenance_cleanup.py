@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Remove stale unprotected branches, completed runs, and unreferenced PBD images safely."""
 
 from __future__ import annotations

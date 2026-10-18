@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for the direct-manipulation fitting frontend."""
 
 from types import SimpleNamespace

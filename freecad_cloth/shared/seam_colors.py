@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Neutral deterministic seam presentation helpers."""
 
 from collections.abc import Callable, Iterable

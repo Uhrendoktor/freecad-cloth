@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reusable Qt input simulation and animated UI evidence capture for FreeCAD tests."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared, restrained UI conventions for Cloth Qt task panels.
 
 The helpers only style the supplied panel and its descendants. They never

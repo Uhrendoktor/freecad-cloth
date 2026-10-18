@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic FreeCAD GUI acceptance and six-side cloth visual audit."""
 
 import contextlib

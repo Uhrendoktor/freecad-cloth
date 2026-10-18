@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Small generated, license-safe garment fixtures for regression tests."""
 
 from freecad_cloth.pattern.PatternGeometry import rectangle

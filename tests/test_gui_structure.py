@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the FreeCAD GUI registration boundary.
 
 GUI rendering itself belongs to FreeCAD end-to-end coverage. This suite tests the

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate local Markdown links and image references used by repository documentation."""
 
 from __future__ import annotations

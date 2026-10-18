@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent sewing graph and assembly metadata.
 
 ``PatternModel.Seam`` is the authoritative semantic seam contract.  The graph

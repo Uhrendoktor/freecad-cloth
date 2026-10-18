@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Structural checks for the canonical Python package tree."""
 
 import ast

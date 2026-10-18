@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Pattern workbench.
 
 Native FreeCAD Sketcher is the normal pattern authoring/editor path. The

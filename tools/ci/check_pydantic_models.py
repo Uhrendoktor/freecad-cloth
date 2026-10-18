@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Require Pydantic validation for production data-carrier dataclasses."""
 
 from __future__ import annotations

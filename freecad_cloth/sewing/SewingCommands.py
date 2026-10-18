@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Sewing workbench."""
 
 import contextlib

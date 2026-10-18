@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for artifact-only scene diagnosis and geometry annotation."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared, FreeCAD-independent pattern value model.
 
 These dataclasses are canonical in-memory/headless representations. Persisted

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for editing sewing operations.
 
 The panel exposes persistent seam orientation/alignment plus normalized curved

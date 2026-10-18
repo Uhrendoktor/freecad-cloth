@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject test-time monkeypatching and global module replacement."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical native FreeCAD Pattern -> Sewing -> Simulation acceptance workflow."""
 
 import contextlib

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Non-authoritative mesh validation helpers backed by external libraries.
 
 Trimesh is a required runtime dependency for nearest-surface clearance and

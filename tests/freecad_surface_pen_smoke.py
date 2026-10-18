@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD Surface Pen acceptance, screenshot, and staged-workflow capture."""
 
 import contextlib

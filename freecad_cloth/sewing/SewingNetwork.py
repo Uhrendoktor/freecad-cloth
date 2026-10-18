@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic M:N and free-sewing relationships.
 
 A sewing network is represented as a set of ordinary canonical ``Seam``

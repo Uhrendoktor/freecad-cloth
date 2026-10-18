@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the Qt UI design helpers that do not require a FreeCAD runtime."""
 
 from collections.abc import Callable

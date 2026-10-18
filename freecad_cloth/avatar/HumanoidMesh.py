@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """MakeHuman-backed humanoid mesh provider.
 
 The avatar is a real polygonal human base mesh rather than a collection of

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
 import faulthandler

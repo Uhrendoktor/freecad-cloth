@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the repository-wide explicit-Any and type-check workflow policies."""
 
 from __future__ import annotations

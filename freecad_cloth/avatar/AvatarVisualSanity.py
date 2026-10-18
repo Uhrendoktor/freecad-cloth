@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic structural checks for avatar visual acceptance.
 
 The checks are intentionally geometry-only and solver-neutral. They are useful

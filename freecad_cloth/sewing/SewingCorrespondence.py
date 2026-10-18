@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver- and FreeCAD-independent curved seam correspondence helpers.
 
 The Sewing workbench stores seam topology elsewhere.  This module only answers

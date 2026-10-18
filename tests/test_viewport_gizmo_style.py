@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Design-contract tests for shared viewport gizmo presentation."""
 
 import ast

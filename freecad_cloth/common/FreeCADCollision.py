@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-to-neutral collision-surface adapter."""
 
 from freecad_cloth.common.ValidationModels import validate_finite_number

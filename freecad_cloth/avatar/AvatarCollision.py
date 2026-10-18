@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Compatibility exports for avatar collision adapters.
 
 The collision geometry value type is neutral and lives in shared.collision.

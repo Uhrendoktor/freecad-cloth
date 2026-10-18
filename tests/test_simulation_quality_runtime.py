@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from types import SimpleNamespace
 from typing import ClassVar
 

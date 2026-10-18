@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Independent QtSvg rendering and physical-dimension checks for pattern SVGs."""
 
 from __future__ import annotations

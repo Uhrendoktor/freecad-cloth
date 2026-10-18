@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Optional FreeCAD-facing MeshPart/Netgen pattern meshing adapter.
 
 The semantic PatternModel and TriangleMesh remain FreeCAD-independent. This

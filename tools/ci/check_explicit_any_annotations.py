@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject explicit ``Any`` references in repository Python sources.
 
 Ruff ANN401 handles function annotations. This syntax-aware gate catches explicit

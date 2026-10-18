@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
 
 import os

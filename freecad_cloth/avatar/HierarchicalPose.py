@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Single weighted-FK pipeline for the MakeHuman mannequin and Pose Mode."""
 
 from __future__ import annotations

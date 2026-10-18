@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 import hashlib

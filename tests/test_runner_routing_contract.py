@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract checks for the canonical runner topology and trust boundaries."""
 
 from pathlib import Path

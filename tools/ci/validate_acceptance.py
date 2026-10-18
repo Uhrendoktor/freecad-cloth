@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate GUI artifact evidence produced by FreeCAD acceptance tests."""
 
 from __future__ import annotations

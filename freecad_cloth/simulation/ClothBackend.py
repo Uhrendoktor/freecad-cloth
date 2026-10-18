@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Small adapter contract for the production PositionBasedDynamics cloth solver.
 
 FreeCAD document code depends on this boundary instead of importing PositionBasedDynamics APIs.

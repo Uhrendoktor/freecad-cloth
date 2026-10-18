@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD smoke test for sewing task-panel lifecycle and semantic persistence."""
 
 import os

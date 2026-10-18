@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing humanoid mesh avatar commands."""
 
 import json

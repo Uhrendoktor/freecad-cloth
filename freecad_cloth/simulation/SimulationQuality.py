@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Persistable simulation-quality and fabric parameter model.
 
 This module is deliberately FreeCAD-independent.  FreeCAD document objects can

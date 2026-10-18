@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json

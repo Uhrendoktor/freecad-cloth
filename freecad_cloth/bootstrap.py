@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared FreeCAD startup for the classic and namespaced loaders."""
 
 from pathlib import Path

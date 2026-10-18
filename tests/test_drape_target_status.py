@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for the persistent DrapeTarget state contract."""
 
 from types import SimpleNamespace

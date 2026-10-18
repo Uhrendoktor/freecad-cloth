@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless FreeCAD runtime smoke/regression test."""
 
 import importlib

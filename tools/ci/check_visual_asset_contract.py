@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Fail closed when documented visual assets are unused or have no CI producer."""
 
 from __future__ import annotations

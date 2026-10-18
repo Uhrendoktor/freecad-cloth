@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for the diagnostic contact controls.
 
 These assertions protect the diagnostic scope and the shared manifest contract without

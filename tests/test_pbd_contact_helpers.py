@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
 from types import SimpleNamespace

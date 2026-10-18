@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 
 

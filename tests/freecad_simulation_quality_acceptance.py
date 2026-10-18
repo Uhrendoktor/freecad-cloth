@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD/Xvfb acceptance for simulation quality/material controls."""
 
 import contextlib

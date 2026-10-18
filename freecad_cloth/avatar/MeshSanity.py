@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Helpers for compacting avatar meshes and orienting collision surfaces."""
 
 from __future__ import annotations
