@@ -85,6 +85,7 @@ def test_network_task_panel_commit_is_one_document_transaction() -> None:
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         ActiveDocument = Doc()
 
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
@@ -116,6 +117,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         ActiveDocument = Doc()
 
     class Label:
@@ -161,6 +163,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         Status = "Invalid"
         SegmentCount = 0
         LengthDifference = 0.0
@@ -185,6 +188,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         SeamId = "s1"
         Status = "Valid"
         StartA = 0.2
@@ -196,6 +200,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         Seams = (Seam(),)
         Status = "Valid"
         SegmentCount = 1
@@ -224,6 +229,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         pass
 
     class Item:
@@ -324,11 +330,13 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         SeamId = "s2"
         Status = "Missing reference"
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         Seams = (Seam(),)
         Status = "Invalid"
         SegmentCount = 0
@@ -485,11 +493,13 @@ def test_missing_reference_is_reported_without_silent_edit() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         SeamId = "s-missing"
         Status = "Missing reference"
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         Seams = (Seam(),)
 
     try:
@@ -508,6 +518,7 @@ def test_curved_correspondence_reports_reversal_and_mismatch() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         StartA = 0.0
         EndA = 1.0
         StartB = 0.0
@@ -530,6 +541,7 @@ def test_curved_correspondence_rejects_invalid_range() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         StartA = 0.8
         EndA = 0.2
         StartB = 0.0
@@ -549,6 +561,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         SeamId = "s1"
         Status = "Valid"
         StartA = 0.0
@@ -585,6 +598,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         ActiveDocument = Document()
 
     obj = SimpleNamespace(
@@ -622,6 +636,7 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance() -> No
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         Alignment = "endpoints"
         ReversedB = False
         StartA = 0.0
@@ -638,6 +653,7 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance() -> No
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         ActiveDocument = Document()
 
     obj = SimpleNamespace(
@@ -676,6 +692,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         Status = "Valid"
         StartA = 0.0
         EndA = 1.0
@@ -686,6 +703,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Obj:
         """Represent the stored seam correspondence and tolerance properties."""
+
         Status = "Valid"
         LengthA = 100.0
         LengthB = 102.0
@@ -711,6 +729,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class App:
         """Expose the simulated active document to the task panel."""
+
         pass
 
     class Spin:

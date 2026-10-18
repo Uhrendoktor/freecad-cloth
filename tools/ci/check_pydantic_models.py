@@ -36,9 +36,7 @@ def _dataclass_import_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
             )
         elif isinstance(node, ast.Import):
             module_names.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name == "dataclasses"
+                alias.asname or alias.name for alias in node.names if alias.name == "dataclasses"
             )
     return decorator_names, module_names
 
@@ -53,9 +51,7 @@ def _has_freecad_serialization_reason(reason: str) -> bool:
         Whether the reason names FreeCAD, serialization, and incompatibility.
     """
     normalized_reason = reason.casefold()
-    return all(
-        term in normalized_reason for term in ("freecad", "serialization", "incompatib")
-    )
+    return all(term in normalized_reason for term in ("freecad", "serialization", "incompatib"))
 
 
 def _regression_test_reference(reference: str) -> tuple[str, str] | None:
@@ -68,11 +64,7 @@ def _regression_test_reference(reference: str) -> tuple[str, str] | None:
         Test file path and test name, or None when the reference is malformed.
     """
     test_path, separator, test_name = reference.partition("#")
-    if (
-        not separator
-        or not test_path.startswith("tests/")
-        or not test_name.startswith("test_")
-    ):
+    if not separator or not test_path.startswith("tests/") or not test_name.startswith("test_"):
         return None
     return test_path, test_name
 
@@ -175,7 +167,6 @@ def repository_violations() -> tuple[str, ...]:
 def main() -> int:
     """Run the repository policy for validated production data models.
 
-    Raises:
     Returns:
         Zero when all production data carriers follow the Pydantic policy.
 

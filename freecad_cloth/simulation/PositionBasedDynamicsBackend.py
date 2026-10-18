@@ -53,6 +53,7 @@ class _NativePBDParticles(Protocol):
             The total number of particles in the model.
         """
         ...
+
     def setMass(self, index: int, _mass: float) -> None:
         """Set the mass assigned to one native particle.
 
@@ -61,6 +62,7 @@ class _NativePBDParticles(Protocol):
             _mass: The particle mass assigned by the solver.
         """
         ...
+
     def getMass(self, index: int) -> float:
         """Read the mass assigned to one native particle.
 
@@ -71,6 +73,7 @@ class _NativePBDParticles(Protocol):
             The mass currently assigned to the particle.
         """
         ...
+
     def getVelocity(self, index: int) -> Sequence[float]:
         """Read a particle velocity in native solver coordinates.
 
@@ -81,6 +84,7 @@ class _NativePBDParticles(Protocol):
             The particle velocity vector.
         """
         ...
+
     def setVelocity(self, index: int, velocity: FloatArray) -> None:
         """Set a particle velocity in native solver coordinates.
 
@@ -89,6 +93,7 @@ class _NativePBDParticles(Protocol):
             velocity: The velocity vector assigned to the particle.
         """
         ...
+
     def setPosition(self, index: int, position: FloatArray) -> None:
         """Set a particle position in native solver coordinates.
 
@@ -97,6 +102,7 @@ class _NativePBDParticles(Protocol):
             position: The three-dimensional position assigned to the particle.
         """
         ...
+
     def getVertices(self) -> object:
         """Return the native vertex-position storage for the particle model.
 
@@ -116,6 +122,7 @@ class _NativePBDRigidBody(Protocol):
             _mass: The rigid-body mass assigned by the solver.
         """
         ...
+
     def setFrictionCoeff(self, _friction: float) -> None:
         """Set the friction coefficient for a native rigid body.
 
@@ -131,6 +138,7 @@ class _NativePBDCollisionDetection(Protocol):
     def cleanup(self) -> None:
         """Clear collision-detection state before rebuilding the native model."""
         ...
+
     def setTolerance(self, _tolerance: float) -> None:
         """Set the native collision detection tolerance.
 
@@ -150,6 +158,7 @@ class _NativePBDTimeStep(Protocol):
             The active native collision detector.
         """
         ...
+
     def setValueUInt(self, _parameter: int, _value: int) -> None:
         """Set an unsigned-integer parameter on the native time step.
 
@@ -158,6 +167,7 @@ class _NativePBDTimeStep(Protocol):
             _value: The unsigned integer value to apply.
         """
         ...
+
     def step(self, model: _NativePBDModel) -> None:
         """Advance the supplied native model by one solver time step.
 
@@ -173,6 +183,7 @@ class _NativePBDModel(Protocol):
     def cleanup(self) -> None:
         """Release particles and constraints from the native model."""
         ...
+
     def addTriangleModel(
         self, points: Sequence[Sequence[float]], indices: Sequence[int], *, testMesh: bool
     ) -> object:
@@ -186,6 +197,7 @@ class _NativePBDModel(Protocol):
             The native particle container for this model.
         """
         ...
+
     def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None:
         """Create native stretch constraints for the supplied triangle model.
 
@@ -194,6 +206,7 @@ class _NativePBDModel(Protocol):
             _args: The native binding's additional stiffness and constraint settings.
         """
         ...
+
     def addBendingConstraints(
         self, _triangle_model: object, iterations: int, _stiffness: float
     ) -> None: ...
@@ -204,6 +217,7 @@ class _NativePBDModel(Protocol):
             The model's native constraint sequence.
         """
         ...
+
     def addDistanceConstraint_XPBD(self, a: int, b: int, _stiffness: float) -> bool:
         """Create an XPBD distance constraint between two particles.
 
@@ -216,6 +230,7 @@ class _NativePBDModel(Protocol):
             Whether the native model accepted the new constraint.
         """
         ...
+
     def addRigidBody(
         self,
         _mass: float,
@@ -239,12 +254,15 @@ class _NativePBDSimulation(Protocol):
             The active native simulation model.
         """
         ...
+
     def reset(self) -> None:
         """Reset the current simulation before releasing and rebuilding its model."""
         ...
+
     def initDefault(self) -> None:
         """Initialize the binding's default simulation settings."""
         ...
+
     def getTimeStep(self) -> _NativePBDTimeStep:
         """Return the native time-step controller for this simulation.
 
@@ -264,6 +282,7 @@ class _NativePBDClock(Protocol):
             _time: The simulation time in seconds.
         """
         ...
+
     def setTimeStepSize(self, _step: float) -> None:
         """Set the duration of each native solver time step.
 
@@ -323,6 +342,7 @@ class _NativePBDIndexedFaceMesh(Protocol):
             _face_count: The number of polygon faces in the mesh.
         """
         ...
+
     def addFace(self, _face: Sequence[int]) -> None:
         """Append an indexed face to the native mesh.
 
@@ -330,6 +350,7 @@ class _NativePBDIndexedFaceMesh(Protocol):
             _face: The ordered vertex indices for the face.
         """
         ...
+
     def buildNeighbors(self) -> None:
         """Build neighboring-face relationships for the indexed mesh."""
         ...

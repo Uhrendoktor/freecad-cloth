@@ -65,13 +65,11 @@ def main() -> int:
     )
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     _require_contract(
-        workflow.count("timeout-seconds:") == 1
-        and 'timeout-seconds: "360"' in simulation_ladder,
+        workflow.count("timeout-seconds:") == 1 and 'timeout-seconds: "360"' in simulation_ladder,
         "only the cube simulation ladder may request the explicit 360-second runtime override",
     )
     _require_contract(
-        'default: "120"' in action
-        and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
+        'default: "120"' in action and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
         "FreeCAD test action must pass its default-120 timeout through to the container",
     )
     _require_contract(
