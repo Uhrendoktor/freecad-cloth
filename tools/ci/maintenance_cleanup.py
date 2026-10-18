@@ -300,6 +300,7 @@ def stale_unprotected_branches(
         default_branch: Repository's default branch name, which must be retained.
         activity_epochs: Verified commit activity times keyed by full commit SHA.
         cutoff_epoch: Unix timestamp before which a branch is considered stale.
+        closed_pr_head_shas: Exact closed-PR head SHAs eligible despite recent activity.
 
     Returns:
         Unprotected stale branch records sorted by verified commit activity time.

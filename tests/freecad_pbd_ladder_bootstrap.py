@@ -44,4 +44,3 @@ def initialize_ladder(
     bootstrap_log = output_directory / f"{ladder_name}-ladder-bootstrap.log"
     trace_handle = bootstrap_log.open("a", encoding="utf-8", buffering=1)
     return repository_root, helper_directory, output_directory, bootstrap_log, trace_handle
-
