@@ -30,7 +30,7 @@ def configured_timeout() -> int:
     return read_application_timeout(PYPROJECT)
 
 
-def _require_contract(condition: bool, message: str) -> None:
+def _require_contract(*, condition: bool, message: str) -> None:
     """Raise a process-level error when a timeout contract condition is false.
 
     Args:
@@ -52,50 +52,50 @@ def main() -> int:
     """
     expected = configured_timeout()
     _require_contract(
-        expected == EXPECTED_TIMEOUT_SECONDS,
-        "FreeCAD application runtime budget must remain at 120 seconds",
+        condition=expected == EXPECTED_TIMEOUT_SECONDS,
+        message="FreeCAD application runtime budget must remain at 120 seconds",
     )
     workflow = WORKFLOW.read_text(encoding="utf-8")
     action = TEST_ACTION.read_text(encoding="utf-8")
     container_action = CONTAINER_ACTION.read_text(encoding="utf-8")
 
     _require_contract(
-        "freecad_application_timeout_seconds" not in workflow,
-        "the canonical workflow must not rewrite the default FreeCAD application budget",
+        condition="freecad_application_timeout_seconds" not in workflow,
+        message="the canonical workflow must not rewrite the default FreeCAD application budget",
     )
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     _require_contract(
-        workflow.count("timeout-seconds:") == 1 and 'timeout-seconds: "360"' in simulation_ladder,
-        "only the cube simulation ladder may request the explicit 360-second runtime override",
+        condition=workflow.count("timeout-seconds:") == 1 and 'timeout-seconds: "360"' in simulation_ladder,
+        message="only the cube simulation ladder may request the explicit 360-second runtime override",
     )
     _require_contract(
-        'default: "120"' in action and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
-        "FreeCAD test action must pass its default-120 timeout through to the container",
+        condition='default: "120"' in action and "timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
+        message="FreeCAD test action must pass its default-120 timeout through to the container",
     )
     _require_contract(
-        "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action,
-        "FreeCAD test action must pass non-default runtime overrides to run_freecad.py",
+        condition="FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action,
+        message="FreeCAD test action must pass non-default runtime overrides to run_freecad.py",
     )
     _require_contract(
-        'default: "120"' in container_action and "maximum 360 seconds" in container_action,
-        "FreeCAD container must default to 120 seconds and cap overrides at 360",
+        condition='default: "120"' in container_action and "maximum 360 seconds" in container_action,
+        message="FreeCAD container must default to 120 seconds and cap overrides at 360",
     )
     _require_contract(
-        'if [ "$timeout_seconds" -gt 360 ]; then' in container_action,
-        "FreeCAD container action must enforce the 360-second absolute cap",
+        condition='if [ "$timeout_seconds" -gt 360 ]; then' in container_action,
+        message="FreeCAD container action must enforce the 360-second absolute cap",
     )
     run_freecad = (ROOT / "tools/ci/run_freecad.py").read_text(encoding="utf-8")
     _require_contract(
-        "def configured_timeout_seconds()" in run_freecad,
-        "run_freecad.py does not expose the authoritative timeout reader",
+        condition="def configured_timeout_seconds()" in run_freecad,
+        message="run_freecad.py does not expose the authoritative timeout reader",
     )
     _require_contract(
-        "timeout_seconds = configured_timeout_seconds()" in run_freecad,
-        "run_freecad.py does not consume the authoritative application timeout",
+        condition="timeout_seconds = configured_timeout_seconds()" in run_freecad,
+        message="run_freecad.py does not consume the authoritative application timeout",
     )
     _require_contract(
-        "FREECAD_APPLICATION_TIMEOUT_SECONDS" in run_freecad,
-        "run_freecad.py does not validate the scoped runtime override",
+        condition="FREECAD_APPLICATION_TIMEOUT_SECONDS" in run_freecad,
+        message="run_freecad.py does not validate the scoped runtime override",
     )
 
     sys.stdout.write(f"timeout-authority={expected}s source=pyproject.toml\n")

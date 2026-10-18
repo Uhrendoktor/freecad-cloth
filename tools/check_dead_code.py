@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import os
 import sys
 from pathlib import Path
 
@@ -53,7 +53,11 @@ def main() -> int:
     paths = tuple(str(path) for path in candidates if path.is_file() and allowed(path))
     if not paths:
         return 0
-    return subprocess.call([sys.executable, "-m", "vulture", "--min-confidence", "100", *paths])
+    return os.spawnv(
+        os.P_WAIT,
+        sys.executable,
+        [sys.executable, "-m", "vulture", "--min-confidence", "100", *paths],
+    )
 
 
 if __name__ == "__main__":
