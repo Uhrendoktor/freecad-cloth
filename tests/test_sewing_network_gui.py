@@ -32,6 +32,7 @@ def test_network_task_panel_restores_all_persisted_member_settings() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         def __init__(self) -> None:
             """Initialize deterministic seam parameter and correspondence state."""
             self.StartA = 0.2
@@ -61,6 +62,7 @@ def test_network_task_panel_commit_is_one_document_transaction() -> None:
 
     class Doc:
         """Capture document transactions and recomputation requested by the panel."""
+
         def __init__(self) -> None:
             """Start an empty log of document operations."""
             self.calls = []
@@ -99,6 +101,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
     class Doc:
         """Capture document transactions and recomputation requested by the panel."""
+
         def __init__(self) -> None:
             """Start an empty log of document operations."""
             self.calls = []
@@ -117,6 +120,7 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
     class Label:
         """Capture text and dynamic-property changes to a headless label."""
+
         def __init__(self) -> None:
             """Initialize the label text and dynamic-property state."""
             self.text = None
@@ -199,6 +203,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Doc:
         """Capture document transactions and recomputation requested by the panel."""
+
         def __init__(self, network: object) -> None:
             """Start an empty log of document operations.
 
@@ -223,6 +228,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Item:
         """Represent the display text for one network table item."""
+
         def __init__(self, value: object) -> None:
             """Store the display text supplied for this item.
 
@@ -241,6 +247,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Table:
         """Provide row-indexed items through the network table interface."""
+
         def __init__(self) -> None:
             """Initialize the simulated table's row-item mapping."""
             self.values = {(0, 2): 0.3, (0, 3): 0.7, (0, 6): 0.2, (0, 7): 0.8}
@@ -259,6 +266,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Combo:
         """Provide the selected alignment option for the editor."""
+
         def currentText(self) -> str:
             """Return the alignment option selected by this test fixture.
 
@@ -269,6 +277,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class Check:
         """Provide a deterministic checkbox state for the editor."""
+
         def isChecked(self) -> bool:
             """Return the configured checkbox state.
 
@@ -327,6 +336,7 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
 
     class Label:
         """Capture text and dynamic-property changes to a headless label."""
+
         def __init__(self) -> None:
             """Initialize the label text and dynamic-property state."""
             self.text = ""
@@ -392,6 +402,7 @@ def test_valid_network_has_no_reference_errors() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         def __init__(self, seam_id: object, status: object = "Valid") -> None:
             """Initialize deterministic seam parameter and correspondence state.
 
@@ -404,6 +415,7 @@ def test_valid_network_has_no_reference_errors() -> None:
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         def __init__(self, seams: object) -> None:
             """Initialize the network fixture's validation state.
 
@@ -430,6 +442,7 @@ def test_invalid_reference_is_reported_with_seam_identity() -> None:
 
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
+
         def __init__(self, seam_id: object, status: object = "Valid") -> None:
             """Initialize deterministic seam parameter and correspondence state.
 
@@ -442,6 +455,7 @@ def test_invalid_reference_is_reported_with_seam_identity() -> None:
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
+
         def __init__(self, seams: object) -> None:
             """Initialize the network fixture's validation state.
 
@@ -545,6 +559,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
 
     class Widget:
         """Represent a test input with a configurable value."""
+
         def __init__(self, value: object) -> None:
             """Store the configured value for this simulated control.
 
@@ -563,6 +578,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
 
     class Document:
         """Capture recomputation requests made by the panel."""
+
         def recompute(self) -> None:
             """Record a document recomputation request."""
             pass
@@ -615,6 +631,7 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance() -> No
 
     class Document:
         """Capture recomputation requests made by the panel."""
+
         def recompute(self) -> None:
             """Record a document recomputation request."""
             pass
@@ -679,6 +696,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Doc:
         """Capture document transactions and recomputation requested by the panel."""
+
         def __init__(self) -> None:
             """Start an empty log of document operations."""
             self.calls = []
@@ -697,6 +715,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Spin:
         """Represent a numeric input control with a configurable value."""
+
         def __init__(self, value: object) -> None:
             """Store the configured numeric value for this control.
 
@@ -715,6 +734,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Combo:
         """Provide the selected alignment option for the editor."""
+
         def currentText(self) -> str:
             """Return the alignment option selected by this test fixture.
 
@@ -725,6 +745,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Check:
         """Provide a deterministic checkbox state for the editor."""
+
         def isChecked(self) -> bool:
             """Return the configured checkbox state.
 
@@ -735,6 +756,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Label:
         """Capture text and dynamic-property changes to a headless label."""
+
         def __init__(self) -> None:
             """Initialize the label text and dynamic-property state."""
             self.text = ""
@@ -775,6 +797,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
     class Button:
         """Capture the text and enabled state of a task-panel button."""
+
         def setText(self, text: str) -> None:
             """Store the text displayed by the simulated label.
 
