@@ -4,7 +4,14 @@ from pathlib import Path
 
 
 def initialize_workbenches(installation_root: Path) -> None:
-    """Register the Cloth workbenches and resolve resources from the installation root."""
+    """Register Cloth workbenches and resolve resources relative to the installation.
+
+    Args:
+        installation_root: Root directory containing the installed workbench resources.
+
+    Raises:
+        RuntimeError: If a simulation menu references an unregistered avatar command.
+    """
     try:
         import FreeCADGui as Gui
     except ImportError:

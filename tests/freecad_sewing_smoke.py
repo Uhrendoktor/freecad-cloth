@@ -19,7 +19,8 @@ from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
 
 
-def main():
+def main() -> None:
+    """Verify sewing task-panel edits, undo, invalidation, and native persistence."""
     # Exercise the public workbench activation path before document operations.
     Gui.activateWorkbench("Cloth Sewing")
     assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"

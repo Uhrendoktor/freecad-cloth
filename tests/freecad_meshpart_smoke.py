@@ -11,7 +11,8 @@ from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
 
 
-def main():
+def main() -> None:
+    """Exercise the optional MeshPart adapter and deterministic sewing constraints."""
     pattern = rectangle(100.0, 50.0)
     first = mesh_from_pattern(pattern, linear_deflection=0.5, angular_deflection=0.5)
     second = mesh_from_pattern(pattern, linear_deflection=0.5, angular_deflection=0.5)

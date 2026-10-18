@@ -31,7 +31,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _assert_rgb(rgb: tuple[float, float, float]) -> None:
-    """Check that a semantic color is a normalized RGB triple."""
+    """Check that a semantic color is a normalized RGB triple.
+
+    Args:
+        rgb: Three normalized channel values representing red, green, and blue.
+    """
     assert len(rgb) == 3
     assert all(0.0 <= float(channel) <= 1.0 for channel in rgb)
 

@@ -3,7 +3,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_review_protocol_and_templates_exist():
+def test_review_protocol_and_templates_exist() -> None:
+    """Keep simulation-review workflow triggers and templates aligned."""
     workflow = (ROOT / ".github/workflows/canonical-execution.yml").read_text(encoding="utf-8")
     publisher = (ROOT / ".github/actions/publish-visual-evidence/action.yml").read_text(
         encoding="utf-8"

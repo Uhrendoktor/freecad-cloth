@@ -10,7 +10,16 @@ from tests.support.pbd_contact_helpers import nearest_surface_distance
 def test_surface_distance_fallback_uses_spatial_index():
     """Missing exact point-to-triangle queries must not fall back to a quadratic Python loop."""
 
-    def unavailable(*_args, **_kwargs):
+    def unavailable(*_args: object, **_kwargs: object) -> None:
+        """Simulate an unavailable query so spatial-index fallback behavior is tested.
+
+        Args:
+            _args: Positional query arguments, intentionally ignored.
+            _kwargs: Keyword query options, intentionally ignored.
+
+        Raises:
+            RuntimeError: Always, to force the spatial-index fallback path.
+        """
         raise RuntimeError("surface query backend unavailable")
 
     vertices = tuple((float(index), 0.0, 0.0) for index in range(5000))
