@@ -305,9 +305,7 @@ class FlattenedSurfacePatch:
                 "surface patch is too curved for the bounded planar MVP: "
                 f"{self.max_deviation_mm:.2f} mm deviation exceeds {limit:.2f} mm tolerance"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         return self
 
 
@@ -495,9 +493,7 @@ def close_surface_stroke(
     values = tuple(anchors)
     if len(values) < 4:
         msg = "surface boundary needs at least three distinct points and a closing sample"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     limit = max(0.0, float(tolerance_mm))
     distance = _length(_sub(values[-1].point, values[0].point))
     if distance > limit + 1e-9:
@@ -505,9 +501,7 @@ def close_surface_stroke(
             "surface boundary is open; return to the first surface point "
             f"within {limit:.1f} mm before finishing (current gap: {distance:.1f} mm)"
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     boundary = values[:-1]
     unique = {tuple(round(float(value), 6) for value in anchor.point) for anchor in boundary}
     if len(unique) < 3:
@@ -1123,9 +1117,7 @@ def start_surface_pen():
     target, source = _surface_target_from_document(doc, Gui)
     if target is None or source is None:
         msg = "select a mannequin/drape target or create one before starting the 3D Pattern Pen"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     controller = SurfacePenController(target, source)
     panel = SurfacePenTaskPanel(controller)
     panel.controller.status_callback = panel.update_status

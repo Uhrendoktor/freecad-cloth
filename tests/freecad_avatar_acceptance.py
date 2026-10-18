@@ -155,9 +155,7 @@ def run_acceptance():
             raise RuntimeError(msg)
         if not panel._apply():
             msg = f"manual skeleton joint edit was not applied; status={panel.status.text()!r}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         _progress("manual-pose-applied")
         _close_task()
         avatar = doc.getObject(identity)
@@ -177,14 +175,10 @@ def run_acceptance():
         }
         if posed_landmarks.get("wrist_left") == baseline_landmarks.get("wrist_left"):
             msg = "manual skeleton rotation did not update the persisted wrist landmark"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         if target_status(target)["state"] != "stale":
             msg = "manual skeleton edit did not deterministically invalidate DrapeTarget"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         refresh_drape_target(target)
         panel = AvatarTaskPanel(avatar)
@@ -192,9 +186,7 @@ def run_acceptance():
         panel._reset_skeleton_pose()
         if not panel._apply():
             msg = f"manual skeleton reset was not applied; status={panel.status.text()!r}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         _progress("manual-pose-reset")
         _close_task()
         avatar = doc.getObject(identity)
@@ -224,9 +216,7 @@ def run_acceptance():
             raise RuntimeError(msg)
         if not panel._apply():
             msg = f"avatar provider swap was not applied; status={panel.status.text()!r}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         _progress("provider-swap-applied")
         _close_task()
         avatar = doc.getObject(identity)

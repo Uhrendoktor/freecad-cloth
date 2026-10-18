@@ -130,9 +130,7 @@ class _Preview:
             proxy = getattr(self.scene, "Proxy", None)
             if proxy is None or not hasattr(proxy, "advance_preview_frame"):
                 msg = "Realtime Cloth Preview requires the recompute-free simulation path"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             proxy.advance_preview_frame(self.scene)
             self._overlay_refresh_ticks += 1
             if self._overlay_refresh_ticks % 2 == 0:

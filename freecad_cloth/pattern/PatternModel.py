@@ -97,9 +97,7 @@ class Seam:
         for edge in (self.edge_a, self.edge_b):
             if isinstance(edge, bool):
                 msg = "seam edge references must be integer indices or stable identifiers"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             if isinstance(edge, int) and edge < 0:
                 msg = "edge indices must be non-negative"
                 raise ValueError(msg)

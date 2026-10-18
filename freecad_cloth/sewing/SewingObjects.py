@@ -273,9 +273,7 @@ def _seam_edge_index(
                     f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
                     f"found {len(native_indices)}"
                 )
-                raise MissingEdgeReference(
-                    msg
-                )
+                raise MissingEdgeReference(msg)
             return native_indices[0]
         return int(record["ordinal"])
     return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))

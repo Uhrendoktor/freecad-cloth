@@ -290,9 +290,7 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
     except ChangedEdgeReference:
         return
     msg = "native Sketcher geometry changes must invalidate the simulation reference"
-    raise AssertionError(
-        msg
-    )
+    raise AssertionError(msg)
 
 
 def test_native_and_legacy_pieces_can_share_one_simulation_pattern():

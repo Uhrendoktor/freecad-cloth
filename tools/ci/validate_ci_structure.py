@@ -304,9 +304,7 @@ def main() -> int:
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
         msg = f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
     if len(lines) > 750:
@@ -317,9 +315,7 @@ def main() -> int:
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
         msg = "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
@@ -344,18 +340,14 @@ def main() -> int:
         or "pull_request:" in merge_workflow
     ):
         msg = "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if (
         "push:" not in publication_workflow
         or "branches: [main]" not in publication_workflow
         or "execution_mode: publication" not in publication_workflow
     ):
         msg = "main-publication.yml must be main-only and call canonical publication mode"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if (
         "Required validation gate" not in text
         or "No successful full-validation run matched source tree" not in text
@@ -364,9 +356,7 @@ def main() -> int:
         or "Required pre-merge validation" not in merge_workflow
     ):
         msg = "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
         msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
         raise SystemExit(msg)
@@ -387,9 +377,7 @@ def main() -> int:
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
         msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     try:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
@@ -397,9 +385,7 @@ def main() -> int:
         raise SystemExit(msg) from error
     if pyright_config.get("typeCheckingMode") != "standard":
         msg = "pyrightconfig.json must use a standard baseline with a focused strict path list"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
         msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
         raise SystemExit(msg)
@@ -450,9 +436,7 @@ def main() -> int:
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
         msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
@@ -473,9 +457,7 @@ def main() -> int:
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > 180:
                 msg = f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
-                raise SystemExit(
-                    msg
-                )
+                raise SystemExit(msg)
 
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         msg = "FreeCAD container action must retain its 180-second pull contract"

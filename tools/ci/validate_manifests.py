@@ -245,9 +245,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
         raise SystemExit(msg)
     if not isclose(configured_tolerance_mm, 2.0, abs_tol=1e-6):
         msg = f"tunic: configured collision tolerance must be 2 mm, got {configured_tolerance_mm}"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     expected_tolerance_mm = max(configured_tolerance_mm, thickness_mm, 0.5 * voxel_mm)
     if not isclose(effective_tolerance_mm, expected_tolerance_mm, abs_tol=1e-6):
         msg = "tunic: effective collision tolerance does not match its inputs"
@@ -260,9 +258,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
             "tunic: runtime SDF resolution does not match its configured voxel size: "
             f"actual={sdf_resolution} expected={expected_resolution}"
         )
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
 
     required_images = (
         generated / "cloth-simulation-draped.png",

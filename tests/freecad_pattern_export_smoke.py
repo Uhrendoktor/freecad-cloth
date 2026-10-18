@@ -84,9 +84,7 @@ def accept_public_task(panel, export_format):
         accepted = panel.accept()
     except Exception as exc:
         msg = f"public export task panel could not accept {export_format}: {exc}"
-        raise RuntimeError(
-            msg
-        ) from exc
+        raise RuntimeError(msg) from exc
     if accepted is False:
         msg = f"public export task panel rejected {export_format} export"
         raise RuntimeError(msg)
@@ -121,9 +119,7 @@ try:
             raise RuntimeError("missing public Pattern command: " + command)
     if "ClothPattern_CreateDrafting" in Gui.listCommands():
         msg = "legacy PatternDrafting command leaked into the public workbench surface"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     record("commands=registered sketcher-only")
 
     doc = App.newDocument("PatternProductionExportSmoke")
@@ -181,9 +177,7 @@ try:
         ]
         if len(marks) != 3:
             msg = "export smoke did not persist notch, grainline, and internal mark objects"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         piece_id = str(piece.PieceId)
         notch = next(obj for obj in marks if str(obj.PatternMarkType) == "Notch")
         grainline = next(obj for obj in marks if str(obj.PatternMarkType) == "Grainline")
@@ -193,16 +187,12 @@ try:
         mark_id = str(getattr(construction_mark, "PatternMarkId", "")).strip()
         if not all((notch_id, grainline_id, mark_id)):
             msg = "native construction marks do not have persistent PatternMarkId values"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         edge_id = piece_id + ":edge:0"
         for obj in (notch, grainline, construction_mark):
             if str(getattr(obj, "SegmentId", "")) != edge_id:
                 msg = "native construction mark did not persist authored Sketch semantic edge identity"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
         record(
             f"marks=ready notch={notch_id} grainline={grainline_id} internal={mark_id} edge={edge_id}"
         )
@@ -286,9 +276,7 @@ try:
             or str(construction_mark.Text) != "Internal mark"
         ):
             msg = "save/reload changed persisted construction-mark identity or geometry"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         record(
             f"roundtrip=passed piece={piece_id} notch={notch_id} grainline={grainline_id} mark={mark_id}"
         )
@@ -376,17 +364,13 @@ try:
                     raise RuntimeError(msg)
                 if 'cx="55.000000" cy="65.000000"' in output:
                     msg = "SVG export still emits a decorative sewing-line notch circle"
-                    raise RuntimeError(
-                        msg
-                    )
+                    raise RuntimeError(msg)
                 if f'id="mark-{grainline_id}"' not in output:
                     msg = "SVG export lost persisted grainline identity/geometry"
                     raise RuntimeError(msg)
                 if f'id="mark-{mark_id}"' not in output or 'data-kind="InternalMark"' not in output:
                     msg = "SVG export lost persisted construction-mark identity/geometry"
-                    raise RuntimeError(
-                        msg
-                    )
+                    raise RuntimeError(msg)
                 if f'data-segment="{edge_id}" data-t="0.500000"' not in output:
                     msg = "SVG export lost persisted semantic mark reference"
                     raise RuntimeError(msg)

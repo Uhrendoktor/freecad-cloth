@@ -372,9 +372,7 @@ def main():
         pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
         if pin_span < 0.75 * blanket_width:
             msg = f"blanket pins are not opposite top-edge corners: span={pin_span:.3f}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         scene.PinSelection = [str(int(index)) for index in top]
         log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 

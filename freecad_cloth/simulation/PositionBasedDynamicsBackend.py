@@ -537,9 +537,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             stitch_constraint = constraints[-1]
             if not isinstance(stitch_constraint, self._pbd.DistanceConstraint_XPBD):
                 msg = "PositionBasedDynamics returned an unexpected stitch constraint type"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             # Tissu stitches have zero rest length; PBD otherwise initializes the
             # distance constraint rest length from the endpoints' starting distance.
             stitch_constraint.restLength = 0.0
@@ -624,9 +622,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         dt, iterations, gravity = step_input.dt, step_input.iterations, step_input.gravity
         if surface is not None and surface is not self._collision_surface:
             msg = "PositionBasedDynamics collision surface is immutable after construction"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         gx, gy, gz = (float(value) for value in gravity)
         gravity_pbd = np.asarray((gx / _MM, gz / _MM, gy / _MM), dtype=np.float64)

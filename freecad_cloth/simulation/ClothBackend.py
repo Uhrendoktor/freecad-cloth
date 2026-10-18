@@ -62,9 +62,7 @@ def validate_pinned_stitch_pairs(
                 "stitch pair is outside the simulation particle set: "
                 f"seam={seam_id} particle_a={a} particle_b={b}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         pair_key = (a, b)
         if pair_key in seen:
             continue
@@ -79,9 +77,7 @@ def validate_pinned_stitch_pairs(
                 f"seam={seam_id} particle_a={a} particle_b={b} "
                 f"initial_separation={separation:.9f} mm"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
 
 class ClothSimulationBackend(ABC):

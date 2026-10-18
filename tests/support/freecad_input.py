@@ -137,9 +137,7 @@ def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
                 "selected Qt widget does not match FreeCAD viewport dimensions: "
                 f"widget={top[0][3]}x{top[0][4]} view={target_width}x{target_height}"
             )
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
     return candidates[0][1]
 
 
@@ -154,9 +152,7 @@ class _NativeXInput:
             self._xtst = ctypes.CDLL(xtst_name)
         except OSError as exc:
             msg = "native viewport input requires libX11 and libXtst in the Xvfb environment"
-            raise RuntimeError(
-                msg
-            ) from exc
+            raise RuntimeError(msg) from exc
 
         self._x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
         self._x11.XOpenDisplay.restype = ctypes.c_void_p

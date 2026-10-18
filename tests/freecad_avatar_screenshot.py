@@ -94,9 +94,7 @@ def save_png(view, path, width=1280, height=720, state="capture"):
     rendered_height = int.from_bytes(header[20:24], "big")
     if (rendered_width, rendered_height) != (width, height):
         msg = f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     log("screenshot=%s state=%s bytes=%d" % (path, state, Path(path).stat().st_size))
 
 
@@ -446,9 +444,7 @@ def main():
         "documentation-turntable",
     ):
         msg = "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
 

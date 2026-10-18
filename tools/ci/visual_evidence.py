@@ -110,9 +110,7 @@ def write_provenance(
     actual = public_assets(published_root)
     if assets != sorted(actual):
         msg = f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     lines = [
         "# README/wiki visual evidence provenance",
         "",

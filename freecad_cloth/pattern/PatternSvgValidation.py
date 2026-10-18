@@ -38,9 +38,7 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
             from PySide2 import QtCore, QtGui, QtSvg
         except ImportError as exc:
             msg = "independent SVG validation requires FreeCAD's QtSvg modules"
-            raise RuntimeError(
-                msg
-            ) from exc
+            raise RuntimeError(msg) from exc
     return QtCore, QtGui, QtSvg
 
 

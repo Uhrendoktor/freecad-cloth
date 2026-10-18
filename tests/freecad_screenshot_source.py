@@ -362,9 +362,7 @@ def _seam_coherence(panels, seam_records, proxy=None):
         )
         if edge_a_id not in ids_a or edge_b_id not in ids_b:
             msg = "semantic seam edge identity is not present on its authoritative Sketch"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         records.append(
             {
                 "seam": seam_id,
@@ -872,14 +870,10 @@ def _make_tunic_sketch(
     ]
     if not (armhole_z < shoulder_z < neck_z):
         msg = "canonical tunic shoulders must slope downward from neckline to shoulder tip"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if not (armhole_z < neckline_scoop_z < shoulder_z):
         msg = "canonical tunic neckline scoop must cut below the shoulders and above the armholes"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         msg = "canonical tunic armhole opening is too narrow"
         raise RuntimeError(msg)
@@ -1131,9 +1125,7 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
 
     if not seam_records:
         msg = "canonical tunic sewing view needs the simulation's semantic seam records"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
 
     pieces = (front, back)
     original_piece_placements = {
@@ -1441,9 +1433,7 @@ def _run_production_tunic_drape(
     preview_backend = getattr(scene.Proxy._base_or_restore(), "backend", None)
     if getattr(preview_backend, "name", None) != "position-based-dynamics":
         msg = "Realtime Cloth Preview did not select the PositionBasedDynamics backend"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     deadline = monotonic() + 2.0
     while int(scene.Steps) <= 0 and monotonic() < deadline:
         events()
@@ -1654,9 +1644,7 @@ def simulation():
     target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
         msg = "visual fixture DrapeTarget does not reference the production ClothAvatar"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if TUNIC_PRODUCTION_AUDIT:
         from dataclasses import replace as replace_dataclass
 
@@ -1747,9 +1735,7 @@ def simulation():
             or right_vertical > 0.22 * right_span
         ):
             msg = "tunic mannequin FK mesh is not near-T-pose: wrists are not near shoulder height"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         pose_view = Gui.activeDocument().activeView()
         pose_view.viewFront()
         pose_view.fitAll()
@@ -1802,9 +1788,7 @@ def simulation():
             ]
             if not projected_target_ys:
                 msg = "canonical tunic torso silhouette does not overlap DrapeTarget projections"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             target_front_y = min(projected_target_ys)
             target_back_y = max(projected_target_ys)
             if side == "front":
@@ -2351,9 +2335,7 @@ def simulation():
             "canonical tunic step-0 target clearance is below configured separation: "
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     log("pin-mode=None solver-pins=0")
     log("seam-world-x-step0=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
     log("target-collision-mode=mesh")
@@ -2476,9 +2458,7 @@ def simulation():
             "simulation seam overlay is not rendering exact solver stitch pairs: "
             f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     log(
         "simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs"
         % sorted(rendered_seam_ids)
@@ -2575,9 +2555,7 @@ def simulation():
                     "draped front camera rotation does not match arranged screenshot "
                     f"(quaternion agreement={rotation_agreement:.12f})"
                 )
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             log("camera-draped-front=" + json.dumps(_camera_snapshot(view), sort_keys=True))
         save(
             f"cloth-simulation-draped-{direction}.png",

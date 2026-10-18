@@ -222,9 +222,7 @@ def create_sewing_operation():
         a, b = pieces[str(seam.PieceA)], pieces[str(seam.PieceB)]
     except KeyError as exc:
         msg = "the seam references pattern pieces that are not in the active document"
-        raise ValueError(
-            msg
-        ) from exc
+        raise ValueError(msg) from exc
     n = len([o for o in doc.Objects if getattr(o, "SewingType", "") == "SewingOperation"]) + 1
     obj = add_sewing_operation(doc, seam, a, b, "SewingOperation%d" % n)
     doc.recompute()
@@ -495,9 +493,7 @@ def _edit_selected_seam_side(
         edge_index = semantic_ids.index(semantic_id)
     except ValueError as exc:
         msg = f"seam side {side} is not present in the Sketcher semantic edge map"
-        raise ValueError(
-            msg
-        ) from exc
+        raise ValueError(msg) from exc
     if focus_fn is None:
         focus_fn = focus_selected_seam_3d
     focus_fn()

@@ -166,23 +166,17 @@ def resolve_edge_reference(
     )
     if match is None:
         msg = f"semantic edge reference {reference.edge_id} is missing from pattern piece {reference.piece_id}"
-        raise MissingEdgeReference(
-            msg
-        )
+        raise MissingEdgeReference(msg)
     points = match.get("points")
     if points is None:
         msg = f"semantic edge reference {reference.edge_id} has no current geometry"
-        raise ChangedEdgeReference(
-            msg
-        )
+        raise ChangedEdgeReference(msg)
     native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
     provenance = match.get("provenance") if native_reference else None
     current = edge_signature(points, provenance=provenance)
     if current != reference.signature:
         msg = f"semantic edge reference {reference.edge_id} geometry/provenance changed"
-        raise ChangedEdgeReference(
-            msg
-        )
+        raise ChangedEdgeReference(msg)
     return match
 
 

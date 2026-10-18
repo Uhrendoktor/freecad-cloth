@@ -134,15 +134,11 @@ def _native_edge_record_for_sketch_index(
     )
     if edge < 0 or edge >= len(semantic_ids):
         msg = f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
-        raise MissingEdgeReference(
-            msg
-        )
+        raise MissingEdgeReference(msg)
     semantic_id = semantic_ids[edge]
     if not semantic_id:
         msg = f"native Sketcher seam edge {edge} is construction geometry on {piece.PieceId}"
-        raise MissingEdgeReference(
-            msg
-        )
+        raise MissingEdgeReference(msg)
     read_native_records = (
         _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
     )
@@ -150,9 +146,7 @@ def _native_edge_record_for_sketch_index(
     record = next((value for value in records if str(value["id"]) == semantic_id), None)
     if record is None:
         msg = f"native Sketcher semantic edge {semantic_id} is missing from pattern piece {piece.PieceId}"
-        raise MissingEdgeReference(
-            msg
-        )
+        raise MissingEdgeReference(msg)
     return record
 
 
@@ -210,9 +204,7 @@ def _seam_edge_id(
         else:
             if edge < 0 or edge >= len(records):
                 msg = f"seam edge {edge} is outside pattern piece {piece.PieceId}"
-                raise MissingEdgeReference(
-                    msg
-                )
+                raise MissingEdgeReference(msg)
             record = records[edge]
         return record["id"], capture_edge_reference(
             piece.PieceId, record["id"], record["points"], record.get("provenance")
@@ -227,9 +219,7 @@ def _seam_edge_id(
                 record.get("provenance"),
             ).signature
     msg = f"semantic edge reference {reference_id} is missing from pattern piece {piece.PieceId}"
-    raise MissingEdgeReference(
-        msg
-    )
+    raise MissingEdgeReference(msg)
 
 
 def refresh_edge_reference_signature(piece, edge_id):

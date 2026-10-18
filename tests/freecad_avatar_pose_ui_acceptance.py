@@ -415,9 +415,7 @@ def run():
             f"(mode={gizmo_mode!r}, style={getattr(panel.controller, 'gizmo_style', None)!r}, "
             f"error={getattr(panel.controller, 'gizmo_style_error', None)!r})"
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
         msg = "Pose Mode did not install the visible joint/bone overlay"
         raise RuntimeError(msg)
@@ -429,9 +427,7 @@ def run():
             "Pose Mode overlay does not contain the complete authored skeleton "
             f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
         msg = "Pose Mode did not install the selected-joint gizmo scene nodes"
         raise RuntimeError(msg)
@@ -455,9 +451,7 @@ def run():
     expected_records = _point_records(expected_mesh.vertices, precision=7)
     if [item[0] for item in generated_records] != [item[0] for item in expected_records]:
         msg = "Public avatar mesh generator differs from the independent authored FK result"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
 
     # FreeCAD's Mesh storage can coalesce coincident coordinates that remain
     # duplicated in the provider's indexed triangle mesh. Compare distinct

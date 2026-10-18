@@ -29,9 +29,7 @@ def validate_seam_for_accept(seam):
     if status != "Valid":
         seam_id = str(getattr(seam, "SeamId", "")) or "<unnamed>"
         msg = f"cannot accept sewing operation with invalid seam reference {seam_id}: {status}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return True
 
 
@@ -73,9 +71,7 @@ def repair_correspondence_settings(seam, report):
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
         msg = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return "seam correspondence is already valid"
 
 

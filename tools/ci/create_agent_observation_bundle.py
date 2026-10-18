@@ -108,9 +108,7 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
         relative_path = relative_path.strip()
         if not separator or role not in ROLE_SUFFIXES or not relative_path:
             msg = "evidence entries must use an allowed role=relative/path form"
-            raise ObservationBundleError(
-                msg
-            )
+            raise ObservationBundleError(msg)
         path = PurePosixPath(relative_path)
         if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in relative_path:
             msg = f"unsafe evidence path: {relative_path!r}"
@@ -121,9 +119,7 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
             raise ObservationBundleError(msg)
         if path.suffix.lower() not in ROLE_SUFFIXES[role]:
             msg = f"unsupported evidence extension for role {role!r}: {normalized_path!r}"
-            raise ObservationBundleError(
-                msg
-            )
+            raise ObservationBundleError(msg)
         seen.add(normalized_path)
         parsed.append((role, normalized_path))
 
@@ -249,9 +245,7 @@ def create_observation_bundle(
     output = _resolve_relative_path(root, "agent-observation.json", must_exist=False)
     if len(label) > 160 or "\n" in label or "\r" in label:
         msg = "observation-label must be a single line of at most 160 characters"
-        raise ObservationBundleError(
-            msg
-        )
+        raise ObservationBundleError(msg)
 
     parsed = _parse_evidence_specs(specifications)
     resolved_evidence: list[tuple[str, str, Path, int]] = []
@@ -264,17 +258,13 @@ def create_observation_bundle(
         size_bytes = path.stat().st_size
         if size_bytes > MAX_EVIDENCE_FILE_BYTES:
             msg = f"evidence file exceeds {MAX_EVIDENCE_FILE_BYTES} bytes: {relative_path!r}"
-            raise ObservationBundleError(
-                msg
-            )
+            raise ObservationBundleError(msg)
         total_bytes += size_bytes
         resolved_evidence.append((role, relative_path, path, size_bytes))
 
     if total_bytes > MAX_EVIDENCE_BYTES:
         msg = f"selected evidence totals {total_bytes} bytes; limit is {MAX_EVIDENCE_BYTES}"
-        raise ObservationBundleError(
-            msg
-        )
+        raise ObservationBundleError(msg)
 
     evidence: list[dict[str, object]] = []
     for role, relative_path, path, size_bytes in resolved_evidence:

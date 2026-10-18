@@ -111,9 +111,7 @@ def quality_piece_mesh(
             > endpoint_tolerance
         ):
             msg = f"quality mesh semantic edge {edge_id} does not start at its authored vertex"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         if (
             hypot(
                 float(last[0]) - float(authored[-1][0]),
@@ -122,9 +120,7 @@ def quality_piece_mesh(
             > endpoint_tolerance
         ):
             msg = f"quality mesh semantic edge {edge_id} does not end at its authored vertex"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         actual_pairs = {frozenset(pair) for pair in pairs}
         ordered_pairs = {
@@ -141,9 +137,7 @@ def quality_piece_mesh(
             )
             if span > float(spacing) + endpoint_tolerance:
                 msg = f"quality mesh semantic edge {edge_id} exceeds requested boundary spacing"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
         by_id[edge_id] = ordered
 
     return (

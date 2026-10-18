@@ -32,8 +32,8 @@ def read_application_timeout(project_file: Path) -> int:
         .get("freecad_application_timeout_seconds")
     )
     if not isinstance(value, int) or value <= 0:
-        msg = "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
-        raise ValueError(
-            msg
+        msg = (
+            "[tool.freecad_cloth.ci].freecad_application_timeout_seconds must be a positive integer"
         )
+        raise ValueError(msg)
     return value

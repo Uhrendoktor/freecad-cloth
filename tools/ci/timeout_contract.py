@@ -49,28 +49,20 @@ def main() -> int:
 
     if "freecad_application_timeout_seconds" in workflow:
         msg = "the canonical workflow must not rewrite the default FreeCAD application budget"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     if workflow.count("timeout-seconds:") != 1 or 'timeout-seconds: "360"' not in simulation_ladder:
         msg = "only the cube simulation ladder may request the explicit 360-second runtime override"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if (
         'default: "120"' not in action
         or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in action
     ):
         msg = "FreeCAD test action must pass its default-120 timeout through to the container"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in action:
         msg = "FreeCAD test action must pass non-default runtime overrides to run_freecad.py"
-        raise SystemExit(
-            msg
-        )
+        raise SystemExit(msg)
     if 'default: "120"' not in container_action or "maximum 360 seconds" not in container_action:
         msg = "FreeCAD container must default to 120 seconds and cap overrides at 360"
         raise SystemExit(msg)

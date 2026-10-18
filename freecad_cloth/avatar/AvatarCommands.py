@@ -627,9 +627,7 @@ def set_avatar_provider(provider_id, source=None):
         source = source or getattr(obj, "ProviderSource", None)
         if source is None or source is obj:
             msg = "a FreeCAD source object is required for the freecad-geometry provider"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
     else:
         source = None
     return apply_avatar_parameters(

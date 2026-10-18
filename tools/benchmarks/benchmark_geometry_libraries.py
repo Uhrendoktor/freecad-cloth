@@ -132,9 +132,7 @@ def _time_clearance(count: int) -> None:
 
     if not isclose(accelerated, reference, rel_tol=1e-9, abs_tol=1e-9):
         msg = f"clearance mismatch for {count}x{count} points: {accelerated!r} != {reference!r}"
-        raise AssertionError(
-            msg
-        )
+        raise AssertionError(msg)
     print(
         f"clearance vertices={count}x{count} "
         f"optimized_ms={accelerated_seconds * 1000:.3f} "
@@ -164,9 +162,7 @@ def _time_outline(count: int) -> None:
 
     if accelerated != reference:
         msg = f"outline predicate mismatch for {count} vertices: {accelerated!r} != {reference!r}"
-        raise AssertionError(
-            msg
-        )
+        raise AssertionError(msg)
     print(
         f"outline vertices={count} "
         f"optimized_ms={accelerated_seconds * 1000:.3f} "

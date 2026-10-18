@@ -428,10 +428,10 @@ def _run_control_avatar():
             if center is not None:
                 break
         if center is None:
-            msg = "control-0a-avatar could not find a deterministic interior arrangement-point probe"
-            raise RuntimeError(
-                msg
+            msg = (
+                "control-0a-avatar could not find a deterministic interior arrangement-point probe"
             )
+            raise RuntimeError(msg)
         _progress(
             f"control-0a-avatar: interior-seed={float(center.x):.2f},{float(center.y):.2f},{float(center.z):.2f}"
         )

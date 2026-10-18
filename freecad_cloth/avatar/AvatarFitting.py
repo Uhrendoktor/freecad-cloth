@@ -169,9 +169,7 @@ class ArrangementPoint:
             name, position, wrap, rotation, symmetry = parts
         else:
             msg = "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
             msg = "arrangement point position requires x, y, and offset"

@@ -327,9 +327,7 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
 
     if not boundaries:
         msg = f"Sketcher pattern has no non-construction boundary geometries: {piece_id}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return _order_sketch_boundary(boundaries, piece_id), edge_index_map
 
 
@@ -354,9 +352,7 @@ def _order_sketch_boundary(
         if _distance3(boundary.samples[0], boundary.samples[-1]) <= 1e-7:
             return tuple(boundaries)
         msg = f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     vertices = []
     edge_vertices = []
@@ -365,9 +361,7 @@ def _order_sketch_boundary(
         end = boundary.samples[-1]
         if _distance3(start, end) <= 1e-7:
             msg = f"Sketcher boundary contains a closed curve alongside other boundary edges: {boundary.id}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         start_vertex = _find_vertex(vertices, start)
         end_vertex = _find_vertex(vertices, end)
         if start_vertex is None:
@@ -388,16 +382,12 @@ def _order_sketch_boundary(
                     f"Sketcher boundary is open at endpoint {vertex_index}: "
                     f"expected two connected edges, found {len(unique_incident)}"
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             msg = (
                 f"Sketcher boundary is ambiguous at endpoint {vertex_index}: "
                 f"expected two connected edges, found {len(unique_incident)}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
     adjacency = {index: set() for index in range(len(boundaries))}
     for incident in (set(vertex[1]) for vertex in vertices):
@@ -434,14 +424,10 @@ def _order_sketch_boundary(
                 f"Sketcher boundary is disconnected near {boundaries[current_edge].id}: "
                 "traversal cannot reach remaining edges"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         if len(candidates) != 1:
             msg = f"Sketcher boundary is ambiguous while traversing from {boundaries[current_edge].id}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         next_edge = candidates[0]
         edge_start, edge_end = edge_vertices[next_edge]
         if edge_start == current_vertex:
@@ -462,9 +448,7 @@ def _order_sketch_boundary(
 
     if start_vertex != current_vertex:
         msg = f"Sketcher boundary is open: traversal did not return to its start ({piece_id})"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return tuple(ordered)
 
 

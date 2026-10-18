@@ -567,14 +567,10 @@ def main():
             )
             if displacement < 40.0:
                 msg = f"blanket moved only {displacement:.2f} mm; expected real draping motion"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             if minimum_z > cube_top + 35.0:
                 msg = f"blanket did not approach cube surface: min_z={minimum_z:.2f} cube_top={cube_top:.2f}"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
 
             validation_started = time.monotonic()
             log("stage=validation-start")

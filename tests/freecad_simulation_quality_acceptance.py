@@ -68,9 +68,7 @@ def run_acceptance():
         scene = doc.getObject("ClothSimulation")
         if scene is None:
             msg = "public Simulation Create command did not create a ClothSimulation object"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         scene.ClothPieces = [front, back]
 
         target_body = doc.addObject("Part::Feature", "QualityAcceptanceTarget")
@@ -93,9 +91,7 @@ def run_acceptance():
         target = doc.getObject("DrapeTarget")
         if target is None or scene.DrapeTarget != target:
             msg = "public DrapeTarget command did not attach the target to the simulation"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         Gui.runCommand("ClothDrape_RefreshTarget", 0)
         doc.recompute()
 
@@ -134,9 +130,7 @@ def run_acceptance():
         _events()
         if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
             msg = "simulation panel did not expose the Arrange / Fit / target-snap bridge"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         if panel.reset_arrangement_button.isEnabled():
             msg = "reset arrangement should be disabled before fitting handoff"
             raise RuntimeError(msg)
@@ -174,9 +168,7 @@ def run_acceptance():
         )
         if authored != ("Final", 225.0, 0.75, 2.5, 0.65):
             msg = "task-panel material/collision edits did not persist into document properties"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "simulation-quality-acceptance.FCStd")
@@ -212,9 +204,7 @@ def run_acceptance():
             )
             if persisted != expected:
                 msg = "quality, material, and collision controls did not persist across save/reload"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             _activate(
                 "ClothSimulationWorkbench",
                 [
@@ -246,9 +236,7 @@ def run_acceptance():
             status = target_status(target)
             if status["state"] != "stale" or not status["stale"]:
                 msg = "upstream CAD target edit did not produce deterministic stale state"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             panel = SimulationQualityTaskPanel(scene)
             Gui.Control.showDialog(panel)
             _events()
@@ -258,14 +246,10 @@ def run_acceptance():
                 or not panel.reset_button.isEnabled()
             ):
                 msg = "stale-target status did not block Step/Run while preserving Reset"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             if "Simulation blocked" not in panel.status.text():
                 msg = "stale-target status did not expose a user-facing blocked reason"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             _close_task()
 
             Gui.Selection.clearSelection()
@@ -281,9 +265,7 @@ def run_acceptance():
             reloaded.recompute()
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
                 msg = "public Simulation Step did not recover after stale-target refresh"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             App.closeDocument(reloaded.Name)
             doc = None
         print("simulation quality persistence acceptance passed", flush=True)

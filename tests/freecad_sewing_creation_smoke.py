@@ -569,9 +569,7 @@ try:
             "seam-assignment GIF camera did not apply the requested world-space framing: "
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     record(
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
         "height=%.2f viewport=%dx%d"

@@ -200,9 +200,7 @@ def _make_tunic_sketch(
         raise RuntimeError(msg)
     if not (armhole_z < neckline_scoop_z < shoulder_z):
         msg = "debug tunic neckline must scoop below the shoulders and above the armholes"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
         msg = "debug tunic armhole is too narrow"
         raise RuntimeError(msg)

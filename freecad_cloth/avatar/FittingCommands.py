@@ -90,9 +90,7 @@ def _mesh_topology(target, *, vector_factory: Callable[..., object] | None = Non
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 msg = "could not normalize target mesh vertices to object-local coordinates"
-                raise ValueError(
-                    msg
-                ) from exc
+                raise ValueError(msg) from exc
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
         if (
             not points
@@ -489,9 +487,7 @@ def _fitting_marker_group(
                 f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
                 "is used by a non-group object"
             )
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         group = cast("_FittingMarkerGroup", group)
         group.Label = _FITTING_MARKER_GROUP_LABEL
     return group
@@ -789,9 +785,7 @@ def add_selected_pattern_pieces():
     ]
     if not pieces:
         msg = "select one or more pattern pieces before adding them to the fitting scene"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     existing = [PiecePlacement.from_string(v) for v in scene.PiecePlacements]
     homes = [PiecePlacement.from_string(v) for v in scene.HomePlacements]
     by_id = {p.piece_id: p for p in existing}

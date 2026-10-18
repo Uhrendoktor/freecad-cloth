@@ -122,9 +122,7 @@ def triangulate(
         import triangle as tr
     except ImportError as exc:
         msg = "PatternMesh requires the 'triangle' package (Shewchuk constrained Delaunay meshing)"
-        raise RuntimeError(
-            msg
-        ) from exc
+        raise RuntimeError(msg) from exc
 
     vertices_in = np.asarray(points, dtype=np.float64)
     segments = np.asarray(
@@ -144,10 +142,10 @@ def triangulate(
         msg = "Triangle returned no triangular faces"
         raise ValueError(msg)
     if max_area is None and len(result_vertices) != len(points):
-        msg = "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
-        raise ValueError(
-            msg
+        msg = (
+            "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
+        raise ValueError(msg)
 
     output_index_by_coordinate: dict[tuple[int, int], int] = {}
     for index, vertex in enumerate(result_vertices):

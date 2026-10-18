@@ -387,9 +387,7 @@ def ensure_makehuman_base(
             f"{MAKEHUMAN_DATA_ENV} to a MakeHuman install/data directory, set "
             f"{CACHE_ENV} to a local OBJ file, or allow network access ({exc})"
         )
-        raise HumanoidMeshError(
-            msg
-        ) from exc
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -400,17 +398,13 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
         destination = Path(path).expanduser()
         if not destination.is_file():
             msg = f"explicit MakeHuman weights path does not exist: {destination}"
-            raise HumanoidMeshError(
-                msg
-            )
+            raise HumanoidMeshError(msg)
         return destination
     if override:
         destination = Path(override).expanduser()
         if not destination.is_file():
             msg = f"{WEIGHTS_ENV} points to missing MakeHuman weights: {destination}"
-            raise HumanoidMeshError(
-                msg
-            )
+            raise HumanoidMeshError(msg)
         return destination
 
     destination = _weights_cache_path()
@@ -423,9 +417,7 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
             "unable to obtain the pinned MakeHuman default weights; "
             f"set {WEIGHTS_ENV} to a local MHW file or allow network access ({exc})"
         )
-        raise HumanoidMeshError(
-            msg
-        ) from exc
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -436,17 +428,13 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
         destination = Path(path).expanduser()
         if not destination.is_file():
             msg = f"explicit MakeHuman skeleton path does not exist: {destination}"
-            raise HumanoidMeshError(
-                msg
-            )
+            raise HumanoidMeshError(msg)
         return destination
     if override:
         destination = Path(override).expanduser()
         if not destination.is_file():
             msg = f"{SKELETON_ENV} points to missing MakeHuman skeleton: {destination}"
-            raise HumanoidMeshError(
-                msg
-            )
+            raise HumanoidMeshError(msg)
         return destination
 
     destination = _skeleton_cache_path()
@@ -459,9 +447,7 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
             "unable to obtain the pinned MakeHuman default skeleton; "
             f"set {SKELETON_ENV} to a local MHSkel file or allow network access ({exc})"
         )
-        raise HumanoidMeshError(
-            msg
-        ) from exc
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -483,9 +469,7 @@ def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
         return tuple(vertices)
     except (OSError, UnicodeError, ValueError) as exc:
         msg = f"unable to parse MakeHuman source vertices {source}: {exc}"
-        raise HumanoidMeshError(
-            msg
-        ) from exc
+        raise HumanoidMeshError(msg) from exc
 
 
 @lru_cache(maxsize=4)
@@ -843,9 +827,7 @@ def load_makehuman_weights(
         return result
     except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
         msg = f"unable to parse MakeHuman skinning weights {source}: {exc}"
-        raise HumanoidMeshError(
-            msg
-        ) from exc
+        raise HumanoidMeshError(msg) from exc
 
 
 def _section_circumference(

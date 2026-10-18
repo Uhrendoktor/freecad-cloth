@@ -71,14 +71,10 @@ def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_latera
             raise AvatarVisualSanityError(msg)
         if not math.isclose(height, expected_height, rel_tol=0.02, abs_tol=1.0):
             msg = f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
-            raise AvatarVisualSanityError(
-                msg
-            )
+            raise AvatarVisualSanityError(msg)
 
     ratio = width / height
     if ratio > float(max_lateral_height_ratio):
         msg = f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
-        raise AvatarVisualSanityError(
-            msg
-        )
+        raise AvatarVisualSanityError(msg)
     return AvatarVisualSanity(height, width, depth, len(triangles), ratio)

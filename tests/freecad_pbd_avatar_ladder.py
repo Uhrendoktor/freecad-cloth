@@ -222,9 +222,7 @@ def _build_avatar_scene(doc):
     target = getattr(scene, "DrapeTarget", None)
     if target is None or getattr(target, "SourceObject", None) is not avatar:
         msg = "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     status = __import__(
         "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
     ).target_status(target)
@@ -265,9 +263,7 @@ def _build_avatar_scene(doc):
     target_vertices = list(starmap(App.Vector, getattr(target_surface, "vertices", ())))
     if not target_vertices:
         msg = "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
     x_mid_target = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     target_y_candidates = [
         float(point.y)

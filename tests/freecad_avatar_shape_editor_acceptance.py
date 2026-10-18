@@ -124,9 +124,7 @@ def _assert_camera_stable(before, after):
             for old, new in zip(old_values, new_values, strict=True)
         ):
             msg = f"avatar rebuild changed camera framing: {name} {old_values} -> {new_values}"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
 
 
 def _shape_change_summary(
@@ -422,9 +420,7 @@ def run():
         controller = panel._dimension_controller
         if controller is None or controller.view is None or controller.overlay is None:
             msg = "3D Dimensions did not activate; viewport shape editing must remain visible"
-            raise RuntimeError(
-                msg
-            )
+            raise RuntimeError(msg)
         if {str(obj.Name) for obj in doc.Objects} != original_names:
             msg = "viewport dimension overlay created persistent document objects"
             raise RuntimeError(msg)
@@ -475,9 +471,7 @@ def run():
             updated_facets = len(avatar.Mesh.Facets)
             if updated_facets != original_facets:
                 msg = f"avatar shape rebuild changed facet count: {original_facets} -> {updated_facets}"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             from dataclasses import replace as replace_parameters
 
             committed_parameters = panel._staged_parameters()
@@ -493,9 +487,7 @@ def run():
                 or updated_triangles != original_triangles
             ):
                 msg = "cupsize acceptance requires stable generated mesh vertex/triangle correspondence"
-                raise RuntimeError(
-                    msg
-                )
+                raise RuntimeError(msg)
             native_before_keys = {
                 tuple(round(value, 1) for value in point) for point in original_native_mesh
             }

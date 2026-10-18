@@ -188,9 +188,7 @@ class AvatarParameters:
             value = float(self.measurements[name])
             if not low <= value <= high:
                 msg = f"avatar measurement {name} must be between {low:.0f} and {high:.0f} mm"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
         if self.measurements["underbust"] > self.measurements["chest"]:
             msg = "underbust circumference cannot exceed chest circumference"
             raise ValueError(msg)
