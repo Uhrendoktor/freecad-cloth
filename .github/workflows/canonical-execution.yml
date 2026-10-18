@@ -529,7 +529,6 @@ jobs:
         run: |
           set -euo pipefail
           source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
-
           find_validated_run() {
             local workflow="$1"
             local event="$2"
@@ -548,7 +547,6 @@ jobs:
             done < <(printf "%s" "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
             return 1
           }
-
           # Preferred path: the dedicated merge-queue gate validated this exact tree.
           if matched="$(find_validated_run merge-validation.yml merge_group "Required pre-merge validation")"; then
             read -r run_id head_sha <<< "${matched}"
