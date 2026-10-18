@@ -18,7 +18,15 @@ def standard_dataclass_decorators(
     source: str,
     filename: str = "<unknown>",
 ) -> tuple[str, ...]:
-    """Return locations that decorate production records with stdlib dataclasses."""
+    """Find production classes decorated with standard-library dataclasses.
+
+    Args:
+        source: Python source text containing class definitions.
+        filename: Display name used for source-location diagnostics.
+
+    Returns:
+        Sorted violation descriptions for forbidden dataclass decorators.
+    """
     try:
         tree = ast.parse(source, filename=filename)
     except SyntaxError as error:
@@ -60,7 +68,16 @@ def standard_dataclass_decorators(
 def serialization_exception_is_justified(
     path: str, *, exceptions: dict[str, tuple[str, str]] | None = None
 ) -> bool:
-    """Require a concrete FreeCAD serialization reason and an existing regression test."""
+    """Check that a dataclass exception is justified by a verified FreeCAD limitation.
+
+    Args:
+        path: Repository-relative Python path under consideration.
+        exceptions: Optional map of paths to incompatibility reasons and test references.
+
+    Returns:
+        True only when the reason names the FreeCAD serialization incompatibility
+        and the referenced regression test exists and parses successfully.
+    """
     configured_exceptions = FREECAD_SERIALIZATION_EXCEPTIONS if exceptions is None else exceptions
     exception = configured_exceptions.get(path)
     if exception is None:
@@ -92,7 +109,12 @@ def serialization_exception_is_justified(
 
 
 def repository_violations() -> tuple[str, ...]:
-    """Check all production Python modules and fail closed on syntax errors."""
+    """Collect prohibited standard-library dataclass decorators in production modules.
+
+    Returns:
+        Violation descriptions for production classes that use a forbidden
+        decorator without a documented serialization exception.
+    """
     violations: list[str] = []
     for path in sorted(PRODUCTION_ROOT.rglob("*.py")):
         relative = path.relative_to(ROOT).as_posix()
@@ -104,7 +126,14 @@ def repository_violations() -> tuple[str, ...]:
 
 
 def main() -> int:
-    """Enforce Pydantic-backed production data models."""
+    """Run the repository policy for validated production data models.
+
+    Raises:
+        SystemExit: If a production class uses a prohibited dataclass decorator.
+
+    Returns:
+        Zero when all production data carriers follow the Pydantic policy.
+    """
     violations = repository_violations()
     if violations:
         raise SystemExit("\n".join(violations))

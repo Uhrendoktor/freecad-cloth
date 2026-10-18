@@ -22,7 +22,16 @@ from freecad_cloth.pattern.PatternMesh import _self_intersects
 
 
 def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
-    """Create a deterministic 3D cloud for comparable benchmark runs."""
+    """Generate a reproducible 3D point cloud for geometry timing comparisons.
+
+    Args:
+        count: Number of 3D points to generate.
+        seed: Random-generator seed used to make the point cloud deterministic.
+        offset: X-coordinate offset applied to every generated point.
+
+    Returns:
+        Immutable tuple of generated 3D points.
+    """
     generator = Random(seed)
     return tuple(
         (
@@ -35,7 +44,14 @@ def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
 
 
 def _simple_ring(count: int) -> tuple[Point, ...]:
-    """Create a counter-clockwise polygon with no self-intersections."""
+    """Generate a regular counter-clockwise polygon for outline benchmarks.
+
+    Args:
+        count: Number of vertices to distribute around the ring.
+
+    Returns:
+        Immutable tuple of 2D vertices in counter-clockwise order.
+    """
     return tuple(
         (100.0 * cos(tau * index / count), 100.0 * sin(tau * index / count))
         for index in range(count)
@@ -43,14 +59,39 @@ def _simple_ring(count: int) -> tuple[Point, ...]:
 
 
 def _reference_clearance(garment: Sequence[Point3], target: Sequence[Point3]) -> float:
-    """Former scalar nearest-point calculation, retained only as a benchmark oracle."""
+    """Compute the scalar-reference clearance used to validate the optimized query.
+
+    Args:
+        garment: Garment mesh vertices represented as 3D points.
+        target: Target surface vertices represented as 3D points.
+
+    Returns:
+        Minimum Euclidean distance between any garment and target point.
+    """
     return min(dist(source, candidate) for source in garment for candidate in target)
 
 
 def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
-    """Former tolerance-aware segment predicate, retained only as a benchmark oracle."""
+    """Evaluate the former Python segment-intersection predicate as an oracle.
+
+    Args:
+        points: Ordered vertices describing a polygonal outline.
+
+    Returns:
+        True when non-adjacent segments intersect beyond the reference tolerance.
+    """
 
     def cross(a: Point, b: Point, c: Point) -> float:
+        """Return the signed 2D cross product for the directed segments AB and AC.
+
+        Args:
+            a: Shared origin point for the two directed segments.
+            b: End point of the first directed segment.
+            c: End point of the second directed segment.
+
+        Returns:
+            Signed twice-triangle area, whose sign gives the orientation.
+        """
         return ((b[0] - a[0]) * (c[1] - a[1])) - ((b[1] - a[1]) * (c[0] - a[0]))
 
     for i in range(len(points)):
@@ -66,7 +107,14 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
 
 
 def _time_clearance(count: int) -> None:
-    """Compare optimized nearest-point query time and scalar reference time."""
+    """Measure the accelerated and scalar-reference nearest-point implementations.
+
+    Args:
+        count: Number of garment points and target points in the benchmark case.
+
+    Raises:
+        AssertionError: If the optimized and reference clearances differ beyond tolerance.
+    """
     garment = _point_cloud(count, 1729, 0.0)
     target = _point_cloud(count, 2718, 300.0)
 
@@ -91,7 +139,14 @@ def _time_clearance(count: int) -> None:
 
 
 def _time_outline(count: int) -> None:
-    """Compare GEOS-backed simplicity check with the Python reference predicate."""
+    """Measure the GEOS-backed and Python polygon-simplicity predicates.
+
+    Args:
+        count: Number of vertices in the benchmark polygon.
+
+    Raises:
+        AssertionError: If the optimized and reference predicates return different results.
+    """
     points = _simple_ring(count)
 
     started = perf_counter()
@@ -115,7 +170,17 @@ def _time_outline(count: int) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Validate and time required geometry library implementations."""
+    """Validate equivalent geometry results before reporting performance timings.
+
+    Args:
+        argv: Optional command-line arguments; None uses the process arguments.
+
+    Raises:
+        SystemExit: If a requested benchmark size is below the minimum of 32.
+
+    Returns:
+        Zero when all requested geometry benchmark cases complete successfully.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=(128, 512, 1024))
     args = parser.parse_args(argv)

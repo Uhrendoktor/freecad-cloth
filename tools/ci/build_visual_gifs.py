@@ -10,7 +10,14 @@ from pathlib import Path
 
 
 def image_tool() -> str:
-    """Return the available ImageMagick executable."""
+    """Locate the ImageMagick executable used to assemble animation frames.
+
+    Raises:
+        SystemExit: If neither supported ImageMagick executable is available.
+
+    Returns:
+        Executable name or path suitable for subprocess invocation.
+    """
     tool = shutil.which("magick") or shutil.which("convert")
     if not tool:
         raise SystemExit("ImageMagick is required on the CI runner")
@@ -18,7 +25,20 @@ def image_tool() -> str:
 
 
 def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int = 50) -> None:
-    """Build a GIF from a sequence of PNG frames."""
+    """Assemble PNG frames into a non-empty animated GIF.
+
+    Args:
+        tool: ImageMagick executable name or path.
+        frames: Ordered PNG frame paths to encode.
+        output: Destination path for the generated GIF.
+        delay: ImageMagick frame delay expressed in its command-line units.
+        timeout: Maximum runtime in seconds before the build is terminated.
+
+    Raises:
+        SystemExit: If no frames are supplied or the output file is missing or empty.
+        subprocess.CalledProcessError: If ImageMagick exits with a non-zero status.
+        subprocess.TimeoutExpired: If ImageMagick exceeds the configured time limit.
+    """
     if not frames:
         raise SystemExit(f"no frames found for {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -32,7 +52,16 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
 
 
 def main() -> int:
-    """Build the requested repository visual GIF set."""
+    """Build the requested documentation animations from captured frame sets.
+
+    Raises:
+        SystemExit: If arguments are invalid, frames are incomplete, or ImageMagick is unavailable.
+        subprocess.CalledProcessError: If ImageMagick exits unsuccessfully.
+        subprocess.TimeoutExpired: If an image conversion exceeds its timeout.
+
+    Returns:
+        Zero after every GIF required by the selected kind has been generated.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("kind", choices=("turntables", "blanket", "tunic"))
     args = parser.parse_args()
