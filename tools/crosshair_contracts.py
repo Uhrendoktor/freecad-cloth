@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from importlib import import_module
 from math import isclose
-from typing import Callable, NamedTuple, cast
+from collections.abc import Callable
+from typing import NamedTuple, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
@@ -19,10 +20,13 @@ COORDINATE_LIMIT = 1e6
 LARGE_FLOAT_LIMIT = 1e100
 ABSOLUTE_TEST_TOLERANCE = 1e-9
 
+_Point2D = tuple[float, float]
+_LineIntersection = Callable[[_Point2D, _Point2D, _Point2D, _Point2D], _Point2D | None]
+
 _PATTERN_GEOMETRY = import_module("freecad_cloth.pattern.PatternGeometry")
 _PRODUCTION_LERP = cast("Callable[[float, float, float], float]", vars(_PATTERN_GEOMETRY)["_lerp"])
 _PRODUCTION_LINE_INTERSECTION = cast(
-    "Callable[\n        [tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]],\n        tuple[float, float] | None,\n    ]",
+    "_LineIntersection",
     vars(_PATTERN_GEOMETRY)["_line_intersection"],
 )
 _PRODUCTION_DISTANCE_2D = cast(
