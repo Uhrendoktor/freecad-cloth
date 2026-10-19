@@ -7,7 +7,11 @@ import argparse
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from subprocess import run
+
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 TURNTABLE_FRAME_COUNT = 73
 
@@ -45,7 +49,7 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
         msg = f"no frames found for {output}"
         raise SystemExit(msg)
     output.parent.mkdir(parents=True, exist_ok=True)
-    run(
+    run_command(
         [
             tool,
             "-delay",
@@ -58,7 +62,6 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
             str(output),
         ],
         check=True,
-        shell=False,
         timeout=timeout,
     )
     if not output.is_file() or not output.stat().st_size:

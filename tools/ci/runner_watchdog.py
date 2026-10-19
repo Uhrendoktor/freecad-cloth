@@ -8,7 +8,11 @@ import os
 import shutil
 import sys
 import time
-from subprocess import run
+
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 
 def _gh_executable() -> str:
@@ -36,10 +40,9 @@ def gh(*args: str) -> str:
     Returns:
         Standard output emitted by the successful CLI command.
     """
-    result = run(
+    result = run_command(
         [_gh_executable(), *args],
         check=True,
-        shell=False,
         capture_output=True,
         text=True,
         timeout=10,
@@ -59,9 +62,8 @@ def main() -> int:
     executable = _gh_executable()
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        jobs = json.loads(gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")).get(
-            "jobs", []
-        )
+        jobs_payload = gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")
+        jobs = json.loads(jobs_payload).get("jobs", [])
         sentinel = next(
             (job for job in jobs if job.get("name") == "Selected runner readiness"), None
         )
@@ -75,7 +77,7 @@ def main() -> int:
         if state == "completed":
             break
         time.sleep(5)
-    run(
+    run_command(
         [
             executable,
             "workflow",
@@ -95,7 +97,7 @@ def main() -> int:
         timeout=10,
     )
     time.sleep(2)
-    run(
+    run_command(
         [executable, "api", "--method", "POST", f"repos/{repo}/actions/runs/{run_id}/cancel"],
         check=False,
         shell=False,

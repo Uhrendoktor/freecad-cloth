@@ -7,7 +7,11 @@ import argparse
 import shutil
 import sys
 from pathlib import Path
-from subprocess import run
+
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 
 def main() -> int:
@@ -29,12 +33,10 @@ def main() -> int:
         msg = "docker executable not found on PATH"
         raise SystemExit(msg)
 
-    result = run(
+    result = run_command(
         [docker, "run", "--rm", args.image, "bash", "-lc", "cat /opt/pypbd-provenance.txt"],
         check=True,
-        shell=False,
         capture_output=True,
-        text=True,
         timeout=20,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
