@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -56,17 +58,23 @@ REQUIRED_LOG_MARKERS = {
 }
 
 
+class _VisualCaptureValidationModule(Protocol):
+    """Describe the lazily loaded screenshot validator module."""
+
+    validate_png_capture: Callable[..., dict[str, int]]
+
+
 def _png_capture_validator() -> Callable[..., dict[str, int]]:
     """Load screenshot validation only for cases that require image decoding.
 
     Returns:
         Callable that validates screenshot dimensions and pixel evidence.
     """
-    validator = getattr(
+    module = cast(
+        "_VisualCaptureValidationModule",
         import_module("freecad_cloth.common.VisualCaptureValidation"),
-        "validate_png_capture",
     )
-    return cast("Callable[..., dict[str, int]]", validator)
+    return module.validate_png_capture
 
 
 def main() -> int:

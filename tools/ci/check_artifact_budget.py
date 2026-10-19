@@ -3,18 +3,19 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import sys
-from typing import TypeAlias, cast, TYPE_CHECKING
-from urllib.error import HTTPError, URLError
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-JSONValue: TypeAlias = str | int | float | bool | list["JSONValue"] | dict[str, "JSONValue"] | None
+type JSONValue = (
+    str | int | float | bool | list[JSONValue] | dict[str, JSONValue] | None
+)
 
 API_VERSION = "2022-11-28"
 MAX_ARTIFACT_BYTES = 10_000_000
@@ -58,22 +59,28 @@ def fetch_artifact_page(
         Artifact records returned for the requested page.
 
     Raises:
-        RuntimeError: Raised when the API request or response is invalid.
+        RuntimeError: If the HTTPS request fails, the API returns an error status, or JSON is invalid.
+        TypeError: If the JSON response does not have the expected object/list structure.
     """
     query = urlencode({"per_page": PAGE_SIZE, "page": page})
-    url = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?{query}"
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": API_VERSION,
-        },
-    )
+    request_path = f"/repos/{repository}/actions/runs/{run_id}/artifacts?{query}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": API_VERSION,
+    }
     try:
-        with urlopen(request, timeout=20) as response:
-            payload = cast("JSONValue", json.load(response))
-    except (HTTPError, URLError) as exc:
+        with http.client.HTTPSConnection("api.github.com", timeout=20) as connection:
+            connection.request("GET", request_path, headers=headers)
+            response = connection.getresponse()
+            if response.status != http.client.OK:
+                msg = (
+                    "GitHub artifact API request failed: "
+                    f"HTTP {response.status} {response.reason}"
+                )
+                raise RuntimeError(msg)
+            payload = cast("JSONValue", json.loads(response.read()))
+    except (http.client.HTTPException, OSError) as exc:
         msg = f"GitHub artifact API request failed: {exc}"
         raise RuntimeError(msg) from exc
     except json.JSONDecodeError as exc:
@@ -82,16 +89,16 @@ def fetch_artifact_page(
 
     if not isinstance(payload, dict):
         msg = "GitHub artifact API response must be an object"
-        raise RuntimeError(msg)
+        raise TypeError(msg)
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
         msg = "GitHub artifact API response has no artifact list"
-        raise RuntimeError(msg)
+        raise TypeError(msg)
     normalized: list[Mapping[str, object]] = []
     for item in artifacts:
         if not isinstance(item, dict):
             msg = "GitHub artifact API returned a malformed artifact list"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         normalized.append(item)
     return normalized
 
@@ -127,27 +134,29 @@ def main() -> int:
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     run_id_text = os.environ.get("GITHUB_RUN_ID", "").strip()
     if not repository or not token or not run_id_text:
-        print("GITHUB_REPOSITORY, GITHUB_TOKEN, and GITHUB_RUN_ID are required", file=sys.stderr)
+        sys.stderr.write("GITHUB_REPOSITORY, GITHUB_TOKEN, and GITHUB_RUN_ID are required\n")
         return 2
     try:
         run_id = int(run_id_text)
     except ValueError:
-        print(f"GITHUB_RUN_ID is not an integer: {run_id_text!r}", file=sys.stderr)
+        sys.stderr.write(f"GITHUB_RUN_ID is not an integer: {run_id_text!r}\n")
         return 2
 
     artifacts = fetch_run_artifacts(repository, run_id, token)
     total = accumulated_size(artifacts)
-    print(f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}")
+    sys.stdout.write(
+        f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}\n"
+    )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
-        print(
-            f"artifact={artifact.get('name', '<unnamed>')} size={artifact['size_in_bytes']} bytes"
+        sys.stdout.write(
+            f"artifact={artifact.get('name', '<unnamed>')} "
+            f"size={artifact['size_in_bytes']} bytes\n"
         )
 
     if total > MAX_ARTIFACT_BYTES:
-        print(
-            f"Accumulated artifact size exceeds the 10 MB limit by "
-            f"{total - MAX_ARTIFACT_BYTES} bytes.",
-            file=sys.stderr,
+        sys.stderr.write(
+            "Accumulated artifact size exceeds the 10 MB limit by "
+            f"{total - MAX_ARTIFACT_BYTES} bytes.\n"
         )
         return 1
     return 0
