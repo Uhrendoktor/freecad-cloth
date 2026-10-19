@@ -8,9 +8,9 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import import_module
 from math import isclose
-from collections.abc import Callable
 from typing import NamedTuple, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
