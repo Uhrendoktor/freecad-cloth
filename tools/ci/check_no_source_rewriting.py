@@ -177,7 +177,9 @@ def _assignment_names(node: ast.Assign | ast.AnnAssign | ast.NamedExpr) -> set[s
     return names
 
 
-def _seed_python_path_names(assignments: list[ast.Assign | ast.AnnAssign | ast.NamedExpr]) -> set[str]:
+def _seed_python_path_names(
+    assignments: list[ast.Assign | ast.AnnAssign | ast.NamedExpr],
+) -> set[str]:
     """Find assignments whose values identify a Python source path.
 
     Args:
