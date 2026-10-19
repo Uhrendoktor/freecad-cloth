@@ -681,5 +681,5 @@ def test_main_publication_checks_out_source_before_local_publisher_action() -> N
 
     assert publisher_job.count(checkout) == 1
     assert publisher_job.index(checkout) < publisher_job.index(local_action)
-    assert "ref: ${{ github.sha }}" in publisher_job
+    assert 'ref: "${{ github.sha }}"' in publisher_job
     assert "persist-credentials: false" in publisher_job
