@@ -103,8 +103,7 @@ def _validate_simulation_case(
     """
     data = read(path)
     valid_header = (
-        data.get("schema") == EXPECTED_MANIFEST_SCHEMA_VERSION
-        and data.get("purpose") == purpose
+        data.get("schema") == EXPECTED_MANIFEST_SCHEMA_VERSION and data.get("purpose") == purpose
     )
     if not valid_header:
         msg = f"{name}: invalid manifest header"
@@ -390,9 +389,7 @@ def _validate_tunic_images(generated: Path, *, require_canonical_e2e: bool) -> N
         if not path.is_file() or not path.stat().st_size:
             msg = f"tunic: missing image {path}"
             raise SystemExit(msg)
-    motion_frames = list(
-        (generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png")
-    )
+    motion_frames = list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))
     if len(motion_frames) != EXPECTED_TUNIC_MOTION_FRAME_COUNT:
         msg = "tunic: wrong mannequin motion frame count"
         raise SystemExit(msg)
