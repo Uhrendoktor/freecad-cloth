@@ -337,6 +337,7 @@ def _record_exec_compile_violation(
 
     Args:
         expression: First argument passed to the nested compile call.
+        call_line: Line number of the outer exec call for stable diagnostics.
         analysis: Module analysis state with known source aliases and diagnostics.
     """
     generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
