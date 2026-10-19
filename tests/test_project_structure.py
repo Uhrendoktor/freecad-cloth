@@ -78,7 +78,7 @@ def test_classic_and_modern_loaders_share_registration_implementation() -> None:
         "ClothSewingWorkbench",
     ):
         assert f'("{workbench}",' in bootstrap
-    assert bootstrap.count("Gui.addWorkbench(workbench_type())") == 1
+    assert bootstrap.count("addWorkbench(workbench_type())") == 1
 
 
 def test_shared_contract_is_freecad_independent():
