@@ -301,6 +301,7 @@ def validate_metrics(payload: object) -> list[str]:
     errors.extend(_validate_runtime(metrics))
     return errors
 
+
 def main() -> int:
     """Read and independently validate a saved realtime metric artifact.
 
