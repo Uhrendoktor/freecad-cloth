@@ -4,8 +4,9 @@
 import importlib
 from pathlib import Path
 
-from defusedxml import ElementTree
 import pytest
+
+from defusedxml import ElementTree
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
@@ -108,11 +109,15 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     workbench.Initialize()
     fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
     avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
-    expected = {
-        command
-        for _name, group in SEWING_COMMAND_GROUPS
-        for command in group
-    } | set(fitting.COMMANDS) | set(avatar.COMMANDS)
+    expected = (
+        {
+            command
+            for _name, group in SEWING_COMMAND_GROUPS
+            for command in group
+        }
+        | set(fitting.COMMANDS)
+        | set(avatar.COMMANDS)
+    )
     _require(
         set(workbench.commands) == expected,
         "Sewing workbench commands differ from the sewing, fitting, and avatar registrations.",
