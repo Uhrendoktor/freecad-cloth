@@ -20,10 +20,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from freecad_cloth.common.MeshValidation import Point3, nearest_target_clearance
-from freecad_cloth.pattern.PatternMesh import _self_intersects
+from shapely.geometry import LineString
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
     from freecad_cloth.pattern.PatternGeometry import Point
 
 
@@ -162,7 +163,7 @@ def _time_outline(count: int) -> None:
     points = _simple_ring(count)
 
     started = perf_counter()
-    accelerated = _self_intersects(points)
+    accelerated = not LineString([*points, points[0]]).is_simple
     accelerated_seconds = perf_counter() - started
 
     started = perf_counter()
