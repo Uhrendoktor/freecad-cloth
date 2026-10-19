@@ -69,8 +69,6 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     )
     assert 'timeout: "240"' in readiness_row
     timeout_contract = (ROOT / "tools" / "ci" / "timeout_contract.py").read_text(encoding="utf-8")
-        encoding="utf-8"
-    )
     assert 'timeout: "240"' in timeout_contract
     assert "freecad_application_timeout_seconds" not in workflow
     assert 'default: "120"' in action
