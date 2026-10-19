@@ -63,6 +63,15 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     assert workflow.count("timeout-seconds:") == 2
     assert 'timeout-seconds: "360"' in simulation_ladder
     assert "timeout-seconds: ${{ matrix.timeout || '120' }}" in workflow
+    gui_simple = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+    readiness_row = next(
+        line for line in gui_simple.splitlines() if "case: simulation-quality" in line
+    )
+    assert 'timeout: "240"' in readiness_row
+    timeout_contract = (ROOT / "tools" / "ci" / "timeout_contract.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'timeout: "240"' in timeout_contract
     assert "freecad_application_timeout_seconds" not in workflow
     assert 'default: "120"' in action
     assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in action
