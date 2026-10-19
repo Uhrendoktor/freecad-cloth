@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 SUCCESS_EXIT_CODE = 0
 MINIMUM_TIMEOUT_SECONDS = 0.0
@@ -76,14 +79,14 @@ async def _run_async(
     command: tuple[str, ...],
     *,
     capture_output: bool,
-    timeout: float | None,
+    deadline: float | None,
 ) -> CommandResult:
     """Execute an argument vector and collect output when requested.
 
     Args:
         command: Executable path and arguments passed to the child process.
         capture_output: Whether to capture both standard output and standard error.
-        timeout: Maximum runtime in seconds, or None to wait without a deadline.
+        deadline: Maximum runtime in seconds, or None to wait without a deadline.
 
     Returns:
         Exit status and captured output from the child process.
@@ -99,16 +102,17 @@ async def _run_async(
         stderr=output_target,
     )
     try:
-        if timeout is None:
+        if deadline is None:
             stdout, stderr = await process.communicate()
         else:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout)
+            async with asyncio.timeout(deadline):
+                stdout, stderr = await process.communicate()
     except TimeoutError as exc:
         process.kill()
         stdout, stderr = await process.communicate()
         stdout_text = stdout.decode("utf-8", errors="replace") if stdout is not None else ""
         stderr_text = stderr.decode("utf-8", errors="replace") if stderr is not None else ""
-        raise CommandTimeoutError(command, timeout, stdout_text, stderr_text) from exc
+        raise CommandTimeoutError(command, deadline, stdout_text, stderr_text) from exc
 
     if process.returncode is None:
         msg = f"Command {list(command)!r} ended without an exit status."
@@ -138,10 +142,8 @@ def run_command(
 
     Raises:
         TypeError: If a command argument is not a string.
-        ValueError: If the argument vector is empty, includes a null byte, or the timeout is invalid.
+        ValueError: If arguments are empty, contain NUL, or timeout is not positive.
         CommandExecutionError: If check is true and the child exits unsuccessfully.
-        CommandTimeoutError: If the child exceeds its timeout.
-        OSError: If the operating system cannot start the executable.
     """
     arguments = tuple(command)
     if not arguments:
@@ -157,9 +159,7 @@ def run_command(
         msg = f"command timeout must be positive, got {timeout}"
         raise ValueError(msg)
 
-    result = asyncio.run(
-        _run_async(arguments, capture_output=capture_output, timeout=timeout)
-    )
+    result = asyncio.run(_run_async(arguments, capture_output=capture_output, deadline=timeout))
     if check and result.returncode != SUCCESS_EXIT_CODE:
         raise CommandExecutionError(
             arguments,
