@@ -359,6 +359,7 @@ jobs:
           - {case: avatar-provider-lifecycle, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-provider-lifecycle-run.log, artifact: avatar-provider-lifecycle, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-provider-lifecycle"}
           - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
+          - {case: simulation-quality, script: tests/freecad_simulation_quality_acceptance.py, log: artifacts/simulation-quality-acceptance.log, artifact: simulation-quality-acceptance, stage: "true", clean: "false", env: "CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR=/workspace/artifacts", pre: "", validate: "python3 tools/ci/validate_acceptance.py simulation-quality"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
           - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py surface-pen"}
@@ -403,7 +404,6 @@ jobs:
       - name: Independently validate realtime performance metrics
         if: always()
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
-
       - uses: ./.github/actions/freecad-test
         if: always()
         with:

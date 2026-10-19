@@ -55,8 +55,10 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only():
         "avatar-pose",
         "avatar-shape-editor",
         "fitting",
+        "simulation-quality",
         "surface-pen",
     }
+    assert len(validate_acceptance.REQUIRED_SCREENSHOTS["simulation-quality"]) == 1
     assert len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == 4
     assert len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"]) == 2
     assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values())

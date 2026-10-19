@@ -3,10 +3,24 @@
 import contextlib
 import os
 import tempfile
+import time
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+
+
+def _progress(message: str) -> None:
+    """Persist milestones so CI timeouts show where native FreeCAD stopped."""
+    directory = os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts")
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, "simulation-quality-progress.log")
+    with open(path, "a", encoding="utf-8") as stream:
+        stream.write(message + "\n")
+        stream.flush()
+
+
+_progress("fixture-imported")
 
 
 def _events():
@@ -16,6 +30,61 @@ def _events():
     except ImportError:
         from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
+
+
+def _capture_readiness_screen(path: str) -> dict[str, int]:
+    """Capture the visible native Simulation Quality task panel at a stable size."""
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+
+    app = QtWidgets.QApplication.instance()
+    screen = None if app is None else app.primaryScreen()
+    window = Gui.getMainWindow()
+    if app is None or screen is None or window is None:
+        raise RuntimeError("FreeCAD main window/screen is unavailable for readiness screenshot")
+
+    geometry = screen.availableGeometry()
+    if geometry.width() < 1280 or geometry.height() < 720:
+        raise RuntimeError(
+            "Simulation readiness screenshot requires a 1280x720-capable screen, got %dx%d"
+            % (geometry.width(), geometry.height())
+        )
+
+    window.resize(1280, 720)
+    window.show()
+    if hasattr(window, "raise_"):
+        window.raise_()
+    if hasattr(window, "activateWindow"):
+        window.activateWindow()
+    _events()
+    time.sleep(0.10)
+    _events()
+
+    pixmap = screen.grabWindow(int(window.winId()))
+    if pixmap.isNull():
+        raise RuntimeError("FreeCAD readiness screenshot is null")
+    width, height = int(pixmap.width()), int(pixmap.height())
+    if (width, height) != (1280, 720):
+        raise RuntimeError(
+            "Simulation readiness screenshot dimensions are %dx%d, expected 1280x720"
+            % (width, height)
+        )
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    if not pixmap.save(path):
+        raise RuntimeError("failed to save Simulation Quality readiness screenshot")
+
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+
+    return validate_png_capture(
+        path,
+        expected_width=1280,
+        expected_height=720,
+        min_nonwhite_pixels=500,
+        min_distinct_rgb=16,
+        min_opaque_pixels=500,
+    )
 
 
 def _close_task():
@@ -43,11 +112,16 @@ def _panel_value(panel, widget_name):
 
 
 def run_acceptance():
+    _progress("acceptance-start")
     doc = App.newDocument("SimulationQualityAcceptance")
+    _progress("document-created")
     try:
         _activate("ClothPatternWorkbench", ["ClothPattern_CreatePieceWithSketch"])
+        _progress("pattern-workbench-activated")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _progress("front-piece-command-finished")
         Gui.runCommand("ClothPattern_CreatePieceWithSketch", 0)
+        _progress("back-piece-command-finished")
         pieces = _find_pieces(doc)
         if len(pieces) != 2:
             raise RuntimeError("public Pattern command did not create two PatternPiece objects")
@@ -55,13 +129,16 @@ def run_acceptance():
         front.Placement.Base.x = -140
         back.Placement.Base.x = 20
         doc.recompute()
+        _progress("pattern-pieces-created")
 
         _activate(
             "ClothSimulationWorkbench",
             ["ClothSimulation_Create", "ClothSimulation_Edit", "ClothSimulation_Reset"],
         )
         Gui.Selection.clearSelection()
+        _progress("simulation-workbench-activated")
         Gui.runCommand("ClothSimulation_Create", 0)
+        _progress("simulation-create-command-finished")
         scene = doc.getObject("ClothSimulation")
         if scene is None:
             raise RuntimeError(
@@ -85,6 +162,7 @@ def run_acceptance():
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(target_body)
         Gui.runCommand("ClothDrape_CreateTarget", 0)
+        _progress("drape-target-command-finished")
         doc.recompute()
         target = doc.getObject("DrapeTarget")
         if target is None or scene.DrapeTarget != target:
@@ -124,12 +202,38 @@ def run_acceptance():
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
+        _progress("ready-panel-shown")
         if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
             raise RuntimeError(
                 "simulation panel did not expose the Arrange / Fit / target-snap bridge"
             )
+        if not hasattr(panel, "workflow_labels") or set(panel.workflow_labels) != {
+            "patterns",
+            "sewing",
+            "target",
+            "arrangement",
+            "simulation",
+        }:
+            raise RuntimeError(
+                "simulation panel did not expose the complete workflow readiness checklist"
+            )
+        if panel.workflow_labels["patterns"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the assigned pattern pieces")
+        if panel.workflow_labels["target"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the current drape target")
+        if panel.workflow_labels["simulation"].property("workflowState") != "ready":
+            raise RuntimeError("workflow checklist did not recognize the minimum simulation inputs")
+        artifact_dir = os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts")
+        readiness_image = os.path.join(artifact_dir, "simulation-quality-readiness.png")
+        readiness_metrics = _capture_readiness_screen(readiness_image)
+        print(
+            "simulation-quality-readiness-screenshot=passed path=%s metrics=%s"
+            % (readiness_image, readiness_metrics),
+            flush=True,
+        )
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
+        _progress("ready-screenshot-saved")
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
@@ -168,6 +272,7 @@ def run_acceptance():
             App.closeDocument(doc.Name)
             doc = None
             reloaded = App.openDocument(path)
+            _progress("document-reloaded")
             scene = reloaded.getObject("ClothSimulation")
             target = reloaded.getObject("DrapeTarget")
             target_body = reloaded.getObject("QualityAcceptanceTarget")
@@ -222,6 +327,7 @@ def run_acceptance():
 
             target_body.Placement.Base.x += 15.0
             reloaded.recompute()
+            _progress("target-made-stale")
             status = target_status(target)
             if status["state"] != "stale" or not status["stale"]:
                 raise RuntimeError(
@@ -242,6 +348,19 @@ def run_acceptance():
                 raise RuntimeError(
                     "stale-target status did not expose a user-facing blocked reason"
                 )
+            if panel.workflow_labels["target"].property("workflowState") != "blocked":
+                raise RuntimeError("workflow checklist did not mark a stale drape target blocked")
+            if panel.workflow_labels["simulation"].property("workflowState") != "blocked":
+                raise RuntimeError("workflow checklist did not block simulation for a stale target")
+            _progress("stale-panel-shown")
+            stale_image = os.path.join(artifact_dir, "simulation-quality-stale-target.png")
+            stale_metrics = _capture_readiness_screen(stale_image)
+            print(
+                "simulation-quality-stale-target-screenshot=passed path=%s metrics=%s"
+                % (stale_image, stale_metrics),
+                flush=True,
+            )
+            _progress("stale-screenshot-saved")
             _close_task()
 
             Gui.Selection.clearSelection()
@@ -252,8 +371,10 @@ def run_acceptance():
             status = target_status(target)
             if status["state"] != "ready":
                 raise RuntimeError("public DrapeTarget refresh did not restore a ready target")
+            _progress("target-refresh-finished")
             Gui.runCommand("ClothSimulation_Step", 0)
             reloaded.recompute()
+            _progress("simulation-step-finished")
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
                 raise RuntimeError(
                     "public Simulation Step did not recover after stale-target refresh"
@@ -268,5 +389,11 @@ def run_acceptance():
                 App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
+_progress("entrypoint-entered")
+try:
     run_acceptance()
+except BaseException as exc:
+    print("simulation-quality-acceptance=failed error=%r" % (exc,), flush=True)
+    App.Console.PrintError("Simulation Quality acceptance failed: %s\\n" % exc)
+    os._exit(1)
+os._exit(0)
