@@ -528,10 +528,8 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "simulation_started" if has_simulation_start else "last_observed_stage"
         )
         next_action = (
-            (
-                "Use the failure log and the last completed stage to localize the first failing "
-                "invariant before changing any parameter."
-            )
+            "Use the failure log and the last completed stage to localize the first failing "
+            "invariant before changing any parameter."
         )
     else:
         result = "incomplete"
@@ -610,7 +608,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         nearby = cast("list[dict[str, object]]", topology["near_crossing"])
         touching = list(
             dict.fromkeys(
-                str(item["edge_id"]) for item in nearby if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
+                str(item["edge_id"])
+            for item in nearby
+            if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             )
         )
         issues.append(
@@ -831,7 +831,10 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                         samples if distance_forward <= distance_reverse else list(reversed(samples))
                     )
             edge_shapes.append((edge_index, local_points, str(boundary.get("id", ""))))
-            if coords and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
+            if (
+                coords
+                and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM
+            ):
                 coords.extend(local_points[1:])
             else:
                 coords.extend(local_points)
@@ -913,7 +916,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                     (
                         f'<text x="{origin_x:.3f}" y="637" font-size="13" '
                         'font-family="sans-serif" fill="#cc2222">Crossing: '
-                        f'({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>'
+                        f"({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>"
                     ),
                 ]
             )
