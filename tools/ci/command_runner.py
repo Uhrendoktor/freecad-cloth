@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 SUCCESS_EXIT_CODE = 0
 MINIMUM_TIMEOUT_SECONDS = 0.0
@@ -21,6 +21,21 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
+
+
+@dataclass(frozen=True, slots=True)
+class CommandContext:
+    """Carry optional environment, working directory, and standard-input text.
+
+    Attributes:
+        cwd: Child working directory, or None to inherit the caller's directory.
+        env: Child environment mapping, or None to inherit the current environment.
+        input_text: UTF-8 text sent to the child's standard input when provided.
+    """
+
+    cwd: str | None = None
+    env: Mapping[str, str] | None = None
+    input_text: str | None = None
 
 
 class CommandExecutionError(RuntimeError):
@@ -80,6 +95,7 @@ async def _run_async(
     *,
     capture_output: bool,
     deadline: float | None,
+    context: CommandContext,
 ) -> CommandResult:
     """Execute an argument vector and collect output when requested.
 
@@ -87,6 +103,7 @@ async def _run_async(
         command: Executable path and arguments passed to the child process.
         capture_output: Whether to capture both standard output and standard error.
         deadline: Maximum runtime in seconds, or None to wait without a deadline.
+        context: Optional child working directory, environment, and input text.
 
     Returns:
         Exit status and captured output from the child process.
@@ -96,17 +113,22 @@ async def _run_async(
         RuntimeError: If the process API does not report an exit status.
     """
     output_target = asyncio.subprocess.PIPE if capture_output else None
+    input_target = asyncio.subprocess.PIPE if context.input_text is not None else None
     process = await asyncio.create_subprocess_exec(
         *command,
+        cwd=context.cwd,
+        env=dict(context.env) if context.env is not None else None,
+        stdin=input_target,
         stdout=output_target,
         stderr=output_target,
     )
+    input_bytes = context.input_text.encode("utf-8") if context.input_text is not None else None
     try:
         if deadline is None:
-            stdout, stderr = await process.communicate()
+            stdout, stderr = await process.communicate(input_bytes)
         else:
             async with asyncio.timeout(deadline):
-                stdout, stderr = await process.communicate()
+                stdout, stderr = await process.communicate(input_bytes)
     except TimeoutError as exc:
         process.kill()
         stdout, stderr = await process.communicate()
@@ -128,6 +150,7 @@ def run_command(
     capture_output: bool = False,
     timeout: float | None = None,
     check: bool = True,
+    context: CommandContext | None = None,
 ) -> CommandResult:
     """Run an external executable with no shell interpolation.
 
@@ -136,6 +159,7 @@ def run_command(
         capture_output: Whether to collect stdout and stderr instead of inheriting them.
         timeout: Maximum runtime in seconds, or None to wait without a deadline.
         check: Whether a non-zero exit status should raise CommandExecutionError.
+        context: Optional child working directory, environment, and standard input.
 
     Returns:
         Child exit status and any captured text output.
@@ -159,7 +183,15 @@ def run_command(
         msg = f"command timeout must be positive, got {timeout}"
         raise ValueError(msg)
 
-    result = asyncio.run(_run_async(arguments, capture_output=capture_output, deadline=timeout))
+    execution_context = context if context is not None else CommandContext()
+    result = asyncio.run(
+        _run_async(
+            arguments,
+            capture_output=capture_output,
+            deadline=timeout,
+            context=execution_context,
+        )
+    )
     if check and result.returncode != SUCCESS_EXIT_CODE:
         raise CommandExecutionError(
             arguments,
