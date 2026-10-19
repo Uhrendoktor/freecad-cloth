@@ -481,7 +481,7 @@ jobs:
           log-file: docs/images/generated/blanket-example/blanket-visual.log
           validate-command: timeout --signal=TERM --kill-after=5s 55s python3 tools/ci/validate_manifests.py blanket
           artifact-name: blanket-visual-example
-          artifact-path: docs/images/generated/blanket-example/**
+          artifact-path: docs/images/generated/**
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
