@@ -2,13 +2,13 @@
 """Headless regression checks for package-owned Cloth workbench registration."""
 
 import importlib
-from pathlib import Path
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
-from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
