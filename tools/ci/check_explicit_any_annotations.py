@@ -248,10 +248,11 @@ def _stringified_annotation_violations(
         return []
 
     line = getattr(annotation, "lineno", node.lineno)
-    return [
+    diagnostic = (
         f"{filename}:{line}: stringified annotation references explicit Any; "
         "use a concrete type, object with narrowing, or a Protocol"
-    ]
+    )
+    return [diagnostic]
 
 
 def _type_comment_any_violations(
@@ -279,10 +280,11 @@ def _type_comment_any_violations(
         return []
 
     line = getattr(node, "lineno", 1)
-    return [
+    diagnostic = (
         f"{filename}:{line}: type comment references explicit Any; "
         "use a concrete type, object with narrowing, or a Protocol"
-    ]
+    )
+    return [diagnostic]
 
 
 def _annotation_any_violations(

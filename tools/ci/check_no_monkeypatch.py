@@ -76,6 +76,7 @@ def _record_forbidden_symbols(
 def _record_import_violations(
     node: ast.AST,
     filename: str,
+    *,
     in_tests: bool,
     module_aliases: set[str],
     violations: list[str],
@@ -139,6 +140,7 @@ def _is_imported_module_attribute(target: ast.AST, module_aliases: set[str]) -> 
 def _record_assignment_violations(
     node: ast.AST,
     filename: str,
+    *,
     in_tests: bool,
     module_aliases: set[str],
     violations: list[str],
@@ -180,6 +182,7 @@ def _is_sys_modules_mutation_call(node: ast.Call) -> bool:
 
 def _is_module_replacement_setattr(
     node: ast.Call,
+    *,
     in_tests: bool,
     module_aliases: set[str],
 ) -> bool:
@@ -204,6 +207,7 @@ def _is_module_replacement_setattr(
 def _record_call_violations(
     node: ast.AST,
     filename: str,
+    *,
     in_tests: bool,
     module_aliases: set[str],
     violations: list[str],
@@ -223,7 +227,7 @@ def _record_call_violations(
         violations.append(
             f"{filename}:{node.lineno}: sys.modules mutation is forbidden; inject dependencies"
         )
-    if _is_module_replacement_setattr(node, in_tests, module_aliases):
+    if _is_module_replacement_setattr(node, in_tests=in_tests, module_aliases=module_aliases):
         violations.append(
             f"{filename}:{node.lineno}: replacing an imported module attribute is forbidden; "
             "inject dependencies"
@@ -252,10 +256,28 @@ def python_monkeypatch_violations(source: str, filename: str = "<source>") -> tu
 
     for node in ast.walk(tree):
         _record_forbidden_symbols(node, filename, violations)
-        _record_import_violations(node, filename, in_tests, module_aliases, violations)
+        _record_import_violations(
+            node,
+            filename,
+            in_tests=in_tests,
+            module_aliases=module_aliases,
+            violations=violations,
+        )
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.Delete)):
-            _record_assignment_violations(node, filename, in_tests, module_aliases, violations)
-        _record_call_violations(node, filename, in_tests, module_aliases, violations)
+            _record_assignment_violations(
+                node,
+                filename,
+                in_tests=in_tests,
+                module_aliases=module_aliases,
+                violations=violations,
+            )
+        _record_call_violations(
+            node,
+            filename,
+            in_tests=in_tests,
+            module_aliases=module_aliases,
+            violations=violations,
+        )
     return tuple(sorted(set(violations)))
 
 
