@@ -690,8 +690,8 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    blanket_job = workflow.split("  gui-visual-examples:\\n", maxsplit=1)[1].split(
-        "\\n  publish-pr-simulation-evidence:", maxsplit=1
+    blanket_job = workflow.split("  gui-visual-examples:\n", maxsplit=1)[1].split(
+        "\n  publish-pr-simulation-evidence:", maxsplit=1
     )[0]
 
     # Keep the generated-directory prefix outside the upload wildcard so the
