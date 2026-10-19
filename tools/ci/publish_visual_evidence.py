@@ -11,16 +11,14 @@ import tempfile
 from pathlib import Path
 
 if __package__:
-    import tools.ci.visual_evidence as visual_evidence
-
+    from tools.ci import visual_evidence
     from tools.ci.build_visual_gifs import build, image_tool
     from tools.ci.command_runner import CommandContext, CommandResult, run_command
     from tools.ci.visual_evidence import documented_assets, verify, write_provenance
 else:
-    import visual_evidence
-
     from build_visual_gifs import build, image_tool
     from command_runner import CommandContext, CommandResult, run_command
+    import visual_evidence
     from visual_evidence import documented_assets, verify, write_provenance
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
