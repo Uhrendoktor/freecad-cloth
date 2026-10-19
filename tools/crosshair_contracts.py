@@ -8,16 +8,31 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 
 from __future__ import annotations
 
+from importlib import import_module
 from math import isclose
-from typing import NamedTuple, cast
+from typing import Callable, NamedTuple, cast
 
-import freecad_cloth.pattern.PatternGeometry as pattern_geometry
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
 
 COORDINATE_LIMIT = 1e6
 LARGE_FLOAT_LIMIT = 1e100
 ABSOLUTE_TEST_TOLERANCE = 1e-9
+
+_PATTERN_GEOMETRY = import_module("freecad_cloth.pattern.PatternGeometry")
+_PRODUCTION_LERP = cast("Callable[[float, float, float], float]", vars(_PATTERN_GEOMETRY)["_lerp"])
+_PRODUCTION_LINE_INTERSECTION = cast(
+    "Callable[[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]], tuple[float, float] | None]",
+    vars(_PATTERN_GEOMETRY)["_line_intersection"],
+)
+_PRODUCTION_DISTANCE_2D = cast(
+    "Callable[[tuple[float, float], tuple[float, float]], float]",
+    vars(_PATTERN_GEOMETRY)["_distance"],
+)
+_PRODUCTION_SIGNED_AREA = cast(
+    "Callable[[tuple[tuple[float, float], ...]], float]",
+    vars(_PATTERN_GEOMETRY)["signed_area"],
+)
 
 
 class _CoordinatePoint(NamedTuple):
@@ -173,7 +188,7 @@ def interpolation_contract(start: float, end: float, fraction: float) -> float:
     pre: -LARGE_FLOAT_LIMIT <= end <= LARGE_FLOAT_LIMIT
     pre: 0.0 <= fraction <= 1.0
     """
-    result = pattern_geometry._lerp(start, end, fraction)
+    result = _PRODUCTION_LERP(start, end, fraction)
     _require(
         condition=min(start, end) <= result <= max(start, end),
         message="interpolated value must remain inside its endpoint interval",
@@ -199,7 +214,7 @@ def parallel_line_intersection_contract(y: float) -> None:
 
     pre: -COORDINATE_LIMIT <= y <= COORDINATE_LIMIT
     """
-    result = pattern_geometry._line_intersection(
+    result = _PRODUCTION_LINE_INTERSECTION(
         (0.0, y),
         (1.0, y),
         (0.0, y + 1.0),
@@ -221,17 +236,17 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     pre: -COORDINATE_LIMIT <= x <= COORDINATE_LIMIT
     pre: -COORDINATE_LIMIT <= y <= COORDINATE_LIMIT
     """
-    result = pattern_geometry._line_intersection(
+    result = _PRODUCTION_LINE_INTERSECTION(
         (-1.0, y),
         (1.0, y),
         (x, -1.0),
         (x, 1.0),
     )
     _require(condition=result is not None, message="perpendicular lines must intersect")
-    assert result is not None
+    point = cast("tuple[float, float]", result)
     _require(
         condition=isclose(
-            result[0],
+            point[0],
             x,
             rel_tol=0.0,
             abs_tol=ABSOLUTE_TEST_TOLERANCE,
@@ -240,14 +255,14 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     )
     _require(
         condition=isclose(
-            result[1],
+            point[1],
             y,
             rel_tol=0.0,
             abs_tol=ABSOLUTE_TEST_TOLERANCE,
         ),
         message="intersection vertical coordinate must match the horizontal line",
     )
-    return result
+    return point
 
 
 def polygon_area_orientation_contract(side: float) -> float:
@@ -263,8 +278,8 @@ def polygon_area_orientation_contract(side: float) -> float:
     """
     square = ((0.0, 0.0), (side, 0.0), (side, side), (0.0, side))
     reversed_square = tuple(reversed(square))
-    area = pattern_geometry.signed_area(square)
-    reversed_area = pattern_geometry.signed_area(reversed_square)
+    area = _PRODUCTION_SIGNED_AREA(square)
+    reversed_area = _PRODUCTION_SIGNED_AREA(reversed_square)
     expected_area = side * side
     _require(
         condition=isclose(
@@ -302,9 +317,9 @@ def point_distance_contract(x: float, y: float) -> float:
     """
     origin = (0.0, 0.0)
     point = (x, y)
-    result = pattern_geometry._distance(origin, point)
+    result = _PRODUCTION_DISTANCE_2D(origin, point)
     _require(condition=result >= 0.0, message="Euclidean distance must be non-negative")
-    reverse_result = pattern_geometry._distance(point, origin)
+    reverse_result = _PRODUCTION_DISTANCE_2D(point, origin)
     _require(
         condition=isclose(result, reverse_result, rel_tol=0.0, abs_tol=0.0),
         message="Euclidean distance must be symmetric",
