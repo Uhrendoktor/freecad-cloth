@@ -165,8 +165,7 @@ def main() -> int:
     )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
         sys.stdout.write(
-            f"artifact={artifact.get('name', '<unnamed>')} "
-            f"size={artifact['size_in_bytes']} bytes\n"
+            f"artifact={artifact.get('name', '<unnamed>')} size={artifact['size_in_bytes']} bytes\n"
         )
 
     if total > MAX_ARTIFACT_BYTES:
