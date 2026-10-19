@@ -3,9 +3,11 @@
 
 import importlib
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
+from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
 from freecad_cloth.sewing.workbench import ClothSewingWorkbench
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
@@ -86,19 +88,23 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     expected = {
         command for _name, group in SEWING_COMMAND_GROUPS for command in group
     } | set(fitting.COMMANDS) | set(avatar.COMMANDS)
-    _check(set(wb.commands) == expected, "sewing workbench must expose all fitting and avatar commands")
+    _check(
+        set(wb.commands) == expected,
+        "sewing workbench must expose all fitting and avatar commands",
+    )
 
 
 def test_workbench_package_metadata_matches_registration_surface() -> None:
     """Verify package metadata names the same workbenches that the code registers."""
-    import xml.etree.ElementTree as ET
-
     root = ET.parse(ROOT / "package.xml").getroot()
     namespace = "{https://wiki.freecad.org/Package_Metadata}"
     _check(root.tag == namespace + "package", "package metadata root tag must match its namespace")
     _check(root.findtext(namespace + "name") == "FreeCAD Cloth", "package name must remain stable")
     _check(root.findtext(namespace + "version") == "0.1.0", "package version must remain stable")
-    _check(root.findtext(namespace + "license") == "LGPL-2.1-or-later", "package license must remain stable")
+    _check(
+        root.findtext(namespace + "license") == "LGPL-2.1-or-later",
+        "package license must remain stable",
+    )
     _check(
         root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth",
         "package URL must identify the canonical repository",
@@ -121,7 +127,6 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
 
 def test_sewing_toolbar_is_stable_and_registered() -> None:
     """Verify the canonical sewing toolbar remains ordered and registered."""
-    from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
 
     _check(
         TOOLBAR_COMMANDS
@@ -186,7 +191,10 @@ def test_root_loader_delegates_registration_to_shared_bootstrap() -> None:
         "from freecad_cloth.bootstrap import initialize_workbenches" in source,
         "root GUI loader must import the shared bootstrap",
     )
-    _check(source.count("initialize_workbenches(") == 1, "root GUI loader must bootstrap exactly once")
+    _check(
+        source.count("initialize_workbenches(") == 1,
+        "root GUI loader must bootstrap exactly once",
+    )
     _check(
         "Gui.addWorkbench(" not in source,
         "root GUI loader must not duplicate workbench registration",
