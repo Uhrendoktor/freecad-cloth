@@ -8,7 +8,6 @@ non-GUI tests can import the package outside a FreeCAD process.
 import importlib
 from collections.abc import Callable, Iterable
 from contextlib import suppress
-from dataclasses import dataclass
 from typing import Protocol, cast
 
 try:
@@ -21,21 +20,32 @@ class _ActiveWorkbench(Protocol):
     """Describe the workbench information queried during a GUI transition."""
 
     def name(self) -> str:
-        """Return the name FreeCAD reports for this workbench."""
+        """Return the name FreeCAD reports for this workbench.
+
+        Returns:
+            The host-visible workbench name.
+        """
+        ...
 
 
 class _WorkbenchGui(Protocol):
     """Describe the subset of the FreeCAD GUI API used for transition checks."""
 
     def active_workbench(self) -> _ActiveWorkbench:
-        """Return the workbench currently active in the FreeCAD GUI."""
+        """Return the workbench currently active in the FreeCAD GUI.
+
+        Returns:
+            Object representing FreeCAD's active workbench.
+        """
+        ...
 
 
-@dataclass(slots=True)
 class _WorkbenchDeactivationState:
     """Hold the optional transient-cleanup callback without module rebinding."""
 
-    callback: Callable[[], None] | None = None
+    def __init__(self) -> None:
+        """Initialize empty callback state."""
+        self.callback: Callable[[], None] | None = None
 
 
 _WORKBENCH_DEACTIVATION_STATE = _WorkbenchDeactivationState()
@@ -199,9 +209,11 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
             active_name = ""
             if self._gui is not None:
                 with suppress(AttributeError, RuntimeError, TypeError):
+                    # FreeCAD exposes this method in mixed case; keep that host name at the boundary.
+                    active_workbench_name = "activeWorkbench"
                     active_workbench = cast(
                         "Callable[[], _ActiveWorkbench]",
-                        getattr(self._gui, "activeWorkbench"),
+                        getattr(self._gui, active_workbench_name),
                     )
                     active_name = str(active_workbench().name()).lower()
             # FreeCAD may deliver Activated() for the new workbench before this hook.
