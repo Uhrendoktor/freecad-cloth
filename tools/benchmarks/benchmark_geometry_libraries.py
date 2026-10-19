@@ -18,9 +18,9 @@ from time import perf_counter
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shapely.geometry import LineString
 
 from freecad_cloth.common.MeshValidation import Point3, nearest_target_clearance
-from shapely.geometry import LineString
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
