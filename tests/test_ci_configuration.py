@@ -68,7 +68,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
         line for line in gui_simple.splitlines() if "case: simulation-quality" in line
     )
     assert 'timeout: "240"' in readiness_row
-    timeout_contract = (ROOT / "tools" / "ci" / "timeout_contract.py").read_text(
+    timeout_contract = (ROOT / "tools" / "ci" / "timeout_contract.py").read_text(encoding="utf-8")
         encoding="utf-8"
     )
     assert 'timeout: "240"' in timeout_contract
