@@ -179,6 +179,24 @@ def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
     )
 
 
+def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
+    """Return required standalone Ruff commands missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Ruff commands that are absent as standalone shell lines.
+    """
+    command_lines: set[str] = set()
+    for line in workflow_text.splitlines():
+        command = line.strip()
+        if command.startswith("run: "):
+            command = command.removeprefix("run: ").strip()
+        command_lines.add(command)
+    return tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+
+
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
     """Return whether a source path is covered by one include entry.
 
@@ -450,8 +468,7 @@ def _validate_python_quality_contracts(text: str) -> None:
     if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
         msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
         raise SystemExit(msg)
-    command_lines = {line.strip() for line in text.splitlines()}
-    missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+    missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
         raise SystemExit(
             "canonical workflow must run Ruff over every tracked Python file: "
