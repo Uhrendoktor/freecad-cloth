@@ -164,7 +164,10 @@ def main() -> int:
         f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}\n"
     )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
-        sys.stdout.write(f"artifact={artifact.get('name', '<unnamed>')} size={artifact['size_in_bytes']} bytes\n")
+        sys.stdout.write(
+            f"artifact={artifact.get('name', '<unnamed>')} "
+            f"size={artifact['size_in_bytes']} bytes\n"
+        )
 
     if total > MAX_ARTIFACT_BYTES:
         sys.stderr.write(
