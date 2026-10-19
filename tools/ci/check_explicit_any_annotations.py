@@ -205,9 +205,11 @@ def _direct_any_reference_violations(
                 "use a concrete type, object with narrowing, or a Protocol"
             )
         elif _is_typing_any_attribute(node, typing_modules):
-            module_name = node.value.id if isinstance(node, ast.Attribute) and isinstance(
-                node.value, ast.Name
-            ) else "typing"
+            module_name = (
+                node.value.id
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                else "typing"
+            )
             violations.append(
                 f"{filename}:{node.lineno}: explicit {module_name}.Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
