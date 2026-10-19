@@ -13,9 +13,7 @@ from urllib.parse import urlencode
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-type JSONValue = (
-    str | int | float | bool | list[JSONValue] | dict[str, JSONValue] | None
-)
+type JSONValue = str | int | float | bool | list[JSONValue] | dict[str, JSONValue] | None
 
 API_VERSION = "2022-11-28"
 MAX_ARTIFACT_BYTES = 10_000_000
@@ -65,10 +63,7 @@ def _request_artifact_payload(
     connection.request("GET", request_path, headers=dict(headers))
     response = connection.getresponse()
     if response.status != http.client.OK:
-        msg = (
-            "GitHub artifact API request failed: "
-            f"HTTP {response.status} {response.reason}"
-        )
+        msg = f"GitHub artifact API request failed: HTTP {response.status} {response.reason}"
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 
@@ -169,10 +164,7 @@ def main() -> int:
         f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}\n"
     )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
-        sys.stdout.write(
-            f"artifact={artifact.get('name', '<unnamed>')} "
-            f"size={artifact['size_in_bytes']} bytes\n"
-        )
+        sys.stdout.write(f"artifact={artifact.get('name', '<unnamed>')} size={artifact['size_in_bytes']} bytes\n")
 
     if total > MAX_ARTIFACT_BYTES:
         sys.stderr.write(
