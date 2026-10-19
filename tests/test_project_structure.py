@@ -62,6 +62,7 @@ def test_freecad_entry_points_remain_at_root():
 
 
 def test_classic_and_modern_loaders_share_registration_implementation() -> None:
+    """Keep both FreeCAD loaders delegated to the single bootstrap registrar."""
     root = Path(__file__).resolve().parents[1]
     bootstrap = (root / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
     for path in (
@@ -78,7 +79,7 @@ def test_classic_and_modern_loaders_share_registration_implementation() -> None:
         "ClothSewingWorkbench",
     ):
         assert f'("{workbench}",' in bootstrap
-    assert bootstrap.count("Gui.addWorkbench(workbench_type())") == 1
+    assert bootstrap.count("addWorkbench(workbench_type())") == 1
 
 
 def test_shared_contract_is_freecad_independent():
