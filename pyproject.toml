@@ -47,7 +47,6 @@ dev = [
   "vulture==2.16",
   "crosshair-tool==0.0.111",
   "defusedxml>=0.7.1,<1",
-  "dulwich>=0.22,<1",
   "ast-grep-cli==0.45.3",
   "ty==0.0.85",
 ]
