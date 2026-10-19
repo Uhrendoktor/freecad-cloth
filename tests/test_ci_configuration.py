@@ -666,3 +666,20 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
     assert "timeout-minutes: 12" in gallery_job
+
+
+def test_main_publication_checks_out_source_before_local_publisher_action() -> None:
+    """The runner must have the local composite action before it can resolve the action."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    publisher_job = workflow.split("  publish-readme-turntables:\n", maxsplit=1)[1].split(
+        "\n  maintenance-cleanup:", maxsplit=1
+    )[0]
+    checkout = "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+    local_action = "uses: ./.github/actions/publish-visual-evidence"
+
+    assert publisher_job.count(checkout) == 1
+    assert publisher_job.index(checkout) < publisher_job.index(local_action)
+    assert "ref: ${{ github.sha }}" in publisher_job
+    assert "persist-credentials: false" in publisher_job
