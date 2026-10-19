@@ -8,16 +8,16 @@ objects or native solver state, which CrossHair cannot model exhaustively.
 
 from __future__ import annotations
 
+from math import isclose
 from typing import NamedTuple, cast
 
-from freecad_cloth.pattern.PatternGeometry import (
-    _distance,
-    _lerp,
-    _line_intersection,
-    signed_area,
-)
+import freecad_cloth.pattern.PatternGeometry as pattern_geometry
 from freecad_cloth.sewing.SewingCorrespondence import map_parameter
 from freecad_cloth.simulation.ClothSolver import Particle, distance
+
+COORDINATE_LIMIT = 1e6
+LARGE_FLOAT_LIMIT = 1e100
+ABSOLUTE_TEST_TOLERANCE = 1e-9
 
 
 class _CoordinatePoint(NamedTuple):
@@ -28,39 +28,58 @@ class _CoordinatePoint(NamedTuple):
     z: float
 
 
+def _require(*, condition: bool, message: str) -> None:
+    """Raise when a symbolic contract condition is false.
+
+    Args:
+        condition: Invariant that must hold for the contract to be satisfied.
+        message: Diagnostic describing the violated invariant.
+
+    Raises:
+        AssertionError: If the invariant does not hold.
+    """
+    if not condition:
+        raise AssertionError(message)
+
+
 def particle_distance_contract(
-    ax: float, ay: float, az: float, bx: float, by: float, bz: float
+    point_a: tuple[float, float, float],
+    point_b: tuple[float, float, float],
 ) -> float:
     """Check solver distance identities using structurally compatible symbolic points.
 
     Args:
-        ax: First particle's x coordinate.
-        ay: First particle's y coordinate.
-        az: First particle's z coordinate.
-        bx: Second particle's x coordinate.
-        by: Second particle's y coordinate.
-        bz: Second particle's z coordinate.
+        point_a: X, Y, and Z coordinates of the first particle.
+        point_b: X, Y, and Z coordinates of the second particle.
 
     Returns:
         Non-negative Euclidean distance between the two particles.
 
-    pre: -1e6 <= ax <= 1e6
-    pre: -1e6 <= ay <= 1e6
-    pre: -1e6 <= az <= 1e6
-    pre: -1e6 <= bx <= 1e6
-    pre: -1e6 <= by <= 1e6
-    pre: -1e6 <= bz <= 1e6
+    pre: -COORDINATE_LIMIT <= point_a[0] <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= point_a[1] <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= point_a[2] <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= point_b[0] <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= point_b[1] <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= point_b[2] <= COORDINATE_LIMIT
     """
-    a = cast("Particle", _CoordinatePoint(ax, ay, az))
-    b = cast("Particle", _CoordinatePoint(bx, by, bz))
+    a = cast("Particle", _CoordinatePoint(*point_a))
+    b = cast("Particle", _CoordinatePoint(*point_b))
     result = distance(a, b)
-    assert result >= 0.0
-    assert distance(a, a) == 0.0
-    assert distance(a, b) == distance(b, a)
+    _require(condition=result >= 0.0, message="particle distance must be non-negative")
+    self_distance = distance(a, a)
+    _require(
+        condition=isclose(self_distance, 0.0, rel_tol=0.0, abs_tol=0.0),
+        message="distance from a particle to itself must be zero",
+    )
+    reverse_distance = distance(b, a)
+    _require(
+        condition=isclose(result, reverse_distance, rel_tol=0.0, abs_tol=0.0),
+        message="particle distance must be symmetric",
+    )
     return result
 
 
-def normalized_seam_mapping_contract(parameter_a: float, reversed_b: bool) -> float:
+def normalized_seam_mapping_contract(parameter_a: float, *, reversed_b: bool) -> float:
     """Check direction complement and normalized bounds on the real seam mapper.
 
     Args:
@@ -74,43 +93,68 @@ def normalized_seam_mapping_contract(parameter_a: float, reversed_b: bool) -> fl
     """
     result = map_parameter(parameter_a, reversed_b=reversed_b)
     complementary = map_parameter(parameter_a, reversed_b=not reversed_b)
-    assert 0.0 <= result <= 1.0
-    assert 0.0 <= complementary <= 1.0
-    assert result + complementary == 1.0
+    _require(condition=0.0 <= result <= 1.0, message="mapped parameter must be normalized")
+    _require(
+        condition=0.0 <= complementary <= 1.0,
+        message="complementary mapped parameter must be normalized",
+    )
+    _require(
+        condition=isclose(
+            result + complementary,
+            1.0,
+            rel_tol=0.0,
+            abs_tol=ABSOLUTE_TEST_TOLERANCE,
+        ),
+        message="opposite seam orientations must map to complementary parameters",
+    )
     return result
 
 
 def ranged_seam_mapping_contract(
     parameter_a: float,
-    start_a: float,
-    end_a: float,
-    start_b: float,
-    end_b: float,
+    source_range: tuple[float, float],
+    target_range: tuple[float, float],
+    *,
     reversed_b: bool,
 ) -> float:
-    """Check range mapping for normalized intervals.
+    """Check range mapping for normalized source and destination intervals.
 
     Args:
         parameter_a: Normalized parameter on the source seam.
-        start_a: Lower source parameter bound for the mapped interval.
-        end_a: Upper source parameter bound for the mapped interval.
-        start_b: Lower destination parameter bound for the mapped interval.
-        end_b: Upper destination parameter bound for the mapped interval.
+        source_range: Start and end parameter bounds on the source seam.
+        target_range: Start and end parameter bounds on the destination seam.
         reversed_b: Whether the destination interval is traversed in reverse.
 
     Returns:
         Parameter mapped into the destination seam interval.
 
     pre: 0.0 <= parameter_a <= 1.0
-    pre: 0.0 <= start_a < end_a <= 1.0
-    pre: 0.0 <= start_b < end_b <= 1.0
+    pre: 0.0 <= source_range[0] < source_range[1] <= 1.0
+    pre: 0.0 <= target_range[0] < target_range[1] <= 1.0
     """
-    result = map_parameter(parameter_a, start_a, end_a, start_b, end_b, reversed_b)
-    assert start_b <= result <= end_b
-    if parameter_a == start_a:
-        assert result == (end_b if reversed_b else start_b)
-    if parameter_a == end_a:
-        assert result == (start_b if reversed_b else end_b)
+    result = map_parameter(
+        parameter_a,
+        *source_range,
+        *target_range,
+        reversed_b=reversed_b,
+    )
+    target_start, target_end = target_range
+    _require(
+        condition=target_start <= result <= target_end,
+        message="mapped parameter must stay within the destination interval",
+    )
+    if isclose(parameter_a, source_range[0], rel_tol=0.0, abs_tol=0.0):
+        expected = target_end if reversed_b else target_start
+        _require(
+            condition=isclose(result, expected, rel_tol=0.0, abs_tol=0.0),
+            message="source interval start must map to the matching destination endpoint",
+        )
+    if isclose(parameter_a, source_range[1], rel_tol=0.0, abs_tol=0.0):
+        expected = target_start if reversed_b else target_end
+        _require(
+            condition=isclose(result, expected, rel_tol=0.0, abs_tol=0.0),
+            message="source interval end must map to the matching destination endpoint",
+        )
     return result
 
 
@@ -125,16 +169,25 @@ def interpolation_contract(start: float, end: float, fraction: float) -> float:
     Returns:
         Interpolated value bounded by the two endpoints.
 
-    pre: -1e100 <= start <= 1e100
-    pre: -1e100 <= end <= 1e100
+    pre: -LARGE_FLOAT_LIMIT <= start <= LARGE_FLOAT_LIMIT
+    pre: -LARGE_FLOAT_LIMIT <= end <= LARGE_FLOAT_LIMIT
     pre: 0.0 <= fraction <= 1.0
     """
-    result = _lerp(start, end, fraction)
-    assert min(start, end) <= result <= max(start, end)
-    if fraction == 0.0:
-        assert result == start
-    if fraction == 1.0:
-        assert result == end
+    result = pattern_geometry._lerp(start, end, fraction)
+    _require(
+        condition=min(start, end) <= result <= max(start, end),
+        message="interpolated value must remain inside its endpoint interval",
+    )
+    if isclose(fraction, 0.0, rel_tol=0.0, abs_tol=0.0):
+        _require(
+            condition=isclose(result, start, rel_tol=0.0, abs_tol=0.0),
+            message="zero interpolation fraction must return the start value",
+        )
+    if isclose(fraction, 1.0, rel_tol=0.0, abs_tol=0.0):
+        _require(
+            condition=isclose(result, end, rel_tol=0.0, abs_tol=0.0),
+            message="unit interpolation fraction must return the end value",
+        )
     return result
 
 
@@ -144,10 +197,15 @@ def parallel_line_intersection_contract(y: float) -> None:
     Args:
         y: Vertical coordinate of the first horizontal line.
 
-    pre: -1e6 <= y <= 1e6
+    pre: -COORDINATE_LIMIT <= y <= COORDINATE_LIMIT
     """
-    result = _line_intersection((0.0, y), (1.0, y), (0.0, y + 1.0), (1.0, y + 1.0))
-    assert result is None
+    result = pattern_geometry._line_intersection(
+        (0.0, y),
+        (1.0, y),
+        (0.0, y + 1.0),
+        (1.0, y + 1.0),
+    )
+    _require(condition=result is None, message="distinct parallel lines must not intersect")
 
 
 def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float, float]:
@@ -160,13 +218,35 @@ def perpendicular_line_intersection_contract(x: float, y: float) -> tuple[float,
     Returns:
         Intersection coordinates of the perpendicular lines.
 
-    pre: -1e6 <= x <= 1e6
-    pre: -1e6 <= y <= 1e6
+    pre: -COORDINATE_LIMIT <= x <= COORDINATE_LIMIT
+    pre: -COORDINATE_LIMIT <= y <= COORDINATE_LIMIT
     """
-    result = _line_intersection((-1.0, y), (1.0, y), (x, -1.0), (x, 1.0))
+    result = pattern_geometry._line_intersection(
+        (-1.0, y),
+        (1.0, y),
+        (x, -1.0),
+        (x, 1.0),
+    )
+    _require(condition=result is not None, message="perpendicular lines must intersect")
     assert result is not None
-    assert abs(result[0] - x) <= 1e-9
-    assert abs(result[1] - y) <= 1e-9
+    _require(
+        condition=isclose(
+            result[0],
+            x,
+            rel_tol=0.0,
+            abs_tol=ABSOLUTE_TEST_TOLERANCE,
+        ),
+        message="intersection horizontal coordinate must match the vertical line",
+    )
+    _require(
+        condition=isclose(
+            result[1],
+            y,
+            rel_tol=0.0,
+            abs_tol=ABSOLUTE_TEST_TOLERANCE,
+        ),
+        message="intersection vertical coordinate must match the horizontal line",
+    )
     return result
 
 
@@ -179,14 +259,31 @@ def polygon_area_orientation_contract(side: float) -> float:
     Returns:
         Signed area of the square in its original orientation.
 
-    pre: 0.0 <= side <= 1e6
+    pre: 0.0 <= side <= COORDINATE_LIMIT
     """
     square = ((0.0, 0.0), (side, 0.0), (side, side), (0.0, side))
     reversed_square = tuple(reversed(square))
-    area = signed_area(square)
-    reversed_area = signed_area(reversed_square)
-    assert area == side * side
-    assert reversed_area == -area
+    area = pattern_geometry.signed_area(square)
+    reversed_area = pattern_geometry.signed_area(reversed_square)
+    expected_area = side * side
+    _require(
+        condition=isclose(
+            area,
+            expected_area,
+            rel_tol=ABSOLUTE_TEST_TOLERANCE,
+            abs_tol=ABSOLUTE_TEST_TOLERANCE,
+        ),
+        message="square signed area must equal its side length squared",
+    )
+    _require(
+        condition=isclose(
+            reversed_area,
+            -area,
+            rel_tol=ABSOLUTE_TEST_TOLERANCE,
+            abs_tol=ABSOLUTE_TEST_TOLERANCE,
+        ),
+        message="reversing polygon orientation must negate signed area",
+    )
     return area
 
 
@@ -200,12 +297,26 @@ def point_distance_contract(x: float, y: float) -> float:
     Returns:
         Euclidean distance from the origin to the supplied point.
 
-    pre: -1e100 <= x <= 1e100
-    pre: -1e100 <= y <= 1e100
+    pre: -LARGE_FLOAT_LIMIT <= x <= LARGE_FLOAT_LIMIT
+    pre: -LARGE_FLOAT_LIMIT <= y <= LARGE_FLOAT_LIMIT
     """
-    result = _distance((0.0, 0.0), (x, y))
-    assert result >= 0.0
-    assert result == _distance((x, y), (0.0, 0.0))
-    if x == 0.0 and y == 0.0:
-        assert result == 0.0
+    origin = (0.0, 0.0)
+    point = (x, y)
+    result = pattern_geometry._distance(origin, point)
+    _require(condition=result >= 0.0, message="Euclidean distance must be non-negative")
+    reverse_result = pattern_geometry._distance(point, origin)
+    _require(
+        condition=isclose(result, reverse_result, rel_tol=0.0, abs_tol=0.0),
+        message="Euclidean distance must be symmetric",
+    )
+    if isclose(x, 0.0, rel_tol=0.0, abs_tol=0.0) and isclose(
+        y,
+        0.0,
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ):
+        _require(
+            condition=isclose(result, 0.0, rel_tol=0.0, abs_tol=0.0),
+            message="distance from the origin to itself must be zero",
+        )
     return result
