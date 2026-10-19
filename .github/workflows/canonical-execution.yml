@@ -142,7 +142,6 @@ jobs:
           set -euo pipefail
           python -m compileall -q tests tools/ci
           git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
-          xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
           python tools/check_markdown_contract.py
           python tools/ci/timeout_contract.py
           python tools/ci/validate_ci_structure.py
@@ -181,6 +180,9 @@ jobs:
       - name: Python documentation contract (strict, whole repository)
         if: ${{ !cancelled() }}
         run: python tools/check_documentation_contract.py
+      - name: Ruff formatting (strict, whole repository)
+        if: ${{ !cancelled() }}
+        run: xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
       - name: Ruff lint (strict, whole repository)
         if: ${{ !cancelled() }}
         run: |
