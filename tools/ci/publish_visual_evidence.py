@@ -11,23 +11,17 @@ import tempfile
 from pathlib import Path
 
 if __package__:
+    import tools.ci.visual_evidence as visual_evidence
+
     from tools.ci.build_visual_gifs import build, image_tool
     from tools.ci.command_runner import CommandContext, CommandResult, run_command
-    from tools.ci.visual_evidence import (
-        ProvenanceContext,
-        documented_assets,
-        verify,
-        write_provenance,
-    )
+    from tools.ci.visual_evidence import documented_assets, verify, write_provenance
 else:
+    import visual_evidence
+
     from build_visual_gifs import build, image_tool
     from command_runner import CommandContext, CommandResult, run_command
-    from visual_evidence import (
-        ProvenanceContext,
-        documented_assets,
-        verify,
-        write_provenance,
-    )
+    from visual_evidence import documented_assets, verify, write_provenance
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 SURFACE_PEN_FRAME_COUNT = 4
@@ -151,22 +145,16 @@ def build_surface_pen_gif() -> None:
 
 
 def _publish_assets(
-    repository: str,
+    args: argparse.Namespace,
     source_root: Path,
     expected: set[str],
-    source_sha: str,
-    run_id: str,
-    run_number: str,
 ) -> str:
     """Publish the generated assets and verify the remote publication revision.
 
     Args:
-        repository: GitHub repository that owns the screenshot publication branch.
+        args: Parsed repository and workflow provenance arguments.
         source_root: Checked-out source repository used for the documentation inventory.
         expected: Exact generated image names referenced by public documentation.
-        source_sha: Source revision recorded in the provenance manifest.
-        run_id: GitHub Actions run ID that produced the evidence.
-        run_number: Human-readable Actions run number recorded in provenance.
 
     Returns:
         Commit SHA of the verified public screenshot branch.
@@ -177,7 +165,7 @@ def _publish_assets(
     temp_root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
     worktree = temp_root / "cloth-screenshot-publish"
     shutil.rmtree(worktree, ignore_errors=True)
-    run("gh", "repo", "clone", repository, str(worktree), "--", "--filter=blob:none")
+    run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none")
 
     branch = "docs/screenshots"
     remote_result = run(
@@ -215,13 +203,13 @@ def _publish_assets(
         published,
         ProvenanceContext(
             source_root=source_root,
-            source_sha=source_sha,
-            run_id=run_id,
-            run_number=run_number,
+            source_sha=args.source_sha,
+            run_id=args.run_id,
+            run_number=args.run_number,
         ),
     )
 
-    errors = verify(source_root, published, provenance, source_sha)
+    errors = verify(source_root, published, provenance, args.source_sha)
     if errors:
         raise SystemExit("; ".join(errors))
 
@@ -304,14 +292,7 @@ def main() -> int:
     build_visual_gif_set("tunic", Path("tunic"))
     build_surface_pen_gif()
 
-    remote_commit = _publish_assets(
-        args.repository,
-        source_root,
-        expected,
-        args.source_sha,
-        args.run_id,
-        args.run_number,
-    )
+    remote_commit = _publish_assets(args, source_root, expected)
     sys.stdout.write(
         f"visual-publish=passed source_sha={args.source_sha} "
         f"asset_count={len(expected)} remote_commit={remote_commit}\n"
