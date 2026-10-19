@@ -39,6 +39,12 @@ from freecad_cloth.sewing.SewingCorrespondence import (
 )
 from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
 
+EXPECTED_COMPONENT_COUNT = 2
+EXPECTED_MESH_CLEARANCE_MM = 2.0
+EXPECTED_PNG_WIDTH = 800
+EXPECTED_PNG_HEIGHT = 600
+
+
 def _check(condition: object, message: str) -> None:
     """Raise an explanatory test failure when an expected condition is false.
 
@@ -51,6 +57,7 @@ def _check(condition: object, message: str) -> None:
     """
     if not condition:
         raise AssertionError(message)
+
 
 def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:
     """Verify coordinate normalization does not coerce mesh indices."""
@@ -90,7 +97,7 @@ def test_mesh_schema_rejects_invalid_face_indices(face: list[object]) -> None:
 
 def test_mesh_api_rejects_fractional_indices_instead_of_truncating() -> None:
     """Verify mesh validation rejects fractional indices without truncation."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         validate_mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1.5, 2]], prefer_trimesh=False)
 
 
@@ -109,7 +116,7 @@ def test_arc_length_api_requires_an_exact_integer_count(count: object) -> None:
     Args:
         count: Candidate count used to exercise invalid count representations.
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         arc_length_vertex_indices(
             (1, 2, 3),
             ((0, 0), (1, 0), (2, 0)),
@@ -150,9 +157,9 @@ def test_correspondence_schema_keeps_range_status_separate_from_numeric_validity
 
 def test_seam_parameter_sampling_rejects_invalid_options() -> None:
     """Reject invalid sample counts and reversed seam parameter intervals."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         correspondence_samples(2.5)  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="seam parameter ranges"):
         correspondence_samples(3, start_a=0.8, end_a=0.2)
 
 
@@ -172,13 +179,13 @@ def test_library_option_schemas_validate_numeric_knobs() -> None:
 
 def test_pattern_geometry_rejects_nonfinite_coordinates_and_dimensions() -> None:
     """Reject non-finite segment coordinates and invalid rectangle dimensions."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         LineSegment("bad", (0.0, math.nan), (1.0, 0.0))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         rectangle(math.inf, 10.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         rectangle(10.0, math.nan)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         rectangle(10.0, 10.0).sampled_outline(2.5)
 
 
@@ -187,12 +194,12 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     _check(
         math.isclose(
             nearest_target_clearance(((0.0, 0.0, 2.0),), ((0.0, 0.0, 0.0),)),
-            2.0,
+            EXPECTED_MESH_CLEARANCE_MM,
             abs_tol=1e-12,
         ),
         "clearance must equal the known three-dimensional separation",
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="3|coordinates"):
         nearest_target_clearance(((0.0, 0.0),), ((0.0, 0.0, 0.0),))
 
 
@@ -206,7 +213,7 @@ def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() ->
         (0.0, -1.0, 0.0),
     )
     result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
-    _check(result.components == 2, "vertex-only contact must leave two mesh components")
+    _check(result.components == EXPECTED_COMPONENT_COUNT, "vertex-only contact must leave two mesh components")
 
 
 def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
@@ -269,36 +276,36 @@ def test_particle_rejects_nonfinite_state_and_negative_inverse_mass(
     Args:
         particle: Candidate position and inverse mass supplied to Particle.
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite|greater than or equal to 0"):
         Particle(*particle)
 
 
 def test_solver_grid_validates_finite_dimensions_origin_and_integer_resolution() -> None:
     """Reject invalid grid dimensions, origins, and fractional resolutions."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         ClothSystem.grid(math.nan, 10.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         ClothSystem.grid(10.0, 10.0, nx=2.5)  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         ClothSystem.grid(10.0, 10.0, origin=(0.0, math.inf, 0.0))
 
 
 def test_solver_rejects_fractional_pin_and_stitch_indices() -> None:
     """Reject fractional indices passed to pin and stitch APIs."""
     system = ClothSystem.grid(10.0, 10.0, nx=2, ny=2)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         system.pin([0.5])  # type: ignore[list-item]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         system.add_stitches([(0.5, 1)])  # type: ignore[list-item]
 
 
 def test_distance_constraints_validate_fields_and_particle_references() -> None:
     """Reject invalid constraints and references outside the owning system."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="integer"):
         DistanceConstraint(0.5, 1, 0.0)  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         DistanceConstraint(0, 1, math.nan)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         DistanceConstraint(0, 1, 0.0, math.inf)
     system_particles = [Particle(0.0, 0.0, 0.0), Particle(1.0, 0.0, 0.0)]
     with pytest.raises(ValueError, match="outside system"):
@@ -309,10 +316,10 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
     """Reject non-finite transforms and transformed coordinates that overflow."""
     matrix = list(Transform3D.identity().matrix)
     matrix[0] = math.nan
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         Transform3D(tuple(matrix))
     transform = Transform3D.translation(1e308, 0.0, 0.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite"):
         transform.apply((1e308, 0.0, 0.0))
 
 
@@ -328,11 +335,11 @@ def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> 
 def test_png_options_validate_dimensions_and_thresholds() -> None:
     """Validate optional PNG dimensions and pixel thresholds."""
     _check(
-        PngCaptureOptions(expected_width=800).expected_width == 800,
+        PngCaptureOptions(expected_width=EXPECTED_PNG_WIDTH).expected_width == EXPECTED_PNG_WIDTH,
         "PNG width option must preserve the requested exact integer",
     )
     _check(
-        PngCaptureOptions(expected_height=600).expected_height == 600,
+        PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height == EXPECTED_PNG_HEIGHT,
         "PNG height option must preserve the requested exact integer",
     )
     with pytest.raises(ValidationError):
