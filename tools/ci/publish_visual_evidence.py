@@ -242,7 +242,7 @@ def _publish_assets(
             str(worktree),
             "commit",
             "-m",
-            f"ci: publish README/wiki visual evidence for {source_sha[:12]}",
+            f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
         )
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
