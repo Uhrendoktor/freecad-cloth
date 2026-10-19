@@ -333,6 +333,7 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
 
+
 def test_blanket_publication_restores_flattened_artifact_directory(tmp_path: Path) -> None:
     """The publisher restores the directory prefix stripped by artifact upload."""
     from tools.ci import publish_visual_evidence
