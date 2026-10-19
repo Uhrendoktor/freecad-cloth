@@ -258,6 +258,7 @@ def python_monkeypatch_violations(source: str, filename: str = "<source>") -> tu
         _record_call_violations(node, filename, in_tests, module_aliases, violations)
     return tuple(sorted(set(violations)))
 
+
 def repository_violations(root: Path = ROOT) -> tuple[str, ...]:
     """Scan repository Python sources for prohibited monkeypatching patterns.
 
