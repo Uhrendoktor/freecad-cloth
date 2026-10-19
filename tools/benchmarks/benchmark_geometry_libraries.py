@@ -12,17 +12,23 @@ machine-dependent performance thresholds and is not part of the release gate.
 from __future__ import annotations
 
 import argparse
+import sys
 from math import cos, dist, isclose, sin, tau
-from random import Random
 from time import perf_counter
+from typing import TYPE_CHECKING
+
+import numpy as np
 
 from freecad_cloth.common.MeshValidation import Point3, nearest_target_clearance
-from freecad_cloth.pattern.PatternGeometry import Point
 from freecad_cloth.pattern.PatternMesh import _self_intersects
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from freecad_cloth.pattern.PatternGeometry import Point
+
+
+SEGMENT_CROSS_PRODUCT_TOLERANCE = 1e-10
+MINIMUM_BENCHMARK_SIZE = 32
 
 
 def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
@@ -36,7 +42,7 @@ def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
     Returns:
         Immutable tuple of generated 3D points.
     """
-    generator = Random(seed)
+    generator = np.random.default_rng(seed)
     return tuple(
         (
             generator.uniform(-100.0, 100.0) + offset,
@@ -101,11 +107,14 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
     for i in range(len(points)):
         a, b = points[i], points[(i + 1) % len(points)]
         for j in range(i + 1, len(points)):
-            if j in (i, (i + 1) % len(points), (i - 1) % len(points)):
+            if j in {i, (i + 1) % len(points), (i - 1) % len(points)}:
                 continue
             c, d = points[j], points[(j + 1) % len(points)]
             values = (cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b))
-            if values[0] * values[1] < -1e-10 and values[2] * values[3] < -1e-10:
+            if (
+                values[0] * values[1] < -SEGMENT_CROSS_PRODUCT_TOLERANCE
+                and values[2] * values[3] < -SEGMENT_CROSS_PRODUCT_TOLERANCE
+            ):
                 return True
     return False
 
@@ -133,11 +142,11 @@ def _time_clearance(count: int) -> None:
     if not isclose(accelerated, reference, rel_tol=1e-9, abs_tol=1e-9):
         msg = f"clearance mismatch for {count}x{count} points: {accelerated!r} != {reference!r}"
         raise AssertionError(msg)
-    print(
+    sys.stdout.write(
         f"clearance vertices={count}x{count} "
         f"optimized_ms={accelerated_seconds * 1000:.3f} "
         f"reference_ms={reference_seconds * 1000:.3f} "
-        f"distance={accelerated:.9g}"
+        f"distance={accelerated:.9g}\n"
     )
 
 
@@ -163,11 +172,11 @@ def _time_outline(count: int) -> None:
     if accelerated != reference:
         msg = f"outline predicate mismatch for {count} vertices: {accelerated!r} != {reference!r}"
         raise AssertionError(msg)
-    print(
+    sys.stdout.write(
         f"outline vertices={count} "
         f"optimized_ms={accelerated_seconds * 1000:.3f} "
         f"reference_ms={reference_seconds * 1000:.3f} "
-        f"self_intersects={accelerated}"
+        f"self_intersects={accelerated}\n"
     )
 
 
@@ -177,18 +186,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     Args:
         argv: Optional command-line arguments; None uses the process arguments.
 
-    Raises:
-        SystemExit: If a requested benchmark size is below the minimum of 32.
-
     Returns:
         Zero when all requested geometry benchmark cases complete successfully.
+
+    Raises:
+        SystemExit: If a requested benchmark size is below the minimum benchmark size.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=(128, 512, 1024))
     args = parser.parse_args(argv)
 
     for count in args.sizes:
-        if count < 32:
+        if count < MINIMUM_BENCHMARK_SIZE:
             msg = "each benchmark size must be at least 32"
             raise SystemExit(msg)
         _time_clearance(count)
