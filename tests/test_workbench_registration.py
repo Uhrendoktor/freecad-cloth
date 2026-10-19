@@ -145,7 +145,9 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
     content = root.find(namespace + "content")
     if content is None:
         pytest.fail("Package metadata does not declare any workbench content.")
-    declared = {item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")}
+    declared = {
+        item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
+    }
     _require(
         declared
         == {
