@@ -135,7 +135,7 @@ def build_surface_pen_gif() -> None:
     """
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
-    if len(frames) != SURFACE_PEN_FRAME_COUNT
+    if len(frames) != SURFACE_PEN_FRAME_COUNT:
         msg = (
             f"surface-pen: expected {SURFACE_PEN_FRAME_COUNT} captured workflow frames, "
             f"got {len(frames)}"
