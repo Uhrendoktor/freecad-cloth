@@ -16,11 +16,19 @@ import json
 import math
 import os
 import re
+import sys
 from pathlib import Path
 from typing import cast
 
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
+TWO_DIMENSIONAL_COORDINATE_COUNT = 2
+TOPOLOGY_BOUNDARY_SAMPLE_FIELD_COUNT = 6
+NEAR_CROSSING_RECORD_FIELD_COUNT = 5
+MINIMUM_PANEL_BOUND_COORDINATES = 6
+MINIMUM_CURVE_SAMPLE_COUNT = 2
+CROSSING_DISTANCE_TOLERANCE_MM = 1e-6
+BOUNDARY_POINT_CLOSURE_TOLERANCE_MM = 1e-5
 
 _TOPOLOGY_RE = re.compile(
     r"tunic-outline-topology piece=(\S+) ir-valid=(True|False) ir-reason=(.*?) "
@@ -55,12 +63,12 @@ def _literal_tuple(value: str) -> tuple[object, ...]:
         Parsed tuple with its original element values.
 
     Raises:
-        ValueError: Raised when the parsed diagnostic value is not a tuple.
+        TypeError: If the parsed diagnostic value is not a tuple.
     """
     parsed = ast.literal_eval(value)
     if not isinstance(parsed, tuple):
         msg = "expected a tuple in the workflow diagnostic"
-        raise ValueError(msg)
+        raise TypeError(msg)
     return cast("tuple[object, ...]", parsed)
 
 
@@ -76,7 +84,7 @@ def _point(value: object) -> list[float]:
     Raises:
         ValueError: Raised when the point shape or coordinates are invalid.
     """
-    if not isinstance(value, (tuple, list)) or len(value) < 2:
+    if not isinstance(value, (tuple, list)) or len(value) < TWO_DIMENSIONAL_COORDINATE_COUNT:
         msg = "invalid 2D point in topology diagnostics"
         raise ValueError(msg)
     result = [float(value[0]), float(value[1])]
@@ -125,13 +133,13 @@ def _parse_topology(line: str) -> dict[str, object] | None:
             "start_mm": _point(item[3]),
             "end_mm": _point(item[4]),
         }
-        if len(item) == 6 and isinstance(item[5], tuple):
+        if len(item) == TOPOLOGY_BOUNDARY_SAMPLE_FIELD_COUNT and isinstance(item[5], tuple):
             boundary["samples_local_mm"] = [_point(point) for point in item[5]]
         boundaries.append(boundary)
     raw_nearby = _literal_tuple(match.group(9))
     nearby: list[dict[str, object]] = []
     for item in raw_nearby:
-        if not isinstance(item, tuple) or len(item) != 5:
+        if not isinstance(item, tuple) or len(item) != NEAR_CROSSING_RECORD_FIELD_COUNT:
             continue
         nearby.append(
             {
@@ -277,7 +285,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             continue
         panel = cast("dict[str, object]", raw_panel)
         bounds_value = panel.get("bounds")
-        if isinstance(bounds_value, list) and len(bounds_value) >= 6:
+        if isinstance(bounds_value, list) and len(bounds_value) >= MINIMUM_PANEL_BOUND_COORDINATES:
             low = finite_number(bounds_value[4])
             high = finite_number(bounds_value[5])
             if low is not None and high is not None and low <= high:
@@ -310,7 +318,10 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "severity": "warning",
                 "observed_mm": round(top_below_reference_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": "highest final cloth point is materially below the estimated shoulder reference",
+                "message": (
+                    "highest final cloth point is materially below the "
+                    "estimated shoulder reference"
+                ),
             }
         )
     if top_above_reference_mm > review_threshold_mm:
@@ -320,7 +331,10 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "severity": "warning",
                 "observed_mm": round(top_above_reference_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": "highest final cloth point is materially above the estimated shoulder reference",
+                "message": (
+                    "highest final cloth point is materially above the "
+                    "estimated shoulder reference"
+                ),
             }
         )
     if hem_overshoot_mm > review_threshold_mm:
@@ -330,7 +344,10 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "severity": "warning",
                 "observed_mm": round(hem_overshoot_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": "lowest final cloth point extends materially below the declared hem level",
+                "message": (
+                    "lowest final cloth point extends materially below the "
+                    "declared hem level"
+                ),
             }
         )
     if hem_shortfall_mm > review_threshold_mm:
@@ -351,11 +368,16 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     )
     return {
         "state": state,
-        "method": "final panel world-space Z bounds compared with declared hem and bounding-box-derived shoulder reference",
+        "method": (
+            "final panel world-space Z bounds compared with declared hem and "
+            "bounding-box-derived shoulder reference"
+        ),
         "reference_levels_mm": {
             "hem_z": hem_z,
             "shoulder_z": shoulder_z,
-            "shoulder_reference_source": "avatar bounding-box heuristic, not an anatomical landmark",
+            "shoulder_reference_source": (
+                "avatar bounding-box heuristic, not an anatomical landmark"
+            ),
         },
         "observed_final_panel_z_mm": {
             "minimum": round(observed_min_z, 3),
@@ -370,11 +392,22 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
         "review_threshold_mm": round(review_threshold_mm, 3),
         "findings": findings,
         "other_diagnostics": sorted(diagnostic_names),
-        "interpretation_limit": "A bounds mismatch is a fit-review signal, not a definitive garment-fit verdict. Non-penetration and seam coherence do not establish body coverage or attachment.",
+        "interpretation_limit": (
+            "A bounds mismatch is a fit-review signal, not a definitive garment-fit verdict. "
+            "Non-penetration and seam coherence do not establish body coverage or attachment."
+        ),
         "next_action": (
-            "Inspect front/rear/left/right views and verify the garment top, hem, named body landmarks, and required attachment constraints. Keep geometry/contact thresholds unchanged."
+            (
+                "Inspect front/rear/left/right views and verify the garment top, hem, named body "
+                "landmarks, and required attachment constraints. Keep geometry/contact thresholds "
+                "unchanged."
+            )
             if state == "review_required"
-            else "This bounds screen found no large vertical deviation, but does not certify coverage, fit, or attachment; inspect the multi-view screenshots and named landmarks."
+            else (
+                "This bounds screen found no large vertical deviation, but does not certify "
+                "coverage, fit, or attachment; inspect the multi-view screenshots and named "
+                "landmarks."
+            )
         ),
     }
 
@@ -498,8 +531,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "simulation_started" if has_simulation_start else "last_observed_stage"
         )
         next_action = (
-            "Use the failure log and the last completed stage to localize the first failing invariant "
-            "before changing any parameter."
+            (
+                "Use the failure log and the last completed stage to localize the first failing "
+                "invariant before changing any parameter."
+            )
         )
     else:
         result = "incomplete"
@@ -578,7 +613,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         nearby = cast("list[dict[str, object]]", topology["near_crossing"])
         touching = list(
             dict.fromkeys(
-                str(item["edge_id"]) for item in nearby if float(item["distance_mm"]) <= 1e-6
+                str(item["edge_id"]) for item in nearby if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             )
         )
         issues.append(
@@ -603,7 +638,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
                 "effect": (
                     "native pattern, seam preview, and fitting are not valid evidence"
                     if native_invalid
-                    else "the rendered/derived pattern boundary is not trustworthy even though native PatternIR is valid"
+                    else (
+                        "the rendered/derived pattern boundary is not trustworthy even though "
+                        "native PatternIR is valid"
+                    )
                 ),
             }
         )
@@ -630,7 +668,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "edge_ids": [
                 item["edge_id"]
                 for item in cast("list[dict[str, object]]", record["near_crossing"])
-                if float(item["distance_mm"]) <= 1e-6
+                if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             ],
         }
         for record in invalid_geometry
@@ -661,7 +699,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         "units": {
             "length": "mm",
             "pattern_coordinates": "piece-local 2D",
-            "pose_and_placement_coordinates": "FreeCAD world coordinates when specified by the producer",
+            "pose_and_placement_coordinates": (
+                "FreeCAD world coordinates when specified by the producer"
+            ),
         },
         "stages": {
             "mannequin_pose": pose_state,
@@ -781,24 +821,24 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             local_points = [start, end]
             sampled_boundary = cast("list[list[float]]", boundary.get("samples_local_mm", []))
             armhole = armholes.get(edge_index) if edge_index is not None else None
-            if len(sampled_boundary) >= 2:
+            if len(sampled_boundary) >= MINIMUM_CURVE_SAMPLE_COUNT:
                 local_points = sampled_boundary
             elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
                 armhole, dict
             ):
                 samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
-                if len(samples) >= 2:
+                if len(samples) >= MINIMUM_CURVE_SAMPLE_COUNT:
                     distance_forward = math.dist(samples[0], start)
                     distance_reverse = math.dist(samples[-1], start)
                     local_points = (
                         samples if distance_forward <= distance_reverse else list(reversed(samples))
                     )
             edge_shapes.append((edge_index, local_points, str(boundary.get("id", ""))))
-            if coords and math.dist(coords[-1], local_points[0]) <= 1e-5:
+            if coords and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
                 coords.extend(local_points[1:])
             else:
                 coords.extend(local_points)
-        if coords and math.dist(coords[0], coords[-1]) > 1e-5:
+        if coords and math.dist(coords[0], coords[-1]) > BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
             coords.append(coords[0])
 
         def transform(point: list[float], *, x_offset: float = origin_x) -> tuple[float, float]:
@@ -827,7 +867,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         for raw_nearby in _as_list(record.get("near_crossing")):
             if (
                 not isinstance(raw_nearby, dict)
-                or float(raw_nearby.get("distance_mm", math.inf)) > 1e-6
+                or float(raw_nearby.get("distance_mm", math.inf)) > CROSSING_DISTANCE_TOLERANCE_MM
             ):
                 continue
             edge_match = re.search(r":edge:(\d+)$", str(raw_nearby.get("edge_id", "")))
@@ -853,17 +893,31 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             label_x, label_y = transform(mid)
             label = f"e{edge_index}" if edge_index is not None else edge_id
             pieces_rendered.append(
-                f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
-                f'font-family="monospace" fill="{title_color}" text-anchor="middle">{html.escape(label)}</text>'
+                (
+                    f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
+                    f'font-family="monospace" fill="{title_color}" text-anchor="middle">'
+                    f"{html.escape(label)}</text>"
+                )
             )
         crossing = record.get("crossing_local_mm")
-        if isinstance(crossing, list) and len(crossing) >= 2:
+        if isinstance(crossing, list) and len(crossing) >= TWO_DIMENSIONAL_COORDINATE_COUNT:
             cx, cy = transform([float(crossing[0]), float(crossing[1])])
             pieces_rendered.extend(
                 [
-                    f'<circle cx="{cx:.3f}" cy="{cy:.3f}" r="7" fill="none" stroke="#cc2222" stroke-width="3"/>',
-                    f'<path d="M {cx - 11:.3f},{cy:.3f} L {cx + 11:.3f},{cy:.3f} M {cx:.3f},{cy - 11:.3f} L {cx:.3f},{cy + 11:.3f}" stroke="#cc2222" stroke-width="2"/>',
-                    f'<text x="{origin_x:.3f}" y="637" font-size="13" font-family="sans-serif" fill="#cc2222">Crossing: ({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>',
+                    (
+                        f'<circle cx="{cx:.3f}" cy="{cy:.3f}" r="7" fill="none" '
+                        'stroke="#cc2222" stroke-width="3"/>'
+                    ),
+                    (
+                        f'<path d="M {cx - 11:.3f},{cy:.3f} L {cx + 11:.3f},{cy:.3f} '
+                        f'M {cx:.3f},{cy - 11:.3f} L {cx:.3f},{cy + 11:.3f}" '
+                        'stroke="#cc2222" stroke-width="2"/>'
+                    ),
+                    (
+                        f'<text x="{origin_x:.3f}" y="637" font-size="13" '
+                        'font-family="sans-serif" fill="#cc2222">Crossing: '
+                        f'({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>'
+                    ),
                 ]
             )
         native_valid = bool(record.get("ir_valid"))
@@ -889,8 +943,11 @@ def render_pattern_svg(report: dict[str, object]) -> str:
                 ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
             )
             pieces_rendered.append(
-                f'<text x="{origin_x:.3f}" y="68" font-size="11" font-family="sans-serif" fill="#364152">'
-                f"Highlighted crossing edges: {html.escape(crossing_labels)}</text>"
+                (
+                    f'<text x="{origin_x:.3f}" y="68" font-size="11" '
+                    'font-family="sans-serif" fill="#364152">'
+                    f"Highlighted crossing edges: {html.escape(crossing_labels)}</text>"
+                )
             )
     if not pieces_rendered:
         pieces_rendered.append(
@@ -902,7 +959,8 @@ def render_pattern_svg(report: dict[str, object]) -> str:
     banner = (
         '<rect x="0" y="0" width="1510" height="660" fill="#ffffff"/>'
         f'<text x="34" y="656" font-size="11" font-family="sans-serif" fill="#667085">'
-        f"Scene report result: {html.escape(result_text)}. Coordinates are panel-local millimetres. "
+        f"Scene report result: {html.escape(result_text)}. Coordinates are panel-local "
+        "millimetres. "
         "Raw screenshots are not altered.</text>"
     )
     return (
@@ -958,14 +1016,23 @@ def render_markdown(report: dict[str, object]) -> str:
     lines.append(f"**Screening state:** {fit_state.upper().replace('_', ' ')}")
     if fit_state == "review_required":
         lines.append(
-            "The execution and collision checks may have passed while garment coverage or vertical placement remains suspicious."
+            (
+                "The execution and collision checks may have passed while garment coverage or "
+                "vertical placement remains suspicious."
+            )
         )
         lines.append(
-            f"- Final panel Z range: {fit_observed.get('minimum')} to {fit_observed.get('maximum')} mm."
+            (
+                f"- Final panel Z range: {fit_observed.get('minimum')} to "
+                f"{fit_observed.get('maximum')} mm."
+            )
         )
         lines.append(
-            f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
-            f"{fit_references.get('shoulder_z')} mm ({fit_references.get('shoulder_reference_source', 'source unavailable')})."
+            (
+                f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
+                f"{fit_references.get('shoulder_z')} mm "
+                f"({fit_references.get('shoulder_reference_source', 'source unavailable')})."
+            )
         )
         for raw_finding in fit_findings:
             if not isinstance(raw_finding, dict):
@@ -978,7 +1045,10 @@ def render_markdown(report: dict[str, object]) -> str:
             )
     elif fit_state == "within_heuristic_tolerance":
         lines.append(
-            "No large vertical-bounds deviation exceeded the screening threshold. This is not a fit or attachment certification."
+            (
+                "No large vertical-bounds deviation exceeded the screening threshold. This is not "
+                "a fit or attachment certification."
+            )
         )
     else:
         lines.append(str(fit.get("reason", "No fit-alignment measurements were available.")))
@@ -1003,16 +1073,25 @@ def render_markdown(report: dict[str, object]) -> str:
                 ", ".join(str(value) for value in _as_list(issue.get("edge_ids"))) or "not resolved"
             )
             lines.append(
-                f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** {issue.get('reason')}. "
-                f"Crossing at local {point_text}; related edges: {edge_ids}."
+                (
+                    f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** "
+                    f"{issue.get('reason')}. Crossing at local {point_text}; related edges: "
+                    f"{edge_ids}."
+                )
             )
             lines.append(f"  - Effect: {issue.get('effect')}.")
         lines.append(
-            "- **Next action:** repair the pattern boundary; do not tune collision, timestep, or solver iterations."
+            (
+                "- **Next action:** repair the pattern boundary; do not tune collision, timestep, "
+                "or solver iterations."
+            )
         )
     else:
         lines.append(
-            "No invalid polygon was reported. Topology validity is independent from body coverage, placement, and attachment."
+            (
+                "No invalid polygon was reported. Topology validity is independent from body "
+                "coverage, placement, and attachment."
+            )
         )
         lines.append(f"Next action: {report.get('next_action')}")
     lines.extend(["", "## Placement observations", ""])
@@ -1049,12 +1128,17 @@ def render_markdown(report: dict[str, object]) -> str:
             "",
             "## Interpretation guard",
             "",
-            "A generated screenshot is not proof that its input geometry is valid. A stage marked "
-            "not_reached has no downstream simulation result. Diagnose native geometry, coordinate "
-            "frames, semantic topology, placement, and attachments before numerical settings.",
+            (
+                "A generated screenshot is not proof that its input geometry is valid. A stage "
+                "marked not_reached has no downstream simulation result. Diagnose native geometry, "
+                "coordinate frames, semantic topology, placement, and attachments before numerical "
+                "settings."
+            ),
             "",
-            "This report was derived only from files in the GitHub Actions workspace for this run. "
-            "It does not inspect a live FreeCAD session or query an external service.",
+            (
+                "This report was derived only from files in the GitHub Actions workspace for this "
+                "run. It does not inspect a live FreeCAD session or query an external service."
+            ),
             "",
         ]
     )
@@ -1101,11 +1185,11 @@ def main() -> int:
     args = parser.parse_args()
     report = write_report(args.progress, args.output_root, args.workspace)
     status = _as_dict(report.get("status"))
-    print(
-        "scene-understanding-report=written result=%s failed-stage=%s"
-        % (status.get("result"), status.get("failed_stage") or "none"),
-        flush=True,
+    sys.stdout.write(
+        "scene-understanding-report=written "
+        f"result={status.get('result')} failed-stage={status.get('failed_stage') or 'none'}\n"
     )
+    sys.stdout.flush()
     return 0
 
 
