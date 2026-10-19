@@ -98,10 +98,7 @@ def main() -> int:
             for directory, output in specs:
                 frames = sorted((root / directory).glob("frame-*.png"))
                 if len(frames) != TURNTABLE_FRAME_COUNT:
-                    msg = (
-                        f"{directory}: expected {TURNTABLE_FRAME_COUNT} frames, "
-                        f"got {len(frames)}"
-                    )
+                    msg = f"{directory}: expected {TURNTABLE_FRAME_COUNT} frames, got {len(frames)}"
                     raise SystemExit(msg)
                 jobs.append(pool.submit(build, tool, frames, root / output, "8"))
             for job in as_completed(jobs):
