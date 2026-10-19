@@ -4,8 +4,9 @@
 import importlib
 from pathlib import Path
 
+from defusedxml import ElementTree
+
 import pytest
-from defusedxml import ElementTree as ET
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
@@ -24,7 +25,7 @@ EXPECTED_WORKBENCHES = {
 }
 
 
-def _require(condition: bool, message: str) -> None:
+def _require(condition: object, message: str) -> None:
     """Raise a clear test failure when a workbench contract is violated.
 
     Args:
@@ -70,9 +71,7 @@ def test_workbench_resources_are_stable() -> None:
 
 def test_sewing_command_groups_are_unique_and_complete() -> None:
     """Ensure the sewing toolbar groups exactly cover the registered command modules."""
-    commands = [
-        command for _name, group in SEWING_COMMAND_GROUPS for command in group
-    ]
+    commands = [command for _name, group in SEWING_COMMAND_GROUPS for command in group]
     _require(bool(commands), "Sewing command groups must not be empty.")
     _require(
         len(commands) == len(set(commands)),
@@ -123,7 +122,7 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
 
 def test_workbench_package_metadata_matches_registration_surface() -> None:
     """Match package.xml metadata to the implemented workbench registration surface."""
-    root = ET.parse(ROOT / "package.xml").getroot()
+    root = ElementTree.parse(ROOT / "package.xml").getroot()
     namespace = "{https://wiki.freecad.org/Package_Metadata}"
     _require(root.tag == namespace + "package", "Package metadata has an unexpected root tag.")
     _require(
