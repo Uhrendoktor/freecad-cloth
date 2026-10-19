@@ -48,6 +48,39 @@ def read(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _validate_simulation_record(
+    name: str,
+    case: dict,
+    maximum_penetration_mm: float,
+) -> None:
+    """Validate evidence and collision limits for one simulation case.
+
+    Args:
+        name: Human-readable name used in diagnostics.
+        case: Parsed simulation case record.
+        maximum_penetration_mm: Maximum accepted penetration, in millimetres.
+
+    Raises:
+        SystemExit: If the case is non-finite, uses the wrong backend, lacks checkpoints,
+            exceeds the penetration limit, or references a missing image.
+    """
+    if not case.get("finite"):
+        msg = f"{name}: non-finite case"
+        raise SystemExit(msg)
+    if case.get("solver", {}).get("backend") != "pbd":
+        msg = f"{name}: wrong backend"
+        raise SystemExit(msg)
+    if len(case.get("checkpoints", ())) != EXPECTED_CHECKPOINT_COUNT:
+        msg = f"{name}: unexpected checkpoint count"
+        raise SystemExit(msg)
+    if case.get("max_penetration_mm", 0) > maximum_penetration_mm + 1e-6:
+        msg = f"{name}: penetration too large"
+        raise SystemExit(msg)
+    for image in case.get("images", ()):
+        if not (ROOT / image).is_file():
+            msg = f"{name}: missing image {image}"
+            raise SystemExit(msg)
+
 
 def _validate_simulation_case(
     name: str,
@@ -56,7 +89,7 @@ def _validate_simulation_case(
     maximum_penetration_mm: float,
     purpose: str,
 ) -> None:
-    """Validate every acceptance field in one simulation collision case manifest.
+    """Validate the header and every case in a simulation collision manifest.
 
     Args:
         name: Human-readable name used in diagnostics.
@@ -69,10 +102,11 @@ def _validate_simulation_case(
         SystemExit: If the manifest fails a schema, evidence, or collision gate.
     """
     data = read(path)
-    if (
-        data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION
-        or data.get("purpose") != purpose
-    ):
+    valid_header = (
+        data.get("schema") == EXPECTED_MANIFEST_SCHEMA_VERSION
+        and data.get("purpose") == purpose
+    )
+    if not valid_header:
         msg = f"{name}: invalid manifest header"
         raise SystemExit(msg)
     if data.get("release_gate_effect") != "gate":
@@ -82,26 +116,11 @@ def _validate_simulation_case(
         msg = f"{name}: unexpected case count"
         raise SystemExit(msg)
     for case in data["cases"]:
-        if not case.get("finite"):
-            msg = f"{name}: non-finite case"
-            raise SystemExit(msg)
-        if case.get("solver", {}).get("backend") != "pbd":
-            msg = f"{name}: wrong backend"
-            raise SystemExit(msg)
-        if len(case.get("checkpoints", ())) != EXPECTED_CHECKPOINT_COUNT:
-            msg = f"{name}: unexpected checkpoint count"
-            raise SystemExit(msg)
-        if case.get("max_penetration_mm", 0) > maximum_penetration_mm + 1e-6:
-            msg = f"{name}: penetration too large"
-            raise SystemExit(msg)
-        for image in case.get("images", ()):
-            if not (ROOT / image).is_file():
-                msg = f"{name}: missing image {image}"
-                raise SystemExit(msg)
+        _validate_simulation_record(name, case, maximum_penetration_mm)
     if data.get("structural_validation", {}).get("first_failing_rung") is not None:
         msg = f"{name}: structural rung failed"
         raise SystemExit(msg)
-    sys.stdout.write(f"{name}-collision-ladder=passed\n")
+    sys.stdout.write(f"{name}-collision-ladder=passed\\n")
 
 
 def validate_simulation() -> None:
@@ -199,6 +218,21 @@ def validate_turntables() -> None:
     sys.stdout.write("turntables=passed\n")
 
 
+def _integer_metric_meets_minimum(data: dict, field: str, minimum: int) -> bool:
+    """Check whether a metric is an integer counter meeting a required minimum.
+
+    Args:
+        data: Parsed realtime metric object.
+        field: Manifest field containing the integer counter.
+        minimum: Smallest acceptable value for the counter.
+
+    Returns:
+        Whether the field contains an integer at least as large as the minimum.
+    """
+    value = data.get(field)
+    return isinstance(value, int) and value >= minimum
+
+
 def _realtime_header_is_valid(data: dict) -> bool:
     """Check schema identity and discrete runtime counters without reading timing floats.
 
@@ -218,15 +252,9 @@ def _realtime_header_is_valid(data: dict) -> bool:
     )
     if not all(required_fields):
         return False
-    measured_intervals = data.get("measured_intervals")
-    if not isinstance(measured_intervals, int):
+    if not _integer_metric_meets_minimum(data, "measured_intervals", MINIMUM_MEASURED_INTERVALS):
         return False
-    if measured_intervals < MINIMUM_MEASURED_INTERVALS:
-        return False
-    warmup_frames = data.get("warmup_frames_requested")
-    if not isinstance(warmup_frames, int):
-        return False
-    if warmup_frames < MINIMUM_WARMUP_FRAMES:
+    if not _integer_metric_meets_minimum(data, "warmup_frames_requested", MINIMUM_WARMUP_FRAMES):
         return False
     if data.get("observed_ticks") != data.get("expected_ticks"):
         return False
@@ -437,6 +465,7 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
         _validate_tunic_end_to_end()
     sys.stdout.write("tunic-visual=passed\n")
 
+
 def validate_tunic() -> None:
     """Validate the strict canonical tunic evidence."""
     _validate_tunic(require_canonical_e2e=True)
@@ -475,7 +504,6 @@ def validate_blanket() -> None:
         msg = "blanket: expected 16 motion frames"
         raise SystemExit(msg)
     sys.stdout.write("blanket-visual=passed\n")
-
 
 
 def _validate_diagnostic_record(
@@ -549,6 +577,7 @@ def validate_diagnostic() -> None:
         msg = "diagnostic contact manifest header failed"
         raise SystemExit(msg)
     sys.stdout.write("diagnostic-contact=passed\n")
+
 
 def main() -> int:
     """Validate the requested canonical manifests and visual evidence.
