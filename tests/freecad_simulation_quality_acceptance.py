@@ -16,7 +16,7 @@ def _progress(message: str) -> None:
     os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, "simulation-quality-progress.log")
     with open(path, "a", encoding="utf-8") as stream:
-        stream.write(message + "\\n")
+        stream.write(message + "\n")
         stream.flush()
 
 
