@@ -317,7 +317,10 @@ def _validate_workflow_dispatch_contract(text: str) -> None:
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
-        msg = "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+        msg = (
+            "canonical-execution.yml must be callable only; "
+            "event triggers belong in entry workflows"
+        )
         raise SystemExit(msg)
 
 
@@ -348,14 +351,14 @@ def _validate_entrypoint_workflows() -> None:
     ) or "merge_group:" in commit_workflow
     required_merge_markers = (
         "merge_group:",
-        "if: ${ always() }}",
-        "needs: [full-validation]",
         "name: Required pre-merge validation",
     )
     invalid_merge_workflow = (
         any(marker not in merge_workflow for marker in required_merge_markers)
         or "workflow_dispatch:" in merge_workflow
         or "pull_request:" in merge_workflow
+        or "if: ${{ always() }}" not in merge_gate
+        or "needs: [full-validation]" not in merge_gate
     )
     invalid_full_validation = "execution_mode: full" not in full_validation_workflow
     if invalid_commit_workflow or invalid_merge_workflow or invalid_full_validation:
@@ -394,7 +397,10 @@ def _validate_reusable_workflow_trust(text: str) -> None:
     if any(marker not in text for marker in required_markers) or (
         "Required pre-merge validation" not in merge_workflow
     ):
-        msg = "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
+        msg = (
+            "reusable workflow must enforce mode-specific validation "
+            "and refuse unvalidated publication"
+        )
         raise SystemExit(msg)
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
         msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
@@ -502,7 +508,10 @@ def _validate_required_components() -> None:
         encoding="utf-8"
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
-        msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
+        msg = (
+            "FreeCAD container action must use GHCR only; "
+            "workflow image artifacts are forbidden"
+        )
         raise SystemExit(msg)
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         msg = "FreeCAD container action must retain its 180-second pull contract"
@@ -542,7 +551,10 @@ def _validate_action_pinning() -> None:
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > MAX_CI_TIMEOUT_SECONDS:
-                msg = f"CI timeout exceeds {MAX_CI_TIMEOUT_SECONDS} seconds: {ci_file}: {match.group(0).strip()}"
+                msg = (
+                    f"CI timeout exceeds {MAX_CI_TIMEOUT_SECONDS} seconds: "
+                    f"{ci_file}: {match.group(0).strip()}"
+                )
                 raise SystemExit(msg)
 
 
@@ -557,7 +569,10 @@ def main() -> int:
     """
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
-        msg = f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
+        msg = (
+            "expected commit/merge/publication entry points plus one reusable workflow, "
+            f"found: {files}"
+        )
         raise SystemExit(msg)
     text = WORKFLOW.read_text(encoding="utf-8")
     _validate_workflow_dispatch_contract(text)
@@ -569,6 +584,7 @@ def main() -> int:
     _validate_action_pinning()
     sys.stdout.write(f"ci-structure=passed workflow_lines={len(text.splitlines())}\n")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
