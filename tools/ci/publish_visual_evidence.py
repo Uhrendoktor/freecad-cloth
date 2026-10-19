@@ -201,7 +201,7 @@ def _publish_assets(
     write_provenance(
         provenance,
         published,
-        ProvenanceContext(
+        visual_evidence.ProvenanceContext(
             source_root=source_root,
             source_sha=args.source_sha,
             run_id=args.run_id,
