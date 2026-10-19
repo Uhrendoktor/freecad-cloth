@@ -208,9 +208,8 @@ def main() -> int:
         for error in errors:
             sys.stdout.write(f"visual-evidence-error={error}\n")
         return 1
-    sys.stdout.write(
-        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}\n"
-    )
+    asset_count = len(documented_assets(args.source_root))
+    sys.stdout.write(f"readme-wiki-visual-freshness=passed asset_count={asset_count}\n")
     return 0
 
 
