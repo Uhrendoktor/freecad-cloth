@@ -22,7 +22,7 @@ ABSOLUTE_TEST_TOLERANCE = 1e-9
 _PATTERN_GEOMETRY = import_module("freecad_cloth.pattern.PatternGeometry")
 _PRODUCTION_LERP = cast("Callable[[float, float, float], float]", vars(_PATTERN_GEOMETRY)["_lerp"])
 _PRODUCTION_LINE_INTERSECTION = cast(
-    "Callable[[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]], tuple[float, float] | None]",
+    "Callable[\n        [tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]],\n        tuple[float, float] | None,\n    ]",
     vars(_PATTERN_GEOMETRY)["_line_intersection"],
 )
 _PRODUCTION_DISTANCE_2D = cast(
