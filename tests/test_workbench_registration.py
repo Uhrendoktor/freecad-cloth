@@ -5,14 +5,15 @@ import importlib
 from pathlib import Path
 
 import pytest
-
 from defusedxml import ElementTree
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
     COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-    ClothSewingWorkbench,
+)
+from freecad_cloth.sewing.workbench import (
     TOOLBAR_COMMANDS,
+    ClothSewingWorkbench,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
@@ -110,11 +111,7 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
     avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
     expected = (
-        {
-            command
-            for _name, group in SEWING_COMMAND_GROUPS
-            for command in group
-        }
+        {command for _name, group in SEWING_COMMAND_GROUPS for command in group}
         | set(fitting.COMMANDS)
         | set(avatar.COMMANDS)
     )
@@ -148,10 +145,7 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
     content = root.find(namespace + "content")
     if content is None:
         pytest.fail("Package metadata does not declare any workbench content.")
-    declared = {
-        item.findtext(namespace + "classname")
-        for item in content.findall(namespace + "workbench")
-    }
+    declared = {item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")}
     _require(
         declared
         == {
