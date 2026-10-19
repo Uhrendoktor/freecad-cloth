@@ -44,20 +44,9 @@ def main() -> int:
             "the canonical workflow must not rewrite the default FreeCAD application budget"
         )
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
-    gui_simple = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
-    readiness_row = next(
-        (line for line in gui_simple.splitlines() if "case: simulation-quality" in line),
-        "",
-    )
-    if (
-        workflow.count("timeout-seconds:") != 2
-        or 'timeout-seconds: "360"' not in simulation_ladder
-        or "timeout-seconds: ${{ matrix.timeout || '120' }}" not in gui_simple
-        or 'timeout: "240"' not in readiness_row
-    ):
+    if workflow.count("timeout-seconds:") != 1 or 'timeout-seconds: "360"' not in simulation_ladder:
         raise SystemExit(
-            "only the cube ladder (360s) and simulation-readiness acceptance (240s) "
-            "may request explicit runtime overrides"
+            "only the cube simulation ladder may request the explicit 360-second runtime override"
         )
     if (
         'default: "120"' not in action

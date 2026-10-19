@@ -21,7 +21,6 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     gui_matrix = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
 
     assert "case: simulation-quality" in gui_matrix
-    assert 'timeout: "240"' in gui_matrix
     assert "tests/freecad_simulation_quality_acceptance.py" in gui_matrix
     assert "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix
     assert '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
@@ -32,6 +31,10 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     assert "simulation-quality-readiness.png" in acceptance
     assert "simulation-quality-stale-target.png" in acceptance
     assert 'property("workflowState") != "blocked"' in acceptance
+    assert 'if __name__ == "__main__"' not in acceptance
+    assert '_progress("entrypoint-entered")' in acceptance
+    assert "os._exit(0)" in acceptance
+    assert "os._exit(1)" in acceptance
 
 
 def test_freecad_timeout_is_positive_and_declared_once():
@@ -60,16 +63,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
-    assert workflow.count("timeout-seconds:") == 2
+    assert workflow.count("timeout-seconds:") == 1
     assert 'timeout-seconds: "360"' in simulation_ladder
-    assert "timeout-seconds: ${{ matrix.timeout || '120' }}" in workflow
-    gui_simple = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
-    readiness_row = next(
-        line for line in gui_simple.splitlines() if "case: simulation-quality" in line
-    )
-    assert 'timeout: "240"' in readiness_row
-    timeout_contract = (ROOT / "tools" / "ci" / "timeout_contract.py").read_text(encoding="utf-8")
-    assert 'timeout: "240"' in timeout_contract
     assert "freecad_application_timeout_seconds" not in workflow
     assert 'default: "120"' in action
     assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in action

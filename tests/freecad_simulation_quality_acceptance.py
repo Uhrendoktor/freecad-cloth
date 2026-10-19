@@ -389,5 +389,11 @@ def run_acceptance():
                 App.closeDocument(doc.Name)
 
 
-if __name__ == "__main__":
+_progress("entrypoint-entered")
+try:
     run_acceptance()
+except BaseException as exc:
+    print("simulation-quality-acceptance=failed error=%r" % (exc,), flush=True)
+    App.Console.PrintError("Simulation Quality acceptance failed: %s\\n" % exc)
+    os._exit(1)
+os._exit(0)
