@@ -307,9 +307,7 @@ def _annotation_any_violations(
         violations.extend(
             _stringified_annotation_violations(node, filename, any_names, typing_modules)
         )
-        violations.extend(
-            _type_comment_any_violations(node, filename, any_names, typing_modules)
-        )
+        violations.extend(_type_comment_any_violations(node, filename, any_names, typing_modules))
     return violations
 
 
@@ -336,12 +334,8 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         return (f"{filename}:{line}: invalid Python syntax: {exc.msg}",)
 
     any_names, typing_modules, violations = _imported_type_symbols(tree, filename)
-    violations.extend(
-        _direct_any_reference_violations(tree, filename, any_names, typing_modules)
-    )
-    violations.extend(
-        _annotation_any_violations(tree, filename, any_names, typing_modules)
-    )
+    violations.extend(_direct_any_reference_violations(tree, filename, any_names, typing_modules))
+    violations.extend(_annotation_any_violations(tree, filename, any_names, typing_modules))
     return tuple(sorted(set(violations)))
 
 
