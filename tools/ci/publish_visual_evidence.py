@@ -47,9 +47,16 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
     """Build documentation GIFs from the downloaded validation artifact layout."""
     output_root = artifact_root / "docs" / "images" / "generated"
     entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
-    output_root.mkdir(parents=True, exist_ok=True)
+    # upload-artifact removes the matched blanket-example/ prefix, so restore it
+    # when the downloaded artifact contains the motion frames at its root.
+    normalized_root = output_root
+    if kind == "blanket" and any(
+        entry.is_file() and entry.match("motion-*.png") for entry in entries
+    ):
+        normalized_root = output_root / "blanket-example"
+    normalized_root.mkdir(parents=True, exist_ok=True)
     for entry in entries:
-        target = output_root / entry.name
+        target = normalized_root / entry.name
         if target.exists() or target.is_symlink():
             raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
         shutil.move(str(entry), str(target))

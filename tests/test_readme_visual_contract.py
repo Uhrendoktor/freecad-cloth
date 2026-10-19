@@ -332,3 +332,35 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     )
     assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
+
+
+def test_blanket_publication_restores_flattened_artifact_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The publisher restores the directory prefix stripped by artifact upload."""
+    from tools.ci import publish_visual_evidence
+
+    artifact_root = tmp_path / "blanket"
+    artifact_root.mkdir()
+    for index in range(16):
+        (artifact_root / f"motion-{index:03d}.png").write_bytes(b"motion frame")
+    for index in range(5):
+        (artifact_root / f"checkpoint-{index:03d}.png").write_bytes(b"checkpoint")
+    (artifact_root / "blanket-visual.log").write_text("validated\n", encoding="utf-8")
+
+    calls = []
+    monkeypatch.setattr(
+        publish_visual_evidence.subprocess,
+        "run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    publish_visual_evidence.build_visual_gif_set("blanket", artifact_root)
+
+    normalized = artifact_root / "docs" / "images" / "generated" / "blanket-example"
+    assert len(list(normalized.glob("motion-*.png"))) == 16
+    assert len(list(normalized.glob("checkpoint-*.png"))) == 5
+    assert (normalized / "blanket-visual.log").is_file()
+    assert calls[0][0][0][-1] == "blanket"
+    assert calls[0][1]["cwd"] == artifact_root
+
