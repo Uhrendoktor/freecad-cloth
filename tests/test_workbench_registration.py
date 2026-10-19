@@ -4,6 +4,7 @@
 import importlib
 from pathlib import Path
 
+import pytest
 from defusedxml import ElementTree as ET
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
