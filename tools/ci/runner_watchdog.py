@@ -44,7 +44,6 @@ def gh(*args: str) -> str:
         [_gh_executable(), *args],
         check=True,
         capture_output=True,
-        text=True,
         timeout=10,
     )
     return result.stdout
@@ -93,14 +92,12 @@ def main() -> int:
             f"fallback_source_run={run_id}",
         ],
         check=True,
-        shell=False,
         timeout=10,
     )
     time.sleep(2)
     run_command(
         [executable, "api", "--method", "POST", f"repos/{repo}/actions/runs/{run_id}/cancel"],
         check=False,
-        shell=False,
         timeout=10,
     )
     sys.stdout.write(f"runner-watchdog=fallback-dispatched source_run={run_id}\n")
