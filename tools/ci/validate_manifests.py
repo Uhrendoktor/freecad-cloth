@@ -120,7 +120,7 @@ def _validate_simulation_case(
     if data.get("structural_validation", {}).get("first_failing_rung") is not None:
         msg = f"{name}: structural rung failed"
         raise SystemExit(msg)
-    sys.stdout.write(f"{name}-collision-ladder=passed\\n")
+    sys.stdout.write(f"{name}-collision-ladder=passed\n")
 
 
 def validate_simulation() -> None:
