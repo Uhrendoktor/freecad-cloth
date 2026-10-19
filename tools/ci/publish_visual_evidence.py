@@ -43,8 +43,8 @@ def find_asset(asset: str) -> Path:
     raise SystemExit(f"generated visual asset not found: {asset}")
 
 
-def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
-    """Build documentation GIFs from the downloaded validation artifact layout."""
+def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
+    """Restore downloaded visual files to the layout expected by the GIF builder."""
     output_root = artifact_root / "docs" / "images" / "generated"
     entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
     # upload-artifact removes the matched blanket-example/ prefix, so restore it
@@ -60,6 +60,12 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         if target.exists() or target.is_symlink():
             raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
         shutil.move(str(entry), str(target))
+    return normalized_root
+
+
+def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
+    """Build documentation GIFs from the downloaded validation artifact layout."""
+    normalize_visual_artifact(kind, artifact_root)
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
         ["python3", str(source), kind],
