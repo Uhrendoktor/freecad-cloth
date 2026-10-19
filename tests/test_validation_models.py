@@ -213,7 +213,10 @@ def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() ->
         (0.0, -1.0, 0.0),
     )
     result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
-    _check(result.components == EXPECTED_COMPONENT_COUNT, "vertex-only contact must leave two mesh components")
+    _check(
+        result.components == EXPECTED_COMPONENT_COUNT,
+        "vertex-only contact must leave two mesh components",
+    )
 
 
 def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
@@ -339,7 +342,8 @@ def test_png_options_validate_dimensions_and_thresholds() -> None:
         "PNG width option must preserve the requested exact integer",
     )
     _check(
-        PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height == EXPECTED_PNG_HEIGHT,
+        PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height
+        == EXPECTED_PNG_HEIGHT,
         "PNG height option must preserve the requested exact integer",
     )
     with pytest.raises(ValidationError):
