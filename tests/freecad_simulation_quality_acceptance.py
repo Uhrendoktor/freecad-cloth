@@ -3,6 +3,7 @@
 import contextlib
 import os
 import tempfile
+import time
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -16,6 +17,63 @@ def _events():
     except ImportError:
         from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
+
+
+def _capture_readiness_screen(path):
+    """Capture the visible native Simulation Quality task panel at a stable size."""
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
+
+    app = QtWidgets.QApplication.instance()
+    screen = None if app is None else app.primaryScreen()
+    window = Gui.getMainWindow()
+    if app is None or screen is None or window is None:
+        raise RuntimeError(
+            "FreeCAD main window/screen is unavailable for readiness screenshot"
+        )
+
+    geometry = screen.availableGeometry()
+    if geometry.width() < 1280 or geometry.height() < 720:
+        raise RuntimeError(
+            "Simulation readiness screenshot requires a 1280x720-capable screen, got %dx%d"
+            % (geometry.width(), geometry.height())
+        )
+
+    window.resize(1280, 720)
+    window.show()
+    if hasattr(window, "raise_"):
+        window.raise_()
+    if hasattr(window, "activateWindow"):
+        window.activateWindow()
+    _events()
+    time.sleep(0.10)
+    _events()
+
+    pixmap = screen.grabWindow(int(window.winId()))
+    if pixmap.isNull():
+        raise RuntimeError("FreeCAD readiness screenshot is null")
+    width, height = int(pixmap.width()), int(pixmap.height())
+    if (width, height) != (1280, 720):
+        raise RuntimeError(
+            "Simulation readiness screenshot dimensions are %dx%d, expected 1280x720"
+            % (width, height)
+        )
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    if not pixmap.save(path):
+        raise RuntimeError("failed to save Simulation Quality readiness screenshot")
+
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
+
+    return validate_png_capture(
+        path,
+        expected_width=1280,
+        expected_height=720,
+        min_nonwhite_pixels=500,
+        min_distinct_rgb=16,
+        min_opaque_pixels=500,
+    )
 
 
 def _close_task():
@@ -144,6 +202,14 @@ def run_acceptance():
             raise RuntimeError("workflow checklist did not recognize the current drape target")
         if panel.workflow_labels["simulation"].property("workflowState") != "ready":
             raise RuntimeError("workflow checklist did not recognize the minimum simulation inputs")
+        artifact_dir = os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts")
+        readiness_image = os.path.join(artifact_dir, "simulation-quality-readiness.png")
+        readiness_metrics = _capture_readiness_screen(readiness_image)
+        print(
+            "simulation-quality-readiness-screenshot=passed path=%s metrics=%s"
+            % (readiness_image, readiness_metrics),
+            flush=True,
+        )
         if panel.reset_arrangement_button.isEnabled():
             raise RuntimeError("reset arrangement should be disabled before fitting handoff")
         panel.quality.setCurrentText("Final")
@@ -258,6 +324,17 @@ def run_acceptance():
                 raise RuntimeError(
                     "stale-target status did not expose a user-facing blocked reason"
                 )
+            if panel.workflow_labels["target"].property("workflowState") != "blocked":
+                raise RuntimeError("workflow checklist did not mark a stale drape target blocked")
+            if panel.workflow_labels["simulation"].property("workflowState") != "blocked":
+                raise RuntimeError("workflow checklist did not block simulation for a stale target")
+            stale_image = os.path.join(artifact_dir, "simulation-quality-stale-target.png")
+            stale_metrics = _capture_readiness_screen(stale_image)
+            print(
+                "simulation-quality-stale-target-screenshot=passed path=%s metrics=%s"
+                % (stale_image, stale_metrics),
+                flush=True,
+            )
             _close_task()
 
             Gui.Selection.clearSelection()

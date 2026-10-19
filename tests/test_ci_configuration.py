@@ -9,6 +9,30 @@ from tools.ci.run_freecad import configured_timeout_seconds
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates():
+    """The readiness checklist is exercised in FreeCAD and both rendered states are validated."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    validator = (ROOT / "tools" / "ci" / "validate_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    acceptance = (ROOT / "tests" / "freecad_simulation_quality_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    gui_matrix = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+
+    assert "case: simulation-quality" in gui_matrix
+    assert "tests/freecad_simulation_quality_acceptance.py" in gui_matrix
+    assert "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix
+    assert '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
+    stale_image_contract = '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
+    assert stale_image_contract in validator
+    assert "simulation-quality-readiness.png" in acceptance
+    assert "simulation-quality-stale-target.png" in acceptance
+    assert 'property("workflowState") != "blocked"' in acceptance
+
+
 def test_freecad_timeout_is_positive_and_declared_once():
     """The application timeout comes from the project configuration."""
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
