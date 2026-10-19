@@ -275,10 +275,7 @@ def _type_comment_any_violations(
     if not isinstance(type_comment, str):
         return []
     roots = _type_comment_roots(type_comment)
-    if not any(
-        _contains_explicit_any(root, any_names, typing_modules)
-        for root in roots
-    ):
+    if not any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
         return []
 
     line = getattr(node, "lineno", 1)
