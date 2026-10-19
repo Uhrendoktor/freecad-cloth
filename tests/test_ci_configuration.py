@@ -683,3 +683,18 @@ def test_main_publication_checks_out_source_before_local_publisher_action() -> N
     assert publisher_job.index(checkout) < publisher_job.index(local_action)
     assert 'ref: "${{ github.sha }}"' in publisher_job
     assert "persist-credentials: false" in publisher_job
+
+
+def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> None:
+    """The publisher rebuilds the blanket GIF from frames under blanket-example/."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    blanket_job = workflow.split("  gui-visual-examples:\n", maxsplit=1)[1].split(
+        "\n  publish-pr-simulation-evidence:", maxsplit=1
+    )[0]
+
+    # Keep the generated-directory prefix outside the upload wildcard so the
+    # artifact ZIP retains blanket-example/motion-*.png rather than flattening it.
+    assert "artifact-path: docs/images/generated/**" in blanket_job
+    assert "artifact-path: docs/images/generated/blanket-example/**" not in blanket_job
