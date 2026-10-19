@@ -375,11 +375,11 @@ def _record_exec_call_violation(node: ast.Call, analysis: _SourceAnalysis) -> No
             _record_exec_compile_violation(expression.args[0], node.lineno, analysis)
         return
     generated_literal = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
-    if generated_literal and not (_names_used(expression) & analysis.source_names):
-        analysis.violations.append(
-            f"{analysis.path}:{node.lineno}: generated Python source must not be executed"
-        )
-    elif isinstance(expression, ast.Name) and expression.id not in analysis.source_names:
+    generated_literal_without_source = generated_literal and not (
+        _names_used(expression) & analysis.source_names
+    )
+    generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
+    if generated_literal_without_source or generated_name:
         analysis.violations.append(
             f"{analysis.path}:{node.lineno}: generated Python source must not be executed"
         )
