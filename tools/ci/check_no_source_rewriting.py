@@ -326,7 +326,11 @@ class _SourceAnalysis:
     violations: list[str]
 
 
-def _record_exec_compile_violation(expression: ast.expr, analysis: _SourceAnalysis) -> None:
+def _record_exec_compile_violation(
+    expression: ast.expr,
+    call_line: int,
+    analysis: _SourceAnalysis,
+) -> None:
     """Record a generated-code violation for a compile call nested in exec.
 
     Args:
@@ -340,7 +344,7 @@ def _record_exec_compile_violation(expression: ast.expr, analysis: _SourceAnalys
     )
     if generated_name or generated_expression:
         analysis.violations.append(
-            f"{analysis.path}:{expression.lineno}: generated Python source must not be executed"
+            f"{analysis.path}:{call_line}: generated Python source must not be executed"
         )
 
 
@@ -365,7 +369,7 @@ def _record_exec_call_violation(node: ast.Call, analysis: _SourceAnalysis) -> No
             and expression.func.id == "compile"
             and expression.args
         ):
-            _record_exec_compile_violation(expression.args[0], analysis)
+            _record_exec_compile_violation(expression.args[0], node.lineno, analysis)
         return
     generated_literal = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
     if generated_literal and not (_names_used(expression) & analysis.source_names):
