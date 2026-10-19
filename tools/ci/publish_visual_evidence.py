@@ -12,28 +12,25 @@ from pathlib import Path
 
 if __package__:
     from tools.ci.build_visual_gifs import build, image_tool
-    from tools.ci.command_runner import (
-        CommandContext,
-        CommandExecutionError,
-        CommandResult,
-        CommandTimeoutError,
-        run_command,
+    from tools.ci.command_runner import CommandContext, CommandResult, run_command
+    from tools.ci.visual_evidence import (
+        ProvenanceContext,
+        documented_assets,
+        verify,
+        write_provenance,
     )
-    from tools.ci.visual_evidence import ProvenanceContext
-    from tools.ci.visual_evidence import documented_assets, verify, write_provenance
 else:
     from build_visual_gifs import build, image_tool
-    from command_runner import (
-        CommandContext,
-        CommandExecutionError,
-        CommandResult,
-        CommandTimeoutError,
-        run_command,
+    from command_runner import CommandContext, CommandResult, run_command
+    from visual_evidence import (
+        ProvenanceContext,
+        documented_assets,
+        verify,
+        write_provenance,
     )
-    from visual_evidence import ProvenanceContext
-    from visual_evidence import documented_assets, verify, write_provenance
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
+SURFACE_PEN_FRAME_COUNT = 4
 ARTIFACT_ROOTS = (
     # The tunic audit owns the canonical profiles also used by the 3D arranged/draped views.
     Path("tunic"),
@@ -71,8 +68,6 @@ def run(
     Raises:
         ValueError: If the argument vector or timeout is invalid.
         FileNotFoundError: If the executable is not available on PATH.
-        CommandExecutionError: If checking is enabled and the child fails.
-        CommandTimeoutError: If the child exceeds its timeout.
     """
     if not args:
         msg = "an executable command is required"
@@ -124,8 +119,6 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
 
     Raises:
         SystemExit: If normalized assets would collide with existing files.
-        CommandExecutionError: If the documentation GIF builder exits with an error.
-        CommandTimeoutError: If the builder exceeds its 55-second execution limit.
     """
     output_root = artifact_root / "docs" / "images" / "generated"
     entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
@@ -148,42 +141,43 @@ def build_surface_pen_gif() -> None:
     """
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
-    if len(frames) != 4:
-        msg = f"surface-pen: expected 4 captured workflow frames, got {len(frames)}"
+    if len(frames) != SURFACE_PEN_FRAME_COUNT
+        msg = (
+            f"surface-pen: expected {SURFACE_PEN_FRAME_COUNT} captured workflow frames, "
+            f"got {len(frames)}"
+        )
         raise SystemExit(msg)
     build(image_tool(), frames, root / "surface-pen-workflow.gif", "80")
 
 
-def main() -> int:
-    """Publish and validate the repository visual evidence inventory.
+def _publish_assets(
+    repository: str,
+    source_root: Path,
+    expected: set[str],
+    source_sha: str,
+    run_id: str,
+    run_number: str,
+) -> str:
+    """Publish the generated assets and verify the remote publication revision.
+
+    Args:
+        repository: GitHub repository that owns the screenshot publication branch.
+        source_root: Checked-out source repository used for the documentation inventory.
+        expected: Exact generated image names referenced by public documentation.
+        source_sha: Source revision recorded in the provenance manifest.
+        run_id: GitHub Actions run ID that produced the evidence.
+        run_number: Human-readable Actions run number recorded in provenance.
 
     Returns:
-        Process status indicating that the visual evidence inventory was published and verified.
+        Commit SHA of the verified public screenshot branch.
 
     Raises:
-        SystemExit: If the published visual inventory does not satisfy its contract.
+        SystemExit: If the asset inventory or the remote publication revision is invalid.
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--repository", required=True)
-    parser.add_argument("--source-sha", required=True)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--run-number", required=True)
-    args = parser.parse_args()
-
-    # gh uses GH_TOKEN for clone/authentication; configure Git before the raw push.
-    run("gh", "auth", "setup-git")
-
-    source_root = Path.cwd()
-    expected = documented_assets(source_root)
-    build_visual_gif_set("turntables", Path("turntable-doc-assets"))
-    build_visual_gif_set("blanket", Path("blanket"))
-    build_visual_gif_set("tunic", Path("tunic"))
-    build_surface_pen_gif()
-
     temp_root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
     worktree = temp_root / "cloth-screenshot-publish"
     shutil.rmtree(worktree, ignore_errors=True)
-    run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none")
+    run("gh", "repo", "clone", repository, str(worktree), "--", "--filter=blob:none")
 
     branch = "docs/screenshots"
     remote_result = run(
@@ -221,13 +215,13 @@ def main() -> int:
         published,
         ProvenanceContext(
             source_root=source_root,
-            source_sha=args.source_sha,
-            run_id=args.run_id,
-            run_number=args.run_number,
+            source_sha=source_sha,
+            run_id=run_id,
+            run_number=run_number,
         ),
     )
 
-    errors = verify(source_root, published, provenance, args.source_sha)
+    errors = verify(source_root, published, provenance, source_sha)
     if errors:
         raise SystemExit("; ".join(errors))
 
@@ -242,8 +236,13 @@ def main() -> int:
     )
     run("git", "-C", str(worktree), "add", "docs/images/generated")
     dirty = (
-        subprocess.run(
-            ("git", "-C", str(worktree), "diff", "--cached", "--quiet"),
+        run(
+            "git",
+            "-C",
+            str(worktree),
+            "diff",
+            "--cached",
+            "--quiet",
             check=False,
         ).returncode
         != 0
@@ -255,7 +254,7 @@ def main() -> int:
             str(worktree),
             "commit",
             "-m",
-            f"ci: publish README/wiki visual evidence for {args.source_sha[:12]}",
+            f"ci: publish README/wiki visual evidence for {source_sha[:12]}",
         )
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
@@ -279,6 +278,40 @@ def main() -> int:
     if remote_commit != local_commit:
         msg = f"remote screenshot branch mismatch: {remote_commit} != {local_commit}"
         raise SystemExit(msg)
+    return remote_commit
+
+
+def main() -> int:
+    """Publish and validate the repository visual evidence inventory.
+
+    Returns:
+        Process status indicating that the visual evidence inventory was published and verified.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repository", required=True)
+    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-number", required=True)
+    args = parser.parse_args()
+
+    # gh uses GH_TOKEN for clone/authentication; configure Git before the raw push.
+    run("gh", "auth", "setup-git")
+
+    source_root = Path.cwd()
+    expected = documented_assets(source_root)
+    build_visual_gif_set("turntables", Path("turntable-doc-assets"))
+    build_visual_gif_set("blanket", Path("blanket"))
+    build_visual_gif_set("tunic", Path("tunic"))
+    build_surface_pen_gif()
+
+    remote_commit = _publish_assets(
+        args.repository,
+        source_root,
+        expected,
+        args.source_sha,
+        args.run_id,
+        args.run_number,
+    )
     sys.stdout.write(
         f"visual-publish=passed source_sha={args.source_sha} "
         f"asset_count={len(expected)} remote_commit={remote_commit}\n"
