@@ -6,11 +6,20 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 from typing import cast
 
 TARGET_FPS = 30.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
+FRAME_BUDGET_TOLERANCE_MS = 1e-6
+EXPECTED_SCHEMA_VERSION = 1
+EXPECTED_PANEL_COUNT = 2
+EXPECTED_COLLISION_TRIANGLES_MINIMUM = 1
+MIN_PARTICLES = 100
+MIN_PARTICLE_DISTANCE_MM = 40.0
+EXPECTED_QUALITY_PRESET = "Fast"
+MIN_CPU_COUNT = 1
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
 
@@ -58,7 +67,7 @@ def validate_metrics(payload: object) -> list[str]:
     metrics = cast("dict[str, object]", payload)
     errors: list[str] = []
 
-    if _integer(metrics.get("schema_version")) != 1:
+    if _integer(metrics.get("schema_version")) != EXPECTED_SCHEMA_VERSION:
         errors.append("schema_version must be 1")
     if metrics.get("backend") != "position-based-dynamics":
         errors.append("backend must be position-based-dynamics")
@@ -66,12 +75,12 @@ def validate_metrics(payload: object) -> list[str]:
     if metrics.get("fixture") != "two-panel-tunic-pattern":
         errors.append("fixture must be two-panel-tunic-pattern")
     particles = _integer(metrics.get("particles"))
-    if particles is None or particles < 100:
+    if particles is None or particles < MIN_PARTICLES:
         errors.append("particles must be an integer >= 100 for garment-scale coverage")
-    if _integer(metrics.get("panel_count")) != 2:
+    if _integer(metrics.get("panel_count")) != EXPECTED_PANEL_COUNT:
         errors.append("panel_count must be 2")
     collision_triangles = _integer(metrics.get("collision_triangles"))
-    if collision_triangles is None or collision_triangles < 1:
+    if collision_triangles is None or collision_triangles < EXPECTED_COLLISION_TRIANGLES_MINIMUM:
         errors.append("collision_triangles must be a positive integer")
 
     frames = _integer(metrics.get("frames_requested"))
@@ -104,7 +113,7 @@ def validate_metrics(payload: object) -> list[str]:
         errors.append("published_state_finite must be true")
 
     budget = _number(metrics.get("frame_budget_ms"))
-    if budget is None or abs(budget - FRAME_BUDGET_MS) > 1e-6:
+    if budget is None or abs(budget - FRAME_BUDGET_MS) > FRAME_BUDGET_TOLERANCE_MS:
         errors.append("frame_budget_ms must match the 30 FPS budget")
 
     numeric_keys = (
@@ -167,10 +176,10 @@ def validate_metrics(payload: object) -> list[str]:
         errors.append("profile must be a JSON object")
     else:
         profile = cast("dict[str, object]", profile_value)
-        if profile.get("quality_preset") != "Fast":
+        if profile.get("quality_preset") != EXPECTED_QUALITY_PRESET:
             errors.append("profile.quality_preset must be Fast")
         spacing = _number(profile.get("particle_distance_mm"))
-        if spacing is None or spacing < 40.0:
+        if spacing is None or spacing < MIN_PARTICLE_DISTANCE_MM:
             errors.append("profile.particle_distance_mm must be >= 40")
         errors.extend(
             f"profile.{key} must be 1"
@@ -188,7 +197,7 @@ def validate_metrics(payload: object) -> list[str]:
             if not isinstance(value, str) or not value:
                 errors.append(f"runtime.{key} must be a non-empty string")
         cpu_count = _integer(runtime.get("cpu_count"))
-        if cpu_count is None or cpu_count < 1:
+        if cpu_count is None or cpu_count < MIN_CPU_COUNT:
             errors.append("runtime.cpu_count must be a positive integer")
 
     return errors
@@ -197,11 +206,11 @@ def validate_metrics(payload: object) -> list[str]:
 def main() -> int:
     """Read and independently validate a saved realtime metric artifact.
 
-    Raises:
-        SystemExit: Raised when the metrics file cannot be read or decoded.
-
     Returns:
         Process status indicating whether the realtime metrics are acceptable.
+
+    Raises:
+        SystemExit: Raised when the metrics file cannot be read or decoded.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metrics", type=Path, help="path to metrics.json produced by FreeCAD")
@@ -215,7 +224,8 @@ def main() -> int:
     errors = validate_metrics(payload)
     if errors:
         for error in errors:
-            print(f"realtime-benchmark=failed reason={error}", flush=True)
+            sys.stdout.write(f"realtime-benchmark=failed reason={error}\n")
+            sys.stdout.flush()
         return 1
 
     metrics = cast("dict[str, object]", payload)
@@ -223,14 +233,14 @@ def main() -> int:
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is None or p95_interval is None:
         return 1
-    print(
+    sys.stdout.write(
         "realtime-benchmark=passed "
         f"frames={metrics['measured_intervals']} "
         f"mean_ms={mean_interval:.3f} "
         f"p95_ms={p95_interval:.3f} "
-        f"budget_ms={FRAME_BUDGET_MS:.3f}",
-        flush=True,
+        f"budget_ms={FRAME_BUDGET_MS:.3f}\n"
     )
+    sys.stdout.flush()
     return 0
 
 

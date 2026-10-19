@@ -209,7 +209,8 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
             active_name = ""
             if self._gui is not None:
                 with suppress(AttributeError, RuntimeError, TypeError):
-                    # FreeCAD exposes this method in mixed case; keep that host name at the boundary.
+                    # FreeCAD exposes this method in mixed case; keep that host name
+                    # at the boundary.
                     active_workbench_name = "activeWorkbench"
                     active_workbench = cast(
                         "Callable[[], _ActiveWorkbench]",

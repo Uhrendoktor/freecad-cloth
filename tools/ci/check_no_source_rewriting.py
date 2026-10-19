@@ -242,7 +242,10 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
             elif isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name):
                 if expression.func.id == "compile" and expression.args:
                     compiled_source = expression.args[0]
-                    if _names_used(compiled_source) & modified_source_names:
+                    is_transformed_source = bool(
+                        _names_used(compiled_source) & modified_source_names
+                    )
+                    if is_transformed_source:
                         violations.append(
                             f"{path}:{node.lineno}: transformed source must not be executed dynamically"
                         )
@@ -373,9 +376,9 @@ def main() -> int:
         elif path.suffix in {".yml", ".yaml", ".sh"}:
             errors.extend(workflow_source_rewrite_violations(text, relative))
     if errors:
-        print("\n".join(errors), file=sys.stderr)
+        sys.stderr.write("\n".join(errors) + "\n")
         return 1
-    print("source-rewriting-policy=passed")
+    sys.stdout.write("source-rewriting-policy=passed\n")
     return 0
 
 

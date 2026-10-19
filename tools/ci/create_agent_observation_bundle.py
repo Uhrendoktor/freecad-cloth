@@ -21,6 +21,7 @@ SCHEMA_VERSION = 1
 MAX_EVIDENCE_FILES = 24
 MAX_EVIDENCE_FILE_BYTES = 4_000_000
 MAX_EVIDENCE_BYTES = 5_000_000
+MAX_LABEL_CHARACTERS = 160
 ROLE_SUFFIXES = {
     "summary": {".json", ".md", ".txt", ".yaml", ".yml"},
     "metrics": {".json", ".csv"},
@@ -64,7 +65,7 @@ def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
     candidate = base.joinpath(*relative.parts)
     cursor = base
     for part in relative.parts:
-        cursor = cursor / part
+        cursor /= part
         if cursor.is_symlink():
             msg = f"symbolic links are not allowed: {value!r}"
             raise ObservationBundleError(msg)
@@ -243,7 +244,7 @@ def create_observation_bundle(
         raise ObservationBundleError(msg)
 
     output = _resolve_relative_path(root, "agent-observation.json", must_exist=False)
-    if len(label) > 160 or "\n" in label or "\r" in label:
+    if len(label) > MAX_LABEL_CHARACTERS or "\n" in label or "\r" in label:
         msg = "observation-label must be a single line of at most 160 characters"
         raise ObservationBundleError(msg)
 
@@ -328,7 +329,7 @@ def main() -> int:
     """
     environment = os.environ
     if not environment.get("OBSERVATION_ARTIFACT_NAME", "").strip():
-        print("agent observation export requires artifact-name to be set", file=sys.stderr)
+        sys.stderr.write("agent observation export requires artifact-name to be set\n")
         return 2
 
     try:
@@ -340,14 +341,14 @@ def main() -> int:
             environment=environment,
         )
     except (ObservationBundleError, OSError) as exc:
-        print(f"agent observation export failed: {exc}", file=sys.stderr)
+        sys.stderr.write(f"agent observation export failed: {exc}\n")
         return 2
 
     count = sum(
         bool(line.strip())
         for line in environment.get("OBSERVATION_FILES", "").replace(";", "\n").splitlines()
     )
-    print(f"agent-observation=written path=agent-observation.json evidence={count}")
+    sys.stdout.write(f"agent-observation=written path=agent-observation.json evidence={count}\n")
     return 0
 
 
