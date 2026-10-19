@@ -319,8 +319,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "observed_mm": round(top_below_reference_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
                 "message": (
-                    "highest final cloth point is materially below the "
-                    "estimated shoulder reference"
+                    "highest final cloth point is materially below the estimated shoulder reference"
                 ),
             }
         )
@@ -332,8 +331,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "observed_mm": round(top_above_reference_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
                 "message": (
-                    "highest final cloth point is materially above the "
-                    "estimated shoulder reference"
+                    "highest final cloth point is materially above the estimated shoulder reference"
                 ),
             }
         )
@@ -345,8 +343,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
                 "observed_mm": round(hem_overshoot_mm, 3),
                 "review_threshold_mm": round(review_threshold_mm, 3),
                 "message": (
-                    "lowest final cloth point extends materially below the "
-                    "declared hem level"
+                    "lowest final cloth point extends materially below the declared hem level"
                 ),
             }
         )
