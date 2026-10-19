@@ -8,11 +8,26 @@ import hashlib
 import json
 import math
 import re
+import sys
 from math import ceil, isclose
 from pathlib import Path
 
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = [0, 1, 5, 15, 45, 90]
+EXPECTED_MANIFEST_SCHEMA_VERSION = 1
+EXPECTED_CHECKPOINT_COUNT = 6
+EXPECTED_TURN_TABLE_FRAME_COUNT = 73
+EXPECTED_TURN_TABLE_CHECKPOINT_COUNT = 4
+MINIMUM_BLANKET_DISPLACEMENT_MM = 40.0
+MAXIMUM_COLLISION_PENETRATION_MM = 3.0
+MAXIMUM_LEGACY_P95_FRAME_MS = 50.0
+MINIMUM_MEASURED_INTERVALS = 120
+MINIMUM_WARMUP_FRAMES = 30
+EXPECTED_TUNIC_MOTION_FRAME_COUNT = 10
+EXPECTED_BLANKET_CHECKPOINT_COUNT = 5
+EXPECTED_BLANKET_MOTION_FRAME_COUNT = 16
+EXPECTED_DIAGNOSTIC_CASE_COUNT = 5
+EXPECTED_DIAGNOSTIC_SOLVER_SUBSTEPS = 1
 
 
 def read(path: Path) -> dict:
@@ -45,7 +60,7 @@ def validate_simulation() -> None:
     )
     for name, path, count, max_penetration, purpose in specs:
         data = read(path)
-        if data.get("schema") != 1 or data.get("purpose") != purpose:
+        if data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION or data.get("purpose") != purpose:
             msg = f"{name}: invalid manifest header"
             raise SystemExit(msg)
         if data.get("release_gate_effect") != "gate":
@@ -61,7 +76,7 @@ def validate_simulation() -> None:
             if case.get("solver", {}).get("backend") != "pbd":
                 msg = f"{name}: wrong backend"
                 raise SystemExit(msg)
-            if len(case.get("checkpoints", ())) != 6:
+            if len(case.get("checkpoints", ())) != EXPECTED_CHECKPOINT_COUNT:
                 msg = f"{name}: unexpected checkpoint count"
                 raise SystemExit(msg)
             if case.get("max_penetration_mm", 0) > max_penetration + 1e-6:
@@ -74,7 +89,7 @@ def validate_simulation() -> None:
         if data.get("structural_validation", {}).get("first_failing_rung") is not None:
             msg = f"{name}: structural rung failed"
             raise SystemExit(msg)
-        print(f"{name}-collision-ladder=passed")
+        sys.stdout.write(f"{name}-collision-ladder=passed\n")
 
 
 def validate_turntables() -> None:
@@ -91,11 +106,11 @@ def validate_turntables() -> None:
     )
     for directory in directories:
         frames = sorted((root / directory).glob("frame-*.png"))
-        if len(frames) != 73:
+        if len(frames) != EXPECTED_TURN_TABLE_FRAME_COUNT:
             msg = f"{directory}: expected 73 frames, got {len(frames)}"
             raise SystemExit(msg)
         hashes = {hashlib.sha256(p.read_bytes()).hexdigest() for p in frames}
-        if len(hashes) != 73:
+        if len(hashes) != EXPECTED_TURN_TABLE_FRAME_COUNT:
             msg = f"{directory}: duplicate frame hashes"
             raise SystemExit(msg)
         checkpoints = []
@@ -105,7 +120,7 @@ def validate_turntables() -> None:
                 msg = f"{directory}: missing checkpoint {frame}"
                 raise SystemExit(msg)
             checkpoints.append(hashlib.sha256(path.read_bytes()).hexdigest())
-        if len(set(checkpoints)) != 4:
+        if len(set(checkpoints)) != EXPECTED_TURN_TABLE_CHECKPOINT_COUNT:
             msg = f"{directory}: camera checkpoints are not distinct"
             raise SystemExit(msg)
 
@@ -128,17 +143,17 @@ def validate_turntables() -> None:
         r"blanket-motion-diagnostic max_centroid_displacement_mm=([+-]?[0-9.]+)",
         text,
     )
-    if not displacement or float(displacement[-1]) < 40.0:
+    if not displacement or float(displacement[-1]) < MINIMUM_BLANKET_DISPLACEMENT_MM:
         msg = "turntable: insufficient blanket displacement"
         raise SystemExit(msg)
     penetration = re.findall(
         r"collision-penetration=passed max_penetration_mm=([+-]?[0-9.]+)",
         text,
     )
-    if not penetration or float(penetration[-1]) > 3.0:
+    if not penetration or float(penetration[-1]) > MAXIMUM_COLLISION_PENETRATION_MM:
         msg = "turntable: collision penetration gate failed"
         raise SystemExit(msg)
-    print("turntables=passed")
+    sys.stdout.write("turntables=passed\n")
 
 
 def _validate_realtime_metrics(data: dict) -> None:
@@ -155,7 +170,7 @@ def _validate_realtime_metrics(data: dict) -> None:
         if (
             not data["finite"]
             or data["mean_frame_ms"] > data["frame_budget_ms"]
-            or data["p95_frame_ms"] > 50.0
+            or data["p95_frame_ms"] > MAXIMUM_LEGACY_P95_FRAME_MS
         ):
             msg = f"tunic: realtime performance gate failed: {data}"
             raise SystemExit(msg)
@@ -166,16 +181,16 @@ def _validate_realtime_metrics(data: dict) -> None:
     p95_interval = data.get("p95_frame_interval_ms")
     numeric_values = (budget, mean_interval, p95_interval)
     if (
-        data.get("schema_version") != 1
+        data.get("schema_version") != EXPECTED_MANIFEST_SCHEMA_VERSION
         or data.get("backend") != "position-based-dynamics"
         or data.get("fixture") != "two-panel-tunic-pattern"
         or data.get("backend_finite") is not True
         or data.get("published_state_finite") is not True
         or data.get("timed_out") is not False
         or not isinstance(data.get("measured_intervals"), int)
-        or data["measured_intervals"] < 120
+        or data["measured_intervals"] < MINIMUM_MEASURED_INTERVALS
         or not isinstance(data.get("warmup_frames_requested"), int)
-        or data["warmup_frames_requested"] < 30
+        or data["warmup_frames_requested"] < MINIMUM_WARMUP_FRAMES
         or data.get("observed_ticks") != data.get("expected_ticks")
         or data.get("frames_advanced") != data.get("observed_ticks")
         or any(
@@ -191,7 +206,7 @@ def _validate_realtime_metrics(data: dict) -> None:
         raise SystemExit(msg)
 
 
-def _validate_tunic(require_canonical_e2e: bool) -> None:
+def _validate_tunic(*, require_canonical_e2e: bool) -> None:
     """Validate tunic evidence produced by either the canonical or production audit.
 
     Args:
@@ -280,7 +295,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
             msg = f"tunic: missing image {path}"
             raise SystemExit(msg)
 
-    if len(list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))) != 10:
+    if len(list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))) != EXPECTED_TUNIC_MOTION_FRAME_COUNT:
         msg = "tunic: wrong mannequin motion frame count"
         raise SystemExit(msg)
 
@@ -308,7 +323,7 @@ def _validate_tunic(require_canonical_e2e: bool) -> None:
             if marker not in e2e:
                 msg = f"tunic: missing E2E marker {marker}"
                 raise SystemExit(msg)
-    print("tunic-visual=passed")
+    sys.stdout.write("tunic-visual=passed\n")
 
 
 def validate_tunic() -> None:
@@ -342,13 +357,13 @@ def validate_blanket() -> None:
         if marker not in text:
             msg = f"blanket: missing marker {marker}"
             raise SystemExit(msg)
-    if len(list(root.glob("checkpoint-*.png"))) != 5:
+    if len(list(root.glob("checkpoint-*.png"))) != EXPECTED_BLANKET_CHECKPOINT_COUNT:
         msg = "blanket: expected 5 checkpoints"
         raise SystemExit(msg)
-    if len(list(root.glob("motion-*.png"))) != 16:
+    if len(list(root.glob("motion-*.png"))) != EXPECTED_BLANKET_MOTION_FRAME_COUNT:
         msg = "blanket: expected 16 motion frames"
         raise SystemExit(msg)
-    print("blanket-visual=passed")
+    sys.stdout.write("blanket-visual=passed\n")
 
 
 def validate_diagnostic() -> None:
@@ -363,13 +378,13 @@ def validate_diagnostic() -> None:
         ("avatar-ladder-manifest.json", "simulation-avatar-ladder", range(6, 11)),
     ):
         data = read(root / name)
-        if data.get("schema") != 1 or data.get("purpose") != purpose:
+        if data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION or data.get("purpose") != purpose:
             msg = f"diagnostic {name}: invalid header"
             raise SystemExit(msg)
         if data.get("release_gate_effect") != "gate":
             msg = f"diagnostic {name}: wrong gate effect"
             raise SystemExit(msg)
-        if len(data.get("cases", ())) != 5:
+        if len(data.get("cases", ())) != EXPECTED_DIAGNOSTIC_CASE_COUNT:
             msg = f"diagnostic {name}: wrong case count"
             raise SystemExit(msg)
         for record, expected_rung in zip(data["cases"], rung, strict=True):
@@ -379,10 +394,10 @@ def validate_diagnostic() -> None:
             if record.get("solver", {}).get("backend") != "pbd":
                 msg = f"diagnostic {name}: wrong backend"
                 raise SystemExit(msg)
-            if record.get("solver", {}).get("substeps") != 1:
+            if record.get("solver", {}).get("substeps") != EXPECTED_DIAGNOSTIC_SOLVER_SUBSTEPS:
                 msg = f"diagnostic {name}: wrong substeps"
                 raise SystemExit(msg)
-            if len(record.get("checkpoints", ())) != 6:
+            if len(record.get("checkpoints", ())) != EXPECTED_CHECKPOINT_COUNT:
                 msg = f"diagnostic {name}: wrong checkpoints"
                 raise SystemExit(msg)
             for image in record.get("images", ()):
@@ -391,10 +406,10 @@ def validate_diagnostic() -> None:
                     msg = f"diagnostic {name}: missing image {image}"
                     raise SystemExit(msg)
     data = read(root / "manifest.json")
-    if data.get("schema") != 1 or data.get("release_gate_effect") != "none":
+    if data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION or data.get("release_gate_effect") != "none":
         msg = "diagnostic contact manifest header failed"
         raise SystemExit(msg)
-    print("diagnostic-contact=passed")
+    sys.stdout.write("diagnostic-contact=passed\n")
 
 
 def main() -> int:
