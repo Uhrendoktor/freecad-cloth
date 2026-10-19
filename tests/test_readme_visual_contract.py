@@ -363,4 +363,3 @@ def test_blanket_publication_restores_flattened_artifact_directory(
     assert (normalized / "blanket-visual.log").is_file()
     assert calls[0][0][0][-1] == "blanket"
     assert calls[0][1]["cwd"] == artifact_root
-
