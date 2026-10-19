@@ -14,9 +14,7 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates():
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    validator = (ROOT / "tools" / "ci" / "validate_acceptance.py").read_text(
-        encoding="utf-8"
-    )
+    validator = (ROOT / "tools" / "ci" / "validate_acceptance.py").read_text(encoding="utf-8")
     acceptance = (ROOT / "tests" / "freecad_simulation_quality_acceptance.py").read_text(
         encoding="utf-8"
     )
@@ -26,7 +24,9 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates():
     assert "tests/freecad_simulation_quality_acceptance.py" in gui_matrix
     assert "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix
     assert '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
-    stale_image_contract = '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
+    stale_image_contract = (
+        '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
+    )
     assert stale_image_contract in validator
     assert "simulation-quality-readiness.png" in acceptance
     assert "simulation-quality-stale-target.png" in acceptance

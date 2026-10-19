@@ -30,9 +30,7 @@ def _capture_readiness_screen(path):
     screen = None if app is None else app.primaryScreen()
     window = Gui.getMainWindow()
     if app is None or screen is None or window is None:
-        raise RuntimeError(
-            "FreeCAD main window/screen is unavailable for readiness screenshot"
-        )
+        raise RuntimeError("FreeCAD main window/screen is unavailable for readiness screenshot")
 
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
