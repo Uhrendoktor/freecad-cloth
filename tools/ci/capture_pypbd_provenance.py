@@ -26,7 +26,8 @@ def main() -> int:
 
     docker = shutil.which("docker")
     if docker is None:
-        raise SystemExit("docker executable not found on PATH")
+        msg = "docker executable not found on PATH"
+        raise SystemExit(msg)
 
     result = run(
         [docker, "run", "--rm", args.image, "bash", "-lc", "cat /opt/pypbd-provenance.txt"],

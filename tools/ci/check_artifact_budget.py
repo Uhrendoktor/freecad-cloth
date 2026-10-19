@@ -44,6 +44,35 @@ def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     return total
 
 
+def _request_artifact_payload(
+    connection: http.client.HTTPSConnection,
+    request_path: str,
+    headers: Mapping[str, str],
+) -> JSONValue:
+    """Request and decode one GitHub artifact API response.
+
+    Args:
+        connection: Open HTTPS connection to the GitHub API.
+        request_path: API path and query string for the requested artifact page.
+        headers: Authentication and version headers sent with the request.
+
+    Returns:
+        Decoded JSON payload from a successful HTTP response.
+
+    Raises:
+        RuntimeError: If the GitHub API returns a non-success HTTP status.
+    """
+    connection.request("GET", request_path, headers=dict(headers))
+    response = connection.getresponse()
+    if response.status != http.client.OK:
+        msg = (
+            "GitHub artifact API request failed: "
+            f"HTTP {response.status} {response.reason}"
+        )
+        raise RuntimeError(msg)
+    return cast("JSONValue", json.loads(response.read()))
+
+
 def fetch_artifact_page(
     repository: str, run_id: int, token: str, page: int
 ) -> list[Mapping[str, object]]:
@@ -59,7 +88,7 @@ def fetch_artifact_page(
         Artifact records returned for the requested page.
 
     Raises:
-        RuntimeError: If the HTTPS request fails, the API returns an error status, or JSON is invalid.
+        RuntimeError: If HTTPS fails or the API returns an error status.
         TypeError: If the JSON response does not have the expected object/list structure.
     """
     query = urlencode({"per_page": PAGE_SIZE, "page": page})
@@ -71,15 +100,7 @@ def fetch_artifact_page(
     }
     try:
         with http.client.HTTPSConnection("api.github.com", timeout=20) as connection:
-            connection.request("GET", request_path, headers=headers)
-            response = connection.getresponse()
-            if response.status != http.client.OK:
-                msg = (
-                    "GitHub artifact API request failed: "
-                    f"HTTP {response.status} {response.reason}"
-                )
-                raise RuntimeError(msg)
-            payload = cast("JSONValue", json.loads(response.read()))
+            payload = _request_artifact_payload(connection, request_path, headers)
     except (http.client.HTTPException, OSError) as exc:
         msg = f"GitHub artifact API request failed: {exc}"
         raise RuntimeError(msg) from exc
