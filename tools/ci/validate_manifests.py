@@ -552,10 +552,7 @@ def validate_diagnostic() -> None:
     )
     for filename, purpose, rungs in manifests:
         data = read(root / filename)
-        if (
-            data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION
-            or data.get("purpose") != purpose
-        ):
+        if data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION or data.get("purpose") != purpose:
             msg = f"diagnostic {filename}: invalid header"
             raise SystemExit(msg)
         if data.get("release_gate_effect") != "gate":
