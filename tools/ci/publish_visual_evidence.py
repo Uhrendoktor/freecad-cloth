@@ -6,8 +6,32 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess
+import sys
+import tempfile
 from pathlib import Path
+
+if __package__:
+    from tools.ci.build_visual_gifs import build, image_tool
+    from tools.ci.command_runner import (
+        CommandContext,
+        CommandExecutionError,
+        CommandResult,
+        CommandTimeoutError,
+        run_command,
+    )
+    from tools.ci.visual_evidence import ProvenanceContext
+    from tools.ci.visual_evidence import documented_assets, verify, write_provenance
+else:
+    from build_visual_gifs import build, image_tool
+    from command_runner import (
+        CommandContext,
+        CommandExecutionError,
+        CommandResult,
+        CommandTimeoutError,
+        run_command,
+    )
+    from visual_evidence import ProvenanceContext
+    from visual_evidence import documented_assets, verify, write_provenance
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 ARTIFACT_ROOTS = (
@@ -25,14 +49,45 @@ ARTIFACT_ROOTS = (
 )
 
 
-def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status.
+def run(
+    *args: str,
+    cwd: Path | None = None,
+    check: bool = True,
+    capture_output: bool = False,
+    timeout: float | None = None,
+) -> CommandResult:
+    """Run a resolved executable directly without shell interpolation.
 
     Args:
-        args: Executable name followed by the command-line arguments to run.
-        cwd: Optional working directory in which the command should execute.
+        args: Executable name followed by command-line arguments.
+        cwd: Optional working directory for the child process.
+        check: Whether a non-zero exit status raises CommandExecutionError.
+        capture_output: Whether to capture the child's stdout and stderr.
+        timeout: Maximum runtime, or None to wait without a deadline.
+
+    Returns:
+        Exit status and captured text output when requested.
+
+    Raises:
+        ValueError: If the argument vector or timeout is invalid.
+        FileNotFoundError: If the executable is not available on PATH.
+        CommandExecutionError: If checking is enabled and the child fails.
+        CommandTimeoutError: If the child exceeds its timeout.
     """
-    subprocess.run(args, cwd=cwd, check=True)
+    if not args:
+        msg = "an executable command is required"
+        raise ValueError(msg)
+    executable = shutil.which(args[0])
+    if executable is None:
+        msg = f"Required executable is not on PATH: {args[0]}"
+        raise FileNotFoundError(msg)
+    return run_command(
+        (executable, *args[1:]),
+        check=check,
+        capture_output=capture_output,
+        timeout=timeout,
+        context=CommandContext(cwd=str(cwd) if cwd is not None else None),
+    )
 
 
 def find_asset(asset: str) -> Path:
@@ -69,8 +124,8 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
 
     Raises:
         SystemExit: If normalized assets would collide with existing files.
-        CalledProcessError: If the documentation GIF builder exits with an error.
-        TimeoutExpired: If the builder exceeds its 55-second execution limit.
+        CommandExecutionError: If the documentation GIF builder exits with an error.
+        CommandTimeoutError: If the builder exceeds its 55-second execution limit.
     """
     output_root = artifact_root / "docs" / "images" / "generated"
     entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
@@ -82,12 +137,7 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
             raise SystemExit(msg)
         shutil.move(str(entry), str(target))
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
-    subprocess.run(
-        ["python3", str(source), kind],
-        check=True,
-        timeout=55,
-        cwd=artifact_root,
-    )
+    run(sys.executable, str(source), kind, timeout=55, cwd=artifact_root)
 
 
 def build_surface_pen_gif() -> None:
@@ -96,8 +146,6 @@ def build_surface_pen_gif() -> None:
     Raises:
         SystemExit: If the captured workflow does not contain exactly four frames.
     """
-    from build_visual_gifs import build, image_tool
-
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
     if len(frames) != 4:
@@ -109,11 +157,11 @@ def build_surface_pen_gif() -> None:
 def main() -> int:
     """Publish and validate the repository visual evidence inventory.
 
-    Raises:
-        SystemExit: If the published visual inventory does not satisfy its contract.
-
     Returns:
         Process status indicating that the visual evidence inventory was published and verified.
+
+    Raises:
+        SystemExit: If the published visual inventory does not satisfy its contract.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -125,8 +173,6 @@ def main() -> int:
     # gh uses GH_TOKEN for clone/authentication; configure Git before the raw push.
     run("gh", "auth", "setup-git")
 
-    from visual_evidence import documented_assets, verify, write_provenance
-
     source_root = Path.cwd()
     expected = documented_assets(source_root)
     build_visual_gif_set("turntables", Path("turntable-doc-assets"))
@@ -134,20 +180,25 @@ def main() -> int:
     build_visual_gif_set("tunic", Path("tunic"))
     build_surface_pen_gif()
 
-    worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "cloth-screenshot-publish"
+    temp_root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
+    worktree = temp_root / "cloth-screenshot-publish"
     shutil.rmtree(worktree, ignore_errors=True)
     run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none")
 
     branch = "docs/screenshots"
-    remote_exists = (
-        subprocess.run(
-            ("git", "-C", str(worktree), "ls-remote", "--exit-code", "--heads", "origin", branch),
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode
-        == 0
+    remote_result = run(
+        "git",
+        "-C",
+        str(worktree),
+        "ls-remote",
+        "--exit-code",
+        "--heads",
+        "origin",
+        branch,
+        check=False,
+        capture_output=True,
     )
+    remote_exists = remote_result.returncode == 0
     if remote_exists:
         run("git", "-C", str(worktree), "fetch", "origin", branch)
         run("git", "-C", str(worktree), "checkout", "-B", branch, f"origin/{branch}")
@@ -168,10 +219,12 @@ def main() -> int:
     write_provenance(
         provenance,
         published,
-        source_root,
-        args.source_sha,
-        args.run_id,
-        args.run_number,
+        ProvenanceContext(
+            source_root=source_root,
+            source_sha=args.source_sha,
+            run_id=args.run_id,
+            run_number=args.run_number,
+        ),
     )
 
     errors = verify(source_root, published, provenance, args.source_sha)
@@ -207,19 +260,28 @@ def main() -> int:
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
     run("git", "-C", str(worktree), "fetch", "origin", branch)
-    remote_commit = subprocess.check_output(
-        ("git", "-C", str(worktree), "rev-parse", f"origin/{branch}"),
-        text=True,
-    ).strip()
-    local_commit = subprocess.check_output(
-        ("git", "-C", str(worktree), "rev-parse", "HEAD"),
-        text=True,
-    ).strip()
+    remote_commit = run(
+        "git",
+        "-C",
+        str(worktree),
+        "rev-parse",
+        f"origin/{branch}",
+        capture_output=True,
+    ).stdout.strip()
+    local_commit = run(
+        "git",
+        "-C",
+        str(worktree),
+        "rev-parse",
+        "HEAD",
+        capture_output=True,
+    ).stdout.strip()
     if remote_commit != local_commit:
         msg = f"remote screenshot branch mismatch: {remote_commit} != {local_commit}"
         raise SystemExit(msg)
-    print(
-        f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}"
+    sys.stdout.write(
+        f"visual-publish=passed source_sha={args.source_sha} "
+        f"asset_count={len(expected)} remote_commit={remote_commit}\n"
     )
     return 0
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import traceback
 from collections import Counter
 from pathlib import Path
 
@@ -210,11 +209,7 @@ def main() -> int:
     return 0
 
 
-try:
-    status = main()
-except (Exception, KeyboardInterrupt, SystemExit):
-    sys.stdout.write(traceback.format_exc())
-    sys.stdout.flush()
-    status = 1
+status = main()
 sys.stdout.flush()
+
 os._exit(status)

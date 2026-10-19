@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 IMAGE_SUFFIXES = (".png", ".gif", ".jpg", ".jpeg", ".webp")
@@ -85,38 +87,52 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class ProvenanceContext:
+    """Identify the source revision and workflow run that produced visual assets.
+
+    Attributes:
+        source_root: Repository root containing public documentation references.
+        source_sha: Commit SHA from which the source assets were produced.
+        run_id: GitHub Actions identifier for the producing run.
+        run_number: Human-readable sequence number for the producing run.
+    """
+
+    source_root: Path
+    source_sha: str
+    run_id: str
+    run_number: str
+
+
 def write_provenance(
     provenance: Path,
     published_root: Path,
-    source_root: Path,
-    source_sha: str,
-    run_id: str,
-    run_number: str,
+    context: ProvenanceContext,
 ) -> None:
     """Write the visual evidence provenance manifest.
 
     Args:
-        provenance: Destination path for the provenance JSON document.
+        provenance: Destination path for the provenance text document.
         published_root: Directory containing the publicly published images.
-        source_root: Repository root containing documented image references.
-        source_sha: Commit SHA from which the source assets were produced.
-        run_id: GitHub Actions identifier for the producing run.
-        run_number: Human-readable sequence number for the producing run.
+        context: Source revision and workflow run metadata.
 
     Raises:
-        ValueError: Raised when the published images differ from the documented inventory.
+        ValueError: If published images differ from documented inventory or are empty.
     """
-    assets = sorted(documented_assets(source_root))
+    assets = sorted(documented_assets(context.source_root))
     actual = public_assets(published_root)
     if assets != sorted(actual):
-        msg = f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
+        msg = (
+            f"public image set mismatch; missing={sorted(set(assets) - actual)} "
+            f"extra={sorted(actual - set(assets))}"
+        )
         raise ValueError(msg)
     lines = [
         "# README/wiki visual evidence provenance",
         "",
-        f"source_main_sha={source_sha}",
-        f"workflow_run={run_id}",
-        f"workflow_run_number={run_number}",
+        f"source_main_sha={context.source_sha}",
+        f"workflow_run={context.run_id}",
+        f"workflow_run_number={context.run_number}",
         "",
     ]
     for asset in assets:
@@ -190,10 +206,10 @@ def main() -> int:
     errors = verify(args.source_root, args.published_root, args.provenance, args.source_sha)
     if errors:
         for error in errors:
-            print(f"visual-evidence-error={error}")
+            sys.stdout.write(f"visual-evidence-error={error}\n")
         return 1
-    print(
-        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}"
+    sys.stdout.write(
+        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}\n"
     )
     return 0
 
