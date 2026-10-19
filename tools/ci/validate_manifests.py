@@ -295,7 +295,8 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
             msg = f"tunic: missing image {path}"
             raise SystemExit(msg)
 
-    if len(list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))) != EXPECTED_TUNIC_MOTION_FRAME_COUNT:
+    motion_frames = list((generated / "cloth-tunic-mannequin-motion-frames").glob("motion-*.png"))
+    if len(motion_frames) != EXPECTED_TUNIC_MOTION_FRAME_COUNT:
         msg = "tunic: wrong mannequin motion frame count"
         raise SystemExit(msg)
 
@@ -406,7 +407,10 @@ def validate_diagnostic() -> None:
                     msg = f"diagnostic {name}: missing image {image}"
                     raise SystemExit(msg)
     data = read(root / "manifest.json")
-    if data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION or data.get("release_gate_effect") != "none":
+    if (
+        data.get("schema") != EXPECTED_MANIFEST_SCHEMA_VERSION
+        or data.get("release_gate_effect") != "none"
+    ):
         msg = "diagnostic contact manifest header failed"
         raise SystemExit(msg)
     sys.stdout.write("diagnostic-contact=passed\n")
