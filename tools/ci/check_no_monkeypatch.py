@@ -113,10 +113,7 @@ def _record_import_violations(
     imports_repository_modules = (
         in_tests
         and node.module is not None
-        and (
-            node.module.startswith("freecad_cloth.")
-            or node.module.startswith("tools.")
-        )
+        and (node.module.startswith("freecad_cloth.") or node.module.startswith("tools."))
     )
     if imports_repository_modules:
         module_aliases.update(alias.asname or alias.name for alias in node.names)
