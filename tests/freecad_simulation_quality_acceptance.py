@@ -19,7 +19,7 @@ def _events():
     QtWidgets.QApplication.processEvents()
 
 
-def _capture_readiness_screen(path):
+def _capture_readiness_screen(path: str) -> dict[str, int]:
     """Capture the visible native Simulation Quality task panel at a stable size."""
     try:
         from PySide import QtWidgets

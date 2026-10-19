@@ -9,7 +9,7 @@ from tools.ci.run_freecad import configured_timeout_seconds
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates():
+def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> None:
     """The readiness checklist is exercised in FreeCAD and both rendered states are validated."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
