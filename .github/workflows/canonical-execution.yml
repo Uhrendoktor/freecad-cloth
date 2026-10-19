@@ -405,7 +405,6 @@ jobs:
       - name: Independently validate realtime performance metrics
         if: always()
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
-
       - uses: ./.github/actions/freecad-test
         if: always()
         with:
