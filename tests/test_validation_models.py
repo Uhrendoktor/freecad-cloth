@@ -279,7 +279,7 @@ def test_particle_rejects_nonfinite_state_and_negative_inverse_mass(
     Args:
         particle: Candidate position and inverse mass supplied to Particle.
     """
-    with pytest.raises(ValueError, match="finite|greater than or equal to 0"):
+    with pytest.raises(ValueError, match="finite|non-negative"):
         Particle(*particle)
 
 
