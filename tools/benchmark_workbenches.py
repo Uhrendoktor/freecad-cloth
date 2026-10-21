@@ -214,7 +214,7 @@ def _initialize_sample(
     workbench.Initialize()
     duration = time.perf_counter() - started
     command_count = len(getattr(workbench, "commands", ()))
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(*EXPECTED_WORKBENCH_ERRORS):
         gui.removeWorkbench(registered_name)
     trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
     return duration, command_count
