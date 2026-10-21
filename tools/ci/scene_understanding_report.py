@@ -681,7 +681,7 @@ def _build_issues(
         Blocking pattern findings in report-schema form.
     """
     issues: list[dict[str, object]] = []
-    for topology in assessment.invalid_geometry:
+    for topology in invalid_geometry:
         native_invalid = not bool(topology["ir_valid"])
         reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
         nearby = cast("list[dict[str, object]]", topology["near_crossing"])
