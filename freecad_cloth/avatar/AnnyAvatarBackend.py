@@ -103,6 +103,7 @@ class _AnnyCallableModel(Protocol):
         Returns:
             Tensor outputs produced by the configured Anny model.
         """
+        ...
 
 
 def _adapt_clad_body_pose_alias(model: object) -> None:
