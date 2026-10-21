@@ -64,25 +64,54 @@ PROVIDER_IDS = ("makehuman-hm08", "freecad-geometry")
 _MISSING = object()
 
 
-def _avatar(doc):
+def _avatar(doc: object) -> object | None:
+    """Find the existing avatar feature in a FreeCAD document.
+
+    Args:
+        doc: Document whose objects should be searched.
+
+    Returns:
+        The first persisted ClothAvatar object, or None when absent.
+    """
     return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
 
 
-def _set_prop(obj, kind, name, group, value):
+def _set_prop(obj: object, kind: str, name: str, group: str, value: object) -> None:
+    """Create a FreeCAD property if needed, then assign its initial value.
+
+    Args:
+        obj: Document object receiving the property.
+        kind: FreeCAD property type identifier.
+        name: Property name to create or update.
+        group: Property group displayed in the property editor.
+        value: Initial value assigned to the property.
+    """
     if not hasattr(obj, name):
         obj.addProperty(kind, name, group)
     setattr(obj, name, value)
 
 
-def _ensure_pose_preset_property(obj):
-    """Upgrade the saved preset enumeration without losing the user's current choice."""
+def _ensure_pose_preset_property(obj: object) -> None:
+    """Upgrade the pose preset enumeration while preserving the user's choice.
+
+    Args:
+        obj: Existing avatar object whose pose preset property is migrated.
+    """
     current = str(getattr(obj, "PosePreset", "standing"))
     presets = ["standing", "sewing", "sitting", "t_pose"]
     _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", presets)
     obj.PosePreset = current if current in presets else "standing"
 
 
-def _parameters(obj):
+def _parameters(obj: object) -> AvatarParameters:
+    """Reconstruct validated avatar parameters from persisted FreeCAD properties.
+
+    Args:
+        obj: Avatar object containing measurements, pose, and shape overrides.
+
+    Returns:
+        Parameter model representing the saved avatar state.
+    """
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
     preset = str(getattr(obj, "PosePreset", "standing"))
     preset_defaults = Pose(preset)
@@ -150,13 +179,23 @@ def _parameters(obj):
 
 
 def _mesh_data(
-    vertices,
-    triangles,
+    vertices: tuple[tuple[float, float, float], ...],
+    triangles: tuple[tuple[int, int, int], ...],
     *,
     app_module: ModuleType | None = None,
     mesh_module: ModuleType | None = None,
-):
-    """Build the native FreeCAD mesh directly from the selected provider topology."""
+) -> object:
+    """Build the native FreeCAD mesh directly from the selected provider topology.
+
+    Args:
+        vertices: Shared 3D coordinates supplied by the selected avatar provider.
+        triangles: Indexed triangular faces forming the provider topology.
+        app_module: Optional FreeCAD module supplied by tests or runtime bootstrap.
+        mesh_module: Optional Mesh module supplied by tests or runtime bootstrap.
+
+    Returns:
+        A native Mesh object with the provider's shared vertex topology preserved.
+    """
     if app_module is None:
         import FreeCAD as app_module
     if mesh_module is None:
@@ -187,7 +226,33 @@ def _style_mannequin(obj: object) -> None:
         pass
 
 
-def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
+def _provider_geometry(
+    obj: object,
+    params: AvatarParameters,
+    provider_id: str | None = None,
+    provider_source: object = _MISSING,
+) -> tuple[
+    tuple[tuple[float, float, float], ...],
+    tuple[tuple[int, int, int], ...],
+    tuple[Landmark, ...],
+    str,
+    str,
+    str,
+]:
+    """Build avatar geometry and provenance through the selected provider.
+
+    Args:
+        obj: Existing avatar object that stores the provider configuration.
+        params: Validated measurements and pose used to generate the geometry.
+        provider_id: Optional provider identifier overriding the saved selection.
+        provider_source: Optional source object for the FreeCAD geometry provider.
+
+    Returns:
+        Vertices, faces, landmarks, provider identifier, source label, and license.
+
+    Raises:
+        ValueError: If the provider identifier or required source object is invalid.
+    """
     provider_id = (
         str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
         if provider_id is None
@@ -220,10 +285,10 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
 
 
 def _rebuild(
-    obj,
-    params=None,
-    provider_id=None,
-    provider_source=_MISSING,
+    obj: object,
+    params: AvatarParameters | None = None,
+    provider_id: str | None = None,
+    provider_source: object = _MISSING,
     *,
     provider_geometry_fn: Callable[
         ...,
@@ -237,8 +302,19 @@ def _rebuild(
         ],
     ]
     | None = None,
-):
-    """Build derived geometry before mutating persistent avatar state."""
+) -> object:
+    """Build derived geometry before mutating persistent avatar state.
+
+    Args:
+        obj: Persisted FreeCAD avatar feature to rebuild.
+        params: Optional validated parameter state; saved properties are used by default.
+        provider_id: Optional provider identifier overriding the saved selection.
+        provider_source: Optional body used by the FreeCAD geometry provider.
+        provider_geometry_fn: Optional provider callback used by focused tests.
+
+    Returns:
+        The same avatar feature after its mesh and derived properties are refreshed.
+    """
     params = _parameters(obj) if params is None else params
     params.validate()
     if provider_id is None:
@@ -308,15 +384,29 @@ def _rebuild(
     return obj
 
 
-def _ensure_collision(obj):
-    """Maintain the legacy collision proxy as a derived display adapter only."""
+def _ensure_collision(obj: object) -> object:
+    """Maintain the legacy collision proxy as a derived display adapter only.
+
+    Args:
+        obj: Avatar feature whose collision proxy should be created or refreshed.
+
+    Returns:
+        The derived collision proxy object.
+    """
     from freecad_cloth.avatar.AvatarCollision import ensure_collision_proxy
 
     return ensure_collision_proxy(obj.Document, obj, thickness=2.0, deflection=1.0)
 
 
-def _ensure_drape_target(obj):
-    """Attach the humanoid mesh to the target-neutral collision API."""
+def _ensure_drape_target(obj: object) -> object:
+    """Attach the humanoid mesh to the target-neutral collision API.
+
+    Args:
+        obj: Avatar feature assigned as the mannequin collision target.
+
+    Returns:
+        The created or updated drape-target object.
+    """
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
     target = obj.Document.getObject("DrapeTarget")
@@ -329,11 +419,22 @@ def _ensure_drape_target(obj):
 
 
 def create_avatar(
-    attach_collision=True,
-    doc=None,
-    object_name="ClothAvatar",
+    attach_collision: bool = True,
+    doc: object | None = None,
+    object_name: str = "ClothAvatar",
     params: AvatarParameters | None = None,
-):
+) -> object:
+    """Create or rebuild the active mannequin avatar feature.
+
+    Args:
+        attach_collision: Whether to attach collision proxy and target objects.
+        doc: Optional FreeCAD document; the active document is used by default.
+        object_name: Name assigned when a new avatar feature is created.
+        params: Optional validated parameters overriding the saved defaults.
+
+    Returns:
+        The created or updated avatar feature.
+    """
     import FreeCAD as App
 
     doc = doc or App.ActiveDocument or App.newDocument("ClothSewing")
@@ -447,10 +548,10 @@ def create_avatar(
 
 
 def apply_avatar_parameters(
-    obj,
-    params,
-    provider_id=None,
-    provider_source=_MISSING,
+    obj: object,
+    params: AvatarParameters,
+    provider_id: str | None = None,
+    provider_source: object = _MISSING,
     *,
     provider_geometry_fn: Callable[
         ...,
@@ -464,8 +565,19 @@ def apply_avatar_parameters(
         ],
     ]
     | None = None,
-):
-    """Apply validated avatar state only after successful geometry construction."""
+) -> object:
+    """Apply validated avatar state only after successful geometry construction.
+
+    Args:
+        obj: Existing avatar feature to update in place.
+        params: Validated measurements, shape values, and pose settings to apply.
+        provider_id: Optional geometry provider identifier overriding saved state.
+        provider_source: Optional source body for the FreeCAD geometry provider.
+        provider_geometry_fn: Optional geometry callback for focused validation.
+
+    Returns:
+        The updated avatar feature after derived collision and fitting links refresh.
+    """
     obj = _rebuild(
         obj,
         params=params,
@@ -493,7 +605,15 @@ def apply_avatar_parameters(
     return obj
 
 
-def rebuild_avatar():
+def rebuild_avatar() -> object:
+    """Rebuild the active avatar from the parameters saved in its document.
+
+    Returns:
+        The rebuilt avatar feature.
+
+    Raises:
+        ValueError: If no document is active or the document has no avatar feature.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -508,7 +628,12 @@ def rebuild_avatar():
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-def edit_avatar():
+def edit_avatar() -> object:
+    """Open the avatar measurement and shape editor.
+
+    Returns:
+        The task-panel instance shown by FreeCAD.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -535,7 +660,18 @@ def pose_avatar():
     return show_avatar_pose_task(obj)
 
 
-def set_avatar_measurements(**changes):
+def set_avatar_measurements(**changes: float) -> object:
+    """Update named avatar measurements and rebuild the mannequin.
+
+    Args:
+        **changes: Measurement names and replacement values in the avatar's units.
+
+    Returns:
+        The updated avatar feature.
+
+    Raises:
+        ValueError: If there is no active document or a measurement name is unknown.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -552,7 +688,18 @@ def set_avatar_measurements(**changes):
     return apply_avatar_parameters(obj, params)
 
 
-def set_avatar_pose(pose):
+def set_avatar_pose(pose: str) -> object:
+    """Apply a named preset pose and rebuild the mannequin.
+
+    Args:
+        pose: Preset pose identifier supported by the avatar pose model.
+
+    Returns:
+        The updated avatar feature.
+
+    Raises:
+        ValueError: If there is no active document.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -578,8 +725,24 @@ def set_avatar_pose(pose):
     return apply_avatar_parameters(obj, candidate)
 
 
-def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
-    """Persist one manual FK joint rotation and rebuild the mannequin."""
+def set_avatar_joint(
+    bone: str, x: float = 0.0, y: float = 0.0, z: float = 0.0, mirror: bool = False
+) -> object:
+    """Persist one manual FK joint rotation and rebuild the mannequin.
+
+    Args:
+        bone: Skeleton bone identifier whose local rotation should change.
+        x: Rotation component around the first local axis, in degrees.
+        y: Rotation component around the second local axis, in degrees.
+        z: Rotation component around the third local axis, in degrees.
+        mirror: Whether the corresponding mirrored joint should also be updated.
+
+    Returns:
+        The rebuilt avatar feature.
+
+    Raises:
+        ValueError: If no document is active or the joint rotation is invalid.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -614,8 +777,19 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
     return apply_avatar_parameters(obj, candidate)
 
 
-def set_avatar_provider(provider_id, source=None):
-    """Swap providers without replacing the avatar object or garment links."""
+def set_avatar_provider(provider_id: str, source: object | None = None) -> object:
+    """Swap geometry providers without replacing the avatar object or garment links.
+
+    Args:
+        provider_id: Identifier of the geometry provider to activate.
+        source: Optional source body required by the FreeCAD geometry provider.
+
+    Returns:
+        The updated avatar feature.
+
+    Raises:
+        ValueError: If no document is active or the provider/source is unsupported.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -642,7 +816,18 @@ def set_avatar_provider(provider_id, source=None):
     )
 
 
-def set_avatar_skin_offset(offset):
+def set_avatar_skin_offset(offset: float) -> object:
+    """Set the avatar's collision skin offset and rebuild the mannequin.
+
+    Args:
+        offset: New skin offset in millimetres.
+
+    Returns:
+        The updated avatar feature.
+
+    Raises:
+        ValueError: If no document is active or the resulting parameters are invalid.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -665,7 +850,18 @@ def set_avatar_skin_offset(offset):
     return apply_avatar_parameters(obj, candidate)
 
 
-def avatar_measurement(name):
+def avatar_measurement(name: str) -> float:
+    """Read one saved avatar measurement by canonical measurement name.
+
+    Args:
+        name: Measurement key recognized by the avatar parameter model.
+
+    Returns:
+        The saved measurement value.
+
+    Raises:
+        ValueError: If no active avatar exists or the measurement name is unknown.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -675,8 +871,15 @@ def avatar_measurement(name):
     return _parameters(_avatar(doc)).measurement(str(name))
 
 
-def avatar_arrangement_points():
-    """Return persisted local fitting points for the active avatar mesh."""
+def avatar_arrangement_points() -> object:
+    """Return persisted local fitting points for the active avatar mesh.
+
+    Returns:
+        The fitting anchor records derived from the avatar's saved landmarks.
+
+    Raises:
+        ValueError: If there is no active avatar in the current document.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
