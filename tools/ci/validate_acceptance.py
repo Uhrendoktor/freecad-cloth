@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from importlib import import_module
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -53,14 +58,33 @@ REQUIRED_LOG_MARKERS = {
 }
 
 
+class _VisualCaptureValidationModule(Protocol):
+    """Describe the lazily loaded screenshot validator module."""
+
+    validate_png_capture: Callable[..., dict[str, int]]
+
+
+def _png_capture_validator() -> Callable[..., dict[str, int]]:
+    """Load screenshot validation only for cases that require image decoding.
+
+    Returns:
+        Callable that validates screenshot dimensions and pixel evidence.
+    """
+    module = cast(
+        "_VisualCaptureValidationModule",
+        import_module("freecad_cloth.common.VisualCaptureValidation"),
+    )
+    return module.validate_png_capture
+
+
 def main() -> int:
     """Validate a captured GUI artifact without trusting the producer log.
 
-    Raises:
-        SystemExit: When required screenshots, animation frames, GIFs, or log markers are missing.
-
     Returns:
         Process status indicating whether the selected acceptance evidence is valid.
+
+    Raises:
+        SystemExit: When required screenshots, animation frames, GIFs, or log markers are missing.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted((*CASES, *LOG_CASES)))
@@ -78,7 +102,7 @@ def main() -> int:
         if missing:
             msg = f"{args.case}: missing progress markers: {missing}"
             raise SystemExit(msg)
-        print(f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}")
+        sys.stdout.write(f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}\n")
         return 0
 
     image = CASES[args.case]
@@ -86,8 +110,7 @@ def main() -> int:
         msg = f"missing acceptance screenshot: {image}"
         raise SystemExit(msg)
 
-    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
-
+    validate_png_capture = _png_capture_validator()
     metrics = validate_png_capture(
         image,
         expected_width=1280,
@@ -100,7 +123,7 @@ def main() -> int:
         if not gif.is_file() or not gif.stat().st_size:
             msg = f"missing acceptance GIF: {gif}"
             raise SystemExit(msg)
-        print(f"{args.case}-gif=validated path={gif} bytes={gif.stat().st_size}")
+        sys.stdout.write(f"{args.case}-gif=validated path={gif} bytes={gif.stat().st_size}\n")
 
     for frame in REQUIRED_FRAMES.get(args.case, ()):
         if not frame.is_file() or not frame.stat().st_size:
@@ -114,16 +137,16 @@ def main() -> int:
             min_distinct_rgb=16,
             min_opaque_pixels=500,
         )
-        print(
+        sys.stdout.write(
             f"{args.case}-frame=validated path={frame} "
-            f"nonwhite_pixels={frame_metrics['nonwhite_pixels']}"
+            f"nonwhite_pixels={frame_metrics['nonwhite_pixels']}\n"
         )
 
-    print(
+    sys.stdout.write(
         f"{args.case}-screenshot=validated "
         f"opaque_pixels={metrics['opaque_pixels']} "
         f"nonwhite_pixels={metrics['nonwhite_pixels']} "
-        f"distinct_rgb={metrics['distinct_rgb']}"
+        f"distinct_rgb={metrics['distinct_rgb']}\n"
     )
     return 0
 

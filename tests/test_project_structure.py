@@ -242,8 +242,10 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
     assert 'command = ["/opt/freecad/AppRun"]' in source
+    assert 'WORKBENCH_STAGE_ROOT = TEMP_ROOT / "freecad-mod"' in source
+    assert 'WORKBENCH_STAGE_PATH = WORKBENCH_STAGE_ROOT / "freecad-cloth"' in source
     assert (
-        'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])'
+        'command.extend(["-M", str(WORKBENCH_STAGE_ROOT), "-P", str(WORKBENCH_STAGE_PATH)])'
         in source
     )
     assert "command.append(str(args.test_script))" in source

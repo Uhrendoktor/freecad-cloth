@@ -7,9 +7,14 @@ import fnmatch
 import json
 import os
 import re
-import subprocess
+import sys
 import tomllib
 from pathlib import Path
+
+try:
+    from command_runner import run_command
+except ModuleNotFoundError:
+    from tools.ci.command_runner import run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -30,6 +35,8 @@ WORKFLOW_FILES = tuple(
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
 TY_CONFIG = ROOT / "ty.toml"
+MAX_REUSABLE_WORKFLOW_LINES = 750
+MAX_CI_TIMEOUT_SECONDS = 180
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
     ROOT / ".github/actions/freecad-container/action.yml",
@@ -91,7 +98,12 @@ PYRIGHT_EXPECTED_STRICT = (
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
-    "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
+    (
+        "ty check --output-format github "
+        "freecad_cloth/simulation/DrapeFailureClassifier.py "
+        "freecad_cloth/simulation/ClothBackend.py "
+        "freecad_cloth/simulation/ClothSolver.py"
+    ),
     "python tools/ci/check_changed_python_types.py",
 )
 
@@ -227,7 +239,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
     Returns:
         Newly added production Python module paths.
     """
-    result = subprocess.run(
+    result = run_command(
         [
             "git",
             "diff",
@@ -238,9 +250,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
             "--",
             "freecad_cloth",
         ],
-        check=True,
         capture_output=True,
-        text=True,
     )
     return tuple(
         sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py"))
@@ -310,30 +320,36 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
     return isinstance(terminal, dict) and terminal.get("error-on-warning") is True
 
 
-def main() -> int:
-    """Validate the repository CI structure and hard runtime contracts.
+def _validate_workflow_dispatch_contract(text: str) -> None:
+    """Validate the shared workflow's size and trigger boundaries.
+
+    Args:
+        text: Full canonical reusable workflow source.
 
     Raises:
-        SystemExit: Raised when a required workflow or type-check gate is missing.
-
-    Returns:
-        Process status indicating whether the CI structure is valid.
+        SystemExit: If workflow structure or event ownership is invalid.
     """
-    files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
-    if files != WORKFLOW_FILES:
-        msg = f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
-        raise SystemExit(msg)
-    text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
-    if len(lines) > 750:
-        msg = f"reusable workflow is {len(lines)} lines; limit is 750"
+    if len(lines) > MAX_REUSABLE_WORKFLOW_LINES:
+        msg = f"reusable workflow is {len(lines)} lines; limit is {MAX_REUSABLE_WORKFLOW_LINES}"
         raise SystemExit(msg)
     trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
-        msg = "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+        msg = (
+            "canonical-execution.yml must be callable only; "
+            "event triggers belong in entry workflows"
+        )
         raise SystemExit(msg)
+
+
+def _validate_entrypoint_workflows() -> None:
+    """Require fast feedback, explicit full validation, merge gating, and publication ownership.
+
+    Raises:
+        SystemExit: If event-specific workflows do not preserve the required validation gates.
+    """
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
@@ -341,39 +357,71 @@ def main() -> int:
         "  required-pre-merge-validation:", 1
     )[0]
     merge_gate = merge_workflow.split("  required-pre-merge-validation:", 1)[1]
-    if (
-        "pull_request:" not in commit_workflow
+
+    required_commit_markers = (
+        "pull_request:",
+        "execution_mode: fast",
+        "explicit-full-validation:",
+        "[full-validation]",
+        "types: [opened, synchronize, reopened, ready_for_review, edited]",
+        "workflow_dispatch:",
+    )
+    invalid_commit_workflow = (
+        any(marker not in commit_workflow for marker in required_commit_markers)
         or "merge_group:" in commit_workflow
-        or "execution_mode: fast" not in commit_workflow
-        or "explicit-full-validation:" not in commit_workflow
-        or "[full-validation]" not in commit_workflow
-        or "types: [opened, synchronize, reopened, ready_for_review, edited]" not in commit_workflow
-        or "workflow_dispatch:" not in commit_workflow
-        or "merge_group:" not in merge_workflow
-        or "execution_mode: full" not in full_validation_workflow
+    )
+    required_merge_markers = (
+        "merge_group:",
+        "name: Required pre-merge validation",
+    )
+    invalid_merge_workflow = (
+        any(marker not in merge_workflow for marker in required_merge_markers)
         or "workflow_dispatch:" in merge_workflow
+        or "pull_request:" in merge_workflow
         or "if: ${{ always() }}" not in merge_gate
         or "needs: [full-validation]" not in merge_gate
-        or "name: Required pre-merge validation" not in merge_workflow
-        or "pull_request:" in merge_workflow
-    ):
-        msg = "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
+    )
+    invalid_full_validation = "execution_mode: full" not in full_validation_workflow
+    if invalid_commit_workflow or invalid_merge_workflow or invalid_full_validation:
+        msg = (
+            "commit-validation.yml must provide fast feedback; "
+            "merge-validation.yml must gate merge-group full validation"
+        )
         raise SystemExit(msg)
-    if (
-        "push:" not in publication_workflow
-        or "branches: [main]" not in publication_workflow
-        or "execution_mode: publication" not in publication_workflow
-    ):
+
+    required_publication_markers = (
+        "push:",
+        "branches: [main]",
+        "execution_mode: publication",
+    )
+    if any(marker not in publication_workflow for marker in required_publication_markers):
         msg = "main-publication.yml must be main-only and call canonical publication mode"
         raise SystemExit(msg)
-    if (
-        "Required validation gate" not in text
-        or "No successful full-validation run matched source tree" not in text
-        or '--event "${event}" --status success' not in text
-        or "Explicit full validation / Required validation gate" not in text
-        or "Required pre-merge validation" not in merge_workflow
+
+
+def _validate_reusable_workflow_trust(text: str) -> None:
+    """Reject duplicate concurrency ownership, unsafe triggers, and unvalidated publication.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If the reusable workflow bypasses its validation or trust boundaries.
+    """
+    required_markers = (
+        "Required validation gate",
+        "No successful full-validation run matched source tree",
+        '--event "${event}" --status success',
+        "Explicit full validation / Required validation gate",
+    )
+    merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+    if any(marker not in text for marker in required_markers) or (
+        "Required pre-merge validation" not in merge_workflow
     ):
-        msg = "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
+        msg = (
+            "reusable workflow must enforce mode-specific validation "
+            "and refuse unvalidated publication"
+        )
         raise SystemExit(msg)
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
         msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
@@ -381,6 +429,17 @@ def main() -> int:
     if "pull_request_target" in text:
         msg = "pull_request_target is forbidden"
         raise SystemExit(msg)
+
+
+def _validate_python_quality_contracts(text: str) -> None:
+    """Require blocking type, repository-policy, Ruff, and staged coverage gates.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If a required quality gate or reviewed type-check scope is missing.
+    """
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
@@ -426,26 +485,43 @@ def main() -> int:
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
         msg = "ty.toml must set [terminal].error-on-warning = true"
         raise SystemExit(msg)
+
+
+def _validate_command_safety(text: str) -> None:
+    """Require reusable workflow calls to respect container and checkout boundaries.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If workflow code manages Docker directly or skips the FreeCAD test action.
+    """
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
         msg = "Docker lifecycle belongs in .github/actions/freecad-container"
         raise SystemExit(msg)
-    if (
-        "uses: ./.github/actions/freecad-test" not in text
-        and "uses: $/.github/actions/freecad-test" not in text
-        and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in text
-    ):
+    allowed_action_references = (
+        "uses: ./.github/actions/freecad-test",
+        "uses: $/.github/actions/freecad-test",
+        "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@",
+    )
+    if not any(reference in text for reference in allowed_action_references):
         msg = "canonical workflow must use freecad-test"
         raise SystemExit(msg)
+
+
+def _validate_required_components() -> None:
+    """Validate required CI files and immutable PBD/container/timeout policies.
+
+    Raises:
+        SystemExit: If a required action, policy marker, or CI helper is missing.
+    """
     for path in REQUIRED:
         if not path.is_file():
             msg = f"missing required CI component: {path}"
             raise SystemExit(msg)
     pbd_action = (ROOT / ".github/actions/pbd-image/action.yml").read_text(encoding="utf-8")
-    if (
-        "upload-artifact" in pbd_action
-        or "docker save" in pbd_action
-        or "pbd-validation-image" in pbd_action
-    ):
+    forbidden_pbd_markers = ("upload-artifact", "docker save", "pbd-validation-image")
+    if any(marker in pbd_action for marker in forbidden_pbd_markers):
         msg = "PBD validation image must never be serialized as a workflow artifact"
         raise SystemExit(msg)
     container_action = (ROOT / ".github/actions/freecad-container/action.yml").read_text(
@@ -454,16 +530,33 @@ def main() -> int:
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
         msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
         raise SystemExit(msg)
+    if "180s" not in container_action or "timeout-seconds" not in container_action:
+        msg = "FreeCAD container action must retain its 180-second pull contract"
+        raise SystemExit(msg)
+    freecad_action = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
+    if (
+        'default: "120"' not in freecad_action
+        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad_action
+    ):
+        msg = "freecad-test must pass its default-120 timeout to the container action"
+        raise SystemExit(msg)
+    if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad_action:
+        msg = "freecad-test must scope non-default budgets to the FreeCAD process"
+        raise SystemExit(msg)
+
+
+def _validate_action_pinning() -> None:
+    """Require external actions to use full commit SHAs and keep command timeouts bounded.
+
+    Raises:
+        SystemExit: If an action reference is mutable or a CI timeout exceeds the approved bound.
+    """
     ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
         for match in re.finditer(r"uses:\s+([^\s#]+)", ci_text):
             value = match.group(1)
-            if (
-                value.startswith("./")
-                or value.startswith("$/")
-                or value.startswith("Uhrendoktor/freecad-cloth/")
-            ):
+            if value.startswith(("./", "$/", "Uhrendoktor/freecad-cloth/")):
                 continue
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
@@ -472,24 +565,39 @@ def main() -> int:
                 raise SystemExit(msg)
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
-            if int(match.group(1)) > 180:
-                msg = f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
+            if int(match.group(1)) > MAX_CI_TIMEOUT_SECONDS:
+                msg = (
+                    f"CI timeout exceeds {MAX_CI_TIMEOUT_SECONDS} seconds: "
+                    f"{ci_file}: {match.group(0).strip()}"
+                )
                 raise SystemExit(msg)
 
-    if "180s" not in container_action or "timeout-seconds" not in container_action:
-        msg = "FreeCAD container action must retain its 180-second pull contract"
+
+def main() -> int:
+    """Validate the repository CI structure and hard runtime contracts.
+
+    Returns:
+        Process status indicating whether the CI structure is valid.
+
+    Raises:
+        SystemExit: If a required workflow or type-check gate is missing.
+    """
+    files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
+    if files != WORKFLOW_FILES:
+        msg = (
+            "expected commit/merge/publication entry points plus one reusable workflow, "
+            f"found: {files}"
+        )
         raise SystemExit(msg)
-    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if (
-        'default: "120"' not in freecad
-        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad
-    ):
-        msg = "freecad-test must pass its default-120 timeout to the container action"
-        raise SystemExit(msg)
-    if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad:
-        msg = "freecad-test must scope non-default budgets to the FreeCAD process"
-        raise SystemExit(msg)
-    print(f"ci-structure=passed workflow_lines={len(lines)}")
+    text = WORKFLOW.read_text(encoding="utf-8")
+    _validate_workflow_dispatch_contract(text)
+    _validate_entrypoint_workflows()
+    _validate_reusable_workflow_trust(text)
+    _validate_python_quality_contracts(text)
+    _validate_command_safety(text)
+    _validate_required_components()
+    _validate_action_pinning()
+    sys.stdout.write(f"ci-structure=passed workflow_lines={len(text.splitlines())}\n")
     return 0
 
 
