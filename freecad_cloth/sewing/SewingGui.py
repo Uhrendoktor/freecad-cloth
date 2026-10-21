@@ -6,7 +6,6 @@ correspondence ranges. All semantic values remain on the document Seam object;
 the task panel is only the interactive frontend.
 """
 
-
 from __future__ import annotations
 
 from freecad_cloth.sewing.SewingCorrespondence import (
