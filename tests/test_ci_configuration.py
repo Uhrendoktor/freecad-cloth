@@ -568,7 +568,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
     retention = maintenance_cleanup.BranchRetentionPolicy(
         activity_epochs=activity,
         cutoff_epoch=cutoff,
-        closed_pr_head_shas={"fix/old-closed-work": {"5" * 40}},
+        closed_pr_head_shas={},
     )
     stale = maintenance_cleanup.stale_unprotected_branches(
         branches, {"agent/open-pr"}, "main", retention
