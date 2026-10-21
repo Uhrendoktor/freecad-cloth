@@ -56,7 +56,20 @@ _CROSSING_RE = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
 
 @dataclass(slots=True)
 class WorkflowAssessment:
-    """Terminal workflow classification and authoritative pattern findings."""
+    """Terminal workflow classification and authoritative pattern findings.
+
+    Attributes:
+        topology_records: All available topology records.
+        invalid_native: Native outlines failing the authoritative topology check.
+        invalid_derived: Derived outlines failing the downstream representation check.
+        invalid_geometry: Deduplicated causal geometry failures for report output.
+        failure_text: Concatenated failure lines, or None if no failures were logged.
+        failure_unknown: Whether a failure was observed without a classified geometry cause.
+        result: Overall workflow state before fit-review warnings are applied.
+        failed_stage: Earliest known failed stage, or None when not classified as failed.
+        last_completed_stage: Last stage supported by the progress markers.
+        next_action: Guidance for the next diagnostic or repair step.
+    """
 
     topology_records: list[dict[str, object]]
     invalid_native: list[dict[str, object]]
@@ -72,7 +85,19 @@ class WorkflowAssessment:
 
 @dataclass(slots=True)
 class ProgressEvidence:
-    """Progress-log observations collected for a workflow scene report."""
+    """Progress-log observations collected for a workflow scene report.
+
+    Attributes:
+        topology_by_piece: Parsed native/derived topology records keyed by piece.
+        armholes_by_index: Armhole samples keyed by boundary edge index.
+        placements_by_side: Measured target-relative placement keyed by side.
+        pose: Reported mannequin pose measurement, when present.
+        screenshot_states: Screenshots reported by the workflow progress log.
+        drape_records: Decoded drape metrics records from log markers.
+        failure_lines: Explicit failure markers captured from the progress log.
+        has_scenario_pass: Whether a successful terminal marker was observed.
+        has_simulation_start: Whether simulation startup was observed.
+    """
 
     topology_by_piece: dict[str, dict[str, object]] = field(default_factory=dict)
     armholes_by_index: dict[int, dict[str, object]] = field(default_factory=dict)
@@ -1074,17 +1099,18 @@ def _render_edge_shapes(
             _svg_transform_point(point, origin_x=origin_x) for point in local_points
         ]
         point_string = " ".join(f"{x:.3f},{y:.3f}" for x, y in points_to_draw)
+        label_x, label_y = _svg_transform_point(
+            local_points[len(local_points) // 2], origin_x=origin_x
+        )
+        label = f"e{edge_index}" if edge_index is not None else edge_id
         rendered.extend(
             [
                 f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
                 f'stroke-width="{3.2 if highlighted else 1.6}" '
                 'stroke-linecap="round" stroke-linejoin="round"/>',
-                (
-                    f'<text x="{_svg_transform_point(local_points[len(local_points) // 2], origin_x=origin_x)[0]:.3f}" '
-                    f'y="{_svg_transform_point(local_points[len(local_points) // 2], origin_x=origin_x)[1] - 7:.3f}" '
-                    f'font-size="11" font-family="monospace" fill="{title_color}" '
-                    f'text-anchor="middle">{html.escape(f"e{edge_index}" if edge_index is not None else edge_id)}</text>'
-                ),
+                f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
+                f'font-family="monospace" fill="{title_color}" text-anchor="middle">'
+                f"{html.escape(label)}</text>",
             ]
         )
     return rendered
@@ -1341,6 +1367,7 @@ def _render_placement_section(lines: list[str], report: dict[str, object]) -> No
         report: Structured scene-understanding report data.
     """
     lines.extend(["", "## Placement observations", ""])
+    placement = _as_dict(report.get("placement"))
     panels = _as_dict(placement.get("panels"))
     if panels:
         for side in sorted(panels):
@@ -1365,6 +1392,8 @@ def _render_evidence_section(lines: list[str], report: dict[str, object]) -> Non
         report: Structured scene-understanding report data.
     """
     lines.extend(["", "## Evidence availability", ""])
+    evidence = _as_dict(report.get("evidence"))
+    expected = _as_dict(evidence.get("expected_or_known_outputs"))
     for name, value in expected.items():
         lines.append(f"- {name.replace('_', ' ')}: **{value}**")
     image_records = _as_list(evidence.get("images"))
@@ -1391,9 +1420,6 @@ def render_markdown(report: dict[str, object]) -> str:
     """
     status = _as_dict(report.get("status"))
     stages = _as_dict(report.get("stages"))
-    placement = _as_dict(report.get("placement"))
-    evidence = _as_dict(report.get("evidence"))
-    expected = _as_dict(evidence.get("expected_or_known_outputs"))
     lines = [
         "# Workflow scene-understanding report",
         "",
