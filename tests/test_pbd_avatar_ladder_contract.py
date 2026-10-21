@@ -3,13 +3,11 @@
 
 from pathlib import Path
 
-from tests.support.assertions import require, require_contains
+from tests.support.assertions import require_contains
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
-WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-    encoding="utf-8"
-)
+WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
 
 
 def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
