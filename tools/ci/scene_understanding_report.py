@@ -55,6 +55,22 @@ _CROSSING_RE = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
 
 
 @dataclass(slots=True)
+class WorkflowAssessment:
+    """Terminal workflow classification and authoritative pattern findings."""
+
+    topology_records: list[dict[str, object]]
+    invalid_native: list[dict[str, object]]
+    invalid_derived: list[dict[str, object]]
+    invalid_geometry: list[dict[str, object]]
+    failure_text: str | None
+    failure_unknown: bool
+    result: str
+    failed_stage: str | None
+    last_completed_stage: str
+    next_action: str
+
+
+@dataclass(slots=True)
 class ProgressEvidence:
     """Progress-log observations collected for a workflow scene report."""
 
@@ -491,23 +507,15 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
     return parsed
 
 
-def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
-    """Build a machine-readable diagnosis using only the completed workflow files.
+def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
+    """Classify terminal state from topology and progress markers without changing thresholds.
 
     Args:
-        progress_path: Path to the captured workflow progress log.
-        output_root: Directory used to locate the run's diagnostic evidence.
-        workspace: Root path used to make evidence paths relative.
+        parsed: Observations decoded from the captured workflow progress log.
 
     Returns:
-        Structured report describing workflow status and gathered evidence.
+        Authoritative terminal state, stage boundary, and blocking topology findings.
     """
-    progress_text = (
-        progress_path.read_text(encoding="utf-8", errors="replace")
-        if progress_path.is_file()
-        else ""
-    )
-    parsed = _parse_progress_text(progress_text)
     topology_records = list(parsed.topology_by_piece.values())
     invalid_native = [record for record in topology_records if not bool(record["ir_valid"])]
     invalid_derived = [record for record in topology_records if not bool(record["draft_valid"])]
@@ -562,20 +570,41 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "Inspect available workflow output; the progress log did not record a terminal stage."
         )
 
-    avatar_image_present = (
-        "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
-        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+    return WorkflowAssessment(
+        topology_records=topology_records,
+        invalid_native=invalid_native,
+        invalid_derived=invalid_derived,
+        invalid_geometry=invalid_geometry,
+        failure_text=failure_text or None,
+        failure_unknown=failure_unknown,
+        result=result,
+        failed_stage=failed_stage,
+        last_completed_stage=last_completed_stage,
+        next_action=next_action,
     )
-    pattern_image_present = (
-        "cloth-pattern-design.png" in parsed.screenshot_states
-        and (output_root / "cloth-pattern-design.png").is_file()
-    )
-    sewing_image_present = (
-        "cloth-sewing.png" in parsed.screenshot_states and (output_root / "cloth-sewing.png").is_file()
-    )
-    drape_image_present = any(
-        name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
-    )
+
+
+def _derive_stage_states(
+    parsed: ProgressEvidence,
+    assessment: WorkflowAssessment,
+    avatar_image_present: bool,
+    pattern_image_present: bool,
+    sewing_image_present: bool,
+    drape_image_present: bool,
+) -> dict[str, str]:
+    """Derive visible workflow stage states from validated observations and screenshots.
+
+    Args:
+        parsed: Parsed progress markers and captured measurements.
+        assessment: Terminal workflow and topology classification.
+        avatar_image_present: Whether the logged mannequin image exists.
+        pattern_image_present: Whether the logged pattern image exists.
+        sewing_image_present: Whether the logged sewing preview exists.
+        drape_image_present: Whether a drape screenshot exists.
+
+    Returns:
+        State labels for all report stages and mannequin-pose capture.
+    """
     if parsed.pose is not None and avatar_image_present:
         pose_state = "passed"
     elif parsed.pose is not None:
@@ -584,30 +613,30 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         pose_state = "not_observed"
     pattern_state = (
         "invalid"
-        if invalid_native
+        if assessment.invalid_native
         else (
             "valid"
-            if topology_records and all(bool(item["ir_valid"]) for item in topology_records)
+            if assessment.topology_records and all(bool(item["ir_valid"]) for item in assessment.topology_records)
             else "not_observed"
         )
     )
     derived_state = (
         "invalid"
-        if invalid_derived
+        if assessment.invalid_derived
         else (
             "valid"
-            if topology_records and all(bool(item["draft_valid"]) for item in topology_records)
+            if assessment.topology_records and all(bool(item["draft_valid"]) for item in assessment.topology_records)
             else "not_observed"
         )
     )
     sewing_state = (
         "generated_from_invalid_pattern"
-        if invalid_geometry and sewing_image_present
+        if assessment.invalid_geometry and sewing_image_present
         else "generated"
         if sewing_image_present
         else "not_reached_or_not_captured"
     )
-    if invalid_geometry:
+    if assessment.invalid_geometry:
         simulation_state = (
             "not_reached" if not parsed.has_simulation_start else "started_despite_invalid_pattern"
         )
@@ -615,7 +644,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         simulation_state = "started"
     else:
         simulation_state = "not_observed"
-    if invalid_geometry and not parsed.has_simulation_start:
+    if assessment.invalid_geometry and not parsed.has_simulation_start:
         drape_state = "not_reached"
     elif parsed.drape_records or drape_image_present:
         drape_state = "evidence_present"
@@ -624,8 +653,35 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     else:
         drape_state = "started_but_final_evidence_missing"
 
+    return {
+        "mannequin_pose": pose_state,
+        "pattern_construction": (
+            "captured"
+            if assessment.topology_records or pattern_image_present
+            else "not_observed"
+        ),
+        "pattern_topology": pattern_state,
+        "derived_pattern_representation": derived_state,
+        "sewing_preview": sewing_state,
+        "initial_placement": "measured" if parsed.placements_by_side else "not_observed",
+        "simulation": simulation_state,
+        "drape": drape_state,
+    }
+
+
+def _build_issues(
+    invalid_geometry: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Describe invalid pattern topology while preserving source and measured edge evidence.
+
+    Args:
+        invalid_geometry: Native or derived outline records classified as invalid.
+
+    Returns:
+        Blocking pattern findings in report-schema form.
+    """
     issues: list[dict[str, object]] = []
-    for topology in invalid_geometry:
+    for topology in assessment.invalid_geometry:
         native_invalid = not bool(topology["ir_valid"])
         reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
         nearby = cast("list[dict[str, object]]", topology["near_crossing"])
@@ -666,22 +722,21 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             }
         )
 
-    image_inventory = _image_inventory(output_root, workspace)
-    metrics_path = output_root / "drape-visual-metrics.json"
-    metrics_payload: object = None
-    if metrics_path.is_file():
-        try:
-            metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
-    fit_assessment = _fit_assessment(metrics_payload)
-    # A successful FreeCAD script is execution evidence, not proof of fit. Keep
-    # the execution stages intact while surfacing a separate fit-review outcome.
-    if result == "passed" and fit_assessment.get("state") == "review_required":
-        result = "review_required"
-        next_action = str(fit_assessment.get("next_action", next_action))
+    return issues
 
-    crossings = [
+
+def _crossing_summary(
+    invalid_geometry: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Summarize each observed crossing with local point and touching edge identifiers.
+
+    Args:
+        invalid_geometry: Invalid pattern outlines with validated nearby-crossing records.
+
+    Returns:
+        JSON-safe crossing summaries, excluding invalid outlines without a measured point.
+    """
+    return [
         {
             "piece": record["piece"],
             "point_local_mm": record["crossing_local_mm"],
@@ -694,6 +749,67 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         for record in invalid_geometry
         if record["crossing_local_mm"] is not None
     ]
+
+
+def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
+    """Build a machine-readable diagnosis using only the completed workflow files.
+
+    Args:
+        progress_path: Path to the captured workflow progress log.
+        output_root: Directory used to locate the run's diagnostic evidence.
+        workspace: Root path used to make evidence paths relative.
+
+    Returns:
+        Structured report describing workflow status and gathered evidence.
+    """
+    progress_text = (
+        progress_path.read_text(encoding="utf-8", errors="replace")
+        if progress_path.is_file()
+        else ""
+    )
+    parsed = _parse_progress_text(progress_text)
+    assessment = _classify_workflow_progress(parsed)
+    avatar_image_present = (
+        "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
+        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+    )
+    pattern_image_present = (
+        "cloth-pattern-design.png" in parsed.screenshot_states
+        and (output_root / "cloth-pattern-design.png").is_file()
+    )
+    sewing_image_present = (
+        "cloth-sewing.png" in parsed.screenshot_states and (output_root / "cloth-sewing.png").is_file()
+    )
+    drape_image_present = any(
+        name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
+    )
+    stage_states = _derive_stage_states(
+        parsed,
+        assessment,
+        avatar_image_present,
+        pattern_image_present,
+        sewing_image_present,
+        drape_image_present,
+    )
+    issues = _build_issues(assessment.invalid_geometry)
+    image_inventory = _image_inventory(output_root, workspace)
+    metrics_path = output_root / "drape-visual-metrics.json"
+    metrics_payload: object = None
+    if metrics_path.is_file():
+        try:
+            metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
+    result = assessment.result
+    next_action = assessment.next_action
+    fit_assessment = _fit_assessment(metrics_payload)
+    # A successful FreeCAD script is execution evidence, not proof of fit. Keep
+    # the execution stages intact while surfacing a separate fit-review outcome.
+    if result == "passed" and fit_assessment.get("state") == "review_required":
+        result = "review_required"
+        next_action = str(fit_assessment.get("next_action", next_action))
+
+    crossings = _crossing_summary(assessment.invalid_geometry)
 
     return {
         "schema": SCHEMA,
@@ -712,9 +828,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         },
         "status": {
             "result": result,
-            "failed_stage": failed_stage,
-            "last_completed_stage": last_completed_stage,
-            "failure_text": failure_text or None,
+            "failed_stage": assessment.failed_stage,
+            "last_completed_stage": assessment.last_completed_stage,
+            "failure_text": assessment.failure_text,
         },
         "units": {
             "length": "mm",
@@ -723,21 +839,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
                 "FreeCAD world coordinates when specified by the producer"
             ),
         },
-        "stages": {
-            "mannequin_pose": pose_state,
-            "pattern_construction": "captured"
-            if topology_records or pattern_image_present
-            else "not_observed",
-            "pattern_topology": pattern_state,
-            "derived_pattern_representation": derived_state,
-            "sewing_preview": sewing_state,
-            "initial_placement": "measured" if parsed.placements_by_side else "not_observed",
-            "simulation": simulation_state,
-            "drape": drape_state,
-        },
+        "stages": stage_states,
         "mannequin_pose_measurements": parsed.pose,
         "pattern": {
-            "pieces": topology_records,
+            "pieces": assessment.topology_records,
             "native_armholes": [parsed.armholes_by_index[key] for key in sorted(parsed.armholes_by_index)],
             "crossings": crossings,
         },
