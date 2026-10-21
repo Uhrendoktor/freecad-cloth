@@ -17,6 +17,7 @@ import math
 import os
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
@@ -51,6 +52,21 @@ _PLACEMENT_RE = re.compile(
 )
 _SCREENSHOT_RE = re.compile(r"screenshot=(.*?) state=(.*?) bytes=(\d+)$")
 _CROSSING_RE = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
+
+
+@dataclass(slots=True)
+class ProgressEvidence:
+    """Progress-log observations collected for a workflow scene report."""
+
+    topology_by_piece: dict[str, dict[str, object]] = field(default_factory=dict)
+    armholes_by_index: dict[int, dict[str, object]] = field(default_factory=dict)
+    placements_by_side: dict[str, dict[str, object]] = field(default_factory=dict)
+    pose: dict[str, float] | None = None
+    screenshot_states: dict[str, dict[str, object]] = field(default_factory=dict)
+    drape_records: list[dict[str, object]] = field(default_factory=list)
+    failure_lines: list[str] = field(default_factory=list)
+    has_scenario_pass: bool = False
+    has_simulation_start: bool = False
 
 
 def _literal_tuple(value: str) -> tuple[object, ...]:
@@ -409,41 +425,28 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     }
 
 
-def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
-    """Build a machine-readable diagnosis using only the completed workflow files.
+def _parse_progress_text(progress_text: str) -> ProgressEvidence:
+    """Parse scene markers emitted by the FreeCAD workflow into typed records.
 
     Args:
-        progress_path: Path to the captured workflow progress log.
-        output_root: Directory used to locate the run's diagnostic evidence.
-        workspace: Root path used to make evidence paths relative.
+        progress_text: Complete captured progress log from the workflow process.
 
     Returns:
-        Structured report describing workflow status and gathered evidence.
+        Parsed topology, placement, pose, screenshot, and simulation observations.
     """
-    progress_text = (
-        progress_path.read_text(encoding="utf-8", errors="replace")
-        if progress_path.is_file()
-        else ""
+    parsed = ProgressEvidence(
+        has_simulation_start="tunic-simulation-start" in progress_text
     )
-    topology_by_piece: dict[str, dict[str, object]] = {}
-    armholes_by_index: dict[int, dict[str, object]] = {}
-    placements_by_side: dict[str, dict[str, object]] = {}
-    pose: dict[str, float] | None = None
-    screenshot_states: dict[str, dict[str, object]] = {}
-    drape_records: list[dict[str, object]] = []
-    failure_lines: list[str] = []
-    has_scenario_pass = False
-    has_simulation_start = "tunic-simulation-start" in progress_text
     for line in progress_text.splitlines():
         topology = _parse_topology(line)
         if topology is not None:
-            topology_by_piece[str(topology["piece"])] = topology
+            parsed.topology_by_piece[str(topology["piece"])] = topology
         armhole = _parse_armhole(line)
         if armhole is not None:
-            armholes_by_index[int(armhole["edge_index"])] = armhole
+            parsed.armholes_by_index[int(armhole["edge_index"])] = armhole
         pose_match = _POSE_RE.search(line)
         if pose_match:
-            pose = {
+            parsed.pose = {
                 "left_shoulder_wrist_dx_mm": float(pose_match.group(1)),
                 "left_shoulder_wrist_dz_mm": float(pose_match.group(2)),
                 "right_shoulder_wrist_dx_mm": float(pose_match.group(3)),
@@ -451,7 +454,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             }
         placement_match = _PLACEMENT_RE.search(line)
         if placement_match:
-            placements_by_side[placement_match.group(1)] = {
+            parsed.placements_by_side[placement_match.group(1)] = {
                 "projected_target_y_range_mm": [
                     float(placement_match.group(2)),
                     float(placement_match.group(3)),
@@ -468,7 +471,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         if screenshot:
             raw_path = screenshot.group(1).strip()
             image_name = Path(raw_path.replace("/workspace/", "")).name
-            screenshot_states[image_name] = {
+            parsed.screenshot_states[image_name] = {
                 "reported_path": raw_path,
                 "state": screenshot.group(2),
                 "reported_size_bytes": int(screenshot.group(3)),
@@ -479,21 +482,41 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             except json.JSONDecodeError:
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
-                drape_records.append(cast("dict[str, object]", parsed_metrics))
+                parsed.drape_records.append(cast("dict[str, object]", parsed_metrics))
         if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
-            has_scenario_pass = True
+            parsed.has_scenario_pass = True
         if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
-            failure_lines.append(line.strip())
+            parsed.failure_lines.append(line.strip())
 
-    topology_records = list(topology_by_piece.values())
+    return parsed
+
+
+def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
+    """Build a machine-readable diagnosis using only the completed workflow files.
+
+    Args:
+        progress_path: Path to the captured workflow progress log.
+        output_root: Directory used to locate the run's diagnostic evidence.
+        workspace: Root path used to make evidence paths relative.
+
+    Returns:
+        Structured report describing workflow status and gathered evidence.
+    """
+    progress_text = (
+        progress_path.read_text(encoding="utf-8", errors="replace")
+        if progress_path.is_file()
+        else ""
+    )
+    parsed = _parse_progress_text(progress_text)
+    topology_records = list(parsed.topology_by_piece.values())
     invalid_native = [record for record in topology_records if not bool(record["ir_valid"])]
     invalid_derived = [record for record in topology_records if not bool(record["draft_valid"])]
     invalid_geometry_by_piece = {str(record["piece"]): record for record in invalid_derived}
     # Preserve the earliest causal failure if native and derived outlines are both invalid.
     invalid_geometry_by_piece.update({str(record["piece"]): record for record in invalid_native})
     invalid_geometry = list(invalid_geometry_by_piece.values())
-    failure_text = "\n".join(failure_lines)
-    failure_unknown = bool(failure_lines) and not invalid_geometry
+    failure_text = "\n".join(parsed.failure_lines)
+    failure_unknown = bool(parsed.failure_lines) and not invalid_geometry
     if invalid_native:
         result = "blocked"
         failed_stage = "pattern_topology"
@@ -512,20 +535,20 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "The native PatternIR passed its validity check, so do not alter garment placement "
             "or solver settings to compensate for a downstream representation mismatch."
         )
-    elif has_scenario_pass and not failure_lines:
+    elif parsed.has_scenario_pass and not parsed.failure_lines:
         result = "passed"
         failed_stage = None
-        last_completed_stage = "drape" if drape_records else "simulation"
+        last_completed_stage = "drape" if parsed.drape_records else "simulation"
         next_action = (
             "Review final multi-view fit and keep the same strict geometry and collision gates."
         )
-    elif failure_lines:
+    elif parsed.failure_lines:
         result = "failed"
         failed_stage = (
             "unknown_from_available_markers" if failure_unknown else "simulation_or_later"
         )
         last_completed_stage = (
-            "simulation_started" if has_simulation_start else "last_observed_stage"
+            "simulation_started" if parsed.has_simulation_start else "last_observed_stage"
         )
         next_action = (
             "Use the failure log and the last completed stage to localize the first failing "
@@ -540,22 +563,22 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         )
 
     avatar_image_present = (
-        "cloth-mannequin-near-t-pose.png" in screenshot_states
-        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+        "cloth-mannequin-near-t-parsed.pose.png" in parsed.screenshot_states
+        and (output_root / "cloth-mannequin-near-t-parsed.pose.png").is_file()
     )
     pattern_image_present = (
-        "cloth-pattern-design.png" in screenshot_states
+        "cloth-pattern-design.png" in parsed.screenshot_states
         and (output_root / "cloth-pattern-design.png").is_file()
     )
     sewing_image_present = (
-        "cloth-sewing.png" in screenshot_states and (output_root / "cloth-sewing.png").is_file()
+        "cloth-sewing.png" in parsed.screenshot_states and (output_root / "cloth-sewing.png").is_file()
     )
     drape_image_present = any(
-        name.startswith("cloth-simulation-draped") for name in screenshot_states
+        name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
     )
-    if pose is not None and avatar_image_present:
+    if parsed.pose is not None and avatar_image_present:
         pose_state = "passed"
-    elif pose is not None:
+    elif parsed.pose is not None:
         pose_state = "measured_but_image_not_found"
     else:
         pose_state = "not_observed"
@@ -586,17 +609,17 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     )
     if invalid_geometry:
         simulation_state = (
-            "not_reached" if not has_simulation_start else "started_despite_invalid_pattern"
+            "not_reached" if not parsed.has_simulation_start else "started_despite_invalid_pattern"
         )
-    elif has_simulation_start:
+    elif parsed.has_simulation_start:
         simulation_state = "started"
     else:
         simulation_state = "not_observed"
-    if invalid_geometry and not has_simulation_start:
+    if invalid_geometry and not parsed.has_simulation_start:
         drape_state = "not_reached"
-    elif drape_records or drape_image_present:
+    elif parsed.drape_records or drape_image_present:
         drape_state = "evidence_present"
-    elif not has_simulation_start:
+    elif not parsed.has_simulation_start:
         drape_state = "not_reached_or_not_captured"
     else:
         drape_state = "started_but_final_evidence_missing"
@@ -708,18 +731,18 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "pattern_topology": pattern_state,
             "derived_pattern_representation": derived_state,
             "sewing_preview": sewing_state,
-            "initial_placement": "measured" if placements_by_side else "not_observed",
+            "initial_placement": "measured" if parsed.placements_by_side else "not_observed",
             "simulation": simulation_state,
             "drape": drape_state,
         },
-        "mannequin_pose_measurements": pose,
+        "mannequin_pose_measurements": parsed.pose,
         "pattern": {
             "pieces": topology_records,
-            "native_armholes": [armholes_by_index[key] for key in sorted(armholes_by_index)],
+            "native_armholes": [parsed.armholes_by_index[key] for key in sorted(armholes_by_index)],
             "crossings": crossings,
         },
         "placement": {
-            "panels": placements_by_side,
+            "panels": parsed.placements_by_side,
             "initial_target_clearance_log_lines": [
                 line.strip()
                 for line in progress_text.splitlines()
@@ -727,8 +750,8 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             ],
         },
         "simulation": {
-            "started": has_simulation_start,
-            "drape_metrics_from_log": drape_records,
+            "started": parsed.has_simulation_start,
+            "drape_metrics_from_log": parsed.drape_records,
             "drape_metrics_json": metrics_payload,
         },
         "fit_assessment": fit_assessment,
@@ -736,7 +759,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         "next_action": next_action,
         "evidence": {
             "images": image_inventory,
-            "screenshot_log_entries": screenshot_states,
+            "screenshot_log_entries": parsed.screenshot_states,
             "expected_or_known_outputs": {
                 "mannequin_pose": "present" if avatar_image_present else "missing",
                 "pattern_design": "present" if pattern_image_present else "missing",
