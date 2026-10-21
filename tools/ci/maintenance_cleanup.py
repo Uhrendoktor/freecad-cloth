@@ -248,6 +248,74 @@ def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
     return epoch(date) if isinstance(date, str) else None
 
 
+def _branch_activity_batch(
+    owner: str,
+    repository_name: str,
+    batch: list[str],
+    load_json: Callable[..., object],
+) -> dict[str, float]:
+    """Resolve activity timestamps for one validated-size commit batch.
+
+    Args:
+        owner: GitHub account or organization that owns the repository.
+        repository_name: Repository name under the owner.
+        batch: Commit SHAs assigned to this bounded request.
+        load_json: API loader compatible with the maintenance test seam.
+
+    Returns:
+        Activity timestamps keyed by the commit SHA returned from GitHub.
+
+    Raises:
+        RuntimeError: If a SHA is malformed or the GraphQL response reports errors.
+        TypeError: If GitHub returns unverified commit activity data.
+    """
+    aliases: dict[str, str] = {}
+    fields: list[str] = []
+    for index, sha in enumerate(batch):
+        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
+            msg = f"invalid branch commit SHA: {sha!r}"
+            raise RuntimeError(msg)
+        alias = f"commit{index}"
+        aliases[alias] = sha
+        fields.append(
+            f'{alias}: object(expression: "{sha}") '
+            "{ ... on Commit { committedDate authoredDate } }"
+        )
+
+    query = (
+        "query { repository("
+        f'owner: "{owner}", name: "{repository_name}"'
+        f") {{ {' '.join(fields)} }} }}"
+    )
+    payload = load_json("api", "graphql", "-f", f"query={query}")
+    if not isinstance(payload, dict):
+        msg = "GitHub GraphQL returned a non-object branch activity response"
+        raise TypeError(msg)
+    if payload.get("errors"):
+        msg = "GitHub GraphQL could not verify branch activity"
+        raise RuntimeError(msg)
+    data = payload.get("data")
+    repository_data = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository_data, dict):
+        msg = "GitHub GraphQL omitted repository branch activity data"
+        raise TypeError(msg)
+
+    activity_epochs: dict[str, float] = {}
+    for alias, sha in aliases.items():
+        commit_data = repository_data.get(alias)
+        if not isinstance(commit_data, dict):
+            msg = f"commit activity missing for branch head {sha}"
+            raise TypeError(msg)
+        committed_date = commit_data.get("committedDate")
+        authored_date = commit_data.get("authoredDate")
+        date = committed_date if isinstance(committed_date, str) else authored_date
+        if not isinstance(date, str):
+            msg = f"commit activity is unverifiable for branch head {sha}"
+            raise TypeError(msg)
+        activity_epochs[sha] = epoch(date)
+    return activity_epochs
+
+
 def branch_activity_epochs(
     repo: str,
     commit_shas: set[str],
@@ -286,49 +354,7 @@ def branch_activity_epochs(
     activity_epochs: dict[str, float] = {}
     for offset in range(0, len(ordered_shas), batch_size):
         batch = ordered_shas[offset : offset + batch_size]
-        aliases: dict[str, str] = {}
-        fields: list[str] = []
-        for index, sha in enumerate(batch):
-            if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
-                msg = f"invalid branch commit SHA: {sha!r}"
-                raise RuntimeError(msg)
-            alias = f"commit{index}"
-            aliases[alias] = sha
-            fields.append(
-                f'{alias}: object(expression: "{sha}") '
-                "{ ... on Commit { committedDate authoredDate } }"
-            )
-
-        query = (
-            "query { repository("
-            f'owner: "{owner}", name: "{repository_name}"'
-            f") {{ {' '.join(fields)} }} }}"
-        )
-        payload = load_json("api", "graphql", "-f", f"query={query}")
-        if not isinstance(payload, dict):
-            msg = "GitHub GraphQL returned a non-object branch activity response"
-            raise TypeError(msg)
-        if payload.get("errors"):
-            msg = "GitHub GraphQL could not verify branch activity"
-            raise RuntimeError(msg)
-        data = payload.get("data")
-        repository_data = data.get("repository") if isinstance(data, dict) else None
-        if not isinstance(repository_data, dict):
-            msg = "GitHub GraphQL omitted branch activity repository data"
-            raise TypeError(msg)
-
-        for alias, sha in aliases.items():
-            commit_data = repository_data.get(alias)
-            if not isinstance(commit_data, dict):
-                msg = f"commit activity missing for branch head {sha}"
-                raise TypeError(msg)
-            committed_date = commit_data.get("committedDate")
-            authored_date = commit_data.get("authoredDate")
-            date = committed_date if isinstance(committed_date, str) else authored_date
-            if not isinstance(date, str):
-                msg = f"commit activity is unverifiable for branch head {sha}"
-                raise TypeError(msg)
-            activity_epochs[sha] = epoch(date)
+        activity_epochs.update(_branch_activity_batch(owner, repository_name, batch, load_json))
     return activity_epochs
 
 
