@@ -93,15 +93,17 @@ def fetch_artifact_page(
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": API_VERSION,
     }
+    connection = http.client.HTTPSConnection("api.github.com", timeout=20)
     try:
-        with http.client.HTTPSConnection("api.github.com", timeout=20) as connection:
-            payload = _request_artifact_payload(connection, request_path, headers)
+        payload = _request_artifact_payload(connection, request_path, headers)
     except (http.client.HTTPException, OSError) as exc:
         msg = f"GitHub artifact API request failed: {exc}"
         raise RuntimeError(msg) from exc
     except json.JSONDecodeError as exc:
         msg = "GitHub artifact API returned invalid JSON"
         raise RuntimeError(msg) from exc
+    finally:
+        connection.close()
 
     if not isinstance(payload, dict):
         msg = "GitHub artifact API response must be an object"
