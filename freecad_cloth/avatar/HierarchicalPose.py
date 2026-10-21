@@ -41,7 +41,19 @@ def _make_anny_rig_mapper(
     rig_vertices: tuple[Point, ...],
     skeleton: dict,
 ) -> Mapper:
-    """Map stable MakeHuman source points to the same indices in fitted Anny space."""
+    """Build a point mapper from the source rig to fitted Anny coordinates.
+
+    Args:
+        source_vertices: Original MakeHuman rig points in their stable index order.
+        rig_vertices: Fitted Anny rig points aligned with the source vertex indices.
+        skeleton: Skeleton joint definitions used to preserve fitted joint centres.
+
+    Returns:
+        Callable that maps known source vertices and joint centres to fitted points.
+
+    Raises:
+        HumanoidMeshError: If the source and fitted rigs have different vertex counts.
+    """
     if len(source_vertices) != len(rig_vertices):
         msg = "Anny's fitted vertices do not match the original MakeHuman rig index space."
         raise HumanoidMeshError(msg)
