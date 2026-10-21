@@ -111,8 +111,7 @@ class _FallbackGizmo:
     isActive = False
 
     def __init__(self, objects=()):
-        """Retain scene objects used by the non-viewport fallback gizmo.
-        """
+        """Retain scene objects used by the non-viewport fallback gizmo."""
         self.objects = tuple(objects)
 
 
@@ -1536,8 +1535,7 @@ class AvatarPoseTaskPanel:
         return int(getattr(buttons, "value", buttons))
 
     def modifyStandardButtons(self, button_box):
-        """Customize the supplied dialog buttons for Pose Mode.
-        """
+        """Customize the supplied dialog buttons for Pose Mode."""
         _, _, _, QtWidgets = _modules()
         ok = button_box.button(QtWidgets.QDialogButtonBox.Ok)
         if ok is not None:
