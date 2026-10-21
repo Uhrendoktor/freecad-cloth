@@ -171,10 +171,14 @@ def _mesh_data(
     return native
 
 
-def _style_mannequin(obj):
-    """Give the body a neutral CAD-mannequin presentation, not a garment look."""
+def _style_mannequin(obj: object) -> None:
+    """Apply a neutral CAD-mannequin presentation to a body.
+
+    Args:
+        obj: FreeCAD document object whose view properties should be styled.
+    """
     try:
-        view = obj.ViewObject
+        view = getattr(obj, "ViewObject")
         view.DisplayMode = "Flat Lines"
         view.ShapeColor = (0.72, 0.72, 0.72)
         view.LineColor = (0.20, 0.20, 0.20)
