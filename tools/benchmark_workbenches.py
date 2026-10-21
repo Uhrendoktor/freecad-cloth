@@ -199,7 +199,7 @@ def _initialize_sample(
         msg = f"expected one registered workbench, got {sorted(added)!r}"
         raise RuntimeError(msg)
     registered_name = next(iter(added))
-    setattr(workbench, "__Workbench__", BenchmarkWorkbenchBackend())
+    getattr(workbench, "__dict__")["__Workbench__"] = BenchmarkWorkbenchBackend()
     getattr(workbench, "Initialize")()
     duration = time.perf_counter() - started
     command_count = len(getattr(workbench, "commands", ()))
