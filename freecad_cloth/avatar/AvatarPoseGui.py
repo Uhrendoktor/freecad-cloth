@@ -9,6 +9,7 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 import contextlib
 import math
 
+from freecad_cloth.avatar.avatar_properties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.shared.viewport_gizmo_style import (
     ACTIVE_COLOR,
     JOINT_COLOR,
@@ -1226,35 +1227,13 @@ class AvatarPoseTaskPanel:
         )
 
     @staticmethod
-    def _measurement_map():
-        return {
-            "height": "Height",
-            "neck": "Neck",
-            "shoulder": "Shoulder",
-            "chest": "Chest",
-            "underbust": "Underbust",
-            "waist": "Waist",
-            "high_hip": "High_Hip",
-            "hip": "Hip",
-            "upper_arm": "Upper_Arm",
-            "elbow": "Elbow",
-            "wrist": "Wrist",
-            "thigh": "Thigh",
-            "knee": "Knee",
-            "calf": "Calf",
-            "ankle": "Ankle",
-            "inseam": "Inseam",
-            "torso": "Torso",
-            "front_waist": "Front_Waist",
-            "back_waist": "Back_Waist",
-            "stomach": "Stomach",
-            "sleeve_length": "Sleeve_Length",
-            "crotch_length": "Crotch_Length",
-            "front_rise": "Front_Rise",
-            "back_rise": "Back_Rise",
-            "shirt_length": "Shirt_Length",
-            "back_neck_to_waist": "Back_Neck_To_Waist",
-        }
+    def _measurement_map() -> dict[str, str]:
+        """Return a copy of the canonical measurement/property mapping.
+
+        Returns:
+            Mapping from avatar parameter keys to their persisted property names.
+        """
+        return dict(AVATAR_PROPERTY_MAP)
 
     def _select_preset(self, preset):
         if self._loading:
