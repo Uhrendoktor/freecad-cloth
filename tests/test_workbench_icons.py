@@ -4,7 +4,7 @@
 import importlib
 from pathlib import Path
 
-from defusedxml import ElementTree as ET
+from defusedxml import ElementTree
 
 from tests.support.assertions import require, require_contains
 
@@ -16,7 +16,7 @@ def test_workbench_icons_are_valid_scalable_assets() -> None:
     """Validate scalable icon metadata and reject hard-coded legacy colors."""
     for name in ("ClothPattern.svg", "ClothSewing.svg", "ClothSimulation.svg"):
         icon_path = ICON_DIR / name
-        root = ET.parse(icon_path).getroot()
+        root = ElementTree.parse(icon_path).getroot()
         require(
             condition=root.tag.endswith("svg"),
             message=f"{name} must have an SVG root element.",
@@ -66,7 +66,10 @@ def test_all_workbench_tool_commands_have_svg_icons() -> None:
     )
     for command in commands:
         icon = Path(icon_for_command(command))
-        require(condition=icon.is_file(), message=f"Command {command!r} must map to an existing icon.")
+        require(
+            condition=icon.is_file(),
+            message=f"Command {command!r} must map to an existing icon.",
+        )
         text = icon.read_text(encoding="utf-8")
         require_contains(
             source=text,
