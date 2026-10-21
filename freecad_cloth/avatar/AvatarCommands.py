@@ -4,8 +4,10 @@
 import json
 from collections.abc import Callable
 from contextlib import suppress
+from importlib import import_module
 from itertools import starmap
 from types import ModuleType
+from typing import Protocol, cast
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
@@ -62,6 +64,43 @@ POSE_PROPERTY_MAP = {
 }
 PROVIDER_IDS = ("makehuman-hm08", "freecad-geometry")
 _MISSING = object()
+ProviderGeometry = Callable[
+    ...,
+    tuple[
+        tuple[tuple[float, float, float], ...],
+        tuple[tuple[int, int, int], ...],
+        tuple[Landmark, ...],
+        str,
+        str,
+        str,
+    ],
+]
+
+
+class _AvatarViewObject(Protocol):
+    """Writable FreeCAD view-provider properties used by avatar styling.
+
+    Attributes:
+        DisplayMode: View mode used to render the mannequin mesh.
+        ShapeColor: RGB fill color assigned to the mannequin mesh.
+        LineColor: RGB edge color assigned to the mannequin mesh.
+        LineWidth: Width of the visible mesh edges.
+    """
+
+    DisplayMode: str
+    ShapeColor: tuple[float, float, float]
+    LineColor: tuple[float, float, float]
+    LineWidth: float
+
+
+class _AvatarFeatureView(Protocol):
+    """FreeCAD feature interface needed to obtain its view provider.
+
+    Attributes:
+        ViewObject: Provider exposing the mannequin display properties.
+    """
+
+    ViewObject: _AvatarViewObject
 
 
 def _avatar(doc: object) -> object | None:
@@ -197,16 +236,17 @@ def _mesh_data(
         A native Mesh object with the provider's shared vertex topology preserved.
     """
     if app_module is None:
-        import FreeCAD as app_module
+        app_module = import_module("FreeCAD")
     if mesh_module is None:
-        import Mesh as mesh_module
+        mesh_module = import_module("Mesh")
 
     native = mesh_module.Mesh()
     vectors = list(starmap(app_module.Vector, vertices))
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the
     # downstream collision adapter cannot recognize the closed mannequin shell.
-    native.addFacets((vectors, list(triangles)), False)
+    check_manifolds = False
+    native.addFacets((vectors, list(triangles)), check_manifolds)
     return native
 
 
@@ -217,7 +257,7 @@ def _style_mannequin(obj: object) -> None:
         obj: FreeCAD document object whose view properties should be styled.
     """
     try:
-        view = getattr(obj, "ViewObject")
+        view = cast(_AvatarFeatureView, obj).ViewObject
         view.DisplayMode = "Flat Lines"
         view.ShapeColor = (0.72, 0.72, 0.72)
         view.LineColor = (0.20, 0.20, 0.20)
@@ -290,18 +330,7 @@ def _rebuild(
     provider_id: str | None = None,
     provider_source: object = _MISSING,
     *,
-    provider_geometry_fn: Callable[
-        ...,
-        tuple[
-            tuple[tuple[float, float, float], ...],
-            tuple[tuple[int, int, int], ...],
-            tuple[Landmark, ...],
-            str,
-            str,
-            str,
-        ],
-    ]
-    | None = None,
+    provider_geometry_fn: ProviderGeometry | None = None,
 ) -> object:
     """Build derived geometry before mutating persistent avatar state.
 
@@ -393,9 +422,9 @@ def _ensure_collision(obj: object) -> object:
     Returns:
         The derived collision proxy object.
     """
-    from freecad_cloth.avatar.AvatarCollision import ensure_collision_proxy
+    avatar_collision = import_module("freecad_cloth.avatar.AvatarCollision")
 
-    return ensure_collision_proxy(obj.Document, obj, thickness=2.0, deflection=1.0)
+    return avatar_collision.ensure_collision_proxy(obj.Document, obj, thickness=2.0, deflection=1.0)
 
 
 def _ensure_drape_target(obj: object) -> object:
@@ -407,14 +436,14 @@ def _ensure_drape_target(obj: object) -> object:
     Returns:
         The created or updated drape-target object.
     """
-    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+    drape_target = import_module("freecad_cloth.simulation.DrapeTarget")
 
     target = obj.Document.getObject("DrapeTarget")
     if target is None:
-        target = create_drape_target(
+        target = drape_target.create_drape_target(
             obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0
         )
-    assign_drape_target(target, obj, "Mannequin")
+    drape_target.assign_drape_target(target, obj, "Mannequin")
     return target
 
 
@@ -435,9 +464,9 @@ def create_avatar(
     Returns:
         The created or updated avatar feature.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = doc or App.ActiveDocument or App.newDocument("ClothSewing")
+    doc = doc or app.ActiveDocument or app.newDocument("ClothSewing")
     obj = _avatar(doc)
     if obj is None:
         obj = doc.addObject("Mesh::Feature", object_name)
@@ -540,9 +569,8 @@ def create_avatar(
     if attach_collision:
         _ensure_collision(obj)
         _ensure_drape_target(obj)
-    from freecad_cloth.common.GarmentDocument import link_garment_object
-
-    link_garment_object(obj, "Avatar", doc)
+    garment_document = import_module("freecad_cloth.common.GarmentDocument")
+    garment_document.link_garment_object(obj, "Avatar", doc)
     doc.recompute()
     return obj
 
@@ -553,18 +581,7 @@ def apply_avatar_parameters(
     provider_id: str | None = None,
     provider_source: object = _MISSING,
     *,
-    provider_geometry_fn: Callable[
-        ...,
-        tuple[
-            tuple[tuple[float, float, float], ...],
-            tuple[tuple[int, int, int], ...],
-            tuple[Landmark, ...],
-            str,
-            str,
-            str,
-        ],
-    ]
-    | None = None,
+    provider_geometry_fn: ProviderGeometry | None = None,
 ) -> object:
     """Apply validated avatar state only after successful geometry construction.
 
@@ -594,11 +611,10 @@ def apply_avatar_parameters(
     # after the final mesh exists so their saved triangle/barycentric reference
     # follows the deformed surface instead of being invalidated by AvatarRevision.
     try:
-        from freecad_cloth.avatar.FittingCommands import _refresh_anchor_positions, _scene
-
-        fitting_scene = _scene(obj.Document)
+        fitting_helpers = vars(import_module("freecad_cloth.avatar.FittingCommands"))
+        fitting_scene = fitting_helpers["_scene"](obj.Document)
         if fitting_scene is not None and getattr(fitting_scene, "AvatarProxy", None) == obj:
-            _refresh_anchor_positions(fitting_scene, update_visuals=True)
+            fitting_helpers["_refresh_anchor_positions"](fitting_scene, update_visuals=True)
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
         # Avatar creation/rebuild must remain independent of the optional fitting scene.
         pass
@@ -614,9 +630,9 @@ def rebuild_avatar() -> object:
     Raises:
         ValueError: If no document is active or the document has no avatar feature.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before rebuilding the avatar"
         raise ValueError(msg)
@@ -634,30 +650,32 @@ def edit_avatar() -> object:
     Returns:
         The task-panel instance shown by FreeCAD.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
-        doc = App.newDocument("ClothSewing")
+        doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
-    from freecad_cloth.avatar.AvatarGui import show_avatar_task
+    avatar_gui = import_module("freecad_cloth.avatar.AvatarGui")
+    return avatar_gui.show_avatar_task(obj)
 
-    return show_avatar_task(obj)
 
+def pose_avatar() -> object:
+    """Open the focused 3D Pose Mode editor for the active mannequin.
 
-def pose_avatar():
-    """Open the focused 3D Pose Mode editor for the active mannequin."""
-    import FreeCAD as App
+    Returns:
+        The pose task-panel instance shown by FreeCAD.
+    """
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
-        doc = App.newDocument("ClothSewing")
+        doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
-    from freecad_cloth.avatar.AvatarPoseGui import show_avatar_pose_task
-
-    return show_avatar_pose_task(obj)
+    avatar_pose_gui = import_module("freecad_cloth.avatar.AvatarPoseGui")
+    return avatar_pose_gui.show_avatar_pose_task(obj)
 
 
 def set_avatar_measurements(**changes: float) -> object:
@@ -672,9 +690,9 @@ def set_avatar_measurements(**changes: float) -> object:
     Raises:
         ValueError: If there is no active document or a measurement name is unknown.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before changing avatar measurements"
         raise ValueError(msg)
@@ -700,9 +718,9 @@ def set_avatar_pose(pose: str) -> object:
     Raises:
         ValueError: If there is no active document.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before changing avatar pose"
         raise ValueError(msg)
@@ -743,9 +761,9 @@ def set_avatar_joint(
     Raises:
         ValueError: If no document is active or the joint rotation is invalid.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before changing a mannequin joint"
         raise ValueError(msg)
@@ -790,9 +808,9 @@ def set_avatar_provider(provider_id: str, source: object | None = None) -> objec
     Raises:
         ValueError: If no document is active or the provider/source is unsupported.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before changing the avatar provider"
         raise ValueError(msg)
@@ -828,9 +846,9 @@ def set_avatar_skin_offset(offset: float) -> object:
     Raises:
         ValueError: If no document is active or the resulting parameters are invalid.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None:
         msg = "open a document before changing avatar offset"
         raise ValueError(msg)
@@ -862,9 +880,9 @@ def avatar_measurement(name: str) -> float:
     Raises:
         ValueError: If no active avatar exists or the measurement name is unknown.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None or _avatar(doc) is None:
         msg = "create a Cloth Avatar first"
         raise ValueError(msg)
@@ -880,9 +898,9 @@ def avatar_arrangement_points() -> object:
     Raises:
         ValueError: If there is no active avatar in the current document.
     """
-    import FreeCAD as App
+    app = import_module("FreeCAD")
 
-    doc = App.ActiveDocument
+    doc = app.ActiveDocument
     if doc is None or _avatar(doc) is None:
         msg = "create a Cloth Avatar first"
         raise ValueError(msg)
@@ -914,10 +932,8 @@ _HANDLERS = {
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:
-    import FreeCADGui as Gui
-
-    from freecad_cloth.common.CommandAdapter import register_commands
-
-    register_commands(Gui, _HANDLERS)
+    gui = import_module("FreeCADGui")
+    command_adapter = import_module("freecad_cloth.common.CommandAdapter")
+    command_adapter.register_commands(gui, _HANDLERS)
 except (ImportError, AttributeError):
     pass
