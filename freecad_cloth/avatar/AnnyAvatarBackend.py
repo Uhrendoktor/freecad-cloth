@@ -148,7 +148,7 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
         Sorted labels for morphs that expose both positive and negative directions.
 
     Raises:
-        AnnyAvatarBackendError: If Anny assets or required morph metadata are unavailable.
+        AnnyAvatarBackendError: If Anny assets or required morph metadata are missing.
     """
     try:
         import anny
@@ -221,7 +221,7 @@ def available_anny_phenotype_labels() -> tuple[str, ...]:
         Sorted phenotype names accepted by the installed Anny model.
 
     Raises:
-        AnnyAvatarBackendError: If Anny cannot be imported or its labels are unavailable.
+        AnnyAvatarBackendError: If Anny or its phenotype labels are unavailable.
     """
     try:
         import anny
@@ -417,7 +417,7 @@ def _canonicalize_anny_vertices(
         Canonicalized fitted points and the reference XY center offset.
 
     Raises:
-        ValueError: If the fitted and reference arrays have incompatible or non-finite data.
+        ValueError: If arrays are mismatched or contain non-finite vertex coordinates.
     """
     points = np.asarray(vertices, dtype=np.float32).copy()
     reference = np.asarray(reference_vertices, dtype=np.float32)
