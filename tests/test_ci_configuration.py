@@ -10,6 +10,34 @@ from tools.ci.run_freecad import configured_timeout_seconds
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> None:
+    """The readiness checklist is exercised in FreeCAD and both rendered states are validated."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    validator = (ROOT / "tools" / "ci" / "validate_acceptance.py").read_text(encoding="utf-8")
+    acceptance = (ROOT / "tests" / "freecad_simulation_quality_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    gui_matrix = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+
+    assert "case: simulation-quality" in gui_matrix
+    assert "tests/freecad_simulation_quality_acceptance.py" in gui_matrix
+    assert "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix
+    assert '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
+    stale_image_contract = (
+        '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
+    )
+    assert stale_image_contract in validator
+    assert "simulation-quality-readiness.png" in acceptance
+    assert "simulation-quality-stale-target.png" in acceptance
+    assert 'property("workflowState") != "blocked"' in acceptance
+    assert 'if __name__ == "__main__"' not in acceptance
+    assert '_progress("entrypoint-entered")' in acceptance
+    assert "os._exit(0)" in acceptance
+    assert "os._exit(1)" in acceptance
+
+
 def test_freecad_timeout_is_positive_and_declared_once():
     """The application timeout comes from the project configuration."""
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -643,3 +671,35 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
     assert "freecad_application_timeout_seconds" not in gallery_job
     assert "timeout-minutes: 12" in gallery_job
+
+
+def test_main_publication_checks_out_source_before_local_publisher_action() -> None:
+    """The runner must have the local composite action before it can resolve the action."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    publisher_job = workflow.split("  publish-readme-turntables:\n", maxsplit=1)[1].split(
+        "\n  maintenance-cleanup:", maxsplit=1
+    )[0]
+    checkout = "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+    local_action = "uses: ./.github/actions/publish-visual-evidence"
+
+    assert publisher_job.count(checkout) == 1
+    assert publisher_job.index(checkout) < publisher_job.index(local_action)
+    assert 'ref: "${{ github.sha }}"' in publisher_job
+    assert "persist-credentials: false" in publisher_job
+
+
+def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> None:
+    """The publisher rebuilds the blanket GIF from frames under blanket-example/."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    blanket_job = workflow.split("  gui-visual-examples:\n", maxsplit=1)[1].split(
+        "\n  publish-pr-simulation-evidence:", maxsplit=1
+    )[0]
+
+    # Keep the generated-directory prefix outside the upload wildcard so the
+    # artifact ZIP retains blanket-example/motion-*.png rather than flattening it.
+    assert "artifact-path: docs/images/generated/**" in blanket_job
+    assert "artifact-path: docs/images/generated/blanket-example/**" not in blanket_job

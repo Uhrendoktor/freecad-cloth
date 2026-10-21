@@ -15,7 +15,12 @@ CASES = {
     "avatar-pose": Path("artifacts/avatar-pose-mode.png"),
     "avatar-shape-editor": Path("artifacts/avatar-shape-editor.png"),
     "fitting": Path("artifacts/interactive-arrange.png"),
+    "simulation-quality": Path("artifacts/simulation-quality-readiness.png"),
     "surface-pen": Path("artifacts/surface-pen.png"),
+}
+
+REQUIRED_SCREENSHOTS = {
+    "simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),),
 }
 
 REQUIRED_FRAMES = {
@@ -117,6 +122,22 @@ def main() -> int:
         print(
             f"{args.case}-frame=validated path={frame} "
             f"nonwhite_pixels={frame_metrics['nonwhite_pixels']}"
+        )
+
+    for screenshot in REQUIRED_SCREENSHOTS.get(args.case, ()):
+        if not screenshot.is_file() or not screenshot.stat().st_size:
+            raise SystemExit(f"missing acceptance state screenshot: {screenshot}")
+        screenshot_metrics = validate_png_capture(
+            screenshot,
+            expected_width=1280,
+            expected_height=720,
+            min_nonwhite_pixels=500,
+            min_distinct_rgb=16,
+            min_opaque_pixels=500,
+        )
+        print(
+            f"{args.case}-state-screenshot=validated path={screenshot} "
+            f"nonwhite_pixels={screenshot_metrics['nonwhite_pixels']}"
         )
 
     print(

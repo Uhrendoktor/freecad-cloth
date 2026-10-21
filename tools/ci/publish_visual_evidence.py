@@ -60,6 +60,38 @@ def find_asset(asset: str) -> Path:
     raise SystemExit(msg)
 
 
+def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
+    """Restore downloaded visual files to the layout expected by the GIF builder.
+
+    Args:
+        kind: GIF collection identifier used to select artifact-specific normalization.
+        artifact_root: Directory containing downloaded validation files and directories.
+
+    Returns:
+        Directory containing the normalized files for the selected GIF collection.
+
+    Raises:
+        SystemExit: If normalization would overwrite an existing file or symbolic link.
+    """
+    output_root = artifact_root / "docs" / "images" / "generated"
+    entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
+    # upload-artifact removes the matched blanket-example/ prefix, so restore it
+    # when the downloaded artifact contains the motion frames at its root.
+    normalized_root = output_root
+    if kind == "blanket" and any(
+        entry.is_file() and entry.match("motion-*.png") for entry in entries
+    ):
+        normalized_root = output_root / "blanket-example"
+    normalized_root.mkdir(parents=True, exist_ok=True)
+    for entry in entries:
+        target = normalized_root / entry.name
+        if target.exists() or target.is_symlink():
+            raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
+        shutil.move(str(entry), str(target))
+    return normalized_root
+
+
+
 def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
     """Normalize downloaded validation artifacts and build the selected documentation GIFs.
 
@@ -72,15 +104,7 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         CalledProcessError: If the documentation GIF builder exits with an error.
         TimeoutExpired: If the builder exceeds its 55-second execution limit.
     """
-    output_root = artifact_root / "docs" / "images" / "generated"
-    entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
-    output_root.mkdir(parents=True, exist_ok=True)
-    for entry in entries:
-        target = output_root / entry.name
-        if target.exists() or target.is_symlink():
-            msg = f"duplicate asset while normalizing {artifact_root}: {target}"
-            raise SystemExit(msg)
-        shutil.move(str(entry), str(target))
+    normalize_visual_artifact(kind, artifact_root)
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
         ["python3", str(source), kind],
@@ -88,7 +112,6 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         timeout=55,
         cwd=artifact_root,
     )
-
 
 def build_surface_pen_gif() -> None:
     """Build a Surface Pen interaction GIF from real FreeCAD UI captures.

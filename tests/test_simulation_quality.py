@@ -3,6 +3,7 @@ import sys
 import unittest
 from math import dist
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -18,6 +19,10 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     _RUNTIME_BASES,
     QualitySimulationProxy,
     quality_discretization,
+)
+from freecad_cloth.simulation.WorkflowReadinessGui import (
+    WorkflowStep,
+    build_workflow_checklist,
 )
 
 
@@ -186,6 +191,166 @@ class SimulationQualityTests(unittest.TestCase):
         positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
         records = (("test-seam", "A", "B", ((0, 1),)),)
         validate_pinned_stitch_pairs(positions, (0, 1), records)
+
+
+def _readiness_piece(name: str) -> SimpleNamespace:
+    """Create a minimal PatternPiece-like object for readiness tests.
+
+    Args:
+        name: Stable fake document-object name.
+
+    Returns:
+        A namespace exposing the PatternPiece discriminator and name.
+    """
+    return SimpleNamespace(Name=name, PatternType="PatternPiece")
+
+
+def _readiness_scene(
+    pieces: tuple[object, ...] = (),
+    extra_objects: tuple[object, ...] = (),
+    *,
+    fitting: object | None = None,
+) -> SimpleNamespace:
+    """Create a minimal simulation/document pair for readiness tests.
+
+    Args:
+        pieces: Pattern pieces assigned to the fake simulation.
+        extra_objects: Other document objects, such as semantic seams.
+        fitting: Optional persistent fitting-scene stand-in.
+
+    Returns:
+        A namespace exposing a simulation, its target and its document.
+    """
+    objects = (*pieces, *extra_objects)
+    if fitting is not None:
+        objects = (*objects, fitting)
+    document = SimpleNamespace(Objects=objects)
+    return SimpleNamespace(
+        Document=document,
+        ClothPieces=pieces,
+        DrapeTarget=object(),
+    )
+
+
+def _readiness_target_status(
+    _target: object | None,
+    state: str = "ready",
+) -> dict[str, object]:
+    """Return a deterministic fake target status.
+
+    Args:
+        _target: Target reference, unused by this deterministic fixture.
+        state: Status string to return.
+
+    Returns:
+        The target state and its user-facing message.
+    """
+    return {
+        "state": state,
+        "message": (
+            "Drape target is current" if state == "ready" else "Drape target needs refresh"
+        ),
+    }
+
+
+def _readiness_rows(
+    scene: object | None,
+    state: str = "ready",
+) -> dict[str, WorkflowStep]:
+    """Index checklist rows by their stable key.
+
+    Args:
+        scene: Simulation scene being checked, or None.
+        state: Target state returned by the fake status provider.
+
+    Returns:
+        Checklist steps indexed by their stable key.
+    """
+    return {
+        step.key: step
+        for step in build_workflow_checklist(
+            scene,
+            target_status_fn=lambda target: _readiness_target_status(target, state),
+        )
+    }
+
+
+def test_readiness_missing_scene_explains_first_steps_and_blocks_simulation() -> None:
+    """A missing scene produces setup guidance and blocks simulation."""
+    rows = {step.key: step for step in build_workflow_checklist(None)}
+    assert rows["patterns"].state == "next"
+    assert rows["target"].state == "blocked"
+    assert rows["simulation"].state == "blocked"
+    assert "Cloth Pattern" in rows["patterns"].message
+
+
+def test_readiness_distinguishes_unassigned_document_pieces() -> None:
+    """Existing but unassigned pieces receive a specific actionable message."""
+    piece = _readiness_piece("Front")
+    scene = _readiness_scene((), (piece,))
+    rows = _readiness_rows(scene, "stale")
+    assert rows["patterns"].state == "next"
+    assert "exist in the document" in rows["patterns"].message
+    assert rows["target"].state == "blocked"
+    assert rows["simulation"].state == "blocked"
+
+
+def test_readiness_unsewn_multi_piece_setup_is_reviewable() -> None:
+    """Missing sewing prompts a review without hard-blocking diagnostic cases."""
+    scene = _readiness_scene((_readiness_piece("Front"), _readiness_piece("Back")))
+    rows = _readiness_rows(scene)
+    assert rows["patterns"].state == "ready"
+    assert rows["sewing"].state == "review"
+    assert rows["target"].state == "ready"
+    assert rows["simulation"].state == "ready"
+    assert "unsewn tests remain valid" in rows["sewing"].message
+
+
+def test_readiness_reports_fully_placed_sewn_garment() -> None:
+    """Sewing relationships and saved placements report a ready arrangement."""
+    front = _readiness_piece("Front")
+    back = _readiness_piece("Back")
+    seam = SimpleNamespace(
+        SewingType="Seam",
+        SeamId="seam-front-back",
+        PieceA=front,
+        PieceB=back,
+    )
+    fitting = SimpleNamespace(
+        FittingType="FittingScene",
+        PatternPieces=(front, back),
+        PiecePlacements=(object(), object()),
+    )
+    rows = _readiness_rows(_readiness_scene((front, back), (seam,), fitting=fitting))
+    assert rows["sewing"].state == "ready"
+    assert rows["arrangement"].state == "ready"
+    assert "2 saved placement(s)" in rows["arrangement"].message
+
+
+def test_readiness_target_inspection_failure_blocks_simulation() -> None:
+    """Target-inspection failure never advertises simulation readiness."""
+
+    def fail(_target: object | None) -> dict[str, object]:
+        """Simulate a target inspection error.
+
+        Args:
+            _target: Target reference, unused by this failing fixture.
+
+        Raises:
+            RuntimeError: Always, emulating a stale collision-cache inspection failure.
+        """
+        raise RuntimeError("stale collision cache")
+
+    rows = {
+        step.key: step
+        for step in build_workflow_checklist(
+            _readiness_scene((_readiness_piece("Panel"),)),
+            target_status_fn=fail,
+        )
+    }
+    assert rows["target"].state == "blocked"
+    assert rows["simulation"].state == "blocked"
+    assert "stale collision cache" in rows["target"].message
 
 
 if __name__ == "__main__":

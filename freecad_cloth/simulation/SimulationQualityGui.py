@@ -60,6 +60,23 @@ class SimulationQualityTaskPanel:
         self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
 
+        workflow = QtWidgets.QGroupBox("Workflow readiness")
+        workflow_layout = QtWidgets.QVBoxLayout(workflow)
+        self.workflow_labels = {}
+        for key, title in (
+            ("patterns", "Pattern pieces"),
+            ("sewing", "Sewing"),
+            ("target", "Drape target"),
+            ("arrangement", "Arrangement"),
+            ("simulation", "Simulation"),
+        ):
+            label = QtWidgets.QLabel(f"{title}: checking readiness…")
+            label.setObjectName(f"ClothWorkflow{key.title()}Status")
+            label.setWordWrap(True)
+            self.workflow_labels[key] = label
+            workflow_layout.addWidget(label)
+        root.addWidget(workflow)
+
         context = QtWidgets.QGroupBox("Context")
         cform = QtWidgets.QFormLayout(context)
         self.target_context = QtWidgets.QLabel()
@@ -538,7 +555,18 @@ class SimulationQualityTaskPanel:
         self.steps.setValue(0)
         self._refresh("Simulation reset; quality and fabric values retained.")
 
+    def _refresh_workflow(self) -> None:
+        """Refresh the user-facing setup checklist from authoritative document state."""
+        from freecad_cloth.simulation.WorkflowReadinessGui import build_workflow_checklist
+
+        for step in build_workflow_checklist(self.scene):
+            label = self.workflow_labels[step.key]
+            label.setText(f"[{step.state.upper()}] {step.label}: {step.message}")
+            label.setProperty("workflowState", step.state)
+            label.setToolTip(f"{step.state.capitalize()}: {step.message}")
+
     def _refresh(self, message=None):
+        self._refresh_workflow()
         self._refresh_fitting_stage()
         if self.scene is None:
             self.step_button.setEnabled(False)
