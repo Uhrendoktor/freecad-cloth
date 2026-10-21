@@ -653,7 +653,8 @@ def _derive_stage_states(
         if assessment.invalid_native
         else (
             "valid"
-            if assessment.topology_records and all(bool(item["ir_valid"]) for item in assessment.topology_records)
+            if assessment.topology_records
+            and all(bool(item["ir_valid"]) for item in assessment.topology_records)
             else "not_observed"
         )
     )
@@ -662,7 +663,8 @@ def _derive_stage_states(
         if assessment.invalid_derived
         else (
             "valid"
-            if assessment.topology_records and all(bool(item["draft_valid"]) for item in assessment.topology_records)
+            if assessment.topology_records
+            and all(bool(item["draft_valid"]) for item in assessment.topology_records)
             else "not_observed"
         )
     )
@@ -814,9 +816,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         "cloth-pattern-design.png" in parsed.screenshot_states
         and (output_root / "cloth-pattern-design.png").is_file()
     )
-    sewing_image_present = (
-        "cloth-sewing.png" in parsed.screenshot_states and (output_root / "cloth-sewing.png").is_file()
-    )
+    sewing_image_present = "cloth-sewing.png" in parsed.screenshot_states and (
+        output_root / "cloth-sewing.png"
+    ).is_file()
     drape_image_present = any(
         name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
     )
@@ -880,7 +882,9 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         "mannequin_pose_measurements": parsed.pose,
         "pattern": {
             "pieces": assessment.topology_records,
-            "native_armholes": [parsed.armholes_by_index[key] for key in sorted(parsed.armholes_by_index)],
+            "native_armholes": [
+                parsed.armholes_by_index[key] for key in sorted(parsed.armholes_by_index)
+            ],
             "crossings": crossings,
         },
         "placement": {
@@ -1329,7 +1333,7 @@ def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None
             point = issue.get("point_local_mm")
             point_text = (
                 f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
-                if isinstance(point, list) and len(point) >= 2
+                if isinstance(point, list) and len(point) >= TWO_DIMENSIONAL_COORDINATE_COUNT
                 else "not reported"
             )
             edge_ids = (
