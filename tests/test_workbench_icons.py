@@ -6,7 +6,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree
 
-from tests.support.assertions import require, require_contains
+from tests.support.assertions import require, require_contains, require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -16,7 +16,10 @@ def test_workbench_icons_are_valid_scalable_assets() -> None:
     """Validate scalable icon metadata and reject hard-coded legacy colors."""
     for name in ("ClothPattern.svg", "ClothSewing.svg", "ClothSimulation.svg"):
         icon_path = ICON_DIR / name
-        root = ElementTree.parse(icon_path).getroot()
+        root = require_not_none(
+            ElementTree.parse(icon_path).getroot(),
+            message=f"{name} did not parse to an SVG root element.",
+        )
         require(
             condition=root.tag.endswith("svg"),
             message=f"{name} must have an SVG root element.",
