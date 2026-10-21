@@ -12,6 +12,7 @@ from freecad_cloth.common.MeshValidation import (
     nearest_target_clearance,
 )
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+from tests.support.assertions import require
 
 
 @settings(max_examples=40, deadline=None)
@@ -20,8 +21,16 @@ from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
     dy=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
     dz=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
 )
-def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, dz: float) -> None:
-    """Translating a closed target and its query points preserves containment results."""
+def test_closed_mesh_containment_is_translation_invariant(
+    dx: float, dy: float, dz: float
+) -> None:
+    """Translating a closed target and its query points preserves containment results.
+
+    Args:
+        dx: Sampled translation along the X axis, in the range [-1000, 1000].
+        dy: Sampled translation along the Y axis, in the range [-1000, 1000].
+        dz: Sampled translation along the Z axis, in the range [-1000, 1000].
+    """
     vertices: tuple[tuple[float, float, float], ...] = (
         (0.0, 0.0, 0.0),
         (1.0, 0.0, 0.0),
@@ -57,8 +66,15 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
     translated_points: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in points
     )
-    assert expected == (True, False)
-    assert points_inside_closed_mesh(translated_points, translated_vertices, triangles) == expected
+    require(
+        condition=expected == (True, False),
+        message="The reference cube must contain its center but not the exterior point.",
+    )
+    require(
+        condition=points_inside_closed_mesh(translated_points, translated_vertices, triangles)
+        == expected,
+        message="Translating the closed mesh and query points must preserve containment.",
+    )
 
 
 @settings(max_examples=40, deadline=None)
@@ -67,8 +83,16 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
     dy=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
     dz=st.floats(min_value=-1000.0, max_value=1000.0, allow_nan=False, allow_infinity=False),
 )
-def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float, dz: float) -> None:
-    """Translating both vertex sets preserves their nearest distance."""
+def test_nearest_vertex_clearance_is_translation_invariant(
+    dx: float, dy: float, dz: float
+) -> None:
+    """Translating both vertex sets preserves their nearest distance.
+
+    Args:
+        dx: Sampled translation along the X axis, in the range [-1000, 1000].
+        dy: Sampled translation along the Y axis, in the range [-1000, 1000].
+        dz: Sampled translation along the Z axis, in the range [-1000, 1000].
+    """
     garment: tuple[tuple[float, float, float], ...] = (
         (0.0, 0.0, 2.0),
         (4.0, 0.0, 2.0),
@@ -86,8 +110,10 @@ def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float,
     shifted_target: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in target
     )
-    assert nearest_target_clearance(shifted_garment, shifted_target) == pytest.approx(
-        distance, rel=1e-9, abs=1e-9
+    require(
+        condition=nearest_target_clearance(shifted_garment, shifted_target)
+        == pytest.approx(distance, rel=1e-9, abs=1e-9),
+        message="A shared translation must preserve nearest-target clearance.",
     )
 
 
@@ -100,7 +126,13 @@ def test_nearest_vertex_clearance_is_translation_invariant(dx: float, dy: float,
 def test_nearest_surface_clearance_is_translation_invariant(
     dx: float, dy: float, dz: float
 ) -> None:
-    """Translating a query point and target surface preserves their distance."""
+    """Translating a query point and target surface preserves their distance.
+
+    Args:
+        dx: Sampled translation along the X axis, in the range [-1000, 1000].
+        dy: Sampled translation along the Y axis, in the range [-1000, 1000].
+        dz: Sampled translation along the Z axis, in the range [-1000, 1000].
+    """
     point: tuple[tuple[float, float, float], ...] = ((5.0, 5.0, 3.0),)
     vertices: tuple[tuple[float, float, float], ...] = (
         (0.0, 0.0, 0.0),
@@ -110,13 +142,20 @@ def test_nearest_surface_clearance_is_translation_invariant(
     )
     triangles: tuple[tuple[int, int, int], ...] = ((0, 1, 2), (0, 2, 3))
     distance = nearest_surface_clearance(point, vertices, triangles)
-    assert distance == pytest.approx(3.0, rel=0.0, abs=1e-9)
+    require(
+        condition=distance == pytest.approx(3.0, rel=0.0, abs=1e-9),
+        message="The point three units above the target must report that clearance.",
+    )
     translated_point: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in point
     )
     translated_vertices: tuple[tuple[float, float, float], ...] = tuple(
         (x + dx, y + dy, z + dz) for x, y, z in vertices
     )
-    assert nearest_surface_clearance(
-        translated_point, translated_vertices, triangles
-    ) == pytest.approx(distance, rel=1e-8, abs=1e-8)
+    require(
+        condition=nearest_surface_clearance(
+            translated_point, translated_vertices, triangles
+        )
+        == pytest.approx(distance, rel=1e-8, abs=1e-8),
+        message="A shared translation must preserve nearest-surface clearance.",
+    )
