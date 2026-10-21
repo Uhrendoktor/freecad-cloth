@@ -24,8 +24,18 @@ METRIC_DEFINITIONS = {
 }
 
 
-def metric_definition(name: str) -> dict:
-    """Provide the public metric definition operation."""
+def metric_definition(name: str) -> dict[str, str]:
+    """Return the formula and units defined for one diagnostic metric.
+
+    Args:
+        name: Name of the metric whose definition is requested.
+
+    Returns:
+        A copy of the metric's formula and unit labels.
+
+    Raises:
+        ValueError: If the requested metric name is not recognized.
+    """
     key = str(name).strip().lower()
     try:
         return dict(METRIC_DEFINITIONS[key])
@@ -34,8 +44,18 @@ def metric_definition(name: str) -> dict:
         raise ValueError(msg) from exc
 
 
-def export_payload(result: "DiagnosticResult") -> dict:
-    """Return a deterministic, solver-neutral JSON-ready diagnostic payload."""
+def export_payload(result: "DiagnosticResult") -> dict[str, object]:
+    """Build the JSON-ready payload for a completed diagnostics result.
+
+    Args:
+        result: Per-face metrics and global ranges produced by mesh analysis.
+
+    Returns:
+        A deterministic dictionary containing metric arrays, ranges, and a summary.
+
+    Raises:
+        TypeError: If the supplied value is not a DiagnosticResult.
+    """
     if not isinstance(result, DiagnosticResult):
         msg = "result must be a DiagnosticResult"
         raise TypeError(msg)
@@ -53,8 +73,18 @@ def export_payload(result: "DiagnosticResult") -> dict:
     }
 
 
-def export_json(result: "DiagnosticResult", path) -> dict:
-    """Write deterministic diagnostic data without mutating the FreeCAD model."""
+def export_json(
+    result: "DiagnosticResult", path: str | pathlib.Path
+) -> dict[str, object]:
+    """Write the diagnostic payload as stable, formatted JSON.
+
+    Args:
+        result: Per-face metrics and global ranges to export.
+        path: Destination filename or path-like object for the JSON document.
+
+    Returns:
+        The same JSON-ready payload written to the destination.
+    """
     import json
 
     payload = export_payload(result)
@@ -75,7 +105,17 @@ class DiagnosticResult:
     maximum: float
 
     def metric(self, name: str) -> tuple[float, ...]:
-        """Return the diagnostic metric represented by this result."""
+        """Get one per-face metric array by name.
+
+        Args:
+            name: Metric attribute to retrieve, such as strain or pressure.
+
+        Returns:
+            Values for the requested metric in face order.
+
+        Raises:
+            ValueError: If the name does not identify a metric on this result.
+        """
         try:
             return getattr(self, str(name))
         except AttributeError as exc:
@@ -84,15 +124,44 @@ class DiagnosticResult:
 
 
 def _distance(a: Point3, b: Point3) -> float:
+    """Measure the Euclidean distance between two 3D points.
+
+    Args:
+        a: First point in the mesh coordinate frame.
+        b: Second point in the same coordinate frame.
+
+    Returns:
+        Straight-line distance between the supplied points.
+    """
     return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
 
 
-def _triangle_edges(vertices: Sequence[Point3], tri: Triangle):
+def _triangle_edges(
+    vertices: Sequence[Point3], tri: Triangle
+) -> tuple[float, float, float]:
+    """Measure the three edge lengths of one triangular face.
+
+    Args:
+        vertices: Mesh vertex coordinates addressed by triangle indices.
+        tri: Three indices defining the face.
+
+    Returns:
+        Edge lengths in AB, BC, and CA order.
+    """
     a, b, c = (vertices[int(i)] for i in tri)
     return _distance(a, b), _distance(b, c), _distance(c, a)
 
 
 def _safe_strain(current: float, rest: float) -> float:
+    """Compute signed relative edge-length change with a zero-length guard.
+
+    Args:
+        current: Measured edge length after simulation.
+        rest: Reference edge length before simulation.
+
+    Returns:
+        Relative length change, or zero when the reference edge is degenerate.
+    """
     if rest <= 1e-12:
         return 0.0
     return current / rest - 1.0
@@ -212,8 +281,15 @@ def analyze_mesh(
     )
 
 
-def summarize(result: DiagnosticResult) -> dict:
-    """Return a compact UI/export summary for a diagnostic result."""
+def summarize(result: DiagnosticResult) -> dict[str, int | float]:
+    """Summarize aggregate face counts and diagnostic extrema.
+
+    Args:
+        result: Per-face metric arrays and global ranges to summarize.
+
+    Returns:
+        A compact mapping of the face count and metric minimum/maximum values.
+    """
     return {
         "faces": len(result.strain),
         "strain_min": min(result.strain) if result.strain else 0.0,
