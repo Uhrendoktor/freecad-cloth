@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Neutral solver-facing collision-surface value objects."""
 
 from collections.abc import Iterable

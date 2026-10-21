@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins():
     from types import SimpleNamespace
 

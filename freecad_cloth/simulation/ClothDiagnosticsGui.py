@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
 
 
@@ -30,23 +31,27 @@ def _simulation_data(scene):
     from freecad_cloth.simulation.ClothDiagnostics import analyze_mesh
 
     if not bool(getattr(scene, "FiniteState", True)):
-        raise RuntimeError("diagnostics blocked: simulation state is non-finite")
+        msg = "diagnostics blocked: simulation state is non-finite"
+        raise RuntimeError(msg)
     target = getattr(scene, "DrapeTarget", None)
     if target is None:
-        raise RuntimeError("diagnostics blocked: no persistent DrapeTarget is assigned")
+        msg = "diagnostics blocked: no persistent DrapeTarget is assigned"
+        raise RuntimeError(msg)
     try:
         from freecad_cloth.simulation.DrapeTarget import target_status
 
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        raise RuntimeError(f"diagnostics blocked: cannot inspect DrapeTarget: {exc}") from exc
+        msg = f"diagnostics blocked: cannot inspect DrapeTarget: {exc}"
+        raise RuntimeError(msg) from exc
     if status["state"] != "ready":
         raise RuntimeError("diagnostics blocked: {}".format(status["message"]))
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
     initial = getattr(backend, "_initial", None)
     if backend is None or initial is None:
-        raise RuntimeError("run or step the simulation before opening diagnostics")
+        msg = "run or step the simulation before opening diagnostics"
+        raise RuntimeError(msg)
     system = getattr(backend, "system", None)
     if system is not None:
         current = tuple(p.position() for p in system.particles)
@@ -62,7 +67,8 @@ def _simulation_data(scene):
         result = analyze_mesh(rest, current, triangles, stretch_limit=max(stretch_limit, 1e-6))
         panels.append((panel, triangles, result))
     if not panels:
-        raise RuntimeError("simulation has no diagnostic mesh panels")
+        msg = "simulation has no diagnostic mesh panels"
+        raise RuntimeError(msg)
     return panels
 
 
@@ -200,7 +206,8 @@ class DiagnosticsTaskPanel:
 
             panels = _simulation_data(self.scene)
             if not panels:
-                raise RuntimeError("simulation has no diagnostic results")
+                msg = "simulation has no diagnostic results"
+                raise RuntimeError(msg)
             _App, _Gui, QtWidgets = _qt()
             path, _selected = QtWidgets.QFileDialog.getSaveFileName(
                 self.form, "Export Cloth Analysis", "", "JSON (*.json)"
@@ -249,7 +256,8 @@ def show_diagnostics(scene=None):
     App, Gui, _QtWidgets = _qt()
     scene = scene or _scene(App.ActiveDocument) if App.ActiveDocument else None
     if scene is None:
-        raise ValueError("create a Cloth Simulation before opening diagnostics")
+        msg = "create a Cloth Simulation before opening diagnostics"
+        raise ValueError(msg)
     panel = DiagnosticsTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel

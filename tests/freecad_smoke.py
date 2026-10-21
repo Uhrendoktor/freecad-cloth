@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless FreeCAD runtime smoke/regression test."""
 
 import importlib
@@ -104,16 +105,16 @@ def main():
     initial = obj.Shape.BoundBox.XLength
     obj.Width = 120
     doc.recompute()
-    assert (
-        obj.Shape.isValid()
-        and obj.Shape.BoundBox.XLength != initial
-        and obj.PieceId == "pattern-piece-1"
-    )
+    assert obj.Shape.isValid()
+    assert obj.Shape.BoundBox.XLength != initial
+    assert obj.PieceId == "pattern-piece-1"
     checkpoint("FREECAD_SMOKE PATTERN")
     obj.Placement = App.Placement(App.Vector(15, 20, 0), App.Rotation(App.Vector(0, 0, 1), 15))
     doc.recompute()
     base = obj.Placement.Base
-    assert abs(base.x - 15.0) < 1e-9 and abs(base.y - 20.0) < 1e-9 and abs(base.z) < 1e-9
+    assert abs(base.x - 15.0) < 1e-9
+    assert abs(base.y - 20.0) < 1e-9
+    assert abs(base.z) < 1e-9
     assert abs(obj.Placement.Rotation.Angle - 15.0) < 1e-9
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(obj)
@@ -123,7 +124,8 @@ def main():
     assert obj.GeometryAuthority == "Sketcher"
     assert sketch.GeometryAuthority == "Sketcher"
     assert list(sketch.SemanticEdgeIds) == ["pattern-piece-1:edge:%d" % i for i in range(4)]
-    assert obj.Visibility is False and sketch.Visibility is True
+    assert obj.Visibility is False
+    assert sketch.Visibility is True
     checkpoint("FREECAD_SMOKE SKETCH")
     old_length = obj.Shape.BoundBox.XLength
     import Sketcher
@@ -131,12 +133,10 @@ def main():
     constraint_index = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 120.0))
     sketch.setDatum(constraint_index, App.Units.Quantity("140 mm"))
     doc.recompute()
-    assert (
-        obj.Shape.isValid()
-        and obj.Shape.BoundBox.XLength != old_length
-        and abs(float(obj.Width) - 140.0) < 1e-9
-        and abs(float(obj.Height) - 60.0) < 1e-9
-    )
+    assert obj.Shape.isValid()
+    assert obj.Shape.BoundBox.XLength != old_length
+    assert abs(float(obj.Width) - 140.0) < 1e-9
+    assert abs(float(obj.Height) - 60.0) < 1e-9
     checkpoint("FREECAD_SMOKE SKETCH_CONSTRAINT")
     wire = Part.makePolygon(
         [
@@ -164,12 +164,14 @@ def main():
     assert humanoid.AvatarType == "ClothAvatar"
     assert humanoid.AvatarMeshProvider == "makehuman-hm08"
     assert humanoid.AvatarMeshLicense == "CC0"
-    assert int(humanoid.MeshVertexCount) > 100 and int(humanoid.MeshTriangleCount) > 100
+    assert int(humanoid.MeshVertexCount) > 100
+    assert int(humanoid.MeshTriangleCount) > 100
     assert list(scene.PinSelection) == ["0", "7", "40", "47"]
     assert len(scene.SeamSelection) == 5
     before = doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin
     step_scene(scene, 20)
-    assert scene.SimulatedTime > 0 and scene.FiniteState
+    assert scene.SimulatedTime > 0
+    assert scene.FiniteState
     assert doc.getObject("DrapePanelA").Mesh.CountFacets > 0
     after = doc.getObject("DrapePanelA").Mesh.BoundBox.ZMin
     assert before != after
@@ -181,7 +183,8 @@ def main():
     avatar = set_drape_target_source(scene, body, thickness=2.0, deflection=2.0)
     assert avatar.CollisionType == "MeshSurface"
     assert avatar.SourceObject == body
-    assert avatar.CollisionVertexCount >= 8 and avatar.CollisionTriangleCount >= 12
+    assert avatar.CollisionVertexCount >= 8
+    assert avatar.CollisionTriangleCount >= 12
     checkpoint("FREECAD_SMOKE AVATAR_COLLISION")
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(body)
@@ -193,38 +196,35 @@ def main():
     checkpoint("FREECAD_SMOKE DRAPE_TARGET")
     reset_scene(scene)
     step_scene(scene, 2)
-    assert scene.FiniteState and scene.SimulatedTime > 0
+    assert scene.FiniteState
+    assert scene.SimulatedTime > 0
     scene.PinSelection = ["0", "not-an-index", "79"]
     scene.SeamSelection = ["7-8", "bad-pair", "39-40"]
     reset_scene(scene)
-    assert scene.Steps == 0 and scene.SimulatedTime == 0.0 and scene.FiniteState
+    assert scene.Steps == 0
+    assert scene.SimulatedTime == 0.0
+    assert scene.FiniteState
     assert scene.ClothPieces == [doc.getObject("DrapePanelA"), doc.getObject("DrapePanelB")]
     assert scene.AvatarProxy == doc.getObject("AvatarCollision")
     checkpoint("FREECAD_SMOKE RESET")
     App.closeDocument(doc.Name)
     avatar_doc = App.newDocument("AvatarSmoke")
     mannequin = create_avatar()
-    assert (
-        mannequin.AvatarStatus == "Valid"
-        and mannequin.Shape.isValid()
-        and mannequin.Shape.Volume > 0
-    )
-    assert (
-        mannequin.AvatarMeshProvider == "makehuman-hm08"
-        and mannequin.AvatarMeshLicense == "CC0"
-        and int(mannequin.MeshVertexCount) > 100
-        and int(mannequin.MeshTriangleCount) > 100
-    )
+    assert mannequin.AvatarStatus == "Valid"
+    assert mannequin.Shape.isValid()
+    assert mannequin.Shape.Volume > 0
+    assert mannequin.AvatarMeshProvider == "makehuman-hm08"
+    assert mannequin.AvatarMeshLicense == "CC0"
+    assert int(mannequin.MeshVertexCount) > 100
+    assert int(mannequin.MeshTriangleCount) > 100
     original = mannequin.Shape.Volume
     set_avatar_measurements(chest=1100)
     assert mannequin.Shape.Volume != original
     set_avatar_pose("sewing")
     set_avatar_skin_offset(6.0)
-    assert (
-        mannequin.PosePreset == "sewing"
-        and abs(float(mannequin.SkinOffset) - 6.0) < 1e-9
-        and mannequin.CollisionProxy is not None
-    )
+    assert mannequin.PosePreset == "sewing"
+    assert abs(float(mannequin.SkinOffset) - 6.0) < 1e-9
+    assert mannequin.CollisionProxy is not None
     avatar_doc.recompute()
     checkpoint("FREECAD_SMOKE MANNEQUIN")
     with tempfile.TemporaryDirectory() as directory:
@@ -233,7 +233,8 @@ def main():
         App.closeDocument(avatar_doc.Name)
         reopened = App.openDocument(path)
         restored = reopened.getObject("ClothAvatar")
-        assert restored is not None and restored.AvatarStatus == "Valid"
+        assert restored is not None
+        assert restored.AvatarStatus == "Valid"
         assert restored.AvatarMeshProvider == "makehuman-hm08"
         assert restored.AvatarMeshLicense == "CC0"
         assert restored.PosePreset == "sewing"

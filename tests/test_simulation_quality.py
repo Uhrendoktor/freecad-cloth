@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 import unittest
 from math import dist

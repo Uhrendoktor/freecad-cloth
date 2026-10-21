@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Publish human-reviewable PR simulation evidence without executing PR code."""
 
 from __future__ import annotations
@@ -10,12 +11,27 @@ from pathlib import Path
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status."""
+    """Run a subprocess command and fail on a non-zero exit status.
+
+    Args:
+        args: Executable name and command-line arguments passed to subprocess.run.
+        cwd: Optional working directory for the subprocess.
+
+    Raises:
+        subprocess.CalledProcessError: If the subprocess exits with a non-zero status.
+    """
     subprocess.run(args, cwd=cwd, check=True)
 
 
 def main() -> int:
-    """Publish the selected PR simulation evidence bundle."""
+    """Publish the selected PR simulation evidence bundle.
+
+    Raises:
+        SystemExit: If the run produced no PNG evidence to publish.
+
+    Returns:
+        Process status indicating that the evidence bundle was published.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--pr-number", required=True)
@@ -101,7 +117,8 @@ def main() -> int:
     if not images:
         images = sorted(review_root.rglob("*.png"))[:18]
     if not images:
-        raise SystemExit(f"No PNG evidence was produced for PR #{args.pr_number}")
+        msg = f"No PNG evidence was produced for PR #{args.pr_number}"
+        raise SystemExit(msg)
 
     dest = worktree / f"pr-{args.pr_number}" / f"run-{args.run_id}"
     dest.mkdir(parents=True, exist_ok=True)

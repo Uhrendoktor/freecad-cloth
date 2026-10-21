@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused 3D posing UI for the merged Cloth mannequin skeleton.
 
 PoseMode is intentionally separate from the anthropometric avatar editor. The
@@ -196,7 +197,8 @@ class SkeletonPoseController:
         if self.view is not None:
             return
         if self.panel.avatar is None:
-            raise RuntimeError("create a Cloth Human Mannequin first")
+            msg = "create a Cloth Human Mannequin first"
+            raise RuntimeError(msg)
         if (
             str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
             != "makehuman-hm08"

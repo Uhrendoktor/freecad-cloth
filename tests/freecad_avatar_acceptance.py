@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD/Xvfb acceptance for avatar provider lifecycle."""
 
 import contextlib
@@ -41,7 +42,8 @@ def _show_panel(panel):
         panel.form.raise_()
         _events()
     if not panel.form.isVisible() and not panel.form.isVisibleTo(Gui.getMainWindow()):
-        raise RuntimeError("avatar task panel did not become visible")
+        msg = "avatar task panel did not become visible"
+        raise RuntimeError(msg)
 
 
 def _progress(message):
@@ -55,7 +57,8 @@ def _progress(message):
 def _mesh_topology(mesh):
     topology = getattr(mesh, "Topology", None)
     if topology is None:
-        raise RuntimeError("avatar mesh topology is unavailable")
+        msg = "avatar mesh topology is unavailable"
+        raise RuntimeError(msg)
     vertices, triangles = topology
     return tuple(tuple(float(c) for c in vertex) for vertex in vertices), tuple(
         tuple(int(i) for i in tri) for tri in triangles
@@ -99,17 +102,20 @@ def run_acceptance():
         target = doc.getObject("DrapeTarget")
         _progress(f"after-target-lookup:{target is not None}")
         if target is None:
-            raise RuntimeError("avatar creation did not create a persistent DrapeTarget")
+            msg = "avatar creation did not create a persistent DrapeTarget"
+            raise RuntimeError(msg)
         _progress("before-target-status")
         status = target_status(target)
         _progress(f"after-target-status:{status}")
         if status["state"] != "ready":
-            raise RuntimeError(f"new mannequin target is not ready: {status}")
+            msg = f"new mannequin target is not ready: {status}"
+            raise RuntimeError(msg)
         _progress("before-avatar-mesh-lookup")
         avatar_mesh = getattr(avatar, "Mesh", None)
         _progress(f"after-avatar-mesh-lookup:{avatar_mesh is not None}")
         if avatar_mesh is None:
-            raise RuntimeError("generated mannequin has no mesh")
+            msg = "generated mannequin has no mesh"
+            raise RuntimeError(msg)
         _progress("before-mesh-topology")
         vertices, triangles = _mesh_topology(avatar_mesh)
         _progress(f"after-mesh-topology:vertices={len(vertices)} triangles={len(triangles)}")
@@ -119,7 +125,8 @@ def run_acceptance():
         )
         _progress(f"after-mesh-sanity:{sanity}")
         if sanity.triangle_count < 100:
-            raise RuntimeError("generated mannequin mesh is implausibly small")
+            msg = "generated mannequin mesh is implausibly small"
+            raise RuntimeError(msg)
         identity = avatar.Name
 
         baseline_vertices, baseline_triangles = _mesh_topology(avatar.Mesh)
@@ -134,108 +141,121 @@ def run_acceptance():
         _progress("manual-pose-panel-shown")
         upperarm_index = panel.skeleton_joint.findText("Left shoulder")
         if upperarm_index < 0:
-            raise RuntimeError("manual skeleton editor did not expose the left shoulder joint")
+            msg = "manual skeleton editor did not expose the left shoulder joint"
+            raise RuntimeError(msg)
         panel.skeleton_joint.setCurrentIndex(upperarm_index)
         panel.skeleton_y.setValue(25.0)
         if not panel.skeleton_symmetry.isChecked():
-            raise RuntimeError("manual skeleton editor did not enable symmetry by default")
+            msg = "manual skeleton editor did not enable symmetry by default"
+            raise RuntimeError(msg)
         staged_pose = json.loads(panel._staged_parameters().to_json())
         joints = staged_pose["pose"]["joints"]
         if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != -25.0:
-            raise RuntimeError("manual skeleton symmetry did not mirror the shoulder rotation")
+            msg = "manual skeleton symmetry did not mirror the shoulder rotation"
+            raise RuntimeError(msg)
         if not panel._apply():
-            raise RuntimeError(
-                f"manual skeleton joint edit was not applied; status={panel.status.text()!r}"
-            )
+            msg = f"manual skeleton joint edit was not applied; status={panel.status.text()!r}"
+            raise RuntimeError(msg)
         _progress("manual-pose-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
         posed_vertices, posed_triangles = _mesh_topology(avatar.Mesh)
         if posed_vertices == baseline_vertices or posed_triangles != baseline_triangles:
-            raise RuntimeError("manual skeleton rotation did not deform the mannequin mesh")
+            msg = "manual skeleton rotation did not deform the mannequin mesh"
+            raise RuntimeError(msg)
         joint_payload = json.loads(str(avatar.JointPoseJSON))
         if joint_payload["joints"]["upperarm01.L"]["y"] != 25.0:
-            raise RuntimeError("manual skeleton rotation was not persisted")
+            msg = "manual skeleton rotation was not persisted"
+            raise RuntimeError(msg)
         posed_landmarks = {
             str(item).split("|", 1)[0]: str(item).split("|", 1)[1]
             for item in getattr(avatar, "Landmarks", [])
             if "|" in str(item)
         }
         if posed_landmarks.get("wrist_left") == baseline_landmarks.get("wrist_left"):
-            raise RuntimeError(
-                "manual skeleton rotation did not update the persisted wrist landmark"
-            )
+            msg = "manual skeleton rotation did not update the persisted wrist landmark"
+            raise RuntimeError(msg)
         if target_status(target)["state"] != "stale":
-            raise RuntimeError(
-                "manual skeleton edit did not deterministically invalidate DrapeTarget"
-            )
+            msg = "manual skeleton edit did not deterministically invalidate DrapeTarget"
+            raise RuntimeError(msg)
 
         refresh_drape_target(target)
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         panel._reset_skeleton_pose()
         if not panel._apply():
-            raise RuntimeError(
-                f"manual skeleton reset was not applied; status={panel.status.text()!r}"
-            )
+            msg = f"manual skeleton reset was not applied; status={panel.status.text()!r}"
+            raise RuntimeError(msg)
         _progress("manual-pose-reset")
         _close_task()
         avatar = doc.getObject(identity)
         if str(avatar.JointPoseJSON) != '{"joints":{},"schema_version":1,"units":"deg"}':
-            raise RuntimeError("manual skeleton reset did not clear persistent joint rotations")
+            msg = "manual skeleton reset did not clear persistent joint rotations"
+            raise RuntimeError(msg)
         reset_vertices, reset_triangles = _mesh_topology(avatar.Mesh)
         if reset_vertices != baseline_vertices or reset_triangles != baseline_triangles:
-            raise RuntimeError("manual skeleton reset did not restore the baseline mannequin")
+            msg = "manual skeleton reset did not restore the baseline mannequin"
+            raise RuntimeError(msg)
         target = doc.getObject("DrapeTarget")
         refresh_drape_target(target)
 
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         if not panel.provider_buttons["makehuman-hm08"].isChecked():
-            raise RuntimeError("avatar task panel did not load the persistent default provider")
+            msg = "avatar task panel did not load the persistent default provider"
+            raise RuntimeError(msg)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(source)
         panel._use_selected_provider_source()
         if not panel.provider_buttons["freecad-geometry"].isChecked():
-            raise RuntimeError("task panel did not stage the FreeCAD provider")
+            msg = "task panel did not stage the FreeCAD provider"
+            raise RuntimeError(msg)
         if panel.provider_source_label.text() != "Source: Provider Acceptance Body":
-            raise RuntimeError("task panel did not show the staged FreeCAD provider source")
+            msg = "task panel did not show the staged FreeCAD provider source"
+            raise RuntimeError(msg)
         if not panel._apply():
-            raise RuntimeError(
-                f"avatar provider swap was not applied; status={panel.status.text()!r}"
-            )
+            msg = f"avatar provider swap was not applied; status={panel.status.text()!r}"
+            raise RuntimeError(msg)
         _progress("provider-swap-applied")
         _close_task()
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
         if avatar is None or target is None:
-            raise RuntimeError("provider swap replaced or lost the persistent avatar/target")
+            msg = "provider swap replaced or lost the persistent avatar/target"
+            raise RuntimeError(msg)
         if avatar.Name != identity or str(avatar.AvatarProviderId) != "freecad-geometry":
-            raise RuntimeError("FreeCAD provider swap did not persist on the avatar object")
+            msg = "FreeCAD provider swap did not persist on the avatar object"
+            raise RuntimeError(msg)
         if avatar.ProviderSource != source:
-            raise RuntimeError("FreeCAD provider source link did not persist in the document")
+            msg = "FreeCAD provider source link did not persist in the document"
+            raise RuntimeError(msg)
         if target_status(target)["state"] != "stale":
-            raise RuntimeError("provider swap did not deterministically invalidate DrapeTarget")
+            msg = "provider swap did not deterministically invalidate DrapeTarget"
+            raise RuntimeError(msg)
 
         refresh_drape_target(target)
         if target_status(target)["state"] != "ready":
-            raise RuntimeError("explicit DrapeTarget refresh did not repair provider swap state")
+            msg = "explicit DrapeTarget refresh did not repair provider swap state"
+            raise RuntimeError(msg)
 
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
         panel.pose.setCurrentText("sewing")
         if not panel._apply():
-            raise RuntimeError(f"avatar pose edit was not applied; status={panel.status.text()!r}")
+            msg = f"avatar pose edit was not applied; status={panel.status.text()!r}"
+            raise RuntimeError(msg)
         _progress("pose-edit-applied")
         _close_task()
         _progress("pose-edit-task-closed")
         avatar = doc.getObject(identity)
         target = doc.getObject("DrapeTarget")
         if str(avatar.PosePreset) != "sewing":
-            raise RuntimeError("pose edit did not persist on the avatar object")
+            msg = "pose edit did not persist on the avatar object"
+            raise RuntimeError(msg)
         if target_status(target)["state"] != "stale":
-            raise RuntimeError("pose change did not deterministically invalidate DrapeTarget")
+            msg = "pose change did not deterministically invalidate DrapeTarget"
+            raise RuntimeError(msg)
         _progress("pose-edit-target-stale-verified")
         pose_revision = int(avatar.AvatarRevision)
 
@@ -257,22 +277,29 @@ def run_acceptance():
         target = reloaded.getObject("DrapeTarget")
         restored_source = reloaded.getObject("ProviderAcceptanceBody")
         if avatar is None or target is None or restored_source is None:
-            raise RuntimeError("avatar provider state did not survive save/reload")
+            msg = "avatar provider state did not survive save/reload"
+            raise RuntimeError(msg)
         if str(avatar.AvatarProviderId) != "freecad-geometry":
-            raise RuntimeError("provider identity was lost across save/reload")
+            msg = "provider identity was lost across save/reload"
+            raise RuntimeError(msg)
         if avatar.ProviderSource != restored_source:
-            raise RuntimeError("provider source link was lost across save/reload")
+            msg = "provider source link was lost across save/reload"
+            raise RuntimeError(msg)
         if int(avatar.AvatarRevision) != pose_revision:
-            raise RuntimeError("AvatarRevision was not persisted across save/reload")
+            msg = "AvatarRevision was not persisted across save/reload"
+            raise RuntimeError(msg)
         if str(avatar.PosePreset) != "sewing":
-            raise RuntimeError("avatar pose was not persisted across save/reload")
+            msg = "avatar pose was not persisted across save/reload"
+            raise RuntimeError(msg)
         if target_status(target)["state"] != "stale":
-            raise RuntimeError("stale DrapeTarget state was not preserved across save/reload")
+            msg = "stale DrapeTarget state was not preserved across save/reload"
+            raise RuntimeError(msg)
         _progress("provider-document-reload-state-verified")
 
         refresh_drape_target(target)
         if target_status(target)["state"] != "ready":
-            raise RuntimeError("reloaded avatar target could not be explicitly refreshed")
+            msg = "reloaded avatar target could not be explicitly refreshed"
+            raise RuntimeError(msg)
         _progress("provider-document-reloaded-and-target-refreshed")
         _close_task()
         App.closeDocument(reloaded.Name)
@@ -281,7 +308,7 @@ def run_acceptance():
             App.closeDocument(doc.Name)
         if path:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
 
 
 # FreeCAD's macro runner does not preserve the normal CLI __name__ contract.

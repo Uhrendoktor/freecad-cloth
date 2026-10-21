@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral tests for the compact agent-observation manifest writer."""
 
 import hashlib

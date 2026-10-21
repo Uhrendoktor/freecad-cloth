@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Realtime backend smoke/performance check without FreeCAD GUI overhead."""
 
 from __future__ import annotations

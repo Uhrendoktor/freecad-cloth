@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pure tests for the bounded 3D Pattern Pen surface-authoring contract."""
 
 from freecad_cloth.pattern.SurfacePen import (
@@ -27,7 +28,8 @@ def test_flatten_surface_patch_rejects_curvature_beyond_limit():
     except ValueError as exc:
         assert "too curved" in str(exc)
     else:
-        raise AssertionError("curved patch exceeded the configured planar deviation limit")
+        msg = "curved patch exceeded the configured planar deviation limit"
+        raise AssertionError(msg)
 
 
 def test_close_surface_stroke_accepts_nearby_closing_sample():
@@ -72,7 +74,8 @@ def test_close_surface_stroke_rejects_open_boundary():
     except ValueError as exc:
         assert "surface boundary is open" in str(exc)
     else:
-        raise AssertionError("open surface boundary was accepted")
+        msg = "open surface boundary was accepted"
+        raise AssertionError(msg)
 
 
 def test_flatten_surface_patch_rejects_self_intersection():
@@ -82,7 +85,8 @@ def test_flatten_surface_patch_rejects_self_intersection():
     except ValueError as exc:
         assert "self-intersects" in str(exc)
     else:
-        raise AssertionError("self-intersecting surface boundary was accepted")
+        msg = "self-intersecting surface boundary was accepted"
+        raise AssertionError(msg)
 
 
 def test_polygon_self_intersection_excludes_adjacent_edges():
@@ -147,7 +151,8 @@ def test_surface_pick_rejects_unrelated_visible_object():
             return {"Object": "Cube"}
 
         def getViewer(self):
-            raise AssertionError("picker must not be called for an unrelated object")
+            msg = "picker must not be called for an unrelated object"
+            raise AssertionError(msg)
 
     assert pick_surface_point(View(), 1, 2, Target()) is None
 
@@ -187,4 +192,5 @@ def test_surface_segments_reject_boundaries_with_too_few_corners() -> None:
     except ValueError as exc:
         assert "at least three corner points" in str(exc)
     else:
-        raise AssertionError("a curve boundary without three authored corners was accepted")
+        msg = "a curve boundary without three authored corners was accepted"
+        raise AssertionError(msg)

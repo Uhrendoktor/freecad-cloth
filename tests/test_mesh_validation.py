@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st

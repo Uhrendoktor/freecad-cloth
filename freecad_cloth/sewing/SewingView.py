@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Presentation helpers for the Sewing workbench."""
 
 from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
@@ -24,7 +25,8 @@ def pattern_pieces_for_2d(objects):
 def seam_visual_markers(points_a, points_b):
     """Return deterministic direction/notch/correspondence marker geometry data."""
     if len(points_a) != len(points_b) or len(points_a) < 2:
-        raise ValueError("seam marker inputs must have equal length >= 2")
+        msg = "seam marker inputs must have equal length >= 2"
+        raise ValueError(msg)
 
     def direction(start, end):
         dx = float(end[0]) - float(start[0])

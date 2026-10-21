@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """MakeHuman HM08 sparse morph-target parsing and application.
 
 Target files contain sparse per-vertex displacements. The assets remain
@@ -10,12 +11,12 @@ from __future__ import annotations
 import gzip
 import math
 import os
-from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
@@ -60,7 +61,8 @@ def parse_target(
             continue
         fields = line.split()
         if len(fields) < 4:
-            raise ValueError(f"{name}:{line_number}: target row needs four fields")
+            msg = f"{name}:{line_number}: target row needs four fields"
+            raise ValueError(msg)
         try:
             index = int(fields[0])
             first, second, third = float(fields[1]), float(fields[2]), float(fields[3])
@@ -68,11 +70,14 @@ def parse_target(
                 (first, -third, second) if coordinate_format == "mpfb2" else (first, second, third)
             )
         except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError(f"{name}:{line_number}: invalid target row") from exc
+            msg = f"{name}:{line_number}: invalid target row"
+            raise ValueError(msg) from exc
         if index < 0:
-            raise ValueError(f"{name}:{line_number}: vertex index must be non-negative")
+            msg = f"{name}:{line_number}: vertex index must be non-negative"
+            raise ValueError(msg)
         if not all(math.isfinite(value) for value in offset):
-            raise ValueError(f"{name}:{line_number}: offsets must be finite")
+            msg = f"{name}:{line_number}: offsets must be finite"
+            raise ValueError(msg)
         prior = collected.get(index, (0.0, 0.0, 0.0))
         collected[index] = (
             prior[0] + offset[0],
@@ -106,7 +111,8 @@ def _load_target_cached(
         index_key = f"{archive_key}.index"
         vector_key = f"{archive_key}.vector"
         if index_key not in archive or vector_key not in archive:
-            raise ValueError(f"{source}: archive target is incomplete: {archive_key}")
+            msg = f"{source}: archive target is incomplete: {archive_key}"
+            raise ValueError(msg)
         indices = archive[index_key]
         vectors = archive[vector_key]
         if (
@@ -115,7 +121,8 @@ def _load_target_cached(
             or vectors.shape[0] != indices.shape[0]
             or vectors.shape[1] != 3
         ):
-            raise ValueError(f"{source}: archive target has invalid array shapes: {archive_key}")
+            msg = f"{source}: archive target has invalid array shapes: {archive_key}"
+            raise ValueError(msg)
         merged: dict[int, Point] = {}
         for raw_index, raw_vector in zip(indices, vectors, strict=True):
             index = int(raw_index)
@@ -124,7 +131,8 @@ def _load_target_cached(
                 (first, -third, second) if coordinate_format == "mpfb2" else (first, second, third)
             )
             if index < 0 or not all(math.isfinite(value) for value in offset):
-                raise ValueError(f"{source}: archive target has invalid values: {archive_key}")
+                msg = f"{source}: archive target has invalid values: {archive_key}"
+                raise ValueError(msg)
             prior = merged.get(index, (0.0, 0.0, 0.0))
             merged[index] = (
                 prior[0] + offset[0],
@@ -319,7 +327,8 @@ def apply_targets(
     for name, weight_value in weights.items():
         weight = float(weight_value)
         if not math.isfinite(weight):
-            raise ValueError(f"target weight for {name!r} must be finite")
+            msg = f"target weight for {name!r} must be finite"
+            raise ValueError(msg)
         if abs(weight) < 1e-12:
             continue
         source = resolve_target(name, base)

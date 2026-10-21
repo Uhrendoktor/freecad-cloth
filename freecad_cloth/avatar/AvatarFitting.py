@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral body measurement and garment fitting-scene contracts.
 
 This module intentionally does not import FreeCAD. The document workbench uses
@@ -29,14 +30,18 @@ class BodyMeasurements:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if self.unit not in {"mm", "cm", "m"}:
-            raise ValueError("measurement unit must be mm, cm, or m")
+            msg = "measurement unit must be mm, cm, or m"
+            raise ValueError(msg)
         if not self.values:
-            raise ValueError("at least one body measurement is required")
+            msg = "at least one body measurement is required"
+            raise ValueError(msg)
         for name, value in self.values.items():
             if not str(name).strip():
-                raise ValueError("measurement names must not be empty")
+                msg = "measurement names must not be empty"
+                raise ValueError(msg)
             if float(value) <= 0:
-                raise ValueError("body measurements must be positive")
+                msg = "body measurements must be positive"
+                raise ValueError(msg)
 
     def normalized(self) -> tuple[tuple[str, float], ...]:
         """Provide the public normalized operation."""
@@ -71,9 +76,11 @@ class PiecePlacement:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.piece_id.strip():
-            raise ValueError("piece id must not be empty")
+            msg = "piece id must not be empty"
+            raise ValueError(msg)
         if len(self.position) != 3:
-            raise ValueError("position must contain three coordinates")
+            msg = "position must contain three coordinates"
+            raise ValueError(msg)
 
     def to_string(self) -> str:
         """Provide the public to string operation."""
@@ -113,11 +120,14 @@ class ArrangementPoint:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
-            raise ValueError("arrangement point name must not be empty")
+            msg = "arrangement point name must not be empty"
+            raise ValueError(msg)
         if self.wrap_direction not in self.VALID_WRAP_DIRECTIONS:
-            raise ValueError("wrap direction must be front, back, left, or right")
+            msg = "wrap direction must be front, back, left, or right"
+            raise ValueError(msg)
         if self.symmetry_group and not self.symmetry_group.strip():
-            raise ValueError("symmetry group must not be whitespace")
+            msg = "symmetry group must not be whitespace"
+            raise ValueError(msg)
 
     def position(self) -> tuple[float, float, float]:
         """Provide the public position operation."""
@@ -158,12 +168,12 @@ class ArrangementPoint:
         elif len(parts) == 5:
             name, position, wrap, rotation, symmetry = parts
         else:
-            raise ValueError(
-                "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
-            )
+            msg = "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
+            raise ValueError(msg)
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
-            raise ValueError("arrangement point position requires x, y, and offset")
+            msg = "arrangement point position requires x, y, and offset"
+            raise ValueError(msg)
         result = cls(name, coords[0], coords[1], coords[2], wrap, float(rotation), symmetry)
         result.validate()
         return result
@@ -180,11 +190,14 @@ class BoundingVolume:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if not self.name.strip():
-            raise ValueError("bounding volume name must not be empty")
+            msg = "bounding volume name must not be empty"
+            raise ValueError(msg)
         if len(self.center) != 3 or len(self.size) != 3:
-            raise ValueError("bounding volume center and size require three coordinates")
+            msg = "bounding volume center and size require three coordinates"
+            raise ValueError(msg)
         if any(float(v) <= 0.0 for v in self.size):
-            raise ValueError("bounding volume size must be positive")
+            msg = "bounding volume size must be positive"
+            raise ValueError(msg)
 
     def to_string(self) -> str:
         """Provide the public to string operation."""
@@ -221,24 +234,28 @@ class FittingScene:
         """Validate this value and raise ValueError when its state is invalid."""
         self.measurements.validate()
         if self.avatar_name and not self.avatar_name.strip():
-            raise ValueError("avatar name must not be whitespace")
+            msg = "avatar name must not be whitespace"
+            raise ValueError(msg)
         seen = set()
         for placement in self.pieces:
             placement.validate()
             if placement.piece_id in seen:
-                raise ValueError("pattern piece may only have one fitting placement")
+                msg = "pattern piece may only have one fitting placement"
+                raise ValueError(msg)
             seen.add(placement.piece_id)
         names = set()
         for point in self.arrangement_points:
             point.validate()
             if point.name in names:
-                raise ValueError("arrangement point names must be unique")
+                msg = "arrangement point names must be unique"
+                raise ValueError(msg)
             names.add(point.name)
         names = set()
         for volume in self.bounding_volumes:
             volume.validate()
             if volume.name in names:
-                raise ValueError("bounding volume names must be unique")
+                msg = "bounding volume names must be unique"
+                raise ValueError(msg)
             names.add(volume.name)
 
     def placement_map(self) -> dict[str, PiecePlacement]:

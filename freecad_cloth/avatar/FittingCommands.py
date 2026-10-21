@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
 import hashlib
@@ -88,19 +89,20 @@ def _mesh_topology(target, *, vector_factory: Callable[..., object] | None = Non
                     _point_xyz(inverse_placement.multVec(make_vector(*point))) for point in points
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-                raise ValueError(
-                    "could not normalize target mesh vertices to object-local coordinates"
-                ) from exc
+                msg = "could not normalize target mesh vertices to object-local coordinates"
+                raise ValueError(msg) from exc
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
         if (
             not points
             or not faces
             or any(len(face) != 3 or min(face) < 0 or max(face) >= len(points) for face in faces)
         ):
-            raise ValueError("mesh topology must contain valid triangles")
+            msg = "mesh topology must contain valid triangles"
+            raise ValueError(msg)
         return points, faces
     except (TypeError, ValueError, AttributeError) as exc:
-        raise ValueError("the selected target has unusable mesh topology") from exc
+        msg = "the selected target has unusable mesh topology"
+        raise ValueError(msg) from exc
 
 
 def _target_signature(target):
@@ -150,7 +152,8 @@ def _target_signature(target):
 
     shape = getattr(target, "Shape", None)
     if shape is None:
-        raise ValueError("the selected target does not expose supported geometry")
+        msg = "the selected target does not expose supported geometry"
+        raise ValueError(msg)
     # In FreeCAD, a Shape's returned geometry can include the owning object's
     # Placement. Normalize a copy into object-local coordinates before signing it.
     # A BRep serialization hash is not stable across an inverse rigid transform,
@@ -161,7 +164,8 @@ def _target_signature(target):
         if placement is not None:
             normalized_shape.transformShape(placement.inverse().toMatrix())
         if bool(normalized_shape.isNull()):
-            raise ValueError("the selected target shape is null")
+            msg = "the selected target shape is null"
+            raise ValueError(msg)
 
         vertices = tuple(
             sorted(
@@ -205,9 +209,11 @@ def _target_signature(target):
             _geometry_round(box.ZMax),
         )
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
-        raise ValueError("could not normalize the selected target shape") from exc
+        msg = "could not normalize the selected target shape"
+        raise ValueError(msg) from exc
     if not vertices and not edges and not faces:
-        raise ValueError("the selected target does not expose supported geometry")
+        msg = "the selected target does not expose supported geometry"
+        raise ValueError(msg)
     return repr(("shape-geometry", signature))
 
 
@@ -280,10 +286,12 @@ def _mesh_anchor_local_position(
     vertices, triangles = topology
     triangle_index = int(anchor["triangle_index"])
     if triangle_index < 0 or triangle_index >= len(triangles):
-        raise ValueError("anchored mesh triangle no longer exists")
+        msg = "anchored mesh triangle no longer exists"
+        raise ValueError(msg)
     weights = tuple(float(value) for value in anchor["barycentric"])
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
-        raise ValueError("stored mesh-anchor barycentric coordinates are invalid")
+        msg = "stored mesh-anchor barycentric coordinates are invalid"
+        raise ValueError(msg)
     return _weighted_triangle_point(vertices, triangles[triangle_index], weights)
 
 
@@ -306,7 +314,8 @@ def _mesh_anchor_coordinates(
             best_distance = distance
             best = (triangle_index, weights, projected)
     if best is None:
-        raise ValueError("the selected mesh contains no usable surface triangles")
+        msg = "the selected mesh contains no usable surface triangles"
+        raise ValueError(msg)
     return best
 
 
@@ -474,11 +483,12 @@ def _fitting_marker_group(
         group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
     if group is not None:
         if str(getattr(group, "TypeId", "")) != "App::DocumentObjectGroup":
-            raise RuntimeError(
+            msg = (
                 f"reserved fitting marker name {_FITTING_MARKER_GROUP_NAME!r} "
                 "is used by a non-group object"
             )
-        group = cast(_FittingMarkerGroup, group)
+            raise RuntimeError(msg)
+        group = cast("_FittingMarkerGroup", group)
         group.Label = _FITTING_MARKER_GROUP_LABEL
     return group
 
@@ -737,7 +747,8 @@ def assign_avatar_source(source=None):
             None,
         )
     if source is None:
-        raise ValueError("select a FreeCAD body or mesh to use as the avatar source")
+        msg = "select a FreeCAD body or mesh to use as the avatar source"
+        raise ValueError(msg)
 
     target = doc.getObject("DrapeTarget")
     target_type = (
@@ -773,9 +784,8 @@ def add_selected_pattern_pieces():
         o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"
     ]
     if not pieces:
-        raise ValueError(
-            "select one or more pattern pieces before adding them to the fitting scene"
-        )
+        msg = "select one or more pattern pieces before adding them to the fitting scene"
+        raise ValueError(msg)
     existing = [PiecePlacement.from_string(v) for v in scene.PiecePlacements]
     homes = [PiecePlacement.from_string(v) for v in scene.HomePlacements]
     by_id = {p.piece_id: p for p in existing}
@@ -813,7 +823,8 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     if getattr(piece, "PatternType", "") != "PatternPiece":
-        raise ValueError("piece must be a Cloth PatternPiece object")
+        msg = "piece must be a Cloth PatternPiece object"
+        raise ValueError(msg)
     placement = App.Placement(
         App.Vector(float(x), float(y), float(z)),
         App.Rotation(App.Vector(0, 0, 1), float(rotation_z)),
@@ -855,7 +866,8 @@ def create_arrangement_point(
     anchors.pop(point.name, None)
     if mirror:
         if not symmetry_group.strip():
-            raise ValueError("mirror arrangement points require a symmetry group")
+            msg = "mirror arrangement points require a symmetry group"
+            raise ValueError(msg)
         mirrored = point.mirrored()
         values[mirrored.name] = mirrored
         anchors.pop(mirrored.name, None)
@@ -876,10 +888,12 @@ def set_arrangement_point(
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     if name not in values:
-        raise ValueError(f"unknown arrangement point: {name}")
+        msg = f"unknown arrangement point: {name}"
+        raise ValueError(msg)
     old = values[name]
     point = ArrangementPoint(
         old.name,
@@ -908,13 +922,16 @@ def delete_arrangement_point(name):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before deleting an arrangement point")
+        msg = "open a document before deleting an arrangement point"
+        raise ValueError(msg)
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     if name not in values:
-        raise ValueError(f"unknown arrangement point: {name}")
+        msg = f"unknown arrangement point: {name}"
+        raise ValueError(msg)
     del values[name]
     scene.ArrangementPoints = [values[k].to_string() for k in sorted(values)]
     anchors = _anchor_records(scene)
@@ -949,13 +966,16 @@ def delete_bounding_volume(name):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before deleting a bounding volume")
+        msg = "open a document before deleting a bounding volume"
+        raise ValueError(msg)
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     values = {v.name: v for v in (BoundingVolume.from_string(v) for v in scene.BoundingVolumes)}
     if name not in values:
-        raise ValueError(f"unknown bounding volume: {name}")
+        msg = f"unknown bounding volume: {name}"
+        raise ValueError(msg)
     del values[name]
     scene.BoundingVolumes = [values[k].to_string() for k in sorted(values)]
     _sync_visuals(scene)
@@ -967,10 +987,12 @@ def set_symmetry_enabled(enabled=True):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing fitting symmetry")
+        msg = "open a document before changing fitting symmetry"
+        raise ValueError(msg)
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     scene.SymmetryEnabled = bool(enabled)
     doc.recompute()
     return scene
@@ -983,15 +1005,18 @@ def apply_arrangement_point(piece, point, mirror=None):
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
     if getattr(piece, "PatternType", "") != "PatternPiece":
-        raise ValueError("piece must be a Cloth PatternPiece object")
+        msg = "piece must be a Cloth PatternPiece object"
+        raise ValueError(msg)
     doc = App.ActiveDocument
     scene = _scene(doc) if doc else None
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     values = {p.name: p for p in (ArrangementPoint.from_string(v) for v in scene.ArrangementPoints)}
     if isinstance(point, str):
         if point not in values:
-            raise ValueError(f"unknown arrangement point: {point}")
+            msg = f"unknown arrangement point: {point}"
+            raise ValueError(msg)
         point = values[point]
     point.validate()
     if mirror is True and scene.SymmetryEnabled:
@@ -1013,10 +1038,12 @@ def reset_arrangement():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before resetting arrangement")
+        msg = "open a document before resetting arrangement"
+        raise ValueError(msg)
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     pieces = {str(p.PieceId): p for p in scene.PatternPieces}
     homes = {p.piece_id: p for p in (PiecePlacement.from_string(v) for v in scene.HomePlacements)}
     current = {}
@@ -1041,9 +1068,11 @@ def create_simulation_from_fitting():
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     if not scene.PatternPieces:
-        raise ValueError("add at least one pattern piece to the fitting scene")
+        msg = "add at least one pattern piece to the fitting scene"
+        raise ValueError(msg)
     from freecad_cloth.simulation.SimulationObjects import (
         create_simulation_scene,
         set_avatar_collision_source,
@@ -1069,7 +1098,8 @@ def open_interactive_arrange(scene=None):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a document before opening Interactive Arrange")
+        msg = "open a document before opening Interactive Arrange"
+        raise RuntimeError(msg)
     scene = scene or _scene(doc) or create_fitting_scene()
     from freecad_cloth.avatar.FittingGui import show_fitting_task
 
@@ -1100,18 +1130,21 @@ def create_arrangement_anchor(
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a document before creating a surface anchor")
+        msg = "open a document before creating a surface anchor"
+        raise RuntimeError(msg)
     scene = _scene(doc) or create_fitting_scene()
     target_document = getattr(target, "Document", None) if target is not None else None
     if target_document is None or getattr(target_document, "Name", "") != doc.Name:
-        raise ValueError("select a surface on geometry in the active document")
+        msg = "select a surface on geometry in the active document"
+        raise ValueError(msg)
     signature = _target_signature(target)
     try:
         coords = (float(world_point.x), float(world_point.y), float(world_point.z))
     except AttributeError:
         coords = tuple(float(value) for value in world_point[:3])
     if len(coords) != 3:
-        raise ValueError("picked surface location must contain three coordinates")
+        msg = "picked surface location must contain three coordinates"
+        raise ValueError(msg)
     world = App.Vector(*coords)
     try:
         local = target.Placement.inverse().multVec(world)
@@ -1223,7 +1256,8 @@ def _apply_selected_arrangement():
 
     scene = _scene(Gui.activeDocument().Document)
     if scene is None:
-        raise ValueError("create a fitting scene first")
+        msg = "create a fitting scene first"
+        raise ValueError(msg)
     piece = next(
         (
             o
@@ -1241,7 +1275,8 @@ def _apply_selected_arrangement():
         None,
     )
     if piece is None or point is None:
-        raise ValueError("select a pattern piece and an arrangement point")
+        msg = "select a pattern piece and an arrangement point"
+        raise ValueError(msg)
     return apply_arrangement_point(piece, point.PointName)
 
 

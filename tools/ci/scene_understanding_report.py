@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize cloth scene evidence into a compact, artifact-only diagnosis dossier.
 
 This script runs on the GitHub Actions host after the FreeCAD process exits. It
@@ -45,30 +46,67 @@ _CROSSING_RE = re.compile(r"Self-intersection\[([-+0-9.eE]+)\s+([-+0-9.eE]+)\]")
 
 
 def _literal_tuple(value: str) -> tuple[object, ...]:
-    """Safely parse a tuple-like value written by Python's diagnostic repr."""
+    """Safely parse a tuple-like value written by Python's diagnostic repr.
+
+    Args:
+        value: Text containing a Python tuple representation.
+
+    Returns:
+        Parsed tuple with its original element values.
+
+    Raises:
+        ValueError: Raised when the parsed diagnostic value is not a tuple.
+    """
     parsed = ast.literal_eval(value)
     if not isinstance(parsed, tuple):
-        raise ValueError("expected a tuple in the workflow diagnostic")
-    return cast(tuple[object, ...], parsed)
+        msg = "expected a tuple in the workflow diagnostic"
+        raise ValueError(msg)
+    return cast("tuple[object, ...]", parsed)
 
 
 def _point(value: object) -> list[float]:
-    """Normalize a 2D point to a JSON-safe list of finite floats."""
+    """Normalize a 2D point to a JSON-safe list of finite floats.
+
+    Args:
+        value: Candidate point value containing at least two coordinates.
+
+    Returns:
+        Two finite floating-point coordinates suitable for JSON output.
+
+    Raises:
+        ValueError: Raised when the point shape or coordinates are invalid.
+    """
     if not isinstance(value, (tuple, list)) or len(value) < 2:
-        raise ValueError("invalid 2D point in topology diagnostics")
+        msg = "invalid 2D point in topology diagnostics"
+        raise ValueError(msg)
     result = [float(value[0]), float(value[1])]
     if not all(math.isfinite(item) for item in result):
-        raise ValueError("non-finite point in topology diagnostics")
+        msg = "non-finite point in topology diagnostics"
+        raise ValueError(msg)
     return result
 
 
 def _pair(value: str) -> list[float]:
-    """Parse a point or bounding interval encoded using Python tuple syntax."""
+    """Parse a point or bounding interval encoded using Python tuple syntax.
+
+    Args:
+        value: Tuple-like text describing a point or interval.
+
+    Returns:
+        Coordinate values parsed as floating-point numbers.
+    """
     return _point(_literal_tuple(value))
 
 
 def _parse_topology(line: str) -> dict[str, object] | None:
-    """Extract the authoritative sampled boundary and nearest crossing segments."""
+    """Extract the authoritative sampled boundary and nearest crossing segments.
+
+    Args:
+        line: Diagnostic line emitted by the native topology audit.
+
+    Returns:
+        Parsed topology details, or None when the line has no topology record.
+    """
     match = _TOPOLOGY_RE.search(line)
     if match is None:
         return None
@@ -125,7 +163,14 @@ def _parse_topology(line: str) -> dict[str, object] | None:
 
 
 def _parse_armhole(line: str) -> dict[str, object] | None:
-    """Extract the native curve class, parameter interval, and sampled local shape."""
+    """Extract the native curve class, parameter interval, and sampled local shape.
+
+    Args:
+        line: Diagnostic line containing native armhole measurements.
+
+    Returns:
+        Parsed armhole metadata, or None when the line has no armhole record.
+    """
     match = _ARMHOLE_RE.search(line)
     if match is None:
         return None
@@ -143,7 +188,15 @@ def _parse_armhole(line: str) -> dict[str, object] | None:
 
 
 def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, object]]:
-    """Hash rendered evidence already emitted by the run; never modify source images."""
+    """Hash rendered evidence already emitted by the run; never modify source images.
+
+    Args:
+        output_root: Directory containing rendered images from the run.
+        workspace: Root directory used to produce the evidence artifacts.
+
+    Returns:
+        Image inventory records with relative paths, sizes, and SHA-256 digests.
+    """
     records: list[dict[str, object]] = []
     for path in sorted(output_root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
@@ -170,6 +223,12 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     The shoulder reference currently comes from the audit's avatar-bounds heuristic,
     not an authoritative anatomical landmark. Findings are therefore warnings for
     review, never a proof of fit failure or a reason to tune the solver.
+
+    Args:
+        metrics_payload: Decoded visual metrics emitted by the drape audit.
+
+    Returns:
+        Assessment state, measurement summary, and any garment-coverage findings.
     """
     if not isinstance(metrics_payload, dict):
         return {
@@ -177,7 +236,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             "reason": "drape-visual-metrics.json is absent or unavailable",
             "findings": [],
         }
-    metrics = cast(dict[str, object], metrics_payload)
+    metrics = cast("dict[str, object]", metrics_payload)
     panels_value = metrics.get("panels")
     if not isinstance(panels_value, list):
         return {
@@ -187,6 +246,14 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
         }
 
     def finite_number(value: object) -> float | None:
+        """Convert a numeric metric to float while rejecting booleans and invalid values.
+
+        Args:
+            value: Candidate value from the drape metrics payload.
+
+        Returns:
+            Finite floating-point value, or None when the value is invalid.
+        """
         if isinstance(value, bool) or not isinstance(value, (float, int)):
             return None
         number = float(value)
@@ -208,7 +275,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     for raw_panel in panels_value:
         if not isinstance(raw_panel, dict):
             continue
-        panel = cast(dict[str, object], raw_panel)
+        panel = cast("dict[str, object]", raw_panel)
         bounds_value = panel.get("bounds")
         if isinstance(bounds_value, list) and len(bounds_value) >= 6:
             low = finite_number(bounds_value[4])
@@ -313,7 +380,16 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
 
 
 def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
-    """Build a machine-readable diagnosis using only the completed workflow files."""
+    """Build a machine-readable diagnosis using only the completed workflow files.
+
+    Args:
+        progress_path: Path to the captured workflow progress log.
+        output_root: Directory used to locate the run's diagnostic evidence.
+        workspace: Root path used to make evidence paths relative.
+
+    Returns:
+        Structured report describing workflow status and gathered evidence.
+    """
     progress_text = (
         progress_path.read_text(encoding="utf-8", errors="replace")
         if progress_path.is_file()
@@ -373,7 +449,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             except json.JSONDecodeError:
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
-                drape_records.append(cast(dict[str, object], parsed_metrics))
+                drape_records.append(cast("dict[str, object]", parsed_metrics))
         if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
             has_scenario_pass = True
         if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
@@ -499,7 +575,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     for topology in invalid_geometry:
         native_invalid = not bool(topology["ir_valid"])
         reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
-        nearby = cast(list[dict[str, object]], topology["near_crossing"])
+        nearby = cast("list[dict[str, object]]", topology["near_crossing"])
         touching = list(
             dict.fromkeys(
                 str(item["edge_id"]) for item in nearby if float(item["distance_mm"]) <= 1e-6
@@ -553,7 +629,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "point_local_mm": record["crossing_local_mm"],
             "edge_ids": [
                 item["edge_id"]
-                for item in cast(list[dict[str, object]], record["near_crossing"])
+                for item in cast("list[dict[str, object]]", record["near_crossing"])
                 if float(item["distance_mm"]) <= 1e-6
             ],
         }
@@ -641,17 +717,38 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
 
 
 def _as_dict(value: object) -> dict[str, object]:
-    """Return a dict for a previously validated report section."""
-    return cast(dict[str, object], value) if isinstance(value, dict) else {}
+    """Return a dict for a previously validated report section.
+
+    Args:
+        value: Candidate value from a report section.
+
+    Returns:
+        Dictionary representation, or an empty mapping for non-dictionaries.
+    """
+    return cast("dict[str, object]", value) if isinstance(value, dict) else {}
 
 
 def _as_list(value: object) -> list[object]:
-    """Return a list for a previously validated report section."""
-    return cast(list[object], value) if isinstance(value, list) else []
+    """Return a list for a previously validated report section.
+
+    Args:
+        value: Candidate value from a report section.
+
+    Returns:
+        List representation, or an empty list for non-lists.
+    """
+    return cast("list[object]", value) if isinstance(value, list) else []
 
 
 def render_pattern_svg(report: dict[str, object]) -> str:
-    """Render the reported outline and highlight any measured self-intersection."""
+    """Render the reported outline and highlight any measured self-intersection.
+
+    Args:
+        report: Structured scene-understanding report to render.
+
+    Returns:
+        Complete SVG markup visualizing the garment outline and findings.
+    """
     pattern = _as_dict(report.get("pattern"))
     pieces = _as_list(pattern.get("pieces"))
     armholes = {
@@ -667,7 +764,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
     for piece_number, raw_piece in enumerate(pieces[:2]):
         if not isinstance(raw_piece, dict):
             continue
-        record = cast(dict[str, object], raw_piece)
+        record = cast("dict[str, object]", raw_piece)
         piece_name = str(record.get("piece", f"piece-{piece_number + 1}"))
         boundaries = _as_list(record.get("boundary_order"))
         origin_x = 34.0 + piece_number * panel_offset
@@ -676,20 +773,20 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         for raw_boundary in boundaries:
             if not isinstance(raw_boundary, dict):
                 continue
-            boundary = cast(dict[str, object], raw_boundary)
+            boundary = cast("dict[str, object]", raw_boundary)
             edge_index_value = boundary.get("edge_index")
             edge_index = int(edge_index_value) if isinstance(edge_index_value, int) else None
             start = _point(boundary.get("start_mm"))
             end = _point(boundary.get("end_mm"))
             local_points = [start, end]
-            sampled_boundary = cast(list[list[float]], boundary.get("samples_local_mm", []))
+            sampled_boundary = cast("list[list[float]]", boundary.get("samples_local_mm", []))
             armhole = armholes.get(edge_index) if edge_index is not None else None
             if len(sampled_boundary) >= 2:
                 local_points = sampled_boundary
             elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
                 armhole, dict
             ):
-                samples = cast(list[list[float]], armhole.get("samples_local_mm", []))
+                samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
                 if len(samples) >= 2:
                     distance_forward = math.dist(samples[0], start)
                     distance_reverse = math.dist(samples[-1], start)
@@ -705,6 +802,15 @@ def render_pattern_svg(report: dict[str, object]) -> str:
             coords.append(coords[0])
 
         def transform(point: list[float], *, x_offset: float = origin_x) -> tuple[float, float]:
+            """Map a pattern-space point into SVG viewport coordinates.
+
+            Args:
+                point: Two-dimensional coordinate in the pattern's local frame.
+                x_offset: Horizontal origin used for the current panel.
+
+            Returns:
+                Horizontal and vertical coordinates in SVG space.
+            """
             return x_offset + point[0] * scale, base_y - point[1] * scale
 
         if coords:
@@ -806,7 +912,14 @@ def render_pattern_svg(report: dict[str, object]) -> str:
 
 
 def render_markdown(report: dict[str, object]) -> str:
-    """Generate a readable summary that leads with the blocker, not solver metrics."""
+    """Generate a readable summary that leads with the blocker, not solver metrics.
+
+    Args:
+        report: Structured scene-understanding report to summarize.
+
+    Returns:
+        Markdown document explaining the run status and gathered evidence.
+    """
     status = _as_dict(report.get("status"))
     stages = _as_dict(report.get("stages"))
     placement = _as_dict(report.get("placement"))
@@ -857,7 +970,7 @@ def render_markdown(report: dict[str, object]) -> str:
         for raw_finding in fit_findings:
             if not isinstance(raw_finding, dict):
                 continue
-            finding = cast(dict[str, object], raw_finding)
+            finding = cast("dict[str, object]", raw_finding)
             lines.append(
                 f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
                 f"({finding.get('observed_mm')} mm; heuristic review threshold "
@@ -879,7 +992,7 @@ def render_markdown(report: dict[str, object]) -> str:
         for raw_issue in issues:
             if not isinstance(raw_issue, dict):
                 continue
-            issue = cast(dict[str, object], raw_issue)
+            issue = cast("dict[str, object]", raw_issue)
             point = issue.get("point_local_mm")
             point_text = (
                 f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
@@ -909,7 +1022,7 @@ def render_markdown(report: dict[str, object]) -> str:
             raw_panel = panels[side]
             if not isinstance(raw_panel, dict):
                 continue
-            panel = cast(dict[str, object], raw_panel)
+            panel = cast("dict[str, object]", raw_panel)
             lines.append(
                 f"- **{side}:** panel origin Y = {panel.get('panel_origin_y_mm')} mm; "
                 f"clearance used = {panel.get('configured_clearance_mm')} mm; "
@@ -926,7 +1039,7 @@ def render_markdown(report: dict[str, object]) -> str:
         for raw_image in image_records:
             if not isinstance(raw_image, dict):
                 continue
-            image = cast(dict[str, object], raw_image)
+            image = cast("dict[str, object]", raw_image)
             lines.append(
                 f"- {image.get('path')} — {image.get('size_bytes')} bytes; "
                 f"SHA-256 hash: {image.get('sha256')}"
@@ -949,7 +1062,16 @@ def render_markdown(report: dict[str, object]) -> str:
 
 
 def write_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
-    """Write JSON, Markdown, and annotated SVG reports into the uploaded artifact directory."""
+    """Write JSON, Markdown, and annotated SVG reports into the uploaded artifact directory.
+
+    Args:
+        progress_path: Path to the captured workflow progress log.
+        output_root: Directory where report artifacts are written.
+        workspace: Root path used to resolve evidence file paths.
+
+    Returns:
+        Structured report written to the JSON and Markdown artifacts.
+    """
     output_root.mkdir(parents=True, exist_ok=True)
     report = build_report(progress_path, output_root, workspace)
     svg_path = output_root / "scene-understanding.svg"
@@ -965,7 +1087,11 @@ def write_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
 
 
 def main() -> int:
-    """Run as a best-effort post-FreeCAD reporter; absence of logs is reported, not hidden."""
+    """Run as a best-effort post-FreeCAD reporter; absence of logs is reported, not hidden.
+
+    Returns:
+        Process status indicating whether report generation succeeded.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--progress", type=Path, default=Path("docs/images/generated/gui-progress.log")

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -40,7 +41,8 @@ def test_pattern_sketch_requires_freecad_when_called():
     except RuntimeError as exc:
         assert "FreeCAD Sketcher" in str(exc)
     else:
-        raise AssertionError("headless environment should not create a native Sketcher object")
+        msg = "headless environment should not create a native Sketcher object"
+        raise AssertionError(msg)
 
 
 def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch():

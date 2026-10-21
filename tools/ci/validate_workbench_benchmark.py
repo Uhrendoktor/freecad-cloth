@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate isolated workbench startup and initialization benchmark artifacts."""
 
 from __future__ import annotations
@@ -12,14 +13,28 @@ WORKBENCH_NAMES = ("Pattern", "Sewing", "Simulation")
 
 
 def _integer(value: object) -> int | None:
-    """Return an integer metric while rejecting booleans and floats."""
+    """Return an integer metric while rejecting booleans and floats.
+
+    Args:
+        value: Candidate metric value to validate.
+
+    Returns:
+        Integer value, or None when the input is not an integer.
+    """
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
 
 
 def _number(value: object) -> float | None:
-    """Return a finite numeric metric while rejecting booleans and malformed values."""
+    """Return a finite numeric metric while rejecting booleans and malformed values.
+
+    Args:
+        value: Candidate metric value to validate.
+
+    Returns:
+        Finite numeric value, or None when the input is invalid.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     number = float(value)
@@ -27,13 +42,21 @@ def _number(value: object) -> float | None:
 
 
 def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
-    """Return schema, workbench identity, and measurement errors for one benchmark artifact."""
+    """Return schema, workbench identity, and measurement errors for one benchmark artifact.
+
+    Args:
+        payload: Decoded JSON value containing the benchmark artifact.
+        expected_workbench: Workbench name associated with this matrix result.
+
+    Returns:
+        Human-readable errors for any invalid metadata or measurements.
+    """
     if expected_workbench not in WORKBENCH_NAMES:
         return [f"unknown workbench: {expected_workbench!r}"]
     if not isinstance(payload, dict):
         return ["benchmark artifact must contain a JSON object"]
 
-    metrics = cast(dict[str, object], payload)
+    metrics = cast("dict[str, object]", payload)
     errors: list[str] = []
     if _integer(metrics.get("schema")) != 2:
         errors.append("schema must be 2")
@@ -59,7 +82,7 @@ def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
         errors.append("workbenches must be a JSON object")
         return errors
 
-    workbenches = cast(dict[str, object], workbenches_value)
+    workbenches = cast("dict[str, object]", workbenches_value)
     if set(workbenches) != {expected_workbench}:
         errors.append(f"workbenches must contain only {expected_workbench!r}")
 
@@ -68,7 +91,7 @@ def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
         errors.append(f"workbenches.{expected_workbench} must be a JSON object")
         return errors
 
-    benchmark = cast(dict[str, object], benchmark_value)
+    benchmark = cast("dict[str, object]", benchmark_value)
     integer_fields = {
         "python_files": 1,
         "nonblank_loc": 1,
@@ -111,7 +134,11 @@ def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
 
 
 def main() -> int:
-    """Load and validate the metrics for one workbench-matrix entry."""
+    """Load and validate the metrics for one workbench-matrix entry.
+
+    Returns:
+        Process status indicating whether the benchmark artifact is valid.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metrics", type=Path, help="path to benchmark.json")
     parser.add_argument("workbench", choices=WORKBENCH_NAMES)
@@ -129,9 +156,9 @@ def main() -> int:
             print(f"workbench-benchmark=failed reason={error}")
         return 1
 
-    metrics = cast(dict[str, object], payload)
-    workbench_value = cast(dict[str, object], metrics["workbenches"])
-    benchmark = cast(dict[str, object], workbench_value[args.workbench])
+    metrics = cast("dict[str, object]", payload)
+    workbench_value = cast("dict[str, object]", metrics["workbenches"])
+    benchmark = cast("dict[str, object]", workbench_value[args.workbench])
     print(
         "workbench-benchmark=passed "
         f"workbench={args.workbench} repeats={metrics['repeats']} "

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Topology utilities for collision surfaces shared across geometry adapters."""
 
 from collections.abc import Sequence
@@ -23,13 +24,15 @@ def _closed_mesh_orientation_plan(
     for face_index, (a, b, c) in enumerate(triangles):
         for first, second in ((a, b), (b, c), (c, a)):
             if first == second:
-                raise ValueError("closed mesh contains a degenerate indexed edge")
+                msg = "closed mesh contains a degenerate indexed edge"
+                raise ValueError(msg)
             edge = (min(first, second), max(first, second))
             direction = 1 if first < second else -1
             edge_owners.setdefault(edge, []).append((face_index, direction))
 
     if any(len(owners) != 2 for owners in edge_owners.values()):
-        raise ValueError("closed mesh requires every undirected edge to appear exactly twice")
+        msg = "closed mesh requires every undirected edge to appear exactly twice"
+        raise ValueError(msg)
 
     adjacency: list[list[tuple[int, bool]]] = [[] for _ in range(len(triangles))]
     for owners in edge_owners.values():
@@ -55,7 +58,8 @@ def _closed_mesh_orientation_plan(
                     flip_state[neighbour] = required
                     pending.append(neighbour)
                 elif flip_state[neighbour] != required:
-                    raise ValueError("closed mesh triangle winding is not orientable")
+                    msg = "closed mesh triangle winding is not orientable"
+                    raise ValueError(msg)
         components.append(component)
 
     corrected = [list(face) for face in triangles]
@@ -83,13 +87,17 @@ def orient_closed_triangle_winding(
     points = np.asarray(vertices, dtype=np.float64)
     faces = np.asarray(triangles, dtype=np.int64)
     if points.ndim != 2 or points.shape[1] != 3 or not len(points):
-        raise ValueError("closed mesh vertices must have shape (N, 3)")
+        msg = "closed mesh vertices must have shape (N, 3)"
+        raise ValueError(msg)
     if faces.ndim != 2 or faces.shape[1] != 3 or not len(faces):
-        raise ValueError("closed mesh triangles must have shape (M, 3)")
+        msg = "closed mesh triangles must have shape (M, 3)"
+        raise ValueError(msg)
     if not bool(np.isfinite(points).all()):
-        raise ValueError("closed mesh vertices must be finite")
+        msg = "closed mesh vertices must be finite"
+        raise ValueError(msg)
     if bool(np.any(faces < 0) or np.any(faces >= len(points))):
-        raise ValueError("closed mesh triangle index is outside the vertex array")
+        msg = "closed mesh triangle index is outside the vertex array"
+        raise ValueError(msg)
 
     topology = tuple(tuple(int(index) for index in face) for face in faces.tolist())
     coherent_faces, components = _closed_mesh_orientation_plan(topology)
@@ -108,7 +116,8 @@ def orient_closed_triangle_winding(
         used = np.unique(component_faces)
         extent = float(np.ptp(points[used], axis=0).max())
         if abs(signed_volume6) <= max(1e-18, extent**3 * 1e-12):
-            raise ValueError("closed mesh component has no reliable enclosed volume")
+            msg = "closed mesh component has no reliable enclosed volume"
+            raise ValueError(msg)
         if signed_volume6 < 0.0:
             second = corrected[component_indices, 1].copy()
             corrected[component_indices, 1] = corrected[component_indices, 2]

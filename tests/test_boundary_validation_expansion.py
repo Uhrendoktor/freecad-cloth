@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for additional numerical and topology boundaries."""
 
 import math

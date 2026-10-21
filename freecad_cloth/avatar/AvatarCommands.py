@@ -1,8 +1,10 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing humanoid mesh avatar commands."""
 
 import json
 from collections.abc import Callable
 from contextlib import suppress
+from itertools import starmap
 from types import ModuleType
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
@@ -161,7 +163,7 @@ def _mesh_data(
         import Mesh as mesh_module
 
     native = mesh_module.Mesh()
-    vectors = [app_module.Vector(*point) for point in vertices]
+    vectors = list(starmap(app_module.Vector, vertices))
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the
     # downstream collision adapter cannot recognize the closed mannequin shell.
@@ -196,7 +198,8 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
             getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
         )
         if source_obj is None or source_obj is obj:
-            raise ValueError("select a FreeCAD body as the avatar provider source")
+            msg = "select a FreeCAD body as the avatar provider source"
+            raise ValueError(msg)
         provider = FreeCADGeometryAvatarProvider(source_obj, deflection=1.0, thickness=0.0)
         vertices, triangles = provider.surface()
         source_name = getattr(source_obj, "Label", getattr(source_obj, "Name", "FreeCAD body"))
@@ -208,7 +211,8 @@ def _provider_geometry(obj, params, provider_id=None, provider_source=_MISSING):
             f"FreeCAD geometry: {source_name}",
             "Inherited from source object",
         )
-    raise ValueError(f"unsupported avatar provider: {provider_id}")
+    msg = f"unsupported avatar provider: {provider_id}"
+    raise ValueError(msg)
 
 
 def _rebuild(
@@ -490,10 +494,12 @@ def rebuild_avatar():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before rebuilding the avatar")
+        msg = "open a document before rebuilding the avatar"
+        raise ValueError(msg)
     obj = _avatar(doc)
     if obj is None:
-        raise ValueError("create a Cloth Avatar first")
+        msg = "create a Cloth Avatar first"
+        raise ValueError(msg)
     _ensure_pose_preset_property(obj)
     return apply_avatar_parameters(obj, _parameters(obj))
 
@@ -530,12 +536,14 @@ def set_avatar_measurements(**changes):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing avatar measurements")
+        msg = "open a document before changing avatar measurements"
+        raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
     current = _parameters(obj)
     for name in changes:
         if str(name) not in DEFAULT_MEASUREMENTS:
-            raise ValueError(f"unknown avatar measurement: {name}")
+            msg = f"unknown avatar measurement: {name}"
+            raise ValueError(msg)
     params = current.with_measurements(**changes)
     return apply_avatar_parameters(obj, params)
 
@@ -545,7 +553,8 @@ def set_avatar_pose(pose):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing avatar pose")
+        msg = "open a document before changing avatar pose"
+        raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
     current = _parameters(obj)
@@ -571,7 +580,8 @@ def set_avatar_joint(bone, x=0.0, y=0.0, z=0.0, mirror=False):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing a mannequin joint")
+        msg = "open a document before changing a mannequin joint"
+        raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
     current = _parameters(obj)
     values = {rotation.bone: rotation for rotation in current.pose.joint_rotations}
@@ -606,17 +616,18 @@ def set_avatar_provider(provider_id, source=None):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing the avatar provider")
+        msg = "open a document before changing the avatar provider"
+        raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
     provider_id = str(provider_id)
     if provider_id not in PROVIDER_IDS:
-        raise ValueError(f"unsupported avatar provider: {provider_id}")
+        msg = f"unsupported avatar provider: {provider_id}"
+        raise ValueError(msg)
     if provider_id == "freecad-geometry":
         source = source or getattr(obj, "ProviderSource", None)
         if source is None or source is obj:
-            raise ValueError(
-                "a FreeCAD source object is required for the freecad-geometry provider"
-            )
+            msg = "a FreeCAD source object is required for the freecad-geometry provider"
+            raise ValueError(msg)
     else:
         source = None
     return apply_avatar_parameters(
@@ -632,7 +643,8 @@ def set_avatar_skin_offset(offset):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before changing avatar offset")
+        msg = "open a document before changing avatar offset"
+        raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
     current = _parameters(obj)
     candidate = AvatarParameters(
@@ -654,7 +666,8 @@ def avatar_measurement(name):
 
     doc = App.ActiveDocument
     if doc is None or _avatar(doc) is None:
-        raise ValueError("create a Cloth Avatar first")
+        msg = "create a Cloth Avatar first"
+        raise ValueError(msg)
     return _parameters(_avatar(doc)).measurement(str(name))
 
 
@@ -664,7 +677,8 @@ def avatar_arrangement_points():
 
     doc = App.ActiveDocument
     if doc is None or _avatar(doc) is None:
-        raise ValueError("create a Cloth Avatar first")
+        msg = "create a Cloth Avatar first"
+        raise ValueError(msg)
     return arrangement_points_from_landmarks(_avatar(doc).Landmarks)
 
 

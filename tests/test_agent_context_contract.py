@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import re
 from pathlib import Path
 
@@ -47,7 +48,8 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
     assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture
     assert "canonical immutable in-memory/value representation" in architecture
-    assert "persisted" in model.lower() and "in-memory/headless" in model.lower()
+    assert "persisted" in model.lower()
+    assert "in-memory/headless" in model.lower()
 
 
 def test_packaging_metadata_has_explicit_authority_split():

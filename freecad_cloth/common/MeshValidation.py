@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Non-authoritative mesh validation helpers backed by external libraries.
 
 Trimesh is a required runtime dependency for nearest-surface clearance and
@@ -9,10 +10,8 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 from math import isfinite
-from numbers import Real
-from typing import cast
+from typing import cast, TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,6 +20,10 @@ from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
 
 from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
+
+if TYPE_CHECKING:
+    from numbers import Real
+    from collections.abc import Iterable, Sequence
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -56,7 +59,8 @@ def _triangle_areas(
         )
         areas = np.asarray(0.5 * np.linalg.norm(cross_products, axis=1), dtype=np.float64)
     if not bool(np.isfinite(areas).all()):
-        raise ValueError("computed mesh surface area must be finite")
+        msg = "computed mesh surface area must be finite"
+        raise ValueError(msg)
     return areas
 
 
@@ -65,7 +69,8 @@ def _fallback_surface_area(areas: NDArray[np.float64]) -> float:
     with np.errstate(over="ignore", invalid="ignore"):
         total = float(np.sum(areas, dtype=np.float64))
     if not isfinite(total):
-        raise ValueError("computed mesh surface area must be finite")
+        msg = "computed mesh surface area must be finite"
+        raise ValueError(msg)
     return total
 
 
@@ -127,7 +132,8 @@ def validate_mesh(
             bounds = mesh.bounds
             surface_area = float(mesh.area)
             if not isfinite(surface_area):
-                raise ValueError("computed mesh surface area must be finite")
+                msg = "computed mesh surface area must be finite"
+                raise ValueError(msg)
             return MeshValidationResult(
                 vertices=len(vertices),
                 faces=len(triangles),
@@ -169,18 +175,21 @@ def nearest_target_clearance(
     SciPy's exact KDTree query is the single production implementation. Coordinates
     are validated before indexing, and an unrepresentable result fails closed.
     """
-    garment = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
-    target = validate_points3d(cast(Iterable[Iterable[Real]], target_vertices))
+    garment = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
+    target = validate_points3d(cast("Iterable[Iterable[Real]]", target_vertices))
     if not garment or not target:
-        raise ValueError("garment and target vertices are required")
+        msg = "garment and target vertices are required"
+        raise ValueError(msg)
 
     try:
         distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
         clearance = min(float(value) for value in distances)
     except (OverflowError, ValueError, RuntimeError) as exc:
-        raise ValueError("could not calculate finite nearest vertex clearance") from exc
+        msg = "could not calculate finite nearest vertex clearance"
+        raise ValueError(msg) from exc
     if not isfinite(clearance):
-        raise ValueError("computed vertex clearance must be finite")
+        msg = "computed vertex clearance must be finite"
+        raise ValueError(msg)
     return clearance
 
 
@@ -191,17 +200,20 @@ def nearest_surface_clearance(
 ) -> float:
     """Return minimum point-to-surface distance using Trimesh and Rtree."""
     validated = _validate_arrays(target_vertices, target_triangles)
-    garment_vertices = validate_points3d(cast(Iterable[Iterable[Real]], garment_vertices))
+    garment_vertices = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
     if not garment_vertices:
-        raise ValueError("garment vertices are required")
+        msg = "garment vertices are required"
+        raise ValueError(msg)
     if not target_triangles:
-        raise ValueError("target triangles are required")
+        msg = "target triangles are required"
+        raise ValueError(msg)
     try:
         import numpy as np
         import trimesh
     except ImportError as exc:
-        raise RuntimeError("trimesh is required for nearest_surface_clearance") from exc
+        msg = "trimesh is required for nearest_surface_clearance"
+        raise RuntimeError(msg) from exc
     mesh = trimesh.Trimesh(
         vertices=np.asarray(target_vertices, dtype=float),
         faces=np.asarray(target_triangles, dtype=int),
@@ -209,8 +221,10 @@ def nearest_surface_clearance(
     )
     _, distances, _ = mesh.nearest.on_surface(np.asarray(garment_vertices, dtype=float))
     if not len(distances):
-        raise ValueError("surface clearance produced no distance results")
+        msg = "surface clearance produced no distance results"
+        raise ValueError(msg)
     clearance = float(np.min(distances))
     if not isfinite(clearance):
-        raise ValueError("computed surface clearance must be finite")
+        msg = "computed surface clearance must be finite"
+        raise ValueError(msg)
     return clearance

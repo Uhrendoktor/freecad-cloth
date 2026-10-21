@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native UI handoff from Simulation to the existing Cloth fitting stage.
 
 The persistent FittingScene remains the fitting-stage authority. This bridge
@@ -48,7 +49,8 @@ def open_arrange_fit_from_simulation(simulation):
 
     doc = getattr(simulation, "Document", None) or App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a document before opening Arrange / Fit")
+        msg = "open a document before opening Arrange / Fit"
+        raise RuntimeError(msg)
     from freecad_cloth.avatar import FittingCommands
 
     fitting = FittingCommands.create_fitting_scene()

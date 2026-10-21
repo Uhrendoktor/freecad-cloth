@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from collections.abc import Sequence
 from math import cos, pi, sin, tau
 

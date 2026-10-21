@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the Pydantic data-model enforcement policy."""
 
 from __future__ import annotations

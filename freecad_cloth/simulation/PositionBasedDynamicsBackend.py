@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Production PositionBasedDynamics XPBD backend.
 
 This adapter translates the headless FreeCAD cloth model and persistent
@@ -8,9 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable, Iterable, Mapping, Sequence
 from copy import deepcopy
-from typing import Protocol, TypeAlias, cast
+from typing import Protocol, TypeAlias, cast, TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -28,6 +28,9 @@ from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping, Sequence
+
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
@@ -41,46 +44,193 @@ FloatArray: TypeAlias = npt.NDArray[np.float64]
 
 
 class _NativePBDParticles(Protocol):
-    def getNumberOfParticles(self) -> int: ...
-    def setMass(self, index: int, _mass: float) -> None: ...
-    def getMass(self, index: int) -> float: ...
-    def getVelocity(self, index: int) -> Sequence[float]: ...
-    def setVelocity(self, index: int, velocity: FloatArray) -> None: ...
-    def setPosition(self, index: int, position: FloatArray) -> None: ...
-    def getVertices(self) -> object: ...
+    """Describe the native solver particle container operations required by the backend."""
+
+    def getNumberOfParticles(self) -> int:
+        """Return the number of particles stored by the native solver.
+
+        Returns:
+            The total number of particles in the model.
+        """
+        ...
+
+    def setMass(self, index: int, _mass: float) -> None:
+        """Set the mass assigned to one native particle.
+
+        Args:
+            index: The zero-based particle index to update.
+            _mass: The particle mass assigned by the solver.
+        """
+        ...
+
+    def getMass(self, index: int) -> float:
+        """Read the mass assigned to one native particle.
+
+        Args:
+            index: The zero-based particle index to inspect.
+
+        Returns:
+            The mass currently assigned to the particle.
+        """
+        ...
+
+    def getVelocity(self, index: int) -> Sequence[float]:
+        """Read a particle velocity in native solver coordinates.
+
+        Args:
+            index: The zero-based particle index to inspect.
+
+        Returns:
+            The particle velocity vector.
+        """
+        ...
+
+    def setVelocity(self, index: int, velocity: FloatArray) -> None:
+        """Set a particle velocity in native solver coordinates.
+
+        Args:
+            index: The zero-based particle index to update.
+            velocity: The velocity vector assigned to the particle.
+        """
+        ...
+
+    def setPosition(self, index: int, position: FloatArray) -> None:
+        """Set a particle position in native solver coordinates.
+
+        Args:
+            index: The zero-based particle index to update.
+            position: The three-dimensional position assigned to the particle.
+        """
+        ...
+
+    def getVertices(self) -> object:
+        """Return the native vertex-position storage for the particle model.
+
+        Returns:
+            The binding-provided vertex array or container.
+        """
+        ...
 
 
 class _NativePBDRigidBody(Protocol):
-    def setMass(self, _mass: float) -> None: ...
-    def setFrictionCoeff(self, _friction: float) -> None: ...
+    """Describe the static rigid-body controls used for collision geometry."""
+
+    def setMass(self, _mass: float) -> None:
+        """Set the mass of a native rigid body.
+
+        Args:
+            _mass: The rigid-body mass assigned by the solver.
+        """
+        ...
+
+    def setFrictionCoeff(self, _friction: float) -> None:
+        """Set the friction coefficient for a native rigid body.
+
+        Args:
+            _friction: The non-dimensional contact friction coefficient.
+        """
+        ...
 
 
 class _NativePBDCollisionDetection(Protocol):
-    def cleanup(self) -> None: ...
-    def setTolerance(self, _tolerance: float) -> None: ...
+    """Describe collision cleanup and tolerance configuration supported by the native solver."""
+
+    def cleanup(self) -> None:
+        """Clear collision-detection state before rebuilding the native model."""
+        ...
+
+    def setTolerance(self, _tolerance: float) -> None:
+        """Set the native collision detection tolerance.
+
+        Args:
+            _tolerance: The collision tolerance in native solver length units.
+        """
+        ...
 
 
 class _NativePBDTimeStep(Protocol):
-    def getCollisionDetection(self) -> _NativePBDCollisionDetection: ...
-    def setValueUInt(self, _parameter: int, _value: int) -> None: ...
-    def step(self, model: _NativePBDModel) -> None: ...
+    """Describe the native time-step controls used to advance the cloth model."""
+
+    def getCollisionDetection(self) -> _NativePBDCollisionDetection:
+        """Return the collision detector used by this time step.
+
+        Returns:
+            The active native collision detector.
+        """
+        ...
+
+    def setValueUInt(self, _parameter: int, _value: int) -> None:
+        """Set an unsigned-integer parameter on the native time step.
+
+        Args:
+            _parameter: The native solver parameter identifier.
+            _value: The unsigned integer value to apply.
+        """
+        ...
+
+    def step(self, model: _NativePBDModel) -> None:
+        """Advance the supplied native model by one solver time step.
+
+        Args:
+            model: The native particle and constraint model to advance.
+        """
+        ...
 
 
 class _NativePBDModel(Protocol):
-    def cleanup(self) -> None: ...
+    """Describe native model operations required to build a cloth simulation."""
+
+    def cleanup(self) -> None:
+        """Release particles and constraints from the native model."""
+        ...
+
     def addTriangleModel(
         self, points: Sequence[Sequence[float]], indices: Sequence[int], *, testMesh: bool
     ) -> object:
         _ = testMesh
         ...
 
-    def getParticles(self) -> _NativePBDParticles: ...
-    def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None: ...
+    def getParticles(self) -> _NativePBDParticles:
+        """Return the particle container owned by the native model.
+
+        Returns:
+            The native particle container for this model.
+        """
+        ...
+
+    def addClothConstraints(self, _triangle_model: object, *_args: float | bool) -> None:
+        """Create native stretch constraints for the supplied triangle model.
+
+        Args:
+            _triangle_model: The native triangle model representing the cloth.
+            _args: The native binding's additional stiffness and constraint settings.
+        """
+        ...
+
     def addBendingConstraints(
         self, _triangle_model: object, iterations: int, _stiffness: float
     ) -> None: ...
-    def getConstraints(self) -> Sequence[object]: ...
-    def addDistanceConstraint_XPBD(self, a: int, b: int, _stiffness: float) -> bool: ...
+    def getConstraints(self) -> Sequence[object]:
+        """Return the distance constraints currently registered on the model.
+
+        Returns:
+            The model's native constraint sequence.
+        """
+        ...
+
+    def addDistanceConstraint_XPBD(self, a: int, b: int, _stiffness: float) -> bool:
+        """Create an XPBD distance constraint between two particles.
+
+        Args:
+            a: The first zero-based particle index.
+            b: The second zero-based particle index.
+            _stiffness: The stiffness parameter supplied to the native binding.
+
+        Returns:
+            Whether the native model accepted the new constraint.
+        """
+        ...
+
     def addRigidBody(
         self,
         _mass: float,
@@ -95,57 +245,156 @@ class _NativePBDModel(Protocol):
 
 
 class _NativePBDSimulation(Protocol):
-    def getModel(self) -> _NativePBDModel: ...
-    def reset(self) -> None: ...
-    def initDefault(self) -> None: ...
-    def getTimeStep(self) -> _NativePBDTimeStep: ...
+    """Describe the native simulation lifecycle and model access methods."""
+
+    def getModel(self) -> _NativePBDModel:
+        """Return the model attached to the current simulation.
+
+        Returns:
+            The active native simulation model.
+        """
+        ...
+
+    def reset(self) -> None:
+        """Reset the current simulation before releasing and rebuilding its model."""
+        ...
+
+    def initDefault(self) -> None:
+        """Initialize the binding's default simulation settings."""
+        ...
+
+    def getTimeStep(self) -> _NativePBDTimeStep:
+        """Return the native time-step controller for this simulation.
+
+        Returns:
+            The simulation's native time-step controller.
+        """
+        ...
 
 
 class _NativePBDClock(Protocol):
-    def setTime(self, _time: float) -> None: ...
-    def setTimeStepSize(self, _step: float) -> None: ...
+    """Describe the native solver clock and time-step size controls."""
+
+    def setTime(self, _time: float) -> None:
+        """Set the current clock time for the native simulation.
+
+        Args:
+            _time: The simulation time in seconds.
+        """
+        ...
+
+    def setTimeStepSize(self, _step: float) -> None:
+        """Set the duration of each native solver time step.
+
+        Args:
+            _step: The time-step duration in seconds.
+        """
+        ...
 
 
 class _NativePBDSimulationRegistry(Protocol):
+    """Expose the current native PBD simulation instance."""
+
     @staticmethod
-    def getCurrent() -> _NativePBDSimulation: ...
+    def getCurrent() -> _NativePBDSimulation:
+        """Return the active simulation from the native binding registry.
+
+        Returns:
+            The currently registered native simulation.
+        """
+        ...
 
 
 class _NativePBDClockRegistry(Protocol):
+    """Expose the current native PBD clock instance."""
+
     @staticmethod
-    def getCurrent() -> _NativePBDClock: ...
+    def getCurrent() -> _NativePBDClock:
+        """Return the active simulation clock from the native binding registry.
+
+        Returns:
+            The currently registered native clock.
+        """
+        ...
 
 
 class _NativePBDVertexData(Protocol):
-    def addVertex(self, vertex: tuple[float, float, float]) -> None: ...
+    """Describe how collision-surface vertices are passed to native PBD."""
+
+    def addVertex(self, vertex: tuple[float, float, float]) -> None:
+        """Append one vertex to native collision-surface storage.
+
+        Args:
+            vertex: The vertex coordinates in native solver axis order.
+        """
+        ...
 
 
 class _NativePBDIndexedFaceMesh(Protocol):
-    def initMesh(self, _vertex_count: int, _edge_count: int, _face_count: int) -> None: ...
-    def addFace(self, _face: Sequence[int]) -> None: ...
-    def buildNeighbors(self) -> None: ...
+    """Describe the indexed triangle mesh representation used by collision geometry."""
+
+    def initMesh(self, _vertex_count: int, _edge_count: int, _face_count: int) -> None:
+        """Allocate native indexed-face mesh storage.
+
+        Args:
+            _vertex_count: The number of vertices in the mesh.
+            _edge_count: The expected directed-edge count.
+            _face_count: The number of polygon faces in the mesh.
+        """
+        ...
+
+    def addFace(self, _face: Sequence[int]) -> None:
+        """Append an indexed face to the native mesh.
+
+        Args:
+            _face: The ordered vertex indices for the face.
+        """
+        ...
+
+    def buildNeighbors(self) -> None:
+        """Build neighboring-face relationships for the indexed mesh."""
+        ...
 
 
 class _NativePBDSDFFactory(Protocol):
+    """Describe signed-distance-field generation for collision meshes."""
+
     @staticmethod
     def generateSDF(
         _vertex_data: _NativePBDVertexData,
         _mesh: _NativePBDIndexedFaceMesh,
         _resolution: Sequence[int],
-    ) -> object | None: ...
+    ) -> object | None:
+        """Generate a signed-distance field for a native collision mesh.
+
+        Args:
+            _vertex_data: The native vertex storage for the collision surface.
+            _mesh: The initialized indexed-face collision mesh.
+            _resolution: The voxel dimensions requested for the distance field.
+
+        Returns:
+            The generated distance field, or None when generation is unavailable.
+        """
+        ...
 
 
 class _NativePBDStitchConstraint(Protocol):
+    """Expose the native distance constraint rest length for stitch calibration."""
+
     restLength: float
 
 
 class _NativePBDStepConstants(Protocol):
+    """Expose native solver iteration settings used by the backend."""
+
     NUM_SUB_STEPS: int
     MAX_ITERATIONS: int
     MAX_ITERATIONS_V: int
 
 
 class _NativePBDAPI(Protocol):
+    """Collect the native PBD binding interfaces consumed by this backend."""
+
     Simulation: _NativePBDSimulationRegistry
     TimeManager: _NativePBDClockRegistry
     VertexData: Callable[[], _NativePBDVertexData]
@@ -156,7 +405,14 @@ class _NativePBDAPI(Protocol):
 
 
 def _pbd_collision_config(environ: Mapping[str, str] | None = None) -> PBDCollisionConfig:
-    """Parse and validate all numeric PBD environment settings together."""
+    """Parse and validate all numeric PBD environment settings together.
+
+    Args:
+        environ: The optional environment mapping to read instead of os.environ.
+
+    Returns:
+        The validated collision and solver configuration.
+    """
     settings = os.environ if environ is None else environ
     return PBDCollisionConfig.model_validate(
         {
@@ -173,23 +429,52 @@ def _pbd_collision_config(environ: Mapping[str, str] | None = None) -> PBDCollis
 
 
 def _pbd_substeps(environ: Mapping[str, str] | None = None) -> int:
-    """Return validated solver substep count from runtime configuration."""
+    """Return validated solver substep count from runtime configuration.
+
+    Args:
+        environ: The optional environment mapping to read instead of os.environ.
+
+    Returns:
+        The positive solver substep count.
+    """
     return _pbd_collision_config(environ).substeps
 
 
 def _pbd_collision_tolerance_mm(environ: Mapping[str, str] | None = None) -> float:
-    """Return finite non-negative collision tolerance in millimetres."""
+    """Return finite non-negative collision tolerance in millimetres.
+
+    Args:
+        environ: The optional environment mapping to read instead of os.environ.
+
+    Returns:
+        The configured collision tolerance in millimetres.
+    """
     return _pbd_collision_config(environ).collision_tolerance_mm
 
 
 def _pbd_collision_voxel_mm(environ: Mapping[str, str] | None = None) -> float:
-    """Return finite collision voxel dimension in millimetres."""
+    """Return finite collision voxel dimension in millimetres.
+
+    Args:
+        environ: The optional environment mapping to read instead of os.environ.
+
+    Returns:
+        The configured SDF voxel dimension in millimetres.
+    """
     return _pbd_collision_config(environ).collision_voxel_mm
 
 
 def _pbd_collision_effective_tolerance_mm(
     surface: CollisionSurface,
 ) -> float:
+    """Compute collision tolerance large enough for configured tolerance, cloth thickness, and voxel margin.
+
+    Args:
+        surface: The collision surface whose thickness contributes to the tolerance.
+
+    Returns:
+        The effective collision tolerance in FreeCAD millimetres.
+    """
     configured = _pbd_collision_tolerance_mm()
     thickness = float(getattr(surface, "thickness", 0.0))
     representation_margin = 0.5 * _pbd_collision_voxel_mm()
@@ -197,6 +482,14 @@ def _pbd_collision_effective_tolerance_mm(
 
 
 def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
+    """Choose a bounded voxel resolution for the supplied collision surface.
+
+    Args:
+        surface: The collision surface whose axis-aligned spans determine the resolution.
+
+    Returns:
+        The number of SDF cells along each spatial axis.
+    """
     voxel_mm = _pbd_collision_voxel_mm()
     spans = []
     for axis in range(3):
@@ -211,20 +504,48 @@ def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
+    """Convert stitch compliance to a bounded stiffness accepted by the PBD solver.
+
+    Args:
+        compliance: The finite non-negative compliance of a stitch constraint.
+
+    Returns:
+        The native solver stiffness corresponding to the requested compliance.
+
+    Raises:
+        ValueError: Raised when compliance is negative.
+    """
     value = validate_finite_number(compliance)
     if value < 0.0:
-        raise ValueError("stitch compliance must be finite and non-negative")
+        msg = "stitch compliance must be finite and non-negative"
+        raise ValueError(msg)
     if value == 0.0:
         return _PBD_STITCH_STIFFNESS_DEFAULT
     return max(1.0, min(_PBD_STITCH_STIFFNESS_DEFAULT, 1.0 / value))
 
 
 def _to_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:
+    """Convert FreeCAD millimetre coordinates to the axis order expected by native PBD.
+
+    Args:
+        position: The source position in FreeCAD x, y, z order.
+
+    Returns:
+        The position converted to native solver axis order and units.
+    """
     x, y, z = position
     return (float(x) / _MM, float(z) / _MM, float(y) / _MM)
 
 
 def _from_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:
+    """Convert a native PBD position to FreeCAD millimetre coordinates.
+
+    Args:
+        position: The position in native solver axis order and units.
+
+    Returns:
+        The position converted to FreeCAD x, y, z order.
+    """
     x, y, z = position
     return (float(x) * _MM, float(z) * _MM, float(y) * _MM)
 
@@ -234,7 +555,15 @@ _PBD_COLLISION_SDF_CACHE: object | None = None
 
 
 def _pbd_collision_sdf_cache_key(surface: CollisionSurface, resolution: list[int]) -> bytes:
-    """Hash binary mesh arrays without allocating their large textual representations."""
+    """Hash binary mesh arrays without allocating their large textual representations.
+
+    Args:
+        surface: The collision surface whose vertices, faces, and thickness define the cache key.
+        resolution: The spatial resolution used to generate the signed-distance field.
+
+    Returns:
+        A stable binary digest identifying this collision SDF input.
+    """
     digest = hashlib.sha256()
     digest.update(b"cloth-pbd-collision-sdf-key-v2\0")
 
@@ -267,18 +596,34 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "mesh",
     ) -> None:
+        """Initialize the native PBD simulation from a cloth model, constraints, and optional collision surface.
+
+        Args:
+            system: The initial cloth particle and material state.
+            triangles: The triangle indices defining the cloth surface.
+            pins: Optional zero-based particle indices to hold fixed.
+            stitches: Particle-index pairs to constrain as sewn together.
+            collision_surface: Optional triangle mesh used as the immutable collision target.
+            collision_mode: The collision representation, currently required to be mesh.
+
+        Raises:
+            RuntimeError: Raised when the native pyPBD binding is unavailable.
+            ValueError: Raised when the collision mode is unsupported.
+        """
         try:
             import pypbd
         except ImportError as exc:
-            raise RuntimeError("simulation requires the 'pyPBD' package") from exc
+            msg = "simulation requires the 'pyPBD' package"
+            raise RuntimeError(msg) from exc
 
         collision_mode = (
             str(os.environ.get("CLOTH_PBD_COLLISION_MODE", collision_mode)).strip().lower()
         )
         if collision_mode != "mesh":
-            raise ValueError("PositionBasedDynamics supports only mesh collision mode")
+            msg = "PositionBasedDynamics supports only mesh collision mode"
+            raise ValueError(msg)
 
-        self._pbd = cast(_NativePBDAPI, pypbd)
+        self._pbd = cast("_NativePBDAPI", pypbd)
         self._initial = deepcopy(system)
         validated_mesh = MeshArrays.model_validate(
             {
@@ -336,15 +681,28 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
     @property
     def solver_collision_surface(self) -> CollisionSurface | None:
-        """Return the exact collision surface registered with PositionBasedDynamics."""
+        """Return the exact collision surface registered with PositionBasedDynamics.
+
+        Returns:
+            The active solver collision surface, or None when collision is disabled.
+        """
         return self._collision_surface
 
     @property
     def time(self) -> float:
-        """Return elapsed simulation time in seconds."""
+        """Return elapsed simulation time in seconds.
+
+        Returns:
+            Elapsed simulation time in seconds.
+        """
         return self._time
 
     def _new_simulation(self) -> tuple[_NativePBDSimulation, _NativePBDModel]:
+        """Reset and initialize the native simulation before obtaining its model.
+
+        Returns:
+            The active native simulation and its initialized model.
+        """
         sim = self._pbd.Simulation.getCurrent()
         if self._simulation_initialized:
             model = sim.getModel()
@@ -356,6 +714,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         return sim, sim.getModel()
 
     def _add_collision_body(self, sim: _NativePBDSimulation, model: _NativePBDModel) -> None:
+        """Register the validated collision surface with the native model and collision detector.
+
+        Args:
+            sim: The active native PBD simulation.
+            model: The initialized native cloth model.
+        """
         collision_surface = self._collision_surface
         if self._source_collision_surface is None or collision_surface is None:
             return
@@ -435,7 +799,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 resolution,
             )
             if self._collision_sdf is None:
-                raise RuntimeError("PositionBasedDynamics failed to generate collision SDF")
+                msg = "PositionBasedDynamics failed to generate collision SDF"
+                raise RuntimeError(msg)
             _PBD_COLLISION_SDF_CACHE_KEY = cache_key
             _PBD_COLLISION_SDF_CACHE = self._collision_sdf
         else:
@@ -446,7 +811,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
 
         if self._collision_sdf is None:
-            raise RuntimeError("PositionBasedDynamics collision SDF is unavailable")
+            msg = "PositionBasedDynamics collision SDF is unavailable"
+            raise RuntimeError(msg)
         rigid_body = model.addRigidBody(
             1.0,
             vertex_data,
@@ -461,6 +827,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         collision_detection.setTolerance(effective_tolerance_mm / _MM)
 
     def _build(self) -> None:
+        """Rebuild native particles, constraints, pins, and collision state from the saved input model.
+
+        Raises:
+            RuntimeError: Raised when native PBD changes the cloth particle ordering.
+            ValueError: Raised when pin indices or cloth stiffness values are invalid.
+        """
         self._sim, self._model = self._new_simulation()
         points = [_to_pbd_position(p.position()) for p in self._initial.particles]
         indices = [index for triangle in self._triangles for index in triangle]
@@ -473,13 +845,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
         particles = self._model.getParticles()
         if particles.getNumberOfParticles() != self._particle_count:
-            raise RuntimeError("PositionBasedDynamics did not preserve cloth particle ordering")
+            msg = "PositionBasedDynamics did not preserve cloth particle ordering"
+            raise RuntimeError(msg)
         pin_indices = set(self._pin_indices)
         invalid_pins = [
             index for index in pin_indices if index < 0 or index >= self._particle_count
         ]
         if invalid_pins:
-            raise ValueError(f"pin index outside system: {invalid_pins!r}")
+            msg = f"pin index outside system: {invalid_pins!r}"
+            raise ValueError(msg)
         for index in range(self._particle_count):
             particles.setMass(index, 0.0 if index in pin_indices else 1.0)
 
@@ -496,7 +870,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
         )
         if cloth_stiffness <= 0.0 or bending_stiffness <= 0.0:
-            raise ValueError("PositionBasedDynamics cloth stiffness values must be positive")
+            msg = "PositionBasedDynamics cloth stiffness values must be positive"
+            raise ValueError(msg)
 
         self._model.addClothConstraints(
             tri_model,
@@ -517,15 +892,16 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         for a, b in self._stitches:
             before = len(constraints)
             if not self._model.addDistanceConstraint_XPBD(a, b, stitch_stiffness):
-                raise RuntimeError(f"PositionBasedDynamics rejected stitch constraint {(a, b)!r}")
+                msg = f"PositionBasedDynamics rejected stitch constraint {(a, b)!r}"
+                raise RuntimeError(msg)
             constraints = self._model.getConstraints()
             if len(constraints) != before + 1:
-                raise RuntimeError("PositionBasedDynamics stitch constraint was not registered")
+                msg = "PositionBasedDynamics stitch constraint was not registered"
+                raise RuntimeError(msg)
             stitch_constraint = constraints[-1]
             if not isinstance(stitch_constraint, self._pbd.DistanceConstraint_XPBD):
-                raise RuntimeError(
-                    "PositionBasedDynamics returned an unexpected stitch constraint type"
-                )
+                msg = "PositionBasedDynamics returned an unexpected stitch constraint type"
+                raise RuntimeError(msg)
             # Tissu stitches have zero rest length; PBD otherwise initializes the
             # distance constraint rest length from the endpoints' starting distance.
             stitch_constraint.restLength = 0.0
@@ -609,9 +985,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         )
         dt, iterations, gravity = step_input.dt, step_input.iterations, step_input.gravity
         if surface is not None and surface is not self._collision_surface:
-            raise RuntimeError(
-                "PositionBasedDynamics collision surface is immutable after construction"
-            )
+            msg = "PositionBasedDynamics collision surface is immutable after construction"
+            raise RuntimeError(msg)
 
         gx, gy, gz = (float(value) for value in gravity)
         gravity_pbd = np.asarray((gx / _MM, gz / _MM, gy / _MM), dtype=np.float64)
@@ -649,7 +1024,11 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._build()
 
     def pin(self, indices: Iterable[int]) -> None:
-        """Replace the set of pinned particle indices and rebuild from the original input model."""
+        """Replace the pinned particle indices and rebuild from the original input model.
+
+        Args:
+            indices: The zero-based particle indices that should remain fixed.
+        """
         self._pin_indices = tuple(
             dict.fromkeys(ParticleIndexInput.model_validate({"index": i}).index for i in indices)
         )
@@ -661,10 +1040,19 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         pairs: Iterable[tuple[int, int]],
         compliance: float = 0.0,
     ) -> None:
-        """Replace the sewing constraints and rebuild from the original input model."""
+        """Replace the sewing constraints and rebuild from the original input model.
+
+        Args:
+            pairs: The particle-index pairs joined by stitch constraints.
+            compliance: The finite non-negative compliance applied to each stitch constraint.
+
+        Raises:
+            ValueError: Raised when compliance is negative or stitch parameters are invalid.
+        """
         compliance = validate_finite_number(compliance)
         if compliance < 0.0:
-            raise ValueError("compliance must be finite and non-negative")
+            msg = "compliance must be finite and non-negative"
+            raise ValueError(msg)
         self._stitches = tuple(
             (pair.a, pair.b)
             for pair in (ParticlePairInput.model_validate({"a": a, "b": b}) for a, b in pairs)
@@ -674,7 +1062,11 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._build()
 
     def _positions_snapshot(self) -> tuple[tuple[tuple[float, float, float], ...], bool]:
-        """Read native positions once and validate the same snapshot for publication."""
+        """Read native positions once and validate the same snapshot for publication.
+
+        Returns:
+            The display-space particle positions and a flag indicating all coordinates are finite and bounded.
+        """
         vertices = np.asarray(self._model.getParticles().getVertices(), dtype=np.float64)
         if vertices.size == 0:
             return (), True
@@ -684,13 +1076,25 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         return positions, finite
 
     def positions_and_finite(self) -> tuple[tuple[tuple[float, float, float], ...], bool]:
-        """Return display positions and the finite-state flag from one native snapshot."""
+        """Return display positions and the finite-state flag from one native snapshot.
+
+        Returns:
+            A tuple containing display-space particle positions and the finite-state flag.
+        """
         return self._positions_snapshot()
 
     def positions(self) -> tuple[tuple[float, float, float], ...]:
-        """Return current cloth particle positions in FreeCAD millimetres."""
+        """Return current cloth particle positions in FreeCAD millimetres.
+
+        Returns:
+            The current particle positions in FreeCAD x, y, z millimetres.
+        """
         return self._positions_snapshot()[0]
 
     def finite(self) -> bool:
-        """Return whether all solver coordinates remain finite and bounded."""
+        """Return whether all solver coordinates remain finite and bounded.
+
+        Returns:
+            True when all native particle coordinates are finite and within the configured bound.
+        """
         return self._positions_snapshot()[1]

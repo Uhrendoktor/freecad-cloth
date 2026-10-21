@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared GUI registration primitives.
 
 This module intentionally imports FreeCAD lazily so packaging/build metadata and
@@ -44,7 +45,7 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
     ):
         if Gui is not None:
             super().__init__()
-        self._gui = cast(_WorkbenchGui | None, Gui if gui is None else gui)
+        self._gui = cast("_WorkbenchGui | None", Gui if gui is None else gui)
         self._toolbar_sink = toolbar_sink
         self._menu_sink = menu_sink
         self.commands = []
@@ -126,7 +127,6 @@ class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
                 QtCore.QTimer.singleShot(0, finish_deactivation)
             except ImportError:
                 finish_deactivation()
-        return
 
     def ContextMenu(self, recipient):
         if self._gui is not None and recipient in ("view", "tree") and self.commands:

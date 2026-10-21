@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the repository-wide explicit-Any and type-check workflow policies."""
 
 from __future__ import annotations
@@ -80,7 +81,8 @@ def consume(value: object) -> bool:
 def test_parse_errors_fail_closed() -> None:
     """Do not silently skip source when the AST parser cannot read it."""
     result = explicit_any_violations("value: Any =\n", "broken.py")
-    assert result and result[0].startswith("broken.py:1: invalid Python syntax")
+    assert result
+    assert result[0].startswith("broken.py:1: invalid Python syntax")
 
 
 def test_canonical_workflow_contains_all_blocking_type_gates() -> None:

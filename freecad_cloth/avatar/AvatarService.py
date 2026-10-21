@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Stable solver-neutral interface for the parametric Cloth avatar.
 
 The service deliberately exposes derived geometry through the existing
@@ -14,7 +15,8 @@ class AvatarService:
     def __init__(self, parameters=None):
         self._parameters = parameters if parameters is not None else AvatarParameters()
         if not isinstance(self._parameters, AvatarParameters):
-            raise TypeError("AvatarService requires AvatarParameters")
+            msg = "AvatarService requires AvatarParameters"
+            raise TypeError(msg)
 
     def parameters(self):
         """Return the authoritative immutable parameter state."""

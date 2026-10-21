@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient staged creation session for semantic sewing objects.
 
 Preview creates the normal FreeCAD seam/network objects inside the same
@@ -107,7 +108,8 @@ class SewingCreationSession:
 
     def _validate_preview(self):
         if not self.created:
-            raise ValueError("Preview did not create a sewing object")
+            msg = "Preview did not create a sewing object"
+            raise ValueError(msg)
         invalid = []
         for obj in self.created:
             sewing_type = str(getattr(obj, "SewingType", ""))
@@ -158,7 +160,8 @@ class SewingCreationSession:
     def preview(self):
         """Create and validate the normal persisted objects, still uncommitted."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if self.previewed:
             self._reset_preview()
         before_names = {str(getattr(obj, "Name", "")) for obj in getattr(self.doc, "Objects", ())}
@@ -181,7 +184,8 @@ class SewingCreationSession:
     def commit(self):
         """Validate the staged objects once, then commit the document transaction."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if not self.previewed:
             self.preview()
         self.doc.recompute()
@@ -217,9 +221,11 @@ class SewingCreationTaskPanel:
     def __init__(self, kind):
         App, Gui, QtWidgets = _modules()
         if App.ActiveDocument is None:
-            raise ValueError("open a document before creating sewing")
+            msg = "open a document before creating sewing"
+            raise ValueError(msg)
         if kind not in self._TRANSACTION_NAMES:
-            raise ValueError(f"unsupported staged sewing creation: {kind}")
+            msg = f"unsupported staged sewing creation: {kind}"
+            raise ValueError(msg)
         self.App, self.Gui = App, Gui
         self.kind = kind
         self.form = QtWidgets.QWidget()
@@ -375,7 +381,12 @@ class SewingCreationTaskPanel:
         if getattr(self, "viewport_pick_button", None) is not None:
             self.viewport_pick_button.setText("Pick edges in viewport")
 
-    def _viewport_mouse_event(self, event):
+    def _viewport_mouse_event(self, event: dict[str, str | tuple[int, int]]) -> None:
+        """Handle viewport clicks and collect valid PatternPiece edge selections.
+
+        Args:
+            event: FreeCAD mouse-event fields, including button, state, and position.
+        """
         if not self._viewport_picking or self._closing:
             return
         if str(event.get("State", "")).upper() != "DOWN":
@@ -427,7 +438,12 @@ class SewingCreationTaskPanel:
                     state="success",
                 )
 
-    def _show_error(self, exc):
+    def _show_error(self, exc: Exception) -> None:
+        """Display a preview error and keep the staged creation uncommitted.
+
+        Args:
+            exc: Failure raised while preparing or validating the preview.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(
@@ -437,7 +453,12 @@ class SewingCreationTaskPanel:
         )
         self.commit_button.setEnabled(False)
 
-    def _show_status(self, text):
+    def _show_status(self, text: str) -> None:
+        """Display a successful status message and enable the commit action.
+
+        Args:
+            text: User-facing explanation of the current successful state.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(self.feedback, text, state="success")

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for native Sketcher acceptance bootstrap.
 
 The GUI acceptance relies on FreeCAD startup to register the staged workbench and does not use module-discovery flags.

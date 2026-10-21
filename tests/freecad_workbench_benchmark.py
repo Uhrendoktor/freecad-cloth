@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI entry point for the workbench benchmark."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Small adapter contract for the production PositionBasedDynamics cloth solver.
 
 FreeCAD document code depends on this boundary instead of importing PositionBasedDynamics APIs.
@@ -34,7 +35,8 @@ def _position_tuple(value: PositionInput) -> Position:
     position = value.position() if isinstance(value, PositionProvider) else value
     values = tuple(float(component) for component in position)
     if len(values) != 3:
-        raise ValueError("simulation stitch positions must be three-dimensional")
+        msg = "simulation stitch positions must be three-dimensional"
+        raise ValueError(msg)
     return (values[0], values[1], values[2])
 
 
@@ -49,16 +51,18 @@ def validate_pinned_stitch_pairs(
     normalized_positions = tuple(_position_tuple(value) for value in positions)
     pinned = frozenset(int(index) for index in pinned_indices)
     if epsilon < 0.0:
-        raise ValueError("stitch validation epsilon must be non-negative")
+        msg = "stitch validation epsilon must be non-negative"
+        raise ValueError(msg)
     candidates = ((record[0], pair) for record in tuple(seam_pair_records) for pair in record[3])
     seen: set[tuple[int, int]] = set()
     for seam_id, pair in candidates:
         a, b = int(pair[0]), int(pair[1])
         if a < 0 or b < 0 or a >= len(normalized_positions) or b >= len(normalized_positions):
-            raise ValueError(
+            msg = (
                 "stitch pair is outside the simulation particle set: "
                 f"seam={seam_id} particle_a={a} particle_b={b}"
             )
+            raise ValueError(msg)
         pair_key = (a, b)
         if pair_key in seen:
             continue
@@ -68,11 +72,12 @@ def validate_pinned_stitch_pairs(
         pa, pb = normalized_positions[a], normalized_positions[b]
         separation = sum((pa[index] - pb[index]) ** 2 for index in range(3)) ** 0.5
         if separation > epsilon:
-            raise ValueError(
+            msg = (
                 "impossible pinned-pinned sewing constraint: "
                 f"seam={seam_id} particle_a={a} particle_b={b} "
                 f"initial_separation={separation:.9f} mm"
             )
+            raise ValueError(msg)
 
 
 class ClothSimulationBackend(ABC):

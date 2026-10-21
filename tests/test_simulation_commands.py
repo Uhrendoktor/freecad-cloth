@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral tests for Simulation workbench command lifecycle helpers."""
 
 from types import SimpleNamespace
@@ -55,7 +56,8 @@ def test_require_drape_target_ready_returns_target_and_rejects_blocked_state():
     except RuntimeError as exc:
         assert str(exc) == "Drape target changed"
     else:
-        raise AssertionError("blocked drape targets must stop simulation")
+        msg = "blocked drape targets must stop simulation"
+        raise AssertionError(msg)
 
 
 def test_reset_simulation_resets_scene_and_recomputes():

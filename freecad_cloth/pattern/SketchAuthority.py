@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-native Sketcher authority adapter for Cloth PatternPiece objects.
 
 The PatternPiece remains the semantic/document object, but linked Sketcher
@@ -74,7 +75,8 @@ class SketchAuthorityProxy:
         piece_ir = _resolve_sketch_ir(obj)
         points = _sampled_outline(piece_ir)
         if len(points) < 3:
-            raise ValueError("authoritative Sketcher boundary needs at least three edges")
+            msg = "authoritative Sketcher boundary needs at least three edges"
+            raise ValueError(msg)
 
         obj.DraftingBoundary = repr(points)
         obj.SewingOutline = repr(points)

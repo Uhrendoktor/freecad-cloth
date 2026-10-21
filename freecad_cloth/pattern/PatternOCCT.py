@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD/OCCT geometry adapter for seam allowances.
 
 This module is deliberately isolated from PatternModel so the headless semantic
@@ -8,9 +9,11 @@ layer remains independent of FreeCAD.
 def _make_offset_wire(wire, distance, join_type=0):
     """Offset an existing FreeCAD wire across supported Part APIs."""
     if distance < 0:
-        raise ValueError("offset distance must be non-negative")
+        msg = "offset distance must be non-negative"
+        raise ValueError(msg)
     if not hasattr(wire, "makeOffset2D"):
-        raise RuntimeError("installed FreeCAD Part API does not expose Wire.makeOffset2D")
+        msg = "installed FreeCAD Part API does not expose Wire.makeOffset2D"
+        raise RuntimeError(msg)
     try:
         return wire.makeOffset2D(float(distance), int(join_type), False, False, True)
     except TypeError:
@@ -28,9 +31,11 @@ def offset_outline(outline, distance, join_type=0):
         import FreeCAD as App
         import Part
     except ImportError as exc:
-        raise RuntimeError("FreeCAD Part/OCCT is required for native offset geometry") from exc
+        msg = "FreeCAD Part/OCCT is required for native offset geometry"
+        raise RuntimeError(msg) from exc
     if len(outline) < 3:
-        raise ValueError("outline needs at least three points")
+        msg = "outline needs at least three points"
+        raise ValueError(msg)
     points = [App.Vector(float(x), float(y), 0.0) for x, y in outline]
     points.append(points[0])
     wire = Part.makePolygon(points)

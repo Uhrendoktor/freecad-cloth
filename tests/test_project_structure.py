@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Structural checks for the canonical Python package tree."""
 
 import ast
@@ -61,6 +62,7 @@ def test_freecad_entry_points_remain_at_root():
 
 
 def test_classic_and_modern_loaders_share_registration_implementation() -> None:
+    """Keep both FreeCAD loaders delegated to the single bootstrap registrar."""
     root = Path(__file__).resolve().parents[1]
     bootstrap = (root / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
     for path in (
@@ -77,7 +79,7 @@ def test_classic_and_modern_loaders_share_registration_implementation() -> None:
         "ClothSewingWorkbench",
     ):
         assert f'("{workbench}",' in bootstrap
-    assert bootstrap.count("Gui.addWorkbench(workbench_type())") == 1
+    assert bootstrap.count("addWorkbench(workbench_type())") == 1
 
 
 def test_shared_contract_is_freecad_independent():
@@ -369,14 +371,17 @@ def test_python_sources_do_not_import_removed_architecture_modules():
             try:
                 module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             except SyntaxError as exc:
-                raise AssertionError(f"invalid Python source {path}: {exc}") from exc
+                msg = f"invalid Python source {path}: {exc}"
+                raise AssertionError(msg) from exc
             for node in ast.walk(module):
                 imported = set()
                 if isinstance(node, ast.ImportFrom):
                     if node.module:
                         imported.add(node.module)
-                    for alias in node.names:
-                        imported.add(f"{node.module}.{alias.name}" if node.module else alias.name)
+                    imported.update(
+                        f"{node.module}.{alias.name}" if node.module else alias.name
+                        for alias in node.names
+                    )
                 elif isinstance(node, ast.Import):
                     imported.update(alias.name for alias in node.names)
                 offenders.extend(

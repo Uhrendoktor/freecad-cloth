@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -71,7 +72,8 @@ def test_invalid_shape_values_are_rejected():
         except ValueError:
             pass
         else:
-            raise AssertionError(f"invalid shape value was accepted: {changes}")
+            msg = f"invalid shape value was accepted: {changes}"
+            raise AssertionError(msg)
 
 
 def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> None:
@@ -124,7 +126,8 @@ def test_pose_round_trip_is_persistent_and_validated():
     except ValueError as exc:
         assert "unsupported avatar pose" in str(exc)
     else:
-        raise AssertionError("invalid pose was accepted")
+        msg = "invalid pose was accepted"
+        raise AssertionError(msg)
 
 
 def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope():
@@ -148,4 +151,5 @@ def test_invalid_measurements_are_rejected():
     except ValueError as exc:
         assert "underbust" in str(exc)
     else:
-        raise AssertionError("invalid circumference relationship was accepted")
+        msg = "invalid circumference relationship was accepted"
+        raise AssertionError(msg)

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
 import hashlib
@@ -25,13 +26,17 @@ class DrapeTargetSpec:
     def validate(self):
         """Validate this value and raise ValueError when its state is invalid."""
         if self.target_type not in self.VALID_TYPES:
-            raise ValueError("unsupported drape target type")
+            msg = "unsupported drape target type"
+            raise ValueError(msg)
         if not self.source_name.strip():
-            raise ValueError("drape target source must not be empty")
+            msg = "drape target source must not be empty"
+            raise ValueError(msg)
         if self.deflection <= 0:
-            raise ValueError("drape target deflection must be positive")
+            msg = "drape target deflection must be positive"
+            raise ValueError(msg)
         if self.thickness < 0:
-            raise ValueError("drape target thickness must not be negative")
+            msg = "drape target thickness must not be negative"
+            raise ValueError(msg)
 
 
 def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
@@ -102,7 +107,8 @@ def _shape_content_signature(shape):
             elif isinstance(payload, (bytes, bytearray, memoryview)):
                 payload = bytes(payload)
             else:
-                raise TypeError("BRep exporter must return text or bytes")
+                msg = "BRep exporter must return text or bytes"
+                raise TypeError(msg)
             return ("BRepHash", hashlib.sha256(payload).hexdigest())
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
@@ -250,7 +256,8 @@ def refresh_drape_target(target):
     """Provide the public refresh drape target operation."""
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise ValueError("drape target source is required")
+        msg = "drape target source is required"
+        raise ValueError(msg)
     return assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
 
 
@@ -259,11 +266,14 @@ def create_drape_target(
 ):
     """Create and return the requested drape target object."""
     if target_type not in DrapeTargetSpec.VALID_TYPES:
-        raise ValueError("unsupported drape target type")
+        msg = "unsupported drape target type"
+        raise ValueError(msg)
     if deflection <= 0 or thickness < 0:
-        raise ValueError("invalid collision tessellation or thickness")
+        msg = "invalid collision tessellation or thickness"
+        raise ValueError(msg)
     if source is None and target_type != "Mannequin":
-        raise ValueError("a FreeCAD Geometry target requires a source object")
+        msg = "a FreeCAD Geometry target requires a source object"
+        raise ValueError(msg)
     target = doc.addObject("App::FeaturePython", "DrapeTarget")
     target.Label = "Drape Target"
     for type_name, name, group in (
@@ -298,10 +308,12 @@ def create_drape_target(
 def assign_drape_target(target, source, target_type: str | None = None):
     """Provide the public assign drape target operation."""
     if source is None:
-        raise ValueError("drape target source is required")
+        msg = "drape target source is required"
+        raise ValueError(msg)
     kind = str(target_type or getattr(target, "TargetType", "FreeCAD Geometry"))
     if kind not in DrapeTargetSpec.VALID_TYPES:
-        raise ValueError("unsupported drape target type")
+        msg = "unsupported drape target type"
+        raise ValueError(msg)
     deflection = float(getattr(target, "CollisionDeflection", 1.0))
     thickness = float(getattr(target, "CollisionThickness", 0.0))
     surface = collision_surface(source, deflection, thickness)

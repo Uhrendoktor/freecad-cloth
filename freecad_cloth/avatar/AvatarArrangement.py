@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral arrangement-point metadata for the Cloth mannequin.
 
 Arrangement points are persistent fitting metadata, not solver state. They are
@@ -5,6 +6,13 @@ stored in the mannequin's local coordinate system so normal FreeCAD Placement
 continues to own world-space positioning. This provides the persistent fitting
 anchor foundation needed by later CLO-like garment placement interactions.
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ARRANGEMENT_POINT_NAMES = (
     "neck",
@@ -18,8 +26,15 @@ ARRANGEMENT_POINT_NAMES = (
 )
 
 
-def arrangement_points_from_landmarks(landmarks):
-    """Return stable ``name|x,y,z`` arrangement points from landmark records."""
+def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> list[str]:
+    """Normalize landmark records into the stable public arrangement-point order.
+
+    Args:
+        landmarks: Iterable of serialized name-and-coordinate records, if available.
+
+    Returns:
+        Valid known landmarks serialized as name|x,y,z strings in stable name order.
+    """
     by_name = {}
     for record in landmarks or ():
         try:
@@ -31,8 +46,15 @@ def arrangement_points_from_landmarks(landmarks):
     return [by_name[name] for name in ARRANGEMENT_POINT_NAMES if name in by_name]
 
 
-def arrangement_point_map(records):
-    """Return arrangement records as a name -> coordinate-string mapping."""
+def arrangement_point_map(records: Iterable[object] | None) -> dict[str, str]:
+    """Parse valid arrangement records into a coordinate lookup by point name.
+
+    Args:
+        records: Iterable of serialized name-and-coordinate records, if available.
+
+    Returns:
+        Mapping from known arrangement-point names to their coordinate strings.
+    """
     result = {}
     for record in records or ():
         try:

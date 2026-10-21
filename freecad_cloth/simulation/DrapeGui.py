@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task-panel frontend for the target-neutral drape object.
 
 The persistent DrapeTarget document object remains authoritative.  This panel

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression coverage for Pattern Design task-panel contracts."""
 
 import importlib

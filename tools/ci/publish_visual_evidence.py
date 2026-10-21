@@ -1,13 +1,13 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Publish the exact README/wiki visual asset inventory to docs/screenshots."""
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 import argparse
 import os
 import shutil
 import subprocess
 from pathlib import Path
-
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 ARTIFACT_ROOTS = (
@@ -26,12 +26,27 @@ ARTIFACT_ROOTS = (
 
 
 def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status."""
+    """Run a subprocess command and fail on a non-zero exit status.
+
+    Args:
+        args: Executable name followed by the command-line arguments to run.
+        cwd: Optional working directory in which the command should execute.
+    """
     subprocess.run(args, cwd=cwd, check=True)
 
 
 def find_asset(asset: str) -> Path:
-    """Locate a generated visual asset using deterministic artifact-root precedence."""
+    """Locate a generated visual asset using deterministic artifact-root precedence.
+
+    Args:
+        asset: Filename of the generated image or animation to locate.
+
+    Returns:
+        Path to the unique matching visual asset.
+
+    Raises:
+        SystemExit: If the asset is absent or matches multiple files in one artifact root.
+    """
     for root in ARTIFACT_ROOTS:
         if not root.is_dir():
             continue
@@ -39,12 +54,25 @@ def find_asset(asset: str) -> Path:
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
-            raise SystemExit(f"ambiguous visual asset {asset} within {root}: {matches}")
-    raise SystemExit(f"generated visual asset not found: {asset}")
+            msg = f"ambiguous visual asset {asset} within {root}: {matches}"
+            raise SystemExit(msg)
+    msg = f"generated visual asset not found: {asset}"
+    raise SystemExit(msg)
 
 
 def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
-    """Restore downloaded visual files to the layout expected by the GIF builder."""
+    """Restore downloaded visual files to the layout expected by the GIF builder.
+
+    Args:
+        kind: GIF collection identifier used to select artifact-specific normalization.
+        artifact_root: Directory containing downloaded validation files and directories.
+
+    Returns:
+        Directory containing the normalized files for the selected GIF collection.
+
+    Raises:
+        SystemExit: If normalization would overwrite an existing file or symbolic link.
+    """
     output_root = artifact_root / "docs" / "images" / "generated"
     entries = tuple(path for path in artifact_root.iterdir() if path.name != "docs")
     # upload-artifact removes the matched blanket-example/ prefix, so restore it
@@ -63,8 +91,19 @@ def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
     return normalized_root
 
 
+
 def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
-    """Build documentation GIFs from the downloaded validation artifact layout."""
+    """Normalize downloaded validation artifacts and build the selected documentation GIFs.
+
+    Args:
+        kind: GIF collection identifier accepted by the documentation asset builder.
+        artifact_root: Temporary directory containing the downloaded validation outputs.
+
+    Raises:
+        SystemExit: If normalized assets would collide with existing files.
+        CalledProcessError: If the documentation GIF builder exits with an error.
+        TimeoutExpired: If the builder exceeds its 55-second execution limit.
+    """
     normalize_visual_artifact(kind, artifact_root)
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
     subprocess.run(
@@ -74,20 +113,31 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         cwd=artifact_root,
     )
 
-
 def build_surface_pen_gif() -> None:
-    """Build a Surface Pen interaction GIF from real FreeCAD UI captures."""
+    """Build a Surface Pen interaction GIF from real FreeCAD UI captures.
+
+    Raises:
+        SystemExit: If the captured workflow does not contain exactly four frames.
+    """
     from build_visual_gifs import build, image_tool
 
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
     if len(frames) != 4:
-        raise SystemExit(f"surface-pen: expected 4 captured workflow frames, got {len(frames)}")
+        msg = f"surface-pen: expected 4 captured workflow frames, got {len(frames)}"
+        raise SystemExit(msg)
     build(image_tool(), frames, root / "surface-pen-workflow.gif", "80")
 
 
 def main() -> int:
-    """Publish and validate the repository visual evidence inventory."""
+    """Publish and validate the repository visual evidence inventory.
+
+    Raises:
+        SystemExit: If the published visual inventory does not satisfy its contract.
+
+    Returns:
+        Process status indicating that the visual evidence inventory was published and verified.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--source-sha", required=True)
@@ -189,7 +239,8 @@ def main() -> int:
         text=True,
     ).strip()
     if remote_commit != local_commit:
-        raise SystemExit(f"remote screenshot branch mismatch: {remote_commit} != {local_commit}")
+        msg = f"remote screenshot branch mismatch: {remote_commit} != {local_commit}"
+        raise SystemExit(msg)
     print(
         f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}"
     )

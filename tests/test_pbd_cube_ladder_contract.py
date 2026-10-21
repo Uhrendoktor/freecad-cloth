@@ -1,9 +1,11 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_cube_ladder_contract_is_gate_and_frozen():
+def test_cube_ladder_contract_is_gate_and_frozen() -> None:
+    """Require the collision ladder to remain a release gate with frozen evidence."""
     source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"

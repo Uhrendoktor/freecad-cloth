@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless contract checks for Cloth workbench icon assets."""
 
 import xml.etree.ElementTree as ET
@@ -40,7 +41,8 @@ def test_all_workbench_tool_commands_have_svg_icons():
         icon = Path(icon_for_command(command))
         assert icon.is_file(), command
         text = icon.read_text(encoding="utf-8")
-        assert "<svg" in text and "viewBox=" in text
+        assert "<svg" in text
+        assert "viewBox=" in text
 
 
 def test_semantically_equivalent_commands_share_canonical_icons():

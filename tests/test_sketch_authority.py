@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import math
 import sys
 from pathlib import Path
@@ -121,7 +122,8 @@ def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary():
     except ValueError as exc:
         assert "single boundary does not close" in str(exc)
     else:
-        raise AssertionError("an open single Sketcher curve must not be a cloth pattern")
+        msg = "an open single Sketcher curve must not be a cloth pattern"
+        raise AssertionError(msg)
 
 
 if __name__ == "__main__":

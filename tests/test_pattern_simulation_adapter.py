@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import math
 
 from freecad_cloth.pattern.SeamReference import (
@@ -76,11 +77,13 @@ class _Piece:
 
     @property
     def SewingOutline(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy outline")
+        msg = "Sketch-authoritative adapter accessed legacy outline"
+        raise AssertionError(msg)
 
     @property
     def DraftingBoundary(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy drafting boundary")
+        msg = "Sketch-authoritative adapter accessed legacy drafting boundary"
+        raise AssertionError(msg)
 
 
 class _LegacyPiece:
@@ -261,7 +264,8 @@ def test_sketcher_authority_without_sketch_fails_closed():
     except MissingEdgeReference as exc:
         assert "Sketch-authoritative" in str(exc)
         return
-    raise AssertionError("Sketcher authority without a Sketch must not use legacy fallback")
+    msg = "Sketcher authority without a Sketch must not use legacy fallback"
+    raise AssertionError(msg)
 
 
 def test_native_sketch_edit_with_same_semantic_id_fails_closed():
@@ -285,9 +289,8 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
     except ChangedEdgeReference:
         return
-    raise AssertionError(
-        "native Sketcher geometry changes must invalidate the simulation reference"
-    )
+    msg = "native Sketcher geometry changes must invalidate the simulation reference"
+    raise AssertionError(msg)
 
 
 def test_native_and_legacy_pieces_can_share_one_simulation_pattern():

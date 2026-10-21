@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -68,7 +69,8 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
             self.calls.append((dt, iterations, gravity, surface))
 
         def positions(self):
-            raise AssertionError("preview publication should be stubbed in this focused test")
+            msg = "preview publication should be stubbed in this focused test"
+            raise AssertionError(msg)
 
         def finite(self):
             return True

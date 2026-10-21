@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import json
 import os
 import tempfile
@@ -55,7 +56,8 @@ class HumanoidMeshTests(unittest.TestCase):
     def _write_sized_json(path: Path, payload: object, size: int) -> None:
         encoded = json.dumps(payload, separators=(",", ":"))
         if len(encoded) > size:
-            raise AssertionError("test JSON payload is larger than the expected cache size")
+            msg = "test JSON payload is larger than the expected cache size"
+            raise AssertionError(msg)
         path.write_text(encoded + " " * (size - len(encoded)), encoding="utf-8")
 
     def test_mesh_data_rejects_non_finite_vertex_coordinates(self):
@@ -326,13 +328,12 @@ class HumanoidMeshTests(unittest.TestCase):
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+            Path(path).write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
             loaded = load_makehuman_mesh(path)
             self.assertEqual(len(loaded.vertices), 3)
             self.assertEqual(loaded.triangles, ((0, 1, 2),))
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
 
 if __name__ == "__main__":

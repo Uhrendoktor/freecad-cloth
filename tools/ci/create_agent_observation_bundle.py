@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Create a compact, schema-versioned index of explicitly selected CI evidence."""
 
 from __future__ import annotations
@@ -8,9 +9,12 @@ import mimetypes
 import os
 import platform
 import sys
-from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 SCHEMA = "freecad-cloth.agent-observation"
 SCHEMA_VERSION = 1
@@ -32,7 +36,19 @@ class ObservationBundleError(ValueError):
 
 
 def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
-    """Resolve a relative path while rejecting traversal and symbolic links."""
+    """Resolve a relative path while rejecting traversal and symbolic links.
+
+    Args:
+        base: Trusted directory from which the relative path is resolved.
+        value: Untrusted relative path supplied by the workflow.
+        must_exist: Whether the resolved target must already exist.
+
+    Returns:
+        Resolved filesystem path contained beneath the trusted directory.
+
+    Raises:
+        ObservationBundleError: Raised when the path is unsafe or cannot be resolved.
+    """
     normalized = value.strip()
     relative = PurePosixPath(normalized)
     if (
@@ -42,29 +58,45 @@ def _resolve_relative_path(base: Path, value: str, *, must_exist: bool) -> Path:
         or ".." in relative.parts
         or "\\" in normalized
     ):
-        raise ObservationBundleError(f"unsafe relative path: {value!r}")
+        msg = f"unsafe relative path: {value!r}"
+        raise ObservationBundleError(msg)
 
     candidate = base.joinpath(*relative.parts)
     cursor = base
     for part in relative.parts:
         cursor = cursor / part
         if cursor.is_symlink():
-            raise ObservationBundleError(f"symbolic links are not allowed: {value!r}")
+            msg = f"symbolic links are not allowed: {value!r}"
+            raise ObservationBundleError(msg)
     try:
         resolved = candidate.resolve(strict=must_exist)
     except FileNotFoundError as exc:
-        raise ObservationBundleError(f"required evidence is missing: {value!r}") from exc
+        msg = f"required evidence is missing: {value!r}"
+        raise ObservationBundleError(msg) from exc
     except OSError as exc:
-        raise ObservationBundleError(f"cannot resolve path {value!r}: {exc}") from exc
+        msg = f"cannot resolve path {value!r}: {exc}"
+        raise ObservationBundleError(msg) from exc
     if not resolved.is_relative_to(base.resolve()):
-        raise ObservationBundleError(f"path escapes its evidence root: {value!r}")
+        msg = f"path escapes its evidence root: {value!r}"
+        raise ObservationBundleError(msg)
     if must_exist and not resolved.exists():
-        raise ObservationBundleError(f"required evidence is missing: {value!r}")
+        msg = f"required evidence is missing: {value!r}"
+        raise ObservationBundleError(msg)
     return resolved
 
 
 def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]]:
-    """Parse explicit role=path lines and reject unsupported evidence roles."""
+    """Parse explicit role=path lines and reject unsupported evidence roles.
+
+    Args:
+        specifications: Lines declaring evidence roles and relative paths.
+
+    Returns:
+        Parsed role and relative-path pairs in their original order.
+
+    Raises:
+        ObservationBundleError: Raised when an entry uses an unsupported role or path.
+    """
     parsed: list[tuple[str, str]] = []
     seen: set[str] = set()
     for raw_line in specifications:
@@ -75,31 +107,40 @@ def _parse_evidence_specs(specifications: Sequence[str]) -> list[tuple[str, str]
         role = role.strip()
         relative_path = relative_path.strip()
         if not separator or role not in ROLE_SUFFIXES or not relative_path:
-            raise ObservationBundleError(
-                "evidence entries must use an allowed role=relative/path form"
-            )
+            msg = "evidence entries must use an allowed role=relative/path form"
+            raise ObservationBundleError(msg)
         path = PurePosixPath(relative_path)
         if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in relative_path:
-            raise ObservationBundleError(f"unsafe evidence path: {relative_path!r}")
+            msg = f"unsafe evidence path: {relative_path!r}"
+            raise ObservationBundleError(msg)
         normalized_path = path.as_posix()
         if normalized_path in seen:
-            raise ObservationBundleError(f"duplicate evidence path: {normalized_path!r}")
+            msg = f"duplicate evidence path: {normalized_path!r}"
+            raise ObservationBundleError(msg)
         if path.suffix.lower() not in ROLE_SUFFIXES[role]:
-            raise ObservationBundleError(
-                f"unsupported evidence extension for role {role!r}: {normalized_path!r}"
-            )
+            msg = f"unsupported evidence extension for role {role!r}: {normalized_path!r}"
+            raise ObservationBundleError(msg)
         seen.add(normalized_path)
         parsed.append((role, normalized_path))
 
     if not parsed:
-        raise ObservationBundleError("at least one explicit evidence file is required")
+        msg = "at least one explicit evidence file is required"
+        raise ObservationBundleError(msg)
     if len(parsed) > MAX_EVIDENCE_FILES:
-        raise ObservationBundleError(f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit")
+        msg = f"evidence count exceeds the {MAX_EVIDENCE_FILES}-file limit"
+        raise ObservationBundleError(msg)
     return parsed
 
 
 def _sha256(path: Path) -> str:
-    """Hash a file incrementally to keep peak memory usage small."""
+    """Hash a file incrementally to keep peak memory usage small.
+
+    Args:
+        path: File whose content should be hashed.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest of the file.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -108,7 +149,14 @@ def _sha256(path: Path) -> str:
 
 
 def _media_type(path: Path) -> str:
-    """Return a stable content type for common FreeCAD evidence files."""
+    """Return a stable content type for common FreeCAD evidence files.
+
+    Args:
+        path: Evidence file whose extension and name determine the media type.
+
+    Returns:
+        Best-supported media type, or the generic binary content type.
+    """
     known = {
         ".fcstd": "application/x-freecad-document",
         ".stl": "model/stl",
@@ -125,7 +173,14 @@ def _media_type(path: Path) -> str:
 
 
 def _integer_or_none(value: str | None) -> int | None:
-    """Convert an optional integer context field without failing the export."""
+    """Convert an optional integer context field without failing the export.
+
+    Args:
+        value: Optional text value expected to contain an integer.
+
+    Returns:
+        Parsed integer, or None when the field is absent or invalid.
+    """
     if not value:
         return None
     try:
@@ -135,7 +190,14 @@ def _integer_or_none(value: str | None) -> int | None:
 
 
 def _pull_request_number(environment: Mapping[str, str]) -> int | None:
-    """Read only the pull-request number from the GitHub event payload."""
+    """Read only the pull-request number from the GitHub event payload.
+
+    Args:
+        environment: Environment variables provided by the current workflow.
+
+    Returns:
+        Pull-request number from the event payload, or None when unavailable.
+    """
     event_path = environment.get("GITHUB_EVENT_PATH", "").strip()
     if not event_path:
         return None
@@ -159,17 +221,31 @@ def create_observation_bundle(
     label: str,
     environment: Mapping[str, str],
 ) -> dict[str, object]:
-    """Write the observation manifest and return its schema-versioned payload."""
+    """Write the observation manifest and return its schema-versioned payload.
+
+    Args:
+        workspace: Trusted repository workspace used for resolving evidence paths.
+        observation_root: Relative directory containing permitted evidence files.
+        specifications: Role and path declarations for the files to include.
+        label: Human-readable label attached to the observation bundle.
+        environment: Workflow environment used to record execution metadata.
+
+    Returns:
+        Schema-versioned observation manifest ready for JSON serialization.
+
+    Raises:
+        ObservationBundleError: Raised when the root or evidence declarations are invalid.
+    """
     workspace = workspace.resolve()
     root = _resolve_relative_path(workspace, observation_root, must_exist=True)
     if not root.is_dir():
-        raise ObservationBundleError("observation-root must be an existing directory")
+        msg = "observation-root must be an existing directory"
+        raise ObservationBundleError(msg)
 
     output = _resolve_relative_path(root, "agent-observation.json", must_exist=False)
     if len(label) > 160 or "\n" in label or "\r" in label:
-        raise ObservationBundleError(
-            "observation-label must be a single line of at most 160 characters"
-        )
+        msg = "observation-label must be a single line of at most 160 characters"
+        raise ObservationBundleError(msg)
 
     parsed = _parse_evidence_specs(specifications)
     resolved_evidence: list[tuple[str, str, Path, int]] = []
@@ -177,19 +253,18 @@ def create_observation_bundle(
     for role, relative_path in parsed:
         path = _resolve_relative_path(root, relative_path, must_exist=True)
         if path == output or not path.is_file():
-            raise ObservationBundleError(f"evidence must be a regular file: {relative_path!r}")
+            msg = f"evidence must be a regular file: {relative_path!r}"
+            raise ObservationBundleError(msg)
         size_bytes = path.stat().st_size
         if size_bytes > MAX_EVIDENCE_FILE_BYTES:
-            raise ObservationBundleError(
-                f"evidence file exceeds {MAX_EVIDENCE_FILE_BYTES} bytes: {relative_path!r}"
-            )
+            msg = f"evidence file exceeds {MAX_EVIDENCE_FILE_BYTES} bytes: {relative_path!r}"
+            raise ObservationBundleError(msg)
         total_bytes += size_bytes
         resolved_evidence.append((role, relative_path, path, size_bytes))
 
     if total_bytes > MAX_EVIDENCE_BYTES:
-        raise ObservationBundleError(
-            f"selected evidence totals {total_bytes} bytes; limit is {MAX_EVIDENCE_BYTES}"
-        )
+        msg = f"selected evidence totals {total_bytes} bytes; limit is {MAX_EVIDENCE_BYTES}"
+        raise ObservationBundleError(msg)
 
     evidence: list[dict[str, object]] = []
     for role, relative_path, path, size_bytes in resolved_evidence:
@@ -211,7 +286,7 @@ def create_observation_bundle(
     manifest: dict[str, object] = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
-        "created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "label": label.strip() or None,
         "context": {
             "repository": repository,
@@ -246,7 +321,11 @@ def create_observation_bundle(
 
 
 def main() -> int:
-    """Generate an observation manifest when the opt-in action inputs are configured."""
+    """Generate an observation manifest when the opt-in action inputs are configured.
+
+    Returns:
+        Process status indicating whether observation export was completed.
+    """
     environment = os.environ
     if not environment.get("OBSERVATION_ARTIFACT_NAME", "").strip():
         print("agent observation export requires artifact-name to be set", file=sys.stderr)

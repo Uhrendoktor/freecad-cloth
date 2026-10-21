@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the repository's single-source CI configuration contracts."""
 
 import json
@@ -211,7 +212,8 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     except RuntimeError as exc:
         assert "Dockerfile content missing" in str(exc)
     else:
-        raise AssertionError("missing protected Dockerfile content must fail closed")
+        msg = "missing protected Dockerfile content must fail closed"
+        raise AssertionError(msg)
 
 
 def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> None:
@@ -231,7 +233,8 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         requested_endpoints.append(endpoint)
         if endpoint == "user/packages/container/freecad-cloth%2Fpbd-validation/versions":
             return iter([])
-        raise AssertionError(f"unexpected package API endpoint: {endpoint}")
+        msg = f"unexpected package API endpoint: {endpoint}"
+        raise AssertionError(msg)
 
     def fake_delete(*args: str) -> None:
         deleted_arguments.append(args)
@@ -300,7 +303,8 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
     def fake_load_items(requested_endpoint: str) -> Iterator[dict[str, object]]:
         endpoints.append(requested_endpoint)
         if requested_endpoint != endpoint:
-            raise AssertionError(f"unexpected package API endpoint: {requested_endpoint}")
+            msg = f"unexpected package API endpoint: {requested_endpoint}"
+            raise AssertionError(msg)
         return iter(
             [
                 {
@@ -460,7 +464,8 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     except RuntimeError as exc:
         assert "commit activity missing" in str(exc)
     else:
-        raise AssertionError("missing branch activity must fail closed")
+        msg = "missing branch activity must fail closed"
+        raise AssertionError(msg)
 
 
 def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:

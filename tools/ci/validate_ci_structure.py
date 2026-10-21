@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate the repository CI structure and hard runtime contracts."""
 
 from __future__ import annotations
@@ -112,19 +113,39 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
 
     Exact-line matching is intentional: a failing command inside an AND chain
     can be exempt from Bash errexit handling, allowing CI to continue.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Required blocking type-check commands absent as standalone lines.
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required repository Python policy gates missing from the canonical workflow."""
+    """Return required repository Python policy gates missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Python policy commands that are missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
 
 
 def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Require the blocking source-rewriting prohibition in the canonical workflow."""
+    """Require the blocking source-rewriting prohibition in the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Source-rewriting policy commands missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(
         command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
@@ -132,15 +153,48 @@ def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, .
 
 
 def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
-    """Require policy regression tests in the blocking pytest step."""
+    """Require policy regression tests in the blocking pytest step.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Whether the policy regression test is run by a blocking test command.
+    """
     return any(
         "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
         for line in workflow_text.splitlines()
     )
 
 
+def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
+    """Return required standalone Ruff commands missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Ruff commands that are absent as standalone shell lines.
+    """
+    command_lines: set[str] = set()
+    for line in workflow_text.splitlines():
+        command = line.strip()
+        if command.startswith("run: "):
+            command = command.removeprefix("run: ").strip()
+        command_lines.add(command)
+    return tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+
+
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
-    """Return whether a source path is covered by one include entry."""
+    """Return whether a source path is covered by one include entry.
+
+    Args:
+        path: Repository-relative source path being checked.
+        include: Pyright include entries that define the checked scope.
+
+    Returns:
+        Whether an include entry covers the supplied source path.
+    """
     normalized = Path(path).as_posix()
     for entry in include:
         target = Path(entry).as_posix()
@@ -152,12 +206,27 @@ def _pyright_path_is_included(path: str, include: list[str]) -> bool:
 
 
 def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
-    """Return whether a source path is covered by a declared exclusion pattern."""
+    """Return whether a source path is covered by a declared exclusion pattern.
+
+    Args:
+        path: Repository-relative source path being checked.
+        exclude: Pyright exclusion patterns to compare against the path.
+
+    Returns:
+        Whether any exclusion pattern matches the source path.
+    """
     return any(fnmatch.fnmatchcase(Path(path).as_posix(), pattern) for pattern in exclude)
 
 
 def added_production_python_modules(base: str) -> tuple[str, ...]:
-    """Find new production Python modules added relative to a pull request base."""
+    """Find new production Python modules added relative to a pull request base.
+
+    Args:
+        base: Target branch used as the comparison base.
+
+    Returns:
+        Newly added production Python module paths.
+    """
     result = subprocess.run(
         [
             "git",
@@ -188,6 +257,13 @@ def pyright_coverage_contract_violations(
     Semantic coverage is widened incrementally; changing the scope requires an
     explicit inventory update alongside diagnostic triage. Every changed Python
     file is independently subject to the annotation-debt non-regression gate.
+
+    Args:
+        config_text: Contents of the Pyright configuration file.
+        added_modules: Newly added production modules to verify against the scope.
+
+    Returns:
+        Pyright coverage-contract violations found in the configuration.
     """
     try:
         config = json.loads(config_text)
@@ -218,7 +294,14 @@ def pyright_coverage_contract_violations(
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
-    """Return whether ty is configured to fail when it emits warnings."""
+    """Return whether ty is configured to fail when it emits warnings.
+
+    Args:
+        config_text: TOML configuration consumed by the ty type checker.
+
+    Returns:
+        Whether warning diagnostics are configured to fail the command.
+    """
     try:
         config = tomllib.loads(config_text)
     except tomllib.TOMLDecodeError:
@@ -228,23 +311,29 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
 
 
 def main() -> int:
-    """Validate the repository CI structure and hard runtime contracts."""
+    """Validate the repository CI structure and hard runtime contracts.
+
+    Raises:
+        SystemExit: Raised when a required workflow or type-check gate is missing.
+
+    Returns:
+        Process status indicating whether the CI structure is valid.
+    """
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
-        raise SystemExit(
-            f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
-        )
+        msg = f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
+        raise SystemExit(msg)
     text = WORKFLOW.read_text(encoding="utf-8")
     lines = text.splitlines()
     if len(lines) > 750:
-        raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
+        msg = f"reusable workflow is {len(lines)} lines; limit is 750"
+        raise SystemExit(msg)
     trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
-        raise SystemExit(
-            "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
-        )
+        msg = "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+        raise SystemExit(msg)
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
@@ -268,17 +357,15 @@ def main() -> int:
         or "name: Required pre-merge validation" not in merge_workflow
         or "pull_request:" in merge_workflow
     ):
-        raise SystemExit(
-            "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
-        )
+        msg = "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
+        raise SystemExit(msg)
     if (
         "push:" not in publication_workflow
         or "branches: [main]" not in publication_workflow
         or "execution_mode: publication" not in publication_workflow
     ):
-        raise SystemExit(
-            "main-publication.yml must be main-only and call canonical publication mode"
-        )
+        msg = "main-publication.yml must be main-only and call canonical publication mode"
+        raise SystemExit(msg)
     if (
         "Required validation gate" not in text
         or "No successful full-validation run matched source tree" not in text
@@ -286,13 +373,14 @@ def main() -> int:
         or "Explicit full validation / Required validation gate" not in text
         or "Required pre-merge validation" not in merge_workflow
     ):
-        raise SystemExit(
-            "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
-        )
+        msg = "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
+        raise SystemExit(msg)
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
-        raise SystemExit("concurrency belongs to entry workflows, not the shared reusable workflow")
+        msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
+        raise SystemExit(msg)
     if "pull_request_target" in text:
-        raise SystemExit("pull_request_target is forbidden")
+        msg = "pull_request_target is forbidden"
+        raise SystemExit(msg)
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
@@ -306,21 +394,20 @@ def main() -> int:
             + ", ".join(missing_python_policies)
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
-        raise SystemExit(
-            "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
-        )
+        msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
+        raise SystemExit(msg)
     try:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise SystemExit("pyrightconfig.json must be valid JSON") from error
+        msg = "pyrightconfig.json must be valid JSON"
+        raise SystemExit(msg) from error
     if pyright_config.get("typeCheckingMode") != "standard":
-        raise SystemExit(
-            "pyrightconfig.json must use a standard baseline with a focused strict path list"
-        )
+        msg = "pyrightconfig.json must use a standard baseline with a focused strict path list"
+        raise SystemExit(msg)
     if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
-        raise SystemExit("pyrightconfig.json strict paths must match the reviewed core inventory")
-    command_lines = {line.strip() for line in text.splitlines()}
-    missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+        msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
+        raise SystemExit(msg)
+    missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
         raise SystemExit(
             "canonical workflow must run Ruff over every tracked Python file: "
@@ -337,32 +424,36 @@ def main() -> int:
             + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
-        raise SystemExit("ty.toml must set [terminal].error-on-warning = true")
+        msg = "ty.toml must set [terminal].error-on-warning = true"
+        raise SystemExit(msg)
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
-        raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
+        msg = "Docker lifecycle belongs in .github/actions/freecad-container"
+        raise SystemExit(msg)
     if (
         "uses: ./.github/actions/freecad-test" not in text
         and "uses: $/.github/actions/freecad-test" not in text
         and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in text
     ):
-        raise SystemExit("canonical workflow must use freecad-test")
+        msg = "canonical workflow must use freecad-test"
+        raise SystemExit(msg)
     for path in REQUIRED:
         if not path.is_file():
-            raise SystemExit(f"missing required CI component: {path}")
+            msg = f"missing required CI component: {path}"
+            raise SystemExit(msg)
     pbd_action = (ROOT / ".github/actions/pbd-image/action.yml").read_text(encoding="utf-8")
     if (
         "upload-artifact" in pbd_action
         or "docker save" in pbd_action
         or "pbd-validation-image" in pbd_action
     ):
-        raise SystemExit("PBD validation image must never be serialized as a workflow artifact")
+        msg = "PBD validation image must never be serialized as a workflow artifact"
+        raise SystemExit(msg)
     container_action = (ROOT / ".github/actions/freecad-container/action.yml").read_text(
         encoding="utf-8"
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
-        raise SystemExit(
-            "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
-        )
+        msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
+        raise SystemExit(msg)
     ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
@@ -377,24 +468,27 @@ def main() -> int:
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
             ):
-                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+                msg = f"CI action is not pinned to a full SHA: {ci_file}: {value}"
+                raise SystemExit(msg)
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
             if int(match.group(1)) > 180:
-                raise SystemExit(
-                    f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
-                )
+                msg = f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
+                raise SystemExit(msg)
 
     if "180s" not in container_action or "timeout-seconds" not in container_action:
-        raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
+        msg = "FreeCAD container action must retain its 180-second pull contract"
+        raise SystemExit(msg)
     freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
     if (
         'default: "120"' not in freecad
         or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad
     ):
-        raise SystemExit("freecad-test must pass its default-120 timeout to the container action")
+        msg = "freecad-test must pass its default-120 timeout to the container action"
+        raise SystemExit(msg)
     if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad:
-        raise SystemExit("freecad-test must scope non-default budgets to the FreeCAD process")
+        msg = "freecad-test must scope non-default budgets to the FreeCAD process"
+        raise SystemExit(msg)
     print(f"ci-structure=passed workflow_lines={len(lines)}")
     return 0
 

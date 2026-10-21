@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
 from types import SimpleNamespace
@@ -10,8 +11,18 @@ from tests.support.pbd_contact_helpers import nearest_surface_distance
 def test_surface_distance_fallback_uses_spatial_index():
     """Missing exact point-to-triangle queries must not fall back to a quadratic Python loop."""
 
-    def unavailable(*_args, **_kwargs):
-        raise RuntimeError("surface query backend unavailable")
+    def unavailable(*_args: object, **_kwargs: object) -> None:
+        """Simulate an unavailable query so spatial-index fallback behavior is tested.
+
+        Args:
+            _args: Positional query arguments, intentionally ignored.
+            _kwargs: Keyword query options, intentionally ignored.
+
+        Raises:
+            RuntimeError: Always, to force the spatial-index fallback path.
+        """
+        msg = "surface query backend unavailable"
+        raise RuntimeError(msg)
 
     vertices = tuple((float(index), 0.0, 0.0) for index in range(5000))
     garment_points = tuple((float(index), 0.0, 5.0) for index in range(5000))

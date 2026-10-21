@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Neutral deterministic seam presentation helpers."""
 
 from collections.abc import Callable, Iterable
@@ -35,7 +36,8 @@ def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
     """Return a stable presentation color derived only from semantic seam identity."""
     identity = str(seam_id).strip()
     if not identity:
-        raise ValueError("seam identity must not be empty")
+        msg = "seam identity must not be empty"
+        raise ValueError(msg)
     digest = sha512(identity.encode("utf-8")).digest()
     hue = int.from_bytes(digest[44:52], "big") / _SEAM_COLOR_HASH_SCALE
     rgb = hsv_to_rgb(hue, _SEAM_COLOR_SATURATION, _SEAM_COLOR_VALUE)
@@ -46,7 +48,8 @@ def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, 
     """Return deterministic seam colors keyed only by non-empty semantic IDs."""
     identities = [str(seam_id).strip() for seam_id in seam_ids]
     if any(not identity for identity in identities):
-        raise ValueError("seam identity must not be empty")
+        msg = "seam identity must not be empty"
+        raise ValueError(msg)
     ids = sorted(set(identities))
     return {seam_id: _seam_color_for_id(seam_id) for seam_id in ids}
 
