@@ -770,6 +770,212 @@ def cleanup_pbd_package_versions(
         return result
 
 
+def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str]]:
+    """Collect the branch names and commit SHAs protected by open pull requests.
+
+    Args:
+        repo: Full owner/repository name queried through GitHub.
+
+    Returns:
+        Open head branch names and commit SHAs used by those pull requests.
+    """
+    pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
+    open_heads: set[str] = set()
+    protected_shas: set[str] = set()
+    for pull_request in pull_requests:
+        head = pull_request.get("head")
+        if isinstance(head, dict):
+            ref, sha = head.get("ref"), head.get("sha")
+            if isinstance(ref, str):
+                open_heads.add(ref)
+            if isinstance(sha, str):
+                protected_shas.add(sha)
+    return open_heads, protected_shas
+
+
+def _default_branch_for_repo(repo: str) -> str:
+    """Resolve the repository's declared default branch or fail closed.
+
+    Args:
+        repo: Full owner/repository name queried through GitHub.
+
+    Returns:
+        The verified default branch name.
+
+    Raises:
+        TypeError: If the response does not include a string default branch.
+    """
+    repository_data = gh_json("api", f"repos/{repo}")
+    default_branch = (
+        repository_data.get("default_branch") if isinstance(repository_data, dict) else None
+    )
+    if not isinstance(default_branch, str):
+        msg = "GitHub repository metadata omitted the default branch"
+        raise TypeError(msg)
+    return default_branch
+
+
+def _branch_head_shas(
+    branches: list[dict[str, object]],
+    open_heads: set[str],
+    default_branch: str,
+) -> set[str]:
+    """Collect deletable branch head SHAs before querying activity dates.
+
+    Args:
+        branches: Branch records returned by GitHub.
+        open_heads: Branch names used by open pull requests.
+        default_branch: Branch name that must never be selected for deletion.
+
+    Returns:
+        Full commit SHAs for unprotected candidate branch heads.
+    """
+    branch_shas: set[str] = set()
+    for branch in branches:
+        name = branch.get("name")
+        commit = branch.get("commit")
+        if (
+            not isinstance(name, str)
+            or name.startswith("simulation-evidence/")
+            or name == default_branch
+            or name in open_heads
+            or branch.get("protected") is not False
+        ):
+            continue
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if isinstance(sha, str):
+            branch_shas.add(sha)
+    return branch_shas
+
+
+def _cleanup_stale_branches(
+    repo: str,
+    open_heads: set[str],
+    default_branch: str,
+    branch_cutoff: float,
+) -> tuple[int, int, int]:
+    """Verify, select, and delete the bounded set of stale branch refs.
+
+    Args:
+        repo: Full owner/repository name queried through GitHub.
+        open_heads: Branch names used by open pull requests.
+        default_branch: Branch name that must never be selected for deletion.
+        branch_cutoff: Unix timestamp before which a branch is considered stale.
+
+    Returns:
+        Number of branches seen, deleted branches, and stale branches still pending.
+
+    Raises:
+        TypeError: If a selected branch is missing its name.
+    """
+    branches = list(paginated_api_items(f"repos/{repo}/branches"))
+    branch_shas = _branch_head_shas(branches, open_heads, default_branch)
+    # Resolve all candidate activity before deleting anything; incomplete GraphQL data
+    # aborts the branch pass instead of treating an unknown branch as stale.
+    activity_epochs = branch_activity_epochs(repo, branch_shas)
+    lookup = ClosedPullRequestLookup(
+        repo=repo,
+        open_heads=open_heads,
+        default_branch=default_branch,
+        activity_epochs=activity_epochs,
+        cutoff_epoch=branch_cutoff,
+    )
+    closed_pr_heads = closed_pr_head_shas_by_branch(branches, lookup)
+    retention = BranchRetentionPolicy(
+        activity_epochs=activity_epochs,
+        cutoff_epoch=branch_cutoff,
+        closed_pr_head_shas=closed_pr_heads,
+    )
+    stale_branches = stale_unprotected_branches(
+        branches, open_heads, default_branch, retention
+    )
+    selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
+    removed_branches = 0
+    for branch in selected_branches:
+        name = branch.get("name")
+        if not isinstance(name, str):
+            msg = "GitHub returned a stale branch without a name"
+            raise TypeError(msg)
+        gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
+        removed_branches += 1
+    return len(branches), removed_branches, len(stale_branches) - len(selected_branches)
+
+
+def _cleanup_stale_completed_runs(
+    repo: str, run_cutoff: float
+) -> tuple[list[dict[str, object]], int, int]:
+    """Delete a bounded set of old completed workflow runs.
+
+    Args:
+        repo: Full owner/repository name queried through GitHub.
+        run_cutoff: Unix timestamp before which a completed run is stale.
+
+    Returns:
+        All completed runs, deleted-run count, and stale runs still pending.
+
+    Raises:
+        TypeError: If a selected completed run is missing its integer ID.
+    """
+    runs = list(
+        paginated_api_items(
+            f"repos/{repo}/actions/runs?status=completed", collection_key="workflow_runs"
+        )
+    )
+    stale_runs = stale_completed_runs(runs, run_cutoff)
+    selected_runs = stale_runs[:MAX_RUN_DELETIONS_PER_RUN]
+    for run in selected_runs:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            msg = "GitHub returned a completed workflow run without an integer ID"
+            raise TypeError(msg)
+        gh_delete("api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}")
+    pending = len(stale_runs) - len(selected_runs)
+    return runs, len(selected_runs), pending
+
+
+def _protected_package_shas(
+    repo: str,
+    protected_shas: set[str],
+    completed_runs: list[dict[str, object]],
+    run_cutoff: float,
+) -> set[str]:
+    """Collect image tags' protected commits from main and active or retained runs.
+
+    Args:
+        repo: Full owner/repository name queried through GitHub.
+        protected_shas: Commit SHAs already protected by open pull requests.
+        completed_runs: Completed workflow run records used for retention.
+        run_cutoff: Unix timestamp for the active completed-run retention window.
+
+    Returns:
+        Protected commit SHAs, including main and active or retained run heads.
+    """
+    protected = set(protected_shas)
+    main_ref = gh_json("api", f"repos/{repo}/git/ref/heads/main")
+    if isinstance(main_ref, dict):
+        main_object = main_ref.get("object")
+        main_sha = main_object.get("sha") if isinstance(main_object, dict) else None
+        if isinstance(main_sha, str):
+            protected.add(main_sha)
+    for run in completed_runs:
+        created_at, sha = run.get("created_at"), run.get("head_sha")
+        if (
+            isinstance(created_at, str)
+            and epoch(created_at) >= run_cutoff
+            and isinstance(sha, str)
+        ):
+            protected.add(sha)
+    for status in ACTIVE_RUN_STATUSES:
+        active_runs = paginated_api_items(
+            f"repos/{repo}/actions/runs?status={status}", collection_key="workflow_runs"
+        )
+        for run in active_runs:
+            sha = run.get("head_sha")
+            if isinstance(sha, str):
+                protected.add(sha)
+    return protected
+
+
 def main() -> int:
     """Run repository retention cleanup and report a non-secret summary.
 
@@ -786,105 +992,25 @@ def main() -> int:
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
-    run_cutoff = (now - timedelta(days=30)).timestamp()
-
-    pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
-    open_heads: set[str] = set()
-    protected_shas: set[str] = set()
-    for pull_request in pull_requests:
-        head = pull_request.get("head")
-        if isinstance(head, dict):
-            ref, sha = head.get("ref"), head.get("sha")
-            if isinstance(ref, str):
-                open_heads.add(ref)
-            if isinstance(sha, str):
-                protected_shas.add(sha)
-
-    repository_data = gh_json("api", f"repos/{repo}")
-    default_branch = (
-        repository_data.get("default_branch") if isinstance(repository_data, dict) else None
+    run_cutoff = (now - timedelta(days=RUN_RETENTION_DAYS)).timestamp()
+    open_heads, protected_shas = _open_pull_request_refs(repo)
+    default_branch = _default_branch_for_repo(repo)
+    branches_seen, removed_branches, stale_branches_pending = _cleanup_stale_branches(
+        repo, open_heads, default_branch, branch_cutoff
     )
-    if not isinstance(default_branch, str):
-        msg = "GitHub repository metadata omitted the default branch"
-        raise TypeError(msg)
-
-    branches = list(paginated_api_items(f"repos/{repo}/branches"))
-    branch_shas: set[str] = set()
-    for branch in branches:
-        name = branch.get("name")
-        commit = branch.get("commit")
-        if (
-            not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
-            or name in open_heads
-            or branch.get("protected") is not False
-        ):
-            continue
-        sha = commit.get("sha") if isinstance(commit, dict) else None
-        if isinstance(sha, str):
-            branch_shas.add(sha)
-
-    # Resolve all candidate activity before deleting anything; incomplete GraphQL data
-    # aborts the branch pass instead of treating an unknown branch as stale.
-    activity_epochs = branch_activity_epochs(repo, branch_shas)
-    closed_pr_heads = closed_pr_head_shas_by_branch(
-        repo, branches, open_heads, default_branch, activity_epochs, branch_cutoff
+    completed_runs, removed_runs, stale_runs_pending = _cleanup_stale_completed_runs(
+        repo, run_cutoff
     )
-    stale_branches = stale_unprotected_branches(
-        branches, open_heads, default_branch, activity_epochs, branch_cutoff, closed_pr_heads
+    protected_shas = _protected_package_shas(
+        repo, protected_shas, completed_runs, run_cutoff
     )
-    selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
-    removed_branches = 0
-    for branch in selected_branches:
-        name = branch.get("name")
-        if not isinstance(name, str):
-            msg = "GitHub returned a stale branch without a name"
-            raise TypeError(msg)
-        gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
-        removed_branches += 1
-
-    runs = list(
-        paginated_api_items(
-            f"repos/{repo}/actions/runs?status=completed", collection_key="workflow_runs"
-        )
-    )
-    stale = stale_completed_runs(runs, run_cutoff)
-    selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
-    for run in selected:
-        run_id = run.get("id")
-        if not isinstance(run_id, int):
-            msg = "GitHub returned a completed workflow run without an integer ID"
-            raise TypeError(msg)
-        gh_delete("api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}")
-
-    # Images used by the current main branch, open PRs, or retained/active runs are protected.
-    main_ref = gh_json("api", f"repos/{repo}/git/ref/heads/main")
-    if isinstance(main_ref, dict):
-        main_object = main_ref.get("object")
-        main_sha = main_object.get("sha") if isinstance(main_object, dict) else None
-        if isinstance(main_sha, str):
-            protected_shas.add(main_sha)
-    for run in runs:
-        created_at, sha = run.get("created_at"), run.get("head_sha")
-        if isinstance(created_at, str) and epoch(created_at) >= run_cutoff and isinstance(sha, str):
-            protected_shas.add(sha)
-    for status in ("queued", "in_progress", "requested", "waiting"):
-        active_runs = paginated_api_items(
-            f"repos/{repo}/actions/runs?status={status}", collection_key="workflow_runs"
-        )
-        for run in active_runs:
-            sha = run.get("head_sha")
-            if isinstance(sha, str):
-                protected_shas.add(sha)
-
     package_result = cleanup_pbd_package_versions(repo, protected_shas, run_cutoff)
     sys.stdout.write(
         "maintenance-cleanup=passed "
-        f"branches_seen={len(branches)} "
+        f"branches_seen={branches_seen} "
         f"removed_branches={removed_branches} "
-        f"stale_branches_pending={len(stale_branches) - len(selected_branches)} "
-        f"removed_runs={len(selected)} stale_runs_pending={len(stale) - len(selected)} "
+        f"stale_branches_pending={stale_branches_pending} "
+        f"removed_runs={removed_runs} stale_runs_pending={stale_runs_pending} "
         f"package_cleanup={package_result['status']} "
         f"package_versions_seen={package_result['versions_seen']} "
         f"removed_package_versions={package_result['deleted']} "
