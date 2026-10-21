@@ -80,8 +80,7 @@ def paginated_api_items(
         Individual object records returned by the API.
 
     Raises:
-        ValueError: Raised when the requested page size is not positive.
-        RuntimeError: If an API request fails.
+        ValueError: If the requested page size is not positive.
         TypeError: If an API response has an unexpected type.
     """
     if page_size <= 0:
@@ -595,7 +594,6 @@ def main() -> int:
         Zero after the retention pass completes, including recoverable package-cleanup errors.
 
     Raises:
-        RuntimeError: If repository metadata or resource identifiers cannot be verified.
         TypeError: If GitHub returns response data with an unexpected type.
     """
     repo = os.environ["REPO"]
