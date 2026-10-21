@@ -14,7 +14,14 @@ def _qt():
 
 
 def _scene(doc):
-    """Return the authoritative cloth simulation object used by diagnostics."""
+    """Find the authoritative cloth simulation object in a FreeCAD document.
+
+    Args:
+        doc: Active or stored FreeCAD document to inspect.
+
+    Returns:
+        The canonical cloth simulation object, or None when no scene exists.
+    """
     return next(
         (
             obj
@@ -133,7 +140,14 @@ def create_diagnostic_map(scene, metric="stress"):
 
 
 class DiagnosticsTaskPanel:
+    """FreeCAD task panel for displaying and exporting cloth diagnostics."""
+
     def __init__(self, scene):
+        """Initialize metric selection, status display, and task-panel controls.
+
+        Args:
+            scene: Authoritative cloth simulation object being inspected.
+        """
         _App, _Gui, QtWidgets = _qt()
         self.scene = scene
         self.form = QtWidgets.QWidget()
@@ -169,6 +183,7 @@ class DiagnosticsTaskPanel:
         apply_panel_style(self.form)
 
     def refresh(self):
+        """Refresh metric availability, aggregate values, and status messaging."""
         from freecad_cloth.common.UiDesign import set_status
 
         try:
