@@ -91,7 +91,6 @@ def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
     return normalized_root
 
 
-
 def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
     """Normalize downloaded validation artifacts and build the selected documentation GIFs.
 
@@ -112,6 +111,7 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         timeout=55,
         cwd=artifact_root,
     )
+
 
 def build_surface_pen_gif() -> None:
     """Build a Surface Pen interaction GIF from real FreeCAD UI captures.
