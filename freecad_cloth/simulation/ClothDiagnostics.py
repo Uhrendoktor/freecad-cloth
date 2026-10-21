@@ -98,7 +98,21 @@ def _safe_strain(current: float, rest: float) -> float:
     return current / rest - 1.0
 
 
-def _average_edge_strain(rest_vertices, current_vertices, tri: Triangle) -> float:
+def _average_edge_strain(
+    rest_vertices: Sequence[Point3],
+    current_vertices: Sequence[Point3],
+    tri: Triangle,
+) -> float:
+    """Average safe relative edge strain across one triangular face.
+
+    Args:
+        rest_vertices: Reference mesh coordinates indexed by the triangle vertices.
+        current_vertices: Current mesh coordinates with the same indexing as the reference.
+        tri: Three vertex indices that define the face being measured.
+
+    Returns:
+        Mean of the three relative edge-length changes computed by the safe strain helper.
+    """
     rest = _triangle_edges(rest_vertices, tri)
     current = _triangle_edges(current_vertices, tri)
     return sum(_safe_strain(c, r) for r, c in zip(rest, current, strict=False)) / 3.0
@@ -110,6 +124,14 @@ def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
     A score of 1 means the measured clearance equals ``ideal``; it falls
     linearly to zero at ``tolerance``. This intentionally avoids assuming a
     particular avatar representation: callers supply the target measurement.
+
+    Args:
+        clearance: Measured distance between the simulated cloth and the target surface.
+        tolerance: Absolute distance over which the score falls to zero.
+        ideal: Clearance value that represents the best possible fit score.
+
+    Returns:
+        A normalized fit score between zero and one, inclusive.
     """
     tolerance = abs(float(tolerance))
     if tolerance <= 1e-12:
@@ -133,6 +155,22 @@ def analyze_mesh(
     ``stretch_limit`` is the fabric's authored allowable stretch. Stress is
     represented as normalized utilization (absolute strain / limit), which is
     solver-independent and safe to compare across materials.
+
+    Args:
+        rest_vertices: Reference vertex coordinates before simulation.
+        current_vertices: Vertex coordinates from the evaluated cloth mesh.
+        triangles: Faces expressed as triples of vertex indices.
+        stretch_limit: Positive allowable fabric stretch used to normalize stress.
+        clearances: Optional target clearances, supplied per face or per vertex.
+        fit_tolerance: Distance scale over which a clearance fit score reaches zero.
+        pressures: Optional solver-provided pressure values, one per face.
+
+    Returns:
+        Per-face strain, stress, fit and pressure metrics with global extrema.
+
+    Raises:
+        ValueError: If mesh vertex counts differ, the stretch limit is nonpositive,
+            or optional clearance and pressure arrays have unsupported lengths.
     """
     if len(rest_vertices) != len(current_vertices):
         msg = "rest and current meshes must have equal vertex counts"
