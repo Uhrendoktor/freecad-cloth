@@ -17,6 +17,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 PAGE_SIZE = 100
+HTTP_SUCCESS_MIN = 200
+HTTP_SUCCESS_MAX = 300
+HTTP_DETAIL_LENGTH = 240
+GRAPHQL_ARGUMENT_COUNT = 4
 BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
@@ -30,6 +34,35 @@ GITHUB_API_VERSION = "2022-11-28"
 
 class GitHubApiError(RuntimeError):
     """Represent an unsuccessful authenticated GitHub API request."""
+
+
+def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
+    """Validate an HTTP response and decode its optional JSON payload.
+
+    Args:
+        connection: HTTPS connection after its request has been sent.
+
+    Returns:
+        Decoded JSON, or None for an empty response body.
+
+    Raises:
+        GitHubApiError: If GitHub returns an unsuccessful status or malformed JSON.
+    """
+    response = connection.getresponse()
+    payload = response.read()
+    if not HTTP_SUCCESS_MIN <= response.status < HTTP_SUCCESS_MAX:
+        detail = payload.decode("utf-8", errors="replace").strip()
+        message = f"GitHub API request failed: HTTP {response.status} {response.reason}"
+        if detail:
+            message = f"{message}: {detail[:HTTP_DETAIL_LENGTH]}"
+        raise GitHubApiError(message)
+    if not payload:
+        return None
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError as exc:
+        msg = "GitHub API returned invalid JSON"
+        raise GitHubApiError(msg) from exc
 
 
 def _request_github_api(
@@ -50,7 +83,8 @@ def _request_github_api(
     """
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not token:
-        raise GitHubApiError("GitHub API token is missing from GH_TOKEN and GITHUB_TOKEN")
+        msg = "GitHub API token is missing from GH_TOKEN and GITHUB_TOKEN"
+        raise GitHubApiError(msg)
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
@@ -64,22 +98,10 @@ def _request_github_api(
     connection = http.client.HTTPSConnection("api.github.com", timeout=10)
     try:
         connection.request(method, f"/{endpoint.lstrip('/')}", body=encoded_body, headers=headers)
-        response = connection.getresponse()
-        payload = response.read()
-        if not 200 <= response.status < 300:
-            detail = payload.decode("utf-8", errors="replace").strip()
-            message = f"GitHub API request failed: HTTP {response.status} {response.reason}"
-            if detail:
-                message = f"{message}: {detail[:240]}"
-            raise GitHubApiError(message)
-        if not payload:
-            return None
-        try:
-            return json.loads(payload)
-        except json.JSONDecodeError as exc:
-            raise GitHubApiError("GitHub API returned invalid JSON") from exc
+        return _decode_github_response(connection)
     except (http.client.HTTPException, OSError) as exc:
-        raise GitHubApiError(f"GitHub API request failed: {exc}") from exc
+        msg = f"GitHub API request failed: {exc}"
+        raise GitHubApiError(msg) from exc
     finally:
         connection.close()
 
@@ -94,13 +116,12 @@ def gh_json(*args: str) -> object:
         Decoded JSON returned by the API.
 
     Raises:
-        GitHubApiError: If the request fails or the response cannot be decoded.
         ValueError: If the requested operation is not supported by this helper.
     """
     if len(args) == 2 and args[0] == "api":
         return _request_github_api("GET", args[1])
     if (
-        len(args) == 4
+        len(args) == GRAPHQL_ARGUMENT_COUNT
         and args[0] == "api"
         and args[1] == "graphql"
         and args[2] == "-f"
@@ -118,10 +139,9 @@ def gh_delete(*args: str) -> None:
         args: CLI-compatible DELETE API arguments.
 
     Raises:
-        GitHubApiError: If GitHub rejects the deletion request.
         ValueError: If the requested operation is not a DELETE API call.
     """
-    if len(args) != 4 or args[:3] != ("api", "--method", "DELETE"):
+    if len(args) != GRAPHQL_ARGUMENT_COUNT or args[:3] != ("api", "--method", "DELETE"):
         msg = "Only GitHub API DELETE operations are supported by this helper"
         raise ValueError(msg)
     _request_github_api("DELETE", args[3])
