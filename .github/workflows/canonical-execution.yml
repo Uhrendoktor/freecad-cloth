@@ -172,7 +172,7 @@ jobs:
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files yamllint
       - name: PR duplication gate
         if: ${{ github.event_name == 'pull_request' }}
-        uses: kucherenko/jscpd@b6f832c62cf02b574ea9cf24e013cfeb17366a35 # v5.4.0
+        uses: kucherenko/jscpd@095d6ca33e9f291c144bb05ef653b2bfdc3c1453 # v5.4.1
         with:
           path: "freecad_cloth tests tools/ci"
           format: "python"
