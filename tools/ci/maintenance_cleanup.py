@@ -1043,8 +1043,6 @@ def main() -> int:
     Returns:
         Zero after the retention pass completes, including recoverable package-cleanup errors.
 
-    Raises:
-        TypeError: If GitHub returns response data with an unexpected type.
     """
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
