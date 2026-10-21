@@ -563,8 +563,8 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         )
 
     avatar_image_present = (
-        "cloth-mannequin-near-t-parsed.pose.png" in parsed.screenshot_states
-        and (output_root / "cloth-mannequin-near-t-parsed.pose.png").is_file()
+        "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
+        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
     )
     pattern_image_present = (
         "cloth-pattern-design.png" in parsed.screenshot_states
@@ -738,7 +738,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         "mannequin_pose_measurements": parsed.pose,
         "pattern": {
             "pieces": topology_records,
-            "native_armholes": [parsed.armholes_by_index[key] for key in sorted(armholes_by_index)],
+            "native_armholes": [parsed.armholes_by_index[key] for key in sorted(parsed.armholes_by_index)],
             "crossings": crossings,
         },
         "placement": {
