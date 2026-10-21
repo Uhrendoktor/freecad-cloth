@@ -72,7 +72,11 @@ _FIT_TOLERANCE = 0.012
 
 
 def _configured_fit_steps() -> int:
-    """Resolve the current fit-step budget from explicit runtime configuration."""
+    """Resolve the fit-step budget from the current runtime configuration.
+
+    Returns:
+        Positive number of optimization steps used for mannequin fitting.
+    """
     return max(1, int(os.environ.get("FREECAD_CLOTH_ANNY_FIT_STEPS", str(_FIT_STEPS))))
 
 
@@ -89,11 +93,27 @@ class _ForwardModel(Protocol):
 class _AnnyCallableModel(Protocol):
     """Callable Anny model interface used by clad-body's dynamic return object."""
 
-    def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]: ...
+    def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
+        """Evaluate the Anny model through its callable interface.
+
+        Args:
+            *args: Positional model inputs forwarded to the Anny implementation.
+            **kwargs: Named pose, phenotype, and morph inputs for model evaluation.
+
+        Returns:
+            Tensor outputs produced by the configured Anny model.
+        """
 
 
 def _adapt_clad_body_pose_alias(model: object) -> None:
-    """Translate clad-body 0.6.1 legacy forward calls for Anny 0.6."""
+    """Adapt legacy clad-body pose arguments to Anny's supported parameterization.
+
+    Args:
+        model: Mutable Anny model whose forward method will be wrapped.
+
+    Raises:
+        AnnyAvatarBackendError: If the supplied model has no callable forward method.
+    """
     forward = getattr(model, "forward", None)
     if not callable(forward):
         msg = "Anny model does not expose a callable forward method."
@@ -101,6 +121,15 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
     original_forward: Callable[..., object] = forward
 
     def compatible_forward(*args: object, **kwargs: object) -> object:
+        """Translate the legacy pose alias before invoking the wrapped model.
+
+        Args:
+            *args: Positional arguments forwarded unchanged to the model.
+            **kwargs: Keyword arguments with any legacy pose alias translated.
+
+        Returns:
+            Result returned by the original Anny model forward method.
+        """
         if kwargs.get("pose_parameterization") == "root_relative_world":
             kwargs["pose_parameterization"] = "local-bone"
         return original_forward(*args, **kwargs)
@@ -112,7 +141,14 @@ def _adapt_clad_body_pose_alias(model: object) -> None:
 
 @lru_cache(maxsize=1)
 def _all_paired_local_change_labels() -> tuple[str, ...]:
-    """Return discoverable paired Anny local-morph labels from every target group."""
+    """Discover paired local-morph labels declared in the installed Anny target assets.
+
+    Returns:
+        Sorted labels for morphs that expose both positive and negative directions.
+
+    Raises:
+        AnnyAvatarBackendError: If Anny assets or required morph metadata are unavailable.
+    """
     try:
         import anny
     except ImportError as exc:
@@ -168,13 +204,24 @@ def _all_paired_local_change_labels() -> tuple[str, ...]:
 
 
 def available_anny_local_change_labels() -> tuple[str, ...]:
-    """Return every paired Anny local-morph parameter available in the installed assets."""
+    """Expose the paired local-morph labels available to avatar shape controls.
+
+    Returns:
+        Sorted morph labels supported by the installed Anny assets.
+    """
     return _all_paired_local_change_labels()
 
 
 @lru_cache(maxsize=1)
 def available_anny_phenotype_labels() -> tuple[str, ...]:
-    """Ask the installed Anny API which normalized phenotype inputs it exposes."""
+    """Query the installed Anny model for its normalized phenotype inputs.
+
+    Returns:
+        Sorted phenotype names accepted by the installed Anny model.
+
+    Raises:
+        AnnyAvatarBackendError: If Anny cannot be imported or its labels are unavailable.
+    """
     try:
         import anny
     except ImportError as exc:
@@ -204,7 +251,15 @@ def default_anny_phenotype_values(
     gender: float = 0.5,
     breast_size: float = 0.0,
 ) -> dict[str, float]:
-    """Return effective default values for every phenotype in this Anny model."""
+    """Return effective default values for every phenotype in this Anny model.
+
+    Args:
+        gender: Cloth gender-slider value before Anny's inverse convention is applied.
+        breast_size: Requested breast fullness used for Anny's cupsize phenotype.
+
+    Returns:
+        Mapping of supported phenotype labels to normalized default values.
+    """
     defaults = {
         "gender": 1.0 - float(gender),
         "age": 0.667,
@@ -223,7 +278,14 @@ def default_anny_phenotype_values(
 
 @lru_cache(maxsize=1)
 def _measurement_local_change_labels() -> tuple[str, ...]:
-    """Return the local Anny morphs used by Cloth's anthropometric fit."""
+    """Select the local Anny morphs used by Cloth's anthropometric fitting stage.
+
+    Returns:
+        Sorted labels matching supported measurement-specific morph groups.
+
+    Raises:
+        AnnyAvatarBackendError: If the required breast-volume control is unavailable.
+    """
     wanted = (*_LOCAL_CHANGE_TERMS, _BREAST_LOCAL_CHANGE)
     selected = tuple(
         label
@@ -242,7 +304,17 @@ def _initial_phenotypes(
     phenotype_overrides: dict[str, float] | None = None,
     local_change_overrides: dict[str, float] | None = None,
 ) -> dict[str, float | dict[str, float]]:
-    """Translate Cloth defaults and staged advanced overrides to Anny conventions."""
+    """Translate Cloth defaults and staged advanced overrides to Anny conventions.
+
+    Args:
+        gender: Cloth's normalized gender value, inverted for Anny's convention.
+        breast_size: Requested breast fullness stored in the Anny cupsize phenotype.
+        phenotype_overrides: Optional saved normalized phenotype values to apply.
+        local_change_overrides: Optional saved local morph values to apply.
+
+    Returns:
+        Anny-compatible phenotype values including the separate local-change mapping.
+    """
     phenotypes: dict[str, float | dict[str, float]] = {
         # Anny's gender endpoints are male=0 and female=1; Cloth uses the
         # inverse convention for its user-facing slider.
@@ -275,7 +347,16 @@ def _initial_phenotypes(
 
 
 def _smoothstep_weight(edge0: float, edge1: float, value: float) -> float:
-    """Return a clamped cubic transition from zero to one."""
+    """Compute a clamped cubic transition between two scalar edges.
+
+    Args:
+        edge0: Lower edge where the transition begins.
+        edge1: Upper edge where the transition reaches its maximum.
+        value: Input coordinate to map into the transition interval.
+
+    Returns:
+        Smoothly interpolated weight clamped between zero and one.
+    """
     factor = max(0.0, min(1.0, (value - edge0) / (edge1 - edge0)))
     return factor * factor * (3.0 - 2.0 * factor)
 
@@ -290,6 +371,14 @@ def _apply_front_breast_fullness(
     Anny's breast-volume-vert-up target primarily alters vertical fullness. The
     Cloth control also promises forward projection, so add a broad smooth Y offset
     in the canonical Z-up / +Y-anterior frame, limited to the chest and two lobes.
+
+    Args:
+        vertices: Indexed mannequin surface points expressed in millimetres.
+        breast_size: Normalized user-facing breast-fullness control.
+        height_mm: Reference mannequin height used to locate the chest region.
+
+    Returns:
+        Surface vertices with the localized anterior correction applied.
     """
     strength = max(0.0, min(1.0, float(breast_size)))
     if strength <= 0.0 or not math.isfinite(height_mm) or height_mm <= 0.0:
@@ -318,6 +407,16 @@ def _canonicalize_anny_vertices(
     The hip-specific Anny morph can change the fitted mesh bounds. Re-centering
     from those post-fit bounds translates unrelated head/shoulder vertices, so
     derive the up axis, floor, and XY origin from the pre-hip reference instead.
+
+    Args:
+        vertices: Fitted mesh coordinates to transform into the canonical frame.
+        reference_vertices: Unmodified body coordinates defining the stable origin.
+
+    Returns:
+        Canonicalized fitted points and the reference XY center offset.
+
+    Raises:
+        ValueError: If the fitted and reference arrays have incompatible or non-finite data.
     """
     points = np.asarray(vertices, dtype=np.float32).copy()
     reference = np.asarray(reference_vertices, dtype=np.float32)
@@ -357,6 +456,16 @@ def _localize_hip_fit_delta(
     intended region. Keep the reference mesh exact above the pelvis and through
     the lower legs, with a smooth fade into the circumference-control band.
     Inputs must already share the same canonical reference coordinate frame.
+
+    Args:
+        reference_vertices: Canonical coordinates of the neutral reference body.
+        fitted_vertices: Canonical coordinates after the hip-specific morph fit.
+
+    Returns:
+        Vertices with hip-fit deltas restricted to the pelvis influence band.
+
+    Raises:
+        ValueError: If inputs are mismatched, non-finite, or have no vertical extent.
     """
     reference = np.asarray(reference_vertices, dtype=np.float64)
     fitted = np.asarray(fitted_vertices, dtype=np.float64)
@@ -379,6 +488,15 @@ def _localize_hip_fit_delta(
     normalized_z = (reference[:, 2] - float(reference[:, 2].min())) / height
 
     def smoothstep(edge0: float, edge1: float) -> np.ndarray:
+        """Build a per-vertex blend weight between normalized height edges.
+
+        Args:
+            edge0: Lower normalized-height boundary of the blend band.
+            edge1: Upper normalized-height boundary of the blend band.
+
+        Returns:
+            One blend weight for each reference vertex.
+        """
         factor = np.clip((normalized_z - edge0) / (edge1 - edge0), 0.0, 1.0)
         return factor * factor * (3.0 - 2.0 * factor)
 
@@ -390,7 +508,15 @@ def _clad_measurement_targets(
     values: dict[str, float],
     mass_target_kg: float | None,
 ) -> tuple[tuple[str, str, float], ...]:
-    """Build stable target values with explicit clad-body unit conversions."""
+    """Build stable target values with explicit clad-body unit conversions.
+
+    Args:
+        values: Named anthropometric measurements in Cloth's millimetre convention.
+        mass_target_kg: Optional body-mass target expressed in kilograms.
+
+    Returns:
+        Named clad-body targets with dimensions converted to centimetres.
+    """
     targets = tuple(
         (parameter_name, key, float(values[parameter_name]) / 10.0)
         for parameter_name, key in MEASUREMENT_FIELDS
@@ -407,6 +533,12 @@ def _split_clad_targets(
 
     Sleeve length uses a local arm morph. Feeding it into the global phenotype
     optimizer lets it trade off against height and can produce an over-tall body.
+
+    Args:
+        targets: Named measurement targets to divide between global and local fitting.
+
+    Returns:
+        Global phenotype targets and localized measurement targets, respectively.
     """
     global_targets = tuple(
         target
@@ -431,7 +563,24 @@ def _fit_anny_body(
     fit_hip: bool,
     fit_steps: int | None = None,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
-    """Fit an Anny body and preserve every indexed vertex for rig anchors."""
+    """Fit an Anny body and preserve every indexed vertex for rig anchors.
+
+    Args:
+        measurements: Named target measurements used to fit the generated mannequin.
+        gender: Normalized Cloth gender control passed into the Anny model.
+        breast_size: Independent breast-fullness value applied after fitting.
+        phenotype_overrides: Saved normalized phenotype values keyed by label.
+        local_change_overrides: Saved local morph values keyed by label.
+        mass_target_kg: Optional mass constraint supplied to clad-body's optimizer.
+        fit_hip: Whether to perform the separate hip-localized fitting stage.
+        fit_steps: Optional override for the optimization-step budget.
+
+    Returns:
+        Validated HM08 surface mesh and complete rig-indexed vertex coordinates.
+
+    Raises:
+        AnnyAvatarBackendError: If Anny, its topology, or fitted mesh fails validation.
+    """
     fit_steps = _configured_fit_steps() if fit_steps is None else max(1, int(fit_steps))
     try:
         import anny
@@ -545,6 +694,14 @@ def _fit_anny_body(
     height_m = float(values["height"]) / 1000.0
 
     def _canonical_points(vertex_tensor: torch.Tensor) -> torch.Tensor:
+        """Transform one Anny vertex tensor into Cloth's canonical coordinate frame.
+
+        Args:
+            vertex_tensor: Batched Anny coordinates in the model's native axes.
+
+        Returns:
+            Cloned vertex coordinates with a floor-based origin and canonical axes.
+        """
         points = vertex_tensor[0].detach().clone()
         extents = points.amax(dim=0) - points.amin(dim=0)
         if int(torch.argmax(extents).item()) == 1:
@@ -558,6 +715,14 @@ def _fit_anny_body(
         return points
 
     def _front_y_mm(vertex_tensor: torch.Tensor) -> dict[str, float | None]:
+        """Measure the anterior chest extent on the left and right sides.
+
+        Args:
+            vertex_tensor: Batched Anny coordinates from a model forward pass.
+
+        Returns:
+            Side labels mapped to frontmost chest positions in millimetres, or None.
+        """
         points = _canonical_points(vertex_tensor)
         result = {}
         for side, label in ((-1.0, "left"), (1.0, "right")):
@@ -574,6 +739,12 @@ def _fit_anny_body(
         return result
 
     def _write_shape_trace(stage: str, payload: dict[str, object]) -> None:
+        """Append optional shape-fit diagnostics to the artifact trace file.
+
+        Args:
+            stage: Short stage label identifying the point in the fitting pipeline.
+            payload: JSON-compatible measurements and metadata for the trace record.
+        """
         if os.environ.get("CLOTH_ANNY_SHAPE_TRACE") != "1":
             return
         trace_path = Path("artifacts") / "anny-shape-trace.log"
@@ -1027,7 +1198,21 @@ def _cached_fitted_body(
     fit_hip: bool,
     fit_steps: int,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
-    """Cache fitted surface and full rig vertices so viewport events do not refit."""
+    """Cache fitted surface and full rig vertices so viewport events do not refit.
+
+    Args:
+        measurements: Sorted measurement-name and value pairs used in the fit.
+        gender: Normalized Cloth gender control for the avatar.
+        breast_size: Requested normalized breast-fullness control.
+        phenotype_overrides: Sorted saved phenotype names and normalized values.
+        local_change_overrides: Sorted saved local-morph names and values.
+        mass_target_kg: Optional body-mass target in kilograms.
+        fit_hip: Whether the cache entry includes the localized hip fit.
+        fit_steps: Optimization-step budget used to generate the cached body.
+
+    Returns:
+        Fitted surface mesh and complete rig-indexed vertex coordinates.
+    """
     return _fit_anny_body(
         measurements,
         gender,
@@ -1045,7 +1230,15 @@ def _fitted_body_for(
     *,
     fit_hip: bool = True,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
-    """Return the cached shape and rig-indexed vertices for the selected fit contract."""
+    """Return the cached shape and rig-indexed vertices for the selected fit contract.
+
+    Args:
+        parameters: User-selected avatar shape, measurement, and override values.
+        fit_hip: Whether hip circumference modifies the visible surface.
+
+    Returns:
+        Fitted mesh and matching rig-indexed vertex coordinates.
+    """
     fit_measurement_keys = {name for name, _key in MEASUREMENT_FIELDS}
     measurement_values = {
         str(name): float(value)
@@ -1073,7 +1266,14 @@ def _fitted_body_for(
 def build_avatar_rig_vertices(
     parameters: AvatarParameters,
 ) -> tuple[tuple[float, float, float], ...]:
-    """Return cached hip-neutral Anny vertices for stable skeleton anchor mapping."""
+    """Return cached hip-neutral Anny vertices for stable skeleton anchor mapping.
+
+    Args:
+        parameters: Avatar controls and measurements used to generate the rig source.
+
+    Returns:
+        Complete rig-indexed vertex coordinates before the hip-localized fit.
+    """
     _mesh, rig_vertices = _fitted_body_for(parameters, fit_hip=False)
     return rig_vertices
 
@@ -1083,7 +1283,15 @@ def build_avatar_shape_mesh(
     *,
     include_skin_offset: bool = True,
 ) -> MeshData:
-    """Return a cached Anny mannequin in millimetres and its native triangulation."""
+    """Return a cached Anny mannequin in millimetres and its native triangulation.
+
+    Args:
+        parameters: Avatar controls and measurements defining the mannequin.
+        include_skin_offset: Whether to pad the surface by its configured skin offset.
+
+    Returns:
+        Validated surface mesh in millimetres with the original indexed triangulation.
+    """
     mesh, _rig_vertices = _fitted_body_for(parameters)
     if not include_skin_offset or parameters.skin_offset <= 0:
         return mesh
