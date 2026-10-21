@@ -183,7 +183,8 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
     """Verify invalid recomputation restores values and aborts the transaction.
 
     Raises:
-        ValueError: If invalid recomputation is not rejected while restoring prior values.
+        AssertionError: If restoration or transaction-abort expectations are not met.
+        ValueError: If invalid recomputation escapes without restoring prior values.
     """
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
 
@@ -553,8 +554,8 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
     """Verify legacy tolerance cannot override relative-length mismatch.
 
     Raises:
-        ValueError: If a relative-length mismatch is not rejected with an explanatory
-            message instead of widening the stored tolerance.
+        AssertionError: If the relative-length mismatch failure is not descriptive.
+        ValueError: If accepting the edit does not reject the relative-length mismatch.
     """
     from types import SimpleNamespace
 

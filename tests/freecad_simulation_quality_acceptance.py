@@ -12,6 +12,7 @@ from typing import Protocol
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+
 try:
     from PySide import QtWidgets
 except ImportError:
@@ -161,9 +162,7 @@ def _find_pieces(doc: _DocumentObjects) -> list[_PatternPieceObject]:
     Returns:
         Objects marked with the persistent PatternPiece type identifier.
     """
-    return [
-        obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"
-    ]
+    return [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
 def _panel_value(panel: object, widget_name: str) -> float:
