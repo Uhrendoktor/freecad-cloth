@@ -4,7 +4,6 @@
 import importlib
 from pathlib import Path
 
-import pytest
 from defusedxml import ElementTree
 
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
@@ -16,6 +15,7 @@ from freecad_cloth.sewing.workbench import (
     ClothSewingWorkbench,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
+from tests.support.assertions import require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -123,7 +123,10 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
 
 def test_workbench_package_metadata_matches_registration_surface() -> None:
     """Match package.xml metadata to the implemented workbench registration surface."""
-    root = ElementTree.parse(ROOT / "package.xml").getroot()
+    root = require_not_none(
+        ElementTree.parse(ROOT / "package.xml").getroot(),
+        message="Package metadata did not parse to an XML root element.",
+    )
     namespace = "{https://wiki.freecad.org/Package_Metadata}"
     _require(root.tag == namespace + "package", "Package metadata has an unexpected root tag.")
     _require(
@@ -142,9 +145,10 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
         root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth",
         "Package metadata contains an unexpected repository URL.",
     )
-    content = root.find(namespace + "content")
-    if content is None:
-        pytest.fail("Package metadata does not declare any workbench content.")
+    content = require_not_none(
+        root.find(namespace + "content"),
+        message="Package metadata does not declare any workbench content.",
+    )
     declared = {
         item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
     }

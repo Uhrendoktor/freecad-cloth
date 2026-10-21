@@ -1,7 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared assertion helpers for strict, descriptive regression tests."""
 
-
 def require(*, condition: bool, message: str) -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
@@ -26,3 +25,21 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
 
     """
     require(condition=fragment in source, message=message)
+
+
+def require_not_none[T](value: T | None, *, message: str) -> T:
+    """Return a value only when it is not None.
+
+    Args:
+        value: Optional result that must be present for the next operation.
+        message: Human-readable failure reason when the value is absent.
+
+    Returns:
+        The original value narrowed to its non-None type.
+
+    Raises:
+        AssertionError: If the required value is None.
+    """
+    if value is None:
+        raise AssertionError(message)
+    return value
