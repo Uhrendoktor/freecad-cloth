@@ -8,6 +8,10 @@ for validation and AvatarService remains the solver-neutral downstream API.
 
 import contextlib
 from typing import ClassVar, Protocol
+from freecad_cloth.avatar.avatar_properties import (
+    PROPERTY_MAP as AVATAR_PROPERTY_MAP,
+    SHAPE_PROPERTY_MAP as AVATAR_SHAPE_PROPERTY_MAP,
+)
 
 
 class _WidgetLayout(Protocol):
@@ -30,38 +34,8 @@ def _modules():
 class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
 
-    PROPERTY_MAP: ClassVar[dict[str, str]] = {
-        "height": "Height",
-        "neck": "Neck",
-        "shoulder": "Shoulder",
-        "chest": "Chest",
-        "underbust": "Underbust",
-        "waist": "Waist",
-        "high_hip": "High_Hip",
-        "hip": "Hip",
-        "upper_arm": "Upper_Arm",
-        "elbow": "Elbow",
-        "wrist": "Wrist",
-        "thigh": "Thigh",
-        "knee": "Knee",
-        "calf": "Calf",
-        "ankle": "Ankle",
-        "inseam": "Inseam",
-        "torso": "Torso",
-        "front_waist": "Front_Waist",
-        "back_waist": "Back_Waist",
-        "stomach": "Stomach",
-        "sleeve_length": "Sleeve_Length",
-        "crotch_length": "Crotch_Length",
-        "front_rise": "Front_Rise",
-        "back_rise": "Back_Rise",
-        "shirt_length": "Shirt_Length",
-        "back_neck_to_waist": "Back_Neck_To_Waist",
-    }
-    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = {
-        "gender": "GenderBlend",
-        "breast_size": "BreastSize",
-    }
+    PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_PROPERTY_MAP)
+    SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_SHAPE_PROPERTY_MAP)
     BODY = (
         ("height", "Height"),
         ("neck", "Neck circumference"),
