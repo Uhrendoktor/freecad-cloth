@@ -18,8 +18,7 @@ class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
 
     def addWidget(self, widget: object) -> None:
-        """Define the minimal layout protocol used by the measurement panel.
-        """
+        """Define the minimal layout protocol used by the measurement panel."""
         ...
 
 
