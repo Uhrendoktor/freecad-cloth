@@ -19,7 +19,8 @@
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
     "freecad_cloth/simulation/MeshCollisionProjector.py",
     "freecad_cloth/avatar/MakeHumanTargets.py",
-    "freecad_cloth/avatar/AnnyAvatarBackend.py"
+    "freecad_cloth/avatar/AnnyAvatarBackend.py",
+    "freecad_cloth/avatar/avatar_properties.py"
   ],
   "exclude": [
     "**/*Gui.py",

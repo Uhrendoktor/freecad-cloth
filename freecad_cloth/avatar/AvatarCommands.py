@@ -30,6 +30,8 @@ from freecad_cloth.avatar.avatar_properties import (
     PROVIDER_IDS,
     SHAPE_PROPERTY_MAP,
 )
+
+
 _MISSING = object()
 ProviderGeometry = Callable[
     ...,
