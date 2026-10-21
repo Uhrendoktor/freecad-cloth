@@ -381,7 +381,12 @@ class SewingCreationTaskPanel:
         if getattr(self, "viewport_pick_button", None) is not None:
             self.viewport_pick_button.setText("Pick edges in viewport")
 
-    def _viewport_mouse_event(self, event):
+    def _viewport_mouse_event(self, event: dict[str, str | tuple[int, int]]) -> None:
+        """Handle viewport clicks and collect valid PatternPiece edge selections.
+
+        Args:
+            event: FreeCAD mouse-event fields, including button, state, and position.
+        """
         if not self._viewport_picking or self._closing:
             return
         if str(event.get("State", "")).upper() != "DOWN":
@@ -433,7 +438,12 @@ class SewingCreationTaskPanel:
                     state="success",
                 )
 
-    def _show_error(self, exc):
+    def _show_error(self, exc: Exception) -> None:
+        """Display a preview error and keep the staged creation uncommitted.
+
+        Args:
+            exc: Failure raised while preparing or validating the preview.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(
@@ -443,7 +453,12 @@ class SewingCreationTaskPanel:
         )
         self.commit_button.setEnabled(False)
 
-    def _show_status(self, text):
+    def _show_status(self, text: str) -> None:
+        """Display a successful status message and enable the commit action.
+
+        Args:
+            text: User-facing explanation of the current successful state.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(self.feedback, text, state="success")
