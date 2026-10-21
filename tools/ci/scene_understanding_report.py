@@ -110,6 +110,23 @@ class ProgressEvidence:
     has_simulation_start: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _ScreenshotPresence:
+    """Record the expected scene screenshots found in the completed run.
+
+    Attributes:
+        avatar: Whether the mannequin pose screenshot is available.
+        pattern: Whether the pattern-design screenshot is available.
+        sewing: Whether the sewing-preview screenshot is available.
+        drape: Whether any post-drape screenshot is available.
+    """
+
+    avatar: bool
+    pattern: bool
+    sewing: bool
+    drape: bool
+
+
 def _literal_tuple(value: str) -> tuple[object, ...]:
     """Safely parse a tuple-like value written by Python's diagnostic repr.
 
@@ -478,6 +495,49 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     }
 
 
+def _record_pose(line: str, parsed: ProgressEvidence) -> None:
+    """Record mannequin pose measurements when the line contains a pose marker.
+
+    Args:
+        line: Progress-log line being parsed.
+        parsed: Evidence record that receives the measured pose values.
+    """
+    match = _POSE_RE.search(line)
+    if match is None:
+        return
+    parsed.pose = {
+        "left_shoulder_wrist_dx_mm": float(match.group(1)),
+        "left_shoulder_wrist_dz_mm": float(match.group(2)),
+        "right_shoulder_wrist_dx_mm": float(match.group(3)),
+        "right_shoulder_wrist_dz_mm": float(match.group(4)),
+    }
+
+
+def _record_placement(line: str, parsed: ProgressEvidence) -> None:
+    """Record target-relative placement values when the line contains a marker.
+
+    Args:
+        line: Progress-log line being parsed.
+        parsed: Evidence record that receives the measured placement values.
+    """
+    match = _PLACEMENT_RE.search(line)
+    if match is None:
+        return
+    parsed.placements_by_side[match.group(1)] = {
+        "projected_target_y_range_mm": [
+            float(match.group(2)),
+            float(match.group(3)),
+        ],
+        "panel_origin_y_mm": float(match.group(4)),
+        "configured_clearance_mm": float(match.group(5)),
+        "torso_x_range_mm": [
+            float(match.group(6)),
+            float(match.group(7)),
+        ],
+        "projected_target_vertex_count": int(match.group(8)),
+    }
+
+
 def _parse_progress_text(progress_text: str) -> ProgressEvidence:
     """Parse scene markers emitted by the FreeCAD workflow into typed records.
 
@@ -497,29 +557,8 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
         armhole = _parse_armhole(line)
         if armhole is not None:
             parsed.armholes_by_index[int(armhole["edge_index"])] = armhole
-        pose_match = _POSE_RE.search(line)
-        if pose_match:
-            parsed.pose = {
-                "left_shoulder_wrist_dx_mm": float(pose_match.group(1)),
-                "left_shoulder_wrist_dz_mm": float(pose_match.group(2)),
-                "right_shoulder_wrist_dx_mm": float(pose_match.group(3)),
-                "right_shoulder_wrist_dz_mm": float(pose_match.group(4)),
-            }
-        placement_match = _PLACEMENT_RE.search(line)
-        if placement_match:
-            parsed.placements_by_side[placement_match.group(1)] = {
-                "projected_target_y_range_mm": [
-                    float(placement_match.group(2)),
-                    float(placement_match.group(3)),
-                ],
-                "panel_origin_y_mm": float(placement_match.group(4)),
-                "configured_clearance_mm": float(placement_match.group(5)),
-                "torso_x_range_mm": [
-                    float(placement_match.group(6)),
-                    float(placement_match.group(7)),
-                ],
-                "projected_target_vertex_count": int(placement_match.group(8)),
-            }
+        _record_pose(line, parsed)
+        _record_placement(line, parsed)
         screenshot = _SCREENSHOT_RE.search(line)
         if screenshot:
             raw_path = screenshot.group(1).strip()
@@ -624,25 +663,22 @@ def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
 def _derive_stage_states(
     parsed: ProgressEvidence,
     assessment: WorkflowAssessment,
-    avatar_image_present: bool,
-    pattern_image_present: bool,
-    sewing_image_present: bool,
-    drape_image_present: bool,
+    screenshots: _ScreenshotPresence,
 ) -> dict[str, str]:
     """Derive visible workflow stage states from validated observations and screenshots.
 
     Args:
         parsed: Parsed progress markers and captured measurements.
         assessment: Terminal workflow and topology classification.
-        avatar_image_present: Whether the logged mannequin image exists.
-        pattern_image_present: Whether the logged pattern image exists.
-        sewing_image_present: Whether the logged sewing preview exists.
-        drape_image_present: Whether a drape screenshot exists.
+        screenshots.avatar: Whether the logged mannequin image exists.
+        screenshots.pattern: Whether the logged pattern image exists.
+        screenshots.sewing: Whether the logged sewing preview exists.
+        screenshots.drape: Whether a drape screenshot exists.
 
     Returns:
         State labels for all report stages and mannequin-pose capture.
     """
-    if parsed.pose is not None and avatar_image_present:
+    if parsed.pose is not None and screenshots.avatar:
         pose_state = "passed"
     elif parsed.pose is not None:
         pose_state = "measured_but_image_not_found"
@@ -670,9 +706,9 @@ def _derive_stage_states(
     )
     sewing_state = (
         "generated_from_invalid_pattern"
-        if assessment.invalid_geometry and sewing_image_present
+        if assessment.invalid_geometry and screenshots.sewing
         else "generated"
-        if sewing_image_present
+        if screenshots.sewing
         else "not_reached_or_not_captured"
     )
     if assessment.invalid_geometry:
@@ -685,7 +721,7 @@ def _derive_stage_states(
         simulation_state = "not_observed"
     if assessment.invalid_geometry and not parsed.has_simulation_start:
         drape_state = "not_reached"
-    elif parsed.drape_records or drape_image_present:
+    elif parsed.drape_records or screenshots.drape:
         drape_state = "evidence_present"
     elif not parsed.has_simulation_start:
         drape_state = "not_reached_or_not_captured"
@@ -696,7 +732,7 @@ def _derive_stage_states(
         "mannequin_pose": pose_state,
         "pattern_construction": (
             "captured"
-            if assessment.topology_records or pattern_image_present
+            if assessment.topology_records or screenshots.pattern
             else "not_observed"
         ),
         "pattern_topology": pattern_state,
@@ -808,28 +844,24 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     )
     parsed = _parse_progress_text(progress_text)
     assessment = _classify_workflow_progress(parsed)
-    avatar_image_present = (
-        "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
-        and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+    screenshots = _ScreenshotPresence(
+        avatar=(
+            "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
+            and (output_root / "cloth-mannequin-near-t-pose.png").is_file()
+        ),
+        pattern=(
+            "cloth-pattern-design.png" in parsed.screenshot_states
+            and (output_root / "cloth-pattern-design.png").is_file()
+        ),
+        sewing=(
+            "cloth-sewing.png" in parsed.screenshot_states
+            and (output_root / "cloth-sewing.png").is_file()
+        ),
+        drape=any(
+            name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
+        ),
     )
-    pattern_image_present = (
-        "cloth-pattern-design.png" in parsed.screenshot_states
-        and (output_root / "cloth-pattern-design.png").is_file()
-    )
-    sewing_image_present = "cloth-sewing.png" in parsed.screenshot_states and (
-        output_root / "cloth-sewing.png"
-    ).is_file()
-    drape_image_present = any(
-        name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
-    )
-    stage_states = _derive_stage_states(
-        parsed,
-        assessment,
-        avatar_image_present,
-        pattern_image_present,
-        sewing_image_present,
-        drape_image_present,
-    )
+    stage_states = _derive_stage_states(parsed, assessment, screenshots)
     issues = _build_issues(assessment.invalid_geometry)
     image_inventory = _image_inventory(output_root, workspace)
     metrics_path = output_root / "drape-visual-metrics.json"
@@ -907,10 +939,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "images": image_inventory,
             "screenshot_log_entries": parsed.screenshot_states,
             "expected_or_known_outputs": {
-                "mannequin_pose": "present" if avatar_image_present else "missing",
-                "pattern_design": "present" if pattern_image_present else "missing",
-                "sewing_preview": "present" if sewing_image_present else "missing",
-                "post_drape_views": "present" if drape_image_present else "missing",
+                "mannequin_pose": "present" if screenshots.avatar else "missing",
+                "pattern_design": "present" if screenshots.pattern else "missing",
+                "sewing_preview": "present" if screenshots.sewing else "missing",
+                "post_drape_views": "present" if screenshots.drape else "missing",
                 "drape_metrics": "present" if metrics_path.is_file() else "missing",
             },
         },
