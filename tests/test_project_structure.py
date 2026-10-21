@@ -254,10 +254,13 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
 
 
 def test_freecad_runner_preserves_script_owned_logs():
+    """Keep FreeCAD output captured while preserving logs written by the test script."""
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
-    assert "stdout=subprocess.PIPE" in source
-    assert "process.communicate(timeout=timeout_seconds)" in source
+    assert "stdout=asyncio.subprocess.PIPE" in source
+    assert "asyncio.wait_for(" in source
+    assert "if not existing_log.strip()" in source
+    assert 'log_file.write_text(output, encoding="utf-8")' in source
     assert "args.log_file.is_file()" in source
     assert "args.log_file.read_text(" in source
     assert "if not existing_log.strip():" in source
