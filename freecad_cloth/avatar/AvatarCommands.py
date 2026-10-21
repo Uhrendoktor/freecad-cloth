@@ -142,6 +142,39 @@ def _ensure_pose_preset_property(obj: object) -> None:
     obj.PosePreset = current if current in presets else "standing"
 
 
+def _migrate_legacy_pose_angles(
+    payload: str,
+    preset: str,
+    angles: dict[str, float],
+) -> None:
+    """Restore schema-v1 arm defaults for matching legacy serialized angles.
+
+    Args:
+        payload: Persisted parameter JSON from the avatar feature.
+        preset: Current pose preset stored in the FreeCAD document.
+        angles: Current arm angles, updated when they match the legacy defaults.
+
+    Returns:
+        None; matching entries in the supplied angle mapping are updated in place.
+    """
+    if not payload:
+        return
+    try:
+        stored_data = json.loads(payload)
+        stored_pose_data = stored_data.get("pose", {})
+        if int(stored_data.get("schema_version", 1)) != 1:
+            return
+        if str(stored_pose_data.get("preset", "standing")) != preset:
+            return
+        stored_pose = AvatarParameters.from_json(payload).pose
+        for name in ("left_arm_angle", "right_arm_angle"):
+            serialized = float(stored_pose_data.get(name, 12.0))
+            if angles[name] == serialized:
+                angles[name] = float(getattr(stored_pose, name))
+    except (TypeError, ValueError):
+        return
+
+
 def _parameters(obj: object) -> AvatarParameters:
     """Reconstruct validated avatar parameters from persisted FreeCAD properties.
 
@@ -167,19 +200,7 @@ def _parameters(obj: object) -> AvatarParameters:
     # Migrate the stored schema once at the document boundary. New pose code uses
     # explicit defaults, not 12° magic values during geometry generation.
     payload = str(getattr(obj, "ParametersJSON", "") or "")
-    if payload:
-        try:
-            stored_data = json.loads(payload)
-            stored_pose_data = stored_data.get("pose", {})
-            if int(stored_data.get("schema_version", 1)) == 1:
-                stored_pose = AvatarParameters.from_json(payload).pose
-                if str(stored_pose_data.get("preset", "standing")) == preset:
-                    for name in ("left_arm_angle", "right_arm_angle"):
-                        serialized = float(stored_pose_data.get(name, 12.0))
-                        if angles[name] == serialized:
-                            angles[name] = float(getattr(stored_pose, name))
-        except (TypeError, ValueError):
-            pass
+    _migrate_legacy_pose_angles(payload, preset, angles)
 
     pose = Pose(
         preset,
@@ -324,6 +345,24 @@ def _provider_geometry(
     raise ValueError(msg)
 
 
+def _refresh_drape_target_status(obj: object) -> None:
+    """Refresh derived status properties for the active drape target.
+
+    Args:
+        obj: Avatar feature whose document may contain a drape target.
+
+    Returns:
+        None; the target's status and invalidation reason are refreshed in place.
+    """
+    target = getattr(obj, "DrapeTarget", None) or obj.Document.getObject("DrapeTarget")
+    if target is None:
+        return
+    drape_target = import_module("freecad_cloth.simulation.DrapeTarget")
+    status = drape_target.target_status(target)
+    target.TargetStatus = status["state"]
+    target.InvalidationReason = status["reason"]
+
+
 def _rebuild(
     obj: object,
     params: AvatarParameters | None = None,
@@ -403,13 +442,7 @@ def _rebuild(
     obj.ArrangementPoints = arrangement_records
     _style_mannequin(obj)
     obj.Document.recompute()
-    target = getattr(obj, "DrapeTarget", None) or obj.Document.getObject("DrapeTarget")
-    if target is not None:
-        from freecad_cloth.simulation.DrapeTarget import target_status
-
-        status = target_status(target)
-        target.TargetStatus = status["state"]
-        target.InvalidationReason = status["reason"]
+    _refresh_drape_target_status(obj)
     return obj
 
 
@@ -447,6 +480,65 @@ def _ensure_drape_target(obj: object) -> object:
     return target
 
 
+def _initialize_avatar_properties(obj: object) -> None:
+    """Add the complete initial property schema to a new avatar feature.
+
+    Args:
+        obj: New FreeCAD mesh feature that will persist mannequin parameters.
+
+    Returns:
+        None; the feature receives default measurements, pose, geometry metadata and links.
+    """
+    _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
+    _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
+    _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
+    obj.AvatarProviderId = "makehuman-hm08"
+    _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
+    for name, value in DEFAULT_MEASUREMENTS.items():
+        _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
+    _set_prop(obj, "App::PropertyFloat", "GenderBlend", "Body shape", 0.5)
+    _set_prop(obj, "App::PropertyFloat", "BreastSize", "Body shape", 0.0)
+    _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
+    _set_prop(
+        obj,
+        "App::PropertyEnumeration",
+        "PosePreset",
+        "Pose",
+        ["standing", "sewing", "sitting", "t_pose"],
+    )
+    obj.PosePreset = "standing"
+    default_pose = Pose("standing")
+    for name, prop in POSE_PROPERTY_MAP.items():
+        _set_prop(
+            obj,
+            "App::PropertyAngle",
+            prop,
+            "Pose",
+            float(getattr(default_pose, name)),
+        )
+    _set_prop(
+        obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
+    )
+    _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
+    _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
+    _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
+    _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
+    _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
+    _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
+    _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
+    _set_prop(
+        obj,
+        "App::PropertyString",
+        "GarmentState",
+        "Avatar",
+        "Bare mannequin / provider geometry only",
+    )
+    _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
+    _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
+    _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
+    _set_prop(obj, "App::PropertyLink", "DrapeTarget", "Collision", None)
+
+
 def create_avatar(
     attach_collision: bool = True,
     doc: object | None = None,
@@ -471,54 +563,7 @@ def create_avatar(
     if obj is None:
         obj = doc.addObject("Mesh::Feature", object_name)
         obj.Label = "Cloth Human Avatar"
-        _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
-        _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
-        _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
-        obj.AvatarProviderId = "makehuman-hm08"
-        _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
-        for name, value in DEFAULT_MEASUREMENTS.items():
-            _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
-        _set_prop(obj, "App::PropertyFloat", "GenderBlend", "Body shape", 0.5)
-        _set_prop(obj, "App::PropertyFloat", "BreastSize", "Body shape", 0.0)
-        _set_prop(obj, "App::PropertyLength", "SkinOffset", "Collision", 3.0)
-        _set_prop(
-            obj,
-            "App::PropertyEnumeration",
-            "PosePreset",
-            "Pose",
-            ["standing", "sewing", "sitting", "t_pose"],
-        )
-        obj.PosePreset = "standing"
-        default_pose = Pose("standing")
-        for name, prop in POSE_PROPERTY_MAP.items():
-            _set_prop(
-                obj,
-                "App::PropertyAngle",
-                prop,
-                "Pose",
-                float(getattr(default_pose, name)),
-            )
-        _set_prop(
-            obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
-        )
-        _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
-        _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
-        _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
-        _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
-        _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
-        _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
-        _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
-        _set_prop(
-            obj,
-            "App::PropertyString",
-            "GarmentState",
-            "Avatar",
-            "Bare mannequin / provider geometry only",
-        )
-        _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
-        _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
-        _set_prop(obj, "App::PropertyLink", "CollisionProxy", "Collision", None)
-        _set_prop(obj, "App::PropertyLink", "DrapeTarget", "Collision", None)
+        _initialize_avatar_properties(obj)
     else:
         _ensure_pose_preset_property(obj)
         _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
