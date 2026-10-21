@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import math
-from typing import NotRequired, TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 

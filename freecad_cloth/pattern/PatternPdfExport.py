@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 from math import ceil, cos, isfinite, radians, sin
+from typing import TYPE_CHECKING
 
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternExport import (
@@ -15,7 +16,6 @@ from freecad_cloth.pattern.PatternExport import (
     _validate_units,
 )
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable

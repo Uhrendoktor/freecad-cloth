@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt
+from typing import TYPE_CHECKING
+
 from scipy.spatial import KDTree
 
 from freecad_cloth.shared.collision import CollisionSurface
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

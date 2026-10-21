@@ -4,11 +4,10 @@
 from __future__ import annotations
 
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
-
-from typing import TYPE_CHECKING
 
 from freecad_cloth.common.ValidationModels import PngCaptureMetrics, PngCaptureOptions
 

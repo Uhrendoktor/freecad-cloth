@@ -18,11 +18,11 @@ import contextlib
 import json
 import math
 from itertools import starmap
+from typing import TYPE_CHECKING
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import collections.abc

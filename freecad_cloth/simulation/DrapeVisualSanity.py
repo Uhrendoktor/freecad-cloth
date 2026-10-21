@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from math import dist, isfinite
 from statistics import median
+from typing import TYPE_CHECKING
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

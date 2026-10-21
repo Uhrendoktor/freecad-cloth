@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import isfinite
+from typing import TYPE_CHECKING
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
