@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import ast
 from math import atan2, degrees, hypot
-from typing import Protocol, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
@@ -13,8 +13,8 @@ from freecad_cloth.sewing.SewingCorrespondence import (
 )
 
 if TYPE_CHECKING:
-    from types import ModuleType
     from collections.abc import Callable, Sequence
+    from types import ModuleType
 
 
 class _NativePoint(Protocol):

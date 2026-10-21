@@ -8,11 +8,10 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
-from typing import TYPE_CHECKING
-
 from scipy.spatial import KDTree
 
 from freecad_cloth.shared.collision import CollisionSurface

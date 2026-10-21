@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from hashlib import sha1
+from typing import TYPE_CHECKING
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
 from freecad_cloth.shared.seam_colors import (
@@ -24,11 +25,10 @@ from freecad_cloth.shared.viewport_gizmo_style import (
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
 )
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from types import ModuleType
     from collections.abc import Iterable
+    from types import ModuleType
 
 _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False

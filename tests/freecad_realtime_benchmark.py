@@ -11,7 +11,7 @@ import platform
 import sys
 import time
 from pathlib import Path
-from typing import Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui

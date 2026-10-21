@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 from copy import deepcopy
-from typing import Protocol, TypeAlias, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 import numpy as np
 import numpy.typing as npt
