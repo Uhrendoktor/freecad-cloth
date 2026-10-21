@@ -6,6 +6,7 @@ measurements. It never advances or modifies the solver and can therefore be used
 by GUI, export, or headless validation code.
 """
 
+import json
 import pathlib
 from collections.abc import Sequence
 from math import sqrt
@@ -14,6 +15,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
+DIAGNOSTIC_EPSILON = 1e-12
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
@@ -82,8 +84,6 @@ def export_json(result: "DiagnosticResult", path: str | pathlib.Path) -> dict[st
     Returns:
         The same JSON-ready payload written to the destination.
     """
-    import json
-
     payload = export_payload(result)
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     pathlib.Path(str(path)).write_text(content, encoding="utf-8", newline="")
@@ -157,7 +157,7 @@ def _safe_strain(current: float, rest: float) -> float:
     Returns:
         Relative length change, or zero when the reference edge is degenerate.
     """
-    if rest <= 1e-12:
+    if rest <= DIAGNOSTIC_EPSILON:
         return 0.0
     return current / rest - 1.0
 
@@ -198,8 +198,8 @@ def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
         A normalized fit score between zero and one, inclusive.
     """
     tolerance = abs(float(tolerance))
-    if tolerance <= 1e-12:
-        return 1.0 if abs(float(clearance) - float(ideal)) <= 1e-12 else 0.0
+    if tolerance <= DIAGNOSTIC_EPSILON:
+        return 1.0 if abs(float(clearance) - float(ideal)) <= DIAGNOSTIC_EPSILON else 0.0
     error = abs(float(clearance) - float(ideal))
     return max(0.0, min(1.0, 1.0 - error / tolerance))
 
@@ -242,7 +242,7 @@ def analyze_mesh(
     if stretch_limit <= 0:
         msg = "stretch_limit must be positive"
         raise ValueError(msg)
-    if clearances is not None and len(clearances) not in (len(triangles), len(current_vertices)):
+    if clearances is not None and len(clearances) not in {len(triangles), len(current_vertices)}:
         msg = "clearances must be per-face or per-vertex"
         raise ValueError(msg)
     if pressures is not None and len(pressures) != len(triangles):
