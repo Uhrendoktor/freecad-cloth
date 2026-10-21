@@ -24,6 +24,7 @@ HTTP_DETAIL_LENGTH = 240
 RUN_RETENTION_DAYS = 30
 ACTIVE_RUN_STATUSES = ("queued", "in_progress", "requested", "waiting")
 GRAPHQL_ARGUMENT_COUNT = 4
+REST_COMMAND_ARGUMENT_COUNT = 2
 BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
@@ -86,6 +87,21 @@ class PackageCleanupCallbacks:
     dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None
     api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None
     delete_resource: Callable[..., None] | None = None
+
+
+@dataclass(slots=True)
+class PackageCleanupProgress:
+    """Track package cleanup results if a deletion fails partway through.
+
+    Attributes:
+        result: User-safe counters and status returned by the cleanup API.
+        deleted: Number of versions deleted before an operation failed.
+        phase: Package cleanup step active when an operation failed.
+    """
+
+    result: dict[str, object]
+    deleted: int = 0
+    phase: str = "resolve_protected_tags"
 
 
 def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
@@ -175,7 +191,7 @@ def gh_json(*args: str) -> object:
     Raises:
         ValueError: If the requested operation is not supported by this helper.
     """
-    if len(args) == 2 and args[0] == "api":
+    if len(args) == REST_COMMAND_ARGUMENT_COUNT and args[0] == "api":
         return _request_github_api("GET", args[1])
     if (
         len(args) == GRAPHQL_ARGUMENT_COUNT
@@ -697,35 +713,36 @@ def dockerfile_tags_for_shas(
     return tags
 
 
-def cleanup_pbd_package_versions(
+def _perform_package_cleanup(
     repo: str,
     protected_shas: set[str],
     cutoff_epoch: float,
-    callbacks: PackageCleanupCallbacks | None = None,
+    adapters: PackageCleanupCallbacks,
+    progress: PackageCleanupProgress,
 ) -> dict[str, object]:
-    """Prune only old PBD image versions unused by main, open PRs, or retained/active runs.
+    """Resolve protected tags and delete verified stale package versions.
 
     Args:
         repo: Owner and repository name containing the PBD package.
         protected_shas: Commit identifiers that keep corresponding image tags in use.
         cutoff_epoch: Unix timestamp marking the image retention boundary.
-        callbacks: Optional API adapters for deterministic package-retention testing.
+        adapters: Optional callbacks used for deterministic package-retention tests.
+        progress: Mutable state used to preserve safe partial-progress reporting.
 
     Returns:
         Cleanup counts and a status describing the package-retention outcome.
 
     Raises:
         TypeError: If a package version has no integer identifier.
+        RuntimeError: If a required package version identifier is invalid.
+        ValueError: If a callback reports invalid package metadata.
+        KeyError: If a required package field is missing.
+        GitHubApiError: If a GitHub API operation fails.
     """
-    result: dict[str, object] = {
-        "status": "not_started",
-        "versions_seen": 0,
-        "deleted": 0,
-        "pending": 0,
-        "protected_tags": 0,
-    }
-    deleted = 0
-    adapters = callbacks if callbacks is not None else PackageCleanupCallbacks()
+    if not protected_shas:
+        progress.result["status"] = "skipped_no_protected_refs"
+        return progress.result
+
     resolve_tags = (
         dockerfile_tags_for_shas
         if adapters.dockerfile_tags_resolver is None
@@ -735,57 +752,83 @@ def cleanup_pbd_package_versions(
         paginated_api_items if adapters.api_items_loader is None else adapters.api_items_loader
     )
     delete_api_resource = gh_delete if adapters.delete_resource is None else adapters.delete_resource
-    phase = "resolve_protected_tags"
-    try:
-        if not protected_shas:
-            result["status"] = "skipped_no_protected_refs"
-            return result
-        protected_tags = resolve_tags(repo, protected_shas)
-        result["protected_tags"] = len(protected_tags)
+    protected_tags = resolve_tags(repo, protected_shas)
+    progress.result["protected_tags"] = len(protected_tags)
 
-        # The target is fixed by this repository. Encode the slash in the package-name path.
-        # Namespace-wide discovery returns HTTP 400 with the workflow installation token.
-        phase = "list_package_versions"
-        encoded_name = quote(PBD_PACKAGE_SUFFIX, safe="")
-        versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
-        result["versions_seen"] = len(versions)
-        stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
-        result["pending"] = len(stale)
-        selected = stale[:MAX_PACKAGE_VERSION_DELETIONS_PER_RUN]
-        for version in selected:
-            version_id = version.get("id")
-            if not isinstance(version_id, int):
-                msg = "GitHub returned a package version without an integer ID"
-                raise TypeError(msg)
-            phase = f"delete_package_version_{version_id}"
-            delete_api_resource(
-                "api",
-                "--method",
-                "DELETE",
-                f"user/packages/container/{encoded_name}/versions/{version_id}",
-            )
-            deleted += 1
-            result["pending"] = len(stale) - deleted
-        result["deleted"] = deleted
-        result["pending"] = len(stale) - deleted
-        result["status"] = "passed"
-        return result
+    # The target is fixed by this repository. Encode the slash in the package-name path.
+    # Namespace-wide discovery returns HTTP 400 with the workflow installation token.
+    progress.phase = "list_package_versions"
+    encoded_name = quote(PBD_PACKAGE_SUFFIX, safe="")
+    versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
+    progress.result["versions_seen"] = len(versions)
+    stale = stale_package_versions(versions, protected_tags, cutoff_epoch)
+    progress.result["pending"] = len(stale)
+    selected = stale[:MAX_PACKAGE_VERSION_DELETIONS_PER_RUN]
+    for version in selected:
+        version_id = version.get("id")
+        if not isinstance(version_id, int):
+            msg = "GitHub returned a package version without an integer ID"
+            raise TypeError(msg)
+        progress.phase = f"delete_package_version_{version_id}"
+        delete_api_resource(
+            "api",
+            "--method",
+            "DELETE",
+            f"user/packages/container/{encoded_name}/versions/{version_id}",
+        )
+        progress.deleted += 1
+        progress.result["pending"] = len(stale) - progress.deleted
+
+    progress.result["deleted"] = progress.deleted
+    progress.result["pending"] = len(stale) - progress.deleted
+    progress.result["status"] = "passed"
+    return progress.result
+
+
+def cleanup_pbd_package_versions(
+    repo: str,
+    protected_shas: set[str],
+    cutoff_epoch: float,
+    callbacks: PackageCleanupCallbacks | None = None,
+) -> dict[str, object]:
+    """Prune old PBD image versions unused by main, open PRs, or retained/active runs.
+
+    Args:
+        repo: Owner and repository name containing the PBD package.
+        protected_shas: Commit identifiers that keep corresponding image tags in use.
+        cutoff_epoch: Unix timestamp marking the image retention boundary.
+        callbacks: Optional API adapters for deterministic package-retention testing.
+
+    Returns:
+        Cleanup counts and a status describing the package-retention outcome.
+    """
+    progress = PackageCleanupProgress(
+        result={
+            "status": "not_started",
+            "versions_seen": 0,
+            "deleted": 0,
+            "pending": 0,
+            "protected_tags": 0,
+        },
+    )
+    adapters = callbacks if callbacks is not None else PackageCleanupCallbacks()
+    try:
+        return _perform_package_cleanup(repo, protected_shas, cutoff_epoch, adapters, progress)
     except GitHubApiError as exc:
-        detail = str(exc).strip().replace("\n", " ")[:240]
-        result["deleted"] = deleted
-        result["status"] = (
+        detail = str(exc).strip().replace("\\n", " ")[:HTTP_DETAIL_LENGTH]
+        progress.result["deleted"] = progress.deleted
+        progress.result["status"] = (
             "permission_denied"
             if "403" in detail or "forbidden" in detail.lower()
             else "api_error"
         )
-        result["error"] = f"{phase}: {detail}"
-        return result
+        progress.result["error"] = f"{progress.phase}: {detail}"
+        return progress.result
     except (RuntimeError, ValueError, KeyError, TypeError) as exc:
-        result["deleted"] = deleted
-        result["status"] = "skipped_unverifiable"
-        result["error"] = str(exc)[:HTTP_DETAIL_LENGTH]
-        return result
-
+        progress.result["deleted"] = progress.deleted
+        progress.result["status"] = "skipped_unverifiable"
+        progress.result["error"] = str(exc)[:HTTP_DETAIL_LENGTH]
+        return progress.result
 
 def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str]]:
     """Collect the branch names and commit SHAs protected by open pull requests.
