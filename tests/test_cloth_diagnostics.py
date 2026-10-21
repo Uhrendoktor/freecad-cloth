@@ -16,7 +16,7 @@ from freecad_cloth.simulation.ClothDiagnostics import (
 )
 
 
-def _require(condition: bool, message: str) -> None:
+def _require(condition: object, message: str) -> None:
     """Fail a regression test with a descriptive message when a condition is false.
 
     Args:
