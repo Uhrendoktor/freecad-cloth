@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 import http.client
 import json
 import os
@@ -20,6 +21,8 @@ PAGE_SIZE = 100
 HTTP_SUCCESS_MIN = 200
 HTTP_SUCCESS_MAX = 300
 HTTP_DETAIL_LENGTH = 240
+RUN_RETENTION_DAYS = 30
+ACTIVE_RUN_STATUSES = ("queued", "in_progress", "requested", "waiting")
 GRAPHQL_ARGUMENT_COUNT = 4
 BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
@@ -34,6 +37,55 @@ GITHUB_API_VERSION = "2022-11-28"
 
 class GitHubApiError(RuntimeError):
     """Represent an unsuccessful authenticated GitHub API request."""
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedPullRequestLookup:
+    """Hold verified state used to identify matching closed pull-request heads.
+
+    Attributes:
+        repo: Full owner/repository name queried through the API.
+        open_heads: Branch names still referenced by open pull requests.
+        default_branch: Branch name that must never be selected for deletion.
+        activity_epochs: Verified activity timestamps keyed by commit SHA.
+        cutoff_epoch: Timestamp boundary for looking up recently active closed PR heads.
+    """
+
+    repo: str
+    open_heads: set[str]
+    default_branch: str
+    activity_epochs: dict[str, float]
+    cutoff_epoch: float
+
+
+@dataclass(frozen=True, slots=True)
+class BranchRetentionPolicy:
+    """Collect verified activity data used to select stale branch refs.
+
+    Attributes:
+        activity_epochs: Commit activity timestamps keyed by full SHA.
+        cutoff_epoch: Latest timestamp that qualifies as stale.
+        closed_pr_head_shas: Exact closed-PR head SHAs allowed through the cutoff.
+    """
+
+    activity_epochs: dict[str, float]
+    cutoff_epoch: float
+    closed_pr_head_shas: dict[str, set[str]]
+
+
+@dataclass(frozen=True, slots=True)
+class PackageCleanupCallbacks:
+    """Optional API adapters used to make package retention deterministic in tests.
+
+    Attributes:
+        dockerfile_tags_resolver: Callback returning image tags protected by commit SHAs.
+        api_items_loader: Callback that lists package versions through pagination.
+        delete_resource: Callback that deletes a stale package version.
+    """
+
+    dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None
+    delete_resource: Callable[..., None] | None = None
 
 
 def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
@@ -359,39 +411,31 @@ def branch_activity_epochs(
 
 
 def closed_pr_head_shas_by_branch(
-    repo: str,
     branches: list[dict[str, object]],
-    open_heads: set[str],
-    default_branch: str,
-    activity_epochs: dict[str, float],
-    cutoff_epoch: float,
+    lookup: ClosedPullRequestLookup,
     *,
     api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
 ) -> dict[str, set[str]]:
-    """Identify recent branch refs that still match a closed PR head exactly.
+    """Identify recent branch refs matching a closed pull-request head exactly.
 
     Args:
-        repo: Full owner/repository name used to query pull requests.
         branches: Branch records containing names, protection flags, and current SHAs.
-        open_heads: Branch names currently referenced by open pull requests.
-        default_branch: Repository default branch, which must always be retained.
-        activity_epochs: Commit SHA to most-recent-activity epoch mapping.
-        cutoff_epoch: Earliest activity epoch recent enough to inspect for closed PRs.
-        api_items_loader: Optional paginator override used by deterministic API tests.
+        lookup: Verified repository, activity, and open-PR state for this search.
+        api_items_loader: Optional paginator override used by deterministic tests.
 
     Returns:
         Eligible branch names mapped to the exact closed-PR head SHAs they match.
     """
     load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
-    owner = repo.split("/", maxsplit=1)[0]
+    owner = lookup.repo.split("/", maxsplit=1)[0]
     closed_heads: dict[str, set[str]] = {}
     for branch in branches:
         name = branch.get("name")
         if (
             not isinstance(name, str)
             or name.startswith("simulation-evidence/")
-            or name == default_branch
-            or name in open_heads
+            or name == lookup.default_branch
+            or name in lookup.open_heads
             or branch.get("protected") is not False
         ):
             continue
@@ -399,12 +443,14 @@ def closed_pr_head_shas_by_branch(
         sha = commit.get("sha") if isinstance(commit, dict) else None
         if not isinstance(sha, str):
             continue
-        activity = activity_epochs.get(sha)
-        if activity is None or activity < cutoff_epoch:
+        activity = lookup.activity_epochs.get(sha)
+        if activity is None or activity < lookup.cutoff_epoch:
             continue
 
         encoded_head = quote(f"{owner}:{name}", safe=":")
-        pulls = list(load_api_items(f"repos/{repo}/pulls?state=closed&head={encoded_head}"))
+        pulls = list(
+            load_api_items(f"repos/{lookup.repo}/pulls?state=closed&head={encoded_head}")
+        )
         for pull_request in pulls:
             head = pull_request.get("head")
             head_repo = head.get("repo") if isinstance(head, dict) else None
@@ -416,20 +462,17 @@ def closed_pr_head_shas_by_branch(
                 pull_request.get("state") == "closed"
                 and ref == name
                 and head_sha == sha
-                and full_name == repo
+                and full_name == lookup.repo
             ):
                 closed_heads.setdefault(name, set()).add(sha)
                 break
     return closed_heads
 
-
 def stale_unprotected_branches(
     branches: list[dict[str, object]],
     open_heads: set[str],
     default_branch: str,
-    activity_epochs: dict[str, float],
-    cutoff_epoch: float,
-    closed_pr_head_shas: dict[str, set[str]] | None = None,
+    retention: BranchRetentionPolicy,
 ) -> list[dict[str, object]]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
@@ -440,9 +483,7 @@ def stale_unprotected_branches(
         branches: Branch records returned by GitHub for the repository.
         open_heads: Branch names used by currently open pull requests.
         default_branch: Repository's default branch name, which must be retained.
-        activity_epochs: Verified commit activity times keyed by full commit SHA.
-        cutoff_epoch: Unix timestamp before which a branch is considered stale.
-        closed_pr_head_shas: Exact closed-PR head SHAs eligible despite recent activity.
+        retention: Verified activity and closed-PR state used for stale selection.
 
     Returns:
         Unprotected stale branch records sorted by verified commit activity time.
@@ -462,13 +503,13 @@ def stale_unprotected_branches(
         sha = commit.get("sha") if isinstance(commit, dict) else None
         if not isinstance(sha, str):
             continue
-        activity = activity_epochs.get(sha)
+        activity = retention.activity_epochs.get(sha)
         if activity is None:
             continue
         closed_head_shas = (
-            closed_pr_head_shas.get(name, set()) if closed_pr_head_shas is not None else set()
+            retention.closed_pr_head_shas.get(name, set())
         )
-        if activity >= cutoff_epoch and sha not in closed_head_shas:
+        if activity >= retention.cutoff_epoch and sha not in closed_head_shas:
             continue
         stale.append((activity, branch))
     stale.sort(key=lambda item: (item[0], str(item[1].get("name", ""))))
@@ -651,10 +692,7 @@ def cleanup_pbd_package_versions(
     repo: str,
     protected_shas: set[str],
     cutoff_epoch: float,
-    *,
-    dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None,
-    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
-    delete_resource: Callable[..., None] | None = None,
+    callbacks: PackageCleanupCallbacks | None = None,
 ) -> dict[str, object]:
     """Prune only old PBD image versions unused by main, open PRs, or retained/active runs.
 
@@ -662,15 +700,13 @@ def cleanup_pbd_package_versions(
         repo: Owner and repository name containing the PBD package.
         protected_shas: Commit identifiers that keep corresponding image tags in use.
         cutoff_epoch: Unix timestamp marking the image retention boundary.
-        dockerfile_tags_resolver: Optional callback that returns tags protected by commit SHAs.
-        api_items_loader: Optional paginated API iterator used to list package versions.
-        delete_resource: Optional CLI-compatible callback for deleting stale versions.
+        callbacks: Optional API adapters for deterministic package-retention testing.
 
     Returns:
         Cleanup counts and a status describing the package-retention outcome.
 
     Raises:
-        RuntimeError: Raised when a required package version identifier is invalid.
+        TypeError: If a package version has no integer identifier.
     """
     result: dict[str, object] = {
         "status": "not_started",
@@ -680,11 +716,10 @@ def cleanup_pbd_package_versions(
         "protected_tags": 0,
     }
     deleted = 0
-    resolve_tags = (
-        dockerfile_tags_for_shas if dockerfile_tags_resolver is None else dockerfile_tags_resolver
-    )
-    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
-    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+    adapters = callbacks if callbacks is not None else PackageCleanupCallbacks()
+    resolve_tags = adapters.dockerfile_tags_resolver or dockerfile_tags_for_shas
+    load_api_items = adapters.api_items_loader or paginated_api_items
+    delete_api_resource = adapters.delete_resource or gh_delete
     phase = "resolve_protected_tags"
     try:
         if not protected_shas:
@@ -731,7 +766,7 @@ def cleanup_pbd_package_versions(
     except (RuntimeError, ValueError, KeyError, TypeError) as exc:
         result["deleted"] = deleted
         result["status"] = "skipped_unverifiable"
-        result["error"] = str(exc)[:240]
+        result["error"] = str(exc)[:HTTP_DETAIL_LENGTH]
         return result
 
 
