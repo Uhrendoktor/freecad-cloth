@@ -395,8 +395,7 @@ def main() -> int:
     )
     if coverage_violations:
         raise SystemExit(
-            "Pyright whole-repository coverage policy is invalid: "
-            + ", ".join(coverage_violations)
+            "Pyright whole-repository coverage policy is invalid: " + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
         msg = "ty.toml must set [terminal].error-on-warning = true"

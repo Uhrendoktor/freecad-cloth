@@ -5,18 +5,29 @@ import contextlib
 import os
 import tempfile
 import time
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+try:
+    from PySide import QtWidgets
+except ImportError:
+    from PySide2 import QtWidgets
 
 
 def _progress(message: str) -> None:
-    """Persist milestones so CI timeouts show where native FreeCAD stopped."""
-    directory = os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts")
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, "simulation-quality-progress.log")
-    with open(path, "a", encoding="utf-8") as stream:
+    """Persist milestones so CI timeouts show where native FreeCAD stopped.
+
+    Args:
+        message: One progress marker to append to the simulation log.
+    """
+    directory = Path(os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts"))
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "simulation-quality-progress.log"
+    with path.open("a", encoding="utf-8") as stream:
         stream.write(message + "\n")
         stream.flush()
 
@@ -24,22 +35,25 @@ def _progress(message: str) -> None:
 _progress("fixture-imported")
 
 
-def _events():
+def _events() -> None:
+    """Process pending FreeCAD and Qt events before inspecting GUI state."""
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
 
 
 def _capture_readiness_screen(path: str) -> dict[str, int]:
-    """Capture the visible native Simulation Quality task panel at a stable size."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    """Capture and validate the visible Simulation Quality task panel.
 
+    Args:
+        path: Destination path for the 1280-by-720 PNG screenshot.
+
+    Returns:
+        Pixel metrics reported by the shared visual-capture contract validator.
+
+    Raises:
+        RuntimeError: If FreeCAD's window or screen is unavailable, the capture has
+            invalid dimensions, the screenshot is empty, or saving fails.
+    """
     app = QtWidgets.QApplication.instance()
     screen = None if app is None else app.primaryScreen()
     window = Gui.getMainWindow()
@@ -49,8 +63,7 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
         raise RuntimeError(
-            "Simulation readiness screenshot requires a 1280x720-capable screen, got %dx%d"
-            % (geometry.width(), geometry.height())
+            f"Simulation readiness screenshot requires a 1280x720-capable screen, got {geometry.width()}x{geometry.height()}"
         )
 
     window.resize(1280, 720)
@@ -69,10 +82,9 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     width, height = int(pixmap.width()), int(pixmap.height())
     if (width, height) != (1280, 720):
         raise RuntimeError(
-            "Simulation readiness screenshot dimensions are %dx%d, expected 1280x720"
-            % (width, height)
+            f"Simulation readiness screenshot dimensions are {width}x{height}, expected 1280x720"
         )
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     if not pixmap.save(path):
         raise RuntimeError("failed to save Simulation Quality readiness screenshot")
 
@@ -88,13 +100,23 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     )
 
 
-def _close_task():
+def _close_task() -> None:
+    """Close an active FreeCAD task dialog and process its close events."""
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         _events()
 
 
-def _activate(name, commands):
+def _activate(name: str, commands: Sequence[str]) -> None:
+    """Activate a workbench and verify its required command registrations.
+
+    Args:
+        name: Registered FreeCAD workbench name to activate.
+        commands: Command identifiers that must be available afterward.
+
+    Raises:
+        RuntimeError: If the workbench cannot be activated or a command is missing.
+    """
     Gui.activateWorkbench(name)
     _events()
     if Gui.activeWorkbench().name() != name:
@@ -105,15 +127,65 @@ def _activate(name, commands):
         raise RuntimeError("commands are not registered: {}".format(",".join(missing)))
 
 
-def _find_pieces(doc):
-    return [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
+class _PlacementBase(Protocol):
+    """Expose the X coordinate read by the acceptance fixture."""
+
+    x: float
 
 
-def _panel_value(panel, widget_name):
-    return getattr(panel, widget_name).value()
+class _PatternPlacement(Protocol):
+    """Expose the placement base used by a pattern piece."""
+
+    Base: _PlacementBase
 
 
-def run_acceptance():
+class _PatternPieceObject(Protocol):
+    """Describe the pattern-piece properties used by acceptance setup."""
+
+    PatternType: str
+    Placement: _PatternPlacement
+
+
+class _DocumentObjects(Protocol):
+    """Expose the native document object's pattern inventory."""
+
+    Objects: Sequence[_PatternPieceObject]
+
+
+def _find_pieces(doc: _DocumentObjects) -> list[_PatternPieceObject]:
+    """Return the native document's pattern-piece objects.
+
+    Args:
+        doc: FreeCAD document exposing its object inventory.
+
+    Returns:
+        Objects marked with the persistent PatternPiece type identifier.
+    """
+    return [
+        obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"
+    ]
+
+
+def _panel_value(panel: object, widget_name: str) -> float:
+    """Read a numeric value from a named Simulation Quality control.
+
+    Args:
+        panel: Task-panel instance containing the named widget.
+        widget_name: Attribute name of the numeric widget.
+
+    Returns:
+        Current widget value converted to a floating-point number.
+    """
+    return float(getattr(panel, widget_name).value())
+
+
+def run_acceptance() -> None:
+    """Exercise public workbench commands, persistence and quality readiness.
+
+    Raises:
+        RuntimeError: If any asserted workbench, target, material, persistence or
+            visual-readiness condition does not hold.
+    """
     _progress("acceptance-start")
     doc = App.newDocument("SimulationQualityAcceptance")
     _progress("document-created")

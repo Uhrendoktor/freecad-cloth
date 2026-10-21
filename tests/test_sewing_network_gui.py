@@ -142,7 +142,6 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
             Args:
                 _value: Whether word wrapping should be enabled.
             """
-            pass
 
         def setProperty(self, name: str, value: str) -> None:
             """Store a dynamic property on the simulated label.
@@ -155,11 +154,9 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
         def style(self) -> None:
             """Accept a style query from the headless label consumer."""
-            return None
 
         def update(self) -> None:
             """Accept a label refresh request without a graphical interface."""
-            pass
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
@@ -183,7 +180,11 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
 
 def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
-    """Verify invalid recomputation restores values and aborts the transaction."""
+    """Verify invalid recomputation restores values and aborts the transaction.
+
+    Raises:
+        ValueError: If invalid recomputation is not rejected while restoring prior values.
+    """
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
 
     class Seam:
@@ -229,8 +230,6 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
 
     class App:
         """Expose the simulated active document to the task panel."""
-
-        pass
 
     class Item:
         """Represent the display text for one network table item."""
@@ -364,7 +363,6 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
             Args:
                 _value: Whether word wrapping should be enabled.
             """
-            pass
 
         def setProperty(self, name: str, value: str) -> None:
             """Store a dynamic property on the simulated label.
@@ -377,11 +375,9 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
 
         def style(self) -> None:
             """Accept a style query from the headless label consumer."""
-            return None
 
         def update(self) -> None:
             """Accept a label refresh request without a graphical interface."""
-            pass
 
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
     panel.network = Network()
@@ -554,7 +550,12 @@ def test_curved_correspondence_rejects_invalid_range() -> None:
 
 
 def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance() -> None:
-    """Verify legacy tolerance cannot override relative-length mismatch."""
+    """Verify legacy tolerance cannot override relative-length mismatch.
+
+    Raises:
+        ValueError: If a relative-length mismatch is not rejected with an explanatory
+            message instead of widening the stored tolerance.
+    """
     from types import SimpleNamespace
 
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
@@ -594,7 +595,6 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
 
         def recompute(self) -> None:
             """Record a document recomputation request."""
-            pass
 
     class App:
         """Expose the simulated active document to the task panel."""
@@ -649,7 +649,6 @@ def test_sewing_task_panel_reject_preserves_persisted_relative_tolerance() -> No
 
         def recompute(self) -> None:
             """Record a document recomputation request."""
-            pass
 
     class App:
         """Expose the simulated active document to the task panel."""
@@ -730,8 +729,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     class App:
         """Expose the simulated active document to the task panel."""
 
-        pass
-
     class Spin:
         """Represent a numeric input control with a configurable value."""
 
@@ -795,7 +792,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
             Args:
                 _value: Whether word wrapping should be enabled.
             """
-            pass
 
         def setProperty(self, name: str, value: str) -> None:
             """Store a dynamic property on the simulated label.
@@ -808,11 +804,9 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
 
         def style(self) -> None:
             """Accept a style query from the headless label consumer."""
-            return None
 
         def update(self) -> None:
             """Accept a label refresh request without a graphical interface."""
-            pass
 
     class Button:
         """Capture the text and enabled state of a task-panel button."""

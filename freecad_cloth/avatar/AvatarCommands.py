@@ -247,7 +247,7 @@ def _style_mannequin(obj: object) -> None:
         obj: FreeCAD document object whose view properties should be styled.
     """
     try:
-        view = cast(_AvatarFeatureView, obj).ViewObject
+        view = cast("_AvatarFeatureView", obj).ViewObject
         view.DisplayMode = "Flat Lines"
         view.ShapeColor = (0.72, 0.72, 0.72)
         view.LineColor = (0.20, 0.20, 0.20)
