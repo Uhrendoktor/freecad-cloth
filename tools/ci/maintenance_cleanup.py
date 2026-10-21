@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import string
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -25,28 +25,106 @@ MAX_RUN_DELETIONS_PER_RUN = 100
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
+GITHUB_API_VERSION = "2022-11-28"
+
+
+class GitHubApiError(RuntimeError):
+    """Represent an unsuccessful authenticated GitHub API request."""
+
+
+def _request_github_api(
+    method: str, endpoint: str, body: dict[str, str] | None = None
+) -> object:
+    """Send one authenticated GitHub API request and decode its response.
+
+    Args:
+        method: HTTP method used for the API request.
+        endpoint: REST or GraphQL endpoint path, without the API host.
+        body: Optional JSON body sent to the API.
+
+    Returns:
+        Decoded JSON response, or None when the endpoint has no response body.
+
+    Raises:
+        GitHubApiError: If authentication, transport, HTTP status, or JSON decoding fails.
+    """
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise GitHubApiError("GitHub API token is missing from GH_TOKEN and GITHUB_TOKEN")
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "FreeCAD-Cloth-CI",
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    }
+    encoded_body = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        encoded_body = json.dumps(body)
+    connection = http.client.HTTPSConnection("api.github.com", timeout=10)
+    try:
+        connection.request(method, f"/{endpoint.lstrip('/')}", body=encoded_body, headers=headers)
+        response = connection.getresponse()
+        payload = response.read()
+        if not 200 <= response.status < 300:
+            detail = payload.decode("utf-8", errors="replace").strip()
+            message = f"GitHub API request failed: HTTP {response.status} {response.reason}"
+            if detail:
+                message = f"{message}: {detail[:240]}"
+            raise GitHubApiError(message)
+        if not payload:
+            return None
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise GitHubApiError("GitHub API returned invalid JSON") from exc
+    except (http.client.HTTPException, OSError) as exc:
+        raise GitHubApiError(f"GitHub API request failed: {exc}") from exc
+    finally:
+        connection.close()
 
 
 def gh_json(*args: str) -> object:
-    """Run a GitHub CLI command and parse its JSON output.
+    """Fetch JSON from the GitHub API using the workflow token.
 
     Args:
-        args: Arguments passed to the GitHub CLI invocation.
+        args: CLI-compatible API arguments; supports REST GET and GraphQL query calls.
 
     Returns:
-        Parsed JSON value written to standard output.
+        Decoded JSON returned by the API.
+
+    Raises:
+        GitHubApiError: If the request fails or the response cannot be decoded.
+        ValueError: If the requested operation is not supported by this helper.
     """
-    result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=10)
-    return json.loads(result.stdout)
+    if len(args) == 2 and args[0] == "api":
+        return _request_github_api("GET", args[1])
+    if (
+        len(args) == 4
+        and args[0] == "api"
+        and args[1] == "graphql"
+        and args[2] == "-f"
+        and args[3].startswith("query=")
+    ):
+        return _request_github_api("POST", "graphql", {"query": args[3][len("query=") :]})
+    msg = "Unsupported GitHub API command arguments"
+    raise ValueError(msg)
 
 
 def gh_delete(*args: str) -> None:
-    """Delete a GitHub resource through the GitHub CLI.
+    """Delete a GitHub resource through an authenticated API request.
 
     Args:
-        args: Arguments identifying the GitHub resource to delete.
+        args: CLI-compatible DELETE API arguments.
+
+    Raises:
+        GitHubApiError: If GitHub rejects the deletion request.
+        ValueError: If the requested operation is not a DELETE API call.
     """
-    subprocess.run(["gh", *args], check=True, timeout=10)
+    if len(args) != 4 or args[:3] != ("api", "--method", "DELETE"):
+        msg = "Only GitHub API DELETE operations are supported by this helper"
+        raise ValueError(msg)
+    _request_github_api("DELETE", args[3])
 
 
 def epoch(value: str) -> float:
@@ -568,8 +646,8 @@ def cleanup_pbd_package_versions(
         result["pending"] = len(stale) - deleted
         result["status"] = "passed"
         return result
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or str(exc)).strip().replace("\n", " ")[:240]
+    except GitHubApiError as exc:
+        detail = str(exc).strip().replace("\n", " ")[:240]
         result["deleted"] = deleted
         result["status"] = (
             "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
