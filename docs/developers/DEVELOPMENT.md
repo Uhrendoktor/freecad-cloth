@@ -22,7 +22,7 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 The CI toolchain enforces deterministic quality safeguards in addition to the normal lint/test gates:
 
-- Blocking CI runs one Pyright configuration in standard mode across the reviewed headless/core inventory; a top-level `strict` path list opts the three deterministic simulation core modules into strict analysis. A second configuration is prohibited.
+- Blocking CI runs one Pyright configuration in standard mode over the repository root, covering production modules, GUI/command adapters, loaders, tests, fixtures, and tooling. A top-level `strict` path list additionally opts the three deterministic simulation core modules into strict analysis. A second configuration is prohibited.
 - A syntax-aware AST policy gate blocks explicit `Any` references across Python source, including type aliases and variable/class annotations that Ruff ANN401 does not inspect.
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
@@ -35,11 +35,11 @@ The CI toolchain enforces deterministic quality safeguards in addition to the no
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
 - Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](../agents/AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
 
-These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
+These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces participate in the blocking standard-mode analysis too; only the additional strict-mode tier is limited to the three named core modules.
 
 ## Python quality gates
 
-Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
+Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking across the repository's Python source, tests, loaders, GUI/command modules, and tooling; Import Linter enforces dependency direction.
 
 CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi` file, including loaders, workbenches, production modules, tests, and tooling. The same `pyproject.toml` rule set is used locally and in CI. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs one Pyright profile as a blocking check. The inventory uses standard mode by default, while `DrapeFailureClassifier.py`, `ClothBackend.py`, and `ClothSolver.py` are explicitly listed in the config's `strict` path list. The `ty` gate fails on warning-level diagnostics for the curated three-module core profile, so unresolved type warnings cannot silently pass. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
 

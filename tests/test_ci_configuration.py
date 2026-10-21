@@ -645,7 +645,8 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     )
 
     assert config["typeCheckingMode"] == "standard"
-    assert set(strict_core).issubset(config["include"])
+    assert config["include"] == ["."]
+    assert not config.get("exclude")
     assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
     assert quality.count("pyright -p ") == 1
     assert config["strict"] == list(strict_core)

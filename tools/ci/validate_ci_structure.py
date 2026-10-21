@@ -50,39 +50,11 @@ REQUIRED = (
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
-# Stage semantic type checking deliberately: these paths form the reviewed
-# blocking Pyright inventory. Add modules here only after their diagnostics
-# have been triaged. Changed-file annotation ratcheting still covers every
-# Python file, including GUI/command surfaces outside this inventory.
-PYRIGHT_EXPECTED_INCLUDE = (
-    "freecad_cloth/common",
-    "freecad_cloth/shared",
-    "freecad_cloth/pattern/PatternGeometry.py",
-    "freecad_cloth/pattern/PatternIR.py",
-    "freecad_cloth/pattern/PatternModel.py",
-    "freecad_cloth/pattern/PatternPdfExport.py",
-    "freecad_cloth/pattern/PatternSvgValidation.py",
-    "freecad_cloth/sewing/SeamGraph.py",
-    "freecad_cloth/sewing/SewingCorrespondence.py",
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-    "freecad_cloth/simulation/DrapeTarget.py",
-    "freecad_cloth/simulation/SimulationQuality.py",
-    "freecad_cloth/simulation/SimulationObjects.py",
-    "freecad_cloth/simulation/SimulationQualityRuntime.py",
-    "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
-    "freecad_cloth/simulation/MeshCollisionProjector.py",
-    "freecad_cloth/avatar/MakeHumanTargets.py",
-    "freecad_cloth/avatar/AnnyAvatarBackend.py",
-    "freecad_cloth/avatar/avatar_properties.py",
-)
-PYRIGHT_EXPECTED_EXCLUDE = (
-    "**/*Gui.py",
-    "**/*Commands.py",
-    "**/workbench.py",
-    "freecad_cloth/bootstrap.py",
-)
+# Pyright's repository-root include covers every checked-in Python module by default.
+# Do not add an explicit exclusion inventory: tests, tooling, loaders and GUI/command
+# modules all participate in the blocking standard-mode analysis.
+PYRIGHT_EXPECTED_INCLUDE = (".",)
+PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
     "freecad_cloth/simulation/ClothBackend.py",
@@ -199,6 +171,8 @@ def _pyright_path_is_included(path: str, include: list[str]) -> bool:
     normalized = Path(path).as_posix()
     for entry in include:
         target = Path(entry).as_posix()
+        if target in {".", "**"}:
+            return True
         if normalized == target:
             return True
         if not target.endswith(".py") and normalized.startswith(target.rstrip("/") + "/"):
@@ -252,12 +226,12 @@ def pyright_coverage_contract_violations(
     config_text: str,
     added_modules: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Require the reviewed staged Pyright include/exclude inventory to remain intact.
+    """Require Pyright to analyze the entire repository without explicit exclusions.
 
     The current production tree has a large pre-existing type-error backlog.
-    Semantic coverage is widened incrementally; changing the scope requires an
-    explicit inventory update alongside diagnostic triage. Every changed Python
-    file is independently subject to the annotation-debt non-regression gate.
+    Semantic coverage is widened incrementally; the root include intentionally applies standard-mode analysis to every source file.
+    The strict path list adds stricter checks to selected core modules without narrowing
+    the overall analysis. Every changed Python file remains subject to the annotation gate.
 
     Args:
         config_text: Contents of the Pyright configuration file.
@@ -274,9 +248,9 @@ def pyright_coverage_contract_violations(
     include = config.get("include")
     exclude = config.get("exclude", [])
     if include != list(PYRIGHT_EXPECTED_INCLUDE):
-        return ("<Pyright include scope differs from the reviewed inventory>",)
+        return ("<Pyright include scope must cover the entire repository>",)
     if exclude != list(PYRIGHT_EXPECTED_EXCLUDE):
-        return ("<Pyright exclude scope differs from the reviewed inventory>",)
+        return ("<Pyright exclude scope must not narrow repository coverage>",)
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
     if missing_paths:
@@ -421,7 +395,7 @@ def main() -> int:
     )
     if coverage_violations:
         raise SystemExit(
-            "Pyright coverage inventory changed without an explicit staged update: "
+            "Pyright whole-repository coverage policy is invalid: "
             + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):

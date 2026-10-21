@@ -86,7 +86,7 @@ def test_parse_errors_fail_closed() -> None:
 
 
 def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
-    """Require one Pyright config with focused strict modules and blocking gates."""
+    """Require one blocking Pyright config covering every repository Python file."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     assert missing_typecheck_commands(workflow_text) == ()
     assert missing_python_policy_commands(workflow_text) == ()
@@ -131,29 +131,28 @@ def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth/simulation/ClothBackend.py"]
     violations = pyright_coverage_contract_violations(json.dumps(config))
-    assert violations == ("<Pyright include scope differs from the reviewed inventory>",)
+    assert violations == ("<Pyright include scope must cover the entire repository>",)
 
 
 def test_new_production_modules_cannot_escape_pyright_scope() -> None:
-    """Require new modules to be included in Pyright or intentionally excluded."""
+    """Ensure new production modules remain inside repository-wide Pyright analysis."""
     config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-
-    assert (
-        pyright_coverage_contract_violations(
-            config_text,
-            (
-                "freecad_cloth/common/new_model.py",
-                "freecad_cloth/simulation/NewSimulationGui.py",
-                "freecad_cloth/bootstrap.py",
-            ),
-        )
-        == ()
+    new_modules = (
+        "freecad_cloth/common/new_model.py",
+        "freecad_cloth/simulation/NewSimulationGui.py",
+        "freecad_cloth/bootstrap.py",
+        "freecad_cloth/pattern/NewPatternFeature.py",
     )
-    assert pyright_coverage_contract_violations(
-        config_text, ("freecad_cloth/pattern/NewPatternFeature.py",)
-    ) == (
-        "<new Python module is outside Pyright include/exclude scope: "
-        "freecad_cloth/pattern/NewPatternFeature.py>",
+
+    assert pyright_coverage_contract_violations(config_text, new_modules) == ()
+
+
+def test_pyright_coverage_guard_rejects_explicit_exclusions() -> None:
+    """Prevent a future exclude list from skipping repository Python files."""
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["exclude"] = ["tests/**"]
+    assert pyright_coverage_contract_violations(json.dumps(config)) == (
+        "<Pyright exclude scope must not narrow repository coverage>",
     )
 
 
