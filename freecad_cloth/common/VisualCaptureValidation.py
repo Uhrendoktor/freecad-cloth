@@ -100,6 +100,14 @@ def png_has_visible_content(
     Unsupported, truncated, or incorrectly sized captures return False so GUI retry
     loops can reject the frame without duplicating image decoding code. Invalid options
     raise Pydantic ValidationError instead of being mistaken for a bad captured frame.
+
+    Args:
+        path: PNG capture path or path-like value to inspect.
+        minimum_pixels: Smallest permitted count of visible, non-background pixels.
+        expected_width: Required image width, when the capture contract specifies one.
+        expected_height: Required image height, when the capture contract specifies one.
+        pixel_threshold: Channel threshold used to distinguish foreground from background.
+        require_all_channels_below: Whether every colour channel must be below the threshold.
     """
     options = PngCaptureOptions(
         expected_width=expected_width,
