@@ -8,8 +8,9 @@ import warnings
 import numpy as np
 from PIL import Image
 
-from freecad_cloth.common.ValidationModels import PngCaptureMetrics, PngCaptureOptions
 from typing import TYPE_CHECKING
+
+from freecad_cloth.common.ValidationModels import PngCaptureMetrics, PngCaptureOptions
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -21,7 +22,19 @@ def _capture_metrics(
     *,
     track_colors: bool = True,
 ) -> PngCaptureMetrics:
-    """Decode a PNG using Pillow and validate pixel statistics with Pydantic."""
+    """Decode a PNG and measure its visible pixel statistics.
+
+    Args:
+        path: PNG filename or path-like value to decode.
+        options: Validated dimensions and pixel thresholds for the capture.
+        track_colors: Whether to count distinct opaque RGB colours.
+
+    Returns:
+        Validated pixel metrics for the decoded image.
+
+    Raises:
+        ValueError: If image decoding fails or the PNG format or dimensions are invalid.
+    """
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
@@ -108,6 +121,9 @@ def png_has_visible_content(
         expected_height: Required image height, when the capture contract specifies one.
         pixel_threshold: Channel threshold used to distinguish foreground from background.
         require_all_channels_below: Whether every colour channel must be below the threshold.
+
+    Returns:
+        Whether at least the configured number of visible pixels passes the threshold.
     """
     options = PngCaptureOptions(
         expected_width=expected_width,
@@ -132,7 +148,22 @@ def validate_png_capture(
     min_distinct_rgb: int = 8,
     min_opaque_pixels: int = 64,
 ) -> dict[str, int]:
-    """Reject unreadable, transparent, blank, or effectively uniform PNG captures."""
+    """Validate readability, opacity, foreground content, and colour variation.
+
+    Args:
+        path: PNG filename or path-like value to validate.
+        expected_width: Required image width in pixels.
+        expected_height: Required image height in pixels.
+        min_nonwhite_pixels: Minimum count of visible foreground pixels.
+        min_distinct_rgb: Minimum number of distinct opaque RGB colours.
+        min_opaque_pixels: Minimum count of sufficiently opaque pixels.
+
+    Returns:
+        Pixel metrics as a dictionary with integer values.
+
+    Raises:
+        ValueError: If the image is unreadable, blank, transparent, uniform, or mis-sized.
+    """
     options = PngCaptureOptions(
         expected_width=expected_width,
         expected_height=expected_height,
