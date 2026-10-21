@@ -905,6 +905,284 @@ def _as_list(value: object) -> list[object]:
     return cast("list[object]", value) if isinstance(value, list) else []
 
 
+def _boundary_edge_shape(
+    boundary: dict[str, object],
+    armholes: dict[int, dict[str, object]],
+) -> tuple[int | None, list[list[float]], str]:
+    """Resolve the sample points and label for a native pattern boundary.
+
+    Args:
+        boundary: One ordered boundary record from the scene report.
+        armholes: Armhole samples indexed by native boundary edge index.
+
+    Returns:
+        Edge index, local points used for drawing, and the stable edge identifier.
+    """
+    edge_index_value = boundary.get("edge_index")
+    edge_index = int(edge_index_value) if isinstance(edge_index_value, int) else None
+    start = _point(boundary.get("start_mm"))
+    end = _point(boundary.get("end_mm"))
+    local_points = [start, end]
+    sampled_boundary = cast("list[list[float]]", boundary.get("samples_local_mm", []))
+    armhole = armholes.get(edge_index) if edge_index is not None else None
+    if len(sampled_boundary) >= MINIMUM_CURVE_SAMPLE_COUNT:
+        local_points = sampled_boundary
+    elif (
+        str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"}
+        and isinstance(armhole, dict)
+    ):
+        samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
+        if len(samples) >= MINIMUM_CURVE_SAMPLE_COUNT:
+            distance_forward = math.dist(samples[0], start)
+            distance_reverse = math.dist(samples[-1], start)
+            local_points = (
+                samples if distance_forward <= distance_reverse else list(reversed(samples))
+            )
+    return edge_index, local_points, str(boundary.get("id", ""))
+
+
+def _piece_boundary_geometry(
+    boundaries: list[object],
+    armholes: dict[int, dict[str, object]],
+) -> tuple[list[list[float]], list[tuple[int | None, list[list[float]], str]]]:
+    """Collect a piece's connected outline and individual sampled edges.
+
+    Args:
+        boundaries: Ordered boundary entries from a single piece.
+        armholes: Armhole samples indexed by native edge index.
+
+    Returns:
+        Ordered outline coordinates and drawable edge records.
+    """
+    coords: list[list[float]] = []
+    edge_shapes: list[tuple[int | None, list[list[float]], str]] = []
+    for raw_boundary in boundaries:
+        if not isinstance(raw_boundary, dict):
+            continue
+        edge_index, local_points, edge_id = _boundary_edge_shape(raw_boundary, armholes)
+        edge_shapes.append((edge_index, local_points, edge_id))
+        if (
+            coords
+            and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM
+        ):
+            coords.extend(local_points[1:])
+        else:
+            coords.extend(local_points)
+    if coords and math.dist(coords[0], coords[-1]) > BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
+        coords.append(coords[0])
+    return coords, edge_shapes
+
+
+def _svg_transform_point(
+    point: list[float], *, origin_x: float
+) -> tuple[float, float]:
+    """Map a local pattern-space coordinate into the SVG viewport.
+
+    Args:
+        point: Local two-dimensional pattern coordinate.
+        origin_x: Horizontal offset for the current piece.
+
+    Returns:
+        SVG horizontal and vertical coordinates.
+    """
+    return origin_x + point[0] * 0.70, 600.0 - point[1] * 0.70
+
+
+def _crossing_edge_colors(value: object) -> dict[int, str]:
+    """Choose diagnostic colors for edges near a measured outline crossing.
+
+    Args:
+        value: Collection of near-crossing records from the pattern report.
+
+    Returns:
+        Edge-index to stroke-color mapping for the nearest reported crossings.
+    """
+    colors: dict[int, str] = {}
+    for raw_nearby in _as_list(value):
+        if (
+            not isinstance(raw_nearby, dict)
+            or float(raw_nearby.get("distance_mm", math.inf)) > CROSSING_DISTANCE_TOLERANCE_MM
+        ):
+            continue
+        edge_match = re.search(r":edge:(\d+)$", str(raw_nearby.get("edge_id", "")))
+        if edge_match:
+            edge_index = int(edge_match.group(1))
+            if edge_index not in colors:
+                colors[edge_index] = "#cc3333" if not colors else "#e08a18"
+    return colors
+
+
+def _render_outline_path(coords: list[list[float]], origin_x: float) -> str | None:
+    """Render the full piece outline when coordinate samples are available.
+
+    Args:
+        coords: Ordered, closed outline points in local pattern coordinates.
+        origin_x: Horizontal offset for the current piece.
+
+    Returns:
+        SVG path element, or None when no outline points exist.
+    """
+    if not coords:
+        return None
+    first_x, first_y = _svg_transform_point(coords[0], origin_x=origin_x)
+    path_data = [f"M {first_x:.3f},{first_y:.3f}"]
+    for point in coords[1:]:
+        px, py = _svg_transform_point(point, origin_x=origin_x)
+        path_data.append(f"L {px:.3f},{py:.3f}")
+    return (
+        f'<path d="{" ".join(path_data)}" fill="#f8fafc" fill-opacity="0.65" '
+        'stroke="#364152" stroke-width="1.8" stroke-linejoin="round"/>'
+    )
+
+
+def _render_edge_shapes(
+    edge_shapes: list[tuple[int | None, list[list[float]], str]],
+    colors: dict[int, str],
+    origin_x: float,
+    title_color: str,
+) -> list[str]:
+    """Render each sampled boundary edge and its diagnostic index label.
+
+    Args:
+        edge_shapes: Drawable edge records containing index, points, and identifier.
+        colors: Edge stroke colors selected from near-crossing diagnostics.
+        origin_x: Horizontal offset for the current piece.
+        title_color: SVG color used for edge labels.
+
+    Returns:
+        Polyline and text elements for every sampled edge.
+    """
+    rendered: list[str] = []
+    for edge_index, local_points, edge_id in edge_shapes:
+        if not local_points:
+            continue
+        highlighted = edge_index in colors
+        stroke = colors.get(edge_index, "#758195")
+        points_to_draw = [
+            _svg_transform_point(point, origin_x=origin_x) for point in local_points
+        ]
+        point_string = " ".join(f"{x:.3f},{y:.3f}" for x, y in points_to_draw)
+        rendered.extend(
+            [
+                f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
+                f'stroke-width="{3.2 if highlighted else 1.6}" '
+                'stroke-linecap="round" stroke-linejoin="round"/>',
+                (
+                    f'<text x="{(sum(point[0] for point in points_to_draw) / len(points_to_draw)):.3f}" '
+                    f'y="{(sum(point[1] for point in points_to_draw) / len(points_to_draw)) - 7:.3f}" '
+                    f'font-size="11" font-family="monospace" fill="{title_color}" '
+                    f'text-anchor="middle">{html.escape(f"e{edge_index}" if edge_index is not None else edge_id)}</text>'
+                ),
+            ]
+        )
+    return rendered
+
+
+def _render_crossing_marker(crossing: object, origin_x: float) -> list[str]:
+    """Render a measured crossing crosshair when the report has local coordinates.
+
+    Args:
+        crossing: Candidate point record from a piece's topology findings.
+        origin_x: Horizontal offset for the current piece.
+
+    Returns:
+        SVG marker elements or an empty list when no point is available.
+    """
+    if not isinstance(crossing, list) or len(crossing) < TWO_DIMENSIONAL_COORDINATE_COUNT:
+        return []
+    cx, cy = _svg_transform_point([float(crossing[0]), float(crossing[1])], origin_x=origin_x)
+    return [
+        (
+            f'<circle cx="{cx:.3f}" cy="{cy:.3f}" r="7" fill="none" '
+            'stroke="#cc2222" stroke-width="3"/>'
+        ),
+        (
+            f'<path d="M {cx - 11:.3f},{cy:.3f} L {cx + 11:.3f},{cy:.3f} '
+            f'M {cx:.3f},{cy - 11:.3f} L {cx:.3f},{cy + 11:.3f}" '
+            'stroke="#cc2222" stroke-width="2"/>'
+        ),
+        (
+            f'<text x="{origin_x:.3f}" y="637" font-size="13" '
+            'font-family="sans-serif" fill="#cc2222">Crossing: '
+            f"({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>"
+        ),
+    ]
+
+
+def _render_piece_status(
+    record: dict[str, object],
+    piece_name: str,
+    origin_x: float,
+    title_color: str,
+    crossing_edge_colors: dict[int, str],
+) -> list[str]:
+    """Render the validity labels and crossing-edge key for a single pattern piece.
+
+    Args:
+        record: Topology record corresponding to the piece.
+        piece_name: Human-readable piece identifier.
+        origin_x: Horizontal offset for the current piece.
+        title_color: SVG color used for piece and validity labels.
+        crossing_edge_colors: Highlight mapping for measured edge crossings.
+
+    Returns:
+        SVG text elements describing the piece status.
+    """
+    native_valid = bool(record.get("ir_valid"))
+    derived_valid = bool(record.get("draft_valid"))
+    valid = native_valid and derived_valid
+    if valid:
+        state = "VALID"
+    elif not native_valid:
+        state = "INVALID — NATIVE PATTERN TOPOLOGY"
+    else:
+        state = "INVALID — DERIVED OUTLINE REPRESENTATION"
+    rendered = [
+        f'<text x="{origin_x:.3f}" y="26" font-size="17" font-weight="700" '
+        f'font-family="sans-serif" fill="{title_color}">{html.escape(piece_name)}</text>',
+        f'<text x="{origin_x:.3f}" y="48" font-size="13" font-family="sans-serif" '
+        f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>',
+    ]
+    if not valid:
+        crossing_labels = ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
+        rendered.append(
+            f'<text x="{origin_x:.3f}" y="68" font-size="11" font-family="sans-serif" '
+            f'fill="#364152">Highlighted crossing edges: {html.escape(crossing_labels)}</text>'
+        )
+    return rendered
+
+
+def _render_pattern_piece(
+    raw_piece: dict[str, object],
+    piece_number: int,
+    armholes: dict[int, dict[str, object]],
+) -> list[str]:
+    """Render the outline, edge markers, and state labels for one garment piece.
+
+    Args:
+        raw_piece: Structured topology record for this piece.
+        piece_number: Zero-based piece position used for stable panel placement.
+        armholes: Armhole sample points indexed by native edge index.
+
+    Returns:
+        SVG elements associated with the piece.
+    """
+    record = raw_piece
+    piece_name = str(record.get("piece", f"piece-{piece_number + 1}"))
+    boundaries = _as_list(record.get("boundary_order"))
+    origin_x = 34.0 + piece_number * 760.0
+    coords, edge_shapes = _piece_boundary_geometry(boundaries, armholes)
+    crossing_colors = _crossing_edge_colors(record.get("near_crossing"))
+    rendered: list[str] = []
+    outline = _render_outline_path(coords, origin_x)
+    if outline is not None:
+        rendered.append(outline)
+    rendered.extend(_render_edge_shapes(edge_shapes, crossing_colors, origin_x, "#202938"))
+    rendered.extend(_render_crossing_marker(record.get("crossing_local_mm"), origin_x))
+    rendered.extend(_render_piece_status(record, piece_name, origin_x, "#202938", crossing_colors))
+    return rendered
+
+
 def render_pattern_svg(report: dict[str, object]) -> str:
     """Render the reported outline and highlight any measured self-intersection.
 
@@ -921,161 +1199,11 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         for item in _as_list(pattern.get("native_armholes"))
         if isinstance(item, dict) and "edge_index" in item
     }
-    title_color = "#202938"
     pieces_rendered: list[str] = []
-    scale = 0.70
-    panel_offset = 760.0
-    base_y = 600.0
     for piece_number, raw_piece in enumerate(pieces[:2]):
-        if not isinstance(raw_piece, dict):
-            continue
-        record = cast("dict[str, object]", raw_piece)
-        piece_name = str(record.get("piece", f"piece-{piece_number + 1}"))
-        boundaries = _as_list(record.get("boundary_order"))
-        origin_x = 34.0 + piece_number * panel_offset
-        coords: list[list[float]] = []
-        edge_shapes: list[tuple[int | None, list[list[float]], str]] = []
-        for raw_boundary in boundaries:
-            if not isinstance(raw_boundary, dict):
-                continue
-            boundary = cast("dict[str, object]", raw_boundary)
-            edge_index_value = boundary.get("edge_index")
-            edge_index = int(edge_index_value) if isinstance(edge_index_value, int) else None
-            start = _point(boundary.get("start_mm"))
-            end = _point(boundary.get("end_mm"))
-            local_points = [start, end]
-            sampled_boundary = cast("list[list[float]]", boundary.get("samples_local_mm", []))
-            armhole = armholes.get(edge_index) if edge_index is not None else None
-            if len(sampled_boundary) >= MINIMUM_CURVE_SAMPLE_COUNT:
-                local_points = sampled_boundary
-            elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
-                armhole, dict
-            ):
-                samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
-                if len(samples) >= MINIMUM_CURVE_SAMPLE_COUNT:
-                    distance_forward = math.dist(samples[0], start)
-                    distance_reverse = math.dist(samples[-1], start)
-                    local_points = (
-                        samples if distance_forward <= distance_reverse else list(reversed(samples))
-                    )
-            edge_shapes.append((edge_index, local_points, str(boundary.get("id", ""))))
-            if (
-                coords
-                and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM
-            ):
-                coords.extend(local_points[1:])
-            else:
-                coords.extend(local_points)
-        if coords and math.dist(coords[0], coords[-1]) > BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
-            coords.append(coords[0])
-
-        def transform(point: list[float], *, x_offset: float = origin_x) -> tuple[float, float]:
-            """Map a pattern-space point into SVG viewport coordinates.
-
-            Args:
-                point: Two-dimensional coordinate in the pattern's local frame.
-                x_offset: Horizontal origin used for the current panel.
-
-            Returns:
-                Horizontal and vertical coordinates in SVG space.
-            """
-            return x_offset + point[0] * scale, base_y - point[1] * scale
-
-        if coords:
-            first_x, first_y = transform(coords[0])
-            path_data = [f"M {first_x:.3f},{first_y:.3f}"]
-            for point in coords[1:]:
-                px, py = transform(point)
-                path_data.append(f"L {px:.3f},{py:.3f}")
-            pieces_rendered.append(
-                f'<path d="{" ".join(path_data)}" fill="#f8fafc" fill-opacity="0.65" '
-                f'stroke="#364152" stroke-width="1.8" stroke-linejoin="round"/>'
-            )
-        crossing_edge_colors: dict[int, str] = {}
-        for raw_nearby in _as_list(record.get("near_crossing")):
-            if (
-                not isinstance(raw_nearby, dict)
-                or float(raw_nearby.get("distance_mm", math.inf)) > CROSSING_DISTANCE_TOLERANCE_MM
-            ):
-                continue
-            edge_match = re.search(r":edge:(\d+)$", str(raw_nearby.get("edge_id", "")))
-            if edge_match:
-                edge_index = int(edge_match.group(1))
-                if edge_index not in crossing_edge_colors:
-                    crossing_edge_colors[edge_index] = (
-                        "#cc3333" if not crossing_edge_colors else "#e08a18"
-                    )
-        for edge_index, local_points, edge_id in edge_shapes:
-            if not local_points:
-                continue
-            highlighted = edge_index in crossing_edge_colors
-            stroke = crossing_edge_colors.get(edge_index, "#758195")
-            points_to_draw = [transform(point) for point in local_points]
-            point_string = " ".join(f"{x:.3f},{y:.3f}" for x, y in points_to_draw)
-            pieces_rendered.append(
-                f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
-                f'stroke-width="{3.2 if highlighted else 1.6}" '
-                f'stroke-linecap="round" stroke-linejoin="round"/>'
-            )
-            mid = local_points[len(local_points) // 2]
-            label_x, label_y = transform(mid)
-            label = f"e{edge_index}" if edge_index is not None else edge_id
-            pieces_rendered.append(
-                (
-                    f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
-                    f'font-family="monospace" fill="{title_color}" text-anchor="middle">'
-                    f"{html.escape(label)}</text>"
-                )
-            )
-        crossing = record.get("crossing_local_mm")
-        if isinstance(crossing, list) and len(crossing) >= TWO_DIMENSIONAL_COORDINATE_COUNT:
-            cx, cy = transform([float(crossing[0]), float(crossing[1])])
+        if isinstance(raw_piece, dict):
             pieces_rendered.extend(
-                [
-                    (
-                        f'<circle cx="{cx:.3f}" cy="{cy:.3f}" r="7" fill="none" '
-                        'stroke="#cc2222" stroke-width="3"/>'
-                    ),
-                    (
-                        f'<path d="M {cx - 11:.3f},{cy:.3f} L {cx + 11:.3f},{cy:.3f} '
-                        f'M {cx:.3f},{cy - 11:.3f} L {cx:.3f},{cy + 11:.3f}" '
-                        'stroke="#cc2222" stroke-width="2"/>'
-                    ),
-                    (
-                        f'<text x="{origin_x:.3f}" y="637" font-size="13" '
-                        'font-family="sans-serif" fill="#cc2222">Crossing: '
-                        f"({float(crossing[0]):.3f}, {float(crossing[1]):.3f}) mm</text>"
-                    ),
-                ]
-            )
-        native_valid = bool(record.get("ir_valid"))
-        derived_valid = bool(record.get("draft_valid"))
-        valid = native_valid and derived_valid
-        state = (
-            "VALID"
-            if valid
-            else "INVALID — NATIVE PATTERN TOPOLOGY"
-            if not native_valid
-            else "INVALID — DERIVED OUTLINE REPRESENTATION"
-        )
-        pieces_rendered.append(
-            f'<text x="{origin_x:.3f}" y="26" font-size="17" font-weight="700" '
-            f'font-family="sans-serif" fill="{title_color}">{html.escape(piece_name)}</text>'
-        )
-        pieces_rendered.append(
-            f'<text x="{origin_x:.3f}" y="48" font-size="13" font-family="sans-serif" '
-            f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>'
-        )
-        if not valid:
-            crossing_labels = (
-                ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
-            )
-            pieces_rendered.append(
-                (
-                    f'<text x="{origin_x:.3f}" y="68" font-size="11" '
-                    'font-family="sans-serif" fill="#364152">'
-                    f"Highlighted crossing edges: {html.escape(crossing_labels)}</text>"
-                )
+                _render_pattern_piece(cast("dict[str, object]", raw_piece), piece_number, armholes)
             )
     if not pieces_rendered:
         pieces_rendered.append(
@@ -1095,7 +1223,6 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         '<svg xmlns="http://www.w3.org/2000/svg" width="1510" height="660" viewBox="0 0 1510 660">'
         f"{banner}{''.join(pieces_rendered)}</svg>\n"
     )
-
 
 def render_markdown(report: dict[str, object]) -> str:
     """Generate a readable summary that leads with the blocker, not solver metrics.
