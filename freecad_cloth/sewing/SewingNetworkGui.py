@@ -9,6 +9,11 @@ from itertools import starmap
 
 
 def _modules():
+    """Load the FreeCAD and Qt modules supported by the host runtime.
+
+    Returns:
+        Application, GUI, QtCore, and QtWidgets modules in that order.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -36,8 +41,18 @@ def network_reference_errors(network: object) -> tuple[tuple[str, str], ...]:
     return tuple(errors)
 
 
-def validate_network_for_edit(network):
-    """Raise a clear error when a persisted network contains invalid seams."""
+def validate_network_for_edit(network: object) -> bool:
+    """Check whether a persisted network can safely enter the editor.
+
+    Args:
+        network: Sewing-network object whose canonical seam references are checked.
+
+    Returns:
+        True when every seam reference has a valid status.
+
+    Raises:
+        ValueError: If one or more seam references are invalid.
+    """
     errors = network_reference_errors(network)
     if errors:
         details = ", ".join(starmap("{}: {}".format, errors))
@@ -50,7 +65,12 @@ class SewingNetworkTaskPanel:
 
     _TRANSACTION_NAME = "Edit Sewing Network"
 
-    def __init__(self, network):
+    def __init__(self, network: object) -> None:
+        """Initialize the task panel from a persisted sewing network.
+
+        Args:
+            network: Network whose seam ranges and alignment will be edited.
+        """
         App, Gui, QtCore, QtWidgets = _modules()
         self.App, self.Gui, self.QtCore = App, Gui, QtCore
         self.network = network
@@ -171,7 +191,8 @@ class SewingNetworkTaskPanel:
             opener(self._TRANSACTION_NAME)
             self._transaction_active = True
 
-    def _commit_transaction(self):
+    def _commit_transaction(self) -> None:
+        """Commit the active document transaction when the host supports it."""
         if not self._transaction_active:
             return
         doc = self.App.ActiveDocument
@@ -180,7 +201,12 @@ class SewingNetworkTaskPanel:
             committer()
         self._transaction_active = False
 
-    def _abort_transaction(self):
+    def _abort_transaction(self) -> bool:
+        """Abort an active transaction when possible and clear its local state.
+
+        Returns:
+            Whether a document abort operation was available and performed.
+        """
         if not self._transaction_active:
             return False
         doc = self.App.ActiveDocument
@@ -192,7 +218,8 @@ class SewingNetworkTaskPanel:
         self._transaction_active = False
         return False
 
-    def _restore_original(self):
+    def _restore_original(self) -> None:
+        """Restore the saved seam ranges, alignment, and correspondence direction."""
         for seam, ranges, alignment, reversed_b in zip(
             self._seams,
             self._original["ranges"],
@@ -204,7 +231,19 @@ class SewingNetworkTaskPanel:
             seam.Alignment = alignment
             seam.ReversedB = reversed_b
 
-    def _range(self, row, column):
+    def _range(self, row: int, column: int) -> float:
+        """Parse and validate one normalized edge range from the table.
+
+        Args:
+            row: Table row containing the seam range.
+            column: Table column containing its numeric value.
+
+        Returns:
+            Range endpoint constrained to the inclusive interval from zero to one.
+
+        Raises:
+            ValueError: If the cell is not numeric or its value is out of range.
+        """
         try:
             value = float(self.table.item(row, column).text())
         except (TypeError, ValueError) as exc:
@@ -216,7 +255,11 @@ class SewingNetworkTaskPanel:
         return value
 
     def accept(self):
-        """Validate all edits, then apply the complete network atomically."""
+        """Validate all edits, then apply the complete network atomically.
+
+        Raises:
+            ValueError: If seam references or any edited normalized range is invalid.
+        """
         validate_network_for_edit(self.network)
         values = []
         for row, seam in enumerate(self._seams):
@@ -253,6 +296,7 @@ class SewingNetworkTaskPanel:
         return True
 
     def _refresh_status(self):
+        """Refresh the task-panel warning and persisted network status display."""
         from freecad_cloth.common.UiDesign import set_status
 
         errors = network_reference_errors(self.network)
@@ -298,11 +342,24 @@ class SewingNetworkTaskPanel:
         self._refresh_status()
 
     def getStandardButtons(self):
+        """Return the standard accept and cancel buttons for the task panel.
+
+        Returns:
+            Qt button flags for accepting or cancelling the edit transaction.
+        """
         _App, _Gui, _QtCore, QtWidgets = _modules()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
-def show_sewing_network_task(network):
+def show_sewing_network_task(network: object) -> SewingNetworkTaskPanel:
+    """Display a sewing-network editor for the supplied network.
+
+    Args:
+        network: Persisted sewing network to edit.
+
+    Returns:
+        The task-panel instance shown by FreeCAD.
+    """
     _App, Gui, _QtCore, _QtWidgets = _modules()
     panel = SewingNetworkTaskPanel(network)
     Gui.Control.showDialog(panel)
