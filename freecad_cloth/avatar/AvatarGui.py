@@ -105,8 +105,7 @@ class AvatarTaskPanel:
     )
 
     def __init__(self, avatar=None):
-        """Build the avatar editor and bind its staged controls to the feature.
-        """
+        """Build the avatar editor and bind its staged controls to the feature."""
         App, Gui, QtWidgets = _modules()
         self.App, self.Gui = App, Gui
         self.avatar = avatar or self._find_avatar()
@@ -339,8 +338,7 @@ class AvatarTaskPanel:
         apply_panel_style(self.form)
 
     def _open_pose_mode(self):
-        """Open the pose editor for the current mannequin.
-        """
+        """Open the pose editor for the current mannequin."""
         if self.avatar is None:
             return
         with contextlib.suppress(AttributeError, RuntimeError):
@@ -361,8 +359,7 @@ class AvatarTaskPanel:
         return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
 
     def _add_measurement_group(self, parent, title, fields):
-        """Add a labeled group of measurement controls to the supplied layout.
-        """
+        """Add a labeled group of measurement controls to the supplied layout."""
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox(title)
         layout = QtWidgets.QFormLayout(group)
@@ -419,8 +416,7 @@ class AvatarTaskPanel:
         self.mass_group = group
 
     def _mass_target_toggled(self, enabled: bool) -> None:
-        """Enable or disable the mass-target editor when its toggle changes.
-        """
+        """Enable or disable the mass-target editor when its toggle changes."""
         self.mass_target.setEnabled(bool(enabled))
         self._staged_changed()
 
@@ -556,8 +552,7 @@ class AvatarTaskPanel:
         low: float,
         high: float,
     ) -> None:
-        """Build a numeric control for one advanced avatar parameter.
-        """
+        """Build a numeric control for one advanced avatar parameter."""
         _, _, QtWidgets = _modules()
         page = self._advanced_pages[page_key]
         category = self._advanced_category(name, kind)
@@ -802,8 +797,7 @@ class AvatarTaskPanel:
         self.shape_group = group
 
     def _load(self):
-        """Populate the task-panel controls from the persisted avatar parameters.
-        """
+        """Populate the task-panel controls from the persisted avatar parameters."""
         if self.avatar is None:
             self.status.setText("Create a Cloth Human Mannequin first.")
             self.apply_button.setEnabled(False)
@@ -905,8 +899,7 @@ class AvatarTaskPanel:
         return "makehuman-hm08"
 
     def _provider_changed(self, provider_id):
-        """Mark provider-specific controls dirty after the provider changes.
-        """
+        """Mark provider-specific controls dirty after the provider changes."""
         self._dirty = True
         self._refresh_provider_source()
         self._update_shape_enabled()
@@ -915,8 +908,7 @@ class AvatarTaskPanel:
         )
 
     def _use_selected_provider_source(self):
-        """Use the selected mesh object as the source for the current provider.
-        """
+        """Use the selected mesh object as the source for the current provider."""
         if self.avatar is None:
             return
         selection = [obj for obj in self.Gui.Selection.getSelection() if obj is not self.avatar]
@@ -937,8 +929,7 @@ class AvatarTaskPanel:
         )
 
     def _refresh_provider_source(self):
-        """Refresh the provider-source chooser to match the current feature links.
-        """
+        """Refresh the provider-source chooser to match the current feature links."""
         if self.avatar is None:
             self.provider_source_label.setText("Source: none")
             return
@@ -955,8 +946,7 @@ class AvatarTaskPanel:
         self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
     def _preset_changed(self, preset):
-        """Apply a changed pose preset to the staged avatar parameters.
-        """
+        """Apply a changed pose preset to the staged avatar parameters."""
         if self._loading:
             return
         from freecad_cloth.avatar.AvatarModel import Pose
@@ -982,8 +972,7 @@ class AvatarTaskPanel:
         self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
-        """Refresh shape controls after a slider value changes.
-        """
+        """Refresh shape controls after a slider value changes."""
         self._update_shape_labels()
         self._staged_changed()
 
@@ -1030,8 +1019,7 @@ class AvatarTaskPanel:
             )
 
     def _staged_changed(self):
-        """Mark the task panel dirty after a staged setting changes.
-        """
+        """Mark the task panel dirty after a staged setting changes."""
         self._dirty = True
         self._refresh_status(
             "Unsaved mannequin edits are staged. Apply & Rebuild to update the body."
@@ -1125,8 +1113,7 @@ class AvatarTaskPanel:
         return True
 
     def _load_skeleton_pose(self):
-        """Load stored joint rotations into the pose editor controls.
-        """
+        """Load stored joint rotations into the pose editor controls."""
         from freecad_cloth.avatar.SkeletonPose import joint_rotation_map, joint_rotations_from_json
 
         rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
@@ -1134,8 +1121,7 @@ class AvatarTaskPanel:
         self._load_selected_joint()
 
     def _load_selected_joint(self, _index=0):
-        """Refresh the controls for the newly selected skeleton joint.
-        """
+        """Refresh the controls for the newly selected skeleton joint."""
         bone = str(self.skeleton_joint.currentData())
         rotation = self._staged_joint_rotations.get(bone)
         values = (
@@ -1155,8 +1141,7 @@ class AvatarTaskPanel:
             box.blockSignals(False)
 
     def _joint_changed(self):
-        """Apply a manual rotation change to the selected skeleton joint.
-        """
+        """Apply a manual rotation change to the selected skeleton joint."""
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
         bone = str(self.skeleton_joint.currentData())
@@ -1173,8 +1158,7 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _symmetry_changed(self, checked):
-        """Reflect joint rotation changes across the selected symmetry partner.
-        """
+        """Reflect joint rotation changes across the selected symmetry partner."""
         if not checked:
             return
         bone = str(self.skeleton_joint.currentData())
@@ -1191,22 +1175,19 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _reset_skeleton_pose(self):
-        """Reset all staged skeleton joint rotations to the neutral pose.
-        """
+        """Reset all staged skeleton joint rotations to the neutral pose."""
         self._staged_joint_rotations = {}
         self._load_selected_joint()
         self._staged_changed()
 
     def _rebuild_geometry(self):
-        """Rebuild the mannequin geometry from the staged parameters.
-        """
+        """Rebuild the mannequin geometry from the staged parameters."""
         from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
 
         rebuild_avatar()
 
     def _update_arrangement_points(self):
-        """Refresh persisted garment arrangement points attached to the avatar.
-        """
+        """Refresh persisted garment arrangement points attached to the avatar."""
         self.arrangement_points.clear()
         if self.avatar is None:
             return
@@ -1221,8 +1202,7 @@ class AvatarTaskPanel:
             )
 
     def _update_landmarks(self):
-        """Show or hide measurement landmarks for the current mannequin.
-        """
+        """Show or hide measurement landmarks for the current mannequin."""
         if self.avatar is None or not self.show_measurements.isChecked():
             self.landmarks.setText("")
             return
@@ -1236,13 +1216,11 @@ class AvatarTaskPanel:
         self.landmarks.setText("<b>Landmarks</b><br>" + "<br>".join(entries))
 
     def _landmarks_visibility_changed(self, _checked):
-        """Refresh the measurement overlay after its visibility checkbox changes.
-        """
+        """Refresh the measurement overlay after its visibility checkbox changes."""
         self._update_landmarks()
 
     def _refresh_status(self, message=None):
-        """Display the latest avatar operation status in the task panel.
-        """
+        """Display the latest avatar operation status in the task panel."""
         from freecad_cloth.common.UiDesign import set_status
 
         if self.avatar is None:
