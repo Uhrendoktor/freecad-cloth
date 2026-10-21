@@ -7,12 +7,22 @@ import argparse
 import contextlib
 import os
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+MAX_FREECAD_TIMEOUT_SECONDS = 360
+TEMP_ROOT = Path(tempfile.gettempdir())
+WORKBENCH_STAGE_ROOT = TEMP_ROOT / "freecad-mod"
+WORKBENCH_STAGE_PATH = WORKBENCH_STAGE_ROOT / "freecad-cloth"
+RUNTIME_DIRECTORY = TEMP_ROOT / "runtime-cloth"
+XVFB_LOG = TEMP_ROOT / "xvfb.log"
+OPENBOX_LOG = TEMP_ROOT / "openbox.log"
 
 
 try:
@@ -42,8 +52,11 @@ def configured_timeout_seconds() -> float:
     except ValueError as exc:
         msg = "FREECAD_APPLICATION_TIMEOUT_SECONDS must be an integer"
         raise RuntimeError(msg) from exc
-    if not 1 <= override_seconds <= 360:
-        msg = "FREECAD_APPLICATION_TIMEOUT_SECONDS must be between 1 and 360"
+    if not 1 <= override_seconds <= MAX_FREECAD_TIMEOUT_SECONDS:
+        msg = (
+            "FREECAD_APPLICATION_TIMEOUT_SECONDS must be between 1 and "
+            f"{MAX_FREECAD_TIMEOUT_SECONDS}"
+        )
         raise RuntimeError(msg)
     return float(override_seconds)
 
@@ -54,9 +67,9 @@ def _stage_workbench(source: Path) -> None:
     Args:
         source: Repository root containing the workbench files to stage.
     """
-    target = Path("/tmp/freecad-mod/freecad-cloth")
+    target = WORKBENCH_STAGE_PATH
     if target.exists():
-        shutil.rmtree(target.parent)
+        shutil.rmtree(WORKBENCH_STAGE_ROOT)
     target.mkdir(parents=True)
     names = ("Init.py", "InitGui.py", "package.xml", "resources", "freecad_cloth", "freecad")
     for name in names:
@@ -70,6 +83,24 @@ def _stage_workbench(source: Path) -> None:
             shutil.copy2(src, dst)
 
 
+def _require_executable(name: str) -> str:
+    """Resolve a display utility to an absolute executable path.
+
+    Args:
+        name: Executable name to look up on PATH.
+
+    Returns:
+        Absolute path to the executable.
+
+    Raises:
+        FileNotFoundError: If the requested executable is not installed or not on PATH.
+    """
+    executable = shutil.which(name)
+    if executable is None:
+        raise FileNotFoundError(f"Required display executable not found: {name}")
+    return executable
+
+
 def _start_display(display: str) -> tuple[subprocess.Popen[str], subprocess.Popen[str]]:
     """Start Xvfb and Openbox and wait for the display server to respond.
 
@@ -80,35 +111,34 @@ def _start_display(display: str) -> tuple[subprocess.Popen[str], subprocess.Pope
         Process handles for the Xvfb server and Openbox window manager.
 
     Raises:
-        RuntimeError: Raised when the display server does not become ready in five seconds.
+        FileNotFoundError: If a required display utility is unavailable.
+        RuntimeError: If the display server does not become ready in five seconds.
     """
-    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp/runtime-cloth"))
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or RUNTIME_DIRECTORY)
     runtime.mkdir(parents=True, exist_ok=True)
-    xvfb_log = Path("/tmp/xvfb.log")
-    openbox_log = Path("/tmp/openbox.log")
     xvfb = subprocess.Popen(
-        ["Xvfb", display, "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
-        stdout=xvfb_log.open("w"),
+        [_require_executable("Xvfb"), display, "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
+        stdout=XVFB_LOG.open("w", encoding="utf-8"),
         stderr=subprocess.STDOUT,
         text=True,
     )
     openbox = subprocess.Popen(
-        ["openbox"],
-        stdout=openbox_log.open("w"),
+        [_require_executable("openbox")],
+        stdout=OPENBOX_LOG.open("w", encoding="utf-8"),
         stderr=subprocess.STDOUT,
         text=True,
         env={**os.environ, "DISPLAY": display},
     )
     for _ in range(20):
         check = subprocess.run(
-            ["xdpyinfo", "-display", display],
+            [_require_executable("xdpyinfo"), "-display", display],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
         )
         if check.returncode == 0:
             return xvfb, openbox
-        subprocess.run(["sleep", "0.25"], check=False)
+        time.sleep(0.25)
     xvfb.terminate()
     openbox.terminate()
     msg = "Xvfb did not become ready within 5 seconds"
@@ -135,7 +165,9 @@ def _stop_process_tree(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=5)
 
 
-def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> None:
+def _write_diagnostics(
+    path: Path, return_code: int | None, *, timed_out: bool
+) -> None:
     """Write the process result and available display-server logs to a diagnostic file.
 
     Args:
@@ -148,10 +180,9 @@ def _write_diagnostics(path: Path, return_code: int | None, timed_out: bool) -> 
         f"freecad-run-return-code={return_code}",
         f"freecad-run-timed-out={str(timed_out).lower()}",
     ]
-    for name in ("/tmp/xvfb.log", "/tmp/openbox.log"):
-        log = Path(name)
+    for log in (XVFB_LOG, OPENBOX_LOG):
         if log.exists():
-            lines.append(f"--- {name} ---")
+            lines.append(f"--- {log} ---")
             lines.extend(log.read_text(encoding="utf-8", errors="replace").splitlines())
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -181,11 +212,9 @@ def main() -> int:
 
     command = ["/opt/freecad/AppRun"]
     if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == "true":
-        command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])
+        command.extend(["-M", str(WORKBENCH_STAGE_ROOT), "-P", str(WORKBENCH_STAGE_PATH)])
     command.append(str(args.test_script))
     if args.test_args:
-        import shlex
-
         command.extend(shlex.split(args.test_args))
 
     args.log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -223,21 +252,21 @@ def main() -> int:
         sys.stdout.write(output)
         if timed_out:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")
-            _write_diagnostics(diagnostic, return_code, True)
-            print(
+            _write_diagnostics(diagnostic, return_code, timed_out=True)
+            sys.stdout.write(
                 f"freecad-run-timeout={timeout_seconds:g}s "
-                f"log={args.log_file} diagnostics={diagnostic}",
-                flush=True,
+                f"log={args.log_file} diagnostics={diagnostic}\n"
             )
+            sys.stdout.flush()
             return 124
         if int(return_code or 0) != 0:
             diagnostic = args.log_file.with_name("runtime-diagnostics.log")
-            _write_diagnostics(diagnostic, return_code, False)
-            print(
+            _write_diagnostics(diagnostic, return_code, timed_out=False)
+            sys.stdout.write(
                 f"freecad-run-failure=exit-{int(return_code or 0)} "
-                f"log={args.log_file} diagnostics={diagnostic}",
-                flush=True,
+                f"log={args.log_file} diagnostics={diagnostic}\n"
             )
+            sys.stdout.flush()
         return int(return_code or 0)
     finally:
         for process in (openbox, xvfb):
