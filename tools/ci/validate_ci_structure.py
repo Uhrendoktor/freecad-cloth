@@ -331,10 +331,7 @@ def _validate_workflow_dispatch_contract(text: str) -> None:
     """
     lines = text.splitlines()
     if len(lines) > MAX_REUSABLE_WORKFLOW_LINES:
-        msg = (
-            f"reusable workflow is {len(lines)} lines; "
-            f"limit is {MAX_REUSABLE_WORKFLOW_LINES}"
-        )
+        msg = f"reusable workflow is {len(lines)} lines; limit is {MAX_REUSABLE_WORKFLOW_LINES}"
         raise SystemExit(msg)
     trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
@@ -369,9 +366,10 @@ def _validate_entrypoint_workflows() -> None:
         "types: [opened, synchronize, reopened, ready_for_review, edited]",
         "workflow_dispatch:",
     )
-    invalid_commit_workflow = any(
-        marker not in commit_workflow for marker in required_commit_markers
-    ) or "merge_group:" in commit_workflow
+    invalid_commit_workflow = (
+        any(marker not in commit_workflow for marker in required_commit_markers)
+        or "merge_group:" in commit_workflow
+    )
     required_merge_markers = (
         "merge_group:",
         "name: Required pre-merge validation",
@@ -538,9 +536,7 @@ def _validate_required_components() -> None:
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         msg = "FreeCAD container action must retain its 180-second pull contract"
         raise SystemExit(msg)
-    freecad_action = (ROOT / ".github/actions/freecad-test/action.yml").read_text(
-        encoding="utf-8"
-    )
+    freecad_action = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
     if (
         'default: "120"' not in freecad_action
         or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad_action
@@ -583,11 +579,11 @@ def _validate_action_pinning() -> None:
 def main() -> int:
     """Validate the repository CI structure and hard runtime contracts.
 
-    Raises:
-        SystemExit: If a required workflow or type-check gate is missing.
-
     Returns:
         Process status indicating whether the CI structure is valid.
+
+    Raises:
+        SystemExit: If a required workflow or type-check gate is missing.
     """
     files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
     if files != WORKFLOW_FILES:
