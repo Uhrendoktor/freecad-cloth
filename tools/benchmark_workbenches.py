@@ -78,9 +78,11 @@ class BenchmarkWorkbenchBackend:
 
 
 # Expose the mixed-case names required by FreeCAD without defining non-PEP-8 methods.
-BenchmarkWorkbenchBackend.appendToolbar = BenchmarkWorkbenchBackend.append_toolbar
-BenchmarkWorkbenchBackend.appendMenu = BenchmarkWorkbenchBackend.append_menu
-BenchmarkWorkbenchBackend.appendContextMenu = BenchmarkWorkbenchBackend.append_context_menu
+BenchmarkWorkbenchBackend.appendToolbar = staticmethod(BenchmarkWorkbenchBackend.append_toolbar)
+BenchmarkWorkbenchBackend.appendMenu = staticmethod(BenchmarkWorkbenchBackend.append_menu)
+BenchmarkWorkbenchBackend.appendContextMenu = staticmethod(
+    BenchmarkWorkbenchBackend.append_context_menu
+)
 
 
 def trace(message: str) -> None:
@@ -217,8 +219,6 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
     Returns:
         Median timings, completed sample count, and the median registered-command count.
 
-    Raises:
-        RuntimeError: If FreeCAD registers an unexpected number of workbenches.
     """
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
