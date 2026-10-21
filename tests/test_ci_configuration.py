@@ -215,9 +215,11 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         "Uhrendoktor/freecad-cloth",
         {"1" * 40},
         maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
-        dockerfile_tags_resolver=fake_resolve_tags,
-        api_items_loader=fake_load_items,
-        delete_resource=fake_delete,
+        callbacks=maintenance_cleanup.PackageCleanupCallbacks(
+            dockerfile_tags_resolver=fake_resolve_tags,
+            api_items_loader=fake_load_items,
+            delete_resource=fake_delete,
+        ),
     )
 
     assert result["status"] == "passed"
@@ -488,13 +490,16 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
             )
         return iter([])
 
+    lookup = maintenance_cleanup.ClosedPullRequestLookup(
+        repo="owner/repo",
+        open_heads=set(),
+        default_branch="main",
+        activity_epochs=activity,
+        cutoff_epoch=cutoff,
+    )
     matched = maintenance_cleanup.closed_pr_head_shas_by_branch(
-        "owner/repo",
         branches,
-        set(),
-        "main",
-        activity,
-        cutoff,
+        lookup,
         api_items_loader=fake_load_items,
     )
 
@@ -560,8 +565,13 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
     }
 
+    retention = maintenance_cleanup.BranchRetentionPolicy(
+        activity_epochs=activity,
+        cutoff_epoch=cutoff,
+        closed_pr_head_shas={"fix/old-closed-work": {"5" * 40}},
+    )
     stale = maintenance_cleanup.stale_unprotected_branches(
-        branches, {"agent/open-pr"}, "main", activity, cutoff
+        branches, {"agent/open-pr"}, "main", retention
     )
 
     assert [branch["name"] for branch in stale] == [
