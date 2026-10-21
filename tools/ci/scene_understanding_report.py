@@ -1236,6 +1236,150 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         f"{banner}{''.join(pieces_rendered)}</svg>\n"
     )
 
+def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
+    """Render the fit-screening section without promoting heuristic warnings to failures.
+
+    Args:
+        lines: Markdown lines accumulated by the report renderer.
+        report: Structured scene-understanding report data.
+    """
+    fit = _as_dict(report.get("fit_assessment"))
+    fit_state = str(fit.get("state", "not_assessed"))
+    fit_findings = _as_list(fit.get("findings"))
+    fit_references = _as_dict(fit.get("reference_levels_mm"))
+    fit_observed = _as_dict(fit.get("observed_final_panel_z_mm"))
+    lines.extend(["", "## Fit and placement assessment", ""])
+    lines.append(f"**Screening state:** {fit_state.upper().replace('_', ' ')}")
+    if fit_state == "review_required":
+        lines.extend(
+            [
+                "The execution and collision checks may have passed while garment coverage or "
+                "vertical placement remains suspicious.",
+                f"- Final panel Z range: {fit_observed.get('minimum')} to "
+                f"{fit_observed.get('maximum')} mm.",
+                f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
+                f"{fit_references.get('shoulder_z')} mm "
+                f"({fit_references.get('shoulder_reference_source', 'source unavailable')}).",
+            ]
+        )
+        for raw_finding in fit_findings:
+            if not isinstance(raw_finding, dict):
+                continue
+            finding = cast("dict[str, object]", raw_finding)
+            lines.append(
+                f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
+                f"({finding.get('observed_mm')} mm; heuristic review threshold "
+                f"{finding.get('review_threshold_mm')} mm)."
+            )
+    elif fit_state == "within_heuristic_tolerance":
+        lines.append(
+            (
+                "No large vertical-bounds deviation exceeded the screening threshold. This is not "
+                "a fit or attachment certification."
+            )
+        )
+    else:
+        lines.append(str(fit.get("reason", "No fit-alignment measurements were available.")))
+    if fit.get("interpretation_limit"):
+        lines.append(f"Limit: {fit.get('interpretation_limit')}")
+    lines.append(f"Next action: {fit.get('next_action', report.get('next_action'))}")
+
+
+
+def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None:
+    """Render measured blocking pattern findings and their first repair action.
+
+    Args:
+        lines: Markdown lines accumulated by the report renderer.
+        report: Structured scene-understanding report data.
+    """
+    issues = _as_list(report.get("issues"))
+    lines.extend(["", "## Blocking geometry findings", ""])
+    if issues:
+        for raw_issue in issues:
+            if not isinstance(raw_issue, dict):
+                continue
+            issue = cast("dict[str, object]", raw_issue)
+            point = issue.get("point_local_mm")
+            point_text = (
+                f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
+                if isinstance(point, list) and len(point) >= 2
+                else "not reported"
+            )
+            edge_ids = (
+                ", ".join(str(value) for value in _as_list(issue.get("edge_ids"))) or "not resolved"
+            )
+            lines.extend(
+                [
+                    f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** "
+                    f"{issue.get('reason')}. Crossing at local {point_text}; related edges: "
+                    f"{edge_ids}.",
+                    f"  - Effect: {issue.get('effect')}.",
+                ]
+            )
+        lines.append(
+            (
+                "- **Next action:** repair the pattern boundary; do not tune collision, timestep, "
+                "or solver iterations."
+            )
+        )
+    else:
+        lines.extend(
+            [
+                "No invalid polygon was reported. Topology validity is independent from body "
+                "coverage, placement, and attachment.",
+                f"Next action: {report.get('next_action')}",
+            ]
+        )
+
+
+def _render_placement_section(lines: list[str], report: dict[str, object]) -> None:
+    """Render observed panel placement values or the missing-evidence note.
+
+    Args:
+        lines: Markdown lines accumulated by the report renderer.
+        report: Structured scene-understanding report data.
+    """
+    lines.extend(["", "## Placement observations", ""])
+    panels = _as_dict(placement.get("panels"))
+    if panels:
+        for side in sorted(panels):
+            raw_panel = panels[side]
+            if not isinstance(raw_panel, dict):
+                continue
+            panel = cast("dict[str, object]", raw_panel)
+            lines.append(
+                f"- **{side}:** panel origin Y = {panel.get('panel_origin_y_mm')} mm; "
+                f"clearance used = {panel.get('configured_clearance_mm')} mm; "
+                f"projected target vertices = {panel.get('projected_target_vertex_count')}."
+            )
+    else:
+        lines.append("No explicit target-relative panel placement was observed.")
+
+
+def _render_evidence_section(lines: list[str], report: dict[str, object]) -> None:
+    """Render expected outputs and hashes for captured evidence.
+
+    Args:
+        lines: Markdown lines accumulated by the report renderer.
+        report: Structured scene-understanding report data.
+    """
+    lines.extend(["", "## Evidence availability", ""])
+    for name, value in expected.items():
+        lines.append(f"- {name.replace('_', ' ')}: **{value}**")
+    image_records = _as_list(evidence.get("images"))
+    if image_records:
+        lines.extend(["", "## Indexed images", ""])
+        for raw_image in image_records:
+            if not isinstance(raw_image, dict):
+                continue
+            image = cast("dict[str, object]", raw_image)
+            lines.append(
+                f"- {image.get('path')} — {image.get('size_bytes')} bytes; "
+                f"SHA-256 hash: {image.get('sha256')}"
+            )
+
+
 def render_markdown(report: dict[str, object]) -> str:
     """Generate a readable summary that leads with the blocker, not solver metrics.
 
@@ -1274,122 +1418,14 @@ def render_markdown(report: dict[str, object]) -> str:
             "drape",
         )
     )
-    fit = _as_dict(report.get("fit_assessment"))
-    fit_state = str(fit.get("state", "not_assessed"))
-    fit_findings = _as_list(fit.get("findings"))
-    fit_references = _as_dict(fit.get("reference_levels_mm"))
-    fit_observed = _as_dict(fit.get("observed_final_panel_z_mm"))
-    lines.extend(["", "## Fit and placement assessment", ""])
-    lines.append(f"**Screening state:** {fit_state.upper().replace('_', ' ')}")
-    if fit_state == "review_required":
-        lines.append(
-            (
-                "The execution and collision checks may have passed while garment coverage or "
-                "vertical placement remains suspicious."
-            )
-        )
-        lines.append(
-            (
-                f"- Final panel Z range: {fit_observed.get('minimum')} to "
-                f"{fit_observed.get('maximum')} mm."
-            )
-        )
-        lines.append(
-            (
-                f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
-                f"{fit_references.get('shoulder_z')} mm "
-                f"({fit_references.get('shoulder_reference_source', 'source unavailable')})."
-            )
-        )
-        for raw_finding in fit_findings:
-            if not isinstance(raw_finding, dict):
-                continue
-            finding = cast("dict[str, object]", raw_finding)
-            lines.append(
-                f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
-                f"({finding.get('observed_mm')} mm; heuristic review threshold "
-                f"{finding.get('review_threshold_mm')} mm)."
-            )
-    elif fit_state == "within_heuristic_tolerance":
-        lines.append(
-            (
-                "No large vertical-bounds deviation exceeded the screening threshold. This is not "
-                "a fit or attachment certification."
-            )
-        )
-    else:
-        lines.append(str(fit.get("reason", "No fit-alignment measurements were available.")))
-    if fit.get("interpretation_limit"):
-        lines.append(f"Limit: {fit.get('interpretation_limit')}")
-    lines.append(f"Next action: {fit.get('next_action', report.get('next_action'))}")
+    _render_fit_section(lines, report)
 
-    issues = _as_list(report.get("issues"))
-    lines.extend(["", "## Blocking geometry findings", ""])
-    if issues:
-        for raw_issue in issues:
-            if not isinstance(raw_issue, dict):
-                continue
-            issue = cast("dict[str, object]", raw_issue)
-            point = issue.get("point_local_mm")
-            point_text = (
-                f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
-                if isinstance(point, list) and len(point) >= 2
-                else "not reported"
-            )
-            edge_ids = (
-                ", ".join(str(value) for value in _as_list(issue.get("edge_ids"))) or "not resolved"
-            )
-            lines.append(
-                (
-                    f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** "
-                    f"{issue.get('reason')}. Crossing at local {point_text}; related edges: "
-                    f"{edge_ids}."
-                )
-            )
-            lines.append(f"  - Effect: {issue.get('effect')}.")
-        lines.append(
-            (
-                "- **Next action:** repair the pattern boundary; do not tune collision, timestep, "
-                "or solver iterations."
-            )
-        )
-    else:
-        lines.append(
-            (
-                "No invalid polygon was reported. Topology validity is independent from body "
-                "coverage, placement, and attachment."
-            )
-        )
-        lines.append(f"Next action: {report.get('next_action')}")
-    lines.extend(["", "## Placement observations", ""])
-    panels = _as_dict(placement.get("panels"))
-    if panels:
-        for side in sorted(panels):
-            raw_panel = panels[side]
-            if not isinstance(raw_panel, dict):
-                continue
-            panel = cast("dict[str, object]", raw_panel)
-            lines.append(
-                f"- **{side}:** panel origin Y = {panel.get('panel_origin_y_mm')} mm; "
-                f"clearance used = {panel.get('configured_clearance_mm')} mm; "
-                f"projected target vertices = {panel.get('projected_target_vertex_count')}."
-            )
-    else:
-        lines.append("No explicit target-relative panel placement was observed.")
-    lines.extend(["", "## Evidence availability", ""])
-    for name, value in expected.items():
-        lines.append(f"- {name.replace('_', ' ')}: **{value}**")
-    image_records = _as_list(evidence.get("images"))
-    if image_records:
-        lines.extend(["", "## Indexed images", ""])
-        for raw_image in image_records:
-            if not isinstance(raw_image, dict):
-                continue
-            image = cast("dict[str, object]", raw_image)
-            lines.append(
-                f"- {image.get('path')} — {image.get('size_bytes')} bytes; "
-                f"SHA-256 hash: {image.get('sha256')}"
-            )
+    _render_geometry_issues(lines, report)
+
+    _render_placement_section(lines, report)
+
+    _render_evidence_section(lines, report)
+
     lines.extend(
         [
             "",
