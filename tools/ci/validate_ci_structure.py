@@ -528,10 +528,7 @@ def _validate_required_components() -> None:
         encoding="utf-8"
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
-        msg = (
-            "FreeCAD container action must use GHCR only; "
-            "workflow image artifacts are forbidden"
-        )
+        msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
         raise SystemExit(msg)
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         msg = "FreeCAD container action must retain its 180-second pull contract"
