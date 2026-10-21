@@ -19,8 +19,15 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def network_reference_errors(network):
-    """Return ``(seam_id, status)`` for invalid canonical network members."""
+def network_reference_errors(network: object) -> tuple[tuple[str, str], ...]:
+    """Collect non-valid statuses from canonical sewing-network members.
+
+    Args:
+        network: Persisted sewing-network object whose seam references are checked.
+
+    Returns:
+        Tuples pairing each invalid seam identifier with its recorded status.
+    """
     errors = []
     for seam in tuple(getattr(network, "Seams", ()) or ()):
         status = str(getattr(seam, "Status", "Valid"))
