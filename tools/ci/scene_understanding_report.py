@@ -670,10 +670,7 @@ def _derive_stage_states(
     Args:
         parsed: Parsed progress markers and captured measurements.
         assessment: Terminal workflow and topology classification.
-        screenshots.avatar: Whether the logged mannequin image exists.
-        screenshots.pattern: Whether the logged pattern image exists.
-        screenshots.sewing: Whether the logged sewing preview exists.
-        screenshots.drape: Whether a drape screenshot exists.
+        screenshots: Presence of the expected mannequin, pattern, sewing and drape images.
 
     Returns:
         State labels for all report stages and mannequin-pose capture.
