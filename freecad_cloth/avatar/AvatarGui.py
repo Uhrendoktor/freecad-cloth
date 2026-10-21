@@ -17,10 +17,18 @@ from freecad_cloth.avatar.avatar_properties import (
 class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
 
-    def addWidget(self, widget: object) -> None: ...
+    def addWidget(self, widget: object) -> None:
+        """Define the minimal layout protocol used by the measurement panel.
+        """
+        ...
 
 
 def _modules():
+    """Load FreeCAD and Qt modules lazily so the panel remains headless-importable.
+
+    Returns:
+        The application, GUI and widget modules needed to build the task panel.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -98,6 +106,8 @@ class AvatarTaskPanel:
     )
 
     def __init__(self, avatar=None):
+        """Build the avatar editor and bind its staged controls to the feature.
+        """
         App, Gui, QtWidgets = _modules()
         self.App, self.Gui = App, Gui
         self.avatar = avatar or self._find_avatar()
@@ -330,6 +340,8 @@ class AvatarTaskPanel:
         apply_panel_style(self.form)
 
     def _open_pose_mode(self):
+        """Open the pose editor for the current mannequin.
+        """
         if self.avatar is None:
             return
         with contextlib.suppress(AttributeError, RuntimeError):
@@ -339,12 +351,19 @@ class AvatarTaskPanel:
         pose_avatar(self.avatar)
 
     def _find_avatar(self):
+        """Resolve the active mannequin feature from the current FreeCAD document.
+
+        Returns:
+            The first avatar feature in the active document, or None when absent.
+        """
         doc = self.App.ActiveDocument
         if doc is None:
             return None
         return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
 
     def _add_measurement_group(self, parent, title, fields):
+        """Add a labeled group of measurement controls to the supplied layout.
+        """
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox(title)
         layout = QtWidgets.QFormLayout(group)
@@ -370,7 +389,11 @@ class AvatarTaskPanel:
         self._measurement_groups.append(group)
 
     def _add_mass_target_group(self, parent: _WidgetLayout) -> None:
-        """Expose clad-body's differentiable body-mass target without mixing units."""
+        """Expose clad-body's differentiable body-mass target without mixing units.
+
+        Args:
+            parent: Parent Qt layout that receives the mass-target control.
+        """
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox("Body composition")
         layout = QtWidgets.QFormLayout(group)
@@ -397,11 +420,17 @@ class AvatarTaskPanel:
         self.mass_group = group
 
     def _mass_target_toggled(self, enabled: bool) -> None:
+        """Enable or disable the mass-target editor when its toggle changes.
+        """
         self.mass_target.setEnabled(bool(enabled))
         self._staged_changed()
 
     def _add_advanced_group(self, parent: _WidgetLayout) -> None:
-        """Add lazy-loaded, searchable Anny controls without cluttering the common editor."""
+        """Add lazy-loaded, searchable Anny controls without cluttering the common editor.
+
+        Args:
+            parent: Parent Qt layout that receives the advanced controls.
+        """
         _, _, QtWidgets = _modules()
         try:
             from PySide import QtCore
@@ -466,7 +495,15 @@ class AvatarTaskPanel:
         parent.addWidget(self.advanced_content)
 
     def _advanced_category(self, name: str, kind: str) -> str:
-        """Group raw model labels into scannable families while preserving search terms."""
+        """Group raw model labels into scannable families while preserving search terms.
+
+        Args:
+            name: Canonical parameter identifier from the avatar model.
+            kind: Parameter family used to choose the advanced editor.
+
+        Returns:
+            Display category assigned to the parameter in the editor.
+        """
         if kind == "phenotype":
             labels = {
                 "age": "Age",
@@ -500,7 +537,14 @@ class AvatarTaskPanel:
 
     @staticmethod
     def _display_parameter_name(name: str) -> str:
-        """Turn model labels into a readable label without losing their exact API name."""
+        """Turn model labels into a readable label without losing their exact API name.
+
+        Args:
+            name: Canonical parameter identifier from the avatar model.
+
+        Returns:
+            Human-readable label suitable for an editor control.
+        """
         return str(name).replace("_", " ").replace("-", " ").strip().title()
 
     def _append_advanced_control(
@@ -513,6 +557,8 @@ class AvatarTaskPanel:
         low: float,
         high: float,
     ) -> None:
+        """Build a numeric control for one advanced avatar parameter.
+        """
         _, _, QtWidgets = _modules()
         page = self._advanced_pages[page_key]
         category = self._advanced_category(name, kind)
@@ -573,7 +619,11 @@ class AvatarTaskPanel:
         )
 
     def _toggle_advanced_parameters(self, expanded: bool) -> None:
-        """Populate the long-tail parameter editor only when the user opens it."""
+        """Populate the long-tail parameter editor only when the user opens it.
+
+        Args:
+            expanded: Whether the advanced editor section is expanded.
+        """
         self.advanced_content.setVisible(bool(expanded))
         try:
             from PySide import QtCore
@@ -633,7 +683,11 @@ class AvatarTaskPanel:
             self._filter_advanced_parameters(self.advanced_search.text())
 
     def _filter_advanced_parameters(self, text: str) -> None:
-        """Filter parameter rows live across both advanced tabs."""
+        """Filter parameter rows live across both advanced tabs.
+
+        Args:
+            text: Search text entered in the advanced-parameter filter.
+        """
         query = str(text).strip().casefold()
         visible_by_group = {}
         visible_by_page = dict.fromkeys(self._advanced_pages, False)
@@ -655,7 +709,13 @@ class AvatarTaskPanel:
                 self.advanced_tabs.setCurrentIndex(target_page)
 
     def _advanced_parameter_changed(self, kind: str, name: str, value: float) -> None:
-        """Persist only non-default overrides while keeping defaults discoverable in the UI."""
+        """Persist only non-default overrides while keeping defaults discoverable in the UI.
+
+        Args:
+            kind: Parameter family used to choose the advanced editor.
+            name: Canonical parameter identifier from the avatar model.
+            value: Current numeric value staged by the editor.
+        """
         default = self._advanced_phenotype_defaults.get(name, 0.5) if kind == "phenotype" else 0.0
         overrides = (
             self._advanced_phenotype_overrides
@@ -680,7 +740,11 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _add_shape_group(self, parent):
-        """Build compact macro-shape controls; precise dimensions stay below."""
+        """Build compact macro-shape controls; precise dimensions stay below.
+
+        Args:
+            parent: Parent Qt layout that receives the shape controls.
+        """
         _, _, QtWidgets = _modules()
         try:
             from PySide import QtCore
@@ -739,6 +803,8 @@ class AvatarTaskPanel:
         self.shape_group = group
 
     def _load(self):
+        """Populate the task-panel controls from the persisted avatar parameters.
+        """
         if self.avatar is None:
             self.status.setText("Create a Cloth Human Mannequin first.")
             self.apply_button.setEnabled(False)
@@ -813,6 +879,14 @@ class AvatarTaskPanel:
 
     @staticmethod
     def _pose_property(key):
+        """Translate a pose key to the matching FreeCAD property name.
+
+        Args:
+            key: Canonical pose field used by the document schema.
+
+        Returns:
+            The document property name associated with the pose key.
+        """
         return {
             "left_arm_angle": "LeftArmAngle",
             "right_arm_angle": "RightArmAngle",
@@ -821,12 +895,19 @@ class AvatarTaskPanel:
         }[key]
 
     def _provider_id(self):
+        """Return the provider identifier currently selected by the task panel.
+
+        Returns:
+            The canonical provider identifier displayed as selected.
+        """
         for key, button in self.provider_buttons.items():
             if button.isChecked():
                 return key
         return "makehuman-hm08"
 
     def _provider_changed(self, provider_id):
+        """Mark provider-specific controls dirty after the provider changes.
+        """
         self._dirty = True
         self._refresh_provider_source()
         self._update_shape_enabled()
@@ -835,6 +916,8 @@ class AvatarTaskPanel:
         )
 
     def _use_selected_provider_source(self):
+        """Use the selected mesh object as the source for the current provider.
+        """
         if self.avatar is None:
             return
         selection = [obj for obj in self.Gui.Selection.getSelection() if obj is not self.avatar]
@@ -855,6 +938,8 @@ class AvatarTaskPanel:
         )
 
     def _refresh_provider_source(self):
+        """Refresh the provider-source chooser to match the current feature links.
+        """
         if self.avatar is None:
             self.provider_source_label.setText("Source: none")
             return
@@ -871,6 +956,8 @@ class AvatarTaskPanel:
         self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
     def _preset_changed(self, preset):
+        """Apply a changed pose preset to the staged avatar parameters.
+        """
         if self._loading:
             return
         from freecad_cloth.avatar.AvatarModel import Pose
@@ -896,6 +983,8 @@ class AvatarTaskPanel:
         self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
+        """Refresh shape controls after a slider value changes.
+        """
         self._update_shape_labels()
         self._staged_changed()
 
@@ -917,7 +1006,11 @@ class AvatarTaskPanel:
             self._toggle_dimension_gizmo(True)
 
     def _toggle_dimension_gizmo(self, enabled):
-        """Attach or remove transient dimension handles in the active viewport."""
+        """Attach or remove transient dimension handles in the active viewport.
+
+        Args:
+            enabled: Whether the dimension gizmo should remain visible.
+        """
         if not enabled or self.avatar is None or self._provider_id() != "makehuman-hm08":
             if self._dimension_controller is not None:
                 self._dimension_controller.deactivate()
@@ -938,6 +1031,8 @@ class AvatarTaskPanel:
             )
 
     def _staged_changed(self):
+        """Mark the task panel dirty after a staged setting changes.
+        """
         self._dirty = True
         self._refresh_status(
             "Unsaved mannequin edits are staged. Apply & Rebuild to update the body."
@@ -946,6 +1041,11 @@ class AvatarTaskPanel:
             self._dimension_controller.refresh()
 
     def _staged_parameters(self):
+        """Create a validated parameter model from the current controls.
+
+        Returns:
+            Avatar parameters containing the currently staged measurements, shape values and pose.
+        """
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
         values = {key: box.value() for key, box in self._boxes.items()}
@@ -981,6 +1081,11 @@ class AvatarTaskPanel:
         )
 
     def _apply(self):
+        """Apply staged measurements and shape settings to the avatar feature.
+
+        Returns:
+            Whether the current staged parameter set was accepted and rebuilt.
+        """
         if self.avatar is None:
             return False
         params = self._staged_parameters()
@@ -1021,6 +1126,8 @@ class AvatarTaskPanel:
         return True
 
     def _load_skeleton_pose(self):
+        """Load stored joint rotations into the pose editor controls.
+        """
         from freecad_cloth.avatar.SkeletonPose import joint_rotation_map, joint_rotations_from_json
 
         rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
@@ -1028,6 +1135,8 @@ class AvatarTaskPanel:
         self._load_selected_joint()
 
     def _load_selected_joint(self, _index=0):
+        """Refresh the controls for the newly selected skeleton joint.
+        """
         bone = str(self.skeleton_joint.currentData())
         rotation = self._staged_joint_rotations.get(bone)
         values = (
@@ -1047,6 +1156,8 @@ class AvatarTaskPanel:
             box.blockSignals(False)
 
     def _joint_changed(self):
+        """Apply a manual rotation change to the selected skeleton joint.
+        """
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
         bone = str(self.skeleton_joint.currentData())
@@ -1063,6 +1174,8 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _symmetry_changed(self, checked):
+        """Reflect joint rotation changes across the selected symmetry partner.
+        """
         if not checked:
             return
         bone = str(self.skeleton_joint.currentData())
@@ -1079,16 +1192,22 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _reset_skeleton_pose(self):
+        """Reset all staged skeleton joint rotations to the neutral pose.
+        """
         self._staged_joint_rotations = {}
         self._load_selected_joint()
         self._staged_changed()
 
     def _rebuild_geometry(self):
+        """Rebuild the mannequin geometry from the staged parameters.
+        """
         from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
 
         rebuild_avatar()
 
     def _update_arrangement_points(self):
+        """Refresh persisted garment arrangement points attached to the avatar.
+        """
         self.arrangement_points.clear()
         if self.avatar is None:
             return
@@ -1103,6 +1222,8 @@ class AvatarTaskPanel:
             )
 
     def _update_landmarks(self):
+        """Show or hide measurement landmarks for the current mannequin.
+        """
         if self.avatar is None or not self.show_measurements.isChecked():
             self.landmarks.setText("")
             return
@@ -1116,9 +1237,13 @@ class AvatarTaskPanel:
         self.landmarks.setText("<b>Landmarks</b><br>" + "<br>".join(entries))
 
     def _landmarks_visibility_changed(self, _checked):
+        """Refresh the measurement overlay after its visibility checkbox changes.
+        """
         self._update_landmarks()
 
     def _refresh_status(self, message=None):
+        """Display the latest avatar operation status in the task panel.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         if self.avatar is None:
@@ -1143,12 +1268,22 @@ class AvatarTaskPanel:
             self.Gui.activeDocument().activeView().fitAll()
 
     def accept(self):
+        """Accept the task panel after applying its staged edits.
+
+        Returns:
+            True when the panel can close after applying its values, otherwise False.
+        """
         success = self._apply()
         if success and self._dimension_controller is not None:
             self._dimension_controller.deactivate()
         return success
 
     def reject(self):
+        """Cancel staged edits and remove temporary viewport controls.
+
+        Returns:
+            True to allow FreeCAD to close the task panel.
+        """
         if self._dimension_controller is not None:
             self._dimension_controller.deactivate()
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
@@ -1156,12 +1291,21 @@ class AvatarTaskPanel:
         return True
 
     def getStandardButtons(self):
+        """Return the standard dialog buttons for this task panel.
+
+        Returns:
+            Bitwise combination of the OK and Cancel task-panel buttons.
+        """
         _, _, QtWidgets = _modules()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
 def show_avatar_task(avatar=None):
-    """Open the native FreeCAD task panel for a mannequin."""
+    """Open the native FreeCAD task panel for a mannequin.
+
+    Args:
+        avatar: Mannequin feature currently being edited.
+    """
     _App, Gui, _QtWidgets = _modules()
     panel = AvatarTaskPanel(avatar)
     Gui.Control.showDialog(panel)
