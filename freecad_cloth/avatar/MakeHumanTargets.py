@@ -15,13 +15,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
-
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
 

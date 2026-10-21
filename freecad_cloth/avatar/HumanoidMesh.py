@@ -60,6 +60,7 @@ DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
+
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]

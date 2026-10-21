@@ -11,10 +11,9 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 from __future__ import annotations
 
 from math import isfinite
-from typing import cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
@@ -22,8 +21,9 @@ from scipy.spatial import KDTree
 from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 if TYPE_CHECKING:
-    from numbers import Real
     from collections.abc import Iterable, Sequence
+    from numbers import Real
+    from numpy.typing import NDArray
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]

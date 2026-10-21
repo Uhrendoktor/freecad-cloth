@@ -22,6 +22,7 @@ from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshD
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     import torch
 
     from freecad_cloth.avatar.AvatarModel import AvatarParameters

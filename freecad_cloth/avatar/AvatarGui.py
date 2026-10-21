@@ -9,8 +9,8 @@ for validation and AvatarService remains the solver-neutral downstream API.
 import contextlib
 from typing import ClassVar, Protocol
 
+from freecad_cloth.avatar.avatar_properties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.avatar.avatar_properties import (
-    PROPERTY_MAP as AVATAR_PROPERTY_MAP,
     SHAPE_PROPERTY_MAP as AVATAR_SHAPE_PROPERTY_MAP,
 )
 
