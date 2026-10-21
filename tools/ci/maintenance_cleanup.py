@@ -734,10 +734,6 @@ def _perform_package_cleanup(
 
     Raises:
         TypeError: If a package version has no integer identifier.
-        RuntimeError: If a required package version identifier is invalid.
-        ValueError: If a callback reports invalid package metadata.
-        KeyError: If a required package field is missing.
-        GitHubApiError: If a GitHub API operation fails.
     """
     if not protected_shas:
         progress.result["status"] = "skipped_no_protected_refs"
@@ -815,7 +811,7 @@ def cleanup_pbd_package_versions(
     try:
         return _perform_package_cleanup(repo, protected_shas, cutoff_epoch, adapters, progress)
     except GitHubApiError as exc:
-        detail = str(exc).strip().replace("\\n", " ")[:HTTP_DETAIL_LENGTH]
+        detail = str(exc).strip().replace("\n", " ")[:HTTP_DETAIL_LENGTH]
         progress.result["deleted"] = progress.deleted
         progress.result["status"] = (
             "permission_denied"
@@ -829,6 +825,7 @@ def cleanup_pbd_package_versions(
         progress.result["status"] = "skipped_unverifiable"
         progress.result["error"] = str(exc)[:HTTP_DETAIL_LENGTH]
         return progress.result
+
 
 def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str]]:
     """Collect the branch names and commit SHAs protected by open pull requests.
