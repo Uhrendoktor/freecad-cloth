@@ -257,6 +257,101 @@ def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, objec
     return records
 
 
+def _finite_metric_number(value: object) -> float | None:
+    """Convert a valid numeric metric to a finite float, excluding booleans.
+
+    Args:
+        value: Candidate scalar extracted from the drape metrics payload.
+
+    Returns:
+        Finite floating-point value, or None for unsupported/non-finite values.
+    """
+    if isinstance(value, bool) or not isinstance(value, (float, int)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _panel_vertical_bounds(
+    panels: list[object],
+) -> tuple[list[float], list[float], set[str]]:
+    """Collect finite panel Z bounds and named diagnostic flags.
+
+    Args:
+        panels: Panel entries from a previously decoded drape metrics payload.
+
+    Returns:
+        Minimum and maximum Z coordinates per panel plus observed diagnostic names.
+    """
+    minimum_z: list[float] = []
+    maximum_z: list[float] = []
+    diagnostic_names: set[str] = set()
+    for raw_panel in panels:
+        if not isinstance(raw_panel, dict):
+            continue
+        bounds = raw_panel.get("bounds")
+        if isinstance(bounds, list) and len(bounds) >= MINIMUM_PANEL_BOUND_COORDINATES:
+            low = _finite_metric_number(bounds[4])
+            high = _finite_metric_number(bounds[5])
+            if low is not None and high is not None and low <= high:
+                minimum_z.append(low)
+                maximum_z.append(high)
+        diagnostics = raw_panel.get("diagnostics")
+        if isinstance(diagnostics, list):
+            diagnostic_names.update(str(item) for item in diagnostics)
+    return minimum_z, maximum_z, diagnostic_names
+
+
+def _fit_findings(
+    deviations: dict[str, float], review_threshold_mm: float
+) -> list[dict[str, object]]:
+    """Build review warnings for vertical deviations beyond the existing threshold.
+
+    Args:
+        deviations: Observed non-negative fit deviations keyed by report schema.
+        review_threshold_mm: Existing heuristic review threshold in millimetres.
+
+    Returns:
+        Ordered warning records for deviations above the heuristic threshold.
+    """
+    finding_specs = (
+        (
+            "cloth_top_below_shoulder_reference",
+            "cloth_top_below_shoulder_reference",
+            "highest final cloth point is materially below the estimated shoulder reference",
+        ),
+        (
+            "cloth_top_above_shoulder_reference",
+            "cloth_top_above_shoulder_reference",
+            "highest final cloth point is materially above the estimated shoulder reference",
+        ),
+        (
+            "cloth_extends_below_expected_hem",
+            "cloth_extends_below_expected_hem",
+            "lowest final cloth point extends materially below the declared hem level",
+        ),
+        (
+            "cloth_ends_above_expected_hem",
+            "cloth_ends_above_expected_hem",
+            "lowest final cloth point ends materially above the declared hem level",
+        ),
+    )
+    findings: list[dict[str, object]] = []
+    for kind, deviation_key, message in finding_specs:
+        observed_mm = deviations[deviation_key]
+        if observed_mm > review_threshold_mm:
+            findings.append(
+                {
+                    "kind": kind,
+                    "severity": "warning",
+                    "observed_mm": round(observed_mm, 3),
+                    "review_threshold_mm": round(review_threshold_mm, 3),
+                    "message": message,
+                }
+            )
+    return findings
+
+
 def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     """Screen garment vertical coverage separately from execution/contact success.
 
@@ -276,56 +371,23 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             "reason": "drape-visual-metrics.json is absent or unavailable",
             "findings": [],
         }
-    metrics = cast("dict[str, object]", metrics_payload)
-    panels_value = metrics.get("panels")
-    if not isinstance(panels_value, list):
+    panels = metrics_payload.get("panels")
+    if not isinstance(panels, list):
         return {
             "state": "not_assessed",
             "reason": "drape metrics do not contain a panel list",
             "findings": [],
         }
-
-    def finite_number(value: object) -> float | None:
-        """Convert a numeric metric to float while rejecting booleans and invalid values.
-
-        Args:
-            value: Candidate value from the drape metrics payload.
-
-        Returns:
-            Finite floating-point value, or None when the value is invalid.
-        """
-        if isinstance(value, bool) or not isinstance(value, (float, int)):
-            return None
-        number = float(value)
-        return number if math.isfinite(number) else None
-
-    hem_z = finite_number(metrics.get("hem_z"))
-    shoulder_z = finite_number(metrics.get("shoulder_z"))
-    target_height = finite_number(metrics.get("target_height"))
+    hem_z = _finite_metric_number(metrics_payload.get("hem_z"))
+    shoulder_z = _finite_metric_number(metrics_payload.get("shoulder_z"))
+    target_height = _finite_metric_number(metrics_payload.get("target_height"))
     if hem_z is None or shoulder_z is None or target_height is None or target_height <= 0:
         return {
             "state": "not_assessed",
             "reason": "required hem, shoulder-reference, or target-height measurement is missing",
             "findings": [],
         }
-
-    minimum_z: list[float] = []
-    maximum_z: list[float] = []
-    diagnostic_names: set[str] = set()
-    for raw_panel in panels_value:
-        if not isinstance(raw_panel, dict):
-            continue
-        panel = cast("dict[str, object]", raw_panel)
-        bounds_value = panel.get("bounds")
-        if isinstance(bounds_value, list) and len(bounds_value) >= MINIMUM_PANEL_BOUND_COORDINATES:
-            low = finite_number(bounds_value[4])
-            high = finite_number(bounds_value[5])
-            if low is not None and high is not None and low <= high:
-                minimum_z.append(low)
-                maximum_z.append(high)
-        diagnostics_value = panel.get("diagnostics")
-        if isinstance(diagnostics_value, list):
-            diagnostic_names.update(str(item) for item in diagnostics_value)
+    minimum_z, maximum_z, diagnostic_names = _panel_vertical_bounds(panels)
     if not minimum_z or not maximum_z:
         return {
             "state": "not_assessed",
@@ -338,63 +400,30 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
     # Five percent of avatar height is a review trigger, not an acceptance
     # threshold. A named anatomical landmark should replace this proxy later.
     review_threshold_mm = max(50.0, 0.05 * target_height)
-    top_below_reference_mm = max(0.0, shoulder_z - observed_max_z)
-    top_above_reference_mm = max(0.0, observed_max_z - shoulder_z)
-    hem_overshoot_mm = max(0.0, hem_z - observed_min_z)
-    hem_shortfall_mm = max(0.0, observed_min_z - hem_z)
-    findings: list[dict[str, object]] = []
-    if top_below_reference_mm > review_threshold_mm:
-        findings.append(
-            {
-                "kind": "cloth_top_below_shoulder_reference",
-                "severity": "warning",
-                "observed_mm": round(top_below_reference_mm, 3),
-                "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": (
-                    "highest final cloth point is materially below the estimated shoulder reference"
-                ),
-            }
-        )
-    if top_above_reference_mm > review_threshold_mm:
-        findings.append(
-            {
-                "kind": "cloth_top_above_shoulder_reference",
-                "severity": "warning",
-                "observed_mm": round(top_above_reference_mm, 3),
-                "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": (
-                    "highest final cloth point is materially above the estimated shoulder reference"
-                ),
-            }
-        )
-    if hem_overshoot_mm > review_threshold_mm:
-        findings.append(
-            {
-                "kind": "cloth_extends_below_expected_hem",
-                "severity": "warning",
-                "observed_mm": round(hem_overshoot_mm, 3),
-                "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": (
-                    "lowest final cloth point extends materially below the declared hem level"
-                ),
-            }
-        )
-    if hem_shortfall_mm > review_threshold_mm:
-        findings.append(
-            {
-                "kind": "cloth_ends_above_expected_hem",
-                "severity": "warning",
-                "observed_mm": round(hem_shortfall_mm, 3),
-                "review_threshold_mm": round(review_threshold_mm, 3),
-                "message": "lowest final cloth point ends materially above the declared hem level",
-            }
-        )
-
+    deviations = {
+        "cloth_top_below_shoulder_reference": max(0.0, shoulder_z - observed_max_z),
+        "cloth_top_above_shoulder_reference": max(0.0, observed_max_z - shoulder_z),
+        "cloth_extends_below_expected_hem": max(0.0, hem_z - observed_min_z),
+        "cloth_ends_above_expected_hem": max(0.0, observed_min_z - hem_z),
+    }
+    findings = _fit_findings(deviations, review_threshold_mm)
     state = (
         "review_required"
         if findings or "below-hem-candidate" in diagnostic_names
         else "within_heuristic_tolerance"
     )
+    if state == "review_required":
+        next_action = (
+            "Inspect front/rear/left/right views and verify the garment top, hem, named body "
+            "landmarks, and required attachment constraints. Keep geometry/contact thresholds "
+            "unchanged."
+        )
+    else:
+        next_action = (
+            "This bounds screen found no large vertical deviation, but does not certify "
+            "coverage, fit, or attachment; inspect the multi-view screenshots and named "
+            "landmarks."
+        )
     return {
         "state": state,
         "method": (
@@ -412,12 +441,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             "minimum": round(observed_min_z, 3),
             "maximum": round(observed_max_z, 3),
         },
-        "deviations_mm": {
-            "cloth_top_below_shoulder_reference": round(top_below_reference_mm, 3),
-            "cloth_top_above_shoulder_reference": round(top_above_reference_mm, 3),
-            "cloth_extends_below_expected_hem": round(hem_overshoot_mm, 3),
-            "cloth_ends_above_expected_hem": round(hem_shortfall_mm, 3),
-        },
+        "deviations_mm": {key: round(value, 3) for key, value in deviations.items()},
         "review_threshold_mm": round(review_threshold_mm, 3),
         "findings": findings,
         "other_diagnostics": sorted(diagnostic_names),
@@ -425,19 +449,7 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             "A bounds mismatch is a fit-review signal, not a definitive garment-fit verdict. "
             "Non-penetration and seam coherence do not establish body coverage or attachment."
         ),
-        "next_action": (
-            (
-                "Inspect front/rear/left/right views and verify the garment top, hem, named body "
-                "landmarks, and required attachment constraints. Keep geometry/contact thresholds "
-                "unchanged."
-            )
-            if state == "review_required"
-            else (
-                "This bounds screen found no large vertical deviation, but does not certify "
-                "coverage, fit, or attachment; inspect the multi-view screenshots and named "
-                "landmarks."
-            )
-        ),
+        "next_action": next_action,
     }
 
 
@@ -1068,8 +1080,8 @@ def _render_edge_shapes(
                 f'stroke-width="{3.2 if highlighted else 1.6}" '
                 'stroke-linecap="round" stroke-linejoin="round"/>',
                 (
-                    f'<text x="{(sum(point[0] for point in points_to_draw) / len(points_to_draw)):.3f}" '
-                    f'y="{(sum(point[1] for point in points_to_draw) / len(points_to_draw)) - 7:.3f}" '
+                    f'<text x="{_svg_transform_point(local_points[len(local_points) // 2], origin_x=origin_x)[0]:.3f}" '
+                    f'y="{_svg_transform_point(local_points[len(local_points) // 2], origin_x=origin_x)[1] - 7:.3f}" '
                     f'font-size="11" font-family="monospace" fill="{title_color}" '
                     f'text-anchor="middle">{html.escape(f"e{edge_index}" if edge_index is not None else edge_id)}</text>'
                 ),
