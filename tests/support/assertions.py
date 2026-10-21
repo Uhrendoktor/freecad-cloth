@@ -24,7 +24,5 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
         fragment: Required literal fragment within the source.
         message: Descriptive failure explanation when the fragment is absent.
 
-    Raises:
-        AssertionError: If the source does not contain the required fragment.
     """
     require(condition=fragment in source, message=message)
