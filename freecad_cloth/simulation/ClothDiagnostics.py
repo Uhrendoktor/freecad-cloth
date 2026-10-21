@@ -6,15 +6,14 @@ measurements. It never advances or modifies the solver and can therefore be used
 by GUI, export, or headless validation code.
 """
 
+import pathlib
 from collections.abc import Sequence
 from math import sqrt
 
-Point3 = tuple[float, float, float]
-Triangle = tuple[int, int, int]
-
-import pathlib
-
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int>
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
@@ -73,9 +72,7 @@ def export_payload(result: "DiagnosticResult") -> dict[str, object]:
     }
 
 
-def export_json(
-    result: "DiagnosticResult", path: str | pathlib.Path
-) -> dict[str, object]:
+def export_json(result: "DiagnosticResult", path: str | pathlib.Path) -> dict[str, object]:
     """Write the diagnostic payload as stable, formatted JSON.
 
     Args:
@@ -136,9 +133,7 @@ def _distance(a: Point3, b: Point3) -> float:
     return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
 
 
-def _triangle_edges(
-    vertices: Sequence[Point3], tri: Triangle
-) -> tuple[float, float, float]:
+def _triangle_edges(vertices: Sequence[Point3], tri: Triangle) -> tuple[float, float, float]:
     """Measure the three edge lengths of one triangular face.
 
     Args:
