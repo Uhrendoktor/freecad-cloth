@@ -42,6 +42,17 @@ TEST_HINTS = {
     "Simulation": ("simulation", "drape", "quality", "avatar", "collision", "xpbd", "solver"),
 }
 
+EXPECTED_WORKBENCH_ERRORS = (
+    AttributeError,
+    ImportError,
+    IndexError,
+    KeyError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
 
 class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
@@ -224,7 +235,7 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
     trace(f"benchmark: {name}: importing and constructing")
     try:
         module = importlib.import_module(module_name)
-    except Exception as exc:
+    except EXPECTED_WORKBENCH_ERRORS as exc:
         fail(f"{name} import", exc)
     trace(f"benchmark: {name}: module imported")
     lookup_samples = []
@@ -237,7 +248,7 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
         t0 = time.perf_counter()
         try:
             wb_cls()
-        except Exception as exc:
+        except EXPECTED_WORKBENCH_ERRORS as exc:
             fail(f"{name} construction", exc)
         construct_samples.append(time.perf_counter() - t0)
 
@@ -250,7 +261,7 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
             duration, command_count = _initialize_sample(gui, wb_cls, name, sample, repeats)
             initialize_samples.append(duration)
             command_counts.append(command_count)
-    except Exception as exc:
+    except EXPECTED_WORKBENCH_ERRORS as exc:
         fail(f"{name} initialization", exc)
 
     return {
@@ -317,7 +328,7 @@ def main() -> None:
     trace("benchmark: FreeCAD import starting")
     try:
         freecad = importlib.import_module("FreeCAD")
-    except Exception as exc:
+    except EXPECTED_WORKBENCH_ERRORS as exc:
         fail("FreeCAD import", exc)
     trace("benchmark: FreeCAD import complete")
 
