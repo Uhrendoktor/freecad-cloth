@@ -1,11 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared assertion helpers for strict, descriptive regression tests."""
 
-from typing import TypeVar
-
-_T = TypeVar("_T")
-
-
 def require(*, condition: bool, message: str) -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
@@ -32,7 +27,7 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
     require(condition=fragment in source, message=message)
 
 
-def require_not_none(value: _T | None, *, message: str) -> _T:
+def require_not_none[T](value: T | None, *, message: str) -> T:
     """Return a value only when it is not None.
 
     Args:

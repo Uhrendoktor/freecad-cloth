@@ -14,8 +14,8 @@ from freecad_cloth.sewing.workbench import (
     TOOLBAR_COMMANDS,
     ClothSewingWorkbench,
 )
-from tests.support.assertions import require_not_none
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
+from tests.support.assertions import require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
