@@ -149,7 +149,12 @@ def _request_github_api(
         encoded_body = json.dumps(body)
     connection = http.client.HTTPSConnection("api.github.com", timeout=10)
     try:
-        connection.request(method, f"/{endpoint.lstrip('/')}", body=encoded_body, headers=headers)
+        connection.request(
+            method,
+            f"/{endpoint.lstrip('/')}",
+            body=encoded_body,
+            headers=headers,
+        )
         return _decode_github_response(connection)
     except (http.client.HTTPException, OSError) as exc:
         msg = f"GitHub API request failed: {exc}"
@@ -324,7 +329,9 @@ def _branch_activity_batch(
     aliases: dict[str, str] = {}
     fields: list[str] = []
     for index, sha in enumerate(batch):
-        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
+        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(
+            char not in string.hexdigits for char in sha
+        ):
             msg = f"invalid branch commit SHA: {sha!r}"
             raise RuntimeError(msg)
         alias = f"commit{index}"
@@ -580,7 +587,9 @@ def stale_package_versions(
         if activity >= cutoff_epoch or tags.intersection(protected_tags):
             continue
         stale.append(version)
-    stale.sort(key=lambda version: package_version_activity_epoch(version) or float("inf"))
+    stale.sort(
+        key=lambda version: package_version_activity_epoch(version) or float("inf")
+    )
     return stale
 
 
@@ -717,9 +726,15 @@ def cleanup_pbd_package_versions(
     }
     deleted = 0
     adapters = callbacks if callbacks is not None else PackageCleanupCallbacks()
-    resolve_tags = adapters.dockerfile_tags_resolver or dockerfile_tags_for_shas
-    load_api_items = adapters.api_items_loader or paginated_api_items
-    delete_api_resource = adapters.delete_resource or gh_delete
+    resolve_tags = (
+        dockerfile_tags_for_shas
+        if adapters.dockerfile_tags_resolver is None
+        else adapters.dockerfile_tags_resolver
+    )
+    load_api_items = (
+        paginated_api_items if adapters.api_items_loader is None else adapters.api_items_loader
+    )
+    delete_api_resource = gh_delete if adapters.delete_resource is None else adapters.delete_resource
     phase = "resolve_protected_tags"
     try:
         if not protected_shas:
@@ -728,8 +743,8 @@ def cleanup_pbd_package_versions(
         protected_tags = resolve_tags(repo, protected_shas)
         result["protected_tags"] = len(protected_tags)
 
-        # The target is fixed by this repository. Encode its slash as part of the package-name path parameter.
-        # Skip namespace-wide discovery, which returns HTTP 400 with the workflow installation token.
+        # The target is fixed by this repository. Encode the slash in the package-name path.
+        # Namespace-wide discovery returns HTTP 400 with the workflow installation token.
         phase = "list_package_versions"
         encoded_name = quote(PBD_PACKAGE_SUFFIX, safe="")
         versions = list(load_api_items(f"user/packages/container/{encoded_name}/versions"))
@@ -759,7 +774,9 @@ def cleanup_pbd_package_versions(
         detail = str(exc).strip().replace("\n", " ")[:240]
         result["deleted"] = deleted
         result["status"] = (
-            "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
+            "permission_denied"
+            if "403" in detail or "forbidden" in detail.lower()
+            else "api_error"
         )
         result["error"] = f"{phase}: {detail}"
         return result
