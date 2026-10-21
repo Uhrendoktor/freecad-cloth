@@ -1141,12 +1141,16 @@ def _render_edge_shapes(
         label = f"e{edge_index}" if edge_index is not None else edge_id
         rendered.extend(
             [
-                f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
-                f'stroke-width="{3.2 if highlighted else 1.6}" '
-                'stroke-linecap="round" stroke-linejoin="round"/>',
-                f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
-                f'font-family="monospace" fill="{title_color}" text-anchor="middle">'
-                f"{html.escape(label)}</text>",
+                (
+                    f'<polyline points="{point_string}" fill="none" stroke="{stroke}" '
+                    f'stroke-width="{3.2 if highlighted else 1.6}" '
+                    'stroke-linecap="round" stroke-linejoin="round"/>'
+                ),
+                (
+                    f'<text x="{label_x:.3f}" y="{label_y - 7:.3f}" font-size="11" '
+                    f'font-family="monospace" fill="{title_color}" text-anchor="middle">'
+                    f"{html.escape(label)}</text>"
+                ),
             ]
         )
     return rendered
@@ -1212,10 +1216,14 @@ def _render_piece_status(
     else:
         state = "INVALID — DERIVED OUTLINE REPRESENTATION"
     rendered = [
-        f'<text x="{origin_x:.3f}" y="26" font-size="17" font-weight="700" '
-        f'font-family="sans-serif" fill="{title_color}">{html.escape(piece_name)}</text>',
-        f'<text x="{origin_x:.3f}" y="48" font-size="13" font-family="sans-serif" '
-        f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>',
+        (
+            f'<text x="{origin_x:.3f}" y="26" font-size="17" font-weight="700" '
+            f'font-family="sans-serif" fill="{title_color}">{html.escape(piece_name)}</text>'
+        ),
+        (
+            f'<text x="{origin_x:.3f}" y="48" font-size="13" font-family="sans-serif" '
+            f'fill="{"#237647" if valid else "#b42318"}">{html.escape(state)}</text>'
+        ),
     ]
     if not valid:
         crossing_labels = ", ".join(f"e{value}" for value in crossing_edge_colors) or "not resolved"
@@ -1315,13 +1323,19 @@ def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
     if fit_state == "review_required":
         lines.extend(
             [
-                "The execution and collision checks may have passed while garment coverage or "
-                "vertical placement remains suspicious.",
-                f"- Final panel Z range: {fit_observed.get('minimum')} to "
-                f"{fit_observed.get('maximum')} mm.",
-                f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
-                f"{fit_references.get('shoulder_z')} mm "
-                f"({fit_references.get('shoulder_reference_source', 'source unavailable')}).",
+                (
+                    "The execution and collision checks may have passed while garment coverage or "
+                    "vertical placement remains suspicious."
+                ),
+                (
+                    f"- Final panel Z range: {fit_observed.get('minimum')} to "
+                    f"{fit_observed.get('maximum')} mm."
+                ),
+                (
+                    f"- Declared hem Z: {fit_references.get('hem_z')} mm; shoulder reference Z: "
+                    f"{fit_references.get('shoulder_z')} mm "
+                    f"({fit_references.get('shoulder_reference_source', 'source unavailable')})."
+                ),
             ]
         )
         for raw_finding in fit_findings:
@@ -1335,17 +1349,14 @@ def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
             )
     elif fit_state == "within_heuristic_tolerance":
         lines.append(
-            (
-                "No large vertical-bounds deviation exceeded the screening threshold. This is not "
-                "a fit or attachment certification."
-            )
+            "No large vertical-bounds deviation exceeded the screening threshold. This is not "
+            "a fit or attachment certification."
         )
     else:
         lines.append(str(fit.get("reason", "No fit-alignment measurements were available.")))
     if fit.get("interpretation_limit"):
         lines.append(f"Limit: {fit.get('interpretation_limit')}")
     lines.append(f"Next action: {fit.get('next_action', report.get('next_action'))}")
-
 
 
 def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None:
@@ -1373,23 +1384,25 @@ def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None
             )
             lines.extend(
                 [
-                    f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** "
-                    f"{issue.get('reason')}. Crossing at local {point_text}; related edges: "
-                    f"{edge_ids}.",
+                    (
+                        f"- **BLOCKER — {issue.get('kind')} in {issue.get('piece')}:** "
+                        f"{issue.get('reason')}. Crossing at local {point_text}; related edges: "
+                        f"{edge_ids}."
+                    ),
                     f"  - Effect: {issue.get('effect')}.",
                 ]
             )
         lines.append(
-            (
-                "- **Next action:** repair the pattern boundary; do not tune collision, timestep, "
-                "or solver iterations."
-            )
+            "- **Next action:** repair the pattern boundary; do not tune collision, timestep, "
+            "or solver iterations."
         )
     else:
         lines.extend(
             [
-                "No invalid polygon was reported. Topology validity is independent from body "
-                "coverage, placement, and attachment.",
+                (
+                    "No invalid polygon was reported. Topology validity is independent from body "
+                    "coverage, placement, and attachment."
+                ),
                 f"Next action: {report.get('next_action')}",
             ]
         )
