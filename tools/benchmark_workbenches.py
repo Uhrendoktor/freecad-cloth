@@ -14,11 +14,11 @@ import sys
 import tempfile
 import time
 import traceback
-from collections.abc import Callable
-from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+    from types import ModuleType
     from typing import NoReturn
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -191,20 +191,20 @@ def _initialize_sample(
         RuntimeError: If the GUI does not register exactly one workbench.
     """
     workbench = workbench_class()
-    existing = set(getattr(gui, "listWorkbenches")())
+    existing = set(gui.listWorkbenches())
     started = time.perf_counter()
-    getattr(gui, "addWorkbench")(workbench)
-    added = set(getattr(gui, "listWorkbenches")()) - existing
+    gui.addWorkbench(workbench)
+    added = set(gui.listWorkbenches()) - existing
     if len(added) != 1:
         msg = f"expected one registered workbench, got {sorted(added)!r}"
         raise RuntimeError(msg)
     registered_name = next(iter(added))
-    getattr(workbench, "__dict__")["__Workbench__"] = BenchmarkWorkbenchBackend()
-    getattr(workbench, "Initialize")()
+    workbench.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
+    workbench.Initialize()
     duration = time.perf_counter() - started
     command_count = len(getattr(workbench, "commands", ()))
     with contextlib.suppress(Exception):
-        getattr(gui, "removeWorkbench")(registered_name)
+        gui.removeWorkbench(registered_name)
     trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
     return duration, command_count
 
