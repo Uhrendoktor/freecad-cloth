@@ -543,6 +543,71 @@ def stale_package_versions(
     return stale
 
 
+def _dockerfile_tag_batch(
+    owner: str,
+    repository_name: str,
+    batch: list[str],
+    load_json: Callable[..., object],
+) -> set[str]:
+    """Resolve protected image tags for one bounded batch of commit SHAs.
+
+    Args:
+        owner: GitHub account or organization that owns the repository.
+        repository_name: Repository containing the Dockerfile history.
+        batch: Commit SHAs assigned to this bounded request.
+        load_json: API loader compatible with the maintenance test seam.
+
+    Returns:
+        Image tags derived from the Dockerfile contents returned for the batch.
+
+    Raises:
+        RuntimeError: If GraphQL reports query errors or a SHA is malformed.
+        TypeError: If GitHub returns protected Dockerfile data with an unexpected type.
+    """
+    aliases: dict[str, str] = {}
+    fields: list[str] = []
+    for index, sha in enumerate(batch):
+        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(
+            char not in string.hexdigits for char in sha
+        ):
+            msg = f"invalid protected commit SHA: {sha!r}"
+            raise RuntimeError(msg)
+        alias = f"file{index}"
+        aliases[alias] = sha
+        fields.append(
+            f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
+            "{ ... on Blob { text } }"
+        )
+
+    query = (
+        "query { repository("
+        f'owner: "{owner}", name: "{repository_name}"'
+        f") {{ {' '.join(fields)} }} }}"
+    )
+    payload = load_json("api", "graphql", "-f", f"query={query}")
+    if not isinstance(payload, dict):
+        msg = "GitHub GraphQL returned a non-object response"
+        raise TypeError(msg)
+    if payload.get("errors"):
+        msg = "GitHub GraphQL could not verify protected Dockerfile contents"
+        raise RuntimeError(msg)
+    data = payload.get("data")
+    repository_data = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository_data, dict):
+        msg = "GitHub GraphQL omitted the protected repository data"
+        raise TypeError(msg)
+
+    tags: set[str] = set()
+    for alias, sha in aliases.items():
+        blob = repository_data.get(alias)
+        dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
+        if not isinstance(dockerfile_text, str):
+            msg = f"Dockerfile content missing for protected ref {sha}"
+            raise TypeError(msg)
+        tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
+    return tags
+
+
 def dockerfile_tags_for_shas(
     repo: str,
     protected_shas: set[str],
@@ -550,7 +615,7 @@ def dockerfile_tags_for_shas(
     batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
     fetch_json: Callable[..., object] | None = None,
 ) -> set[str]:
-    """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA.
+    """Resolve protected Dockerfile tags using bounded GraphQL batches.
 
     Args:
         repo: Owner and repository name containing the Dockerfile history.
@@ -562,7 +627,7 @@ def dockerfile_tags_for_shas(
         Image tags derived from Dockerfile contents at all protected commits.
 
     Raises:
-        ValueError: Raised when the GraphQL batch size is not positive.
+        ValueError: If the GraphQL batch size is not positive.
         RuntimeError: If a protected commit cannot be verified.
         TypeError: If GraphQL returns protected Dockerfile data with an unexpected type.
     """
@@ -578,44 +643,7 @@ def dockerfile_tags_for_shas(
     tags: set[str] = set()
     for offset in range(0, len(ordered_shas), batch_size):
         batch = ordered_shas[offset : offset + batch_size]
-        aliases: dict[str, str] = {}
-        fields: list[str] = []
-        for index, sha in enumerate(batch):
-            if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
-                msg = f"invalid protected commit SHA: {sha!r}"
-                raise RuntimeError(msg)
-            alias = f"file{index}"
-            aliases[alias] = sha
-            fields.append(
-                f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
-                "{ ... on Blob { text } }"
-            )
-
-        query = (
-            "query { repository("
-            f'owner: "{owner}", name: "{repository_name}"'
-            f") {{ {' '.join(fields)} }} }}"
-        )
-        payload = load_json("api", "graphql", "-f", f"query={query}")
-        if not isinstance(payload, dict):
-            msg = "GitHub GraphQL returned a non-object response"
-            raise TypeError(msg)
-        if payload.get("errors"):
-            msg = "GitHub GraphQL could not verify protected Dockerfile contents"
-            raise RuntimeError(msg)
-        data = payload.get("data")
-        repository_data = data.get("repository") if isinstance(data, dict) else None
-        if not isinstance(repository_data, dict):
-            msg = "GitHub GraphQL omitted the protected repository data"
-            raise TypeError(msg)
-
-        for alias, sha in aliases.items():
-            blob = repository_data.get(alias)
-            dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
-            if not isinstance(dockerfile_text, str):
-                msg = f"Dockerfile content missing for protected ref {sha}"
-                raise TypeError(msg)
-            tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
+        tags.update(_dockerfile_tag_batch(owner, repository_name, batch, load_json))
     return tags
 
 
