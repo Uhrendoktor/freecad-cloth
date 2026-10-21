@@ -609,8 +609,8 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
         touching = list(
             dict.fromkeys(
                 str(item["edge_id"])
-            for item in nearby
-            if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
+                for item in nearby
+                if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             )
         )
         issues.append(
