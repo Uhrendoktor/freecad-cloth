@@ -13,7 +13,7 @@ from math import sqrt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
-Triangle = tuple[int, int, int>
+Triangle = tuple[int, int, int]
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
