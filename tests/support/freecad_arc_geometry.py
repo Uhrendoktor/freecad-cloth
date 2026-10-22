@@ -85,9 +85,7 @@ def _circle_geometry(
     end_squared = end_x * end_x + end_y * end_y
     middle_squared = middle_x * middle_x + middle_y * middle_y
     determinant = 2.0 * (
-        start_x * (end_y - middle_y)
-        + end_x * (middle_y - start_y)
-        + middle_x * (start_y - end_y)
+        start_x * (end_y - middle_y) + end_x * (middle_y - start_y) + middle_x * (start_y - end_y)
     )
     if abs(determinant) <= _DETERMINANT_TOLERANCE:
         msg = "tunic armhole points are collinear; cannot construct an arc"
@@ -212,10 +210,7 @@ def _select_circle_sweep(
         middle_angle = _parameter_for_point(midpoint, geometry, axes)
         sweep = (end_angle - start_angle) % _FULL_TURN_RADIANS
         middle_sweep = (middle_angle - start_angle) % _FULL_TURN_RADIANS
-        if (
-            sweep > _MINIMUM_SWEEP_RADIANS
-            and middle_sweep <= sweep + _MINIMUM_SWEEP_RADIANS
-        ):
+        if sweep > _MINIMUM_SWEEP_RADIANS and middle_sweep <= sweep + _MINIMUM_SWEEP_RADIANS:
             return _CircleSweep(circle, normal_z, start_angle, sweep, middle_sweep)
     return None
 
