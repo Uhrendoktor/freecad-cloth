@@ -265,11 +265,9 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
     require(
         condition=(
             "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
-                "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
-                in artifact_budget
-            )
+            in artifact_budget
         ),
-        message="one shot retention run bypas failed at line 130.",
+        message="one shot retention run bypasses the runner fallback failed at line 130.",
     )
 
 
