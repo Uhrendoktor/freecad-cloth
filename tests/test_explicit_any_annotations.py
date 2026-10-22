@@ -26,7 +26,7 @@ from tools.ci.validate_ci_structure import (
 
 @pytest.mark.parametrize(
     "source",
-    (
+    [
         "from typing import Any\nvalue: Any\n",
         "import typing\nvalue: dict[str, typing.Any]\n",
         "import typing as t\nvalue: list[t.Any]\n",
@@ -34,10 +34,14 @@ from tools.ci.validate_ci_structure import (
         "from typing_extensions import Any as Dynamic\nvalue = list[Dynamic]\n",
         "from typing import *\nvalue: Any\n",
         "from typing import Any\nAlias = dict[str, Any]\n",
-    ),
+    ],
 )
 def test_explicit_any_references_are_rejected(source: str) -> None:
-    """Reject direct, renamed, qualified, wildcard, and type-alias Any usage."""
+    """Reject direct, renamed, qualified, wildcard, and type-alias Any usage.
+
+    Args:
+        source: Python source text with type annotations to inspect.
+    """
     require(
         condition=bool(explicit_any_violations(source)),
         message="Explicit Any references in source annotations must be rejected.",
@@ -46,7 +50,7 @@ def test_explicit_any_references_are_rejected(source: str) -> None:
 
 @pytest.mark.parametrize(
     "source",
-    (
+    [
         "from typing import Any\ndef render(value: 'Any') -> 'list[Any]':\n    return [value]\n",
         "import typing as t\ndef render(value: 't.Any') -> None:\n    return None\n",
         (
@@ -56,10 +60,14 @@ def test_explicit_any_references_are_rejected(source: str) -> None:
         ),
         "from typing import Any\ndef render(value): # type: (Any) -> Any\n    return value\n",
         "from typing import Any\nvalue = 1 # type: Any\n",
-    ),
+    ],
 )
 def test_stringified_annotations_and_type_comments_are_rejected(source: str) -> None:
-    """Inspect quoted forward references and legacy type comments as type syntax."""
+    """Inspect quoted forward references and legacy type comments as type syntax.
+
+    Args:
+        source: Python source text with quoted or commented type syntax.
+    """
     require(
         condition=bool(explicit_any_violations(source)),
         message="Stringified annotations and legacy type comments must reject Any.",
@@ -157,7 +165,11 @@ def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
 
 @pytest.mark.parametrize("command", TYPECHECK_COMMANDS)
 def test_type_gate_contract_detects_removed_command(command: str) -> None:
-    """Catch a workflow regression if any blocking type gate is removed."""
+    """Catch a workflow regression if any blocking type gate is removed.
+
+    Args:
+        command: Exact type-check command whose removal is simulated.
+    """
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
     require(
@@ -168,7 +180,11 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
 
 @pytest.mark.parametrize("command", PYTHON_POLICY_COMMANDS)
 def test_python_policy_contract_detects_removed_command(command: str) -> None:
-    """Prevent removal of the production Pydantic policy."""
+    """Prevent removal of the production Pydantic policy.
+
+    Args:
+        command: Exact Python policy command whose removal is simulated.
+    """
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
     require(
