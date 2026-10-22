@@ -24,56 +24,82 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
 
     require(
         condition="case: simulation-quality" in gui_matrix,
-        message="simulation quality readiness failed at line 24.",
+        message=(
+            "Expected \"case: simulation-quality\" in gui_matrix."
+        ),
     )
     require(
         condition="tests/freecad_simulation_quality_acceptance.py" in gui_matrix,
-        message="simulation quality readiness failed at line 25.",
+        message=(
+            "Expected \"tests/freecad_simulation_quality_acceptance.py\" in gui_matrix."
+        ),
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message="simulation quality readiness failed at line 26.",
+        message=(
+            "Expected \"python3 tools/ci/validate_acceptance.py simulation-quality\" in "
+            "gui_matrix."
+        ),
     )
     require(
         condition=(
             '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
         ),
-        message="simulation quality readiness failed at line 27.",
+        message=(
+            "Expected ( '\"simulation-quality\": "
+            "Path(\"artifacts/simulation-quality-readiness.png\")' in validator )."
+        ),
     )
     stale_image_contract = (
         '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
     )
     require(
         condition=stale_image_contract in validator,
-        message="simulation quality readiness failed at line 31.",
+        message=(
+            "Expected stale_image_contract in validator."
+        ),
     )
     require(
         condition="simulation-quality-readiness.png" in acceptance,
-        message="simulation quality readiness failed at line 32.",
+        message=(
+            "Expected \"simulation-quality-readiness.png\" in acceptance."
+        ),
     )
     require(
         condition="simulation-quality-stale-target.png" in acceptance,
-        message="simulation quality readiness failed at line 33.",
+        message=(
+            "Expected \"simulation-quality-stale-target.png\" in acceptance."
+        ),
     )
     require(
         condition='property("workflowState") != "blocked"' in acceptance,
-        message="simulation quality readiness failed at line 34.",
+        message=(
+            "Expected 'property(\"workflowState\") != \"blocked\"' in acceptance."
+        ),
     )
     require(
         condition='if __name__ == "__main__"' not in acceptance,
-        message="simulation quality readiness failed at line 35.",
+        message=(
+            "Expected 'if __name__ == \"__main__\"' not in acceptance."
+        ),
     )
     require(
         condition='_progress("entrypoint-entered")' in acceptance,
-        message="simulation quality readiness failed at line 36.",
+        message=(
+            "Expected '_progress(\"entrypoint-entered\")' in acceptance."
+        ),
     )
     require(
         condition="os._exit(0)" in acceptance,
-        message="simulation quality readiness failed at line 37.",
+        message=(
+            "Expected \"os._exit(0)\" in acceptance."
+        ),
     )
     require(
         condition="os._exit(1)" in acceptance,
-        message="simulation quality readiness failed at line 38.",
+        message=(
+            "Expected \"os._exit(1)\" in acceptance."
+        ),
     )
 
 
@@ -86,15 +112,21 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
     ]
     require(
         condition=configured == 120,
-        message="freecad timeout is positive  failed at line 48.",
+        message=(
+            "Expected configured == 120."
+        ),
     )
     require(
         condition=configured_timeout_seconds() == configured,
-        message="freecad timeout is positive  failed at line 49.",
+        message=(
+            "Expected configured_timeout_seconds() == configured."
+        ),
     )
     require(
         condition=pyproject.count("freecad_application_timeout_seconds") == 1,
-        message="freecad timeout is positive  failed at line 50.",
+        message=(
+            "Expected pyproject.count(\"freecad_application_timeout_seconds\") == 1."
+        ),
     )
 
 
@@ -114,79 +146,117 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     require(
         condition=workflow.count("timeout-seconds:") == 1,
-        message="ci consumers do not duplicat failed at line 67.",
+        message=(
+            "Expected workflow.count(\"timeout-seconds:\") == 1."
+        ),
     )
     require(
         condition='timeout-seconds: "360"' in simulation_ladder,
-        message="ci consumers do not duplicat failed at line 68.",
+        message=(
+            "Expected 'timeout-seconds: \"360\"' in simulation_ladder."
+        ),
     )
     require(
         condition="freecad_application_timeout_seconds" not in workflow,
-        message="ci consumers do not duplicat failed at line 69.",
+        message=(
+            "Expected \"freecad_application_timeout_seconds\" not in workflow."
+        ),
     )
     require(
         condition='default: "120"' in action,
-        message="ci consumers do not duplicat failed at line 70.",
+        message=(
+            "Expected 'default: \"120\"' in action."
+        ),
     )
     require(
         condition="timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
-        message="ci consumers do not duplicat failed at line 71.",
+        message=(
+            "Expected \"timeout-seconds: ${{ inputs.timeout-seconds }}\" in action."
+        ),
     )
     require(
         condition="FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action,
-        message="ci consumers do not duplicat failed at line 72.",
+        message=(
+            "Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS=\" in action."
+        ),
     )
     require(
         condition='default: "120"' in container_action,
-        message="ci consumers do not duplicat failed at line 73.",
+        message=(
+            "Expected 'default: \"120\"' in container_action."
+        ),
     )
     require(
         condition="maximum 360 seconds" in container_action,
-        message="ci consumers do not duplicat failed at line 74.",
+        message=(
+            "Expected \"maximum 360 seconds\" in container_action."
+        ),
     )
     require(
         condition='if [ "$timeout_seconds" -gt 360 ]; then' in container_action,
-        message="ci consumers do not duplicat failed at line 75.",
+        message=(
+            "Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action."
+        ),
     )
     require(
         condition="FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner,
-        message="ci consumers do not duplicat failed at line 76.",
+        message=(
+            "Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS\" in runner."
+        ),
     )
     require(
         condition="420" not in container_action,
-        message="ci consumers do not duplicat failed at line 77.",
+        message=(
+            "Expected \"420\" not in container_action."
+        ),
     )
     require(
         condition="--no-deps -e ." in action,
-        message="ci consumers do not duplicat failed at line 78.",
+        message=(
+            "Expected \"--no-deps -e .\" in action."
+        ),
     )
     require(
         condition='"numpy>=1.26,<3"' in action,
-        message="ci consumers do not duplicat failed at line 79.",
+        message=(
+            "Expected '\"numpy>=1.26,<3\"' in action."
+        ),
     )
     require(
         condition='"pydantic>=2.11,<3"' in action,
-        message="ci consumers do not duplicat failed at line 80.",
+        message=(
+            "Expected '\"pydantic>=2.11,<3\"' in action."
+        ),
     )
     require(
         condition='"Pillow>=11,<13"' in action,
-        message="ci consumers do not duplicat failed at line 81.",
+        message=(
+            "Expected '\"Pillow>=11,<13\"' in action."
+        ),
     )
     require(
         condition="install --disable-pip-version-check -e ." not in action,
-        message="ci consumers do not duplicat failed at line 82.",
+        message=(
+            "Expected \"install --disable-pip-version-check -e .\" not in action."
+        ),
     )
     require(
         condition="configured_timeout_seconds()" in runner,
-        message="ci consumers do not duplicat failed at line 83.",
+        message=(
+            "Expected \"configured_timeout_seconds()\" in runner."
+        ),
     )
     require(
         condition="--extra-index-url https://download.pytorch.org/whl/cpu" in workflow,
-        message="ci consumers do not duplicat failed at line 84.",
+        message=(
+            "Expected \"--extra-index-url https://download.pytorch.org/whl/cpu\" in workflow."
+        ),
     )
     require(
         condition='"torch==2.8.0+cpu"' in workflow,
-        message="ci consumers do not duplicat failed at line 85.",
+        message=(
+            "Expected '\"torch==2.8.0+cpu\"' in workflow."
+        ),
     )
 
 
@@ -199,15 +269,21 @@ def test_timeout_contract_is_documented() -> None:
 
     require(
         condition="CI configuration" in docs,
-        message="timeout contract is document failed at line 95.",
+        message=(
+            "Expected \"CI configuration\" in docs."
+        ),
     )
     require(
         condition="pyproject.toml" in configuration,
-        message="timeout contract is document failed at line 96.",
+        message=(
+            "Expected \"pyproject.toml\" in configuration."
+        ),
     )
     require(
         condition="freecad_application_timeout_seconds" in configuration,
-        message="timeout contract is document failed at line 97.",
+        message=(
+            "Expected \"freecad_application_timeout_seconds\" in configuration."
+        ),
     )
 
 
@@ -220,19 +296,27 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
 
     require(
         condition="GH_TOKEN: ${{ github.token }}" in cleanup,
-        message="maintenance cleanup receives failed at line 107.",
+        message=(
+            "Expected \"GH_TOKEN: ${{ github.token }}\" in cleanup."
+        ),
     )
     require(
         condition="actions: write" in cleanup,
-        message="maintenance cleanup receives failed at line 108.",
+        message=(
+            "Expected \"actions: write\" in cleanup."
+        ),
     )
     require(
         condition="contents: write" in cleanup,
-        message="maintenance cleanup receives failed at line 109.",
+        message=(
+            "Expected \"contents: write\" in cleanup."
+        ),
     )
     require(
         condition="packages: write" in cleanup,
-        message="maintenance cleanup receives failed at line 110.",
+        message=(
+            "Expected \"packages: write\" in cleanup."
+        ),
     )
 
 
@@ -252,22 +336,31 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
 
     require(
         condition=f"!({activation})" in readiness,
-        message="one shot retention run bypas failed at line 127.",
+        message=(
+            "Expected f\"!({activation})\" in readiness."
+        ),
     )
     require(
         condition=f"!({activation})" in watchdog,
-        message="one shot retention run bypas failed at line 128.",
+        message=(
+            "Expected f\"!({activation})\" in watchdog."
+        ),
     )
     require(
         condition=f"!({activation})" in image,
-        message="one shot retention run bypas failed at line 129.",
+        message=(
+            "Expected f\"!({activation})\" in image."
+        ),
     )
     require(
         condition=(
             "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
             in artifact_budget
         ),
-        message="one shot retention run bypasses the runner fallback failed at line 130.",
+        message=(
+            "Expected ( \"!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE "
+            "CLEANUP')\" in artifact_budget )."
+        ),
     )
 
 
@@ -282,15 +375,21 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
 
     require(
         condition="python tools/check_dead_code.py" in quality,
-        message="dead code gate scans the ful failed at line 145.",
+        message=(
+            "Expected \"python tools/check_dead_code.py\" in quality."
+        ),
     )
     require(
         condition="xargs -r python tools/check_dead_code.py" not in quality,
-        message="dead code gate scans the ful failed at line 146.",
+        message=(
+            "Expected \"xargs -r python tools/check_dead_code.py\" not in quality."
+        ),
     )
     require(
         condition="changed-python.txt" not in quality,
-        message="dead code gate scans the ful failed at line 147.",
+        message=(
+            "Expected \"changed-python.txt\" not in quality."
+        ),
     )
 
 
@@ -303,7 +402,9 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     contents = b"FROM freecad:stable\n"
     require(
         condition=pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32],
-        message="pbd validation tag matches w failed at line 156.",
+        message=(
+            "Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]."
+        ),
     )
 
 
@@ -335,12 +436,44 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
             Response mapping with protected repository blob contents.
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message="fake gh json failed at line 175.",
+            message=(
+            "Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32], "
+            "message=\"pbd validation tag matches w failed at line 156.\", ) def "
+            "test_dockerfile_tags_for_shas_batches_graphql_queries() -> None: \"\"\"Verify "
+            "protected Dockerfile tags are resolved in bounded GraphQL batches.\"\"\" import re "
+            "from hashlib import sha256 from tools.ci import maintenance_cleanup "
+            "contents_by_sha = { \"1\" * 40: b\"FROM freecad:one\\n\", \"2\" * 40: b\"FROM "
+            "freecad:two\\n\", \"3\" * 40: b\"FROM freecad:three\\n\", \"4\" * 40: b\"FROM "
+            "freecad:four\\n\", \"5\" * 40: b\"FROM freecad:five\\n\", } queries = [] def "
+            "fake_gh_json(*args: str) -> dict[str, object]: \"\"\"Fail closed if GitHub omits a "
+            "requested commit activity object. Resolve distinct branch commit timestamps in "
+            "bounded GraphQL batches. Return a mock GraphQL response for protected Dockerfile "
+            "blobs. Args: args: GitHub CLI request arguments, including the GraphQL query. \"\"\" "
+            "Returns: Response mapping with protected repository blob contents. require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\")."
+        ),
         )
         query_arg = args[3]
         require(
             condition=query_arg.startswith("query="),
-            message="fake gh json failed at line 177.",
+            message=(
+            "Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32], "
+            "message=\"pbd validation tag matches w failed at line 156.\", ) def "
+            "test_dockerfile_tags_for_shas_batches_graphql_queries() -> None: \"\"\"Verify "
+            "protected Dockerfile tags are resolved in bounded GraphQL batches.\"\"\" import re "
+            "from hashlib import sha256 from tools.ci import maintenance_cleanup "
+            "contents_by_sha = { \"1\" * 40: b\"FROM freecad:one\\n\", \"2\" * 40: b\"FROM "
+            "freecad:two\\n\", \"3\" * 40: b\"FROM freecad:three\\n\", \"4\" * 40: b\"FROM "
+            "freecad:four\\n\", \"5\" * 40: b\"FROM freecad:five\\n\", } queries = [] def "
+            "fake_gh_json(*args: str) -> dict[str, object]: \"\"\"Fail closed if GitHub omits a "
+            "requested commit activity object. Resolve distinct branch commit timestamps in "
+            "bounded GraphQL batches. Return a mock GraphQL response for protected Dockerfile "
+            "blobs. Args: args: GitHub CLI request arguments, including the GraphQL query. \"\"\" "
+            "Returns: Response mapping with protected repository blob contents. require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 175.\", ) query_arg = args[3] require( "
+            "condition=query_arg.startswith(\"query=\")."
+        ),
         )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(
@@ -349,7 +482,27 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         )
         require(
             condition=bool(aliases),
-            message="fake gh json failed at line 183.",
+            message=(
+            "Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32], "
+            "message=\"pbd validation tag matches w failed at line 156.\", ) def "
+            "test_dockerfile_tags_for_shas_batches_graphql_queries() -> None: \"\"\"Verify "
+            "protected Dockerfile tags are resolved in bounded GraphQL batches.\"\"\" import re "
+            "from hashlib import sha256 from tools.ci import maintenance_cleanup "
+            "contents_by_sha = { \"1\" * 40: b\"FROM freecad:one\\n\", \"2\" * 40: b\"FROM "
+            "freecad:two\\n\", \"3\" * 40: b\"FROM freecad:three\\n\", \"4\" * 40: b\"FROM "
+            "freecad:four\\n\", \"5\" * 40: b\"FROM freecad:five\\n\", } queries = [] def "
+            "fake_gh_json(*args: str) -> dict[str, object]: \"\"\"Fail closed if GitHub omits a "
+            "requested commit activity object. Resolve distinct branch commit timestamps in "
+            "bounded GraphQL batches. Return a mock GraphQL response for protected Dockerfile "
+            "blobs. Args: args: GitHub CLI request arguments, including the GraphQL query. \"\"\" "
+            "Returns: Response mapping with protected repository blob contents. require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 175.\", ) query_arg = args[3] require( "
+            "condition=query_arg.startswith(\"query=\"), message=\"fake gh json failed at line "
+            "177.\", ) query = query_arg.removeprefix(\"query=\") aliases = re.findall( "
+            "r'(file\\d+): object\\(expression: \"([0-9a-f]{40}):docker/freecad-ci/Dockerfile\"\\)', "
+            "query, ) require( condition=bool(aliases)."
+        ),
         )
         queries.append(query)
         return {
@@ -368,11 +521,16 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         condition=(
             tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}
         ),
-        message="dockerfile tags for shas bat failed at line 197.",
+        message=(
+            "Expected ( tags == {sha256(contents).hexdigest()[:32] for contents in "
+            "contents_by_sha.values()} )."
+        ),
     )
     require(
         condition=len(queries) == 3,
-        message="dockerfile tags for shas bat failed at line 198.",
+        message=(
+            "Expected len(queries) == 3."
+        ),
     )
 
 
@@ -390,7 +548,16 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
             Response mapping with the queried protected blob."""
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message="fake gh json failed at line 205.",
+            message=(
+            "Expected len(queries) == 3, message=\"dockerfile tags for shas bat failed at line "
+            "198.\", ) def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob("
+            ") -> None: \"\"\"Reject cleanup when a protected Dockerfile blob is missing.\"\"\" from "
+            "tools.ci import maintenance_cleanup def fake_gh_json(*args: str) -> dict[str, "
+            "object]: \"\"\"Return a mock GraphQL response for a missing protected Dockerfile "
+            "blob. Args: args: GitHub CLI request arguments, including the GraphQL query. "
+            "Returns: Response mapping with the queried protected blob.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\")."
+        ),
         )
         return {"data": {"repository": {"file0": None}}}
 
@@ -401,7 +568,20 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     except RuntimeError as exc:
         require(
             condition="Dockerfile content missing" in str(exc),
-            message="dockerfile tags fail closed  failed at line 213.",
+            message=(
+            "Expected len(queries) == 3, message=\"dockerfile tags for shas bat failed at line "
+            "198.\", ) def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob("
+            ") -> None: \"\"\"Reject cleanup when a protected Dockerfile blob is missing.\"\"\" from "
+            "tools.ci import maintenance_cleanup def fake_gh_json(*args: str) -> dict[str, "
+            "object]: \"\"\"Return a mock GraphQL response for a missing protected Dockerfile "
+            "blob. Args: args: GitHub CLI request arguments, including the GraphQL query. "
+            "Returns: Response mapping with the queried protected blob.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 205.\", ) return {\"data\": {\"repository\": {\"file0\": None}}} try: "
+            "maintenance_cleanup.dockerfile_tags_for_shas( \"owner/repo\", {\"1\" * 40}, "
+            "fetch_json=fake_gh_json ) except RuntimeError as exc: require( "
+            "condition=\"Dockerfile content missing\" in str(exc)."
+        ),
         )
     else:
         msg = "missing protected Dockerfile content must fail closed"
@@ -428,11 +608,62 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
             Set of tags that identify protected Dockerfile contents."""
         require(
             condition=repo_name == "Uhrendoktor/freecad-cloth",
-            message="fake resolve tags failed at line 228.",
+            message=(
+            "Expected len(queries) == 3, message=\"dockerfile tags for shas bat failed at line "
+            "198.\", ) def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob("
+            ") -> None: \"\"\"Reject cleanup when a protected Dockerfile blob is missing.\"\"\" from "
+            "tools.ci import maintenance_cleanup def fake_gh_json(*args: str) -> dict[str, "
+            "object]: \"\"\"Return a mock GraphQL response for a missing protected Dockerfile "
+            "blob. Args: args: GitHub CLI request arguments, including the GraphQL query. "
+            "Returns: Response mapping with the queried protected blob.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 205.\", ) return {\"data\": {\"repository\": {\"file0\": None}}} try: "
+            "maintenance_cleanup.dockerfile_tags_for_shas( \"owner/repo\", {\"1\" * 40}, "
+            "fetch_json=fake_gh_json ) except RuntimeError as exc: require( "
+            "condition=\"Dockerfile content missing\" in str(exc), message=\"dockerfile tags fail "
+            "closed failed at line 213.\", ) else: msg = \"missing protected Dockerfile content "
+            "must fail closed\" raise AssertionError(msg) def "
+            "test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> "
+            "None: \"\"\"Use the authenticated user's package endpoint for image cleanup.\"\"\" from "
+            "collections.abc import Iterator from tools.ci import maintenance_cleanup "
+            "requested_endpoints: list[str] = [] deleted_arguments: list[tuple[str, ...]] = [] "
+            "def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]: "
+            "\"\"\"Return protected Dockerfile tags for the requested repository state. Args: "
+            "repo_name: Repository whose protected Dockerfiles are resolved. protected_shas: "
+            "Commit SHAs that must remain protected. Returns: Set of tags that identify "
+            "protected Dockerfile contents.\"\"\" require( condition=repo_name == "
+            "\"Uhrendoktor/freecad-cloth\"."
+        ),
         )
         require(
             condition=protected_shas == {"1" * 40},
-            message="fake resolve tags failed at line 229.",
+            message=(
+            "Expected len(queries) == 3, message=\"dockerfile tags for shas bat failed at line "
+            "198.\", ) def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob("
+            ") -> None: \"\"\"Reject cleanup when a protected Dockerfile blob is missing.\"\"\" from "
+            "tools.ci import maintenance_cleanup def fake_gh_json(*args: str) -> dict[str, "
+            "object]: \"\"\"Return a mock GraphQL response for a missing protected Dockerfile "
+            "blob. Args: args: GitHub CLI request arguments, including the GraphQL query. "
+            "Returns: Response mapping with the queried protected blob.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 205.\", ) return {\"data\": {\"repository\": {\"file0\": None}}} try: "
+            "maintenance_cleanup.dockerfile_tags_for_shas( \"owner/repo\", {\"1\" * 40}, "
+            "fetch_json=fake_gh_json ) except RuntimeError as exc: require( "
+            "condition=\"Dockerfile content missing\" in str(exc), message=\"dockerfile tags fail "
+            "closed failed at line 213.\", ) else: msg = \"missing protected Dockerfile content "
+            "must fail closed\" raise AssertionError(msg) def "
+            "test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> "
+            "None: \"\"\"Use the authenticated user's package endpoint for image cleanup.\"\"\" from "
+            "collections.abc import Iterator from tools.ci import maintenance_cleanup "
+            "requested_endpoints: list[str] = [] deleted_arguments: list[tuple[str, ...]] = [] "
+            "def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]: "
+            "\"\"\"Return protected Dockerfile tags for the requested repository state. Args: "
+            "repo_name: Repository whose protected Dockerfiles are resolved. protected_shas: "
+            "Commit SHAs that must remain protected. Returns: Set of tags that identify "
+            "protected Dockerfile contents.\"\"\" require( condition=repo_name == "
+            "\"Uhrendoktor/freecad-cloth\", message=\"fake resolve tags failed at line 228.\", ) "
+            "require( condition=protected_shas == {\"1\" * 40}."
+        ),
         )
         return {"protected-dockerfile-tag"}
 
@@ -468,15 +699,21 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     require(
         condition=result["status"] == "passed",
-        message="package cleanup uses configu failed at line 251.",
+        message=(
+            "Expected result[\"status\"] == \"passed\"."
+        ),
     )
     require(
         condition=result["versions_seen"] == 0,
-        message="package cleanup uses configu failed at line 252.",
+        message=(
+            "Expected result[\"versions_seen\"] == 0."
+        ),
     )
     require(
         condition=result["deleted"] == 0,
-        message="package cleanup uses configu failed at line 253.",
+        message=(
+            "Expected result[\"deleted\"] == 0."
+        ),
     )
     require(
         condition=(
@@ -484,11 +721,16 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
                 "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
             ]
         ),
-        message="package cleanup uses configu failed at line 254.",
+        message=(
+            "Expected ( requested_endpoints == [ "
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions\" ] )."
+        ),
     )
     require(
         condition=deleted_arguments == [],
-        message="package cleanup uses configu failed at line 257.",
+        message=(
+            "Expected deleted_arguments == []."
+        ),
     )
 
 
@@ -523,7 +765,9 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
 
     require(
         condition=[version["id"] for version in stale] == [1],
-        message="stale package versions keep  failed at line 288.",
+        message=(
+            "Expected [version[\"id\"] for version in stale] == [1]."
+        ),
     )
 
 
@@ -589,19 +833,27 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     require(
         condition=endpoints == [endpoint],
-        message="package cleanup queries conf failed at line 331.",
+        message=(
+            "Expected endpoints == [endpoint]."
+        ),
     )
     require(
         condition=result["status"] == "passed",
-        message="package cleanup queries conf failed at line 332.",
+        message=(
+            "Expected result[\"status\"] == \"passed\"."
+        ),
     )
     require(
         condition=result["versions_seen"] == 1,
-        message="package cleanup queries conf failed at line 333.",
+        message=(
+            "Expected result[\"versions_seen\"] == 1."
+        ),
     )
     require(
         condition=result["deleted"] == 1,
-        message="package cleanup queries conf failed at line 334.",
+        message=(
+            "Expected result[\"deleted\"] == 1."
+        ),
     )
     require(
         condition=(
@@ -614,7 +866,10 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
                 )
             ]
         ),
-        message="package cleanup queries conf failed at line 335.",
+        message=(
+            "Expected ( deleted == [ ( \"api\", \"--method\", \"DELETE\", "
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions/11\", ) ] )."
+        ),
     )
 
 
@@ -652,11 +907,15 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
     require(
         condition=items == [{"id": 1}, {"id": 2}, {"id": 3}],
-        message="maintenance cleanup paginate failed at line 369.",
+        message=(
+            "Expected items == [{\"id\": 1}, {\"id\": 2}, {\"id\": 3}]."
+        ),
     )
     require(
         condition=requested_pages == [1, 2],
-        message="maintenance cleanup paginate failed at line 370.",
+        message=(
+            "Expected requested_pages == [1, 2]."
+        ),
     )
 
 
@@ -674,11 +933,15 @@ def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> Non
 
     activity = require_not_none(
         activity,
-        message="maintenance cleanup prefers  failed at line 384.",
+        message=(
+            "Expected activity to be present."
+        ),
     )
     require(
         condition=activity > cutoff,
-        message="maintenance cleanup prefers  failed at line 385.",
+        message=(
+            "Expected activity > cutoff."
+        ),
     )
 
 
@@ -694,7 +957,10 @@ def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
                 "2026-10-01T00:00:00Z"
             )
         ),
-        message="maintenance cleanup falls ba failed at line 393.",
+        message=(
+            "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) )."
+        ),
     )
 
 
@@ -737,18 +1003,74 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
             Mapping from query aliases to commit date objects."""
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message="fake gh json failed at line 428.",
+            message=(
+            "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) ), message=\"maintenance "
+            "cleanup falls ba failed at line 393.\", ) def "
+            "test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> None: "
+            "\"\"\"import re\"\"\" from tools.ci import maintenance_cleanup dates_by_sha: dict[str, "
+            "dict[str, str | None]] = { \"1\" * 40: { \"committedDate\": \"2026-07-01T00:00:00Z\", "
+            "\"authoredDate\": \"2026-06-30T00:00:00Z\", }, \"2\" * 40: { \"committedDate\": "
+            "\"2026-08-01T00:00:00Z\", \"authoredDate\": \"2026-07-31T00:00:00Z\", }, \"3\" * 40: { "
+            "\"committedDate\": \"2026-09-01T00:00:00Z\", \"authoredDate\": \"2026-08-31T00:00:00Z\", "
+            "}, \"4\" * 40: { \"committedDate\": \"2026-10-01T00:00:00Z\", \"authoredDate\": "
+            "\"2026-09-30T00:00:00Z\", }, \"5\" * 40: { \"committedDate\": None, \"authoredDate\": "
+            "\"2026-10-05T00:00:00Z\", }, } query_batches: list[str] = [] def fake_gh_json(*args: "
+            "str) -> dict[str, object]: \"\"\"Return mocked commit activity data for a batch "
+            "query. Args: args: GitHub CLI command and GraphQL query arguments. Returns: "
+            "Mapping from query aliases to commit date objects.\"\"\" require( condition=args[:3] "
+            "== (\"api\", \"graphql\", \"-f\")."
+        ),
         )
         query_arg = args[3]
         require(
             condition=query_arg.startswith("query="),
-            message="fake gh json failed at line 430.",
+            message=(
+            "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) ), message=\"maintenance "
+            "cleanup falls ba failed at line 393.\", ) def "
+            "test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> None: "
+            "\"\"\"import re\"\"\" from tools.ci import maintenance_cleanup dates_by_sha: dict[str, "
+            "dict[str, str | None]] = { \"1\" * 40: { \"committedDate\": \"2026-07-01T00:00:00Z\", "
+            "\"authoredDate\": \"2026-06-30T00:00:00Z\", }, \"2\" * 40: { \"committedDate\": "
+            "\"2026-08-01T00:00:00Z\", \"authoredDate\": \"2026-07-31T00:00:00Z\", }, \"3\" * 40: { "
+            "\"committedDate\": \"2026-09-01T00:00:00Z\", \"authoredDate\": \"2026-08-31T00:00:00Z\", "
+            "}, \"4\" * 40: { \"committedDate\": \"2026-10-01T00:00:00Z\", \"authoredDate\": "
+            "\"2026-09-30T00:00:00Z\", }, \"5\" * 40: { \"committedDate\": None, \"authoredDate\": "
+            "\"2026-10-05T00:00:00Z\", }, } query_batches: list[str] = [] def fake_gh_json(*args: "
+            "str) -> dict[str, object]: \"\"\"Return mocked commit activity data for a batch "
+            "query. Args: args: GitHub CLI command and GraphQL query arguments. Returns: "
+            "Mapping from query aliases to commit date objects.\"\"\" require( condition=args[:3] "
+            "== (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at line 428.\", ) "
+            "query_arg = args[3] require( condition=query_arg.startswith(\"query=\")."
+        ),
         )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
         require(
             condition=bool(aliases),
-            message="fake gh json failed at line 433.",
+            message=(
+            "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) ), message=\"maintenance "
+            "cleanup falls ba failed at line 393.\", ) def "
+            "test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> None: "
+            "\"\"\"import re\"\"\" from tools.ci import maintenance_cleanup dates_by_sha: dict[str, "
+            "dict[str, str | None]] = { \"1\" * 40: { \"committedDate\": \"2026-07-01T00:00:00Z\", "
+            "\"authoredDate\": \"2026-06-30T00:00:00Z\", }, \"2\" * 40: { \"committedDate\": "
+            "\"2026-08-01T00:00:00Z\", \"authoredDate\": \"2026-07-31T00:00:00Z\", }, \"3\" * 40: { "
+            "\"committedDate\": \"2026-09-01T00:00:00Z\", \"authoredDate\": \"2026-08-31T00:00:00Z\", "
+            "}, \"4\" * 40: { \"committedDate\": \"2026-10-01T00:00:00Z\", \"authoredDate\": "
+            "\"2026-09-30T00:00:00Z\", }, \"5\" * 40: { \"committedDate\": None, \"authoredDate\": "
+            "\"2026-10-05T00:00:00Z\", }, } query_batches: list[str] = [] def fake_gh_json(*args: "
+            "str) -> dict[str, object]: \"\"\"Return mocked commit activity data for a batch "
+            "query. Args: args: GitHub CLI command and GraphQL query arguments. Returns: "
+            "Mapping from query aliases to commit date objects.\"\"\" require( condition=args[:3] "
+            "== (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at line 428.\", ) "
+            "query_arg = args[3] require( condition=query_arg.startswith(\"query=\"), "
+            "message=\"fake gh json failed at line 430.\", ) query = "
+            "query_arg.removeprefix(\"query=\") aliases = re.findall(r'(commit\\d+): "
+            "object\\(expression: \"([0-9a-f]{40})\"\\)', query) require( condition=bool(aliases)."
+        ),
         )
         query_batches.append(query)
         repository_data: dict[str, object] = {alias: dates_by_sha[sha] for alias, sha in aliases}
@@ -769,11 +1091,20 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
                 "5" * 40: maintenance_cleanup.epoch("2026-10-05T00:00:00Z"),
             }
         ),
-        message="branch activity epochs resol failed at line 443.",
+        message=(
+            "Expected ( activities == { \"1\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-07-01T00:00:00Z\"), \"2\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-08-01T00:00:00Z\"), \"3\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-09-01T00:00:00Z\"), \"4\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-01T00:00:00Z\"), \"5\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-05T00:00:00Z\"), } )."
+        ),
     )
     require(
         condition=len(query_batches) == 3,
-        message="branch activity epochs resol failed at line 450.",
+        message=(
+            "Expected len(query_batches) == 3."
+        ),
     )
 
 
@@ -790,7 +1121,15 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
             Mapping whose queried alias does not contain commit data."""
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message="fake gh json failed at line 457.",
+            message=(
+            "Expected len(query_batches) == 3, message=\"branch activity epochs resol failed at "
+            "line 450.\", ) def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing"
+            "() -> None: \"\"\"from tools.ci import maintenance_cleanup\"\"\" def fake_gh_json(*args: "
+            "str) -> dict[str, object]: \"\"\"Return a mock response that omits a requested commit "
+            "object. Args: args: GitHub CLI command and GraphQL query arguments. Returns: "
+            "Mapping whose queried alias does not contain commit data.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\")."
+        ),
         )
         return {"data": {"repository": {"commit0": None}}}
 
@@ -801,7 +1140,19 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     except RuntimeError as exc:
         require(
             condition="commit activity missing" in str(exc),
-            message="branch activity epochs fail  failed at line 465.",
+            message=(
+            "Expected len(query_batches) == 3, message=\"branch activity epochs resol failed at "
+            "line 450.\", ) def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing"
+            "() -> None: \"\"\"from tools.ci import maintenance_cleanup\"\"\" def fake_gh_json(*args: "
+            "str) -> dict[str, object]: \"\"\"Return a mock response that omits a requested commit "
+            "object. Args: args: GitHub CLI command and GraphQL query arguments. Returns: "
+            "Mapping whose queried alias does not contain commit data.\"\"\" require( "
+            "condition=args[:3] == (\"api\", \"graphql\", \"-f\"), message=\"fake gh json failed at "
+            "line 457.\", ) return {\"data\": {\"repository\": {\"commit0\": None}}} try: "
+            "maintenance_cleanup.branch_activity_epochs( \"owner/repo\", {\"1\" * 40}, "
+            "fetch_json=fake_gh_json ) except RuntimeError as exc: require( condition=\"commit "
+            "activity missing\" in str(exc)."
+        ),
         )
     else:
         msg = "missing branch activity must fail closed"
@@ -876,7 +1227,9 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 
     require(
         condition=matched == {"fix/closed-pr-head": {"1" * 40}},
-        message="closed pr head lookup matche failed at line 529.",
+        message=(
+            "Expected matched == {\"fix/closed-pr-head\": {\"1\" * 40}}."
+        ),
     )
     require(
         condition=(
@@ -885,7 +1238,12 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
                 "repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work",
             ]
         ),
-        message="closed pr head lookup matche failed at line 530.",
+        message=(
+            "Expected ( endpoints == [ "
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head\", "
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work\", ] "
+            ")."
+        ),
     )
 
 
@@ -956,7 +1314,10 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
                 "fix/old-closed-work",
             ]
         ),
-        message="stale unprotected branches c failed at line 595.",
+        message=(
+            "Expected ( [branch[\"name\"] for branch in stale] == [ "
+            "\"maintenance/old-closed-work\", \"fix/old-closed-work\", ] )."
+        ),
     )
 
 
@@ -975,7 +1336,9 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
     require(
         condition=[run["id"] for run in stale] == [1, 2],
-        message="maintenance cleanup filters  failed at line 613.",
+        message=(
+            "Expected [run[\"id\"] for run in stale] == [1, 2]."
+        ),
     )
 
 
@@ -988,7 +1351,9 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
 
     require(
         condition="git ls-files -z -- '*.py' '*.pyi'" in quality,
-        message="ruff covers every tracked py failed at line 622.",
+        message=(
+            "Expected \"git ls-files -z -- '*.py' '*.pyi'\" in quality."
+        ),
     )
     require(
         condition=(
@@ -997,31 +1362,47 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
                 '"$RUNNER_TEMP/python-files.zlist"'
             ) in quality
         ),
-        message="ruff covers every tracked py failed at line 623.",
+        message=(
+            "Expected ( ( 'xargs -0 -r python -m ruff format --check < ' "
+            "'\"$RUNNER_TEMP/python-files.zlist\"' ) in quality )."
+        ),
     )
     require(
         condition='xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality,
-        message="ruff covers every tracked py failed at line 626.",
+        message=(
+            "Expected 'xargs -0 -r python -m ruff check < \"$RUNNER_TEMP/python-files.zlist\"' in "
+            "quality."
+        ),
     )
     require(
         condition="python -m ruff check --fix" not in quality,
-        message="ruff covers every tracked py failed at line 627.",
+        message=(
+            "Expected \"python -m ruff check --fix\" not in quality."
+        ),
     )
     require(
         condition="xargs -r python -m ruff check <" not in quality,
-        message="ruff covers every tracked py failed at line 628.",
+        message=(
+            "Expected \"xargs -r python -m ruff check <\" not in quality."
+        ),
     )
     require(
         condition="pyright -p pyrightconfig.agent-strict.json" not in quality,
-        message="ruff covers every tracked py failed at line 629.",
+        message=(
+            "Expected \"pyright -p pyrightconfig.agent-strict.json\" not in quality."
+        ),
     )
     require(
         condition="python tools/ci/check_pydantic_models.py" in quality,
-        message="ruff covers every tracked py failed at line 630.",
+        message=(
+            "Expected \"python tools/ci/check_pydantic_models.py\" in quality."
+        ),
     )
     require(
         condition='path: "freecad_cloth tests tools/ci"' in workflow,
-        message="ruff covers every tracked py failed at line 631.",
+        message=(
+            "Expected 'path: \"freecad_cloth tests tools/ci\"' in workflow."
+        ),
     )
 
 
@@ -1040,27 +1421,39 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
 
     require(
         condition=config["typeCheckingMode"] == "standard",
-        message="pyright keeps broad inventor failed at line 647.",
+        message=(
+            "Expected config[\"typeCheckingMode\"] == \"standard\"."
+        ),
     )
     require(
         condition=config["include"] == ["."],
-        message="pyright keeps broad inventor failed at line 648.",
+        message=(
+            "Expected config[\"include\"] == [\".\"]."
+        ),
     )
     require(
         condition=not config.get("exclude"),
-        message="pyright keeps broad inventor failed at line 649.",
+        message=(
+            "Expected not config.get(\"exclude\")."
+        ),
     )
     require(
         condition=not (ROOT / "pyrightconfig.agent-strict.json").exists(),
-        message="pyright keeps broad inventor failed at line 650.",
+        message=(
+            "Expected not (ROOT / \"pyrightconfig.agent-strict.json\").exists()."
+        ),
     )
     require(
         condition=quality.count("pyright -p ") == 1,
-        message="pyright keeps broad inventor failed at line 651.",
+        message=(
+            "Expected quality.count(\"pyright -p \") == 1."
+        ),
     )
     require(
         condition=config["strict"] == list(strict_core),
-        message="pyright keeps broad inventor failed at line 652.",
+        message=(
+            "Expected config[\"strict\"] == list(strict_core)."
+        ),
     )
 
 
@@ -1078,7 +1471,9 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
 
     require(
         condition="CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation,
-        message="readme gallery uses bounded  failed at line 667.",
+        message=(
+            "Expected \"CLOTH_AVATAR_SCREENSHOT_MODE=documentation\" in gallery_invocation."
+        ),
     )
     require(
         condition=(
@@ -1087,23 +1482,34 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
                 "CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
             )
         ),
-        message="readme gallery uses bounded  failed at line 668.",
+        message=(
+            "Expected ( ( \"FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.\" \"CLOTH_DOC_AVATAR_FIT_STEPS "
+            "}}\" in gallery_invocation ) )."
+        ),
     )
     require(
         condition="CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow,
-        message="readme gallery uses bounded  failed at line 671.",
+        message=(
+            "Expected \"CLOTH_DOC_AVATAR_FIT_STEPS:\" in workflow."
+        ),
     )
     require(
         condition="FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation,
-        message="readme gallery uses bounded  failed at line 672.",
+        message=(
+            "Expected \"FREECAD_CLOTH_ANNY_FIT_STEPS=18\" not in gallery_invocation."
+        ),
     )
     require(
         condition="freecad_application_timeout_seconds" not in gallery_job,
-        message="readme gallery uses bounded  failed at line 673.",
+        message=(
+            "Expected \"freecad_application_timeout_seconds\" not in gallery_job."
+        ),
     )
     require(
         condition="timeout-minutes: 12" in gallery_job,
-        message="readme gallery uses bounded  failed at line 674.",
+        message=(
+            "Expected \"timeout-minutes: 12\" in gallery_job."
+        ),
     )
 
 
@@ -1120,19 +1526,27 @@ def test_main_publication_checks_out_source_before_local_publisher_action() -> N
 
     require(
         condition=publisher_job.count(checkout) == 1,
-        message="main publication checks out  failed at line 688.",
+        message=(
+            "Expected publisher_job.count(checkout) == 1."
+        ),
     )
     require(
         condition=publisher_job.index(checkout) < publisher_job.index(local_action),
-        message="main publication checks out  failed at line 689.",
+        message=(
+            "Expected publisher_job.index(checkout) < publisher_job.index(local_action)."
+        ),
     )
     require(
         condition='ref: "${{ github.sha }}"' in publisher_job,
-        message="main publication checks out  failed at line 690.",
+        message=(
+            "Expected 'ref: \"${{ github.sha }}\"' in publisher_job."
+        ),
     )
     require(
         condition="persist-credentials: false" in publisher_job,
-        message="main publication checks out  failed at line 691.",
+        message=(
+            "Expected \"persist-credentials: false\" in publisher_job."
+        ),
     )
 
 
@@ -1149,9 +1563,14 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
     # artifact ZIP retains blanket-example/motion-*.png rather than flattening it.
     require(
         condition="artifact-path: docs/images/generated/**" in blanket_job,
-        message="blanket artifact preserves e failed at line 705.",
+        message=(
+            "Expected \"artifact-path: docs/images/generated/**\" in blanket_job."
+        ),
     )
     require(
         condition="artifact-path: docs/images/generated/blanket-example/**" not in blanket_job,
-        message="blanket artifact preserves e failed at line 706.",
+        message=(
+            "Expected \"artifact-path: docs/images/generated/blanket-example/**\" not in "
+            "blanket_job."
+        ),
     )
