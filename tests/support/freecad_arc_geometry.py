@@ -62,9 +62,7 @@ class _CircleSweep:
     middle_sweep: float
 
 
-def _circle_geometry(
-    start: _Point2D, end: _Point2D, midpoint: _Point2D
-) -> _CircleGeometry:
+def _circle_geometry(start: _Point2D, end: _Point2D, midpoint: _Point2D) -> _CircleGeometry:
     """Calculate the unique circle passing through three planar points.
 
     Args:
