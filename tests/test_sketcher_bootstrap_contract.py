@@ -21,8 +21,6 @@ def _acceptance_job(workflow: str) -> str:
     Returns:
         The source text defining the ``gui-simple`` job.
 
-    Raises:
-        ValueError: If the ``gui-simple`` marker is missing.
     """
     start = workflow.index("  gui-simple:")
     end = workflow.find("\n  gui-tunic-visual:", start)
@@ -86,5 +84,5 @@ def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flag
             "validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}"
             not in job
         ),
-        message="Sketcher acceptance must use the canonical GUI runner, not a direct validator command.",
+        message="Sketcher acceptance must use the canonical GUI runner, not a direct command.",
     )
