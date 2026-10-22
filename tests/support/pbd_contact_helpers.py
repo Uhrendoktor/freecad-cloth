@@ -352,7 +352,7 @@ def screenshot(view, path):
 
 def build_scene(doc, particle_distance=24.0):
     """Create the canonical production avatar/target scene for PBD diagnostic cases."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (

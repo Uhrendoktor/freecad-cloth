@@ -344,7 +344,7 @@ class AvatarTaskPanel:
             return
         with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
-        from freecad_cloth.avatar.AvatarCommands import pose_avatar
+        from freecad_cloth.avatar.avatar_commands import pose_avatar
 
         pose_avatar(self.avatar)
 
@@ -1089,7 +1089,7 @@ class AvatarTaskPanel:
             )
             return False
         try:
-            from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters
+            from freecad_cloth.avatar.avatar_commands import apply_avatar_parameters
 
             apply_avatar_parameters(
                 self.avatar,
@@ -1183,7 +1183,7 @@ class AvatarTaskPanel:
 
     def _rebuild_geometry(self):
         """Rebuild the mannequin geometry from the staged parameters."""
-        from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import rebuild_avatar
 
         rebuild_avatar()
 

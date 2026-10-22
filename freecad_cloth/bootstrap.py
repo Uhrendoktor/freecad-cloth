@@ -23,7 +23,7 @@ def initialize_workbenches(installation_root: Path) -> None:
     if icon_dir.is_dir():
         gui.addIconPath(str(icon_dir))
 
-    avatar_commands = import_module("freecad_cloth.avatar.AvatarCommands")
+    avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
     pattern_workbench = import_module("freecad_cloth.pattern.workbench")
     sewing_workbench = import_module("freecad_cloth.sewing.workbench")
     simulation_workbench = import_module("freecad_cloth.simulation.workbench")

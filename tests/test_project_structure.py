@@ -6,12 +6,13 @@ import re
 import tomllib
 from pathlib import Path
 
-from support.assertions import require
 from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.shared.targets import DrapeTargetRef
+from support.assertions import require
 
 EXPECTED_SINGLE_REGISTRATION_COUNT = 1
 EXPECTED_TARGET_REVISION = 2
+EXPECTED_SHA_LENGTH = 40
 EXPECTED_BUNDLED_WORKBENCH_COUNT = 3
 
 
@@ -475,7 +476,7 @@ def test_workflow_actions_use_immutable_release_pins() -> None:
         message="test_workflow_actions_use_immutab...: required condition failed",
     )
     require(
-        condition=(all(len(sha) == 40 for sha in references)),
+        condition=(all(len(sha) == EXPECTED_SHA_LENGTH for sha in references)),
         message="test_workflow_actions_use_immutab...: required condition failed",
     )
 
@@ -483,7 +484,7 @@ def test_workflow_actions_use_immutable_release_pins() -> None:
 def test_avatar_commands_do_not_depend_on_simulation_package() -> None:
     """Keep avatar command code independent of simulation modules."""
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
+    source = (root / "freecad_cloth" / "avatar" / "avatar_commands.py").read_text(encoding="utf-8")
     require(
         condition=("freecad_cloth.simulation.SimulationObjects" not in source),
         message="test_avatar_commands_do_not_depen...: required condition failed",
@@ -709,7 +710,11 @@ def test_neutral_collision_contract_is_singleton() -> None:
 
 
 def test_python_sources_do_not_import_removed_architecture_modules() -> None:
-    """Reject source imports from the removed parallel architecture modules."""
+    """Reject source imports from the removed parallel architecture modules.
+
+    Raises:
+        AssertionError: If a Python source references a removed architecture module.
+    """
     root = Path(__file__).resolve().parents[1]
     forbidden_modules = {
         "freecad_cloth.pattern.PatternSchema",

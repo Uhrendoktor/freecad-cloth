@@ -271,7 +271,7 @@ def run():
         trace.flush()
 
     progress("start")
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
     from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
 

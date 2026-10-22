@@ -41,7 +41,7 @@ def _screen(view, vector):
 
 def _create_demo_avatar(doc):
     """Create the same production mannequin used by fitting and simulation."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
 
     target = create_avatar(attach_collision=False, doc=doc, object_name="TunicArrangeMannequin")
     target.Label = "Mannequin / Tunic Fitting Target"
@@ -518,7 +518,7 @@ def run():
     # Exercise the actual avatar skeleton rebuild path. Select a triangle that
     # moves strongly under a manual joint rotation, then prove the saved barycentric
     # anchor follows that same triangle when the avatar mesh is rebuilt.
-    from freecad_cloth.avatar.AvatarCommands import set_avatar_joint
+    from freecad_cloth.avatar.avatar_commands import set_avatar_joint
     from freecad_cloth.avatar.FittingCommands import _mesh_anchor_local_position
 
     avatar = target

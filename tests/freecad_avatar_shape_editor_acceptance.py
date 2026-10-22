@@ -330,7 +330,7 @@ def run():
     """Exercise body-shape controls, viewport dimension staging, and saved rebuilds."""
     os.environ["CLOTH_ANNY_SHAPE_TRACE"] = "1"
     Path("artifacts/ui-gifs").mkdir(parents=True, exist_ok=True)
-    from freecad_cloth.avatar.AvatarCommands import _parameters, create_avatar
+    from freecad_cloth.avatar.avatar_commands import _parameters, create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarModel import generate_mesh
 
