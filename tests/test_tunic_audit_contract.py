@@ -15,9 +15,11 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_TRIMESH_OVERRIDE_COUNT = 2
-_SIMULATION_SCENE_IMPORT = (
-    "from freecad_cloth.simulation.SimulationCommands import "
-    "create_quality_simulation_scene"
+_SIMULATION_SCENE_IMPORT = "".join(
+    (
+        "from freecad_cloth.simulation.SimulationCommands import ",
+        "create_quality_simulation_scene",
+    )
 )
 
 
@@ -62,23 +64,23 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges() -> None:
     )
     require(
         condition=('"SemanticEdgeIds"' in source),
-        message='Contract failed: \'"SemanticEdgeIds"\' in source',
+        message="Contract failed: '\"SemanticEdgeIds\"' in source",
     )
     require(
         condition=('front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source),
-        message='Contract failed: \'front_edge_ids[1], back_edge_ids[1], "...',
+        message="Contract failed: 'front_edge_ids[1], back_edge_ids[1], \"...",
     )
     require(
         condition=('front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in source),
-        message='Contract failed: \'front_edge_ids[3], back_edge_ids[3], "...',
+        message="Contract failed: 'front_edge_ids[3], back_edge_ids[3], \"...",
     )
     require(
         condition=('front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source),
-        message='Contract failed: \'front_edge_ids[5], back_edge_ids[5], "...',
+        message="Contract failed: 'front_edge_ids[5], back_edge_ids[5], \"...",
     )
     require(
         condition=('front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source),
-        message='Contract failed: \'front_edge_ids[7], back_edge_ids[7], "...',
+        message="Contract failed: 'front_edge_ids[7], back_edge_ids[7], \"...",
     )
 
 
@@ -91,19 +93,19 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     )
     require(
         condition=('shoulder_left = arrangement_world("shoulder_left")' in source),
-        message='Contract failed: \'shoulder_left = arrangement_world("sho...',
+        message="Contract failed: 'shoulder_left = arrangement_world(\"sho...",
     )
     require(
         condition=('shoulder_right = arrangement_world("shoulder_right")' in source),
-        message='Contract failed: \'shoulder_right = arrangement_world("sh...',
+        message="Contract failed: 'shoulder_right = arrangement_world(\"sh...",
     )
     require(
         condition=('hip_point = arrangement_world("hip")' in source),
-        message='Contract failed: \'hip_point = arrangement_world("hip")\' ...',
+        message="Contract failed: 'hip_point = arrangement_world(\"hip\")' ...",
     )
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source),
-        message='Contract failed: \'os.environ["CLOTH_PBD_COLLISION_MODE"]...',
+        message="Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_MODE\"]...",
     )
     require(
         condition=("status = target_status(target)" in source),
@@ -111,11 +113,11 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     )
     require(
         condition=('scene.PinMode = "None"' in source),
-        message='Contract failed: \'scene.PinMode = "None"\' in source',
+        message="Contract failed: 'scene.PinMode = \"None\"' in source",
     )
     require(
         condition=('scene.PinMode = "Explicit"' not in source),
-        message='Contract failed: \'scene.PinMode = "Explicit"\' not in source',
+        message="Contract failed: 'scene.PinMode = \"Explicit\"' not in source",
     )
     require(
         condition=("scene.PinSelection = []" in source),
@@ -143,7 +145,7 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     )
     require(
         condition=('panel_objects = tuple(getattr(scene, "DrapePanels", ()))' in source),
-        message='Contract failed: \'panel_objects = tuple(getattr(scene, "...',
+        message="Contract failed: 'panel_objects = tuple(getattr(scene, \"...",
     )
     require(
         condition=("scene.touch()" in source),
@@ -172,17 +174,16 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     )
     require(
         condition=('"semantic-chain-endpoints"' in source),
-        message='Contract failed: \'"semantic-chain-endpoints"\' in source',
+        message="Contract failed: '\"semantic-chain-endpoints\"' in source",
     )
     require(
         condition=('"authored-edge-projection"' in source),
-        message='Contract failed: \'"authored-edge-projection"\' in source',
+        message="Contract failed: '\"authored-edge-projection\"' in source",
     )
     require(
         condition=(
-"tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f"
-in source
-),
+            "tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f" in source
+        ),
         message='Contract failed: "tunic-neckline-resolution piece=%s edg...',
     )
     require(
@@ -224,23 +225,23 @@ def test_canonical_tunic_uses_matching_authored_mapping() -> None:
     )
     require(
         condition=('front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit),
-        message='Contract failed: \'front_edge_ids[1], back_edge_ids[1], "...',
+        message="Contract failed: 'front_edge_ids[1], back_edge_ids[1], \"...",
     )
     require(
         condition=('front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit),
-        message='Contract failed: \'front_edge_ids[3], back_edge_ids[3], "...',
+        message="Contract failed: 'front_edge_ids[3], back_edge_ids[3], \"...",
     )
     require(
         condition=('front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit),
-        message='Contract failed: \'front_edge_ids[5], back_edge_ids[5], "...',
+        message="Contract failed: 'front_edge_ids[5], back_edge_ids[5], \"...",
     )
     require(
         condition=('front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit),
-        message='Contract failed: \'front_edge_ids[7], back_edge_ids[7], "...',
+        message="Contract failed: 'front_edge_ids[7], back_edge_ids[7], \"...",
     )
     require(
         condition=('front_edge_ids[3], back_edge_ids[5], "TunicRightShoulder"' not in audit),
-        message='Contract failed: \'front_edge_ids[3], back_edge_ids[5], "...',
+        message="Contract failed: 'front_edge_ids[3], back_edge_ids[5], \"...",
     )
 
 
@@ -265,7 +266,7 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source),
-        message='Contract failed: \'os.environ["CLOTH_PBD_COLLISION_MODE"]...',
+        message="Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_MODE\"]...",
     )
     require(
         condition=("proxy=proxy" in source),
@@ -314,11 +315,11 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     )
     require(
         condition=('getter = getattr(curve, "valueAt", None)' in source),
-        message='Contract failed: \'getter = getattr(curve, "valueAt", Non...',
+        message="Contract failed: 'getter = getattr(curve, \"valueAt\", Non...",
     )
     require(
         condition=('getter = getattr(curve, "value", None)' in source),
-        message='Contract failed: \'getter = getattr(curve, "value", None)...',
+        message="Contract failed: 'getter = getattr(curve, \"value\", None)...",
     )
     require(
         condition=("tunic armhole curve has no native parameter evaluator" in source),
@@ -333,14 +334,14 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     ]
     require(
         condition=(
-'sketch.addConstraint([Sketcher.Constraint("Block", index) '
-"for index in range(len(geometry))])"
- in sketch_builder),
+            'sketch.addConstraint([Sketcher.Constraint("Block", index) '
+            "for index in range(len(geometry))])" in sketch_builder
+        ),
         message="Contract failed: 'sketch.addConstraint([Sketcher.Constra...",
     )
     require(
         condition=('Sketcher.Constraint("Coincident"' not in sketch_builder),
-        message='Contract failed: \'Sketcher.Constraint("Coincident"\' not ...',
+        message="Contract failed: 'Sketcher.Constraint(\"Coincident\"' not ...",
     )
     require(
         condition=("tunic armhole collapsed during Sketcher recompute" in sketch_builder),
@@ -421,7 +422,7 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     )
     require(
         condition=('boundary.kind != "arc" or len(boundary.samples) < 8' in source),
-        message='Contract failed: \'boundary.kind != "arc" or len(boundary...',
+        message="Contract failed: 'boundary.kind != \"arc\" or len(boundary...",
     )
     require(
         condition=("armhole curve has insufficient inward clearance" in source),
@@ -429,27 +430,27 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     )
     require(
         condition=('front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False' in source),
-        message='Contract failed: \'front_edge_ids[1], back_edge_ids[1], "...',
+        message="Contract failed: 'front_edge_ids[1], back_edge_ids[1], \"...",
     )
     require(
         condition=('front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False' in source),
-        message='Contract failed: \'front_edge_ids[3], back_edge_ids[3], "...',
+        message="Contract failed: 'front_edge_ids[3], back_edge_ids[3], \"...",
     )
     require(
         condition=('front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False' in source),
-        message='Contract failed: \'front_edge_ids[5], back_edge_ids[5], "...',
+        message="Contract failed: 'front_edge_ids[5], back_edge_ids[5], \"...",
     )
     require(
         condition=('front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False' in source),
-        message='Contract failed: \'front_edge_ids[7], back_edge_ids[7], "...',
+        message="Contract failed: 'front_edge_ids[7], back_edge_ids[7], \"...",
     )
     require(
         condition=('front_edge_ids[2], back_edge_ids[2], "TunicRightArmhole"' not in source),
-        message='Contract failed: \'front_edge_ids[2], back_edge_ids[2], "...',
+        message="Contract failed: 'front_edge_ids[2], back_edge_ids[2], \"...",
     )
     require(
         condition=('front_edge_ids[6], back_edge_ids[6], "TunicLeftArmhole"' not in source),
-        message='Contract failed: \'front_edge_ids[6], back_edge_ids[6], "...',
+        message="Contract failed: 'front_edge_ids[6], back_edge_ids[6], \"...",
     )
 
 
@@ -558,7 +559,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     )
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source),
-        message='Contract failed: \'os.environ["CLOTH_PBD_COLLISION_VOXEL_...',
+        message="Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_VOXEL_...",
     )
     require(
         condition=("CLOTH_PBD_SUBSTEPS: 8" in workflow),
@@ -566,7 +567,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     )
     require(
         condition=('os.environ["CLOTH_PBD_SUBSTEPS"]' not in source),
-        message='Contract failed: \'os.environ["CLOTH_PBD_SUBSTEPS"]\' not ...',
+        message="Contract failed: 'os.environ[\"CLOTH_PBD_SUBSTEPS\"]' not ...",
     )
     require(
         condition=("CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow),
@@ -705,9 +706,10 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
         message='Contract failed: "cloth-pbd-collision-config " in backend',
     )
     require(
-        condition=(backend.index("timestep.step(self._model)") < backend.index(
-"self._project_collision_positions()"
-)),
+        condition=(
+            backend.index("timestep.step(self._model)")
+            < backend.index("self._project_collision_positions()")
+        ),
         message='Contract failed: backend.index("timestep.step(self._mode...',
     )
     require(
@@ -814,8 +816,9 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
     require(
         condition=(
-"FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj" in dockerfile
-),
+            "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj"
+            in dockerfile
+        ),
         message='Contract failed: "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad...',
     )
     require(
@@ -903,7 +906,7 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     wrapper = (ROOT / "tests" / "freecad_tunic_audit_production.py").read_text(encoding="utf-8")
     require(
         condition=('importlib.import_module("freecad_tunic_audit").main' in wrapper),
-        message='Contract failed: \'importlib.import_module("freecad_tunic...',
+        message="Contract failed: 'importlib.import_module(\"freecad_tunic...",
     )
     require(
         condition=("main()" in wrapper),
@@ -911,7 +914,7 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     )
     require(
         condition=('if __name__ == "__main__"' not in wrapper),
-        message='Contract failed: \'if __name__ == "__main__"\' not in wrapper',
+        message="Contract failed: 'if __name__ == \"__main__\"' not in wrapper",
     )
 
 
@@ -973,7 +976,7 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() ->
     )[0]
     require(
         condition=("Trimesh/Rtree's native contains query" in inside_check),
-        message='Contract failed: "Trimesh/Rtree\'s native contains query"...',
+        message="Contract failed: \"Trimesh/Rtree's native contains query\"...",
     )
     require(
         condition=("target_mesh.contains" not in inside_check),
@@ -1028,9 +1031,9 @@ def test_penetration_evidence_stays_on_numpy_path_in_freecad_host() -> None:
 
     require(
         condition=(
-"from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh"
-not in audit
-),
+            "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh"
+            not in audit
+        ),
         message='Contract failed: "from freecad_cloth.simulation.DrapeVis...',
     )
     require(
@@ -1153,10 +1156,7 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
         message='Contract failed: "drape-metrics=" in source[:gate]',
     )
     require(
-        condition=(
-            "gui-screenshot-manifest" not in source[gate:]
-            or "task_dock.show()" in source[gate:]
-        ),
+        condition=("gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]),
         message='Contract failed: "gui-screenshot-manifest" not in source...',
     )
 
@@ -1180,7 +1180,7 @@ def test_canonical_tunic_fixture_blocks_every_authored_segment() -> None:
     )
     require(
         condition=('Sketcher.Constraint("Coincident"' not in fixture),
-        message='Contract failed: \'Sketcher.Constraint("Coincident"\' not ...',
+        message="Contract failed: 'Sketcher.Constraint(\"Coincident\"' not ...",
     )
 
 
@@ -1204,18 +1204,18 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
 
     require(
         condition=(
-topology_audit
-< sample_resolution
-< pattern_view
-< sewing_view
-< native_gate
-< simulation_start
-),
+            topology_audit
+            < sample_resolution
+            < pattern_view
+            < sewing_view
+            < native_gate
+            < simulation_start
+        ),
         message="Contract failed: topology_audit < sample_resolution < pa...",
     )
     require(
         condition=('"boundary-order=%r near-crossing=%r"' in simulation),
-        message='Contract failed: \'"boundary-order=%r near-crossing=%r"\' ...',
+        message="Contract failed: '\"boundary-order=%r near-crossing=%r\"' ...",
     )
     require(
         condition=("samples," in simulation),
@@ -1238,5 +1238,5 @@ topology_audit
     )
     require(
         condition=('status["result"]' not in simulation),
-        message='Contract failed: \'status["result"]\' not in simulation',
+        message="Contract failed: 'status[\"result\"]' not in simulation",
     )
