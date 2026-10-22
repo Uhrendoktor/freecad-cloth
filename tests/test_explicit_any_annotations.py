@@ -49,7 +49,11 @@ def test_explicit_any_references_are_rejected(source: str) -> None:
     (
         "from typing import Any\ndef render(value: 'Any') -> 'list[Any]':\n    return [value]\n",
         "import typing as t\ndef render(value: 't.Any') -> None:\n    return None\n",
-        "from typing import Any as Dynamic\ndef render(value: 'Dynamic') -> None:\n    return None\n",
+        (
+            "from typing import Any as Dynamic\n"
+            "def render(value: 'Dynamic') -> None:\n"
+            "    return None\n"
+        ),
         "from typing import Any\ndef render(value): # type: (Any) -> Any\n    return value\n",
         "from typing import Any\nvalue = 1 # type: Any\n",
     ),
@@ -107,14 +111,35 @@ def test_parse_errors_fail_closed() -> None:
 def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
     """Require one blocking Pyright config covering every repository Python file."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    require(condition=missing_typecheck_commands(workflow_text) == (), message="All blocking type checks must remain in the workflow.")
-    require(condition=missing_python_policy_commands(workflow_text) == (), message="All Python policy checks must remain in the workflow.")
-    require(condition=missing_source_rewriting_policy_commands(workflow_text) == (), message="Source-rewriting checks must remain in the workflow.")
-    require(condition=source_rewriting_policy_tests_are_blocking(workflow_text), message="Source-rewriting policy tests must be blocking.")
-    require(condition=workflow_text.count("pyright -p pyrightconfig.json") == 1, message="The standard repository-wide Pyright gate must occur once.")
-    require(condition="pyrightconfig.agent-strict.json" not in workflow_text, message="The workflow must not reference a temporary strict config.")
+    require(
+        condition=missing_typecheck_commands(workflow_text) == (),
+        message="All blocking type checks must remain in the workflow.",
+    )
+    require(
+        condition=missing_python_policy_commands(workflow_text) == (),
+        message="All Python policy checks must remain in the workflow.",
+    )
+    require(
+        condition=missing_source_rewriting_policy_commands(workflow_text) == (),
+        message="Source-rewriting checks must remain in the workflow.",
+    )
+    require(
+        condition=source_rewriting_policy_tests_are_blocking(workflow_text),
+        message="Source-rewriting policy tests must be blocking.",
+    )
+    require(
+        condition=workflow_text.count("pyright -p pyrightconfig.json") == 1,
+        message="The standard repository-wide Pyright gate must occur once.",
+    )
+    require(
+        condition="pyrightconfig.agent-strict.json" not in workflow_text,
+        message="The workflow must not reference a temporary strict config.",
+    )
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    require(condition=config["typeCheckingMode"] == "standard", message="Pyright must use standard mode for the repository inventory.")
+    require(
+        condition=config["typeCheckingMode"] == "standard",
+        message="Pyright must use standard mode for the repository inventory.",
+    )
     require(
         condition=config["strict"]
         == [
@@ -124,7 +149,10 @@ def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
         ],
         message="Only the reviewed simulation modules may use strict-mode overrides.",
     )
-    require(condition=not PYRIGHT_CONFIG.with_name("pyrightconfig.agent-strict.json").exists(), message="The temporary strict config must not exist.")
+    require(
+        condition=not PYRIGHT_CONFIG.with_name("pyrightconfig.agent-strict.json").exists(),
+        message="The temporary strict config must not exist.",
+    )
 
 
 @pytest.mark.parametrize("command", TYPECHECK_COMMANDS)
@@ -132,7 +160,10 @@ def test_type_gate_contract_detects_removed_command(command: str) -> None:
     """Catch a workflow regression if any blocking type gate is removed."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
-    require(condition=missing_typecheck_commands(tampered) == (command,), message="Removing one type gate must report precisely that command.")
+    require(
+        condition=missing_typecheck_commands(tampered) == (command,),
+        message="Removing one type gate must report precisely that command.",
+    )
 
 
 @pytest.mark.parametrize("command", PYTHON_POLICY_COMMANDS)
@@ -140,13 +171,19 @@ def test_python_policy_contract_detects_removed_command(command: str) -> None:
     """Prevent removal of the production Pydantic policy."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     tampered = workflow_text.replace(command, "", 1)
-    require(condition=missing_python_policy_commands(tampered) == (command,), message="Removing one Python policy command must be detected.")
+    require(
+        condition=missing_python_policy_commands(tampered) == (command,),
+        message="Removing one Python policy command must be detected.",
+    )
 
 
 def test_pyright_coverage_matches_the_reviewed_staged_inventory() -> None:
     """Keep the reviewed include/exclude inventory stable until errors are triaged."""
     config_text = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-    require(condition=pyright_coverage_contract_violations(config_text) == (), message="The reviewed Pyright inventory must satisfy the coverage contract.")
+    require(
+        condition=pyright_coverage_contract_violations(config_text) == (),
+        message="The reviewed Pyright inventory must satisfy the coverage contract.",
+    )
 
 
 def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
@@ -154,7 +191,10 @@ def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth/simulation/ClothBackend.py"]
     violations = pyright_coverage_contract_violations(json.dumps(config))
-    require(condition=violations == ("<Pyright include scope must cover the entire repository>",), message="A narrowed Pyright include list must be rejected.")
+    require(
+        condition=violations == ("<Pyright include scope must cover the entire repository>",),
+        message="A narrowed Pyright include list must be rejected.",
+    )
 
 
 def test_new_production_modules_cannot_escape_pyright_scope() -> None:
@@ -167,7 +207,10 @@ def test_new_production_modules_cannot_escape_pyright_scope() -> None:
         "freecad_cloth/pattern/NewPatternFeature.py",
     )
 
-    require(condition=pyright_coverage_contract_violations(config_text, new_modules) == (), message="New production modules must remain covered by Pyright.")
+    require(
+        condition=pyright_coverage_contract_violations(config_text, new_modules) == (),
+        message="New production modules must remain covered by Pyright.",
+    )
 
 
 def test_pyright_coverage_guard_rejects_explicit_exclusions() -> None:
@@ -186,16 +229,28 @@ def test_typecheck_commands_must_be_standalone_blocking_steps() -> None:
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
     chained = workflow_text.replace(
         "          pyright -p pyrightconfig.json\n",
-        "          python tools/ci/check_explicit_any_annotations.py && pyright -p pyrightconfig.json\n",
+        (
+            "          python tools/ci/check_explicit_any_annotations.py && "
+            "pyright -p pyrightconfig.json\n"
+        ),
         1,
     )
     missing = missing_typecheck_commands(chained)
-    require(condition=missing == ("pyright -p pyrightconfig.json",), message="A chained command must not mask the type-check exit status.")
+    require(
+        condition=missing == ("pyright -p pyrightconfig.json",),
+        message="A chained command must not mask the type-check exit status.",
+    )
 
 
 def test_ty_warning_diagnostics_are_blocking() -> None:
     """Reject a configuration that allows warning-only ty runs to pass."""
     config_text = TY_CONFIG.read_text(encoding="utf-8")
-    require(condition=ty_warnings_are_blocking(config_text), message="ty warnings must fail the policy gate.")
+    require(
+        condition=ty_warnings_are_blocking(config_text),
+        message="ty warnings must fail the policy gate.",
+    )
     tampered = config_text.replace("error-on-warning = true", "error-on-warning = false")
-    require(condition=not ty_warnings_are_blocking(tampered), message="The guard must reject warning-only ty configuration.")
+    require(
+        condition=not ty_warnings_are_blocking(tampered),
+        message="The guard must reject warning-only ty configuration.",
+    )
