@@ -10,12 +10,15 @@ from typing import cast
 
 import pytest
 
-import freecad_cloth.pattern.SketchAuthority as sketch_authority
+import freecad_cloth.pattern.SketchAuthority as SketchAuthority
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
+from tests.support.assertions import require
 
 _EXPECTED_LINE_BOUNDARY_COUNT = 4
+_THREE_COORDINATE_COUNT = 3
+_SAMPLED_OUTLINE_NAME = "_sampled_outline"
 _EXPECTED_CURVE_SAMPLE_COUNT = 32
 _CLOSED_CURVE_ENDPOINT_TOLERANCE = 1e-7
 
@@ -92,7 +95,7 @@ class NativeCurve:
         """
         self.FirstParameter = first_parameter
         self.LastParameter = last_parameter
-        setattr(self, "valueAt", evaluator)
+        self.valueAt = evaluator
 
 
 def _point_from_coordinates(coordinates: tuple[float, ...]) -> Point:
@@ -104,7 +107,7 @@ def _point_from_coordinates(coordinates: tuple[float, ...]) -> Point:
     Returns:
         A point whose omitted depth coordinate is zero.
     """
-    z = coordinates[2] if len(coordinates) > 2 else 0.0
+    z = coordinates[2] if len(coordinates) >= _THREE_COORDINATE_COUNT else 0.0
     return Point(coordinates[0], coordinates[1], z)
 
 
@@ -129,8 +132,8 @@ def test_sketch_authority_outline_preserves_intermediate_curve_samples() -> None
         )
     )
     sampled_outline = cast(
-        Callable[[object], list[tuple[float, float]]],
-        getattr(sketch_authority, "_sampled_outline"),
+        "Callable[[object], list[tuple[float, float]]]",
+        getattr(SketchAuthority, _SAMPLED_OUTLINE_NAME),
     )
 
     require(
@@ -229,8 +232,7 @@ def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary() -
     )
     require(
         condition=(
-            math.dist(boundary.samples[0], boundary.samples[-1])
-            <= _CLOSED_CURVE_ENDPOINT_TOLERANCE
+            math.dist(boundary.samples[0], boundary.samples[-1]) <= _CLOSED_CURVE_ENDPOINT_TOLERANCE
         ),
         message="The first and last samples of a closed curve must coincide within tolerance.",
     )
