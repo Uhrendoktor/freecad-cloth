@@ -213,7 +213,6 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
             "_TRACE_HANDLE = _BOOT_LOG.open(",
             "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)",
             "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)",
-            "file=sys.stderr",
             '_boot("script-start")',
             "_freecad_entrypoint_name = Path(__file__).stem",
             '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))',
@@ -225,6 +224,10 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
             '_boot("direct-entrypoint")',
         ),
         contract="cube-ladder startup",
+    )
+    require(
+        condition="file=sys.stderr" not in source,
+        message="The cube ladder must not redirect its traceback to stderr.",
     )
 
 
@@ -289,7 +292,6 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
         (
             _HELPERS,
             (
-                'if __name__ == "__main__"',
                 "def build_scene(",
                 "def checkpoint_record(",
             ),
@@ -303,6 +305,10 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
             )
         else:
             _require_fragments(source=source, fragments=fragments, contract=contract)
+    require(
+        condition='if __name__ == "__main__"' not in _HELPERS,
+        message="The shared PBD helper module must remain import-safe.",
+    )
 
 
 def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> None:
