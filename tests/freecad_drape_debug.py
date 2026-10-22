@@ -76,7 +76,6 @@ def close_task():
         pass
 
 
-
 def _make_tunic_sketch(
     doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
 ):

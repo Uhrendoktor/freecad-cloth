@@ -624,7 +624,6 @@ def write_drape_metrics(
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-
 def _polyline_distance_fraction(
     point: tuple[float, float], samples: tuple[tuple[float, float], ...]
 ) -> tuple[float, float]:
