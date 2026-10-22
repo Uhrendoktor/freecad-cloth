@@ -19,11 +19,11 @@ def _private_adapter(name: str) -> Callable[..., object]:
     Args:
         name: Attribute name of the adapter to retrieve.
 
-    Raises:
-        TypeError: If the attribute is not callable.
-
     Returns:
         Callable[..., object]: The requested adapter.
+
+    Raises:
+        TypeError: If the attribute is not callable.
     """
     adapter = getattr(_avatar_commands, name)
     if not callable(adapter):
