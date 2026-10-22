@@ -8,6 +8,8 @@ import os
 import pathlib
 import sys
 import traceback
+from collections.abc import Callable
+from typing import cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -20,6 +22,14 @@ except ImportError:
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+_arc_through_midpoint: Callable[[object, object, object, object], object] = cast(
+    "Callable[[object, object, object, object], object]",
+    getattr(
+        importlib.import_module("tests.support.freecad_arc_geometry"),
+        "arc_through_midpoint",
+    ),
+)
+
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "gui-progress.log")
@@ -613,117 +623,6 @@ def write_drape_metrics(
     with pathlib.Path(METRICS).open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
-
-def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
-    """Build a minor native circular arc through an explicit on-arc point."""
-    import math
-
-    sx, sy = float(start.x), float(start.y)
-    ex, ey = float(end.x), float(end.y)
-    mx, my = float(midpoint.x), float(midpoint.y)
-    start_sq = sx * sx + sy * sy
-    end_sq = ex * ex + ey * ey
-    middle_sq = mx * mx + my * my
-    determinant = 2.0 * (sx * (ey - my) + ex * (my - sy) + mx * (sy - ey))
-    if abs(determinant) <= 1e-9:
-        msg = "tunic armhole points are collinear; cannot construct an arc"
-        raise RuntimeError(msg)
-
-    center_x = (start_sq * (ey - my) + end_sq * (my - sy) + middle_sq * (sy - ey)) / determinant
-    center_y = (start_sq * (mx - ex) + end_sq * (sx - mx) + middle_sq * (ex - sx)) / determinant
-    radius = math.hypot(sx - center_x, sy - center_y)
-    if not math.isfinite(radius) or radius <= 1e-9:
-        msg = "tunic armhole circle has an invalid radius"
-        raise RuntimeError(msg)
-
-    def curve_value(curve: object, parameter_value: float) -> object:
-        getter = getattr(curve, "valueAt", None)
-        if not callable(getter):
-            getter = getattr(curve, "value", None)
-        if not callable(getter):
-            msg = "tunic armhole curve has no native parameter evaluator"
-            raise RuntimeError(msg)
-        return getter(float(parameter_value))
-
-    tau = 2.0 * math.pi
-    selected = None
-    for normal_z in (1.0, -1.0):
-        circle = Part.Circle(
-            App.Vector(center_x, center_y, 0.0),
-            App.Vector(0.0, 0.0, normal_z),
-            radius,
-        )
-        # Derive parameters from the native circle basis instead of assuming
-        # which global direction its X axis uses for either normal orientation.
-        zero_point = curve_value(circle, 0.0)
-        quarter_point = curve_value(circle, math.pi / 2.0)
-        axis_x = (
-            (float(zero_point.x) - center_x) / radius,
-            (float(zero_point.y) - center_y) / radius,
-        )
-        axis_y = (
-            (float(quarter_point.x) - center_x) / radius,
-            (float(quarter_point.y) - center_y) / radius,
-        )
-
-        def parameter(
-            point_x: float,
-            point_y: float,
-            axis_x: tuple[float, float] = axis_x,
-            axis_y: tuple[float, float] = axis_y,
-        ) -> float:
-            dx = point_x - center_x
-            dy = point_y - center_y
-            return (
-                math.atan2(
-                    dx * axis_y[0] + dy * axis_y[1],
-                    dx * axis_x[0] + dy * axis_x[1],
-                )
-                % tau
-            )
-
-        start_angle = parameter(sx, sy)
-        end_angle = parameter(ex, ey)
-        middle_angle = parameter(mx, my)
-        sweep = (end_angle - start_angle) % tau
-        middle_sweep = (middle_angle - start_angle) % tau
-        if sweep > 1e-9 and middle_sweep <= sweep + 1e-9:
-            selected = (circle, normal_z, start_angle, sweep, middle_sweep)
-            break
-
-    if selected is None:
-        msg = "tunic armhole points do not define a consistent circular sweep"
-        raise RuntimeError(msg)
-    circle, normal_z, start_angle, sweep, middle_sweep = selected
-    if sweep >= math.pi:
-        raise RuntimeError(
-            "tunic armhole through-point selects a major arc: sweep-rad=%.6f" % sweep
-        )
-
-    arc = Part.ArcOfCircle(circle, start_angle, start_angle + sweep)
-    checks = (
-        ("start", start, start_angle),
-        ("end", end, start_angle + sweep),
-        ("midpoint", midpoint, start_angle + middle_sweep),
-    )
-    for role, expected, parameter_value in checks:
-        actual = curve_value(arc, parameter_value)
-        error = math.hypot(float(actual.x) - float(expected.x), float(actual.y) - float(expected.y))
-        if error > 1e-5:
-            raise RuntimeError(
-                "tunic armhole arc lost authored %s: error-mm=%.6f "
-                "normal-z=%.0f expected=(%.4f,%.4f) actual=(%.4f,%.4f)"
-                % (
-                    role,
-                    error,
-                    normal_z,
-                    float(expected.x),
-                    float(expected.y),
-                    float(actual.x),
-                    float(actual.y),
-                )
-            )
-    return arc
 
 
 def _polyline_distance_fraction(
