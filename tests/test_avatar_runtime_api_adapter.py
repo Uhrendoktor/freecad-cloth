@@ -168,3 +168,12 @@ def test_legacy_pose_loader_only_accepts_schema_one_payloads() -> None:
         condition=_legacy_pose_data(newer_payload) is None,
         message="Current-schema payloads must not be treated as legacy migration inputs",
     )
+
+
+def test_legacy_avatar_command_dotted_import_resolves_to_current_module() -> None:
+    """Keep legacy dotted imports working after the lowercase source-file rename."""
+    legacy_commands = import_module("freecad_cloth.avatar.AvatarCommands")
+    require(
+        condition=legacy_commands.create_avatar is _avatar_commands.create_avatar,
+        message="The legacy module path must resolve to the canonical avatar command implementation",
+    )
