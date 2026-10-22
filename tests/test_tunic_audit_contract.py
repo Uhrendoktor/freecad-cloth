@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Strict source contracts for the canonical tunic simulation audit."""
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 from tests.support.assertions import require
 
@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_canonical_tunic_pairs_matching_front_back_semantic_edges() -> None:
-    """Verify canonical tunic pairs matching front back semantic edges remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic pairs matching front back semantic edges contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=("front_edge_ids = tuple(" in source),
@@ -48,7 +48,7 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges() -> None:
 
 
 def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
-    """Verify tunic fixture uses arrangement points and unpinned neckline remains compliant with the canonical tunic audit contract."""
+    """Verify tunic fixture uses arrangement points and unpinned neckline contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=("ArrangementPoint.from_string" in source),
@@ -179,7 +179,7 @@ in source
 
 
 def test_canonical_tunic_uses_matching_authored_mapping() -> None:
-    """Verify canonical tunic uses matching authored mapping remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic uses matching authored mapping contract."""
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=("required_indices = (1, 3, 5, 7)" in audit),
@@ -208,7 +208,7 @@ def test_canonical_tunic_uses_matching_authored_mapping() -> None:
 
 
 def test_canonical_tunic_shared_source_syntax_compiles() -> None:
-    """Verify canonical tunic shared source syntax compiles remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic shared source syntax compiles contract."""
     audit_path = ROOT / "tests" / "freecad_tunic_audit.py"
     result = subprocess.run(
         [sys.executable, str(audit_path), "--syntax-check"],
@@ -231,7 +231,7 @@ f"stderr:\n{result.stderr}"
 
 
 def test_canonical_tunic_authoritative_gate_is_fail_closed() -> None:
-    """Verify canonical tunic authoritative gate is fail closed remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic authoritative gate is fail closed contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source),
@@ -256,7 +256,7 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed() -> None:
 
 
 def test_canonical_tunic_has_two_curved_open_armholes() -> None:
-    """Verify canonical tunic has two curved open armholes remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic has two curved open armholes contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=("elif index == 2:" in source),
@@ -424,7 +424,7 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
 
 
 def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
-    """Verify simulation proxy serializes only rebuildable metadata remains compliant with the canonical tunic audit contract."""
+    """Verify simulation proxy serializes only rebuildable metadata contract."""
     from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
     proxy = SimulationProxy()
@@ -481,7 +481,7 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
 
 
 def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> None:
-    """Verify tunic realtime profile is bounded and mesh collision is explicit remains compliant with the canonical tunic audit contract."""
+    """Verify tunic realtime profile is bounded and mesh collision is explicit contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
@@ -609,7 +609,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
 
 
 def test_pbd_collision_body_uses_coarsened_solver_surface() -> None:
-    """Verify pbd collision body uses coarsened solver surface remains compliant with the canonical tunic audit contract."""
+    """Verify pbd collision body uses coarsened solver surface contract."""
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
@@ -627,7 +627,7 @@ def test_pbd_collision_body_uses_coarsened_solver_surface() -> None:
 
 
 def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
-    """Verify pbd collision sdf resolution and tolerance are explicit remains compliant with the canonical tunic audit contract."""
+    """Verify pbd collision sdf resolution and tolerance are explicit contract."""
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
@@ -692,7 +692,7 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
 
 
 def test_pbd_collision_sdf_is_cached_outside_backend_instance() -> None:
-    """Verify pbd collision sdf is cached outside backend instance remains compliant with the canonical tunic audit contract."""
+    """Verify pbd collision sdf is cached outside backend instance contract."""
     backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
         encoding="utf-8"
     )
@@ -719,7 +719,7 @@ def test_pbd_collision_sdf_is_cached_outside_backend_instance() -> None:
 
 
 def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
-    """Verify pbd sdf cache key is stable and geometry sensitive remains compliant with the canonical tunic audit contract."""
+    """Verify pbd sdf cache key is stable and geometry sensitive contract."""
     from freecad_cloth.shared.collision import CollisionSurface
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
         _pbd_collision_sdf_cache_key,
@@ -752,7 +752,7 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
 
 
 def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
-    """Verify pbd ci image is pinned and preinstalled remains compliant with the canonical tunic audit contract."""
+    """Verify pbd ci image is pinned and preinstalled contract."""
     dockerfile = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
@@ -815,7 +815,7 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
 
 
 def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
-    """Verify production tunic audit runs even if performance gate fails remains compliant with the canonical tunic audit contract."""
+    """Verify production tunic audit runs even if performance gate fails contract."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -854,7 +854,7 @@ def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
 
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
-    """Verify production tunic wrapper dispatches in freecad macro host remains compliant with the canonical tunic audit contract."""
+    """Verify production tunic wrapper dispatches in freecad macro host contract."""
     wrapper = (ROOT / "tests" / "freecad_tunic_audit_production.py").read_text(encoding="utf-8")
     require(
         condition=('importlib.import_module("freecad_tunic_audit").main' in wrapper),
@@ -871,7 +871,7 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
 
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
-    """Verify canonical tunic fixture matches validated start geometry remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic fixture matches validated start geometry contract."""
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit_entry = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     require(
@@ -921,7 +921,7 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
 
 
 def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() -> None:
-    """Verify tunic penetration audit uses safe numpy ray parity in freecad host remains compliant with the canonical tunic audit contract."""
+    """Verify tunic penetration audit uses safe numpy ray parity in freecad host contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     inside_check = source.split("def _inside_target_count(", 1)[1].split(
         "\ndef write_drape_metrics(", 1
@@ -972,7 +972,7 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() ->
 
 
 def test_penetration_evidence_stays_on_numpy_path_in_freecad_host() -> None:
-    """Verify penetration evidence stays on numpy path in freecad host remains compliant with the canonical tunic audit contract."""
+    """Verify penetration evidence stays on numpy path in freecad host contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     audit = source.split("def write_drape_metrics(", 1)[1].split("\ndef _arc_through_midpoint(", 1)[
         0
@@ -1003,7 +1003,7 @@ not in audit
 
 
 def test_tunic_visual_diagnostics_are_authoritative_after_persistence() -> None:
-    """Verify tunic visual diagnostics are authoritative after persistence remains compliant with the canonical tunic audit contract."""
+    """Verify tunic visual diagnostics are authoritative after persistence contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     metrics_write = source.index("json.dump(payload, handle, indent=2, sort_keys=True)")
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
@@ -1015,7 +1015,7 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence() -> None:
 
 
 def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
-    """Verify drape debug uses the canonical tunic profile and landmarks remains compliant with the canonical tunic audit contract."""
+    """Verify drape debug uses the canonical tunic profile and landmarks contract."""
     debug = (ROOT / "tests" / "freecad_drape_debug.py").read_text(encoding="utf-8")
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
@@ -1267,7 +1267,7 @@ in debug
 
 
 def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
-    """Verify tunic visual gate preserves failed artifacts before exit remains compliant with the canonical tunic audit contract."""
+    """Verify tunic visual gate preserves failed artifacts before exit contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     require(
@@ -1281,7 +1281,7 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
 
 
 def test_canonical_tunic_fixture_blocks_every_authored_segment() -> None:
-    """Verify canonical tunic fixture blocks every authored segment remains compliant with the canonical tunic audit contract."""
+    """Verify canonical tunic fixture blocks every authored segment contract."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     start = source.index("def _make_tunic_sketch(")
     end = source.index("\ndef _adopt_sketch(", start)
