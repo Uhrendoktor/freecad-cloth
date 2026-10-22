@@ -11,14 +11,21 @@ import os
 import pathlib
 import statistics
 import sys
+import tempfile
 import time
 import traceback
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from types import ModuleType
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import NoReturn
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+TRACE_LOG_PATH = pathlib.Path(tempfile.gettempdir()) / "cloth-benchmark-trace.log"
+TRACEBACK_LOG_PATH = pathlib.Path(tempfile.gettempdir()) / "cloth-benchmark-traceback.log"
+EXPECTED_REGISTERED_WORKBENCH_COUNT = 1
+MINIMUM_BENCHMARK_REPEATS = 3
 WORKBENCHES = {
     "Pattern": ("freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
     "Sewing": ("freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
@@ -39,7 +46,8 @@ TEST_HINTS = {
 class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
 
-    def append_toolbar(self, name: str, commands: list[str]) -> None:
+    @staticmethod
+    def append_toolbar(name: str, commands: list[str]) -> None:
         """Accept toolbar registration without creating GUI state during timing runs.
 
         Args:
@@ -48,7 +56,8 @@ class BenchmarkWorkbenchBackend:
         """
         del name, commands
 
-    def append_menu(self, name: str, commands: list[str]) -> None:
+    @staticmethod
+    def append_menu(name: str, commands: list[str]) -> None:
         """Accept menu registration without creating GUI state during timing runs.
 
         Args:
@@ -57,7 +66,8 @@ class BenchmarkWorkbenchBackend:
         """
         del name, commands
 
-    def append_context_menu(self, name: str, commands: list[str]) -> None:
+    @staticmethod
+    def append_context_menu(name: str, commands: list[str]) -> None:
         """Accept context-menu registration without creating GUI state during timing runs.
 
         Args:
@@ -68,9 +78,21 @@ class BenchmarkWorkbenchBackend:
 
 
 # Register FreeCAD's legacy callback names without defining non-PEP-8 methods.
-type.__setattr__(BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar)
-type.__setattr__(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
-type.__setattr__(BenchmarkWorkbenchBackend, "appendContextMenu", BenchmarkWorkbenchBackend.append_context_menu)
+setattr(
+    BenchmarkWorkbenchBackend,
+    "appendToolbar",
+    staticmethod(BenchmarkWorkbenchBackend.append_toolbar),
+)
+setattr(
+    BenchmarkWorkbenchBackend,
+    "appendMenu",
+    staticmethod(BenchmarkWorkbenchBackend.append_menu),
+)
+setattr(
+    BenchmarkWorkbenchBackend,
+    "appendContextMenu",
+    staticmethod(BenchmarkWorkbenchBackend.append_context_menu),
+)
 
 
 def trace(message: str) -> None:
@@ -79,12 +101,10 @@ def trace(message: str) -> None:
     Args:
         message: Diagnostic text describing the current benchmark stage.
     """
-    with (
-        contextlib.suppress(OSError),
-        pathlib.Path("/tmp/cloth-benchmark-trace.log").open("a", encoding="utf-8") as handle,
-    ):
+    with contextlib.suppress(OSError), TRACE_LOG_PATH.open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
-    print(message, flush=True)
+    sys.stdout.write(message + "\n")
+    sys.stdout.flush()
 
 
 def fail(context: str, exc: BaseException) -> NoReturn:
@@ -100,7 +120,7 @@ def fail(context: str, exc: BaseException) -> NoReturn:
     detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     trace(f"benchmark: FAILURE: {context}: {exc!r}")
     with contextlib.suppress(OSError):
-        pathlib.Path("/tmp/cloth-benchmark-traceback.log").write_text(detail, encoding="utf-8")
+        TRACEBACK_LOG_PATH.write_text(detail, encoding="utf-8")
     raise SystemExit(1)
 
 
@@ -158,6 +178,53 @@ def median_ms(samples: list[float]) -> float:
     return round(statistics.median(samples) * 1000.0, 3)
 
 
+def _initialize_sample(
+    gui_module: ModuleType,
+    workbench_class: Callable[[], object],
+    sample_number: int,
+    sample_count: int,
+) -> tuple[float, int]:
+    """Initialize one workbench sample and return its duration and command count.
+
+    Args:
+        gui_module: Lazily loaded FreeCAD GUI module.
+        workbench_class: Workbench constructor selected by the benchmark inventory.
+        sample_number: One-based sample index used in progress diagnostics.
+        sample_count: Total samples requested for this workbench.
+
+    Returns:
+        Elapsed initialization time in seconds and the number of registered commands.
+
+    Raises:
+        RuntimeError: If the GUI registers zero or multiple workbenches for one instance.
+    """
+    list_workbenches = cast(Callable[[], list[str]], getattr(gui_module, "listWorkbenches"))
+    add_workbench = cast(Callable[[object], None], getattr(gui_module, "addWorkbench"))
+    remove_workbench = cast(Callable[[str], None], getattr(gui_module, "removeWorkbench"))
+    workbench = workbench_class()
+    existing = set(list_workbenches())
+    started_at = time.perf_counter()
+    add_workbench(workbench)
+    added = set(list_workbenches()) - existing
+    if len(added) != EXPECTED_REGISTERED_WORKBENCH_COUNT:
+        msg = f"expected one registered workbench, got {sorted(added)!r}"
+        raise RuntimeError(msg)
+    registered_name = next(iter(added))
+    namespace = cast(dict[str, object], getattr(workbench, "__dict__"))
+    namespace["__Workbench__"] = BenchmarkWorkbenchBackend()
+    initialize = cast(Callable[[], None], getattr(workbench, "Initialize"))
+    initialize()
+    elapsed_seconds = time.perf_counter() - started_at
+    commands = cast(Sequence[object], getattr(workbench, "commands", ()))
+    with contextlib.suppress(Exception):
+        remove_workbench(registered_name)
+    trace(
+        f"benchmark: {registered_name}: initialize sample "
+        f"{sample_number}/{sample_count}"
+    )
+    return elapsed_seconds, len(commands)
+
+
 def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
     """Measure import, construction, and GUI initialization time for a workbench.
 
@@ -170,53 +237,43 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
 
     Raises:
         RuntimeError: If FreeCAD registers an unexpected number of workbenches.
-        SystemExit: If importing, constructing, or initializing the workbench fails.
     """
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
     try:
         module = importlib.import_module(module_name)
-    except BaseException as exc:
+    except Exception as exc:
         fail(f"{name} import", exc)
     trace(f"benchmark: {name}: module imported")
-    lookup_samples = []
-    construct_samples = []
-    wb_cls = getattr(module, class_name)
+    lookup_samples: list[float] = []
+    construct_samples: list[float] = []
+    workbench_class = cast(Callable[[], object], getattr(module, class_name))
     for _ in range(repeats):
-        t0 = time.perf_counter()
+        started_at = time.perf_counter()
         getattr(module, class_name)
-        lookup_samples.append(time.perf_counter() - t0)
-        t0 = time.perf_counter()
+        lookup_samples.append(time.perf_counter() - started_at)
+        started_at = time.perf_counter()
         try:
-            wb_cls()
-        except BaseException as exc:
+            workbench_class()
+        except Exception as exc:
             fail(f"{name} construction", exc)
-        construct_samples.append(time.perf_counter() - t0)
+        construct_samples.append(time.perf_counter() - started_at)
 
     trace(f"benchmark: {name}: initializing ({repeats} samples)")
-    initialize_samples = []
-    command_counts = []
+    initialize_samples: list[float] = []
+    command_counts: list[int] = []
     try:
-        import FreeCADGui as Gui
-
-        for sample in range(repeats):
-            wb = wb_cls()
-            existing = set(Gui.listWorkbenches())
-            t0 = time.perf_counter()
-            Gui.addWorkbench(wb)
-            added = set(Gui.listWorkbenches()) - existing
-            if len(added) != 1:
-                msg = f"expected one registered workbench, got {sorted(added)!r}"
-                raise RuntimeError(msg)
-            registered_name = next(iter(added))
-            wb.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
-            wb.Initialize()
-            initialize_samples.append(time.perf_counter() - t0)
-            command_counts.append(len(getattr(wb, "commands", ())))
-            with contextlib.suppress(BaseException):
-                Gui.removeWorkbench(registered_name)
-            trace(f"benchmark: {name}: initialize sample {sample + 1}/{repeats}")
-    except BaseException as exc:
+        gui_module = importlib.import_module("FreeCADGui")
+        for sample_number in range(1, repeats + 1):
+            elapsed_seconds, command_count = _initialize_sample(
+                gui_module,
+                workbench_class,
+                sample_number,
+                repeats,
+            )
+            initialize_samples.append(elapsed_seconds)
+            command_counts.append(command_count)
+    except Exception as exc:
         fail(f"{name} initialization", exc)
 
     return {
@@ -231,20 +288,23 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
 def close_gui() -> None:
     """Close the FreeCAD main window and quit its Qt application when available."""
     try:
-        import FreeCADGui as Gui
-        from PySide import QtWidgets
+        gui_module = importlib.import_module("FreeCADGui")
+    except ImportError:
+        return
+    try:
+        widget_module = importlib.import_module("PySide")
     except ImportError:
         try:
-            import FreeCADGui as Gui
-            from PySide2 import QtWidgets
+            widget_module = importlib.import_module("PySide2")
         except ImportError:
             return
-    window = Gui.getMainWindow()
+    window = getattr(gui_module, "getMainWindow")()
     if window is not None:
         window.close()
-    app = QtWidgets.QApplication.instance()
-    if app is not None:
-        app.quit()
+    qt_widgets = getattr(widget_module, "QtWidgets")
+    application = getattr(qt_widgets, "QApplication").instance()
+    if application is not None:
+        application.quit()
 
 
 def main() -> None:
@@ -275,15 +335,15 @@ def main() -> None:
         )
     else:
         args = parser.parse_args()
-    if args.repeats < 3:
-        msg = "--repeats must be >= 3"
+    if args.repeats < MINIMUM_BENCHMARK_REPEATS:
+        msg = f"--repeats must be >= {MINIMUM_BENCHMARK_REPEATS}"
         raise SystemExit(msg)
     trace("benchmark: arguments parsed")
 
     trace("benchmark: FreeCAD import starting")
     try:
-        import FreeCAD
-    except BaseException as exc:
+        freecad_module = importlib.import_module("FreeCAD")
+    except Exception as exc:
         fail("FreeCAD import", exc)
     trace("benchmark: FreeCAD import complete")
 
@@ -291,7 +351,7 @@ def main() -> None:
     result = {
         "schema": 2,
         "python": sys.version.split()[0],
-        "freecad_version": getattr(FreeCAD, "Version", lambda: ())(),
+        "freecad_version": getattr(freecad_module, "Version", lambda: ())(),
         "repeats": args.repeats,
         "workbenches": {},
     }
@@ -305,7 +365,8 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     trace("benchmark: JSON written")
-    print(json.dumps(result, indent=2, sort_keys=True), flush=True)
+    sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    sys.stdout.flush()
     close_gui()
     os._exit(0)
 
