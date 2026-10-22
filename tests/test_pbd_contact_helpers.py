@@ -5,10 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.support.pbd_contact_helpers import nearest_surface_distance
+from tests.support.assertions import require
+from tests.support.pbd_contact_helpers import events, nearest_surface_distance
 
 
-def test_surface_distance_fallback_uses_spatial_index():
+def test_surface_distance_fallback_uses_spatial_index() -> None:
     """Missing exact point-to-triangle queries must not fall back to a quadratic Python loop."""
 
     def unavailable(*_args: object, **_kwargs: object) -> None:
@@ -27,20 +28,25 @@ def test_surface_distance_fallback_uses_spatial_index():
     vertices = tuple((float(index), 0.0, 0.0) for index in range(5000))
     garment_points = tuple((float(index), 0.0, 5.0) for index in range(5000))
     surface = SimpleNamespace(vertices=vertices, triangles=((0, 1, 2),))
-
-    assert nearest_surface_distance(
+    actual_distance = nearest_surface_distance(
         garment_points, surface, surface_clearance_fn=unavailable
-    ) == pytest.approx(5.0)
+    )
+
+    require(
+        condition=actual_distance == pytest.approx(5.0),
+        message="the spatial-index fallback should find the five-millimetre separation",
+    )
 
 
 def test_events_processes_qt_events_after_one_gui_refresh() -> None:
     """Avoid a second synchronous FreeCAD refresh during each simulation checkpoint."""
-    calls = []
+    calls: list[str] = []
     gui = SimpleNamespace(updateGui=lambda: calls.append("gui-update"))
     application = SimpleNamespace(processEvents=lambda: calls.append("qt-events"))
 
-    from tests.support.pbd_contact_helpers import events
-
     events(gui=gui, application=application)
 
-    assert calls == ["gui-update", "qt-events"]
+    require(
+        condition=calls == ["gui-update", "qt-events"],
+        message="GUI refresh must precede Qt event processing exactly once",
+    )
