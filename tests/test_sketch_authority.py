@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
 from types import SimpleNamespace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
-import freecad_cloth.pattern.SketchAuthority as SketchAuthority
+from freecad_cloth.pattern import SketchAuthority
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
