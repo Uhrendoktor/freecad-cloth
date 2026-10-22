@@ -182,7 +182,7 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
         },
     }
     seam_pair_records = cast(
-        "Callable[[PatternIR, dict[str, object]], tuple[object, object]",
+        "Callable[[PatternIR, dict[str, object]], tuple[object, object]]",
         getattr(SimulationObjects, _SEAM_PAIR_RECORDS_NAME),
     )
     pairs, records = seam_pair_records(
@@ -289,5 +289,5 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
                 proxy.collision_surface,
             )
         ],
-        message="The proxy must pass the collision surface without activating legacy sphere controls.",
+        message="The proxy must pass the surface without enabling legacy sphere controls.",
     )
