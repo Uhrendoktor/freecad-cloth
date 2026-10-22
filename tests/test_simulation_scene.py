@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-import freecad_cloth.simulation.SimulationObjects as SimulationObjects
+from freecad_cloth.simulation import SimulationObjects
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 from tests.support.assertions import require
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
         PositionBasedDynamicsBackend,
     )
