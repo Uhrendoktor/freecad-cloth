@@ -717,9 +717,9 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
             """Return the configured checkbox state.
 
             Returns:
+                The configured checkbox state.
             """
             return False
-
 
     class Button:
         """Capture the text and enabled state of a task-panel button."""
