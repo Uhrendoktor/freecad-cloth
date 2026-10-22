@@ -7,7 +7,7 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-import freecad_cloth.simulation.SimulationObjects as simulation_objects
+import freecad_cloth.simulation.SimulationObjects as SimulationObjects
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 from tests.support.assertions import require
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     )
 
 _EXPECTED_SEAM_SAMPLE_COUNT = 3
-_EXPECTED_PIN_INDEX_COUNT = 2
+_SIMULATION_SIGNATURE_NAME = "_simulation_source_signature"
+_SEAM_PAIR_RECORDS_NAME = "_seam_pair_records"
 
 
 def _simulation_signature() -> Callable[[object, list[object]], object]:
@@ -28,8 +29,8 @@ def _simulation_signature() -> Callable[[object, list[object]], object]:
         A callable that computes the scene's rebuild signature.
     """
     return cast(
-        Callable[[object, list[object]], object],
-        getattr(simulation_objects, "_simulation_source_signature"),
+        "Callable[[object, list[object]], object]",
+        getattr(SimulationObjects, _SIMULATION_SIGNATURE_NAME),
     )
 
 
@@ -181,8 +182,8 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
         },
     }
     seam_pair_records = cast(
-        Callable[[PatternIR, dict[str, object]], tuple[object, object]],
-        getattr(simulation_objects, "_seam_pair_records"),
+        "Callable[[PatternIR, dict[str, object]], tuple[object, object]",
+        getattr(SimulationObjects, _SEAM_PAIR_RECORDS_NAME),
     )
     pairs, records = seam_pair_records(
         pattern,
@@ -202,6 +203,7 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
 
 def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> None:
     """Verify the simulation proxy forwards only the authoritative surface control."""
+
     class FakeBackend:
         """Capture calls made by the simulation proxy without solving particles."""
 
@@ -226,7 +228,8 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
             """
             self.calls.append((dt, iterations, gravity, surface))
 
-        def positions(self) -> tuple[tuple[float, float, float], ...]:
+        @staticmethod
+        def positions() -> tuple[tuple[float, float, float], ...]:
             """Return no positions for the recording-only backend.
 
             Returns:
@@ -236,14 +239,15 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
 
         @property
         def time(self) -> float:
-            """Return the fake backend's current elapsed time.
+            """Elapsed time for the fake backend.
 
             Returns:
                 Zero because this backend does not advance a simulation.
             """
             return 0.0
 
-        def finite(self) -> bool:
+        @staticmethod
+        def finite() -> bool:
             """Report that the fake backend has only finite state.
 
             Returns:
@@ -269,7 +273,7 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
         CollisionRadius=38.0,
         DrapePanels=[],
     )
-    proxy = simulation_objects.SimulationProxy()
+    proxy = SimulationObjects.SimulationProxy()
     proxy.backend = cast("PositionBasedDynamicsBackend", FakeBackend())
     proxy.collision_surface = object()
     proxy.source_signature = _simulation_signature()(scene, [])
