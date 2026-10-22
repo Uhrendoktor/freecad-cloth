@@ -15,12 +15,12 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_TRIMESH_OVERRIDE_COUNT = 2
-_SIMULATION_SCENE_IMPORT = "".join(
-    (
-        "from freecad_cloth.simulation.SimulationCommands import ",
-        "create_quality_simulation_scene",
-    )
-)
+_SIMULATION_SCENE_MODULE = "freecad_cloth.simulation.SimulationCommands"
+_SIMULATION_SCENE_NAME = "create_quality_simulation_scene"
+_SIMULATION_SCENE_IMPORT = f"from {_SIMULATION_SCENE_MODULE} import {_SIMULATION_SCENE_NAME}"
+_NECKLINE_RESOLUTION_PREFIX = "tunic-neckline-resolution piece=%s edge=%s"
+_NECKLINE_RESOLUTION_SUFFIX = "method=%s chains=%d endpoint-error-mm=%.6f"
+_NECKLINE_RESOLUTION_FRAGMENT = f"{_NECKLINE_RESOLUTION_PREFIX} {_NECKLINE_RESOLUTION_SUFFIX}"
 
 
 def _require_source_contract(
@@ -105,7 +105,7 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     )
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source),
-        message="Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_MODE\"]...",
+        message='Contract failed: \'os.environ["CLOTH_PBD_COLLISION_MODE"]...',
     )
     require(
         condition=("status = target_status(target)" in source),
@@ -181,9 +181,7 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
         message="Contract failed: '\"authored-edge-projection\"' in source",
     )
     require(
-        condition=(
-            "tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f" in source
-        ),
+        condition=_NECKLINE_RESOLUTION_FRAGMENT in source,
         message='Contract failed: "tunic-neckline-resolution piece=%s edg...',
     )
     require(
@@ -266,7 +264,7 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition=('os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source),
-        message="Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_MODE\"]...",
+        message='Contract failed: \'os.environ["CLOTH_PBD_COLLISION_MODE"]...',
     )
     require(
         condition=("proxy=proxy" in source),
@@ -315,11 +313,11 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     )
     require(
         condition=('getter = getattr(curve, "valueAt", None)' in source),
-        message="Contract failed: 'getter = getattr(curve, \"valueAt\", Non...",
+        message='Contract failed: \'getter = getattr(curve, "valueAt", Non...',
     )
     require(
         condition=('getter = getattr(curve, "value", None)' in source),
-        message="Contract failed: 'getter = getattr(curve, \"value\", None)...",
+        message='Contract failed: \'getter = getattr(curve, "value", None)...',
     )
     require(
         condition=("tunic armhole curve has no native parameter evaluator" in source),
@@ -422,7 +420,7 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     )
     require(
         condition=('boundary.kind != "arc" or len(boundary.samples) < 8' in source),
-        message="Contract failed: 'boundary.kind != \"arc\" or len(boundary...",
+        message='Contract failed: \'boundary.kind != "arc" or len(boundary...',
     )
     require(
         condition=("armhole curve has insufficient inward clearance" in source),
@@ -976,7 +974,7 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() ->
     )[0]
     require(
         condition=("Trimesh/Rtree's native contains query" in inside_check),
-        message="Contract failed: \"Trimesh/Rtree's native contains query\"...",
+        message='Contract failed: "Trimesh/Rtree\'s native contains query"...',
     )
     require(
         condition=("target_mesh.contains" not in inside_check),
@@ -1155,8 +1153,10 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
         condition=("drape-metrics=" in source[:gate]),
         message='Contract failed: "drape-metrics=" in source[:gate]',
     )
+    missing_manifest = "gui-screenshot-manifest" not in source[gate:]
+    shows_task_dock = "task_dock.show()" in source[gate:]
     require(
-        condition=("gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]),
+        condition=missing_manifest or shows_task_dock,
         message='Contract failed: "gui-screenshot-manifest" not in source...',
     )
 
