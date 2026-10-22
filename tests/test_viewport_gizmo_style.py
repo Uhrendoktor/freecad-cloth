@@ -51,8 +51,7 @@ def _assert_rgb(rgb: tuple[float, float, float]) -> None:
     )
     require(
         condition=all(
-            MINIMUM_RGB_COMPONENT <= float(channel) <= MAXIMUM_RGB_COMPONENT
-            for channel in rgb
+            MINIMUM_RGB_COMPONENT <= float(channel) <= MAXIMUM_RGB_COMPONENT for channel in rgb
         ),
         message="RGB channel values must remain within the normalized range.",
     )
@@ -111,9 +110,7 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     )
     require(
         condition=(
-            MINIMUM_POSITIVE_STYLE_VALUE
-            < RIG_JOINT_POINT_SIZE
-            < RIG_ACTIVE_JOINT_POINT_SIZE
+            MINIMUM_POSITIVE_STYLE_VALUE < RIG_JOINT_POINT_SIZE < RIG_ACTIVE_JOINT_POINT_SIZE
         ),
         message="Active joint markers must be larger than ordinary joint markers.",
     )
@@ -130,9 +127,7 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
         message="Snap line width must be positive.",
     )
     require(
-        condition=(
-            SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE
-        ),
+        condition=(SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE),
         message="Snap ring must surround its center marker.",
     )
     require(
@@ -144,17 +139,11 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
         message="Snap ring must use enough segments to appear smooth.",
     )
     require(
-        condition=(
-            MINIMUM_POSITIVE_STYLE_VALUE < SEAM_LINE_WIDTH < SEAM_FOCUSED_LINE_WIDTH
-        ),
+        condition=(MINIMUM_POSITIVE_STYLE_VALUE < SEAM_LINE_WIDTH < SEAM_FOCUSED_LINE_WIDTH),
         message="Focused seams must be emphasized over ordinary seam lines.",
     )
     require(
-        condition=(
-            MINIMUM_POSITIVE_STYLE_VALUE
-            < SEAM_CONNECTOR_LINE_WIDTH
-            < SEAM_LINE_WIDTH
-        ),
+        condition=(MINIMUM_POSITIVE_STYLE_VALUE < SEAM_CONNECTOR_LINE_WIDTH < SEAM_LINE_WIDTH),
         message="Seam connectors must remain visually subordinate to seam lines.",
     )
     require(
