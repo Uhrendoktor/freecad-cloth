@@ -10,6 +10,10 @@ from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.shared.targets import DrapeTargetRef
 from support.assertions import require
 
+EXPECTED_SINGLE_REGISTRATION_COUNT = 1
+EXPECTED_TARGET_REVISION = 2
+EXPECTED_BUNDLED_WORKBENCH_COUNT = 3
+
 
 def test_project_metadata_exists() -> None:
     """Check that package and build metadata are declared."""
@@ -400,7 +404,7 @@ def test_no_code_imports_removed_seam_reference_namespace() -> None:
             offenders.append(path.as_posix())
     require(
         condition=(not offenders),
-        message=offenders,
+        message="stale seam-reference imports: " + ", ".join(offenders),
     )
 
 
@@ -470,7 +474,7 @@ def test_workflow_actions_use_immutable_release_pins() -> None:
         workflow,
     )
     require(
-        condition=(references),
+        condition=bool(references),
         message="test_workflow_actions_use_immutable_release_pins: references",
     )
     require(
@@ -736,7 +740,9 @@ def test_python_sources_do_not_import_removed_architecture_modules() -> None:
                 raise AssertionError(msg) from exc
             for node in ast.walk(module):
                 imported = set()
+                source_line: int | None = None
                 if isinstance(node, ast.ImportFrom):
+                    source_line = node.lineno
                     if node.module:
                         imported.add(node.module)
                     imported.update(
@@ -744,11 +750,13 @@ def test_python_sources_do_not_import_removed_architecture_modules() -> None:
                         for alias in node.names
                     )
                 elif isinstance(node, ast.Import):
+                    source_line = node.lineno
                     imported.update(alias.name for alias in node.names)
-                offenders.extend(
-                    f"{path.relative_to(root)}:{node.lineno}: {name}"
-                    for name in imported & forbidden_modules
-                )
+                if source_line is not None:
+                    offenders.extend(
+                        f"{path.relative_to(root)}:{source_line}: {name}"
+                        for name in imported & forbidden_modules
+                    )
     require(
         condition=(not offenders),
         message="stale architecture imports: " + ", ".join(offenders),
