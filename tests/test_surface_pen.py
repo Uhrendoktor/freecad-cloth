@@ -1,6 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Pure tests for the bounded 3D Pattern Pen surface-authoring contract."""
 
+from types import SimpleNamespace
+
+import pytest
+
 from freecad_cloth.pattern.SurfacePen import (
     SurfaceAnchor,
     close_surface_stroke,
@@ -12,26 +16,43 @@ from freecad_cloth.pattern.SurfacePen import (
     surface_segments_from_anchor_kinds,
     surface_stroke_can_finish,
 )
-
 from tests.support.assertions import require, require_not_none
+
+EXPECTED_QUADRILATERAL_VERTICES = 4
+EXPECTED_SEGMENT_COUNT = 4
+PLANAR_DEVIATION_TOLERANCE_MM = 1e-9
+AREA_TOLERANCE_MM2 = 1e-6
+EXPECTED_PLANAR_AREA_MM2 = 4000.0
+CLOSURE_TOLERANCE_MM = 1.0
+CURVATURE_LIMIT_MM = 2.0
+EXPECTED_PICK_POINT = (10.0, 20.0, 30.0)
+NON_UNIT_PICK_NORMAL = (0.0, 0.0, 2.0)
+EXPECTED_PICK_NORMAL = (0.0, 0.0, 1.0)
+EXPECTED_SIMPLIFIED_POLYLINE = ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
+EXPECTED_BSPLINE_SEGMENT = ("bspline", ((0.0, 0.0), (40.0, 20.0), (80.0, 0.0)))
+EXPECTED_LINE_SEGMENTS = (
+    ("line", ((80.0, 0.0), (100.0, 80.0))),
+    ("line", ((100.0, 80.0), (0.0, 80.0))),
+    ("line", ((0.0, 80.0), (0.0, 0.0))),
+)
 
 
 def test_flatten_surface_patch_accepts_planar_boundary() -> None:
     """Verify planar boundaries flatten without introducing geometric deviation."""
     points = ((0, 0, 0), (80, 0, 0), (80, 50, 0), (0, 50, 0))
     patch = flatten_surface_patch(points, tolerance_mm=0.1)
-    require(condition=len(patch.points) == 4, message="Expected: len(patch.points) == 4")
     require(
-        condition=(
-            patch.max_deviation_mm <= 1e-9
-        ),
-        message="Expected: patch.max_deviation_mm <= 1e-9",
+        condition=len(patch.points) == EXPECTED_QUADRILATERAL_VERTICES,
+        message="Planar boundary should retain its four corner points.",
     )
     require(
-        condition=(
-            abs(abs(polygon_area_2d(patch.points)) - 4000.0) < 1e-6
-        ),
-        message="Expected: abs(abs(polygon_area_2d(patch.points)) - 4000.0) < 1e-6",
+        condition=patch.max_deviation_mm <= PLANAR_DEVIATION_TOLERANCE_MM,
+        message="Planar boundary should flatten within numerical precision.",
+    )
+    area = polygon_area_2d(patch.points)
+    require(
+        condition=abs(abs(area) - EXPECTED_PLANAR_AREA_MM2) < AREA_TOLERANCE_MM2,
+        message="Flattened rectangle should preserve its authored area.",
     )
 
 
@@ -39,7 +60,7 @@ def test_flatten_surface_patch_rejects_curvature_beyond_limit() -> None:
     """Verify excessive curvature is rejected at the configured deviation limit."""
     points = ((0, 0, 0), (80, 0, 0), (80, 50, 12), (0, 50, 0))
     with pytest.raises(ValueError, match="too curved"):
-        flatten_surface_patch(points, tolerance_mm=2.0)
+        flatten_surface_patch(points, tolerance_mm=CURVATURE_LIMIT_MM)
 
 
 def test_close_surface_stroke_accepts_nearby_closing_sample() -> None:
@@ -51,10 +72,19 @@ def test_close_surface_stroke_accepts_nearby_closing_sample() -> None:
         SurfaceAnchor((0, 50, 0), (0, 0, 1)),
         SurfaceAnchor((0.5, 0.2, 0), (0, 0, 1)),
     )
-    closed = close_surface_stroke(anchors, tolerance_mm=1.0)
-    require(condition=len(closed) == 4, message="Expected: len(closed) == 4")
-    require(condition=closed[0] == anchors[0], message="Expected: closed[0] == anchors[0]")
-    require(condition=closed[-1] == anchors[3], message="Expected: closed[-1] == anchors[3]")
+    closed = close_surface_stroke(anchors, tolerance_mm=CLOSURE_TOLERANCE_MM)
+    require(
+        condition=len(closed) == EXPECTED_QUADRILATERAL_VERTICES,
+        message="Closing sample should be removed from the resulting boundary.",
+    )
+    require(
+        condition=closed[0] == anchors[0],
+        message="Closing should preserve the first authored anchor.",
+    )
+    require(
+        condition=closed[-1] == anchors[3],
+        message="Closing should preserve the final distinct boundary anchor.",
+    )
 
 
 def test_surface_stroke_can_finish_requires_closed_distinct_boundary() -> None:
@@ -67,29 +97,27 @@ def test_surface_stroke_can_finish_requires_closed_distinct_boundary() -> None:
         SurfaceAnchor((0.5, 0.2, 0), (0, 0, 1)),
     )
     require(
-        condition=(
-            surface_stroke_can_finish(closed, tolerance_mm=1.0)
-        ),
-        message="Expected: surface_stroke_can_finish(closed, tolerance_mm=1.0)",
+        condition=surface_stroke_can_finish(closed, tolerance_mm=CLOSURE_TOLERANCE_MM),
+        message="A sufficiently close endpoint should allow finishing.",
     )
     require(
-        condition=(
-            not surface_stroke_can_finish(closed, tolerance_mm=0.1)
-        ),
-        message="Expected: not surface_stroke_can_finish(closed, tolerance_mm=0.1)",
+        condition=not surface_stroke_can_finish(closed, tolerance_mm=0.1),
+        message="Finishing should reject an endpoint beyond the smaller tolerance.",
     )
     require(
-        condition=(
-            not surface_stroke_can_finish(closed[:-1], tolerance_mm=1.0)
+        condition=not surface_stroke_can_finish(
+            closed[:-1],
+            tolerance_mm=CLOSURE_TOLERANCE_MM,
         ),
-        message="Expected: not surface_stroke_can_finish(closed[:-1], tolerance_mm",
+        message="Finishing should reject a stroke without a closing sample.",
     )
     repeated = (*closed[:2], closed[0])
     require(
-        condition=(
-            not surface_stroke_can_finish(repeated, tolerance_mm=1.0)
+        condition=not surface_stroke_can_finish(
+            repeated,
+            tolerance_mm=CLOSURE_TOLERANCE_MM,
         ),
-        message="Expected: not surface_stroke_can_finish(repeated, tolerance_mm=1.",
+        message="Finishing should reject a boundary with repeated points.",
     )
 
 
@@ -103,7 +131,7 @@ def test_close_surface_stroke_rejects_open_boundary() -> None:
         SurfaceAnchor((10, 10, 0), (0, 0, 1)),
     )
     with pytest.raises(ValueError, match="surface boundary is open"):
-        close_surface_stroke(anchors, tolerance_mm=1.0)
+        close_surface_stroke(anchors, tolerance_mm=CLOSURE_TOLERANCE_MM)
 
 
 def test_flatten_surface_patch_rejects_self_intersection() -> None:
@@ -115,31 +143,25 @@ def test_flatten_surface_patch_rejects_self_intersection() -> None:
 
 def test_polygon_self_intersection_excludes_adjacent_edges() -> None:
     """Verify simple polygons pass and crossed polygons are detected."""
+    simple_polygon = ((0, 0), (10, 0), (10, 10), (0, 10))
+    crossing_polygon = ((0, 0), (10, 10), (0, 10), (10, 0))
     require(
-        condition=(
-            not polygon_self_intersects(((0, 0), (10, 0), (10, 10), (0, 10)))
-        ),
-        message="Expected: not polygon_self_intersects(((0, 0), (10, 0), (10, 10),",
+        condition=not polygon_self_intersects(simple_polygon),
+        message="Adjacent polygon edges should not be reported as self-intersections.",
     )
     require(
-        condition=(
-            polygon_self_intersects(((0, 0), (10, 10), (0, 10), (10, 0)))
-        ),
-        message="Expected: polygon_self_intersects(((0, 0), (10, 10), (0, 10), (10",
+        condition=polygon_self_intersects(crossing_polygon),
+        message="Crossing polygon edges should be detected.",
     )
 
 
 def test_simplify_polyline_is_deterministic() -> None:
     """Verify polyline simplification returns a stable reduced point sequence."""
     points = ((0, 0, 0), (1, 0.1, 0), (2, 0, 0), (10, 0, 0))
+    simplified = simplify_polyline(points, tolerance_mm=0.5)
     require(
-        condition=(
-            simplify_polyline(points, tolerance_mm=0.5) == (
-                    (0.0, 0.0, 0.0),
-                    (10.0, 0.0, 0.0),
-                )
-        ),
-        message="Expected: simplify_polyline(points, tolerance_mm=0.5) == ( (0.0, ",
+        condition=simplified == EXPECTED_SIMPLIFIED_POLYLINE,
+        message="Polyline simplification should produce the deterministic endpoints.",
     )
 
 
@@ -147,120 +169,51 @@ def test_surface_anchor_round_trips_with_six_decimals() -> None:
     """Verify anchor serialization preserves the documented six-decimal precision."""
     anchor = SurfaceAnchor((1.23456789, 2.0, 3.0), (0.0, 0.0, 1.0))
     restored = SurfaceAnchor.from_json(anchor.to_json())
+    expected = SurfaceAnchor((1.234568, 2.0, 3.0), (0.0, 0.0, 1.0))
     require(
-        condition=(
-            restored == SurfaceAnchor((1.234568, 2.0, 3.0), (0.0, 0.0, 1.0))
-        ),
-        message="Expected: restored == SurfaceAnchor((1.234568, 2.0, 3.0), (0.0, 0",
+        condition=restored == expected,
+        message="Anchor serialization should preserve six-decimal coordinate precision.",
     )
 
 
 def test_surface_pick_uses_target_guard_and_viewer_picker() -> None:
-    """Verify surface picking normalizes the normal and returns the selected target point."""
-    class Target:
-        """Avatar metadata used to validate the picked target."""
-        Name = "Avatar"
-        Label = "Mannequin"
+    """Verify picking normalizes the normal and returns the selected target point."""
+    picked = SimpleNamespace(
+        getPoint=lambda: EXPECTED_PICK_POINT,
+        getNormal=lambda: NON_UNIT_PICK_NORMAL,
+    )
+    viewer = SimpleNamespace(pickPoint=lambda _position: picked)
+    view = SimpleNamespace(
+        getObjectInfo=lambda _x, _y: {"Object": "Avatar", "Component": "Face7"},
+        getViewer=lambda: viewer,
+    )
+    target = SimpleNamespace(Name="Avatar", Label="Mannequin")
 
-    class Picked:
-        """World-space point and surface normal returned by the picker."""
-        def getPoint(self) -> tuple[float, float, float]:
-            """Return the selected point in world coordinates."""
-            return (10.0, 20.0, 30.0)
-
-        def getNormal(self) -> tuple[float, float, float]:
-            """Return a non-unit normal to exercise normal normalization."""
-            return (0.0, 0.0, 2.0)
-
-    class Viewer:
-        """Viewer adapter returning a deterministic picked point."""
-
-        def pickPoint(self, _position: object) -> Picked:
-            """Return the synthetic pick for the requested viewport position.
-
-            Args:
-                _position: Viewport selection coordinates supplied by the caller.
-            """
-            return Picked()
-
-    class View:
-        """Viewport adapter reporting the expected avatar object."""
-
-        def getObjectInfo(self, _x: int, _y: int) -> dict[str, str]:
-            """Return pick metadata for the expected avatar surface.
-
-            Args:
-                _x: Horizontal viewport coordinate.
-                _y: Vertical viewport coordinate.
-
-            Returns:
-                Object and component identifiers for the avatar surface.
-            """
-            return {"Object": "Avatar", "Component": "Face7"}
-
-        def getViewer(self) -> Viewer:
-            """Return the deterministic viewer implementation.
-
-            Returns:
-                Viewer stub whose picker returns the expected point.
-            """
-            return Viewer()
-
-    result = pick_surface_point(View(), 12, 24, Target())
     result = require_not_none(
-        result,
-        message="Surface picking should return a point for the matching avatar.",
+        pick_surface_point(view, 12, 24, target),
+        message="Picking the target avatar should return a surface point.",
     )
     require(
-        condition=(
-            result.point == (10.0, 20.0, 30.0)
-        ),
-        message="Expected: result.point == (10.0, 20.0, 30.0)",
+        condition=result.point == EXPECTED_PICK_POINT,
+        message="Surface picking should retain the selected world-space point.",
     )
     require(
-        condition=(
-            result.normal == (0.0, 0.0, 1.0)
-        ),
-        message="Expected: result.normal == (0.0, 0.0, 1.0)",
+        condition=result.normal == EXPECTED_PICK_NORMAL,
+        message="Surface picking should normalize the selected surface normal.",
     )
 
 
 def test_surface_pick_rejects_unrelated_visible_object() -> None:
-    """Verify an unrelated visible object is rejected before invoking the point picker."""
-    class Target:
-        """Avatar metadata used to validate the picked target."""
-        Name = "Avatar"
-        Label = "Mannequin"
-
-    class View:
-        """Viewport adapter reporting an unrelated visible object."""
-
-        def getObjectInfo(self, _x: int, _y: int) -> dict[str, str]:
-            """Return the unrelated object selected by viewport inspection.
-
-            Args:
-                _x: Horizontal viewport coordinate.
-                _y: Vertical viewport coordinate.
-
-            Returns:
-                Object identifier for the unrelated visible object.
-            """
-            return {"Object": "Cube"}
-
-        def getViewer(self) -> None:
-            """Reject an unexpected viewer request for an unrelated object.
-
-            Raises:
-                AssertionError: If the point picker is incorrectly invoked.
-            """
-            msg = "picker must not be called for an unrelated object"
-            raise AssertionError(msg)
-
+    """Verify an unrelated object is rejected before invoking the point picker."""
+    view = SimpleNamespace(
+        getObjectInfo=lambda _x, _y: {"Object": "Cube"},
+        getViewer=lambda: pytest.fail("Viewer picker called for an unrelated object."),
+    )
+    target = SimpleNamespace(Name="Avatar", Label="Mannequin")
+    result = pick_surface_point(view, 1, 2, target)
     require(
-        condition=(
-            pick_surface_point(View(), 1, 2, Target()) is None
-        ),
-        message="Expected: pick_surface_point(View(), 1, 2, Target()) is None",
+        condition=result is None,
+        message="Picking should reject an unrelated visible object.",
     )
 
 
@@ -269,27 +222,23 @@ def test_surface_anchor_round_trips_point_authoring_kind() -> None:
     corner = SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0), "corner")
     curve = SurfaceAnchor((4.0, 5.0, 6.0), (0.0, 0.0, 1.0), "curve")
     require(
-        condition=(
-            SurfaceAnchor.from_json(corner.to_json()) == corner
-        ),
-        message="Expected: SurfaceAnchor.from_json(corner.to_json()) == corner",
+        condition=SurfaceAnchor.from_json(corner.to_json()) == corner,
+        message="Corner authoring kind should survive anchor serialization.",
     )
     require(
-        condition=(
-            SurfaceAnchor.from_json(curve.to_json()) == curve
-        ),
-        message="Expected: SurfaceAnchor.from_json(curve.to_json()) == curve",
+        condition=SurfaceAnchor.from_json(curve.to_json()) == curve,
+        message="Curve authoring kind should survive anchor serialization.",
     )
 
 
 def test_legacy_surface_anchor_json_defaults_to_corner() -> None:
     """Verify legacy anchor JSON defaults its authoring kind to corner."""
-    restored = SurfaceAnchor.from_json({"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]})
+    payload = {"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]}
+    restored = SurfaceAnchor.from_json(payload)
+    expected = SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
     require(
-        condition=(
-            restored == SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
-        ),
-        message="Expected: restored == SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1",
+        condition=restored == expected,
+        message="Legacy anchor JSON should default the authoring kind to corner.",
     )
 
 
@@ -298,23 +247,17 @@ def test_surface_segments_preserve_corners_and_build_splines_for_curve_points() 
     points = ((0, 0), (40, 20), (80, 0), (100, 80), (0, 80))
     kinds = ("corner", "curve", "corner", "corner", "corner")
     segments = surface_segments_from_anchor_kinds(points, kinds)
-
-    require(condition=len(segments) == 4, message="Expected: len(segments) == 4")
     require(
-        condition=(
-            segments[0] == ("bspline", ((0.0, 0.0), (40.0, 20.0), (80.0, 0.0)))
-        ),
-        message="Expected: segments[0] == (\"bspline\", ((0.0, 0.0), (40.0, 20.0), (",
+        condition=len(segments) == EXPECTED_SEGMENT_COUNT,
+        message="Surface segments should include one spline and three line segments.",
     )
     require(
-        condition=(
-            segments[1:] == (
-                    ("line", ((80.0, 0.0), (100.0, 80.0))),
-                    ("line", ((100.0, 80.0), (0.0, 80.0))),
-                    ("line", ((0.0, 80.0), (0.0, 0.0))),
-                )
-        ),
-        message="Expected: segments[1:] == ( (\"line\", ((80.0, 0.0), (100.0, 80.0))",
+        condition=segments[0] == EXPECTED_BSPLINE_SEGMENT,
+        message="Curve anchors should form the expected B-spline segment.",
+    )
+    require(
+        condition=segments[1:] == EXPECTED_LINE_SEGMENTS,
+        message="Corner anchors should remain line segments in the authored order.",
     )
 
 
