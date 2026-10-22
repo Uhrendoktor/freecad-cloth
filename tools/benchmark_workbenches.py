@@ -67,10 +67,10 @@ class BenchmarkWorkbenchBackend:
         del name, commands
 
 
-# Expose the mixed-case names required by FreeCAD without defining non-PEP-8 methods.
-BenchmarkWorkbenchBackend.appendToolbar = BenchmarkWorkbenchBackend.append_toolbar
-BenchmarkWorkbenchBackend.appendMenu = BenchmarkWorkbenchBackend.append_menu
-BenchmarkWorkbenchBackend.appendContextMenu = BenchmarkWorkbenchBackend.append_context_menu
+# Register FreeCAD's legacy callback names without defining non-PEP-8 methods.
+type.__setattr__(BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar)
+type.__setattr__(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
+type.__setattr__(BenchmarkWorkbenchBackend, "appendContextMenu", BenchmarkWorkbenchBackend.append_context_menu)
 
 
 def trace(message: str) -> None:
