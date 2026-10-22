@@ -5,6 +5,7 @@ These checks protect diagnostic scope and the shared manifest contract without
 making the diagnostic artifact a release gate.
 """
 
+from math import isclose
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,10 @@ _HELPERS = (_ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(en
 _WORKFLOW = (_ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
     encoding="utf-8"
 )
+
+_EXPECTED_SEAM_SPAN_MM = 2.0
+_ZERO_PENETRATION_MM = 0.0
+_EXACT_FLOAT_TOLERANCE = 0.0
 
 
 def _require_fragments(*, source: str, fragments: tuple[str, ...], contract: str) -> None:
@@ -316,7 +321,12 @@ def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> N
     base = SimpleNamespace(backend=backend, seam_stitch_pairs={"side": ((0, 1),)})
     geometry = seam_geometry(backend, base.seam_stitch_pairs)
     require(
-        condition=geometry[0]["max_span_mm"] == 2.0,
+        condition=isclose(
+            geometry[0]["max_span_mm"],
+            _EXPECTED_SEAM_SPAN_MM,
+            rel_tol=_EXACT_FLOAT_TOLERANCE,
+            abs_tol=_EXACT_FLOAT_TOLERANCE,
+        ),
         message="The side seam span must match the two-millimeter diagnostic fixture.",
     )
     record = checkpoint_record(
@@ -339,7 +349,12 @@ def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> N
         message="The cube checkpoint must preserve the single connected component.",
     )
     require(
-        condition=record["penetration_mm"] == 0.0,
+        condition=isclose(
+            record["penetration_mm"],
+            _ZERO_PENETRATION_MM,
+            rel_tol=_EXACT_FLOAT_TOLERANCE,
+            abs_tol=_EXACT_FLOAT_TOLERANCE,
+        ),
         message="The cube contact-control checkpoint must show zero penetration.",
     )
     require(
