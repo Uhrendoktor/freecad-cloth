@@ -122,7 +122,9 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
         message="Contract failed: initial_piece_links < initial_cache_inv...",
     )
     require(
-        condition=("tunic-simulation-panel-map proxy=%s links=%d panels=%r map=%r particles=%d" in source),
+        condition=(
+            "tunic-simulation-panel-map proxy=%s links=%d panels=%r map=%r particles=%d" in source
+        ),
         message="Contract failed: \"tunic-simulation-panel-map proxy=%s li...",
     )
     require(
@@ -555,7 +557,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
         message="Contract failed: \"tunic-simulation-start\" in source",
     )
     require(
-        condition=('configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))' in source),
+        condition=(
+            'configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))' in source
+        ),
         message="Contract failed: 'configured_substeps = int(os.environ.g...",
     )
     require(
@@ -656,7 +660,9 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
         message="Contract failed: \"max(configured, thickness, representat...",
     )
     require(
-        condition=("self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)" in backend),
+        condition=(
+            "self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)" in backend
+        ),
         message="Contract failed: \"self._collision_sdf_resolution = tuple...",
     )
     require(
@@ -780,11 +786,15 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
         message="Contract failed: \"FREECAD_CLOTH_AVATAR_MESH=/opt/freecad...",
     )
     require(
-        condition=("1f508f6083b2f823dab15de924b3bde72e08d77c9/makehuman/data/3dobjs/base.obj" in dockerfile),
+        condition=(
+            "1f508f6083b2f823dab15de924b3bde72e08d77c9/makehuman/data/3dobjs/base.obj" in dockerfile
+        ),
         message="Contract failed: \"1f508f6083b2f823dab15de924b3bde72e08d7...",
     )
     require(
-        condition=("8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c" in dockerfile),
+        condition=(
+            "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c" in dockerfile
+        ),
         message="Contract failed: \"8e761e6624b8f54536409135d1636da63b3248...",
     )
     require(
@@ -832,7 +842,9 @@ def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
         message="Contract failed: \"CLOTH_REALTIME_FRAMES=120\" in benchmark",
     )
     require(
-        condition=("tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json" in gui),
+        condition=(
+            "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json" in gui
+        ),
         message="Contract failed: \"tools/ci/validate_realtime_benchmark.p...",
     )
     audit_step = gui.split("      - uses: ./.github/actions/freecad-test", 1)[1]
@@ -1105,11 +1117,15 @@ in debug
         message="Contract failed: \"(x_offset + 0.26 * panel_width, armhol...",
     )
     require(
-        condition=("midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug),
+        condition=(
+            "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug
+        ),
         message="Contract failed: \"midpoint = App.Vector(x_offset + 0.741...",
     )
     require(
-        condition=("midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug),
+        condition=(
+            "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug
+        ),
         message="Contract failed: \"midpoint = App.Vector(x_offset + 0.259...",
     )
     require(
@@ -1275,7 +1291,10 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
         message="Contract failed: \"drape-metrics=\" in source[:gate]",
     )
     require(
-        condition=("gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:]),
+        condition=(
+            "gui-screenshot-manifest" not in source[gate:]
+            or "task_dock.show()" in source[gate:]
+        ),
         message="Contract failed: \"gui-screenshot-manifest\" not in source...",
     )
 
@@ -1342,7 +1361,9 @@ topology_audit
     )
     # Keep geometric validity guards in FreeCAD, but keep report classification on the host.
     require(
-        condition=("canonical tunic derived pattern outline is invalid before simulation" in simulation),
+        condition=(
+            "canonical tunic derived pattern outline is invalid before simulation" in simulation
+        ),
         message="Contract failed: \"canonical tunic derived pattern outlin...",
     )
     require(
