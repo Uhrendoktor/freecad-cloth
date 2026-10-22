@@ -109,7 +109,7 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     workbench = ClothSewingWorkbench()
     workbench.Initialize()
     fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
-    avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
+    avatar = importlib.import_module("freecad_cloth.avatar.avatar_commands")
     expected = (
         {command for _name, group in SEWING_COMMAND_GROUPS for command in group}
         | set(fitting.COMMANDS)
@@ -200,7 +200,7 @@ def test_workbench_command_groups_do_not_overlap() -> None:
                 "freecad_cloth.sewing.SewingCommands",
                 "freecad_cloth.sewing.SewingNetworkCommands",
                 "freecad_cloth.avatar.FittingCommands",
-                "freecad_cloth.avatar.AvatarCommands",
+                "freecad_cloth.avatar.avatar_commands",
             )
             for command in importlib.import_module(module_name).COMMANDS
         },

@@ -194,7 +194,7 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertLess(y_span / z_span, 0.25)
 
     def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self) -> None:
-        from freecad_cloth.avatar.AvatarCommands import _mesh_data
+        from freecad_cloth.avatar.avatar_commands import _mesh_data
 
         calls = []
         created = []
@@ -357,7 +357,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarTargetInvalidation")
         try:
@@ -398,7 +398,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarAcceptance")
         path = None
