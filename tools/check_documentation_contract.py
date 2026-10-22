@@ -173,7 +173,7 @@ def _current_scope(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[ast.AS
     Returns:
         Descendant syntax nodes excluding nested functions, classes, and lambdas.
     """
-    pending = list(node.body)
+    pending: list[ast.AST] = list(node.body)
     visited: list[ast.AST] = []
     while pending:
         current = pending.pop()
