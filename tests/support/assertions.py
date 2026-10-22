@@ -2,12 +2,12 @@
 """Shared assertion helpers for strict, descriptive regression tests."""
 
 
-def require(*, condition: bool, message: str) -> None:
+def require(*, condition: bool, message: str = "Required condition was false.") -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
     Args:
         condition: Boolean predicate that must hold for the test to pass.
-        message: Descriptive failure explanation for a violated predicate.
+        message: Optional failure detail; the default is used for simple predicates.
 
     Raises:
         AssertionError: If the required condition is false.
@@ -28,12 +28,12 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
     require(condition=fragment in source, message=message)
 
 
-def require_not_none[T](value: T | None, *, message: str) -> T:
+def require_not_none[T](value: T | None, *, message: str = "Expected a non-None value.") -> T:
     """Return a value only when it is not None.
 
     Args:
         value: Optional result that must be present for the next operation.
-        message: Human-readable failure reason when the value is absent.
+        message: Failure detail when the value is absent; defaults to a concise explanation.
 
     Returns:
         The original value narrowed to its non-None type.
