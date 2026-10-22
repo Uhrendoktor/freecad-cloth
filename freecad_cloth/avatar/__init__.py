@@ -17,7 +17,6 @@ if TYPE_CHECKING:
         AvatarService,
         FittingCommands,
         SkeletonPose,
-        avatar_commands as AvatarCommands,
     )
 
 __all__ = [
@@ -40,11 +39,11 @@ def __getattr__(name: str) -> ModuleType:
     Args:
         name: Public avatar submodule name requested by the import system.
 
-    Raises:
-        AttributeError: If name is not a declared avatar package export.
-
     Returns:
         ModuleType: The submodule represented by the requested export.
+
+    Raises:
+        AttributeError: If name is not a declared avatar package export.
     """
     if name not in __all__:
         raise AttributeError(name)
