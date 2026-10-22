@@ -17,6 +17,32 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_TRIMESH_OVERRIDE_COUNT = 2
+_SIMULATION_SCENE_IMPORT = (
+    "from freecad_cloth.simulation.SimulationCommands import "
+    "create_quality_simulation_scene"
+)
+
+def _require_source_contract(
+    *,
+    source: str,
+    required: tuple[str, ...],
+    forbidden: tuple[str, ...],
+    contract: str,
+) -> None:
+    """Check required and forbidden literal fragments in source text.
+
+    Args:
+        source: Source text to inspect.
+        required: Literal fragments that must remain present.
+        forbidden: Literal fragments that must remain absent.
+        contract: Label included in a source-contract failure message.
+    """
+    missing = tuple(fragment for fragment in required if fragment not in source)
+    present = tuple(fragment for fragment in forbidden if fragment in source)
+    require(
+        condition=not missing and not present,
+        message=f"{contract} source contract changed; missing={missing!r}; forbidden={present!r}",
+    )
 
 
 # The native-Sketcher fixture keeps explicit semantic edge IDs on each piece.
@@ -154,10 +180,10 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
         message="Contract failed: '\"authored-edge-projection\"' in source",
     )
     require(
-        condition=((
+        condition=(
 "tunic-neckline-resolution piece=%s edge=%s method=%s chains=%d endpoint-error-mm=%.6f"
 in source
-)),
+),
         message="Contract failed: \"tunic-neckline-resolution piece=%s edg...",
     )
     require(
@@ -315,10 +341,10 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
         0
     ]
     require(
-        condition=((
+        condition=(
 'sketch.addConstraint([Sketcher.Constraint("Block", index) '
 "for index in range(len(geometry))])"
-) in sketch_builder),
+ in sketch_builder),
         message="Contract failed: 'sketch.addConstraint([Sketcher.Constra...",
     )
     require(
@@ -795,9 +821,9 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
         message="Contract failed: \"makehuman-hm08-base.obj\" in dockerfile",
     )
     require(
-        condition=((
+        condition=(
 "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj" in dockerfile
-)),
+),
         message="Contract failed: \"FREECAD_CLOTH_AVATAR_MESH=/opt/freecad...",
     )
     require(
@@ -1009,10 +1035,10 @@ def test_penetration_evidence_stays_on_numpy_path_in_freecad_host() -> None:
     )[0]
 
     require(
-        condition=((
+        condition=(
 "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh"
 not in audit
-)),
+),
         message="Contract failed: \"from freecad_cloth.simulation.DrapeVis...",
     )
     require(
@@ -1042,258 +1068,87 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence() -> None:
 
 
 def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
-    """Verify drape debug uses the canonical tunic profile and landmarks contract."""
+    """Verify the diagnostic tunic profile stays aligned with canonical landmarks."""
     debug = (ROOT / "tests" / "freecad_drape_debug.py").read_text(encoding="utf-8")
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
 
-    # Keep the diagnostic A/B garment aligned to current production geometry/scene APIs.
-    require(
-        condition=((
-"from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene"
-in debug
-)),
-        message="Contract failed: \"from freecad_cloth.simulation.Simulati...",
-    )
-    require(
-        condition=("SimulationQualityRuntimeV2" not in debug),
-        message="Contract failed: \"SimulationQualityRuntimeV2\" not in debug",
-    )
-    require(
-        condition=("neck_z = (1.0 - float(neckline_drop)) * h" in debug),
-        message="Contract failed: \"neck_z = (1.0 - float(neckline_drop)) ...",
-    )
-    require(
-        condition=("neckline_drop=0.03" in source),
-        message="Contract failed: \"neckline_drop=0.03\" in source",
-    )
-    require(
-        condition=("shoulder_headroom_mm = 20.0" in source),
-        message="Contract failed: \"shoulder_headroom_mm = 20.0\" in source",
-    )
-    require(
-        condition=((
-"garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
-)),
-        message="Contract failed: \"garment_height = max(560.0, (shoulder_...",
-    )
-    require(
-        condition=("shoulder_headroom_mm = 20.0" in debug),
-        message="Contract failed: \"shoulder_headroom_mm = 20.0\" in debug",
-    )
-    require(
-        condition=((
-"garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
-)),
-        message="Contract failed: \"garment_height = max(560.0, (shoulder_...",
-    )
-    require(
-        condition=("x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug),
-        message="Contract failed: \"x_offset = 0.5 * (float(hem_width) - f...",
-    )
-    require(
-        condition=("armhole_z = 0.62 * h" in debug),
-        message="Contract failed: \"armhole_z = 0.62 * h\" in debug",
-    )
-    require(
-        condition=("armhole_z = 0.62 * h" in debug),
-        message="Contract failed: \"armhole_z = 0.62 * h\" in debug",
-    )
-    require(
-        condition=("shoulder_z = 0.94 * h" in debug),
-        message="Contract failed: \"shoulder_z = 0.94 * h\" in debug",
-    )
-    require(
-        condition=("points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug),
-        message="Contract failed: \"points[3][0] - points[2][0] < 0.15 * f...",
-    )
-    require(
-        condition=("shoulder_z - armhole_z < 0.20 * h" in debug),
-        message="Contract failed: \"shoulder_z - armhole_z < 0.20 * h\" in ...",
-    )
-    require(
-        condition=("side_ease_mm = 4.0" in debug),
-        message="Contract failed: \"side_ease_mm = 4.0\" in debug",
-    )
-    require(
-        condition=("if idx == 1:" in debug),
-        message="Contract failed: \"if idx == 1:\" in debug",
-    )
-    require(
-        condition=("elif idx == 7:" in debug),
-        message="Contract failed: \"elif idx == 7:\" in debug",
-    )
-    require(
-        condition=("(x_offset + 0.74 * panel_width, armhole_z)" in debug),
-        message="Contract failed: \"(x_offset + 0.74 * panel_width, armhol...",
-    )
-    require(
-        condition=("(x_offset + 0.26 * panel_width, armhole_z)" in debug),
-        message="Contract failed: \"(x_offset + 0.26 * panel_width, armhol...",
-    )
-    require(
-        condition=(
-            "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug
+    _require_source_contract(
+        source=debug,
+        required=(
+            _SIMULATION_SCENE_IMPORT,
+            "neck_z = (1.0 - float(neckline_drop)) * h",
+            "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)",
+            "shoulder_headroom_mm = 20.0",
+            "x_offset = 0.5 * (float(hem_width) - float(panel_width))",
+            "armhole_z = 0.62 * h",
+            "shoulder_z = 0.94 * h",
+            "points[3][0] - points[2][0] < 0.15 * float(panel_width)",
+            "shoulder_z - armhole_z < 0.20 * h",
+            "side_ease_mm = 4.0",
+            "if idx == 1:",
+            "elif idx == 7:",
+            "(x_offset + 0.74 * panel_width, armhole_z)",
+            "(x_offset + 0.26 * panel_width, armhole_z)",
+            "midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)",
+            "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)",
+            "(x_offset + 0.06 * panel_width, 0.94 * garment_height)",
+            "(x_offset + 0.94 * panel_width, 0.94 * garment_height)",
+            "if not (armhole_z < shoulder_z < neck_z)",
+            "neckline_scoop_depth = 0.12 * h",
+            "neckline_scoop_z = neck_z - neckline_scoop_depth",
+            "if not (armhole_z < neckline_scoop_z < shoulder_z)",
+            '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")',
+            'make_piece("DebugTunicFront", front_y, 0.72, 0.03)',
+            'make_piece("DebugTunicBack", back_y, 0.72, 0.03)',
+            "elif idx == 4:",
+            "ArrangementPoint.from_string(raw)",
+            "panel_width = max(420.0, shoulder_width + 105.0)",
+            "clearance = max(20.0, 0.08 * body_depth)",
+            "hem_width = max(500.0, panel_width + 100.0)",
+            "panel_width *= 1.10",
+            "hem_width *= 1.10",
         ),
-        message="Contract failed: \"midpoint = App.Vector(x_offset + 0.741...",
+        forbidden=("SimulationQualityRuntimeV2",),
+        contract="canonical drape debug",
     )
-    require(
-        condition=(
-            "midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug
+    _require_source_contract(
+        source=source,
+        required=(
+            "neckline_drop=0.03",
+            "shoulder_headroom_mm = 20.0",
+            "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)",
+            "neckline_scoop_depth = 0.12 * float(garment_height)",
+            "neckline_scoop_z = neck_z - neckline_scoop_depth",
+            '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")',
+            'make_piece("VisualTunicFront", front_side, 0.72, 0.03)',
+            'make_piece("VisualTunicBack", back_side, 0.72, 0.03)',
+            "elif index == 4:",
+            "true U-shaped neckline",
+            "shoulder_width + 105.0",
+            "else max(450.0, panel_width + 100.0)",
+            "clearance = max(20.0, 0.08 * body_depth)",
+            "panel_width *= 1.10",
+            "hem_width *= 1.10",
         ),
-        message="Contract failed: \"midpoint = App.Vector(x_offset + 0.259...",
+        forbidden=(),
+        contract="canonical tunic source",
     )
-    require(
-        condition=("(x_offset + 0.06 * panel_width, 0.94 * garment_height)" in debug),
-        message="Contract failed: \"(x_offset + 0.06 * panel_width, 0.94 *...",
-    )
-    require(
-        condition=("(x_offset + 0.94 * panel_width, 0.94 * garment_height)" in debug),
-        message="Contract failed: \"(x_offset + 0.94 * panel_width, 0.94 *...",
-    )
-    require(
-        condition=("if not (armhole_z < shoulder_z < neck_z)" in debug),
-        message="Contract failed: \"if not (armhole_z < shoulder_z < neck_...",
-    )
-    require(
-        condition=("neckline_scoop_depth = 0.12 * h" in debug),
-        message="Contract failed: \"neckline_scoop_depth = 0.12 * h\" in debug",
-    )
-    require(
-        condition=("neckline_scoop_z = neck_z - neckline_scoop_depth" in debug),
-        message="Contract failed: \"neckline_scoop_z = neck_z - neckline_s...",
-    )
-    require(
-        condition=("if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug),
-        message="Contract failed: \"if not (armhole_z < neckline_scoop_z <...",
-    )
-    require(
-        condition=("neckline_scoop_depth = 0.12 * float(garment_height)" in source),
-        message="Contract failed: \"neckline_scoop_depth = 0.12 * float(ga...",
-    )
-    require(
-        condition=("neckline_scoop_z = neck_z - neckline_scoop_depth" in source),
-        message="Contract failed: \"neckline_scoop_z = neck_z - neckline_s...",
-    )
-    require(
-        condition=("neckline_scoop_depth = 0.12 * float(garment_height)" in audit),
-        message="Contract failed: \"neckline_scoop_depth = 0.12 * float(ga...",
-    )
-    require(
-        condition=('("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in source),
-        message="Contract failed: '(\"back\", \"front\") if TUNIC_PRODUCTION_...",
-    )
-    require(
-        condition=('make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in source),
-        message="Contract failed: 'make_piece(\"VisualTunicFront\", front_s...",
-    )
-    require(
-        condition=('make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in source),
-        message="Contract failed: 'make_piece(\"VisualTunicBack\", back_sid...",
-    )
-    require(
-        condition=("elif idx == 4:" in debug),
-        message="Contract failed: \"elif idx == 4:\" in debug",
-    )
-    require(
-        condition=("elif index == 4:" in source),
-        message="Contract failed: \"elif index == 4:\" in source",
-    )
-    require(
-        condition=("true U-shaped neckline" in source),
-        message="Contract failed: \"true U-shaped neckline\" in source",
-    )
-    require(
-        condition=("ArrangementPoint.from_string(raw)" in debug),
-        message="Contract failed: \"ArrangementPoint.from_string(raw)\" in ...",
-    )
-    require(
-        condition=("panel_width = max(420.0, shoulder_width + 105.0)" in debug),
-        message="Contract failed: \"panel_width = max(420.0, shoulder_widt...",
-    )
-    require(
-        condition=("shoulder_width + 105.0" in source),
-        message="Contract failed: \"shoulder_width + 105.0\" in source",
-    )
-    require(
-        condition=("else max(450.0, panel_width + 100.0)" in source),
-        message="Contract failed: \"else max(450.0, panel_width + 100.0)\" ...",
-    )
-    require(
-        condition=("shoulder_span_ratio" not in audit),
-        message="Contract failed: \"shoulder_span_ratio\" not in audit",
-    )
-    require(
-        condition=('"panel_width = max(420.0, shoulder_width + 105.0)":' not in audit),
-        message="Contract failed: '\"panel_width = max(420.0, shoulder_wid...",
-    )
-    require(
-        condition=("clearance = max(20.0, 0.08 * body_depth)" in debug),
-        message="Contract failed: \"clearance = max(20.0, 0.08 * body_dept...",
-    )
-    require(
-        condition=("clearance = max(20.0, 0.08 * body_depth)" in audit),
-        message="Contract failed: \"clearance = max(20.0, 0.08 * body_dept...",
-    )
-    require(
-        condition=("clearance = max(20.0, 0.08 * body_depth)" in source),
-        message="Contract failed: \"clearance = max(20.0, 0.08 * body_dept...",
-    )
-    require(
-        condition=("panel_width = max(420.0, shoulder_width + 105.0)" in debug),
-        message="Contract failed: \"panel_width = max(420.0, shoulder_widt...",
-    )
-    require(
-        condition=("panel_width = max(420.0, shoulder_width + 105.0)" in source),
-        message="Contract failed: \"panel_width = max(420.0, shoulder_widt...",
-    )
-    require(
-        condition=("panel_width = max(420.0, shoulder_width + 105.0)" in debug),
-        message="Contract failed: \"panel_width = max(420.0, shoulder_widt...",
-    )
-    require(
-        condition=("panel_width = max(420.0, shoulder_width + 105.0)" in audit),
-        message="Contract failed: \"panel_width = max(420.0, shoulder_widt...",
-    )
-    require(
-        condition=("hem_width = max(500.0, panel_width + 100.0)" in debug),
-        message="Contract failed: \"hem_width = max(500.0, panel_width + 1...",
-    )
-    require(
-        condition=('make_piece("DebugTunicFront", front_y, 0.72, 0.03)' in debug),
-        message="Contract failed: 'make_piece(\"DebugTunicFront\", front_y,...",
-    )
-    require(
-        condition=("panel_width *= 1.10" in source),
-        message="Contract failed: \"panel_width *= 1.10\" in source",
-    )
-    require(
-        condition=("hem_width *= 1.10" in source),
-        message="Contract failed: \"hem_width *= 1.10\" in source",
-    )
-    require(
-        condition=("panel_width *= 1.10" in debug),
-        message="Contract failed: \"panel_width *= 1.10\" in debug",
-    )
-    require(
-        condition=("hem_width *= 1.10" in debug),
-        message="Contract failed: \"hem_width *= 1.10\" in debug",
-    )
-    require(
-        condition=('make_piece("DebugTunicBack", back_y, 0.72, 0.03)' in debug),
-        message="Contract failed: 'make_piece(\"DebugTunicBack\", back_y, 0...",
-    )
-    require(
-        condition=('("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in audit),
-        message="Contract failed: '(\"back\", \"front\") if TUNIC_PRODUCTION_...",
-    )
-    require(
-        condition=('make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in audit),
-        message="Contract failed: 'make_piece(\"VisualTunicFront\", front_s...",
-    )
-    require(
-        condition=('make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in audit),
-        message="Contract failed: 'make_piece(\"VisualTunicBack\", back_sid...",
+    _require_source_contract(
+        source=audit,
+        required=(
+            "neckline_scoop_depth = 0.12 * float(garment_height)",
+            '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")',
+            'make_piece("VisualTunicFront", front_side, 0.72, 0.03)',
+            'make_piece("VisualTunicBack", back_side, 0.72, 0.03)',
+            "clearance = max(20.0, 0.08 * body_depth)",
+            "panel_width = max(420.0, shoulder_width + 105.0)",
+        ),
+        forbidden=(
+            "shoulder_span_ratio",
+            '"panel_width = max(420.0, shoulder_width + 105.0":',
+        ),
+        contract="authoritative tunic audit",
     )
 
 
@@ -1356,14 +1211,14 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
     simulation_start = simulation.index("scene.StartHeight = 0.0", native_gate)
 
     require(
-        condition=((
+        condition=(
 topology_audit
 < sample_resolution
 < pattern_view
 < sewing_view
 < native_gate
 < simulation_start
-)),
+),
         message="Contract failed: topology_audit < sample_resolution < pa...",
     )
     require(
