@@ -175,7 +175,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             annotation_fields.append(node.annotation)
 
         violations.extend(
-            f"{filename}:{getattr(annotation, 'lineno', node.lineno)}: "
+            f"{filename}:{getattr(annotation, 'lineno', getattr(node, 'lineno', 1))}: "
             "stringified annotation references explicit Any; use a concrete type, "
             "object with narrowing, or a Protocol"
             for annotation in annotation_fields
