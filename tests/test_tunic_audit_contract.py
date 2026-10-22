@@ -805,9 +805,9 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
     require(
         condition=(
-            (
-            "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj" in dockerfile
-            )
+            "FREECAD_CLOTH_AVATAR_MESH="
+            "/opt/freecad-cloth/assets/makehuman-hm08-base.obj"
+            in dockerfile
         ),
         message="Tunic audit source contract failed.",
     )
@@ -1063,10 +1063,9 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
     # Keep the diagnostic A/B garment aligned to current production geometry/scene APIs.
     require(
         condition=(
-            (
-            "from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene"
+            "from freecad_cloth.simulation.SimulationCommands "
+            "import create_quality_simulation_scene"
             in debug
-            )
         ),
         message="Tunic audit source contract failed.",
     )
@@ -1088,9 +1087,9 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
     )
     require(
         condition=(
-            (
-            "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
-            )
+            "garment_height = max(560.0, "
+            "(shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)"
+            in source
         ),
         message="Tunic audit source contract failed.",
     )
@@ -1100,9 +1099,9 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
     )
     require(
         condition=(
-            (
-            "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
-            )
+            "garment_height = max(560.0, "
+            "(shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)"
+            in debug
         ),
         message="Tunic audit source contract failed.",
     )
