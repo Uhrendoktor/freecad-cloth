@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
 from freecad_cloth.pattern import SketchAuthority
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
