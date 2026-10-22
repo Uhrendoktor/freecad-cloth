@@ -2,16 +2,23 @@
 """FreeCAD-facing humanoid mesh avatar commands."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from importlib import import_module
 from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
 
+from freecad_cloth.avatar.avatar_properties import (
+    POSE_PROPERTY_MAP,
+    PROPERTY_MAP,
+    PROVIDER_IDS,
+    SHAPE_PROPERTY_MAP,
+)
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
+    DEFAULT_POSE_ARM_ANGLES,
     AvatarParameters,
     Landmark,
     Pose,
@@ -22,13 +29,6 @@ from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
     joint_rotations_to_json,
-)
-
-from freecad_cloth.avatar.avatar_properties import (
-    POSE_PROPERTY_MAP,
-    PROPERTY_MAP,
-    PROVIDER_IDS,
-    SHAPE_PROPERTY_MAP,
 )
 
 
@@ -72,7 +72,52 @@ class _AvatarFeatureView(Protocol):
     ViewObject: _AvatarViewObject
 
 
-def _avatar(doc: object) -> object | None:
+class _FreeCADDocument(Protocol):
+    """Document members used by the persistent avatar command boundary."""
+
+    Objects: Sequence[object]
+
+    recompute: Callable[[], None]
+
+
+class _AvatarFeature(_AvatarFeatureView, Protocol):
+    """Dynamic FreeCAD avatar properties used by its command lifecycle."""
+
+    Label: str
+    Document: _FreeCADDocument
+    Mesh: object
+    PosePreset: str
+    SkinOffset: float
+    JointPoseJSON: str
+    ParametersJSON: str
+    AvatarStatus: str
+    AvatarProviderId: str
+    ProviderSource: object | None
+    AvatarMeshProvider: str
+    AvatarMeshSource: str
+    AvatarMeshLicense: str
+    GarmentState: str
+    MeshVertexCount: int
+    MeshTriangleCount: int
+    Landmarks: list[str]
+    AvatarRevision: int
+    ArrangementPoints: list[str]
+
+
+class _FreeCADApplication(Protocol):
+    """Active-document functions dynamically exported by the FreeCAD module."""
+
+    ActiveDocument: _FreeCADDocument | None
+
+
+class _DrapeTarget(Protocol):
+    """Writable status fields on the simulation's persistent drape target."""
+
+    TargetStatus: str
+    InvalidationReason: str
+
+
+def _avatar(doc: _FreeCADDocument) -> _AvatarFeature | None:
     """Find the existing avatar feature in a FreeCAD document.
 
     Args:
@@ -81,10 +126,94 @@ def _avatar(doc: object) -> object | None:
     Returns:
         The first persisted ClothAvatar object, or None when absent.
     """
-    return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
+    for candidate in doc.Objects:
+        if getattr(candidate, "AvatarType", "") == "ClothAvatar":
+            return cast("_AvatarFeature", candidate)
+    return None
 
 
-def _set_prop(obj: object, kind: str, name: str, group: str, value: object) -> None:
+def _runtime_attribute(target: object, name: str) -> object:
+    """Read a named API member from a dynamically exposed FreeCAD object.
+
+    Args:
+        target: Runtime object that exposes the requested member.
+        name: Exact API spelling supplied by the FreeCAD runtime.
+
+    Returns:
+        The named runtime member without assuming a statically declared attribute.
+    """
+    return getattr(target, name)
+
+
+def _document_add_object(
+    doc: _FreeCADDocument,
+    object_type: str,
+    object_name: str,
+) -> _AvatarFeature:
+    """Create a typed avatar feature through FreeCAD's camel-case document API.
+
+    Args:
+        doc: Active document that owns the new feature.
+        object_type: FreeCAD object type identifier.
+        object_name: Internal document name for the new object.
+
+    Returns:
+        The created feature narrowed to the avatar protocol.
+    """
+    add_object = cast(
+        "Callable[[str, str], _AvatarFeature]",
+        _runtime_attribute(doc, "addObject"),
+    )
+    return add_object(object_type, object_name)
+
+
+def _document_get_object(doc: _FreeCADDocument, object_name: str) -> object | None:
+    """Find a document object using the runtime FreeCAD API.
+
+    Args:
+        doc: Document containing the object.
+        object_name: Internal name of the document object.
+
+    Returns:
+        The named object, or None when it does not exist.
+    """
+    get_object = cast("Callable[[str], object | None]", _runtime_attribute(doc, "getObject"))
+    return get_object(object_name)
+
+
+def _add_feature_property(
+    obj: _AvatarFeature,
+    kind: str,
+    name: str,
+    group: str,
+) -> None:
+    """Register a FreeCAD property through the runtime feature API.
+
+    Args:
+        obj: Feature receiving the property.
+        kind: FreeCAD property type identifier.
+        name: Property name to register.
+        group: Property editor group containing the property.
+    """
+    add_property = cast("Callable[[str, str, str], object]", _runtime_attribute(obj, "addProperty"))
+    add_property(kind, name, group)
+
+
+def _application_new_document(app: _FreeCADApplication, name: str) -> _FreeCADDocument:
+    """Create a FreeCAD document through the runtime application API.
+
+    Args:
+        app: FreeCAD application module.
+        name: Internal name for the new document.
+
+    Returns:
+        The newly created document, narrowed to the document protocol.
+    """
+    new_document = cast("Callable[[str], _FreeCADDocument]", _runtime_attribute(app, "newDocument"))
+    return new_document(name)
+
+
+def _set_prop(obj: _AvatarFeature, kind: str, name: str, group: str, value: object) -> None:
     """Create a FreeCAD property if needed, then assign its initial value.
 
     Args:
@@ -95,11 +224,11 @@ def _set_prop(obj: object, kind: str, name: str, group: str, value: object) -> N
         value: Initial value assigned to the property.
     """
     if not hasattr(obj, name):
-        obj.addProperty(kind, name, group)
+        _add_feature_property(obj, kind, name, group)
     setattr(obj, name, value)
 
 
-def _ensure_pose_preset_property(obj: object) -> None:
+def _ensure_pose_preset_property(obj: _AvatarFeature) -> None:
     """Upgrade the pose preset enumeration while preserving the user's choice.
 
     Args:
@@ -109,6 +238,46 @@ def _ensure_pose_preset_property(obj: object) -> None:
     presets = ["standing", "sewing", "sitting", "t_pose"]
     _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", presets)
     obj.PosePreset = current if current in presets else "standing"
+
+
+def _is_legacy_pose_schema(stored_data: dict[str, object]) -> bool:
+    """Return whether saved parameters use the original pose-angle schema.
+
+    Args:
+        stored_data: Decoded avatar parameters from a persisted document.
+
+    Returns:
+        True when the payload explicitly or implicitly identifies schema version one.
+    """
+    try:
+        schema_value = cast("str | int | float | bool", stored_data.get("schema_version", 1))
+        schema_version = int(schema_value)
+    except (TypeError, ValueError):
+        return False
+    return schema_version == 1
+
+
+def _legacy_pose_data(payload: str) -> dict[str, object] | None:
+    """Decode legacy pose data when its payload uses schema version one.
+
+    Args:
+        payload: Serialized avatar parameters stored on the FreeCAD feature.
+
+    Returns:
+        The legacy pose mapping, or None when the payload is invalid or newer.
+    """
+    if not payload:
+        return None
+    try:
+        stored_data = json.loads(payload)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(stored_data, dict) or not _is_legacy_pose_schema(stored_data):
+        return None
+    stored_pose_data = stored_data.get("pose", {})
+    if not isinstance(stored_pose_data, dict):
+        return None
+    return cast("dict[str, object]", stored_pose_data)
 
 
 def _migrate_legacy_pose_angles(
@@ -122,29 +291,22 @@ def _migrate_legacy_pose_angles(
         payload: Persisted parameter JSON from the avatar feature.
         preset: Current pose preset stored in the FreeCAD document.
         angles: Current arm angles, updated when they match the legacy defaults.
-
-    Returns:
-        None; matching entries in the supplied angle mapping are updated in place.
     """
-    if not payload:
+    stored_pose_data = _legacy_pose_data(payload)
+    if stored_pose_data is None or str(stored_pose_data.get("preset", "standing")) != preset:
         return
     try:
-        stored_data = json.loads(payload)
-        stored_pose_data = stored_data.get("pose", {})
-        if int(stored_data.get("schema_version", 1)) != 1:
-            return
-        if str(stored_pose_data.get("preset", "standing")) != preset:
-            return
         stored_pose = AvatarParameters.from_json(payload).pose
-        for name in ("left_arm_angle", "right_arm_angle"):
-            serialized = float(stored_pose_data.get(name, 12.0))
-            if angles[name] == serialized:
-                angles[name] = float(getattr(stored_pose, name))
     except (TypeError, ValueError):
         return
+    for name in ("left_arm_angle", "right_arm_angle"):
+        serialized_value = cast("str | int | float | bool", stored_pose_data.get(name, 12.0))
+        serialized = float(serialized_value)
+        if angles[name] == serialized:
+            angles[name] = float(getattr(stored_pose, name))
 
 
-def _parameters(obj: object) -> AvatarParameters:
+def _parameters(obj: _AvatarFeature) -> AvatarParameters:
     """Reconstruct validated avatar parameters from persisted FreeCAD properties.
 
     Args:
@@ -156,9 +318,18 @@ def _parameters(obj: object) -> AvatarParameters:
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
     preset = str(getattr(obj, "PosePreset", "standing"))
     preset_defaults = Pose(preset)
+    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(preset, DEFAULT_POSE_ARM_ANGLES["standing"])
     fallback = {
-        "left_arm_angle": float(preset_defaults.left_arm_angle),
-        "right_arm_angle": float(preset_defaults.right_arm_angle),
+        "left_arm_angle": float(
+            default_arm_angle
+            if preset_defaults.left_arm_angle is None
+            else preset_defaults.left_arm_angle
+        ),
+        "right_arm_angle": float(
+            default_arm_angle
+            if preset_defaults.right_arm_angle is None
+            else preset_defaults.right_arm_angle
+        ),
         "left_elbow_angle": float(preset_defaults.left_elbow_angle),
         "right_elbow_angle": float(preset_defaults.right_elbow_angle),
     }
@@ -240,7 +411,7 @@ def _mesh_data(
     return native
 
 
-def _style_mannequin(obj: object) -> None:
+def _style_mannequin(obj: _AvatarFeature) -> None:
     """Apply a neutral CAD-mannequin presentation to a body.
 
     Args:
@@ -257,7 +428,7 @@ def _style_mannequin(obj: object) -> None:
 
 
 def _provider_geometry(
-    obj: object,
+    obj: _AvatarFeature,
     params: AvatarParameters,
     provider_id: str | None = None,
     provider_source: object = _MISSING,
@@ -314,32 +485,33 @@ def _provider_geometry(
     raise ValueError(msg)
 
 
-def _refresh_drape_target_status(obj: object) -> None:
+def _refresh_drape_target_status(obj: _AvatarFeature) -> None:
     """Refresh derived status properties for the active drape target.
 
     Args:
         obj: Avatar feature whose document may contain a drape target.
 
-    Returns:
-        None; the target's status and invalidation reason are refreshed in place.
     """
-    target = getattr(obj, "DrapeTarget", None) or obj.Document.getObject("DrapeTarget")
+    target = getattr(obj, "DrapeTarget", None)
+    if target is None:
+        target = _document_get_object(obj.Document, "DrapeTarget")
     if target is None:
         return
+    typed_target = cast("_DrapeTarget", target)
     drape_target = import_module("freecad_cloth.simulation.DrapeTarget")
-    status = drape_target.target_status(target)
-    target.TargetStatus = status["state"]
-    target.InvalidationReason = status["reason"]
+    status = drape_target.target_status(typed_target)
+    typed_target.TargetStatus = status["state"]
+    typed_target.InvalidationReason = status["reason"]
 
 
 def _rebuild(
-    obj: object,
+    obj: _AvatarFeature,
     params: AvatarParameters | None = None,
     provider_id: str | None = None,
     provider_source: object = _MISSING,
     *,
     provider_geometry_fn: ProviderGeometry | None = None,
-) -> object:
+) -> _AvatarFeature:
     """Build derived geometry before mutating persistent avatar state.
 
     Args:
@@ -415,7 +587,7 @@ def _rebuild(
     return obj
 
 
-def _ensure_collision(obj: object) -> object:
+def _ensure_collision(obj: _AvatarFeature) -> object:
     """Maintain the legacy collision proxy as a derived display adapter only.
 
     Args:
@@ -429,7 +601,7 @@ def _ensure_collision(obj: object) -> object:
     return avatar_collision.ensure_collision_proxy(obj.Document, obj, thickness=2.0, deflection=1.0)
 
 
-def _ensure_drape_target(obj: object) -> object:
+def _ensure_drape_target(obj: _AvatarFeature) -> object:
     """Attach the humanoid mesh to the target-neutral collision API.
 
     Args:
@@ -440,7 +612,7 @@ def _ensure_drape_target(obj: object) -> object:
     """
     drape_target = import_module("freecad_cloth.simulation.DrapeTarget")
 
-    target = obj.Document.getObject("DrapeTarget")
+    target = _document_get_object(obj.Document, "DrapeTarget")
     if target is None:
         target = drape_target.create_drape_target(
             obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0
@@ -449,14 +621,12 @@ def _ensure_drape_target(obj: object) -> object:
     return target
 
 
-def _initialize_avatar_properties(obj: object) -> None:
+def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
     """Add the complete initial property schema to a new avatar feature.
 
     Args:
         obj: New FreeCAD mesh feature that will persist mannequin parameters.
 
-    Returns:
-        None; the feature receives default measurements, pose, geometry metadata and links.
     """
     _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
     _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
@@ -509,11 +679,12 @@ def _initialize_avatar_properties(obj: object) -> None:
 
 
 def create_avatar(
-    attach_collision: bool = True,
     doc: object | None = None,
     object_name: str = "ClothAvatar",
     params: AvatarParameters | None = None,
-) -> object:
+    *,
+    attach_collision: bool = True,
+) -> _AvatarFeature:
     """Create or rebuild the active mannequin avatar feature.
 
     Args:
@@ -525,12 +696,15 @@ def create_avatar(
     Returns:
         The created or updated avatar feature.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
-    doc = doc or app.ActiveDocument or app.newDocument("ClothSewing")
+    doc = cast(
+        "_FreeCADDocument",
+        doc or app.ActiveDocument or _application_new_document(app, "ClothSewing"),
+    )
     obj = _avatar(doc)
     if obj is None:
-        obj = doc.addObject("Mesh::Feature", object_name)
+        obj = _document_add_object(doc, "Mesh::Feature", object_name)
         obj.Label = "Cloth Human Avatar"
         _initialize_avatar_properties(obj)
     else:
@@ -596,7 +770,7 @@ def apply_avatar_parameters(
     provider_source: object = _MISSING,
     *,
     provider_geometry_fn: ProviderGeometry | None = None,
-) -> object:
+) -> _AvatarFeature:
     """Apply validated avatar state only after successful geometry construction.
 
     Args:
@@ -609,15 +783,16 @@ def apply_avatar_parameters(
     Returns:
         The updated avatar feature after derived collision and fitting links refresh.
     """
+    typed_obj = cast("_AvatarFeature", obj)
     obj = _rebuild(
-        obj,
+        typed_obj,
         params=params,
         provider_id=provider_id,
         provider_source=provider_source,
         provider_geometry_fn=provider_geometry_fn,
     )
     _ensure_collision(obj)
-    target = obj.Document.getObject("DrapeTarget")
+    target = _document_get_object(obj.Document, "DrapeTarget")
     if target is None:
         _ensure_drape_target(obj)
 
@@ -635,7 +810,7 @@ def apply_avatar_parameters(
     return obj
 
 
-def rebuild_avatar() -> object:
+def rebuild_avatar() -> _AvatarFeature:
     """Rebuild the active avatar from the parameters saved in its document.
 
     Returns:
@@ -644,7 +819,7 @@ def rebuild_avatar() -> object:
     Raises:
         ValueError: If no document is active or the document has no avatar feature.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -658,41 +833,41 @@ def rebuild_avatar() -> object:
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-def edit_avatar() -> object:
+def edit_avatar() -> _AvatarFeature:
     """Open the avatar measurement and shape editor.
 
     Returns:
         The task-panel instance shown by FreeCAD.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
-        doc = app.newDocument("ClothSewing")
+        doc = _application_new_document(app, "ClothSewing")
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
     avatar_gui = import_module("freecad_cloth.avatar.AvatarGui")
     return avatar_gui.show_avatar_task(obj)
 
 
-def pose_avatar() -> object:
+def pose_avatar() -> _AvatarFeature:
     """Open the focused 3D Pose Mode editor for the active mannequin.
 
     Returns:
         The pose task-panel instance shown by FreeCAD.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
-        doc = app.newDocument("ClothSewing")
+        doc = _application_new_document(app, "ClothSewing")
     obj = _avatar(doc) or create_avatar()
     _ensure_pose_preset_property(obj)
     avatar_pose_gui = import_module("freecad_cloth.avatar.AvatarPoseGui")
     return avatar_pose_gui.show_avatar_pose_task(obj)
 
 
-def set_avatar_measurements(**changes: float) -> object:
+def set_avatar_measurements(**changes: float) -> _AvatarFeature:
     """Update named avatar measurements and rebuild the mannequin.
 
     Args:
@@ -704,7 +879,7 @@ def set_avatar_measurements(**changes: float) -> object:
     Raises:
         ValueError: If there is no active document or a measurement name is unknown.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -720,7 +895,7 @@ def set_avatar_measurements(**changes: float) -> object:
     return apply_avatar_parameters(obj, params)
 
 
-def set_avatar_pose(pose: str) -> object:
+def set_avatar_pose(pose: str) -> _AvatarFeature:
     """Apply a named preset pose and rebuild the mannequin.
 
     Args:
@@ -732,7 +907,7 @@ def set_avatar_pose(pose: str) -> object:
     Raises:
         ValueError: If there is no active document.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -758,7 +933,7 @@ def set_avatar_pose(pose: str) -> object:
 
 
 def set_avatar_joint(
-    bone: str, x: float = 0.0, y: float = 0.0, z: float = 0.0, mirror: bool = False
+    bone: str, x: float = 0.0, y: float = 0.0, z: float = 0.0, *, mirror: bool = False
 ) -> object:
     """Persist one manual FK joint rotation and rebuild the mannequin.
 
@@ -775,7 +950,7 @@ def set_avatar_joint(
     Raises:
         ValueError: If no document is active or the joint rotation is invalid.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -809,7 +984,7 @@ def set_avatar_joint(
     return apply_avatar_parameters(obj, candidate)
 
 
-def set_avatar_provider(provider_id: str, source: object | None = None) -> object:
+def set_avatar_provider(provider_id: str, source: object | None = None) -> _AvatarFeature:
     """Swap geometry providers without replacing the avatar object or garment links.
 
     Args:
@@ -822,7 +997,7 @@ def set_avatar_provider(provider_id: str, source: object | None = None) -> objec
     Raises:
         ValueError: If no document is active or the provider/source is unsupported.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -848,7 +1023,7 @@ def set_avatar_provider(provider_id: str, source: object | None = None) -> objec
     )
 
 
-def set_avatar_skin_offset(offset: float) -> object:
+def set_avatar_skin_offset(offset: float) -> _AvatarFeature:
     """Set the avatar's collision skin offset and rebuild the mannequin.
 
     Args:
@@ -860,7 +1035,7 @@ def set_avatar_skin_offset(offset: float) -> object:
     Raises:
         ValueError: If no document is active or the resulting parameters are invalid.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
     if doc is None:
@@ -894,13 +1069,14 @@ def avatar_measurement(name: str) -> float:
     Raises:
         ValueError: If no active avatar exists or the measurement name is unknown.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
-    if doc is None or _avatar(doc) is None:
+    avatar = None if doc is None else _avatar(doc)
+    if avatar is None:
         msg = "create a Cloth Avatar first"
         raise ValueError(msg)
-    return _parameters(_avatar(doc)).measurement(str(name))
+    return _parameters(avatar).measurement(str(name))
 
 
 def avatar_arrangement_points() -> object:
@@ -912,13 +1088,14 @@ def avatar_arrangement_points() -> object:
     Raises:
         ValueError: If there is no active avatar in the current document.
     """
-    app = import_module("FreeCAD")
+    app = cast("_FreeCADApplication", import_module("FreeCAD"))
 
     doc = app.ActiveDocument
-    if doc is None or _avatar(doc) is None:
+    avatar = None if doc is None else _avatar(doc)
+    if avatar is None:
         msg = "create a Cloth Avatar first"
         raise ValueError(msg)
-    return arrangement_points_from_landmarks(_avatar(doc).Landmarks)
+    return arrangement_points_from_landmarks(avatar.Landmarks)
 
 
 COMMANDS = [
