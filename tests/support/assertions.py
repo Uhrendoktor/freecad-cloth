@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared assertion helpers for strict, descriptive regression tests."""
 
+
 def require(*, condition: bool, message: str) -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
