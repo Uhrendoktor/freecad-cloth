@@ -233,7 +233,6 @@ def arc_through_midpoint(
     Raises:
         RuntimeError: If points are collinear, a consistent minor arc cannot be built,
             or the native arc loses geometric fidelity.
-        TypeError: If a native FreeCAD curve lacks a supported parameter evaluator.
     """
     part_api = cast("ModuleType", part_module)
     app_api = importlib.import_module("FreeCAD")
@@ -243,9 +242,8 @@ def arc_through_midpoint(
         msg = "tunic armhole points do not define a consistent circular sweep"
         raise RuntimeError(msg)
     if selected.sweep >= math.pi:
-        raise RuntimeError(
-            f"tunic armhole through-point selects a major arc: sweep-rad={selected.sweep:.6f}"
-        )
+        msg = f"tunic armhole through-point selects a major arc: sweep-rad={selected.sweep:.6f}"
+        raise RuntimeError(msg)
 
     arc = part_api.ArcOfCircle(
         selected.circle,

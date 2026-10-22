@@ -1,190 +1,332 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for the diagnostic contact controls.
 
-These assertions protect the diagnostic scope and the shared manifest contract without
+These checks protect diagnostic scope and the shared manifest contract without
 making the diagnostic artifact a release gate.
 """
 
+from math import isclose
 from pathlib import Path
+from types import SimpleNamespace
 
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "tests" / "freecad_pbd_contact_diagnostics.py").read_text(encoding="utf-8")
-HELPERS = (ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
-WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+from tests.support.assertions import require, require_contains
+from tests.support.pbd_contact_helpers import checkpoint_record, connected_components, seam_geometry
+
+_ROOT = Path(__file__).resolve().parents[1]
+_SOURCE = (_ROOT / "tests" / "freecad_pbd_contact_diagnostics.py").read_text(encoding="utf-8")
+_HELPERS = (_ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
+_WORKFLOW = (_ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+    encoding="utf-8"
+)
+_EXPECTED_SPAN_TOLERANCE_MM = 1e-9
+_EXPECTED_PENETRATION_TOLERANCE_MM = 1e-9
 
 
-def test_diagnostic_controls_are_static_and_one_step():
-    assert '"control-0-cube"' in SOURCE
-    assert '"control-0a-avatar"' in SOURCE
-    assert "scene.Steps = 1" in SOURCE
-    assert '"diagnostic-only-contact-controls"' in SOURCE
-    assert '"release_gate_effect": "none"' in SOURCE
-    assert "scene.GravityZ = 0.0" in SOURCE
+def _require_fragments(*, source: str, fragments: tuple[str, ...], contract: str) -> None:
+    """Require each source fragment that makes up a named repository contract.
+
+    Args:
+        source: Source text inspected by the contract test.
+        fragments: Exact source fragments that must remain present.
+        contract: Short name used to explain a failed fragment check.
+    """
+    for fragment in fragments:
+        require_contains(
+            source=source,
+            fragment=fragment,
+            message=f"Missing {contract} fragment: {fragment!r}",
+        )
 
 
-def test_diagnostic_manifest_contains_shared_schema_fields():
-    for needle in (
-        '"schema": 1',
-        '"cases"',
-        '"case_id"',
-        '"predecessor_case_id"',
-        '"case":',
-        '"rung"',
-        '"solver"',
-        '"collision"',
-        '"source_triangles"',
-        '"solver_triangles"',
-        '"pre_step"',
-        '"piece_bounds"',
-        '"checkpoints"',
-        '"contact_state"',
-        '"first_contact_step"',
-        '"control"',
-        '"release_gate_effect"',
+def test_diagnostic_controls_are_static_and_one_step() -> None:
+    """Verify contact diagnostic controls remain static, one-step, and outside release gates."""
+    _require_fragments(
+        source=_SOURCE,
+        fragments=(
+            '"control-0-cube"',
+            '"control-0a-avatar"',
+            "scene.Steps = 1",
+            '"diagnostic-only-contact-controls"',
+            '"release_gate_effect": "none"',
+            "scene.GravityZ = 0.0",
+        ),
+        contract="diagnostic control",
+    )
+
+
+def test_diagnostic_manifest_contains_shared_schema_fields() -> None:
+    """Verify the diagnostic manifest preserves all required shared schema fields."""
+    _require_fragments(
+        source=_SOURCE,
+        fragments=(
+            '"schema": 1',
+            '"cases"',
+            '"case_id"',
+            '"predecessor_case_id"',
+            '"case":',
+            '"rung"',
+            '"solver"',
+            '"collision"',
+            '"source_triangles"',
+            '"solver_triangles"',
+            '"pre_step"',
+            '"piece_bounds"',
+            '"checkpoints"',
+            '"contact_state"',
+            '"first_contact_step"',
+            '"control"',
+            '"release_gate_effect"',
+        ),
+        contract="diagnostic manifest",
+    )
+
+
+def test_canonical_workflow_uses_single_opt_in_dispatch_job() -> None:
+    """Verify contact diagnostics run only through the single explicit opt-in dispatch job."""
+    _require_fragments(
+        source=_WORKFLOW,
+        fragments=(
+            "diagnostic_controls:",
+            "diagnostic-pbd-contact:",
+            "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls",
+            "needs: [agent-quality, local_runner_readiness, pbd_validation_image]",
+        ),
+        contract="workflow dispatch",
+    )
+    require(
+        condition="needs: [diagnostic-pbd-contact]" not in _WORKFLOW,
+        message="The diagnostic-only job must not gate the normal simulation ladder.",
+    )
+
+
+def test_diagnostic_entrypoint_and_failure_evidence_are_explicit() -> None:
+    """Verify the diagnostic entrypoint and its failure evidence remain explicit."""
+    source_contracts = (
+        (_WORKFLOW, "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1"),
+        (_SOURCE, 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"'),
+        (_SOURCE, "CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED"),
+        (_SOURCE, "schedule_freecad_main(_scheduled_main)"),
+        (_HELPERS, "QtCore.QTimer.singleShot(0, callback)"),
+        (_SOURCE, "os._exit(status)"),
+        (_SOURCE, "Gui.activeDocument().activeView()"),
+        (_SOURCE, "solver_collision_surface"),
+        (_HELPERS, "point_inside_closed_mesh"),
+        (
+            _HELPERS,
+            "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh",
+        ),
+        (_SOURCE, "make_shutdown_gui(_progress)"),
+        (_HELPERS, "app.quit()"),
+        (_HELPERS, "gui-shutdown-requested"),
+        (_SOURCE, "faulthandler.dump_traceback_later(30.0, repeat=True"),
+        (_SOURCE, "diagnostic contact controls start"),
+        (_WORKFLOW, "test-script: tests/freecad_pbd_contact_diagnostics.py"),
+        (_SOURCE, "ArrangementPoint.from_string"),
+        (_SOURCE, "state = _inside_outside("),
+        (_SOURCE, "float(candidate.x)"),
+        (_SOURCE, "float(candidate.y)"),
+        (_SOURCE, "float(candidate.z)"),
+        (_SOURCE, "interior_seed_source"),
+        (_SOURCE, "float(center.y) + 120.0"),
+        (_SOURCE, "width=72.0"),
+        (_HELPERS, 'mesh_is_inside = getattr(mesh, "isInside", None)'),
+        (_SOURCE, "did not create a true interior pre-step state"),
+        (_SOURCE, "pbd-env: collision_mode="),
+        (_WORKFLOW, "diagnostic-pbd-contact:"),
+        (_WORKFLOW, "artifacts/pbd-contact-diagnostics/app-run.log"),
+    )
+    for source, fragment in source_contracts:
+        require_contains(
+            source=source,
+            fragment=fragment,
+            message=f"Missing diagnostic entrypoint/evidence contract: {fragment!r}",
+        )
+    require(
+        condition="App.exit()" not in _SOURCE,
+        message="The diagnostic shutdown contract must not call App.exit().",
+    )
+    diagnostic_job = _WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split(
+        "  simulation-ladder:", 1
+    )[0]
+    _require_fragments(
+        source=diagnostic_job,
+        fragments=(
+            "artifact-name: pbd-contact-diagnostics",
+            "artifact-path: artifacts/pbd-contact-diagnostics/**",
+        ),
+        contract="diagnostic artifact",
+    )
+
+
+def test_workflow_validator_matches_shared_manifest() -> None:
+    """Verify the canonical workflow invokes the shared manifest contract validator."""
+    _require_fragments(
+        source=_WORKFLOW,
+        fragments=(
+            "tools/ci/validate_manifests.py",
+            "simulation-ladder",
+            "artifact",
+            "test-script: tests/freecad_pbd_contact_diagnostics.py",
+            "validate_manifests.py",
+        ),
+        contract="workflow validator",
+    )
+
+
+def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger() -> None:
+    """Verify the cube collision ladder keeps its scoped branch trigger."""
+    _require_fragments(
+        source=_WORKFLOW,
+        fragments=("contains(github.event.pull_request.head.ref, 'cube-ladder-2481')",),
+        contract="cube-ladder trigger",
+    )
+
+
+def test_cube_ladder_caches_collision_proximity_mesh() -> None:
+    """Verify the cube ladder reuses its collision proximity mesh during checkpoints."""
+    source = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
+    _require_fragments(
+        source=source,
+        fragments=(
+            "proximity_mesh = trimesh.Trimesh(",
+            "proximity_mesh.nearest.on_surface",
+            "_surface_signed_clearance(",
+            "source_shape,",
+            "collision_surface,",
+            "proximity_mesh,",
+            "for step in CHECKPOINTS:",
+            "scene.Steps = int(step)",
+        ),
+        contract="cube-ladder mesh cache",
+    )
+
+
+def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
+    """Verify FreeCAD-safe startup and traceback handling in the cube ladder."""
+    source = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
+    _require_fragments(
+        source=source,
+        fragments=(
+            "runpy.run_path(",
+            "from pbd_contact_helpers import",
+            '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
+            "sys.path.insert(0, str(_HELPER_DIR))",
+            "before-support-helper-import",
+            "_TRACE_HANDLE = _BOOT_LOG.open(",
+            "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)",
+            "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)",
+            '_boot("script-start")',
+            "_freecad_entrypoint_name = Path(__file__).stem",
+            '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))',
+            "def _schedule_freecad_main():",
+            "schedule_freecad_main(_run_and_shutdown)",
+            "QtCore.QTimer.singleShot(0, callback)",
+            '_boot("freecad-hosted-entrypoint")',
+            "__name__ == _freecad_entrypoint_name",
+            '_boot("direct-entrypoint")',
+        ),
+        contract="cube-ladder startup",
+    )
+    require(
+        condition="file=sys.stderr" not in source,
+        message="The cube ladder must not redirect its traceback to stderr.",
+    )
+
+
+def test_progressive_collision_ladder_is_a_normal_gate() -> None:
+    """Verify the progressive collision ladder remains a normal full-validation gate."""
+    block = _WORKFLOW.split("  simulation-ladder:", 1)[1]
+    _require_fragments(
+        source=_WORKFLOW,
+        fragments=(
+            "simulation-ladder:",
+            "CLOTH_PBD_SUBSTEPS: 8",
+            "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2",
+            "artifact-name: simulation-collision-ladder",
+        ),
+        contract="simulation ladder",
+    )
+    _require_fragments(
+        source=block,
+        fragments=(
+            "if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}",
+            "test-script: tests/freecad_pbd_cube_ladder.py",
+            "validate_manifests.py simulation",
+            "artifact-name: simulation-collision-ladder",
+            "artifact-path: artifacts/simulation-ladder/**",
+        ),
+        contract="simulation ladder gate",
+    )
+
+
+def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit() -> None:
+    """Verify PBD support helpers remain import-safe and ladder contracts are explicit."""
+    cube = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
+    avatar = (_ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
+    for source, fragments, contract in (
+        (
+            cube + avatar,
+            ("runpy.run_path(",),
+            "no runpy bootstrap",
+        ),
+        (
+            cube,
+            (
+                "from pbd_contact_helpers import",
+                '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
+                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
+                "sys.path.insert(0, str(_REPO_ROOT))",
+                "sys.path.insert(0, str(_HELPER_DIR))",
+            ),
+            "cube-ladder helper",
+        ),
+        (
+            avatar,
+            (
+                "from pbd_contact_helpers import",
+                '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
+                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
+                "sys.path.insert(0, str(_REPO_ROOT))",
+                "sys.path.insert(0, str(_HELPER_DIR))",
+            ),
+            "avatar-ladder helper",
+        ),
+        (
+            _HELPERS,
+            (
+                "def build_scene(",
+                "def checkpoint_record(",
+            ),
+            "shared PBD helper",
+        ),
     ):
-        assert needle in SOURCE
-
-
-def test_canonical_workflow_uses_single_opt_in_dispatch_job():
-    assert "diagnostic_controls:" in WORKFLOW
-    assert "diagnostic-pbd-contact:" in WORKFLOW
-    assert "github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls" in WORKFLOW
-    assert "needs: [agent-quality, local_runner_readiness, pbd_validation_image]" in WORKFLOW
-    assert "needs: [diagnostic-pbd-contact]" not in WORKFLOW
-
-
-def test_diagnostic_entrypoint_and_failure_evidence_are_explicit():
-    assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE=1" in WORKFLOW
-    assert 'os.environ.get("CLOTH_CONTACT_DIAGNOSTICS_EXECUTE") == "1"' in SOURCE
-    assert "CLOTH_CONTACT_DIAGNOSTICS_SCHEDULED" in SOURCE
-    assert "schedule_freecad_main(_scheduled_main)" in SOURCE
-    assert "QtCore.QTimer.singleShot(0, callback)" in HELPERS
-    assert "os._exit(status)" in SOURCE
-    assert "Gui.activeDocument().activeView()" in SOURCE
-    assert "solver_collision_surface" in SOURCE
-    assert "point_inside_closed_mesh" in HELPERS
-    assert (
-        "from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh" in HELPERS
-    )
-    assert "make_shutdown_gui(_progress)" in SOURCE
-    assert "app.quit()" in HELPERS
-    assert "App.exit()" not in SOURCE
-    assert "gui-shutdown-requested" in HELPERS
-    assert "faulthandler.dump_traceback_later(30.0, repeat=True" in SOURCE
-    assert "diagnostic contact controls start" in SOURCE
-    assert "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
-    assert "ArrangementPoint.from_string" in SOURCE
-    assert "state = _inside_outside(" in SOURCE
-    assert "float(candidate.x)" in SOURCE
-    assert "float(candidate.y)" in SOURCE
-    assert "float(candidate.z)" in SOURCE
-    assert "interior_seed_source" in SOURCE
-    assert "float(center.y) + 120.0" in SOURCE
-    assert "width=72.0" in SOURCE
-    assert 'mesh_is_inside = getattr(mesh, "isInside", None)' in HELPERS
-    assert "did not create a true interior pre-step state" in SOURCE
-    assert "pbd-env: collision_mode=" in SOURCE
-    assert "diagnostic-pbd-contact:" in WORKFLOW
-    assert "artifacts/pbd-contact-diagnostics/app-run.log" in WORKFLOW
-    diagnostic = WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split("  simulation-ladder:", 1)[
-        0
-    ]
-    assert "artifact-name: pbd-contact-diagnostics" in diagnostic
-    assert "artifact-path: artifacts/pbd-contact-diagnostics/**" in diagnostic
-
-
-def test_workflow_validator_matches_shared_manifest():
-    assert "tools/ci/validate_manifests.py" in WORKFLOW
-    assert "simulation-ladder" in WORKFLOW
-    assert "artifact" in WORKFLOW.lower()
-    assert "test-script: tests/freecad_pbd_contact_diagnostics.py" in WORKFLOW
-    assert "simulation-ladder" in WORKFLOW
-    assert "validate_manifests.py" in WORKFLOW
-
-
-def test_cube_ladder_diagnostic_job_has_scoped_branch_trigger():
-    assert "contains(github.event.pull_request.head.ref, 'cube-ladder-2481')" in WORKFLOW
-
-
-def test_cube_ladder_caches_collision_proximity_mesh():
-    source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
-    assert "proximity_mesh = trimesh.Trimesh(" in source
-    assert "proximity_mesh.nearest.on_surface" in source
-    assert "_surface_signed_clearance(" in source
-    assert "source_shape," in source
-    assert "collision_surface," in source
-    assert "proximity_mesh," in source
-    assert "for step in CHECKPOINTS:" in source
-    assert "scene.Steps = int(step)" in source
-
-
-def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe():
-    source = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
-    assert "runpy.run_path(" not in source
-    assert "from pbd_contact_helpers import" in source
-    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in source
-    assert "sys.path.insert(0, str(_HELPER_DIR))" in source
-    assert "before-support-helper-import" in source
-    assert "_TRACE_HANDLE = _BOOT_LOG.open(" in source
-    assert "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)" in source
-    assert "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)" in source
-    assert "file=sys.stderr" not in source
-    assert '_boot("script-start")' in source
-    assert "_freecad_entrypoint_name = Path(__file__).stem" in source
-    assert '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))' in source
-    assert "def _schedule_freecad_main():" in source
-    assert "schedule_freecad_main(_run_and_shutdown)" in source
-    assert "QtCore.QTimer.singleShot(0, callback)" in HELPERS
-    assert '_boot("freecad-hosted-entrypoint")' in source
-    assert "__name__ == _freecad_entrypoint_name" in source
-    assert '_boot("direct-entrypoint")' in source
-
-
-def test_progressive_collision_ladder_is_a_normal_gate():
-    assert "simulation-ladder:" in WORKFLOW
-    block = WORKFLOW.split("  simulation-ladder:", 1)[1]
-    assert "if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}" in block
-    assert "CLOTH_PBD_SUBSTEPS: 8" in WORKFLOW
-    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM: 2" in WORKFLOW
-    assert "test-script: tests/freecad_pbd_cube_ladder.py" in block
-    assert "validate_manifests.py simulation" in block
-    assert "artifact-name: simulation-collision-ladder" in block
-    assert "artifact-name: simulation-collision-ladder" in block
-    assert "artifact-path: artifacts/simulation-ladder/**" in block
-
-
-def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit():
-    cube = (ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
-    avatar = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
-    assert "runpy.run_path(" not in cube + avatar
-    assert "from pbd_contact_helpers import" in cube
-    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in cube
-    assert "_REPO_ROOT = Path(__file__).resolve().parents[1]" in cube
-    assert "sys.path.insert(0, str(_REPO_ROOT))" in cube
-    assert "sys.path.insert(0, str(_HELPER_DIR))" in cube
-    assert "from pbd_contact_helpers import" in avatar
-    assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in avatar
-    assert "_REPO_ROOT = Path(__file__).resolve().parents[1]" in avatar
-    assert "sys.path.insert(0, str(_REPO_ROOT))" in avatar
-    assert "sys.path.insert(0, str(_HELPER_DIR))" in avatar
-    assert 'if __name__ == "__main__"' not in HELPERS
-    assert "def build_scene(" in HELPERS
-    assert "def checkpoint_record(" in HELPERS
-
-
-def test_shared_checkpoint_builder_preserves_case_specific_contact_labels():
-    from types import SimpleNamespace
-
-    from tests.support.pbd_contact_helpers import (
-        checkpoint_record,
-        connected_components,
-        seam_geometry,
+        if fragments == ("runpy.run_path(",):
+            require(
+                condition=fragments[0] not in source,
+                message="PBD ladder scripts must not execute helpers via runpy.",
+            )
+        else:
+            _require_fragments(source=source, fragments=fragments, contract=contract)
+    require(
+        condition='if __name__ == "__main__"' not in _HELPERS,
+        message="The shared PBD helper module must remain import-safe.",
     )
 
+
+def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> None:
+    """Verify checkpoint records retain case-specific contact labels."""
     backend = SimpleNamespace(positions=lambda: ((0.0, 0.0, 0.0), (0.0, 0.0, 2.0)))
     base = SimpleNamespace(backend=backend, seam_stitch_pairs={"side": ((0, 1),)})
     geometry = seam_geometry(backend, base.seam_stitch_pairs)
-    assert geometry[0]["max_span_mm"] == 2.0
+    require(
+        condition=isclose(
+            geometry[0]["max_span_mm"],
+            2.0,
+            rel_tol=0.0,
+            abs_tol=_EXPECTED_SPAN_TOLERANCE_MM,
+        ),
+        message="The side seam span must match the two-millimeter diagnostic fixture.",
+    )
     record = checkpoint_record(
         1,
         "step-001.png",
@@ -196,7 +338,24 @@ def test_shared_checkpoint_builder_preserves_case_specific_contact_labels():
         connected_components,
         "diagnostic-only-cube",
     )
-    assert record["contact_state"] == "diagnostic-only-cube"
-    assert record["components"] == 1
-    assert record["penetration_mm"] == 0.0
-    assert record["seam_world_spans_mm"] == geometry
+    require(
+        condition=record["contact_state"] == "diagnostic-only-cube",
+        message="The cube checkpoint must retain its diagnostic-only contact label.",
+    )
+    require(
+        condition=record["components"] == 1,
+        message="The cube checkpoint must preserve the single connected component.",
+    )
+    require(
+        condition=isclose(
+            record["penetration_mm"],
+            0.0,
+            rel_tol=0.0,
+            abs_tol=_EXPECTED_PENETRATION_TOLERANCE_MM,
+        ),
+        message="The cube contact-control checkpoint must show zero penetration.",
+    )
+    require(
+        condition=record["seam_world_spans_mm"] == geometry,
+        message="Checkpoint seam measurements must match the reference geometry.",
+    )
