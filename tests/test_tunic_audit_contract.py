@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_TRIMESH_OVERRIDE_COUNT = 2
 _SIMULATION_SCENE_IMPORT = (
     "from freecad_cloth.simulation.SimulationCommands import "
-    + "create_quality_simulation_scene"
+    "create_quality_simulation_scene"
 )
 
 
