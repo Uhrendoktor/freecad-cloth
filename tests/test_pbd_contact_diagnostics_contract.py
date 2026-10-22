@@ -15,7 +15,9 @@ from tests.support.pbd_contact_helpers import checkpoint_record, connected_compo
 _ROOT = Path(__file__).resolve().parents[1]
 _SOURCE = (_ROOT / "tests" / "freecad_pbd_contact_diagnostics.py").read_text(encoding="utf-8")
 _HELPERS = (_ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
-_WORKFLOW = (_ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
+_WORKFLOW = (_ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+    encoding="utf-8"
+)
 _EXPECTED_SPAN_TOLERANCE_MM = 1e-9
 _EXPECTED_PENETRATION_TOLERANCE_MM = 1e-9
 
@@ -272,7 +274,7 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
             (
                 "from pbd_contact_helpers import",
                 '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
-                '_REPO_ROOT = Path(__file__).resolve().parents[1]',
+                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
                 "sys.path.insert(0, str(_REPO_ROOT))",
                 "sys.path.insert(0, str(_HELPER_DIR))",
             ),
