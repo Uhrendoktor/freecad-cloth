@@ -285,7 +285,7 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
             (
                 "from pbd_contact_helpers import",
                 '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
-                '_REPO_ROOT = Path(__file__).resolve().parents[1]',
+                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
                 "sys.path.insert(0, str(_REPO_ROOT))",
                 "sys.path.insert(0, str(_HELPER_DIR))",
             ),
