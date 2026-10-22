@@ -31,9 +31,7 @@ def _acceptance_job(workflow: str) -> str:
 
 def test_sketcher_acceptance_uses_freecad_startup_workbench_registration() -> None:
     """Verify the Sketcher acceptance relies on FreeCAD startup registration."""
-    source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
     require_contains(
         source=source,
         fragment="def _bootstrap_workbenches():",
