@@ -59,7 +59,7 @@ def test_all_workbench_tool_commands_have_svg_icons() -> None:
         "freecad_cloth.simulation.DrapeCommands",
         "freecad_cloth.sewing.SewingCommands",
         "freecad_cloth.avatar.FittingCommands",
-        "freecad_cloth.avatar.AvatarCommands",
+        "freecad_cloth.avatar.avatar_commands",
     )
     modules = tuple(importlib.import_module(name) for name in module_names)
     commands = [command for module in modules for command in module.COMMANDS]

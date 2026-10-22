@@ -1326,7 +1326,7 @@ class AvatarPoseTaskPanel:
         Returns:
             Avatar parameter object containing staged joint rotations and measurements.
         """
-        from freecad_cloth.avatar.AvatarCommands import _parameters
+        from freecad_cloth.avatar.avatar_commands import _parameters
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
         stored = _parameters(self.avatar)
@@ -1392,7 +1392,7 @@ class AvatarPoseTaskPanel:
         """Rebuild the mannequin preview from the staged pose values."""
         if self.avatar is None:
             return
-        from freecad_cloth.avatar.AvatarCommands import _mesh_data
+        from freecad_cloth.avatar.avatar_commands import _mesh_data
         from freecad_cloth.avatar.AvatarModel import generate_mesh
 
         try:
@@ -1466,7 +1466,7 @@ class AvatarPoseTaskPanel:
         """
         if self.avatar is None:
             return False
-        from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import rebuild_avatar
         from freecad_cloth.avatar.SkeletonPose import joint_rotations_to_json
 
         self.avatar.JointPoseJSON = joint_rotations_to_json(
@@ -1485,7 +1485,7 @@ class AvatarPoseTaskPanel:
             True to allow FreeCAD to close the task panel.
         """
         try:
-            from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
+            from freecad_cloth.avatar.avatar_commands import rebuild_avatar
 
             rebuild_avatar()
         finally:

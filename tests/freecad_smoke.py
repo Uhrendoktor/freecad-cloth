@@ -28,7 +28,7 @@ _boot_checkpoint("freecad_smoke: imported-Part")
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece, create_pattern_sketch
 
 _boot_checkpoint("freecad_smoke: imported-PatternCommands")
-from freecad_cloth.avatar.AvatarCommands import (
+from freecad_cloth.avatar.avatar_commands import (
     create_avatar,
     set_avatar_measurements,
     set_avatar_pose,

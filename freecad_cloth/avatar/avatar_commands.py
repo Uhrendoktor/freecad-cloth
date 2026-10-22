@@ -9,12 +9,6 @@ from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
 
-from freecad_cloth.avatar.avatar_properties import (
-    POSE_PROPERTY_MAP,
-    PROPERTY_MAP,
-    PROVIDER_IDS,
-    SHAPE_PROPERTY_MAP,
-)
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -29,6 +23,13 @@ from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
     joint_rotations_to_json,
+)
+
+from freecad_cloth.avatar.avatar_properties import (
+    POSE_PROPERTY_MAP,
+    PROPERTY_MAP,
+    PROVIDER_IDS,
+    SHAPE_PROPERTY_MAP,
 )
 
 

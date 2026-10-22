@@ -24,7 +24,7 @@ _WORKBENCHES = {
             "freecad_cloth.sewing.SewingCommands",
             "freecad_cloth.sewing.SewingNetworkCommands",
             "freecad_cloth.avatar.FittingCommands",
-            "freecad_cloth.avatar.AvatarCommands",
+            "freecad_cloth.avatar.avatar_commands",
         ),
     ),
 }

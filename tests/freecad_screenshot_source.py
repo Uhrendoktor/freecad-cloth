@@ -1648,7 +1648,7 @@ def simulation():
     if TUNIC_PRODUCTION_AUDIT:
         from dataclasses import replace as replace_dataclass
 
-        from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
+        from freecad_cloth.avatar.avatar_commands import _parameters, apply_avatar_parameters
 
         initial_parameters = _parameters(avatar)
         near_t_pose = replace_dataclass(
