@@ -1,33 +1,24 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Cloth Avatar package — human mannequin and avatar geometry providers."""
 
-
-from importlib import import_module
-from importlib.machinery import ModuleSpec
-from sys import modules
+from importlib import import_module as _import_module
+from sys import modules as _modules
 from types import ModuleType
+from typing import TYPE_CHECKING
 
-
-class _LegacyAvatarCommandModule(ModuleType):
-    """Compatibility view of the former camel-case avatar command module."""
-
-    def __getattr__(self, name: str) -> object:
-        """Resolve an attribute from the canonical snake-case module."""
-        module = import_module(".avatar_commands", __name__)
-        return getattr(module, name)
-
-
-def _install_legacy_avatar_commands_module() -> None:
-    """Keep historical direct imports working without retaining a noncompliant filename."""
-    legacy_name = f"{__name__}.AvatarCommands"
-    legacy_module = _LegacyAvatarCommandModule(legacy_name)
-    legacy_module.__package__ = __name__
-    legacy_module.__spec__ = ModuleSpec(legacy_name, loader=None)
-    modules.setdefault(legacy_name, legacy_module)
-    globals()["AvatarCommands"] = modules[legacy_name]
-
-
-_install_legacy_avatar_commands_module()
+if TYPE_CHECKING:
+    from . import (
+        AvatarArrangement,
+        AvatarCollision,
+        AvatarFitting,
+        AvatarGui,
+        AvatarModel,
+        AvatarProvider,
+        AvatarService,
+        FittingCommands,
+        SkeletonPose,
+        avatar_commands as AvatarCommands,
+    )
 
 __all__ = [
     "AvatarArrangement",
@@ -41,3 +32,25 @@ __all__ = [
     "FittingCommands",
     "SkeletonPose",
 ]
+
+
+def __getattr__(name: str) -> ModuleType:
+    """Lazily expose an avatar package submodule.
+
+    Args:
+        name: Public avatar submodule name requested by the import system.
+
+    Raises:
+        AttributeError: If name is not a declared avatar package export.
+
+    Returns:
+        ModuleType: The submodule represented by the requested export.
+    """
+    if name not in __all__:
+        raise AttributeError(name)
+    module_name = "avatar_commands" if name == "AvatarCommands" else name
+    module = _import_module(f".{module_name}", __name__)
+    globals()[name] = module
+    if name == "AvatarCommands":
+        _modules.setdefault(f"{__name__}.AvatarCommands", module)
+    return module

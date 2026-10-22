@@ -14,10 +14,21 @@ _avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
 
 
 def _private_adapter(name: str) -> Callable[..., object]:
-    """Return a private FreeCAD adapter by name for focused regression tests."""
+    """Return a private FreeCAD adapter by name for focused regression tests.
+
+    Args:
+        name: Attribute name of the adapter to retrieve.
+
+    Raises:
+        TypeError: If the attribute is not callable.
+
+    Returns:
+        Callable[..., object]: The requested adapter.
+    """
     adapter = getattr(_avatar_commands, name)
     if not callable(adapter):
-        raise TypeError(f"Avatar adapter {name!r} is not callable")
+        message = f"Avatar adapter {name!r} is not callable"
+        raise TypeError(message)
     return cast("Callable[..., object]", adapter)
 
 
@@ -64,19 +75,19 @@ def test_runtime_adapters_preserve_the_freecad_api_spelling() -> None:
     feature.addProperty = Mock(return_value=None)
 
     created = _document_add_object(
-        cast(object, document),
+        cast("object", document),
         "Mesh::Feature",
         "ClothAvatar",
     )
-    found = _document_get_object(cast(object, document), "DrapeTarget")
+    found = _document_get_object(cast("object", document), "DrapeTarget")
     _add_feature_property(
-        cast(object, feature),
+        cast("object", feature),
         "App::PropertyString",
         "AvatarType",
         "Avatar",
     )
     new_document = _application_new_document(
-        cast(object, application),
+        cast("object", application),
         "ClothSewing",
     )
 

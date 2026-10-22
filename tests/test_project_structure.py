@@ -4,6 +4,8 @@
 import ast
 from pathlib import Path
 
+from support.assertions import require
+
 
 def test_project_metadata_exists():
     root = Path(__file__).resolve().parents[1]
@@ -232,10 +234,14 @@ def test_workflow_actions_use_immutable_release_pins():
     assert all(len(sha) == 40 for sha in references)
 
 
-def test_avatar_commands_do_not_depend_on_simulation_package():
+def test_avatar_commands_do_not_depend_on_simulation_package() -> None:
+    """Keep avatar command code independent of simulation implementation modules."""
     root = Path(__file__).resolve().parents[1]
     source = (root / "freecad_cloth" / "avatar" / "avatar_commands.py").read_text(encoding="utf-8")
-    assert "freecad_cloth.simulation.SimulationObjects" not in source
+    require(
+        condition="freecad_cloth.simulation.SimulationObjects" not in source,
+        message="Avatar command code must not depend on simulation implementation modules",
+    )
 
 
 def test_freecad_runner_uses_native_app_run_and_optional_mod_staging():
