@@ -6,8 +6,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-from freecad_cloth.simulation import SimulationObjects
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
+from freecad_cloth.simulation import SimulationObjects
 from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 from tests.support.assertions import require
 
