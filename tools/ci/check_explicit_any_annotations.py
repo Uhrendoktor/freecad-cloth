@@ -151,7 +151,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id in any_names:
             violations.append(
-                f"{filename}:{node.lineno}: explicit Any reference is prohibited; "
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
         elif (
@@ -161,7 +161,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             and node.value.id in typing_modules
         ):
             violations.append(
-                f"{filename}:{node.lineno}: explicit {node.value.id}.Any reference is prohibited; "
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit {node.value.id}.Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
 
