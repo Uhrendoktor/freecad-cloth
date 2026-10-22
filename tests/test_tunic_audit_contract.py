@@ -1,5 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Static contracts for the canonical tunic fixture and PBD evidence gates."""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -19,31 +20,31 @@ def test_canonical_tunic_pairs_matching_front_back_semantic_edges() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition="front_edge_ids = tuple(" in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected \\\"front_edge_ids = tuple(\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="back_edge_ids = tuple(" in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected \\\"back_edge_ids = tuple(\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='"SemanticEdgeIds"' in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected '\\\"SemanticEdgeIds\\\"' in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected 'front_edge_ids[1], back_edge_ids[1], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected 'front_edge_ids[3], back_edge_ids[3], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected 'front_edge_ids[5], back_edge_ids[5], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in source,
-        message="test_canonical_tunic_pairs_matching_front_back_semantic_edges: expected 'front_edge_ids[7], back_edge_ids[7], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -52,94 +53,94 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition="ArrangementPoint.from_string" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"ArrangementPoint.from_string\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='shoulder_left = arrangement_world("shoulder_left")' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'shoulder_left = arrangement_world(\\\"shoulder_l",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='shoulder_right = arrangement_world("shoulder_right")' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'shoulder_right = arrangement_world(\\\"shoulder_",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='hip_point = arrangement_world("hip")' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'hip_point = arrangement_world(\\\"hip\\\")' in sour",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'os.environ[\\\"CLOTH_PBD_COLLISION_MODE\\\"] = \\\"mes",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="status = target_status(target)" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"status = target_status(target)\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='scene.PinMode = "None"' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'scene.PinMode = \\\"None\\\"' in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='scene.PinMode = "Explicit"' not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'scene.PinMode = \\\"Explicit\\\"' not in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="scene.PinSelection = []" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"scene.PinSelection = []\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="scene.PinSelection = [str(index) for index in expected_pins]" not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"scene.PinSelection = [str(index) for index in",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if solver_pins:" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"if solver_pins:\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="base_proxy_getter().source_signature = None" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"base_proxy_getter().source_signature = None\\\" ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic-neckline-midpoint piece=%s particle=%d snap-mm=%.2f" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"tunic-neckline-midpoint piece=%s particle=%d ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_indices.get(panel.Name, ())" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"panel_indices.get(panel.Name, ())\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='panel_objects = tuple(getattr(scene, "DrapePanels", ()))' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected 'panel_objects = tuple(getattr(scene, \\\"DrapePa",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="scene.touch()" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"scene.touch()\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     initial_piece_links = source.index("scene.ClothPieces = [front, back]")
     initial_cache_invalidation = source.index("base_proxy_getter().source_signature = None")
     first_panel_map = source.index('panel_piece_names = getattr(proxy, "panel_piece_names", {})')
     require(
         condition=initial_piece_links < initial_cache_invalidation < first_panel_map,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected initial_piece_links < initial_cache_invalidati",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic-simulation-panel-map proxy=%s links=%d panels=%r map=%r particles=%d" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"tunic-simulation-panel-map proxy=%s links=%d ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="canonical tunic simulation did not build an authored pattern panel" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"canonical tunic simulation did not build an a",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="def _neckline_boundary_particles(" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"def _neckline_boundary_particles(\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='"semantic-chain-endpoints"' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected '\\\"semantic-chain-endpoints\\\"' in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='"authored-edge-projection"' in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected '\\\"authored-edge-projection\\\"' in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=(
@@ -148,35 +149,35 @@ def test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline() -> None:
             in source
             )
         ),
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected ( \\\"tunic-neckline-resolution piece=%s edge=%s ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="boundary_index >= len(boundary_chains)" not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"boundary_index >= len(boundary_chains)\\\" not i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="nearest_target_clearance" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"nearest_target_clearance\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="step0-target-vertex-clearance-mm=" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"step0-target-vertex-clearance-mm=\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="authored_shoulder_pins" not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"authored_shoulder_pins\\\" not in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="scene.PinSelection = [str(i) for i in front_pins]" not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"scene.PinSelection = [str(i) for i in front_p",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="target_surface = collision_surface(" in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"target_surface = collision_surface(\\\" in sourc",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="target_source.Mesh.BoundBox" not in source,
-        message="test_tunic_fixture_uses_arrangement_points_and_unpinned_neckline: expected \\\"target_source.Mesh.BoundBox\\\" not in source",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -185,27 +186,27 @@ def test_canonical_tunic_uses_matching_authored_mapping() -> None:
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition="required_indices = (1, 3, 5, 7)" in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected \\\"required_indices = (1, 3, 5, 7)\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[1], back_edge_ids[1], "TunicRightSide"' in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected 'front_edge_ids[1], back_edge_ids[1], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder"' in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected 'front_edge_ids[3], back_edge_ids[3], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder"' in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected 'front_edge_ids[5], back_edge_ids[5], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[7], back_edge_ids[7], "TunicLeftSide"' in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected 'front_edge_ids[7], back_edge_ids[7], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[3], back_edge_ids[5], "TunicRightShoulder"' not in audit,
-        message="test_canonical_tunic_uses_matching_authored_mapping: expected 'front_edge_ids[3], back_edge_ids[5], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -228,7 +229,7 @@ f"stderr:\n{result.stderr}"
     )
     require(
         condition="tunic-audit-source-syntax=passed" in result.stdout,
-        message="test_canonical_tunic_shared_source_syntax_compiles: expected \\\"tunic-audit-source-syntax=passed\\\" in result.s",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -237,23 +238,23 @@ def test_canonical_tunic_authoritative_gate_is_fail_closed() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition='os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"' in source,
-        message="test_canonical_tunic_authoritative_gate_is_fail_closed: expected 'os.environ[\\\"CLOTH_PBD_COLLISION_MODE\\\"] = \\\"mes",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="proxy=proxy" in source,
-        message="test_canonical_tunic_authoritative_gate_is_fail_closed: expected \\\"proxy=proxy\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="authoritative tunic seams did not converge" in source,
-        message="test_canonical_tunic_authoritative_gate_is_fail_closed: expected \\\"authoritative tunic seams did not converge\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if max_seam_gap > 35.0" in source,
-        message="test_canonical_tunic_authoritative_gate_is_fail_closed: expected \\\"if max_seam_gap > 35.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="authoritative-seam-gap seam=%s" in source,
-        message="test_canonical_tunic_authoritative_gate_is_fail_closed: expected \\\"authoritative-seam-gap seam=%s\\\" in source",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -262,43 +263,43 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     require(
         condition="elif index == 2:" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"elif index == 2:\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="elif index == 6:" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"elif index == 6:\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="def _arc_through_midpoint(" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"def _arc_through_midpoint(\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="Part.ArcOfCircle(circle, start_angle, start_angle + sweep)" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"Part.ArcOfCircle(circle, start_angle, start_a",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="zero_point = curve_value(circle, 0.0)" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"zero_point = curve_value(circle, 0.0)\\\" in sou",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="quarter_point = curve_value(circle, math.pi / 2.0)" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"quarter_point = curve_value(circle, math.pi /",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='getter = getattr(curve, "valueAt", None)' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'getter = getattr(curve, \\\"valueAt\\\", None)' in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='getter = getattr(curve, "value", None)' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'getter = getattr(curve, \\\"value\\\", None)' in so",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic armhole curve has no native parameter evaluator" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"tunic armhole curve has no native parameter e",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic armhole arc lost authored %s" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"tunic armhole arc lost authored %s\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     sketch_builder = source.split("def _make_tunic_sketch(", 1)[1].split("\ndef _adopt_sketch", 1)[
         0
@@ -310,120 +311,120 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
             "for index in range(len(geometry))])"
             ) in sketch_builder
         ),
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected ( 'sketch.addConstraint([Sketcher.Constraint(\\\"",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='Sketcher.Constraint("Coincident"' not in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'Sketcher.Constraint(\\\"Coincident\\\"' not in sket",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic armhole collapsed during Sketcher recompute" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"tunic armhole collapsed during Sketcher recom",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="armhole_z = 0.62 * float(garment_height)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"armhole_z = 0.62 * float(garment_height)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.74 * panel_width, armhole_z)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"(x_offset + 0.74 * panel_width, armhole_z)\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_z = 0.94 * float(garment_height)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"shoulder_z = 0.94 * float(garment_height)\\\" in",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.94 * panel_width, shoulder_z)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"(x_offset + 0.94 * panel_width, shoulder_z)\\\" ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if not (armhole_z < shoulder_z < neck_z)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"if not (armhole_z < shoulder_z < neck_z)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulders must slope downward from neckline to shoulder tip" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"shoulders must slope downward from neckline t",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="points[3][0] - points[2][0] < 0.15 * float(panel_width)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"points[3][0] - points[2][0] < 0.15 * float(pa",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_z - armhole_z < 0.20 * float(garment_height)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"shoulder_z - armhole_z < 0.20 * float(garment",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="side_ease_mm = 4.0" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"side_ease_mm = 4.0\\\" in sketch_builder",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if index == 1:" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"if index == 1:\\\" in sketch_builder",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="elif index == 7:" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"elif index == 7:\\\" in sketch_builder",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="0.5 * (start[0] + end[0]) + side_ease_mm" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"0.5 * (start[0] + end[0]) + side_ease_mm\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="0.5 * (start[0] + end[0]) - side_ease_mm" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"0.5 * (start[0] + end[0]) - side_ease_mm\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.06 * panel_width, shoulder_z)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"(x_offset + 0.06 * panel_width, shoulder_z)\\\" ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.26 * panel_width, armhole_z)" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"(x_offset + 0.26 * panel_width, armhole_z)\\\" i",
+        message="Tunic audit source contract failed.",
     )
     # Keep the inward-scooped arc inside the shoulder line; .73/.27 self-intersects.
     require(
         condition="x_offset + 0.741 * panel_width, armhole_mid_z" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"x_offset + 0.741 * panel_width, armhole_mid_z",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="x_offset + 0.259 * panel_width, armhole_mid_z" in sketch_builder,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"x_offset + 0.259 * panel_width, armhole_mid_z",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="for edge_index, inward in ((2, -1.0), (6, 1.0))" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"for edge_index, inward in ((2, -1.0), (6, 1.0",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='boundary.kind != "arc" or len(boundary.samples) < 8' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'boundary.kind != \\\"arc\\\" or len(boundary.sample",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="armhole curve has insufficient inward clearance" in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected \\\"armhole curve has insufficient inward clearan",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[1], back_edge_ids[1], "TunicRightSide", False' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[1], back_edge_ids[1], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[3], back_edge_ids[3], "TunicRightShoulder", False' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[3], back_edge_ids[3], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[5], back_edge_ids[5], "TunicLeftShoulder", False' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[5], back_edge_ids[5], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[7], back_edge_ids[7], "TunicLeftSide", False' in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[7], back_edge_ids[7], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[2], back_edge_ids[2], "TunicRightArmhole"' not in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[2], back_edge_ids[2], \\\"TunicRi",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='front_edge_ids[6], back_edge_ids[6], "TunicLeftArmhole"' not in source,
-        message="test_canonical_tunic_has_two_curved_open_armholes: expected 'front_edge_ids[6], back_edge_ids[6], \\\"TunicLe",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -442,45 +443,45 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
     state = proxy.__getstate__()
     require(
         condition=state == {"schema": 1},
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected state == {\\\"schema\\\": 1}",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="backend" not in state,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected \\\"backend\\\" not in state",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="seam_stitch_pairs" not in state,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected \\\"seam_stitch_pairs\\\" not in state",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="collision_surface" not in state,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected \\\"collision_surface\\\" not in state",
+        message="Tunic audit source contract failed.",
     )
 
     proxy.__setstate__(state)
     require(
         condition=proxy.backend is None,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.backend is None",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=proxy.panel_indices == {},
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.panel_indices == {}",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=proxy.seam_stitch_pairs == {},
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.seam_stitch_pairs == {}",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=proxy.source_signature is None,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.source_signature is None",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=proxy.last_steps == 0,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.last_steps == 0",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=proxy.collision_surface is None,
-        message="test_simulation_proxy_serializes_only_rebuildable_metadata: expected proxy.collision_surface is None",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -492,123 +493,123 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     )
     require(
         condition="ParticleDistance = 24.0" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"ParticleDistance = 24.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SolverIterations = 8" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"SolverIterations = 8\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SolverSubsteps = 4" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"SolverSubsteps = 4\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_PBD_COLLISION_MODE: mesh" in workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"CLOTH_PBD_COLLISION_MODE: mesh\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"CLOTH_PBD_COLLISION_VOXEL_MM=8.0\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="voxel_mm - 8.0" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"voxel_mm - 8.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(span + 200.0) / 8.0" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"(span + 200.0) / 8.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="configured 8 mm voxel resolution" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"configured 8 mm voxel resolution\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     tunic_workflow = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     require(
         condition="CLOTH_PBD_SUBSTEPS=16" in tunic_workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"CLOTH_PBD_SUBSTEPS=16\\\" in tunic_workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected 'os.environ[\\\"CLOTH_PBD_COLLISION_VOXEL_MM\\\"]' n",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_PBD_SUBSTEPS: 8" in workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"CLOTH_PBD_SUBSTEPS: 8\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='os.environ["CLOTH_PBD_SUBSTEPS"]' not in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected 'os.environ[\\\"CLOTH_PBD_SUBSTEPS\\\"]' not in sour",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_PBD_COLLISION_TOLERANCE_MM: 12" not in workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"CLOTH_PBD_COLLISION_TOLERANCE_MM: 12\\\" not in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic-collision-config target-thickness-mm=%.2f" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"tunic-collision-config target-thickness-mm=%.",
+        message="Tunic audit source contract failed.",
     )
     simulation_commands = (
         ROOT / "freecad_cloth" / "simulation" / "SimulationCommands.py"
     ).read_text(encoding="utf-8")
     require(
         condition="DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM" in simulation_commands,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic-simulation-start" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"tunic-simulation-start\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='configured_substeps = int(os.environ.get("CLOTH_PBD_SUBSTEPS", "8"))' in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected 'configured_substeps = int(os.environ.get(\\\"CLO",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='effective_substeps = int(getattr(active_backend, "_substeps", -1))' in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected 'effective_substeps = int(getattr(active_backe",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="effective_substeps != configured_substeps" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"effective_substeps != configured_substeps\\\" in",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="backend_substeps=%d configured_substeps=%d" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"backend_substeps=%d configured_substeps=%d\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="realtime-preview=passed backend=position-based-dynamics" in source,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"realtime-preview=passed backend=position-base",
+        message="Tunic audit source contract failed.",
     )
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     require(
         condition="tools/ci/validate_manifests.py tunic-production" in workflow,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"tools/ci/validate_manifests.py tunic-producti",
+        message="Tunic audit source contract failed.",
     )
     validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
     require(
         condition="def validate_tunic_production()" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"def validate_tunic_production()\\\" in validator",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="runtime collision configuration evidence is invalid" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"runtime collision configuration evidence is i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="expected_resolution = tuple(" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"expected_resolution = tuple(\\\" in validator",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="def _validate_realtime_metrics(data: dict)" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"def _validate_realtime_metrics(data: dict)\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="_validate_realtime_metrics(data)" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"_validate_realtime_metrics(data)\\\" in validato",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="PBD SDF voxel must be 8 mm" in validator,
-        message="test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit: expected \\\"PBD SDF voxel must be 8 mm\\\" in validator",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -622,11 +623,11 @@ def test_pbd_collision_body_uses_coarsened_solver_surface() -> None:
     body_builder = backend[start:end]
     require(
         condition="collision_surface = self._collision_surface" in body_builder,
-        message="test_pbd_collision_body_uses_coarsened_solver_surface: expected \\\"collision_surface = self._collision_surface\\\" ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="collision_surface = self._source_collision_surface" not in body_builder,
-        message="test_pbd_collision_body_uses_coarsened_solver_surface: expected \\\"collision_surface = self._source_collision_su",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -637,39 +638,39 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
     )
     require(
         condition="CLOTH_PBD_COLLISION_VOXEL_MM" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"CLOTH_PBD_COLLISION_VOXEL_MM\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="def _pbd_collision_resolution(surface: CollisionSurface)" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"def _pbd_collision_resolution(surface: Collis",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="generateSDF(" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"generateSDF(\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="resolution," in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"resolution,\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="representation_margin = 0.5 * _pbd_collision_voxel_mm()" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"representation_margin = 0.5 * _pbd_collision_",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="max(configured, thickness, representation_margin)" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"max(configured, thickness, representation_mar",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="self._collision_sdf_resolution = tuple(int(axis) for axis in resolution)" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"self._collision_sdf_resolution = tuple(int(ax",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="effective_tolerance_mm / _MM" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"effective_tolerance_mm / _MM\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="cloth-pbd-collision-config " in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"cloth-pbd-collision-config \\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=(
@@ -677,23 +678,23 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
             "self._project_collision_positions()"
             )
         ),
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected backend.index(\\\"timestep.step(self._model)\\\") < ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="particles.setPosition(" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"particles.setPosition(\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="inward_speed < 0.0" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"inward_speed < 0.0\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="project_stitched_pairs(" in backend,
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected \\\"project_stitched_pairs(\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=backend.index("project_stitched_pairs(") < backend.index("moved_indices ="),
-        message="test_pbd_collision_sdf_resolution_and_tolerance_are_explicit: expected backend.index(\\\"project_stitched_pairs(\\\") < bac",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -704,23 +705,23 @@ def test_pbd_collision_sdf_is_cached_outside_backend_instance() -> None:
     )
     require(
         condition="_PBD_COLLISION_SDF_CACHE_KEY" in backend,
-        message="test_pbd_collision_sdf_is_cached_outside_backend_instance: expected \\\"_PBD_COLLISION_SDF_CACHE_KEY\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="_PBD_COLLISION_SDF_CACHE" in backend,
-        message="test_pbd_collision_sdf_is_cached_outside_backend_instance: expected \\\"_PBD_COLLISION_SDF_CACHE\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="cache-hit" in backend,
-        message="test_pbd_collision_sdf_is_cached_outside_backend_instance: expected \\\"cache-hit\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="generateSDF(" in backend,
-        message="test_pbd_collision_sdf_is_cached_outside_backend_instance: expected \\\"generateSDF(\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="self._collision_sdf" in backend,
-        message="test_pbd_collision_sdf_is_cached_outside_backend_instance: expected \\\"self._collision_sdf\\\" in backend",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -739,7 +740,7 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
     key = _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
     require(
         condition=key == _pbd_collision_sdf_cache_key(surface, [16, 16, 16]),
-        message="test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive: expected key == _pbd_collision_sdf_cache_key(surface, [",
+        message="Tunic audit source contract failed.",
     )
 
     moved = CollisionSurface(
@@ -749,11 +750,11 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
     ).validate()
     require(
         condition=key != _pbd_collision_sdf_cache_key(moved, [16, 16, 16]),
-        message="test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive: expected key != _pbd_collision_sdf_cache_key(moved, [16",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=key != _pbd_collision_sdf_cache_key(surface, [17, 16, 16]),
-        message="test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive: expected key != _pbd_collision_sdf_cache_key(surface, [",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -765,19 +766,19 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
     require(
         condition="pypbd==2.2.2" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"pypbd==2.2.2\\\" in dockerfile",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="triangle==20250106" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"triangle==20250106\\\" in dockerfile",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="/opt/pypbd-provenance.txt" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"/opt/pypbd-provenance.txt\\\" in dockerfile",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="makehuman-hm08-base.obj" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"makehuman-hm08-base.obj\\\" in dockerfile",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=(
@@ -785,40 +786,40 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
             "FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-cloth/assets/makehuman-hm08-base.obj" in dockerfile
             )
         ),
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected ( \\\"FREECAD_CLOTH_AVATAR_MESH=/opt/freecad-clot",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="1f508f6083b2f823dab15de924b3bde72e08d77c9/makehuman/data/3dobjs/base.obj" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"1f508f6083b2f823dab15de924b3bde72e08d77c9/mak",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c" in dockerfile,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"8e761e6624b8f54536409135d1636da63b32486a90d48",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="pbd_validation_image:" in workflow,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"pbd_validation_image:\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="FREECAD_PBD_IMAGE" in workflow,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"FREECAD_PBD_IMAGE\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_CI_ENABLE_PBD: 1" in workflow,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"CLOTH_CI_ENABLE_PBD: 1\\\" in workflow",
+        message="Tunic audit source contract failed.",
     )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     require(
         condition="image: ${{ env.FREECAD_PBD_IMAGE }}" in gui,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"image: ${{ env.FREECAD_PBD_IMAGE }}\\\" in gui",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="capture_pypbd_provenance.py" in gui,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"capture_pypbd_provenance.py\\\" in gui",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="artifacts/pypbd-provenance.txt" in gui,
-        message="test_pbd_ci_image_is_pinned_and_preinstalled: expected \\\"artifacts/pypbd-provenance.txt\\\" in gui",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -833,31 +834,31 @@ def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
     )[1].split("      - name: Independently validate realtime performance metrics", 1)[0]
     require(
         condition="test-script: tests/freecad_realtime_benchmark.py" in benchmark,
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"test-script: tests/freecad_realtime_benchmark",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="CLOTH_REALTIME_FRAMES=120" in benchmark,
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"CLOTH_REALTIME_FRAMES=120\\\" in benchmark",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json" in gui,
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"tools/ci/validate_realtime_benchmark.py artif",
+        message="Tunic audit source contract failed.",
     )
     audit_step = gui.split("      - uses: ./.github/actions/freecad-test", 1)[1]
     require(
         condition="if: always()" in audit_step.split("test-script:", 1)[0],
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"if: always()\\\" in audit_step.split(\\\"test-scrip",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="test-script: tests/freecad_tunic_audit_production.py" in audit_step,
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"test-script: tests/freecad_tunic_audit_produc",
+        message="Tunic audit source contract failed.",
     )
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
     require(
         condition="p95_frame_interval_ms exceeds the 30 FPS budget" in validator,
-        message="test_production_tunic_audit_runs_even_if_performance_gate_fails: expected \\\"p95_frame_interval_ms exceeds the 30 FPS budg",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -866,15 +867,15 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     wrapper = (ROOT / "tests" / "freecad_tunic_audit_production.py").read_text(encoding="utf-8")
     require(
         condition='importlib.import_module("freecad_tunic_audit").main' in wrapper,
-        message="test_production_tunic_wrapper_dispatches_in_freecad_macro_host: expected 'importlib.import_module(\\\"freecad_tunic_audit\\\"",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="main()" in wrapper,
-        message="test_production_tunic_wrapper_dispatches_in_freecad_macro_host: expected \\\"main()\\\" in wrapper",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='if __name__ == "__main__"' not in wrapper,
-        message="test_production_tunic_wrapper_dispatches_in_freecad_macro_host: expected 'if __name__ == \\\"__main__\\\"' not in wrapper",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -884,47 +885,47 @@ def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
     audit_entry = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
     require(
         condition="CLOTH_TUNIC_AUDIT_PROFILE" in audit_entry,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"CLOTH_TUNIC_AUDIT_PROFILE\\\" in audit_entry",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="TUNIC_PRODUCTION_AUDIT" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"TUNIC_PRODUCTION_AUDIT\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SEAM_SOURCE = " not in audit_entry,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"SEAM_SOURCE = \\\" not in audit_entry",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="required_indices = (1, 3, 5, 7)" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"required_indices = (1, 3, 5, 7)\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="TunicRightShoulder" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"TunicRightShoulder\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="TunicLeftShoulder" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"TunicLeftShoulder\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="ParticleDistance = 24.0" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"ParticleDistance = 24.0\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SolverIterations = 8" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"SolverIterations = 8\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SolverSubsteps = 4 if TUNIC_PRODUCTION_AUDIT else 1" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"SolverSubsteps = 4 if TUNIC_PRODUCTION_AUDIT ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="tunic-simulation-start" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"tunic-simulation-start\\\" in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="realtime-preview=passed backend=position-based-dynamics" in audit,
-        message="test_canonical_tunic_fixture_matches_validated_start_geometry: expected \\\"realtime-preview=passed backend=position-base",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -936,46 +937,46 @@ def test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host() ->
     )[0]
     require(
         condition="Trimesh/Rtree's native contains query" in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"Trimesh/Rtree's native contains query\\\" in ins",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="target_mesh.contains" not in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"target_mesh.contains\\\" not in inside_check",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="import trimesh" not in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"import trimesh\\\" not in inside_check",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="chunk_size=4" in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"chunk_size=4\\\" in inside_check",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="points_inside_closed_mesh(" in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"points_inside_closed_mesh(\\\" in inside_check",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="prefer_trimesh=False" in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"prefer_trimesh=False\\\" in inside_check",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="penetration-check=numpy-ray-parity" in inside_check,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"penetration-check=numpy-ray-parity\\\" in inside",
+        message="Tunic audit source contract failed.",
     )
     sanity = (ROOT / "freecad_cloth" / "simulation" / "DrapeVisualSanity.py").read_text(
         encoding="utf-8"
     )
     require(
         condition="prefer_trimesh: bool = True" in sanity,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"prefer_trimesh: bool = True\\\" in sanity",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if prefer_trimesh:" in sanity,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"if prefer_trimesh:\\\" in sanity",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="np.einsum" in sanity,
-        message="test_tunic_penetration_audit_uses_safe_numpy_ray_parity_in_freecad_host: expected \\\"np.einsum\\\" in sanity",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -996,19 +997,19 @@ def test_penetration_evidence_stays_on_numpy_path_in_freecad_host() -> None:
             not in audit
             )
         ),
-        message="test_penetration_evidence_stays_on_numpy_path_in_freecad_host: expected ( \\\"from freecad_cloth.simulation.DrapeVisualSa",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=evidence.count("prefer_trimesh=False") == 2,
-        message="test_penetration_evidence_stays_on_numpy_path_in_freecad_host: expected evidence.count(\\\"prefer_trimesh=False\\\") == 2",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="points_inside_closed_mesh(" in evidence,
-        message="test_penetration_evidence_stays_on_numpy_path_in_freecad_host: expected \\\"points_inside_closed_mesh(\\\" in evidence",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="point_inside_closed_mesh(" not in evidence,
-        message="test_penetration_evidence_stays_on_numpy_path_in_freecad_host: expected \\\"point_inside_closed_mesh(\\\" not in evidence",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -1020,7 +1021,7 @@ def test_tunic_visual_diagnostics_are_authoritative_after_persistence() -> None:
     screenshot = source.index('f"cloth-simulation-draped-{direction}.png"')
     require(
         condition=metrics_write < screenshot < gate,
-        message="test_tunic_visual_diagnostics_are_authoritative_after_persistence: expected metrics_write < screenshot < gate",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -1038,23 +1039,23 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
             in debug
             )
         ),
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected ( \\\"from freecad_cloth.simulation.SimulationCom",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="SimulationQualityRuntimeV2" not in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"SimulationQualityRuntimeV2\\\" not in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neck_z = (1.0 - float(neckline_drop)) * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neck_z = (1.0 - float(neckline_drop)) * h\\\" in",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_drop=0.03" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_drop=0.03\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_headroom_mm = 20.0" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_headroom_mm = 20.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=(
@@ -1062,11 +1063,11 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
             "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in source
             )
         ),
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected ( \\\"garment_height = max(560.0, (shoulder_z - h",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_headroom_mm = 20.0" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_headroom_mm = 20.0\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition=(
@@ -1074,211 +1075,211 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
             "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)" in debug
             )
         ),
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected ( \\\"garment_height = max(560.0, (shoulder_z - h",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="x_offset = 0.5 * (float(hem_width) - float(panel_width))" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"x_offset = 0.5 * (float(hem_width) - float(pa",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="armhole_z = 0.62 * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"armhole_z = 0.62 * h\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="armhole_z = 0.62 * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"armhole_z = 0.62 * h\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_z = 0.94 * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_z = 0.94 * h\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="points[3][0] - points[2][0] < 0.15 * float(panel_width)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"points[3][0] - points[2][0] < 0.15 * float(pa",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_z - armhole_z < 0.20 * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_z - armhole_z < 0.20 * h\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="side_ease_mm = 4.0" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"side_ease_mm = 4.0\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if idx == 1:" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"if idx == 1:\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="elif idx == 7:" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"elif idx == 7:\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.74 * panel_width, armhole_z)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"(x_offset + 0.74 * panel_width, armhole_z)\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.26 * panel_width, armhole_z)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"(x_offset + 0.26 * panel_width, armhole_z)\\\" i",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"midpoint = App.Vector(x_offset + 0.741 * pane",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"midpoint = App.Vector(x_offset + 0.259 * pane",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.06 * panel_width, 0.94 * garment_height)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"(x_offset + 0.06 * panel_width, 0.94 * garmen",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="(x_offset + 0.94 * panel_width, 0.94 * garment_height)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"(x_offset + 0.94 * panel_width, 0.94 * garmen",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if not (armhole_z < shoulder_z < neck_z)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"if not (armhole_z < shoulder_z < neck_z)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_scoop_depth = 0.12 * h" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_scoop_depth = 0.12 * h\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_scoop_z = neck_z - neckline_scoop_depth" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_scoop_z = neck_z - neckline_scoop_de",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="if not (armhole_z < neckline_scoop_z < shoulder_z)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"if not (armhole_z < neckline_scoop_z < should",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_scoop_depth = 0.12 * float(garment_height)" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_scoop_depth = 0.12 * float(garment_h",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_scoop_z = neck_z - neckline_scoop_depth" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_scoop_z = neck_z - neckline_scoop_de",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="neckline_scoop_depth = 0.12 * float(garment_height)" in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"neckline_scoop_depth = 0.12 * float(garment_h",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected '(\\\"back\\\", \\\"front\\\") if TUNIC_PRODUCTION_AUDIT e",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"VisualTunicFront\\\", front_side, 0.",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"VisualTunicBack\\\", back_side, 0.72",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="elif idx == 4:" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"elif idx == 4:\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="elif index == 4:" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"elif index == 4:\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="true U-shaped neckline" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"true U-shaped neckline\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="ArrangementPoint.from_string(raw)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"ArrangementPoint.from_string(raw)\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width = max(420.0, shoulder_width + 105.0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width = max(420.0, shoulder_width + 105",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_width + 105.0" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_width + 105.0\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="else max(450.0, panel_width + 100.0)" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"else max(450.0, panel_width + 100.0)\\\" in sour",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="shoulder_span_ratio" not in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"shoulder_span_ratio\\\" not in audit",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='"panel_width = max(420.0, shoulder_width + 105.0)":' not in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected '\\\"panel_width = max(420.0, shoulder_width + 10",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="clearance = max(20.0, 0.08 * body_depth)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"clearance = max(20.0, 0.08 * body_depth)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="clearance = max(20.0, 0.08 * body_depth)" in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"clearance = max(20.0, 0.08 * body_depth)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="clearance = max(20.0, 0.08 * body_depth)" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"clearance = max(20.0, 0.08 * body_depth)\\\" in ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width = max(420.0, shoulder_width + 105.0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width = max(420.0, shoulder_width + 105",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width = max(420.0, shoulder_width + 105.0)" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width = max(420.0, shoulder_width + 105",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width = max(420.0, shoulder_width + 105.0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width = max(420.0, shoulder_width + 105",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width = max(420.0, shoulder_width + 105.0)" in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width = max(420.0, shoulder_width + 105",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="hem_width = max(500.0, panel_width + 100.0)" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"hem_width = max(500.0, panel_width + 100.0)\\\" ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("DebugTunicFront", front_y, 0.72, 0.03)' in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"DebugTunicFront\\\", front_y, 0.72, ",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width *= 1.10" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width *= 1.10\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="hem_width *= 1.10" in source,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"hem_width *= 1.10\\\" in source",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="panel_width *= 1.10" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"panel_width *= 1.10\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="hem_width *= 1.10" in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected \\\"hem_width *= 1.10\\\" in debug",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("DebugTunicBack", back_y, 0.72, 0.03)' in debug,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"DebugTunicBack\\\", back_y, 0.72, 0.",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")' in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected '(\\\"back\\\", \\\"front\\\") if TUNIC_PRODUCTION_AUDIT e",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("VisualTunicFront", front_side, 0.72, 0.03)' in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"VisualTunicFront\\\", front_side, 0.",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='make_piece("VisualTunicBack", back_side, 0.72, 0.03)' in audit,
-        message="test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks: expected 'make_piece(\\\"VisualTunicBack\\\", back_side, 0.72",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -1288,11 +1289,11 @@ def test_tunic_visual_gate_preserves_failed_artifacts_before_exit() -> None:
     gate = source.index('allowed_diagnostics={"below-hem-candidate"}')
     require(
         condition="drape-metrics=" in source[:gate],
-        message="test_tunic_visual_gate_preserves_failed_artifacts_before_exit: expected \\\"drape-metrics=\\\" in source[:gate]",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="gui-screenshot-manifest" not in source[gate:] or "task_dock.show()" in source[gate:],
-        message="test_tunic_visual_gate_preserves_failed_artifacts_before_exit: expected \\\"gui-screenshot-manifest\\\" not in source[gate:]",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -1311,11 +1312,11 @@ def test_canonical_tunic_fixture_blocks_every_authored_segment() -> None:
     )
     require(
         condition=expected_constraint in fixture,
-        message="test_canonical_tunic_fixture_blocks_every_authored_segment: expected expected_constraint in fixture",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='Sketcher.Constraint("Coincident"' not in fixture,
-        message="test_canonical_tunic_fixture_blocks_every_authored_segment: expected 'Sketcher.Constraint(\\\"Coincident\\\"' not in fixt",
+        message="Tunic audit source contract failed.",
     )
 
 
@@ -1348,30 +1349,30 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
             < simulation_start
             )
         ),
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected ( topology_audit < sample_resolution < pattern",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='"boundary-order=%r near-crossing=%r"' in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected '\\\"boundary-order=%r near-crossing=%r\\\"' in simu",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="samples," in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected \\\"samples,\\\" in simulation",
+        message="Tunic audit source contract failed.",
     )
     # Keep geometric validity guards in FreeCAD, but keep report classification on the host.
     require(
         condition="canonical tunic derived pattern outline is invalid before simulation" in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected \\\"canonical tunic derived pattern outline is in",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="fit_assessment" not in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected \\\"fit_assessment\\\" not in simulation",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition="review_required" not in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected \\\"review_required\\\" not in simulation",
+        message="Tunic audit source contract failed.",
     )
     require(
         condition='status["result"]' not in simulation,
-        message="test_tunic_scene_dossier_logs_sampled_topology_before_simulation: expected 'status[\\\"result\\\"]' not in simulation",
+        message="Tunic audit source contract failed.",
     )
