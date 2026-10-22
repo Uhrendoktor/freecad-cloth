@@ -4,9 +4,10 @@
 import importlib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from support.assertions import require
 
-_WORKBENCHES = {
+ROOT: Path = Path(__file__).resolve().parents[1]
+_WORKBENCHES: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "freecad_cloth.pattern.workbench": (
         "ClothPatternWorkbench",
         "Cloth Pattern",
@@ -15,7 +16,10 @@ _WORKBENCHES = {
     "freecad_cloth.simulation.workbench": (
         "ClothSimulationWorkbench",
         "Cloth Simulation",
-        ("freecad_cloth.simulation.SimulationCommands", "freecad_cloth.simulation.DrapeCommands"),
+        (
+            "freecad_cloth.simulation.SimulationCommands",
+            "freecad_cloth.simulation.DrapeCommands",
+        ),
     ),
     "freecad_cloth.sewing.workbench": (
         "ClothSewingWorkbench",
@@ -30,43 +34,81 @@ _WORKBENCHES = {
 }
 
 
-def test_workbench_modules_are_package_owned_and_importable():
+def test_workbench_modules_are_package_owned_and_importable() -> None:
+    """Verify declared workbench modules and command providers are importable."""
     for module_name, (class_name, menu, modules) in _WORKBENCHES.items():
         module = importlib.import_module(module_name)
         workbench = getattr(module, class_name)()
-        assert workbench.MenuText == menu
-        assert workbench.GetClassName() == "Gui::PythonWorkbench"
-        assert Path(workbench.Icon).is_file()
-        assert workbench.commands == []
+        require(
+            condition=workbench.MenuText == menu,
+            message=f"{module_name} must expose the expected menu label {menu!r}",
+        )
+        require(
+            condition=workbench.GetClassName() == "Gui::PythonWorkbench",
+            message=f"{module_name} must identify itself as a Python workbench",
+        )
+        require(
+            condition=Path(workbench.Icon).is_file(),
+            message=f"{module_name} must reference an existing icon file",
+        )
+        require(
+            condition=workbench.commands == [],
+            message=f"{module_name} must defer command registration until initialization",
+        )
         for command_module in modules:
-            assert importlib.import_module(command_module).COMMANDS
+            provider = importlib.import_module(command_module)
+            require(
+                condition=bool(provider.COMMANDS),
+                message=f"{command_module} must expose at least one command",
+            )
 
 
-def test_command_ids_exist_and_are_unique():
-    seen = set()
+def test_command_ids_exist_and_are_unique() -> None:
+    """Verify command identifiers are unique within and across workbenches."""
+    seen: set[str] = set()
     for contract in _WORKBENCHES.values():
         for module_name in contract[2]:
             commands = tuple(importlib.import_module(module_name).COMMANDS)
-            assert len(commands) == len(set(commands))
-            assert not seen.intersection(commands)
+            require(
+                condition=len(commands) == len(set(commands)),
+                message=f"{module_name} must not repeat a command identifier",
+            )
+            require(
+                condition=not seen.intersection(commands),
+                message=f"{module_name} command identifiers must not overlap prior modules",
+            )
             seen.update(commands)
 
 
-def test_init_gui_is_bootstrap_only():
+def test_init_gui_is_bootstrap_only() -> None:
+    """Verify the legacy GUI entry point delegates registration to the bootstrap."""
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
-    assert "initialize_workbenches(Path(__file__).resolve().parent)" in source
-    assert "Gui.addWorkbench(" not in source
+    require(
+        condition="from freecad_cloth.bootstrap import initialize_workbenches" in source,
+        message="InitGui.py must import the canonical workbench bootstrap",
+    )
+    require(
+        condition="initialize_workbenches(Path(__file__).resolve().parent)" in source,
+        message="InitGui.py must delegate registration with its installation root",
+    )
+    require(
+        condition="Gui.addWorkbench(" not in source,
+        message="InitGui.py must not duplicate workbench registration",
+    )
     for legacy in (
         "import PatternCommands",
         "import SewingNetworkCommands",
         "import SewingNetworkGui",
         "import DrapeTarget",
     ):
-        assert legacy not in source
+        require(
+            condition=legacy not in source,
+            message=f"InitGui.py must not import legacy module {legacy!r}",
+        )
 
 
-def test_all_implementation_python_files_are_inside_package_tree():
+def test_all_implementation_python_files_are_inside_package_tree() -> None:
+    """Keep implementation modules inside the package instead of at repository root."""
     forbidden = {
         "PatternCommands.py",
         "SewingNetworkCommands.py",
@@ -74,5 +116,12 @@ def test_all_implementation_python_files_are_inside_package_tree():
         "FittingCommands.py",
     }
     root_python = {path.name for path in ROOT.glob("*.py")}
-    assert root_python <= {"Init.py", "InitGui.py", "sitecustomize.py"}
-    assert not root_python.intersection(forbidden)
+    allowed_root_python = {"Init.py", "InitGui.py", "sitecustomize.py"}
+    require(
+        condition=root_python <= allowed_root_python,
+        message="Only FreeCAD loader entrypoints may remain at the repository root",
+    )
+    require(
+        condition=not root_python.intersection(forbidden),
+        message="Legacy workbench implementation modules must stay inside package directories",
+    )
