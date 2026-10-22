@@ -1,12 +1,22 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Strict source contracts for the canonical tunic simulation audit."""
+
 import subprocess
 import sys
+from importlib import import_module
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
+from freecad_cloth.shared.collision import CollisionSurface
 from tests.support.assertions import require
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
+
 ROOT = Path(__file__).resolve().parents[1]
+_EXPECTED_TRIMESH_OVERRIDE_COUNT = 2
 
 
 # The native-Sketcher fixture keeps explicit semantic edge IDs on each piece.
@@ -217,6 +227,7 @@ def test_canonical_tunic_shared_source_syntax_compiles() -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     require(
         condition=(result.returncode == 0),
@@ -427,9 +438,12 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
 
 def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
     """Verify simulation proxy serializes only rebuildable metadata contract."""
-    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
-
-    proxy = SimulationProxy()
+    simulation_objects = import_module("freecad_cloth.simulation.SimulationObjects")
+    simulation_proxy_type = cast(
+        "type[SimulationProxy]",
+        getattr(simulation_objects, "SimulationProxy"),
+    )
+    proxy = simulation_proxy_type()
     proxy.backend = object()
     proxy.panel_indices = {"panel": (1, 2)}
     proxy.seam_stitch_pairs = {"seam": ((0, 1),)}
@@ -726,9 +740,10 @@ def test_pbd_collision_sdf_is_cached_outside_backend_instance() -> None:
 
 def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
     """Verify pbd sdf cache key is stable and geometry sensitive contract."""
-    from freecad_cloth.shared.collision import CollisionSurface
-    from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
-        _pbd_collision_sdf_cache_key,
+    backend_module = import_module("freecad_cloth.simulation.PositionBasedDynamicsBackend")
+    collision_sdf_cache_key = cast(
+        "Callable[[CollisionSurface, list[int]], object]",
+        getattr(backend_module, "_pbd_collision_sdf_cache_key"),
     )
 
     surface = CollisionSurface(
@@ -736,9 +751,9 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
         ((0, 1, 2),),
         thickness=1.0,
     ).validate()
-    key = _pbd_collision_sdf_cache_key(surface, [16, 16, 16])
+    key = collision_sdf_cache_key(surface, [16, 16, 16])
     require(
-        condition=(key == _pbd_collision_sdf_cache_key(surface, [16, 16, 16])),
+        condition=(key == collision_sdf_cache_key(surface, [16, 16, 16])),
         message="Contract failed: key == _pbd_collision_sdf_cache_key(sur...",
     )
 
@@ -748,11 +763,11 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
         thickness=1.0,
     ).validate()
     require(
-        condition=(key != _pbd_collision_sdf_cache_key(moved, [16, 16, 16])),
+        condition=(key != collision_sdf_cache_key(moved, [16, 16, 16])),
         message="Contract failed: key != _pbd_collision_sdf_cache_key(mov...",
     )
     require(
-        condition=(key != _pbd_collision_sdf_cache_key(surface, [17, 16, 16])),
+        condition=(key != collision_sdf_cache_key(surface, [17, 16, 16])),
         message="Contract failed: key != _pbd_collision_sdf_cache_key(sur...",
     )
 
@@ -1001,7 +1016,7 @@ not in audit
         message="Contract failed: \"from freecad_cloth.simulation.DrapeVis...",
     )
     require(
-        condition=(evidence.count("prefer_trimesh=False") == 2),
+        condition=(evidence.count("prefer_trimesh=False") == _EXPECTED_TRIMESH_OVERRIDE_COUNT),
         message="Contract failed: evidence.count(\"prefer_trimesh=False\") ...",
     )
     require(
