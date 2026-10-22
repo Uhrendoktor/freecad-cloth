@@ -68,9 +68,13 @@ class BenchmarkWorkbenchBackend:
 
 
 # Register FreeCAD's legacy callback names without defining non-PEP-8 methods.
-type.__setattr__(BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar)
+type.__setattr__(
+    BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar
+)
 type.__setattr__(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
-type.__setattr__(BenchmarkWorkbenchBackend, "appendContextMenu", BenchmarkWorkbenchBackend.append_context_menu)
+type.__setattr__(
+    BenchmarkWorkbenchBackend, "appendContextMenu", BenchmarkWorkbenchBackend.append_context_menu
+)
 
 
 def trace(message: str) -> None:
