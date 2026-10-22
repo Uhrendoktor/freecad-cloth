@@ -175,5 +175,7 @@ def test_legacy_avatar_command_dotted_import_resolves_to_current_module() -> Non
     legacy_commands = import_module("freecad_cloth.avatar.AvatarCommands")
     require(
         condition=legacy_commands.create_avatar is _avatar_commands.create_avatar,
-        message="The legacy module path must resolve to the canonical avatar command implementation",
+        message=(
+            "The legacy module path must resolve to the canonical avatar command implementation"
+        ),
     )
