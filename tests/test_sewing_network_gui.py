@@ -189,7 +189,6 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
         ActiveDocument = Doc()
 
-
     class Network:
         """Represent sewing-network status and seam membership for validation."""
 
@@ -374,7 +373,6 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
         SegmentCount = 0
         LengthDifference = 0.0
 
-
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
     panel.network = Network()
     panel.warning = _TaskPanelLabel()
@@ -400,9 +398,7 @@ def test_valid_network_has_no_reference_errors() -> None:
         validate_network_for_edit,
     )
 
-    network = _ReferenceNetwork(
-        [_ReferenceSeam("s1"), _ReferenceSeam("s2")]
-    )
+    network = _ReferenceNetwork([_ReferenceSeam("s1"), _ReferenceSeam("s2")])
     assert network_reference_errors(network) == ()
     assert validate_network_for_edit(network) is True
 
@@ -721,7 +717,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
             """Return the configured checkbox state.
 
             Returns:
-                The configured checkbox state.
             """
             return False
 
