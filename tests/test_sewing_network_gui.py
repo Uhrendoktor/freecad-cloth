@@ -7,6 +7,75 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+class _TaskPanelLabel:
+    """Capture the label API used by sewing task panels without a GUI."""
+
+    text: str
+    properties: dict[str, str]
+
+    def __init__(self) -> None:
+        """Initialize empty label text and dynamic properties."""
+        self.text = ""
+        self.properties = {}
+
+    def setText(self, text: str) -> None:
+        """Store the text displayed by the simulated label.
+
+        Args:
+            text: Text the task panel requests the label to display.
+        """
+        self.text = text
+
+    def setWordWrap(self, _value: bool) -> None:
+        """Accept the task panel's word-wrapping request.
+
+        Args:
+            _value: Whether text wrapping should be enabled.
+        """
+        del _value
+
+    def setProperty(self, name: str, value: str) -> None:
+        """Store a dynamic Qt-style property for the test double.
+
+        Args:
+            name: Name of the dynamic property.
+            value: Property value to store.
+        """
+        self.properties[name] = value
+
+    def style(self) -> None:
+        """Accept style inspection without providing a GUI style object."""
+
+    def update(self) -> None:
+        """Accept a repaint request without opening a graphical interface."""
+
+
+class _ReferenceSeam:
+    """Model the identity and validation status of one network seam."""
+
+    def __init__(self, seam_id: object, status: object = "Valid") -> None:
+        """Initialize the seam identity and reference status.
+
+        Args:
+            seam_id: Stable identifier used in validation diagnostics.
+            status: Reference status reported by the seam fixture.
+        """
+        self.SeamId = seam_id
+        self.Status = status
+
+
+class _ReferenceNetwork:
+    """Provide the seam collection consumed by sewing-network validators."""
+
+    def __init__(self, seams: object) -> None:
+        """Initialize a network with the supplied seam collection.
+
+        Args:
+            seams: Seam fixture collection exposed to validation helpers.
+        """
+        self.Seams = seams
+
+
 def test_sewing_network_gui_contract_is_headless_importable() -> None:
     """Verify the sewing-network GUI imports without a graphical session."""
     from freecad_cloth.sewing import SewingNetworkGui
@@ -120,43 +189,6 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
 
         ActiveDocument = Doc()
 
-    class Label:
-        """Capture text and dynamic-property changes to a headless label."""
-
-        def __init__(self) -> None:
-            """Initialize the label text and dynamic-property state."""
-            self.text = None
-            self.properties = {}
-
-        def setText(self, text: str) -> None:
-            """Store the text displayed by the simulated label.
-
-            Args:
-                text: The text to display in the label.
-            """
-            self.text = text
-
-        def setWordWrap(self, _value: bool) -> None:
-            """Accept the requested label word-wrapping setting.
-
-            Args:
-                _value: Whether word wrapping should be enabled.
-            """
-
-        def setProperty(self, name: str, value: str) -> None:
-            """Store a dynamic property on the simulated label.
-
-            Args:
-                name: The dynamic property name to update.
-                value: The property value to store.
-            """
-            self.properties[name] = value
-
-        def style(self) -> None:
-            """Accept a style query from the headless label consumer."""
-
-        def update(self) -> None:
-            """Accept a label refresh request without a graphical interface."""
 
     class Network:
         """Represent sewing-network status and seam membership for validation."""
@@ -169,9 +201,9 @@ def test_network_task_panel_cancel_aborts_transaction_and_refreshes_warning() ->
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
     panel.App = App
     panel.network = Network()
-    panel.warning = Label()
-    panel.status = Label()
-    panel.correspondence = Label()
+    panel.warning = _TaskPanelLabel()
+    panel.status = _TaskPanelLabel()
+    panel.correspondence = _TaskPanelLabel()
     panel._transaction_active = True
     panel.reject()
     assert App.ActiveDocument.calls == [("abort",), ("recompute",)]
@@ -342,49 +374,12 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
         SegmentCount = 0
         LengthDifference = 0.0
 
-    class Label:
-        """Capture text and dynamic-property changes to a headless label."""
-
-        def __init__(self) -> None:
-            """Initialize the label text and dynamic-property state."""
-            self.text = ""
-            self.properties = {}
-
-        def setText(self, text: str) -> None:
-            """Store the text displayed by the simulated label.
-
-            Args:
-                text: The text to display in the label.
-            """
-            self.text = text
-
-        def setWordWrap(self, _value: bool) -> None:
-            """Accept the requested label word-wrapping setting.
-
-            Args:
-                _value: Whether word wrapping should be enabled.
-            """
-
-        def setProperty(self, name: str, value: str) -> None:
-            """Store a dynamic property on the simulated label.
-
-            Args:
-                name: The dynamic property name to update.
-                value: The property value to store.
-            """
-            self.properties[name] = value
-
-        def style(self) -> None:
-            """Accept a style query from the headless label consumer."""
-
-        def update(self) -> None:
-            """Accept a label refresh request without a graphical interface."""
 
     panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
     panel.network = Network()
-    panel.warning = Label()
-    panel.status = Label()
-    panel.correspondence = Label()
+    panel.warning = _TaskPanelLabel()
+    panel.status = _TaskPanelLabel()
+    panel.correspondence = _TaskPanelLabel()
     panel.update()
     assert "s2 (Missing reference)" in panel.warning.text
 
@@ -405,31 +400,9 @@ def test_valid_network_has_no_reference_errors() -> None:
         validate_network_for_edit,
     )
 
-    class Seam:
-        """Represent seam parameters and identity used by a panel test."""
-
-        def __init__(self, seam_id: object, status: object = "Valid") -> None:
-            """Initialize deterministic seam parameter and correspondence state.
-
-            Args:
-                seam_id: The seam id used by this test fixture.
-                status: The status used by this test fixture.
-            """
-            self.SeamId = seam_id
-            self.Status = status
-
-    class Network:
-        """Represent sewing-network status and seam membership for validation."""
-
-        def __init__(self, seams: object) -> None:
-            """Initialize the network fixture's validation state.
-
-            Args:
-                seams: The seams used by this test fixture.
-            """
-            self.Seams = seams
-
-    network = Network([Seam("s1"), Seam("s2")])
+    network = _ReferenceNetwork(
+        [_ReferenceSeam("s1"), _ReferenceSeam("s2")]
+    )
     assert network_reference_errors(network) == ()
     assert validate_network_for_edit(network) is True
 
@@ -445,31 +418,12 @@ def test_invalid_reference_is_reported_with_seam_identity() -> None:
         validate_network_for_edit,
     )
 
-    class Seam:
-        """Represent seam parameters and identity used by a panel test."""
-
-        def __init__(self, seam_id: object, status: object = "Valid") -> None:
-            """Initialize deterministic seam parameter and correspondence state.
-
-            Args:
-                seam_id: The seam id used by this test fixture.
-                status: The status used by this test fixture.
-            """
-            self.SeamId = seam_id
-            self.Status = status
-
-    class Network:
-        """Represent sewing-network status and seam membership for validation."""
-
-        def __init__(self, seams: object) -> None:
-            """Initialize the network fixture's validation state.
-
-            Args:
-                seams: The seams used by this test fixture.
-            """
-            self.Seams = seams
-
-    network = Network([Seam("s1"), Seam("s2", "Changed reference")])
+    network = _ReferenceNetwork(
+        [
+            _ReferenceSeam("s1"),
+            _ReferenceSeam("s2", "Changed reference"),
+        ]
+    )
     assert network_reference_errors(network) == (("s2", "Changed reference"),)
     try:
         validate_network_for_edit(network)
@@ -771,43 +725,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
             """
             return False
 
-    class Label:
-        """Capture text and dynamic-property changes to a headless label."""
-
-        def __init__(self) -> None:
-            """Initialize the label text and dynamic-property state."""
-            self.text = ""
-            self.properties = {}
-
-        def setText(self, text: str) -> None:
-            """Store the text displayed by the simulated label.
-
-            Args:
-                text: The text to display in the label.
-            """
-            self.text = text
-
-        def setWordWrap(self, _value: bool) -> None:
-            """Accept the requested label word-wrapping setting.
-
-            Args:
-                _value: Whether word wrapping should be enabled.
-            """
-
-        def setProperty(self, name: str, value: str) -> None:
-            """Store a dynamic property on the simulated label.
-
-            Args:
-                name: The dynamic property name to update.
-                value: The property value to store.
-            """
-            self.properties[name] = value
-
-        def style(self) -> None:
-            """Accept a style query from the headless label consumer."""
-
-        def update(self) -> None:
-            """Accept a label refresh request without a graphical interface."""
 
     class Button:
         """Capture the text and enabled state of a task-panel button."""
@@ -844,9 +761,9 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     panel.end_b = Spin(1.0)
     panel.tolerance = Spin(12.5)
     panel.stitches = Spin(12)
-    panel.status = Label()
-    panel.lengths = Label()
-    panel.correspondence = Label()
+    panel.status = _TaskPanelLabel()
+    panel.lengths = _TaskPanelLabel()
+    panel.correspondence = _TaskPanelLabel()
     panel.reverse_button = Button()
     panel.reset_ranges_button = Button()
     panel._transaction_active = True
