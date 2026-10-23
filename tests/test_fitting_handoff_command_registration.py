@@ -70,4 +70,3 @@ def test_shared_bootstrap_registers_handoff_commands_before_workbench_activation
         condition="fitting_handoff.register_fitting_handoff_commands(gui)" in source,
         message="The shared bootstrap must register simulation-owned fitting commands.",
     )
-}

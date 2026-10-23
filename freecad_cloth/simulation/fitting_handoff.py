@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Protocol, cast
 from freecad_cloth.common.CommandAdapter import register_commands
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from freecad_cloth.common.CommandAdapter import CommandCallable, GuiCommandRegistrar
 
@@ -29,7 +29,14 @@ class _FreeCADDocument(Protocol):
     Objects: Sequence[object]
 
     def getObject(self, name: str) -> object | None:
-        """Return a named document object when it exists."""
+        """Return a named document object when it exists.
+
+        Args:
+            name: Internal document object name to find.
+
+        Returns:
+            The requested object, or None when the name is absent.
+        """
         ...
 
     def recompute(self) -> None:
@@ -43,7 +50,14 @@ class _FreeCADApplication(Protocol):
     ActiveDocument: _FreeCADDocument | None
 
     def newDocument(self, name: str) -> _FreeCADDocument:
-        """Create a named document."""
+        """Create a named document.
+
+        Args:
+            name: Internal name for the new document.
+
+        Returns:
+            The newly created FreeCAD document.
+        """
         ...
 
 
@@ -51,7 +65,11 @@ class _Selection(Protocol):
     """Describe the FreeCAD selection operations used by this module."""
 
     def getSelection(self) -> Sequence[object]:
-        """Return selected document objects."""
+        """Return selected document objects.
+
+        Returns:
+            The currently selected objects from the active document.
+        """
         ...
 
     def clearSelection(self) -> None:
@@ -59,7 +77,11 @@ class _Selection(Protocol):
         ...
 
     def addSelection(self, obj: object) -> None:
-        """Add an object to the GUI selection."""
+        """Add an object to the GUI selection.
+
+        Args:
+            obj: Document object to add to the selection.
+        """
         ...
 
 
@@ -67,7 +89,11 @@ class _GuiControl(Protocol):
     """Describe the active task-panel controller."""
 
     def activeDialog(self) -> object | None:
-        """Return the active task panel, if present."""
+        """Return the active task panel, if present.
+
+        Returns:
+            The active task panel, or None when no panel is open.
+        """
         ...
 
     def closeDialog(self) -> None:
@@ -82,7 +108,11 @@ class _FreeCADGui(Protocol):
     Control: _GuiControl
 
     def activateWorkbench(self, name: str) -> None:
-        """Activate a registered workbench by name."""
+        """Activate a registered workbench by name.
+
+        Args:
+            name: Stable identifier of the workbench to activate.
+        """
         ...
 
 
@@ -221,7 +251,7 @@ def create_simulation_from_fitting() -> object:
         "_SimulationScene",
         simulation_objects.create_simulation_scene(doc),
     )
-    simulation.ClothPieces = pieces
+    simulation.ClothPieces = list(pieces)
     avatar_proxy = scene.AvatarProxy
     if avatar_proxy is not None:
         simulation_objects.set_avatar_collision_source(
