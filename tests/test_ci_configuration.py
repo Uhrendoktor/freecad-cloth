@@ -38,10 +38,7 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message=(
-            "Expected \"python3 tools/ci/validate_acceptance.py simulation-quality\" in "
-            "gui_matrix."
-        ),
+        message='Expected "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix.',
     )
     require(
         condition=(
@@ -690,7 +687,7 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> None:
     """Prefer a commit's committer date when determining branch activity age."""
-    commit_data = {
+    commit_data: dict[str, object] = {
         "author": {"date": "2020-01-01T00:00:00Z"},
         "committer": {"date": "2026-10-01T00:00:00Z"},
     }
@@ -710,7 +707,7 @@ def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> Non
 
 def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
     """Use the author date when the committer date cannot be parsed."""
-    commit_data = {"author": {"date": "2026-10-01T00:00:00Z"}}
+    commit_data: dict[str, object] = {"author": {"date": "2026-10-01T00:00:00Z"}}
 
     require(
         condition=(
