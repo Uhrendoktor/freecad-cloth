@@ -1,19 +1,25 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared assertion helpers for strict, descriptive regression tests."""
 
+_DEFAULT_REQUIRE_MESSAGE = (
+    "Required predicate evaluated to false. See the originating test call in the traceback; "
+    "pass `message=` to name the expected invariant."
+)
 
-def require(*, condition: bool, message: str = "Required condition was false.") -> None:
+
+def require(*, condition: bool, message: str | None = None) -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
     Args:
         condition: Boolean predicate that must hold for the test to pass.
-        message: Optional failure detail; the default is used for simple predicates.
+        message: Optional failure detail; the default points readers to the test call site.
 
     Raises:
         AssertionError: If the required condition is false.
     """
+    __tracebackhide__ = True
     if not condition:
-        raise AssertionError(message)
+        raise AssertionError(_DEFAULT_REQUIRE_MESSAGE if message is None else message)
 
 
 def require_contains(*, source: str, fragment: str, message: str) -> None:
@@ -25,6 +31,7 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
         message: Descriptive failure explanation when the fragment is absent.
 
     """
+    __tracebackhide__ = True
     require(condition=fragment in source, message=message)
 
 
@@ -41,6 +48,7 @@ def require_not_none[T](value: T | None, *, message: str = "Expected a non-None 
     Raises:
         AssertionError: If the required value is None.
     """
+    __tracebackhide__ = True
     if value is None:
         raise AssertionError(message)
     return value
