@@ -12,6 +12,8 @@ def require(*, condition: bool, message: str) -> None:
     Raises:
         AssertionError: If the required condition is false.
     """
+    # Pytest recognizes this local and hides this helper frame in reports.
+    __tracebackhide__ = True
     if not condition:
         raise AssertionError(message)
 
@@ -25,6 +27,8 @@ def require_contains(*, source: str, fragment: str, message: str) -> None:
         message: Descriptive failure explanation when the fragment is absent.
 
     """
+    # Hide this wrapper too, so reports point to the original test call.
+    __tracebackhide__ = True
     require(condition=fragment in source, message=message)
 
 
@@ -41,6 +45,8 @@ def require_not_none[T](value: T | None, *, message: str) -> T:
     Raises:
         AssertionError: If the required value is None.
     """
+    # Keep the failing caller visible when a required value is absent.
+    __tracebackhide__ = True
     if value is None:
         raise AssertionError(message)
     return value

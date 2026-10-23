@@ -2,13 +2,19 @@
 """Tests for the repository's single-source CI configuration contracts."""
 
 import json
+import re
 import tomllib
+from collections.abc import Iterator
+from hashlib import sha256
 from pathlib import Path
 
 from tests.support.assertions import require, require_not_none
+from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
 
 ROOT = Path(__file__).resolve().parents[1]
+_EXPECTED_FREECAD_APPLICATION_TIMEOUT_SECONDS = 120
+_EXPECTED_GRAPHQL_BATCH_COUNT = 3
 
 
 def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> None:
@@ -24,7 +30,7 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
 
     require(
         condition="case: simulation-quality" in gui_matrix,
-        message="Expected \"case: simulation-quality\" in gui_matrix.",
+        message='Expected "case: simulation-quality" in gui_matrix.',
     )
     require(
         condition="tests/freecad_simulation_quality_acceptance.py" in gui_matrix,
@@ -91,8 +97,8 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
         "freecad_application_timeout_seconds"
     ]
     require(
-        condition=configured == 120,
-        message="Expected configured == 120.",
+        condition=configured == _EXPECTED_FREECAD_APPLICATION_TIMEOUT_SECONDS,
+        message="Expected configured == _EXPECTED_FREECAD_APPLICATION_TIMEOUT_SECONDS.",
     )
     require(
         condition=configured_timeout_seconds() == configured,
@@ -261,15 +267,15 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
 
     require(
         condition=f"!({activation})" in readiness,
-        message="Expected f\"!({activation})\" in readiness.",
+        message=f"Expected `!({activation})` in readiness.",
     )
     require(
         condition=f"!({activation})" in watchdog,
-        message="Expected f\"!({activation})\" in watchdog.",
+        message=f"Expected `!({activation})` in watchdog.",
     )
     require(
         condition=f"!({activation})" in image,
-        message="Expected f\"!({activation})\" in image.",
+        message=f"Expected `!({activation})` in image.",
     )
     require(
         condition=(
@@ -308,23 +314,18 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
 
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     """Verify the PBD validation image tag matches the Dockerfile content hash."""
-    from hashlib import sha256
 
-    from tools.ci.maintenance_cleanup import pbd_validation_tag
 
     contents = b"FROM freecad:stable\n"
     require(
-        condition=pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32],
-        message="Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32].",
+        condition=maintenance_cleanup.pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32],
+        message="Expected maintenance_cleanup.pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32].",
     )
 
 
 def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
     """Verify protected Dockerfile tags are resolved in bounded GraphQL batches."""
-    import re
-    from hashlib import sha256
 
-    from tools.ci import maintenance_cleanup
 
     contents_by_sha = {
         "1" * 40: b"FROM freecad:one\n",
@@ -385,23 +386,27 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         ),
     )
     require(
-        condition=len(queries) == 3,
-        message="Expected len(queries) == 3.",
+        condition=len(queries) == _EXPECTED_GRAPHQL_BATCH_COUNT,
+        message="Expected len(queries) == _EXPECTED_GRAPHQL_BATCH_COUNT.",
     )
 
 
 def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> None:
-    """Reject cleanup when a protected Dockerfile blob is missing."""
-    from tools.ci import maintenance_cleanup
+    """Reject cleanup when a protected Dockerfile blob is missing.
+
+    Raises:
+        AssertionError: If cleanup accepts a missing protected Dockerfile blob.
+    """
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
-        
+
         Args:
             args: GitHub CLI request arguments, including the GraphQL query.
-        
+
         Returns:
-            Response mapping with the queried protected blob."""
+            Response mapping with the queried protected blob.
+        """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
             message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
@@ -424,22 +429,21 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
 
 def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> None:
     """Use the authenticated user's package endpoint for image cleanup."""
-    from collections.abc import Iterator
 
-    from tools.ci import maintenance_cleanup
 
     requested_endpoints: list[str] = []
     deleted_arguments: list[tuple[str, ...]] = []
 
     def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]:
         """Return protected Dockerfile tags for the requested repository state.
-        
+
         Args:
             repo_name: Repository whose protected Dockerfiles are resolved.
             protected_shas: Commit SHAs that must remain protected.
-        
+
         Returns:
-            Set of tags that identify protected Dockerfile contents."""
+            Set of tags that identify protected Dockerfile contents.
+        """
         require(
             condition=repo_name == "Uhrendoktor/freecad-cloth",
             message="Expected repo_name == \"Uhrendoktor/freecad-cloth\".",
@@ -452,12 +456,13 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         """Return mocked API records for the requested endpoint.
-        
+
         Args:
             endpoint: GitHub API collection endpoint to emulate.
-        
+
         Returns:
-            Iterator over package records from the requested endpoint."""
+            Iterator over package records from the requested endpoint.
+        """
         requested_endpoints.append(endpoint)
         if endpoint == "user/packages/container/freecad-cloth%2Fpbd-validation/versions":
             return iter([])
@@ -466,9 +471,10 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     def fake_delete(*args: str) -> None:
         """Record an attempted GitHub API deletion.
-        
+
         Args:
-            args: Resource deletion arguments supplied by the cleanup routine."""
+            args: Resource deletion arguments supplied by the cleanup routine.
+        """
         deleted_arguments.append(args)
 
     result = maintenance_cleanup.cleanup_pbd_package_versions(
@@ -511,8 +517,6 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
     """Keep protected, recent and unverifiable package versions out of deletion candidates."""
-    from tools.ci.maintenance_cleanup import stale_package_versions
-
     versions = [
         {
             "id": 1,
@@ -536,7 +540,7 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     ]
     cutoff = 1_789_430_400  # 2026-09-15T00:00:00Z
 
-    stale = stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
+    stale = maintenance_cleanup.stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
 
     require(
         condition=[version["id"] for version in stale] == [1],
@@ -546,9 +550,7 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
 
 def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listing() -> None:
     """Delete stale package versions using only the configured package endpoint."""
-    from collections.abc import Iterator
 
-    from tools.ci import maintenance_cleanup
 
     endpoint = "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
     endpoints: list[str] = []
@@ -556,23 +558,28 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     def fake_resolve_tags(_repo_name: str, _protected_shas: set[str]) -> set[str]:
         """Return a stable protected tag set for this package-cleanup test.
-        
+
         Args:
             _repo_name: Repository name ignored by this controlled fake.
             _protected_shas: Protected commits ignored by this controlled fake.
-        
+
         Returns:
-            Set containing the single tag kept by the test."""
+            Set containing the single tag kept by the test.
+        """
         return {"current-tag"}
 
     def fake_load_items(requested_endpoint: str) -> Iterator[dict[str, object]]:
         """Record a request and provide the configured stale package version.
-        
+
         Args:
             requested_endpoint: API endpoint requested by the cleanup routine.
-        
+
         Returns:
-            Iterator containing the configured stale package version."""
+            Iterator containing the configured stale package version.
+
+        Raises:
+            AssertionError: If the cleanup requests an unexpected package endpoint.
+        """
         endpoints.append(requested_endpoint)
         if requested_endpoint != endpoint:
             msg = f"unexpected package API endpoint: {requested_endpoint}"
@@ -590,9 +597,10 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     def fake_delete(*args: str) -> None:
         """Record an attempted deletion of a stale package version.
-        
+
         Args:
-            args: Resource deletion arguments supplied by the cleanup routine."""
+            args: Resource deletion arguments supplied by the cleanup routine.
+        """
         deleted.append(args)
 
     result = maintenance_cleanup.cleanup_pbd_package_versions(
@@ -640,8 +648,6 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
 def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
     """Read all cleanup API pages and stop on the first short page."""
-    from tools.ci import maintenance_cleanup
-
     pages = {
         1: [{"id": 1}, {"id": 2}],
         2: [{"id": 3}],
@@ -650,12 +656,13 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
     def fake_gh_json(*args: str) -> dict[str, list[dict[str, int]]]:
         """Return mock paginated GitHub API responses.
-        
+
         Args:
             args: GitHub CLI command and endpoint arguments.
-        
+
         Returns:
-            Mapping containing the requested page of integer-ID records."""
+            Mapping containing the requested page of integer-ID records.
+        """
         endpoint = args[1]
         page = int(endpoint.rsplit("page=", maxsplit=1)[1])
         requested_pages.append(page)
@@ -682,8 +689,6 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> None:
     """Prefer a commit's committer date when determining branch activity age."""
-    from tools.ci import maintenance_cleanup
-
     commit_data = {
         "author": {"date": "2020-01-01T00:00:00Z"},
         "committer": {"date": "2026-10-01T00:00:00Z"},
@@ -704,8 +709,6 @@ def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> Non
 
 def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
     """Use the author date when the committer date cannot be parsed."""
-    from tools.ci import maintenance_cleanup
-
     commit_data = {"author": {"date": "2026-10-01T00:00:00Z"}}
 
     require(
@@ -722,10 +725,7 @@ def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
 
 
 def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> None:
-    """import re"""
-
-    from tools.ci import maintenance_cleanup
-
+    """Resolve unique commit heads in bounded GraphQL batches."""
     dates_by_sha: dict[str, dict[str, str | None]] = {
         "1" * 40: {
             "committedDate": "2026-07-01T00:00:00Z",
@@ -752,12 +752,13 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return mocked commit activity data for a batch query.
-        
+
         Args:
             args: GitHub CLI command and GraphQL query arguments.
-        
+
         Returns:
-            Mapping from query aliases to commit date objects."""
+            Mapping from query aliases to commit date objects.
+        """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
             message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
@@ -802,22 +803,27 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         ),
     )
     require(
-        condition=len(query_batches) == 3,
-        message="Expected len(query_batches) == 3.",
+        condition=len(query_batches) == _EXPECTED_GRAPHQL_BATCH_COUNT,
+        message="Expected len(query_batches) == _EXPECTED_GRAPHQL_BATCH_COUNT.",
     )
 
 
 def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
-    """from tools.ci import maintenance_cleanup"""
+    """Fail closed when a requested branch commit has no activity record.
+
+    Raises:
+        AssertionError: If missing commit activity is accepted.
+    """
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock response that omits a requested commit object.
-        
+
         Args:
             args: GitHub CLI command and GraphQL query arguments.
-        
+
         Returns:
-            Mapping whose queried alias does not contain commit data."""
+            Mapping whose queried alias does not contain commit data.
+        """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
             message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
@@ -840,9 +846,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
 
 def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
     """Match closed pull requests only to unchanged heads in the same repository."""
-    from collections.abc import Iterator
 
-    from tools.ci import maintenance_cleanup
 
     cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
     activity = {
@@ -872,12 +876,13 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         """Return mock closed pull requests for the supplied API endpoint.
-        
+
         Args:
             endpoint: GitHub pull-request listing endpoint to emulate.
-        
+
         Returns:
-            Iterator over mock pull-request records."""
+            Iterator over mock pull-request records.
+        """
         endpoints.append(endpoint)
         if endpoint.endswith("head=owner:fix%2Fclosed-pr-head"):
             return iter(
@@ -926,8 +931,6 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 
 def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs() -> None:
     """Keep live and protected references while selecting stale unprotected branches."""
-    from tools.ci import maintenance_cleanup
-
     cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
     branches: list[dict[str, object]] = [
         {
@@ -1000,8 +1003,6 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
 
 def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
     """Filter completed workflow runs by cutoff and preserve chronological ordering."""
-    from tools.ci import maintenance_cleanup
-
     runs = [
         {"id": 3, "created_at": "2026-10-01T00:00:00Z"},
         {"id": 1, "created_at": "2026-08-01T00:00:00Z"},
@@ -1126,14 +1127,12 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     )
     require(
         condition=(
-            (
-                "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
-                "CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
-            )
+            "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
+            "CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
         ),
         message=(
-            "Expected ( ( \"FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.\" "
-            "\"CLOTH_DOC_AVATAR_FIT_STEPS }}\" in gallery_invocation ) )."
+            "Expected `FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
+            "CLOTH_DOC_AVATAR_FIT_STEPS }}` in gallery_invocation."
         ),
     )
     require(
