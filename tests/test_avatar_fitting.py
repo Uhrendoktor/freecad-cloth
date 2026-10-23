@@ -461,13 +461,13 @@ class AvatarFittingTests(unittest.TestCase):
 
 
 def test_fitting_stage_status_without_simulation_is_not_actionable():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     assert fitting_stage_status(None) == ("No simulation scene selected.", False)
 
 
 def test_fitting_stage_status_reports_unarranged_scene():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     doc = type("Doc", (), {"Objects": ()})()
     simulation = type("Simulation", (), {"Document": doc})()
@@ -479,7 +479,7 @@ def test_fitting_stage_status_reports_unarranged_scene():
 
 
 def test_fitting_stage_status_reports_saved_arrangement_state():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     fitting = type(
         "Fitting",

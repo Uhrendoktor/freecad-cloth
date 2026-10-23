@@ -24,7 +24,7 @@ def initialize_workbenches(installation_root: Path) -> None:
         gui.addIconPath(str(icon_dir))
 
     avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
-    fitting_handoff = import_module("freecad_cloth.simulation.FittingHandoff")
+    fitting_handoff = import_module("freecad_cloth.simulation.fitting_handoff")
     fitting_handoff.register_fitting_handoff_commands(gui)
     pattern_workbench = import_module("freecad_cloth.pattern.workbench")
     sewing_workbench = import_module("freecad_cloth.sewing.workbench")
