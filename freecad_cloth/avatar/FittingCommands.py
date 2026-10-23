@@ -729,49 +729,6 @@ def set_body_measurements(measurements, unit="mm"):
     return scene
 
 
-def assign_avatar_source(source=None):
-    import FreeCAD as App
-    import FreeCADGui as Gui
-
-    from freecad_cloth.simulation.DrapeTarget import (
-        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
-        assign_drape_target,
-        create_drape_target,
-    )
-
-    doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    scene = _scene(doc) or create_fitting_scene()
-    if source is None:
-        source = next(
-            (o for o in Gui.Selection.getSelection() if hasattr(o, "Shape") or hasattr(o, "Mesh")),
-            None,
-        )
-    if source is None:
-        msg = "select a FreeCAD body or mesh to use as the avatar source"
-        raise ValueError(msg)
-
-    target = doc.getObject("DrapeTarget")
-    target_type = (
-        "Mannequin"
-        if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
-        else "FreeCAD Geometry"
-    )
-    target_thickness = (
-        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if target_type == "Mannequin" else 2.0
-    )
-    if target is None:
-        target = create_drape_target(doc, source, target_type, 1.0, target_thickness)
-    else:
-        target.CollisionDeflection = 1.0
-        target.CollisionThickness = target_thickness
-        assign_drape_target(target, source, target_type)
-
-    scene.AvatarProxy = source
-    scene.FitStatus = "Avatar assigned"
-    doc.recompute()
-    return scene
-
-
 def add_selected_pattern_pieces():
     import FreeCAD as App
     import FreeCADGui as Gui
@@ -1062,35 +1019,6 @@ def reset_arrangement():
     return scene
 
 
-def create_simulation_from_fitting():
-    import FreeCAD as App
-
-    doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    scene = _scene(doc)
-    if scene is None:
-        msg = "create a fitting scene first"
-        raise ValueError(msg)
-    if not scene.PatternPieces:
-        msg = "add at least one pattern piece to the fitting scene"
-        raise ValueError(msg)
-    from freecad_cloth.simulation.SimulationObjects import (
-        create_simulation_scene,
-        set_avatar_collision_source,
-    )
-
-    simulation = create_simulation_scene(doc)
-    simulation.ClothPieces = list(scene.PatternPieces)
-    if scene.AvatarProxy is not None:
-        set_avatar_collision_source(
-            simulation,
-            scene.AvatarProxy,
-            thickness=2.0,
-            deflection=1.0,
-        )
-    doc.recompute()
-    return simulation
-
-
 def open_interactive_arrange(scene=None):
     """Open the direct-manipulation fitting panel for the active fitting scene."""
     import FreeCAD as App
@@ -1237,7 +1165,6 @@ _COMMAND_HANDLERS = {
     "ClothFitting_SetMeasurements": lambda: set_body_measurements(
         {"height": 1700, "chest": 900, "waist": 760, "hip": 960, "shoulder": 420}
     ),
-    "ClothFitting_AssignAvatar": assign_avatar_source,
     "ClothFitting_AddPieces": add_selected_pattern_pieces,
     "ClothFitting_CreateArrangementPoint": create_arrangement_point_from_viewport,
     "ClothFitting_SetArrangementPoint": lambda: set_arrangement_point("Point1", x=0, y=0),
@@ -1247,7 +1174,6 @@ _COMMAND_HANDLERS = {
     "ClothFitting_SetSymmetry": lambda: set_symmetry_enabled(True),
     "ClothFitting_ApplyArrangementPoint": lambda: _apply_selected_arrangement(),
     "ClothFitting_ResetArrangement": reset_arrangement,
-    "ClothFitting_CreateSimulation": create_simulation_from_fitting,
 }
 
 
