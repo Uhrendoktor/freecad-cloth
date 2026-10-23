@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Protocol, cast
 from freecad_cloth.common.CommandAdapter import register_commands
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from freecad_cloth.common.CommandAdapter import CommandCallable, GuiCommandRegistrar
 
