@@ -38,18 +38,15 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message=(
-            'Expected "python3 tools/ci/validate_acceptance.py '
-            'simulation-quality" in gui_matrix.'
-        ),
+        message='Expected "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix.',
     )
     require(
         condition=(
             '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
         ),
         message=(
-            "Expected ( '\"simulation-quality\": "
-            "Path(\"artifacts/simulation-quality-readiness.png\")' in validator )."
+            'Expected ( \'"simulation-quality": '
+            'Path("artifacts/simulation-quality-readiness.png")\' in validator ).'
         ),
     )
     stale_image_contract = (
@@ -61,11 +58,11 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="simulation-quality-readiness.png" in acceptance,
-        message="Expected \"simulation-quality-readiness.png\" in acceptance.",
+        message='Expected "simulation-quality-readiness.png" in acceptance.',
     )
     require(
         condition="simulation-quality-stale-target.png" in acceptance,
-        message="Expected \"simulation-quality-stale-target.png\" in acceptance.",
+        message='Expected "simulation-quality-stale-target.png" in acceptance.',
     )
     require(
         condition='property("workflowState") != "blocked"' in acceptance,
