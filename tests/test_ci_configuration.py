@@ -34,7 +34,7 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="tests/freecad_simulation_quality_acceptance.py" in gui_matrix,
-        message="Expected \"tests/freecad_simulation_quality_acceptance.py\" in gui_matrix.",
+        message='Expected "tests/freecad_simulation_quality_acceptance.py" in gui_matrix.',
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
@@ -314,19 +314,20 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
 
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     """Verify the PBD validation image tag matches the Dockerfile content hash."""
-
-
     contents = b"FROM freecad:stable\n"
     require(
-        condition=maintenance_cleanup.pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32],
-        message="Expected maintenance_cleanup.pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32].",
+        condition=(
+            maintenance_cleanup.pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
+        ),
+        message=(
+            "Expected maintenance_cleanup.pbd_validation_tag(contents) == "
+            "sha256(contents).hexdigest()[:32]."
+        ),
     )
 
 
 def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
     """Verify protected Dockerfile tags are resolved in bounded GraphQL batches."""
-
-
     contents_by_sha = {
         "1" * 40: b"FROM freecad:one\n",
         "2" * 40: b"FROM freecad:two\n",
@@ -397,7 +398,6 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     Raises:
         AssertionError: If cleanup accepts a missing protected Dockerfile blob.
     """
-
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
 
@@ -429,8 +429,6 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
 
 def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -> None:
     """Use the authenticated user's package endpoint for image cleanup."""
-
-
     requested_endpoints: list[str] = []
     deleted_arguments: list[tuple[str, ...]] = []
 
@@ -462,6 +460,9 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
         Returns:
             Iterator over package records from the requested endpoint.
+
+        Raises:
+            AssertionError: If the cleanup requests an unexpected package endpoint.
         """
         requested_endpoints.append(endpoint)
         if endpoint == "user/packages/container/freecad-cloth%2Fpbd-validation/versions":
@@ -540,7 +541,9 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     ]
     cutoff = 1_789_430_400  # 2026-09-15T00:00:00Z
 
-    stale = maintenance_cleanup.stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
+    stale = maintenance_cleanup.stale_package_versions(
+        versions, {"protected-dockerfile-tag"}, cutoff
+    )
 
     require(
         condition=[version["id"] for version in stale] == [1],
@@ -550,8 +553,6 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
 
 def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listing() -> None:
     """Delete stale package versions using only the configured package endpoint."""
-
-
     endpoint = "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
     endpoints: list[str] = []
     deleted: list[tuple[str, ...]] = []
@@ -814,7 +815,6 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     Raises:
         AssertionError: If missing commit activity is accepted.
     """
-
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock response that omits a requested commit object.
 
@@ -846,8 +846,6 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
 
 def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
     """Match closed pull requests only to unchanged heads in the same repository."""
-
-
     cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
     activity = {
         "1" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
