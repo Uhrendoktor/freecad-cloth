@@ -42,4 +42,3 @@ ignore_imports =
     freecad_cloth.simulation.SimulationCommands -> freecad_cloth.avatar.avatar_commands
     freecad_cloth.simulation.DrapeCommands -> freecad_cloth.avatar.avatar_commands
     freecad_cloth.simulation.SimulationQualityGui -> freecad_cloth.avatar.FittingCommands
-    freecad_cloth.simulation.fitting_handoff -> freecad_cloth.avatar.FittingCommands
