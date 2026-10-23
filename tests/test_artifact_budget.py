@@ -5,6 +5,8 @@ import pytest
 
 from tools.ci.check_artifact_budget import MAX_ARTIFACT_BYTES, accumulated_size
 
+EXPECTED_ACCUMULATED_BYTES = 9_500_000
+
 
 def _require(*, condition: bool, message: str) -> None:
     """Raise a clear test failure when an artifact-budget expectation is false.
@@ -28,7 +30,7 @@ def test_accumulated_size_sums_all_artifacts() -> None:
         {"name": "third", "size_in_bytes": 4_000_000},
     ]
     _require(
-        condition=accumulated_size(artifacts) == 9_500_000,
+        condition=accumulated_size(artifacts) == EXPECTED_ACCUMULATED_BYTES,
         message="artifact sizes should be summed across all records",
     )
 
