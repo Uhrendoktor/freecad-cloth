@@ -38,7 +38,10 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message='Expected "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix.',
+        message=(
+            'Expected "python3 tools/ci/validate_acceptance.py '
+            'simulation-quality" in gui_matrix.'
+        ),
     )
     require(
         condition=(
