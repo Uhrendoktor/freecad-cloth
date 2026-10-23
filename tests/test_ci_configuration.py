@@ -5,6 +5,7 @@ import json
 import tomllib
 from pathlib import Path
 
+from tests.support.assertions import require, require_not_none
 from tools.ci.run_freecad import configured_timeout_seconds
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,23 +22,65 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     gui_matrix = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
 
-    assert "case: simulation-quality" in gui_matrix
-    assert "tests/freecad_simulation_quality_acceptance.py" in gui_matrix
-    assert "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix
-    assert (
-        '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
+    require(
+        condition="case: simulation-quality" in gui_matrix,
+        message="Expected \"case: simulation-quality\" in gui_matrix.",
+    )
+    require(
+        condition="tests/freecad_simulation_quality_acceptance.py" in gui_matrix,
+        message="Expected \"tests/freecad_simulation_quality_acceptance.py\" in gui_matrix.",
+    )
+    require(
+        condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
+        message=(
+            "Expected \"python3 tools/ci/validate_acceptance.py simulation-quality\" in "
+            "gui_matrix."
+        ),
+    )
+    require(
+        condition=(
+            '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
+        ),
+        message=(
+            "Expected ( '\"simulation-quality\": "
+            "Path(\"artifacts/simulation-quality-readiness.png\")' in validator )."
+        ),
     )
     stale_image_contract = (
         '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
     )
-    assert stale_image_contract in validator
-    assert "simulation-quality-readiness.png" in acceptance
-    assert "simulation-quality-stale-target.png" in acceptance
-    assert 'property("workflowState") != "blocked"' in acceptance
-    assert 'if __name__ == "__main__"' not in acceptance
-    assert '_progress("entrypoint-entered")' in acceptance
-    assert "os._exit(0)" in acceptance
-    assert "os._exit(1)" in acceptance
+    require(
+        condition=stale_image_contract in validator,
+        message="Expected stale_image_contract in validator.",
+    )
+    require(
+        condition="simulation-quality-readiness.png" in acceptance,
+        message="Expected \"simulation-quality-readiness.png\" in acceptance.",
+    )
+    require(
+        condition="simulation-quality-stale-target.png" in acceptance,
+        message="Expected \"simulation-quality-stale-target.png\" in acceptance.",
+    )
+    require(
+        condition='property("workflowState") != "blocked"' in acceptance,
+        message="Expected 'property(\"workflowState\") != \"blocked\"' in acceptance.",
+    )
+    require(
+        condition='if __name__ == "__main__"' not in acceptance,
+        message="Expected 'if __name__ == \"__main__\"' not in acceptance.",
+    )
+    require(
+        condition='_progress("entrypoint-entered")' in acceptance,
+        message="Expected '_progress(\"entrypoint-entered\")' in acceptance.",
+    )
+    require(
+        condition="os._exit(0)" in acceptance,
+        message="Expected \"os._exit(0)\" in acceptance.",
+    )
+    require(
+        condition="os._exit(1)" in acceptance,
+        message="Expected \"os._exit(1)\" in acceptance.",
+    )
 
 
 def test_freecad_timeout_is_positive_and_declared_once() -> None:
@@ -47,9 +90,18 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
     configured = tomllib.loads(pyproject)["tool"]["freecad_cloth"]["ci"][
         "freecad_application_timeout_seconds"
     ]
-    assert configured == 120
-    assert configured_timeout_seconds() == configured
-    assert pyproject.count("freecad_application_timeout_seconds") == 1
+    require(
+        condition=configured == 120,
+        message="Expected configured == 120.",
+    )
+    require(
+        condition=configured_timeout_seconds() == configured,
+        message="Expected configured_timeout_seconds() == configured.",
+    )
+    require(
+        condition=pyproject.count("freecad_application_timeout_seconds") == 1,
+        message="Expected pyproject.count(\"freecad_application_timeout_seconds\") == 1.",
+    )
 
 
 def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
@@ -66,25 +118,85 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
-    assert workflow.count("timeout-seconds:") == 1
-    assert 'timeout-seconds: "360"' in simulation_ladder
-    assert "freecad_application_timeout_seconds" not in workflow
-    assert 'default: "120"' in action
-    assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in action
-    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action
-    assert 'default: "120"' in container_action
-    assert "maximum 360 seconds" in container_action
-    assert 'if [ "$timeout_seconds" -gt 360 ]; then' in container_action
-    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner
-    assert "420" not in container_action
-    assert "--no-deps -e ." in action
-    assert '"numpy>=1.26,<3"' in action
-    assert '"pydantic>=2.11,<3"' in action
-    assert '"Pillow>=11,<13"' in action
-    assert "install --disable-pip-version-check -e ." not in action
-    assert "configured_timeout_seconds()" in runner
-    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
-    assert '"torch==2.8.0+cpu"' in workflow
+    require(
+        condition=workflow.count("timeout-seconds:") == 1,
+        message="Expected workflow.count(\"timeout-seconds:\") == 1.",
+    )
+    require(
+        condition='timeout-seconds: "360"' in simulation_ladder,
+        message="Expected 'timeout-seconds: \"360\"' in simulation_ladder.",
+    )
+    require(
+        condition="freecad_application_timeout_seconds" not in workflow,
+        message="Expected \"freecad_application_timeout_seconds\" not in workflow.",
+    )
+    require(
+        condition='default: "120"' in action,
+        message="Expected 'default: \"120\"' in action.",
+    )
+    require(
+        condition="timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
+        message="Expected \"timeout-seconds: ${{ inputs.timeout-seconds }}\" in action.",
+    )
+    require(
+        condition="FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action,
+        message="Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS=\" in action.",
+    )
+    require(
+        condition='default: "120"' in container_action,
+        message="Expected 'default: \"120\"' in container_action.",
+    )
+    require(
+        condition="maximum 360 seconds" in container_action,
+        message="Expected \"maximum 360 seconds\" in container_action.",
+    )
+    require(
+        condition='if [ "$timeout_seconds" -gt 360 ]; then' in container_action,
+        message="Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action.",
+    )
+    require(
+        condition="FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner,
+        message="Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS\" in runner.",
+    )
+    require(
+        condition="420" not in container_action,
+        message="Expected \"420\" not in container_action.",
+    )
+    require(
+        condition="--no-deps -e ." in action,
+        message="Expected \"--no-deps -e .\" in action.",
+    )
+    require(
+        condition='"numpy>=1.26,<3"' in action,
+        message="Expected '\"numpy>=1.26,<3\"' in action.",
+    )
+    require(
+        condition='"pydantic>=2.11,<3"' in action,
+        message="Expected '\"pydantic>=2.11,<3\"' in action.",
+    )
+    require(
+        condition='"Pillow>=11,<13"' in action,
+        message="Expected '\"Pillow>=11,<13\"' in action.",
+    )
+    require(
+        condition="install --disable-pip-version-check -e ." not in action,
+        message="Expected \"install --disable-pip-version-check -e .\" not in action.",
+    )
+    require(
+        condition="configured_timeout_seconds()" in runner,
+        message="Expected \"configured_timeout_seconds()\" in runner.",
+    )
+    require(
+        condition="--extra-index-url https://download.pytorch.org/whl/cpu" in workflow,
+        message=(
+            "Expected \"--extra-index-url https://download.pytorch.org/whl/cpu\" in "
+            "workflow."
+        ),
+    )
+    require(
+        condition='"torch==2.8.0+cpu"' in workflow,
+        message="Expected '\"torch==2.8.0+cpu\"' in workflow.",
+    )
 
 
 def test_timeout_contract_is_documented() -> None:
@@ -94,9 +206,18 @@ def test_timeout_contract_is_documented() -> None:
         encoding="utf-8"
     )
 
-    assert "CI configuration" in docs
-    assert "pyproject.toml" in configuration
-    assert "freecad_application_timeout_seconds" in configuration
+    require(
+        condition="CI configuration" in docs,
+        message="Expected \"CI configuration\" in docs.",
+    )
+    require(
+        condition="pyproject.toml" in configuration,
+        message="Expected \"pyproject.toml\" in configuration.",
+    )
+    require(
+        condition="freecad_application_timeout_seconds" in configuration,
+        message="Expected \"freecad_application_timeout_seconds\" in configuration.",
+    )
 
 
 def test_maintenance_cleanup_receives_github_cli_token() -> None:
@@ -106,10 +227,22 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     )
     cleanup = workflow.split("  maintenance-cleanup:", 1)[1].split("  artifact-budget:", 1)[0]
 
-    assert "GH_TOKEN: ${{ github.token }}" in cleanup
-    assert "actions: write" in cleanup
-    assert "contents: write" in cleanup
-    assert "packages: write" in cleanup
+    require(
+        condition="GH_TOKEN: ${{ github.token }}" in cleanup,
+        message="Expected \"GH_TOKEN: ${{ github.token }}\" in cleanup.",
+    )
+    require(
+        condition="actions: write" in cleanup,
+        message="Expected \"actions: write\" in cleanup.",
+    )
+    require(
+        condition="contents: write" in cleanup,
+        message="Expected \"contents: write\" in cleanup.",
+    )
+    require(
+        condition="packages: write" in cleanup,
+        message="Expected \"packages: write\" in cleanup.",
+    )
 
 
 def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
@@ -126,12 +259,27 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
     image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
     artifact_budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
 
-    assert f"!({activation})" in readiness
-    assert f"!({activation})" in watchdog
-    assert f"!({activation})" in image
-    assert (
-        "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
-        in artifact_budget
+    require(
+        condition=f"!({activation})" in readiness,
+        message="Expected f\"!({activation})\" in readiness.",
+    )
+    require(
+        condition=f"!({activation})" in watchdog,
+        message="Expected f\"!({activation})\" in watchdog.",
+    )
+    require(
+        condition=f"!({activation})" in image,
+        message="Expected f\"!({activation})\" in image.",
+    )
+    require(
+        condition=(
+            "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
+            in artifact_budget
+        ),
+        message=(
+            "Expected ( \"!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE "
+            "CLEANUP')\" in artifact_budget )."
+        ),
     )
 
 
@@ -144,9 +292,18 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
         "      - name: Workflow linters", 1
     )[0]
 
-    assert "python tools/check_dead_code.py" in quality
-    assert "xargs -r python tools/check_dead_code.py" not in quality
-    assert "changed-python.txt" not in quality
+    require(
+        condition="python tools/check_dead_code.py" in quality,
+        message="Expected \"python tools/check_dead_code.py\" in quality.",
+    )
+    require(
+        condition="xargs -r python tools/check_dead_code.py" not in quality,
+        message="Expected \"xargs -r python tools/check_dead_code.py\" not in quality.",
+    )
+    require(
+        condition="changed-python.txt" not in quality,
+        message="Expected \"changed-python.txt\" not in quality.",
+    )
 
 
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
@@ -156,7 +313,10 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     from tools.ci.maintenance_cleanup import pbd_validation_tag
 
     contents = b"FROM freecad:stable\n"
-    assert pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32]
+    require(
+        condition=pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32],
+        message="Expected pbd_validation_tag(contents) == sha256(contents).hexdigest()[:32].",
+    )
 
 
 def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
@@ -184,15 +344,24 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         Returns:
             Mapping containing the protected repository blob contents.
         """
-        assert args[:3] == ("api", "graphql", "-f")
+        require(
+            condition=args[:3] == ("api", "graphql", "-f"),
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
+        )
         query_arg = args[3]
-        assert query_arg.startswith("query=")
+        require(
+            condition=query_arg.startswith("query="),
+            message="Expected query_arg.startswith(\"query=\").",
+        )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(
             r'(file\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/Dockerfile"\)',
             query,
         )
-        assert bool(aliases)
+        require(
+            condition=bool(aliases),
+            message="Expected bool(aliases).",
+        )
         queries.append(query)
         return {
             "data": {
@@ -206,10 +375,19 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         "owner/repo", set(contents_by_sha), batch_size=2, fetch_json=fake_gh_json
     )
 
-    assert (
-        tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}
+    require(
+        condition=(
+            tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}
+        ),
+        message=(
+            "Expected ( tags == {sha256(contents).hexdigest()[:32] for contents in "
+            "contents_by_sha.values()} )."
+        ),
     )
-    assert len(queries) == 3
+    require(
+        condition=len(queries) == 3,
+        message="Expected len(queries) == 3.",
+    )
 
 
 def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> None:
@@ -218,13 +396,16 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
-
+        
         Args:
             args: GitHub CLI request arguments, including the GraphQL query.
-
+        
         Returns:
             Response mapping with the queried protected blob."""
-        assert args[:3] == ("api", "graphql", "-f")
+        require(
+            condition=args[:3] == ("api", "graphql", "-f"),
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
+        )
         return {"data": {"repository": {"file0": None}}}
 
     try:
@@ -232,7 +413,10 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
             "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
         )
     except RuntimeError as exc:
-        assert "Dockerfile content missing" in str(exc)
+        require(
+            condition="Dockerfile content missing" in str(exc),
+            message="Expected \"Dockerfile content missing\" in str(exc).",
+        )
     else:
         msg = "missing protected Dockerfile content must fail closed"
         raise AssertionError(msg)
@@ -249,23 +433,29 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     def fake_resolve_tags(repo_name: str, protected_shas: set[str]) -> set[str]:
         """Return protected Dockerfile tags for the requested repository state.
-
+        
         Args:
             repo_name: Repository whose protected Dockerfiles are resolved.
             protected_shas: Commit SHAs that must remain protected.
-
+        
         Returns:
             Set of tags that identify protected Dockerfile contents."""
-        assert repo_name == "Uhrendoktor/freecad-cloth"
-        assert protected_shas == {"1" * 40}
+        require(
+            condition=repo_name == "Uhrendoktor/freecad-cloth",
+            message="Expected repo_name == \"Uhrendoktor/freecad-cloth\".",
+        )
+        require(
+            condition=protected_shas == {"1" * 40},
+            message="Expected protected_shas == {\"1\" * 40}.",
+        )
         return {"protected-dockerfile-tag"}
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         """Return mocked API records for the requested endpoint.
-
+        
         Args:
             endpoint: GitHub API collection endpoint to emulate.
-
+        
         Returns:
             Iterator over package records from the requested endpoint."""
         requested_endpoints.append(endpoint)
@@ -276,7 +466,7 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     def fake_delete(*args: str) -> None:
         """Record an attempted GitHub API deletion.
-
+        
         Args:
             args: Resource deletion arguments supplied by the cleanup routine."""
         deleted_arguments.append(args)
@@ -290,15 +480,33 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         delete_resource=fake_delete,
     )
 
-    assert result["status"] == "passed"
-    assert result["versions_seen"] == 0
-    assert result["deleted"] == 0
-    assert (
-        requested_endpoints == [
-            "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
-        ]
+    require(
+        condition=result["status"] == "passed",
+        message="Expected result[\"status\"] == \"passed\".",
     )
-    assert deleted_arguments == []
+    require(
+        condition=result["versions_seen"] == 0,
+        message="Expected result[\"versions_seen\"] == 0.",
+    )
+    require(
+        condition=result["deleted"] == 0,
+        message="Expected result[\"deleted\"] == 0.",
+    )
+    require(
+        condition=(
+            requested_endpoints == [
+                "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
+            ]
+        ),
+        message=(
+            "Expected ( requested_endpoints == [ "
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions\" ] )."
+        ),
+    )
+    require(
+        condition=deleted_arguments == [],
+        message="Expected deleted_arguments == [].",
+    )
 
 
 def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions() -> None:
@@ -330,7 +538,10 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
 
     stale = stale_package_versions(versions, {"protected-dockerfile-tag"}, cutoff)
 
-    assert [version["id"] for version in stale] == [1]
+    require(
+        condition=[version["id"] for version in stale] == [1],
+        message="Expected [version[\"id\"] for version in stale] == [1].",
+    )
 
 
 def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listing() -> None:
@@ -345,21 +556,21 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     def fake_resolve_tags(_repo_name: str, _protected_shas: set[str]) -> set[str]:
         """Return a stable protected tag set for this package-cleanup test.
-
+        
         Args:
             _repo_name: Repository name ignored by this controlled fake.
             _protected_shas: Protected commits ignored by this controlled fake.
-
+        
         Returns:
             Set containing the single tag kept by the test."""
         return {"current-tag"}
 
     def fake_load_items(requested_endpoint: str) -> Iterator[dict[str, object]]:
         """Record a request and provide the configured stale package version.
-
+        
         Args:
             requested_endpoint: API endpoint requested by the cleanup routine.
-
+        
         Returns:
             Iterator containing the configured stale package version."""
         endpoints.append(requested_endpoint)
@@ -379,7 +590,7 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
 
     def fake_delete(*args: str) -> None:
         """Record an attempted deletion of a stale package version.
-
+        
         Args:
             args: Resource deletion arguments supplied by the cleanup routine."""
         deleted.append(args)
@@ -393,19 +604,37 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
         delete_resource=fake_delete,
     )
 
-    assert endpoints == [endpoint]
-    assert result["status"] == "passed"
-    assert result["versions_seen"] == 1
-    assert result["deleted"] == 1
-    assert (
-        deleted == [
-            (
-                "api",
-                "--method",
-                "DELETE",
-                "user/packages/container/freecad-cloth%2Fpbd-validation/versions/11",
-            )
-        ]
+    require(
+        condition=endpoints == [endpoint],
+        message="Expected endpoints == [endpoint].",
+    )
+    require(
+        condition=result["status"] == "passed",
+        message="Expected result[\"status\"] == \"passed\".",
+    )
+    require(
+        condition=result["versions_seen"] == 1,
+        message="Expected result[\"versions_seen\"] == 1.",
+    )
+    require(
+        condition=result["deleted"] == 1,
+        message="Expected result[\"deleted\"] == 1.",
+    )
+    require(
+        condition=(
+            deleted == [
+                (
+                    "api",
+                    "--method",
+                    "DELETE",
+                    "user/packages/container/freecad-cloth%2Fpbd-validation/versions/11",
+                )
+            ]
+        ),
+        message=(
+            "Expected ( deleted == [ ( \"api\", \"--method\", \"DELETE\", "
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions/11\", ) ] )."
+        ),
     )
 
 
@@ -421,10 +650,10 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
     def fake_gh_json(*args: str) -> dict[str, list[dict[str, int]]]:
         """Return mock paginated GitHub API responses.
-
+        
         Args:
             args: GitHub CLI command and endpoint arguments.
-
+        
         Returns:
             Mapping containing the requested page of integer-ID records."""
         endpoint = args[1]
@@ -441,8 +670,14 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
         )
     )
 
-    assert items == [{"id": 1}, {"id": 2}, {"id": 3}]
-    assert requested_pages == [1, 2]
+    require(
+        condition=items == [{"id": 1}, {"id": 2}, {"id": 3}],
+        message="Expected items == [{\"id\": 1}, {\"id\": 2}, {\"id\": 3}].",
+    )
+    require(
+        condition=requested_pages == [1, 2],
+        message="Expected requested_pages == [1, 2].",
+    )
 
 
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> None:
@@ -457,8 +692,14 @@ def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> Non
     activity = maintenance_cleanup.branch_activity_epoch(commit_data)
     cutoff = maintenance_cleanup.epoch("2026-09-26T00:00:00Z")
 
-    assert activity is not None
-    assert activity > cutoff
+    activity = require_not_none(
+        activity,
+        message="Expected activity to be present.",
+    )
+    require(
+        condition=activity > cutoff,
+        message="Expected activity > cutoff.",
+    )
 
 
 def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
@@ -467,10 +708,16 @@ def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
 
     commit_data = {"author": {"date": "2026-10-01T00:00:00Z"}}
 
-    assert (
-        maintenance_cleanup.branch_activity_epoch(commit_data) == maintenance_cleanup.epoch(
-            "2026-10-01T00:00:00Z"
-        )
+    require(
+        condition=(
+            maintenance_cleanup.branch_activity_epoch(commit_data) == maintenance_cleanup.epoch(
+                "2026-10-01T00:00:00Z"
+            )
+        ),
+        message=(
+            "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) )."
+        ),
     )
 
 
@@ -505,18 +752,27 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return mocked commit activity data for a batch query.
-
+        
         Args:
             args: GitHub CLI command and GraphQL query arguments.
-
+        
         Returns:
             Mapping from query aliases to commit date objects."""
-        assert args[:3] == ("api", "graphql", "-f")
+        require(
+            condition=args[:3] == ("api", "graphql", "-f"),
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
+        )
         query_arg = args[3]
-        assert query_arg.startswith("query=")
+        require(
+            condition=query_arg.startswith("query="),
+            message="Expected query_arg.startswith(\"query=\").",
+        )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
-        assert bool(aliases)
+        require(
+            condition=bool(aliases),
+            message="Expected bool(aliases).",
+        )
         query_batches.append(query)
         repository_data: dict[str, object] = {alias: dates_by_sha[sha] for alias, sha in aliases}
         return {"data": {"repository": repository_data}}
@@ -526,16 +782,29 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         "owner/repo", shas, batch_size=2, fetch_json=fake_gh_json
     )
 
-    assert (
-        activities == {
-            "1" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
-            "2" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
-            "3" * 40: maintenance_cleanup.epoch("2026-09-01T00:00:00Z"),
-            "4" * 40: maintenance_cleanup.epoch("2026-10-01T00:00:00Z"),
-            "5" * 40: maintenance_cleanup.epoch("2026-10-05T00:00:00Z"),
-        }
+    require(
+        condition=(
+            activities == {
+                "1" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+                "2" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
+                "3" * 40: maintenance_cleanup.epoch("2026-09-01T00:00:00Z"),
+                "4" * 40: maintenance_cleanup.epoch("2026-10-01T00:00:00Z"),
+                "5" * 40: maintenance_cleanup.epoch("2026-10-05T00:00:00Z"),
+            }
+        ),
+        message=(
+            "Expected ( activities == { \"1\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-07-01T00:00:00Z\"), \"2\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-08-01T00:00:00Z\"), \"3\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-09-01T00:00:00Z\"), \"4\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-01T00:00:00Z\"), \"5\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-05T00:00:00Z\"), } )."
+        ),
     )
-    assert len(query_batches) == 3
+    require(
+        condition=len(query_batches) == 3,
+        message="Expected len(query_batches) == 3.",
+    )
 
 
 def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
@@ -543,13 +812,16 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
 
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock response that omits a requested commit object.
-
+        
         Args:
             args: GitHub CLI command and GraphQL query arguments.
-
+        
         Returns:
             Mapping whose queried alias does not contain commit data."""
-        assert args[:3] == ("api", "graphql", "-f")
+        require(
+            condition=args[:3] == ("api", "graphql", "-f"),
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
+        )
         return {"data": {"repository": {"commit0": None}}}
 
     try:
@@ -557,7 +829,10 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
             "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
         )
     except RuntimeError as exc:
-        assert "commit activity missing" in str(exc)
+        require(
+            condition="commit activity missing" in str(exc),
+            message="Expected \"commit activity missing\" in str(exc).",
+        )
     else:
         msg = "missing branch activity must fail closed"
         raise AssertionError(msg)
@@ -597,10 +872,10 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 
     def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
         """Return mock closed pull requests for the supplied API endpoint.
-
+        
         Args:
             endpoint: GitHub pull-request listing endpoint to emulate.
-
+        
         Returns:
             Iterator over mock pull-request records."""
         endpoints.append(endpoint)
@@ -629,12 +904,23 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
         api_items_loader=fake_load_items,
     )
 
-    assert matched == {"fix/closed-pr-head": {"1" * 40}}
-    assert (
-        endpoints == [
-            "repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head",
-            "repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work",
-        ]
+    require(
+        condition=matched == {"fix/closed-pr-head": {"1" * 40}},
+        message="Expected matched == {\"fix/closed-pr-head\": {\"1\" * 40}}.",
+    )
+    require(
+        condition=(
+            endpoints == [
+                "repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head",
+                "repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work",
+            ]
+        ),
+        message=(
+            "Expected ( endpoints == [ "
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head\", "
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-wor"
+            "k\", ] )."
+        ),
     )
 
 
@@ -698,11 +984,17 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         branches, {"agent/open-pr"}, "main", activity, cutoff
     )
 
-    assert (
-        [branch["name"] for branch in stale] == [
-            "maintenance/old-closed-work",
-            "fix/old-closed-work",
-        ]
+    require(
+        condition=(
+            [branch["name"] for branch in stale] == [
+                "maintenance/old-closed-work",
+                "fix/old-closed-work",
+            ]
+        ),
+        message=(
+            "Expected ( [branch[\"name\"] for branch in stale] == [ "
+            "\"maintenance/old-closed-work\", \"fix/old-closed-work\", ] )."
+        ),
     )
 
 
@@ -719,7 +1011,10 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
     stale = maintenance_cleanup.stale_completed_runs(runs, cutoff)
 
-    assert [run["id"] for run in stale] == [1, 2]
+    require(
+        condition=[run["id"] for run in stale] == [1, 2],
+        message="Expected [run[\"id\"] for run in stale] == [1, 2].",
+    )
 
 
 def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
@@ -729,19 +1024,49 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
 
-    assert "git ls-files -z -- '*.py' '*.pyi'" in quality
-    assert (
-        (
-            'xargs -0 -r python -m ruff format --check < '
-            '"$RUNNER_TEMP/python-files.zlist"'
-        ) in quality
+    require(
+        condition="git ls-files -z -- '*.py' '*.pyi'" in quality,
+        message="Expected \"git ls-files -z -- '*.py' '*.pyi'\" in quality.",
     )
-    assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
-    assert "python -m ruff check --fix" not in quality
-    assert "xargs -r python -m ruff check <" not in quality
-    assert "pyright -p pyrightconfig.agent-strict.json" not in quality
-    assert "python tools/ci/check_pydantic_models.py" in quality
-    assert 'path: "freecad_cloth tests tools/ci"' in workflow
+    require(
+        condition=(
+            (
+                'xargs -0 -r python -m ruff format --check < '
+                '"$RUNNER_TEMP/python-files.zlist"'
+            ) in quality
+        ),
+        message=(
+            "Expected ( ( 'xargs -0 -r python -m ruff format --check < ' "
+            "'\"$RUNNER_TEMP/python-files.zlist\"' ) in quality )."
+        ),
+    )
+    require(
+        condition='xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality,
+        message=(
+            "Expected 'xargs -0 -r python -m ruff check < "
+            "\"$RUNNER_TEMP/python-files.zlist\"' in quality."
+        ),
+    )
+    require(
+        condition="python -m ruff check --fix" not in quality,
+        message="Expected \"python -m ruff check --fix\" not in quality.",
+    )
+    require(
+        condition="xargs -r python -m ruff check <" not in quality,
+        message="Expected \"xargs -r python -m ruff check <\" not in quality.",
+    )
+    require(
+        condition="pyright -p pyrightconfig.agent-strict.json" not in quality,
+        message="Expected \"pyright -p pyrightconfig.agent-strict.json\" not in quality.",
+    )
+    require(
+        condition="python tools/ci/check_pydantic_models.py" in quality,
+        message="Expected \"python tools/ci/check_pydantic_models.py\" in quality.",
+    )
+    require(
+        condition='path: "freecad_cloth tests tools/ci"' in workflow,
+        message="Expected 'path: \"freecad_cloth tests tools/ci\"' in workflow.",
+    )
 
 
 def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
@@ -757,12 +1082,30 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
         "freecad_cloth/simulation/ClothSolver.py",
     )
 
-    assert config["typeCheckingMode"] == "standard"
-    assert config["include"] == ["."]
-    assert not config.get("exclude")
-    assert not (ROOT / "pyrightconfig.agent-strict.json").exists()
-    assert quality.count("pyright -p ") == 1
-    assert config["strict"] == list(strict_core)
+    require(
+        condition=config["typeCheckingMode"] == "standard",
+        message="Expected config[\"typeCheckingMode\"] == \"standard\".",
+    )
+    require(
+        condition=config["include"] == ["."],
+        message="Expected config[\"include\"] == [\".\"].",
+    )
+    require(
+        condition=not config.get("exclude"),
+        message="Expected not config.get(\"exclude\").",
+    )
+    require(
+        condition=not (ROOT / "pyrightconfig.agent-strict.json").exists(),
+        message="Expected not (ROOT / \"pyrightconfig.agent-strict.json\").exists().",
+    )
+    require(
+        condition=quality.count("pyright -p ") == 1,
+        message="Expected quality.count(\"pyright -p \") == 1.",
+    )
+    require(
+        condition=config["strict"] == list(strict_core),
+        message="Expected config[\"strict\"] == list(strict_core).",
+    )
 
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
@@ -777,17 +1120,38 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
         "log-file: artifacts/avatar-documentation-progress.log", maxsplit=1
     )[1].split("      - uses:", maxsplit=1)[0]
 
-    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation
-    assert (
-        (
-            "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
-            "CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
-        )
+    require(
+        condition="CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation,
+        message="Expected \"CLOTH_AVATAR_SCREENSHOT_MODE=documentation\" in gallery_invocation.",
     )
-    assert "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow
-    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation
-    assert "freecad_application_timeout_seconds" not in gallery_job
-    assert "timeout-minutes: 12" in gallery_job
+    require(
+        condition=(
+            (
+                "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
+                "CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
+            )
+        ),
+        message=(
+            "Expected ( ( \"FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.\" "
+            "\"CLOTH_DOC_AVATAR_FIT_STEPS }}\" in gallery_invocation ) )."
+        ),
+    )
+    require(
+        condition="CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow,
+        message="Expected \"CLOTH_DOC_AVATAR_FIT_STEPS:\" in workflow.",
+    )
+    require(
+        condition="FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation,
+        message="Expected \"FREECAD_CLOTH_ANNY_FIT_STEPS=18\" not in gallery_invocation.",
+    )
+    require(
+        condition="freecad_application_timeout_seconds" not in gallery_job,
+        message="Expected \"freecad_application_timeout_seconds\" not in gallery_job.",
+    )
+    require(
+        condition="timeout-minutes: 12" in gallery_job,
+        message="Expected \"timeout-minutes: 12\" in gallery_job.",
+    )
 
 
 def test_main_publication_checks_out_source_before_local_publisher_action() -> None:
@@ -801,10 +1165,22 @@ def test_main_publication_checks_out_source_before_local_publisher_action() -> N
     checkout = "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
     local_action = "uses: ./.github/actions/publish-visual-evidence"
 
-    assert publisher_job.count(checkout) == 1
-    assert publisher_job.index(checkout) < publisher_job.index(local_action)
-    assert 'ref: "${{ github.sha }}"' in publisher_job
-    assert "persist-credentials: false" in publisher_job
+    require(
+        condition=publisher_job.count(checkout) == 1,
+        message="Expected publisher_job.count(checkout) == 1.",
+    )
+    require(
+        condition=publisher_job.index(checkout) < publisher_job.index(local_action),
+        message="Expected publisher_job.index(checkout) < publisher_job.index(local_action).",
+    )
+    require(
+        condition='ref: "${{ github.sha }}"' in publisher_job,
+        message="Expected 'ref: \"${{ github.sha }}\"' in publisher_job.",
+    )
+    require(
+        condition="persist-credentials: false" in publisher_job,
+        message="Expected \"persist-credentials: false\" in publisher_job.",
+    )
 
 
 def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> None:
@@ -818,5 +1194,14 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
 
     # Keep the generated-directory prefix outside the upload wildcard so the
     # artifact ZIP retains blanket-example/motion-*.png rather than flattening it.
-    assert "artifact-path: docs/images/generated/**" in blanket_job
-    assert "artifact-path: docs/images/generated/blanket-example/**" not in blanket_job
+    require(
+        condition="artifact-path: docs/images/generated/**" in blanket_job,
+        message="Expected \"artifact-path: docs/images/generated/**\" in blanket_job.",
+    )
+    require(
+        condition="artifact-path: docs/images/generated/blanket-example/**" not in blanket_job,
+        message=(
+            "Expected \"artifact-path: docs/images/generated/blanket-example/**\" not in "
+            "blanket_job."
+        ),
+    )
