@@ -33,7 +33,7 @@ def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> lis
         landmarks: Iterable of serialized name-and-coordinate records, if available.
 
     Returns:
-        Valid known landmarks serialized as name|x,y,z strings in stable name order.
+        Known landmarks serialized in the current five-field arrangement-point format.
     """
     by_name = {}
     for record in landmarks or ():
@@ -42,25 +42,36 @@ def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> lis
         except ValueError:
             continue
         if name in ARRANGEMENT_POINT_NAMES:
-            by_name[name] = f"{name}|{coords}"
+            by_name[name] = f"{name}|{coords}|front|0|"
     return [by_name[name] for name in ARRANGEMENT_POINT_NAMES if name in by_name]
 
 
 def arrangement_point_map(records: Iterable[object] | None) -> dict[str, str]:
-    """Parse valid arrangement records into a coordinate lookup by point name.
+    """Return current-format arrangement coordinates indexed by point name.
 
     Args:
-        records: Iterable of serialized name-and-coordinate records, if available.
+        records: Iterable of serialized five-field arrangement-point records.
 
     Returns:
         Mapping from known arrangement-point names to their coordinate strings.
     """
     result = {}
     for record in records or ():
+        parts = str(record).split("|")
+        if len(parts) != 5:
+            continue
+        name, coordinates, wrap_direction, rotation, symmetry_group = parts
+        if (
+            name not in ARRANGEMENT_POINT_NAMES
+            or wrap_direction not in {"front", "back", "left", "right"}
+            or (symmetry_group and not symmetry_group.strip())
+        ):
+            continue
         try:
-            name, coords = str(record).split("|", 1)
+            values = tuple(float(value) for value in coordinates.split(","))
+            float(rotation)
         except ValueError:
             continue
-        if name in ARRANGEMENT_POINT_NAMES:
-            result[name] = coords
+        if len(values) == 3:
+            result[name] = coordinates
     return result

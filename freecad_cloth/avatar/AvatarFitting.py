@@ -159,17 +159,10 @@ class ArrangementPoint:
     def from_string(cls, value: str) -> "ArrangementPoint":
         """Provide the public from string operation."""
         parts = str(value).split("|")
-        if len(parts) == 2:
-            # Existing FreeCAD documents store landmark-backed arrangement
-            # points as name|x,y,z. Normalize that legacy form to the
-            # dataclass defaults without changing persisted coordinates.
-            name, position = parts
-            wrap, rotation, symmetry = "front", 0.0, ""
-        elif len(parts) == 5:
-            name, position, wrap, rotation, symmetry = parts
-        else:
-            msg = "arrangement point requires name|x,y,z or name|x,y,z|wrap|rotation|symmetry"
+        if len(parts) != 5:
+            msg = "arrangement point requires name|x,y,z|wrap|rotation|symmetry"
             raise ValueError(msg)
+        name, position, wrap, rotation, symmetry = parts
         coords = tuple(float(v) for v in position.split(","))
         if len(coords) != 3:
             msg = "arrangement point position requires x, y, and offset"

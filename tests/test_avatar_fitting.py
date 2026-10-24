@@ -108,20 +108,11 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(mirrored.wrap_direction, "right")
         self.assertEqual(mirrored.rotation_z, -10.0)
 
-    def test_arrangement_point_accepts_legacy_landmark_record(self):
+    def test_arrangement_point_rejects_unversioned_landmark_record(self):
         legacy = "shoulder_left|-210,0,1050"
-        point = ArrangementPoint.from_string(legacy)
-        self.assertEqual(point.name, "shoulder_left")
-        self.assertEqual(point.position(), (-210.0, 0.0, 1050.0))
-        self.assertEqual(point.wrap_direction, "front")
-        self.assertEqual(point.rotation_z, 0.0)
-        self.assertEqual(point.symmetry_group, "")
-        canonical = point.to_string()
-        self.assertEqual(
-            canonical,
-            "shoulder_left|-210,0,1050|front|0|",
-        )
-        self.assertEqual(ArrangementPoint.from_string(canonical), point)
+        with self.assertRaisesRegex(ValueError, "requires name"):
+            ArrangementPoint.from_string("shoulder_left|-210,0,1050")
+
 
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError):
@@ -310,7 +301,7 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(
             ["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"]
         )
-        self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+        self.assertEqual(points, ["neck|0,0,1150|front|0|", "waist|0,0,905|front|0|"])
 
     def test_avatar_apply_does_not_mutate_document_when_geometry_build_fails(self):
         try:
