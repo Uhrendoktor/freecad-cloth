@@ -77,7 +77,7 @@ except (AttributeError, OSError, RuntimeError):
 
 def run_acceptance():
     _progress("start")
-    from freecad_cloth.avatar.avatar_commands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarVisualSanity import inspect_avatar_mesh
     from freecad_cloth.simulation.DrapeTarget import refresh_drape_target, target_status

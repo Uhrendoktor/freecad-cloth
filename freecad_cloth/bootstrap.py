@@ -23,12 +23,13 @@ def initialize_workbenches(installation_root: Path) -> None:
     if icon_dir.is_dir():
         gui.addIconPath(str(icon_dir))
 
-    avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
-    fitting_handoff = import_module("freecad_cloth.simulation.fitting_handoff")
+    from freecad_cloth.avatar import AvatarCommands as avatar_commands
+    from freecad_cloth.pattern import workbench as pattern_workbench
+    from freecad_cloth.sewing import workbench as sewing_workbench
+    from freecad_cloth.simulation import FittingHandoff as fitting_handoff
+    from freecad_cloth.simulation import workbench as simulation_workbench
+
     fitting_handoff.register_fitting_handoff_commands(gui)
-    pattern_workbench = import_module("freecad_cloth.pattern.workbench")
-    sewing_workbench = import_module("freecad_cloth.sewing.workbench")
-    simulation_workbench = import_module("freecad_cloth.simulation.workbench")
 
     if not set(simulation_workbench.AVATAR_ENTRY_COMMANDS).issubset(avatar_commands.COMMANDS):
         msg = "Cloth Simulation avatar menu references unregistered commands"

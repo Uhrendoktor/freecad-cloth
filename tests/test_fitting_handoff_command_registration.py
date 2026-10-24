@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from freecad_cloth.avatar import FittingCommands
 from freecad_cloth.common.CommandAdapter import FunctionCommand
-from freecad_cloth.simulation import fitting_handoff
+from freecad_cloth.simulation import FittingHandoff as fitting_handoff
 from tests.support.assertions import require
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +63,7 @@ def test_shared_bootstrap_registers_handoff_commands_before_workbench_activation
     """Keep the simulation handoff handlers available during normal FreeCAD startup."""
     source = (_ROOT / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
     require(
-        condition='import_module("freecad_cloth.simulation.fitting_handoff")' in source,
+        condition='from freecad_cloth.simulation import FittingHandoff as fitting_handoff' in source,
         message="The shared bootstrap must load the simulation handoff module.",
     )
     require(

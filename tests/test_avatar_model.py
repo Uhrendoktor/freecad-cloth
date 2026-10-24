@@ -1,5 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+import json
 import sys
+
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -153,3 +156,11 @@ def test_invalid_measurements_are_rejected():
     else:
         msg = "invalid circumference relationship was accepted"
         raise AssertionError(msg)
+
+
+def test_avatar_parameter_loading_rejects_pre_release_schema_versions() -> None:
+    """Reject pre-release parameter schemas rather than retaining migration branches."""
+    for schema_version in (1, 2, 3, 5):
+        payload = json.dumps({"schema_version": schema_version, "units": "mm"})
+        with pytest.raises(ValueError, match="unsupported avatar schema version"):
+            AvatarParameters.from_json(payload)

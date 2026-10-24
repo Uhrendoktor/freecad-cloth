@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Self, TypedDict, cast
 from urllib.request import Request, urlopen
 
 from pydantic import StrictInt
+
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -98,31 +100,37 @@ class MeshData:
             msg = "humanoid mesh is empty"
             raise HumanoidMeshError(msg)
 
-        for vertex in self.vertices:
-            try:
-                valid_vertex = len(vertex) == 3 and all(
-                    isinstance(value, (int, float))
-                    and not isinstance(value, bool)
-                    and math.isfinite(value)
-                    for value in vertex
-                )
-            except (TypeError, OverflowError):
-                valid_vertex = False
-            if not valid_vertex:
-                msg = "humanoid mesh contains invalid vertex coordinates"
-                raise HumanoidMeshError(msg)
+        try:
+            vertices = np.asarray(self.vertices, dtype=np.float64)
+            valid_vertices = vertices.shape == (len(self.vertices), 3) and bool(
+                np.isfinite(vertices).all()
+            )
+        except (TypeError, ValueError, OverflowError):
+            valid_vertices = False
+        if not valid_vertices:
+            msg = "humanoid mesh contains invalid vertex coordinates"
+            raise HumanoidMeshError(msg)
 
-        count = len(self.vertices)
-        for tri in self.triangles:
-            try:
-                valid_triangle = len(tri) == 3 and all(
-                    type(index) is int and 0 <= index < count for index in tri
+        try:
+            triangles = np.asarray(self.triangles)
+            count = len(vertices)
+            valid_triangles = (
+                triangles.shape == (len(self.triangles), 3)
+                and np.issubdtype(triangles.dtype, np.integer)
+                and bool(((triangles >= 0) & (triangles < count)).all())
+                and bool(
+                    (
+                        (triangles[:, 0] != triangles[:, 1])
+                        & (triangles[:, 1] != triangles[:, 2])
+                        & (triangles[:, 0] != triangles[:, 2])
+                    ).all()
                 )
-            except TypeError:
-                valid_triangle = False
-            if not valid_triangle:
-                msg = "humanoid mesh contains an invalid face"
-                raise HumanoidMeshError(msg)
+            )
+        except (TypeError, ValueError, OverflowError, IndexError):
+            valid_triangles = False
+        if not valid_triangles:
+            msg = "humanoid mesh contains an invalid face"
+            raise HumanoidMeshError(msg)
         return self
 
 

@@ -291,31 +291,19 @@ class AvatarParameters:
 
     @classmethod
     def from_json(cls, payload: str) -> AvatarParameters:
-        """Load avatar parameters and migrate legacy pose and shape defaults."""
+        """Load an avatar parameter document using the current schema version."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             msg = "avatar presets must use millimetres"
             raise ValueError(msg)
-        source_version = int(data.get("schema_version", 1))
-        if source_version not in (1, 2, 3, 4):
-            msg = "unsupported avatar schema version"
+        schema_version = data.get("schema_version")
+        if type(schema_version) is not int or schema_version != 4:
+            msg = "unsupported avatar schema version; expected version 4"
             raise ValueError(msg)
         p = data.get("pose", {})
         preset = str(p.get("preset", "standing"))
-        if source_version == 1:
-            left_angle: float | None = float(p.get("left_arm_angle", 12.0))
-            right_angle: float | None = float(p.get("right_arm_angle", 12.0))
-            if preset == "standing" and left_angle == 12.0 and right_angle == 12.0:
-                left_angle = None
-                right_angle = None
-            elif preset != "standing":
-                if left_angle == 12.0:
-                    left_angle = None
-                if right_angle == 12.0:
-                    right_angle = None
-        else:
-            left_angle = p.get("left_arm_angle")
-            right_angle = p.get("right_arm_angle")
+        left_angle = p.get("left_arm_angle")
+        right_angle = p.get("right_arm_angle")
         pose = Pose(
             preset,
             left_angle,
@@ -330,8 +318,8 @@ class AvatarParameters:
                 )
             ),
         )
-        shape = data.get("shape", {}) if source_version >= 3 else {}
-        anny_overrides = data.get("anny_overrides", {}) if source_version >= 4 else {}
+        shape = data.get("shape", {})
+        anny_overrides = data.get("anny_overrides", {})
         phenotype_overrides = anny_overrides.get("phenotypes", {})
         local_change_overrides = anny_overrides.get("local_changes", {})
         if not isinstance(phenotype_overrides, dict) or not isinstance(
@@ -339,7 +327,7 @@ class AvatarParameters:
         ):
             msg = "Anny overrides must contain parameter-to-number objects"
             raise ValueError(msg)
-        clad_targets = data.get("clad_targets", {}) if source_version >= 4 else {}
+        clad_targets = data.get("clad_targets", {})
         if not isinstance(clad_targets, dict):
             msg = "clad_targets must be an object"
             raise ValueError(msg)
@@ -388,11 +376,11 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     ):
         angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
         a = angle * math.pi / 180.0
-        ex = side * shoulder_half + side * 125.0 * __import__("math").cos(a)
-        ez = shoulder_z - 125.0 * __import__("math").sin(a)
+        ex = side * shoulder_half + side * 125.0 * math.cos(a)
+        ez = shoulder_z - 125.0 * math.sin(a)
         fa = (angle - elbow_value) * math.pi / 180.0
-        wx = ex + side * 120.0 * __import__("math").cos(fa)
-        wz = ez - 120.0 * __import__("math").sin(fa)
+        wx = ex + side * 120.0 * math.cos(fa)
+        wz = ez - 120.0 * math.sin(fa)
         wrists[label] = (wx, 0.0, wz)
     landmarks = {
         "neck": (0.0, 0.0, neck_z),

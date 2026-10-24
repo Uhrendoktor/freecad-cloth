@@ -11,6 +11,7 @@ workbench's semantic boundary/provenance contract.
 from collections.abc import Sequence
 from math import ceil, hypot, isclose, isfinite
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
@@ -29,31 +30,60 @@ class TriangleMesh:
     boundary_edge_segment_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate mesh indices, boundary data, and finite vertex coordinates."""
         if len(self.vertices) < 3:
             msg = "mesh needs at least three vertices"
             raise ValueError(msg)
-        n = len(self.vertices)
-        for tri in self.triangles:
-            if len(set(tri)) != 3 or any(
-                type(index) is not int or index < 0 or index >= n for index in tri
-            ):
-                msg = "invalid triangle index"
-                raise ValueError(msg)
+        if not self.triangles:
+            msg = "mesh needs at least one triangle"
+            raise ValueError(msg)
+
+        try:
+            vertices = np.asarray(self.vertices, dtype=np.float64)
+            valid_vertices = vertices.shape == (len(self.vertices), 2) and bool(
+                np.isfinite(vertices).all()
+            )
+        except (TypeError, ValueError, OverflowError):
+            valid_vertices = False
+        if not valid_vertices:
+            msg = "mesh coordinates must be finite 2D points"
+            raise ValueError(msg)
+        vertex_count = len(vertices)
+
+        try:
+            triangles = np.asarray(self.triangles)
+            valid_triangles = (
+                triangles.shape == (len(self.triangles), 3)
+                and np.issubdtype(triangles.dtype, np.integer)
+                and bool(((triangles >= 0) & (triangles < vertex_count)).all())
+                and bool(
+                    (
+                        (triangles[:, 0] != triangles[:, 1])
+                        & (triangles[:, 1] != triangles[:, 2])
+                        & (triangles[:, 0] != triangles[:, 2])
+                    ).all()
+                )
+            )
+        except (TypeError, ValueError, OverflowError, IndexError):
+            valid_triangles = False
+        if not valid_triangles:
+            msg = "invalid triangle index"
+            raise ValueError(msg)
+
         if len(self.boundary_vertex_indices) < 3:
             msg = "mesh needs at least three boundary vertices"
             raise ValueError(msg)
-        if any(
-            type(index) is not int or index < 0 or index >= n
-            for index in self.boundary_vertex_indices
-        ):
+        try:
+            boundary = np.asarray(self.boundary_vertex_indices)
+            valid_boundary = (
+                boundary.shape == (len(self.boundary_vertex_indices),)
+                and np.issubdtype(boundary.dtype, np.integer)
+                and bool(((boundary >= 0) & (boundary < vertex_count)).all())
+            )
+        except (TypeError, ValueError, OverflowError):
+            valid_boundary = False
+        if not valid_boundary:
             msg = "invalid boundary vertex index"
-            raise ValueError(msg)
-        if any(
-            len(point) != 2 or not all(isfinite(coordinate) for coordinate in point)
-            for point in self.vertices
-        ):
-            msg = "mesh coordinates must be finite 2D points"
             raise ValueError(msg)
         if self.boundary_edge_segment_ids and len(self.boundary_edge_segment_ids) != len(
             self.boundary_vertex_indices
@@ -64,10 +94,13 @@ class TriangleMesh:
     @property
     def area(self) -> float:
         """Provide the public area operation."""
-        total = sum(
-            abs(_triangle_area(self.vertices[a], self.vertices[b], self.vertices[c]))
-            for a, b, c in self.triangles
-        )
+        vertices = np.asarray(self.vertices, dtype=np.float64)
+        triangles = np.asarray(self.triangles, dtype=np.intp)
+        first = vertices[triangles[:, 0]]
+        edge_a = vertices[triangles[:, 1]] - first
+        edge_b = vertices[triangles[:, 2]] - first
+        doubled_area = edge_a[:, 0] * edge_b[:, 1] - edge_a[:, 1] * edge_b[:, 0]
+        total = float(np.abs(doubled_area).sum(dtype=np.float64) / 2.0)
         if not isfinite(total):
             msg = "computed mesh area must be finite"
             raise ValueError(msg)
@@ -118,7 +151,6 @@ def triangulate(
         edge_ids = _edge_segment_ids(pattern, points)
 
     try:
-        import numpy as np
         import triangle as tr
     except ImportError as exc:
         msg = "PatternMesh requires the 'triangle' package (Shewchuk constrained Delaunay meshing)"
@@ -313,10 +345,6 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         msg = "computed point-to-segment distance must be finite"
         raise ValueError(msg)
     return distance
-
-
-def _triangle_area(a: Point, b: Point, c: Point) -> float:
-    return _cross(a, b, c) / 2.0
 
 
 def _cross(a: Point, b: Point, c: Point) -> float:

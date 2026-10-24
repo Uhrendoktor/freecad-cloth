@@ -91,6 +91,22 @@ ignore = [
   "tab-indentation",
 ]
 
+# Function-local imports are intentional at the FreeCAD host and GUI boundaries.
+# They keep headless imports safe and defer cyclic domain dependencies until use.
+[tool.ruff.lint.per-file-ignores]
+"freecad_cloth/bootstrap.py" = ["PLC0415"]
+"freecad_cloth/avatar/AvatarCommands.py" = ["PLC0415"]
+"freecad_cloth/avatar/AvatarGui.py" = ["PLC0415"]
+"freecad_cloth/avatar/AvatarPoseGui.py" = ["PLC0415"]
+"freecad_cloth/simulation/FittingHandoff.py" = ["PLC0415"]
+"freecad_cloth/simulation/DrapeCommands.py" = ["PLC0415"]
+"freecad_cloth/simulation/SimulationCommands.py" = ["PLC0415"]
+"freecad_cloth/simulation/SimulationQualityGui.py" = ["PLC0415"]
+"freecad_cloth/pattern/PatternMesh.py" = ["PLC0415"]
+"tests/freecad_*.py" = ["PLC0415"]
+"tests/support/pbd_contact_helpers.py" = ["PLC0415"]
+"tests/test_avatar_fitting.py" = ["PLC0415"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

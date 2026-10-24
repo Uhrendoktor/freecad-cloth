@@ -216,7 +216,7 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
 
-    from freecad_cloth.avatar.avatar_commands import _rebuild
+    from freecad_cloth.avatar.AvatarCommands import _rebuild
 
     profiles = _body_shape_gallery_profiles()
 
@@ -454,7 +454,7 @@ def main():
     events()
     hide_task_docks(window)
 
-    from freecad_cloth.avatar.avatar_commands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
 
     doc = App.newDocument("ClothAvatarVisualAudit")
     try:

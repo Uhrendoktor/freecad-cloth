@@ -4,7 +4,7 @@
 from freecad_cloth.avatar.AnnyAvatarBackend import (
     _BREAST_SHAPE_MEASUREMENT_FIELDS,
     MEASUREMENT_FIELDS,
-    _adapt_clad_body_pose_alias,
+    _normalize_clad_body_pose_parameterization,
     _apply_front_breast_fullness,
     _canonicalize_anny_vertices,
     _clad_measurement_targets,
@@ -105,13 +105,13 @@ def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
     assert any("measure-hips-circ" in label for label in labels)
 
 
-def test_clad_body_legacy_pose_alias_is_translated_for_anny_forward() -> None:
+def test_clad_body_pose_parameterization_is_normalized_for_anny_forward() -> None:
     class FakeModel:
         def forward(self, *, pose_parameterization: str) -> str:
             return pose_parameterization
 
     model = FakeModel()
-    _adapt_clad_body_pose_alias(model)
+    _normalize_clad_body_pose_parameterization(model)
 
     assert model.forward(pose_parameterization="root_relative_world") == "local-bone"
     assert model.forward(pose_parameterization="local-bone") == "local-bone"

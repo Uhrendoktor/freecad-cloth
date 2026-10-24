@@ -1,20 +1,19 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Typed FreeCAD UI handoff between Simulation and the existing fitting stage.
 
-The persisted FittingScene remains the fitting-stage authority. This bridge
-copies authored garment pieces from Simulation and carries the same persisted
-DrapeTarget into fitting, preserving home placements and reset behavior.
+The persisted FittingScene remains the fitting-stage authority for garment
+placements. This bridge resolves the document-level DrapeTarget directly and
+preserves home placements and reset behavior.
 """
 
 from __future__ import annotations
 
-from importlib import import_module
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import register_commands
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from freecad_cloth.common.CommandAdapter import CommandCallable, GuiCommandRegistrar
 
@@ -24,9 +23,13 @@ _COLLISION_DEFLECTION_MM = 1.0
 
 
 class _FreeCADDocument(Protocol):
-    """Describe the document members used by the fitting handoff."""
+    """Describe the document methods used by the fitting handoff."""
 
     Objects: Sequence[object]
+
+    def getObject(self, name: str) -> object | None:
+        """Look up an object by its internal document name."""
+        ...
 
     def recompute(self) -> None:
         """Recompute the active document."""
@@ -34,16 +37,53 @@ class _FreeCADDocument(Protocol):
 
 
 class _FreeCADApplication(Protocol):
-    """Describe the application data used to resolve an active document."""
+    """Describe the application methods used to resolve FreeCAD documents."""
 
     ActiveDocument: _FreeCADDocument | None
 
+    def newDocument(self, name: str) -> _FreeCADDocument:
+        """Create a FreeCAD document with the supplied internal name."""
+        ...
+
+
+class _FreeCADSelection(Protocol):
+    """Describe the selection operations used by the fitting handoff."""
+
+    def getSelection(self) -> Sequence[object]:
+        """Return the objects selected in the active document."""
+        ...
+
+    def clearSelection(self) -> None:
+        """Clear the current selection."""
+        ...
+
+    def addSelection(self, obj: object) -> None:
+        """Add one document object to the current selection."""
+        ...
+
+
+class _FreeCADControl(Protocol):
+    """Describe the active task-panel operations exposed by FreeCAD."""
+
+    def activeDialog(self) -> object | None:
+        """Return the current task-panel object, if one exists."""
+        ...
+
+    def closeDialog(self) -> None:
+        """Close the active task panel."""
+        ...
+
 
 class _FreeCADGui(Protocol):
-    """Describe the dynamic GUI objects used by the fitting handoff."""
+    """Describe the direct GUI methods used by the fitting handoff."""
 
-    Selection: object
-    Control: object
+    Selection: _FreeCADSelection
+    Control: _FreeCADControl
+
+    def activateWorkbench(self, name: str) -> None:
+        """Activate the registered workbench with this identifier."""
+        ...
+
 
 
 class _DrapeTarget(Protocol):
@@ -56,9 +96,7 @@ class _DrapeTarget(Protocol):
 class _FittingScene(Protocol):
     """Describe mutable fields on a persisted fitting scene."""
 
-    AvatarProxy: object | None
     ArrangementPoints: Sequence[object]
-    DrapeTarget: object | None
     FitStatus: str
     HomePlacements: Sequence[object]
     PatternPieces: Sequence[object]
@@ -71,144 +109,6 @@ class _SimulationScene(Protocol):
     ClothPieces: Sequence[object]
     Document: _FreeCADDocument | None
     DrapeTarget: object | None
-
-
-def _runtime_attribute(target: object, name: str) -> object:
-    """Read a member dynamically exposed by a FreeCAD runtime object.
-
-    Args:
-        target: Runtime object that owns the requested member.
-        name: Exact attribute spelling supplied by FreeCAD.
-
-    Returns:
-        The requested runtime value.
-    """
-    return getattr(target, name)
-
-
-def _document_object(doc: _FreeCADDocument, name: str) -> object | None:
-    """Resolve a named object using FreeCAD's dynamic document API.
-
-    Args:
-        doc: Document that owns the object.
-        name: Internal document object name to find.
-
-    Returns:
-        The matching document object, or None when it is absent.
-    """
-    get_object = cast(
-        "Callable[[str], object | None]",
-        _runtime_attribute(doc, "getObject"),
-    )
-    return get_object(name)
-
-
-def _new_document(app: _FreeCADApplication, name: str) -> _FreeCADDocument:
-    """Create a document through FreeCAD's dynamically exposed application API.
-
-    Args:
-        app: FreeCAD application module.
-        name: Internal name for the new document.
-
-    Returns:
-        The newly created document.
-    """
-    new_document = cast(
-        "Callable[[str], _FreeCADDocument]",
-        _runtime_attribute(app, "newDocument"),
-    )
-    return new_document(name)
-
-
-def _selected_objects(gui: _FreeCADGui) -> Sequence[object]:
-    """Read the current FreeCAD selection.
-
-    Args:
-        gui: FreeCAD GUI module.
-
-    Returns:
-        Objects currently selected in the active document.
-    """
-    selection = _runtime_attribute(gui, "Selection")
-    get_selection = cast(
-        "Callable[[], Sequence[object]]",
-        _runtime_attribute(selection, "getSelection"),
-    )
-    return get_selection()
-
-
-def _clear_selection(gui: _FreeCADGui) -> None:
-    """Clear FreeCAD's current GUI selection.
-
-    Args:
-        gui: FreeCAD GUI module whose selection should be cleared.
-    """
-    selection = _runtime_attribute(gui, "Selection")
-    clear_selection = cast(
-        "Callable[[], None]",
-        _runtime_attribute(selection, "clearSelection"),
-    )
-    clear_selection()
-
-
-def _add_selection(gui: _FreeCADGui, obj: object) -> None:
-    """Add one document object to FreeCAD's GUI selection.
-
-    Args:
-        gui: FreeCAD GUI module.
-        obj: Document object to add to the selection.
-    """
-    selection = _runtime_attribute(gui, "Selection")
-    add_selection = cast(
-        "Callable[[object], None]",
-        _runtime_attribute(selection, "addSelection"),
-    )
-    add_selection(obj)
-
-
-def _active_dialog(gui: _FreeCADGui) -> object | None:
-    """Return the task panel currently controlled by FreeCAD.
-
-    Args:
-        gui: FreeCAD GUI module.
-
-    Returns:
-        The current task panel, or None when no task panel is active.
-    """
-    control = _runtime_attribute(gui, "Control")
-    active_dialog = cast(
-        "Callable[[], object | None]",
-        _runtime_attribute(control, "activeDialog"),
-    )
-    return active_dialog()
-
-
-def _close_dialog(gui: _FreeCADGui) -> None:
-    """Close FreeCAD's active task panel.
-
-    Args:
-        gui: FreeCAD GUI module whose active task panel should be closed.
-    """
-    control = _runtime_attribute(gui, "Control")
-    close_dialog = cast(
-        "Callable[[], None]",
-        _runtime_attribute(control, "closeDialog"),
-    )
-    close_dialog()
-
-
-def _activate_workbench(gui: _FreeCADGui, name: str) -> None:
-    """Activate a registered FreeCAD workbench.
-
-    Args:
-        gui: FreeCAD GUI module.
-        name: Stable identifier of the workbench to activate.
-    """
-    activate_workbench = cast(
-        "Callable[[str], None]",
-        _runtime_attribute(gui, "activateWorkbench"),
-    )
-    activate_workbench(name)
 
 
 def _fitting_scene(doc: _FreeCADDocument | None) -> _FittingScene | None:
@@ -240,12 +140,15 @@ def assign_avatar_source(source: object | None = None) -> object:
     Raises:
         ValueError: If no supported body or mesh is selected.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
-    gui = cast("_FreeCADGui", import_module("FreeCADGui"))
-    fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")
-    drape_target_api = import_module("freecad_cloth.simulation.DrapeTarget")
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from freecad_cloth.avatar import FittingCommands as fitting_commands
+    from freecad_cloth.simulation import DrapeTarget as drape_target_api
 
-    doc = app.ActiveDocument or _new_document(app, "ClothSewing")
+    app = cast("_FreeCADApplication", App)
+    gui = cast("_FreeCADGui", Gui)
+
+    doc = app.ActiveDocument or app.newDocument("ClothSewing")
     scene = _fitting_scene(doc)
     if scene is None:
         scene = cast("_FittingScene", fitting_commands.create_fitting_scene())
@@ -253,7 +156,7 @@ def assign_avatar_source(source: object | None = None) -> object:
         source = next(
             (
                 obj
-                for obj in _selected_objects(gui)
+                for obj in gui.Selection.getSelection()
                 if hasattr(obj, "Shape") or hasattr(obj, "Mesh")
             ),
             None,
@@ -262,7 +165,7 @@ def assign_avatar_source(source: object | None = None) -> object:
         msg = "select a FreeCAD body or mesh to use as the avatar source"
         raise ValueError(msg)
 
-    target = _document_object(doc, "DrapeTarget")
+    target = doc.getObject("DrapeTarget")
     target_type = (
         "Mannequin"
         if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
@@ -286,7 +189,6 @@ def assign_avatar_source(source: object | None = None) -> object:
         drape_target.CollisionThickness = target_thickness
         drape_target_api.assign_drape_target(drape_target, source, target_type)
 
-    scene.AvatarProxy = source
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -301,9 +203,11 @@ def create_simulation_from_fitting() -> object:
     Raises:
         ValueError: If the document has no fitting scene or the scene has no pieces.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
-    simulation_objects = import_module("freecad_cloth.simulation.SimulationObjects")
-    doc = app.ActiveDocument or _new_document(app, "ClothSewing")
+    import FreeCAD as App
+    from freecad_cloth.simulation import SimulationObjects as simulation_objects
+
+    app = cast("_FreeCADApplication", App)
+    doc = app.ActiveDocument or app.newDocument("ClothSewing")
     scene = _fitting_scene(doc)
     if scene is None:
         msg = "create a fitting scene first"
@@ -318,11 +222,14 @@ def create_simulation_from_fitting() -> object:
         simulation_objects.create_simulation_scene(doc),
     )
     simulation.ClothPieces = list(pieces)
-    avatar_proxy = scene.AvatarProxy
-    if avatar_proxy is not None:
-        simulation_objects.set_avatar_collision_source(
+    doc_target = doc.getObject("DrapeTarget")
+    avatar_source = getattr(doc_target, "SourceObject", None)
+    if avatar_source is not None:
+        from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+
+        set_drape_target_source(
             simulation,
-            avatar_proxy,
+            avatar_source,
             thickness=_FREECAD_COLLISION_THICKNESS_MM,
             deflection=_COLLISION_DEFLECTION_MM,
         )
@@ -388,9 +295,12 @@ def open_arrange_fit_from_simulation(simulation: object) -> object:
     Raises:
         RuntimeError: If no active document exists.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
-    gui = cast("_FreeCADGui", import_module("FreeCADGui"))
-    fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from freecad_cloth.avatar import FittingCommands as fitting_commands
+
+    app = cast("_FreeCADApplication", App)
+    gui = cast("_FreeCADGui", Gui)
     simulation_scene = cast("_SimulationScene", simulation)
     doc = simulation_scene.Document or app.ActiveDocument
     if doc is None:
@@ -399,19 +309,17 @@ def open_arrange_fit_from_simulation(simulation: object) -> object:
 
     fitting = cast("_FittingScene", fitting_commands.create_fitting_scene())
     target = simulation_scene.DrapeTarget
-    if target is not None:
-        fitting.DrapeTarget = target
     pieces = tuple(simulation_scene.ClothPieces)
     if pieces:
-        _clear_selection(gui)
+        gui.Selection.clearSelection()
         for piece in pieces:
-            _add_selection(gui, piece)
+            gui.Selection.addSelection(piece)
         fitting_commands.add_selected_pattern_pieces()
-    _clear_selection(gui)
-    _add_selection(gui, fitting)
-    if _active_dialog(gui):
-        _close_dialog(gui)
-    _activate_workbench(gui, "ClothSewingWorkbench")
+    gui.Selection.clearSelection()
+    gui.Selection.addSelection(fitting)
+    if gui.Control.activeDialog():
+        gui.Control.closeDialog()
+    gui.activateWorkbench("ClothSewingWorkbench")
     doc.recompute()
     return fitting
 
@@ -422,5 +330,6 @@ def reset_arrangement_from_simulation() -> object:
     Returns:
         The result from the fitting-stage reset command.
     """
-    fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")
+    from freecad_cloth.avatar import FittingCommands as fitting_commands
+
     return fitting_commands.reset_arrangement()

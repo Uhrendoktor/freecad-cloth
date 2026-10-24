@@ -45,7 +45,6 @@ class AvatarFittingTests(unittest.TestCase):
 
         obj = SimpleNamespace(
             MeasurementData=BodyMeasurements({"waist": 760, "hip": 960}).to_json(),
-            AvatarProxy=SimpleNamespace(Label="Avatar"),
             PiecePlacements=(),
             ArrangementPoints=(),
             BoundingVolumes=(),
@@ -58,7 +57,6 @@ class AvatarFittingTests(unittest.TestCase):
 
         obj = SimpleNamespace(
             MeasurementData="{not-json}",
-            AvatarProxy=None,
             PiecePlacements=(),
             ArrangementPoints=(),
             BoundingVolumes=(),
@@ -194,7 +192,7 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertLess(y_span / z_span, 0.25)
 
     def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self) -> None:
-        from freecad_cloth.avatar.avatar_commands import _mesh_data
+        from freecad_cloth.avatar.AvatarCommands import _mesh_data
 
         calls = []
         created = []
@@ -357,7 +355,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarTargetInvalidation")
         try:
@@ -398,7 +396,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarAcceptance")
         path = None
@@ -420,7 +418,7 @@ class AvatarFittingTests(unittest.TestCase):
             original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
-            avatar.GenderBlend = 0.25
+            avatar.Gender = 0.25
             avatar.BreastSize = 0.75
             rebuild_avatar()
             rebuilt_mesh = tuple(
@@ -446,7 +444,7 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
-            self.assertAlmostEqual(float(restored.GenderBlend), 0.25)
+            self.assertAlmostEqual(float(restored.Gender), 0.25)
             self.assertAlmostEqual(float(restored.BreastSize), 0.75)
             self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
@@ -461,13 +459,13 @@ class AvatarFittingTests(unittest.TestCase):
 
 
 def test_fitting_stage_status_without_simulation_is_not_actionable():
-    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
 
     assert fitting_stage_status(None) == ("No simulation scene selected.", False)
 
 
 def test_fitting_stage_status_reports_unarranged_scene():
-    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
 
     doc = type("Doc", (), {"Objects": ()})()
     simulation = type("Simulation", (), {"Document": doc})()
@@ -479,7 +477,7 @@ def test_fitting_stage_status_reports_unarranged_scene():
 
 
 def test_fitting_stage_status_reports_saved_arrangement_state():
-    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
+    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
 
     fitting = type(
         "Fitting",

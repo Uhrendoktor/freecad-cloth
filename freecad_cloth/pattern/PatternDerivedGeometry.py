@@ -2,11 +2,11 @@
 """FreeCAD-independent derived geometry and construction marks for patterns."""
 
 from collections.abc import Iterable
-from math import atan2, cos, hypot, isfinite, pi
+from math import hypot, isfinite
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, Polygon
 
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -322,40 +322,38 @@ def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
 def _offset_polyline(
     points: list[Point], width: float, outward_sign: float, miter_limit: float
 ) -> list[Point]:
+    """Offset a sampled edge using GEOS rather than Python-level vertex loops.
+
+    Args:
+        points: Ordered 2D coordinates of the source edge.
+        width: Offset distance in pattern millimetres.
+        outward_sign: 1 for left-side offsets and -1 for right-side offsets.
+        miter_limit: Maximum miter extension relative to the requested distance.
+
+    Returns:
+        Offset coordinates ordered in the same endpoint direction as the source.
+
+    Raises:
+        ValueError: If the edge is too short or GEOS cannot return one offset line.
+    """
     if width == 0:
         return list(points)
     if len(points) < 2:
         msg = "an edge needs at least two points"
         raise ValueError(msg)
-    normals = []
-    for a, b in zip(points, points[1:], strict=False):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = hypot(dx, dy)
-        normals.append(
-            (0.0, 0.0)
-            if length == 0
-            else (outward_sign * (-dy / length), outward_sign * (dx / length))
-        )
-    result = []
-    for index, point in enumerate(points):
-        if index == 0:
-            normal = normals[0]
-        elif index == len(points) - 1:
-            normal = normals[-1]
-        else:
-            n1, n2 = normals[index - 1], normals[index]
-            summed = (n1[0] + n2[0], n1[1] + n2[1])
-            norm = hypot(*summed)
-            normal = n2 if norm == 0 else (summed[0] / norm, summed[1] / norm)
-        scale = width
-        if index not in (0, len(points) - 1):
-            tangent_change = abs(
-                atan2(normals[index][1], normals[index][0])
-                - atan2(normals[index - 1][1], normals[index - 1][0])
-            )
-            while tangent_change > pi:
-                tangent_change -= 2 * pi
-            cosine_half = max(0.25, abs(cos(tangent_change / 2)))
-            scale = min(width / cosine_half, width * miter_limit)
-        result.append((point[0] + normal[0] * scale, point[1] + normal[1] * scale))
+    offset = LineString(points).offset_curve(
+        width * outward_sign,
+        join_style="mitre",
+        mitre_limit=miter_limit,
+    )
+    if offset.is_empty or offset.geom_type != "LineString" or len(offset.coords) < 2:
+        msg = "GEOS could not produce one continuous offset polyline"
+        raise ValueError(msg)
+    result = [(float(x), float(y)) for x, y in offset.coords]
+    start = points[0]
+    first_distance = hypot(result[0][0] - start[0], result[0][1] - start[1])
+    last_distance = hypot(result[-1][0] - start[0], result[-1][1] - start[1])
+    if last_distance < first_distance:
+        result.reverse()
     return result
+

@@ -3,23 +3,11 @@
 
 import pytest
 
+from tests.support.assertions import require as _require
+
 from tools.ci.check_artifact_budget import MAX_ARTIFACT_BYTES, accumulated_size
 
 EXPECTED_ACCUMULATED_BYTES = 9_500_000
-
-
-def _require(*, condition: bool, message: str) -> None:
-    """Raise a clear test failure when an artifact-budget expectation is false.
-
-    Args:
-        condition: Boolean result of the expectation being checked.
-        message: Actionable failure message describing the unmet expectation.
-
-    Raises:
-        AssertionError: If the expected test condition is not satisfied.
-    """
-    if not condition:
-        raise AssertionError(message)
 
 
 def test_accumulated_size_sums_all_artifacts() -> None:

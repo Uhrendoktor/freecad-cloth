@@ -7,6 +7,21 @@ from collections.abc import Callable
 from typing import Protocol, cast
 
 
+def _drape_target_source(doc):
+    """Return the source object owned by the document's persistent DrapeTarget.
+
+    Args:
+        doc: FreeCAD document that owns the target object.
+
+    Returns:
+        The assigned source object, or None while the target is unassigned.
+    """
+    if doc is None:
+        return None
+    target = doc.getObject("DrapeTarget")
+    return getattr(target, "SourceObject", None)
+
+
 def _scene(doc):
     return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
 
@@ -16,7 +31,7 @@ def _safe_name(value):
 
 
 def _ensure_anchor_property(scene):
-    """Add anchor persistence to fitting scenes created by older workbench versions."""
+    """Ensure fitting scenes expose the anchor-data property required by this workflow."""
     if hasattr(scene, "ArrangementAnchorData"):
         return
     add_property = getattr(scene, "addProperty", None)
@@ -325,10 +340,7 @@ def _anchor_record_status(scene, target, anchor, document=None):
     if document is None:
         document = getattr(scene, "Document", None) if scene is not None else None
     if document is not None:
-        drape_target = document.getObject("DrapeTarget")
-        configured_target = getattr(scene, "AvatarProxy", None)
-        if configured_target is None:
-            configured_target = getattr(drape_target, "SourceObject", None)
+        configured_target = _drape_target_source(document)
         if configured_target is None:
             return "unconfigured target"
         if str(getattr(configured_target, "Name", "")) != str(getattr(target, "Name", "")):
@@ -638,39 +650,6 @@ def _sync_visuals(scene):
         obj.ViewObject.Visibility = True
 
 
-def _migrate_visual_output_references(scene):
-    """Convert legacy visual-object links to persisted object-name outputs.
-
-    ArrangementPointObjects and BoundingVolumeObjects are derived visual outputs,
-    not dependency inputs. Persisting them as links makes the FittingScene proxy
-    depend on objects that the proxy itself mutates during execution, which is a
-    reverse dependency that FreeCAD reports as an object still touched after
-    recompute. Existing documents keep the property names but migrate their
-    values to non-dependency string outputs before proxy execution.
-    """
-    # The proxy's persisted-state validation is also exercised with lightweight
-    # headless objects. They have no FreeCAD property API to migrate; real
-    # document objects always expose addProperty.
-    if not callable(getattr(scene, "addProperty", None)):
-        return
-    for name in ("ArrangementPointObjects", "BoundingVolumeObjects"):
-        if name not in getattr(scene, "PropertiesList", ()):
-            scene.addProperty("App::PropertyStringList", name, "Arrangement")
-            setattr(scene, name, [])
-            continue
-        try:
-            type_id = scene.getTypeIdOfProperty(name)
-        except (AttributeError, RuntimeError):
-            type_id = ""
-        if str(type_id) == "App::PropertyStringList":
-            continue
-        legacy = tuple(getattr(scene, name, ()) or ())
-        names = [getattr(item, "Name", "") for item in legacy if getattr(item, "Name", "")]
-        scene.removeProperty(name)
-        scene.addProperty("App::PropertyStringList", name, "Arrangement")
-        setattr(scene, name, names)
-
-
 def create_fitting_scene():
     import FreeCAD as App
 
@@ -686,7 +665,6 @@ def create_fitting_scene():
         "App::PropertyString", "MeasurementData", "Measurements"
     ).MeasurementData = BodyMeasurements().to_json()
     obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
-    obj.addProperty("App::PropertyLinkGlobal", "AvatarProxy", "Fitting")
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
     obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
     obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
@@ -762,12 +740,13 @@ def add_selected_pattern_pieces():
     )
     scene.PiecePlacements = [by_id[k].to_string() for k in sorted(by_id)]
     scene.HomePlacements = [home_by_id[k].to_string() for k in sorted(home_by_id)]
+    avatar_source = _drape_target_source(doc)
     FittingScene(
         BodyMeasurements.from_json(scene.MeasurementData),
-        getattr(scene.AvatarProxy, "Label", "") if scene.AvatarProxy else "",
+        getattr(avatar_source, "Label", "") if avatar_source else "",
         tuple(by_id.values()),
     ).validate()
-    scene.FitStatus = "Ready" if scene.AvatarProxy else "Pieces assigned"
+    scene.FitStatus = "Ready" if avatar_source else "Pieces assigned"
     doc.recompute()
     return scene
 
@@ -1132,9 +1111,9 @@ class _FittingProxy:
             PiecePlacement,
         )
 
-        _migrate_visual_output_references(obj)
         measurements = BodyMeasurements.from_json(obj.MeasurementData)
-        avatar_name = getattr(obj.AvatarProxy, "Label", "") if obj.AvatarProxy else ""
+        avatar_source = _drape_target_source(getattr(obj, "Document", None))
+        avatar_name = getattr(avatar_source, "Label", "") if avatar_source else ""
         placements = tuple(PiecePlacement.from_string(v) for v in obj.PiecePlacements)
         points = tuple(ArrangementPoint.from_string(v) for v in obj.ArrangementPoints)
         volumes = tuple(BoundingVolume.from_string(v) for v in obj.BoundingVolumes)

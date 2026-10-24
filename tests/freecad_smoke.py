@@ -28,7 +28,7 @@ _boot_checkpoint("freecad_smoke: imported-Part")
 from freecad_cloth.pattern.PatternCommands import create_pattern_piece, create_pattern_sketch
 
 _boot_checkpoint("freecad_smoke: imported-PatternCommands")
-from freecad_cloth.avatar.avatar_commands import (
+from freecad_cloth.avatar.AvatarCommands import (
     create_avatar,
     set_avatar_measurements,
     set_avatar_pose,
@@ -153,14 +153,14 @@ def main():
     assert abs(offset.BoundBox.YLength - 80.0) < 1e-6
     checkpoint("FREECAD_SMOKE OFFSET")
     scene = create_simulation_scene(doc)
-    avatar_proxy = doc.getObject("AvatarCollision")
+    drape_target = doc.getObject("DrapeTarget")
     humanoid = doc.getObject("HumanoidAvatar")
     assert scene.ParticleCount == 80
     assert scene.ClothPieces == [doc.getObject("DrapePanelA"), doc.getObject("DrapePanelB")]
-    assert scene.AvatarProxy == avatar_proxy
-    assert avatar_proxy.SourceObject == humanoid
-    assert avatar_proxy.CollisionType == "MeshSurface"
-    assert avatar_proxy.CollisionTriangleCount > 0
+    assert drape_target is not None
+    assert scene.DrapeTarget == drape_target
+    assert drape_target.SourceObject == humanoid
+    assert doc.getObject("AvatarCollision") is None
     assert humanoid.AvatarType == "ClothAvatar"
     assert humanoid.AvatarMeshProvider == "makehuman-hm08"
     assert humanoid.AvatarMeshLicense == "CC0"
@@ -205,7 +205,8 @@ def main():
     assert scene.SimulatedTime == 0.0
     assert scene.FiniteState
     assert scene.ClothPieces == [doc.getObject("DrapePanelA"), doc.getObject("DrapePanelB")]
-    assert scene.AvatarProxy == doc.getObject("AvatarCollision")
+    assert scene.DrapeTarget == doc.getObject("DrapeTarget")
+    assert doc.getObject("AvatarCollision") is None
     checkpoint("FREECAD_SMOKE RESET")
     App.closeDocument(doc.Name)
     avatar_doc = App.newDocument("AvatarSmoke")

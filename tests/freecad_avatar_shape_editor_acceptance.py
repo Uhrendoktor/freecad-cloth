@@ -330,7 +330,7 @@ def run():
     """Exercise body-shape controls, viewport dimension staging, and saved rebuilds."""
     os.environ["CLOTH_ANNY_SHAPE_TRACE"] = "1"
     Path("artifacts/ui-gifs").mkdir(parents=True, exist_ok=True)
-    from freecad_cloth.avatar.avatar_commands import _parameters, create_avatar
+    from freecad_cloth.avatar.AvatarCommands import _parameters, create_avatar
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
     from freecad_cloth.avatar.AvatarModel import generate_mesh
 
@@ -461,7 +461,7 @@ def run():
             _events()
             _assert_camera_stable(camera_before_rebuild, _camera_signature(view))
             shape_recorder.hold(750)
-            if abs(float(avatar.GenderBlend) - 0.20) > 1e-6:
+            if abs(float(avatar.Gender) - 0.20) > 1e-6:
                 msg = "gender blend did not persist to the FreeCAD avatar object"
                 raise RuntimeError(msg)
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
@@ -657,7 +657,7 @@ def run():
 
         _events()
         metrics = _capture_screen(Path("artifacts/avatar-shape-editor.png"))
-        if abs(float(avatar.GenderBlend) - 0.20) > 1e-6:
+        if abs(float(avatar.Gender) - 0.20) > 1e-6:
             msg = "gender blend changed unexpectedly during dimension editing"
             raise RuntimeError(msg)
         if abs(float(avatar.BreastSize) - 0.65) > 1e-6:

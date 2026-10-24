@@ -47,7 +47,6 @@ class _Seam:
 
 class _Scene:
     StitchSamples = 8
-    AvatarProxy = None
 
     def __init__(self, objects):
         self.Document = type("_Doc", (), {"Objects": objects})()

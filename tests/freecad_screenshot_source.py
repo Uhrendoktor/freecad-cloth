@@ -1531,7 +1531,7 @@ def simulation():
 
     doc = App.newDocument("ClothSimulationVisualRegression")
     scene = create_quality_simulation_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     target = scene.DrapeTarget
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
         msg = "visual fixture did not create the production ClothAvatar"
@@ -1546,7 +1546,7 @@ def simulation():
     if TUNIC_PRODUCTION_AUDIT:
         from dataclasses import replace as replace_dataclass
 
-        from freecad_cloth.avatar.avatar_commands import _parameters, apply_avatar_parameters
+        from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
 
         initial_parameters = _parameters(avatar)
         near_t_pose = replace_dataclass(

@@ -149,7 +149,7 @@ def _parse_int_list(values, particle_count=None):
 
 
 def normalize_pin_mode(value):
-    """Return a supported persistent pinning mode, preserving legacy defaults."""
+    """Return a supported pinning mode, defaulting invalid values to Automatic."""
     mode = str(value or "Automatic").strip()
     return mode if mode in PIN_MODE_NAMES else "Automatic"
 
@@ -748,61 +748,6 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
-    """Create a target-neutral compatibility collision proxy."""
-    avatar = doc.getObject("AvatarCollision")
-    if avatar is None:
-        avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
-        avatar.Label = "Avatar Collision Proxy (Compatibility)"
-        avatar.addProperty("App::PropertyString", "CollisionType", "Simulation")
-        avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionThickness", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionDeflection", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionVertexCount", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionTriangleCount", "Simulation")
-    avatar.SourceObject = source_obj
-    avatar.CollisionType = "MeshSurface" if source_obj is not None else "Unassigned"
-    avatar.CollisionThickness = float(thickness)
-    avatar.CollisionDeflection = float(deflection)
-    if source_obj is not None:
-        from freecad_cloth.simulation.DrapeTarget import collision_surface
-
-        surface = collision_surface(source_obj, deflection, thickness)
-        avatar.CollisionVertexCount = len(surface.vertices)
-        avatar.CollisionTriangleCount = len(surface.triangles)
-    else:
-        avatar.CollisionVertexCount = 0
-        avatar.CollisionTriangleCount = 0
-    return avatar
-
-
-def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Set an avatar collision proxy without coupling Simulation to Avatar."""
-    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
-
-    doc = scene.Document
-    target = getattr(scene, "DrapeTarget", None)
-    if target is None:
-        target = doc.getObject("DrapeTarget")
-    target_type = (
-        "Mannequin"
-        if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar"
-        else "FreeCAD Geometry"
-    )
-    if target is None:
-        target = create_drape_target(doc, source_obj, target_type, deflection, thickness)
-    else:
-        target.CollisionThickness = float(thickness)
-        target.CollisionDeflection = float(deflection)
-        assign_drape_target(target, source_obj, target_type)
-    proxy = create_avatar_collision(doc, source_obj, thickness, deflection)
-    scene.AvatarProxy = proxy
-    if "DrapeTarget" in set(getattr(scene, "PropertiesList", ()) or ()):
-        scene.DrapeTarget = target
-    doc.recompute()
-    return proxy
-
-
 def create_simulation_scene(doc, build=True):
     """Create and return the requested simulation scene object."""
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
@@ -818,12 +763,6 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty(
-        "App::PropertyLinkGlobal",
-        "AvatarProxy",
-        "Draping",
-        "Avatar source used by fitting workflows",
-    )
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"

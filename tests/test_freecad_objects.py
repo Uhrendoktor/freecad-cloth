@@ -96,10 +96,11 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
-def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
+def test_drape_target_is_the_only_persistent_collision_authority():
+    """Ensure fitting and simulation share DrapeTarget without a proxy object."""
     if App is None or Part is None:
         return
-    document = App.newDocument("AvatarCollisionScope")
+    document = App.newDocument("DrapeTargetAuthority")
     try:
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
         from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
@@ -109,32 +110,30 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
         document.recompute()
 
-        fitting = create_fitting_scene()
-        proxy = set_drape_target_source(fitting, body, thickness=2.0, deflection=1.0)
-        assert proxy is fitting.AvatarProxy
-        assert fitting.getTypeIdOfProperty("AvatarProxy") == "App::PropertyLinkGlobal"
-        document.recompute()
-        assert fitting.AvatarProxy is proxy
-        assert proxy.Name == "AvatarCollision"
-        assert proxy.SourceObject == body
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
-
+        simulation = create_simulation_scene(document)
+        assert set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0) is body
         target = document.getObject("DrapeTarget")
         assert target is not None
         assert target.SourceObject == body
-
-        simulation = create_simulation_scene(document)
-        proxy2 = set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5)
-        assert proxy2 is simulation.AvatarProxy
-        assert proxy2 is proxy
         assert simulation.DrapeTarget == target
-        assert proxy2.SourceObject == body
+
+        fitting = create_fitting_scene()
+        assert "AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
+        assert document.getObject("AvatarCollision") is None
+        document.recompute()
+        assert document.getObject("DrapeTarget") is target
+        assert target.SourceObject == body
+
+        assert set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5) is body
+        assert simulation.DrapeTarget == target
+        assert target.SourceObject == body
         assert float(target.CollisionThickness) == 3.0
         assert float(target.CollisionDeflection) == 0.5
+        assert document.getObject("AvatarCollision") is None
     finally:
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
-
 
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:

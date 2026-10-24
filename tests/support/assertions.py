@@ -2,11 +2,11 @@
 """Shared assertion helpers for strict, descriptive regression tests."""
 
 
-def require(*, condition: bool, message: str) -> None:
+def require(condition: object, message: str) -> None:
     """Raise an explicit assertion error when a required predicate is false.
 
     Args:
-        condition: Boolean predicate that must hold for the test to pass.
+        condition: Truthy predicate that must hold for the test to pass.
         message: Descriptive failure explanation for a violated predicate.
 
     Raises:

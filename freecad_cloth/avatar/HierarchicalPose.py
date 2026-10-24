@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import math
+
+import numpy as np
 from collections.abc import Callable
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (
@@ -74,12 +76,8 @@ def _make_anny_rig_mapper(
         Returns:
             The component-wise mean point.
         """
-        count = float(len(points))
-        return (
-            sum(point[0] for point in points) / count,
-            sum(point[1] for point in points) / count,
-            sum(point[2] for point in points) / count,
-        )
+        mean = np.mean(np.asarray(points, dtype=np.float64), axis=0)
+        return (float(mean[0]), float(mean[1]), float(mean[2]))
 
     vertices_by_point: dict[Point, list[Point]] = {}
     for source_point, fitted_point in zip(source_vertices, rig_vertices, strict=True):

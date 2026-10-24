@@ -137,7 +137,7 @@ def _checkpoint_record(
 
 def _build_cube_scene(doc):
     scene = _build_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     cube = doc.addObject("Part::Feature", "DiagnosticCube")
     cube.Label = "Diagnostic Collision Cube"
     cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))

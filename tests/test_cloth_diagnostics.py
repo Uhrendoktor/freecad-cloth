@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.assertions import require as _require
+
 from freecad_cloth.simulation.ClothDiagnostics import (
     analyze_mesh,
     export_json,
@@ -14,20 +16,6 @@ from freecad_cloth.simulation.ClothDiagnostics import (
     metric_definition,
     summarize,
 )
-
-
-def _require(condition: object, message: str) -> None:
-    """Fail a regression test with a descriptive message when a condition is false.
-
-    Args:
-        condition: Predicate that must hold for the test to pass.
-        message: Actionable explanation to show if the predicate is false.
-
-    Raises:
-        AssertionError: If the supplied condition is false.
-    """
-    if not condition:
-        raise AssertionError(message)
 
 
 def _triangle(scale: float = 1.0, z: float = 0.0) -> list[tuple[float, float, float]]:

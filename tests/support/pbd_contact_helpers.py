@@ -352,7 +352,7 @@ def screenshot(view, path):
 
 def build_scene(doc, particle_distance=24.0):
     """Create the canonical production avatar/target scene for PBD diagnostic cases."""
-    from freecad_cloth.avatar.avatar_commands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (
@@ -368,7 +368,6 @@ def build_scene(doc, particle_distance=24.0):
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
     set_drape_target_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
-    scene.AvatarProxy.SourceObject = avatar
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()

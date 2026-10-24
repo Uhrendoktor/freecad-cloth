@@ -35,13 +35,14 @@ def _is_simulation_scene(obj):
 
 
 def _attach_to_simulation(doc, source, target):
-    from freecad_cloth.simulation.SimulationObjects import set_avatar_collision_source
+    """Attach the one persistent DrapeTarget to every simulation scene in the document.
 
-    for scene in [o for o in doc.Objects if _is_simulation_scene(o)]:
-        proxy = set_avatar_collision_source(
-            scene, source, float(target.CollisionThickness), float(target.CollisionDeflection)
-        )
-        scene.AvatarProxy = proxy
+    Args:
+        doc: FreeCAD document containing the target and any simulation scenes.
+        source: Geometry source assigned to the target.
+        target: Persistent target object created or updated by the caller.
+    """
+    for scene in (obj for obj in doc.Objects if _is_simulation_scene(obj)):
         scene.DrapeTarget = target
     doc.recompute()
 
@@ -98,7 +99,7 @@ def create_drape_target_from_selection(deflection=1.0, thickness=2.0):
 def create_mannequin_drape_target():
     import FreeCAD as App
 
-    from freecad_cloth.avatar.avatar_commands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.DrapeTarget import (
         DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
         assign_drape_target,

@@ -19,6 +19,29 @@ import Part
 from tests.support.freecad_input import UiGifRecorder
 
 
+
+def _assign_drape_source(doc, source):
+    """Assign a test source through the persistent DrapeTarget.
+
+    Args:
+        doc: FreeCAD document that owns the target.
+        source: Geometry or avatar object to use as the target source.
+    """
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
+
+    target_type = (
+        "Mannequin"
+        if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+        else "FreeCAD Geometry"
+    )
+    drape_target = doc.getObject("DrapeTarget")
+    if drape_target is None:
+        return create_drape_target(doc, source, target_type, 1.0, 2.0)
+    drape_target.CollisionDeflection = 1.0
+    drape_target.CollisionThickness = 2.0
+    assign_drape_target(drape_target, source, target_type)
+    return drape_target
+
 def _capture_screen(path):
     try:
         from PySide import QtWidgets
@@ -41,7 +64,7 @@ def _screen(view, vector):
 
 def _create_demo_avatar(doc):
     """Create the same production mannequin used by fitting and simulation."""
-    from freecad_cloth.avatar.avatar_commands import create_avatar
+    from freecad_cloth.avatar.AvatarCommands import create_avatar
 
     target = create_avatar(attach_collision=False, doc=doc, object_name="TunicArrangeMannequin")
     target.Label = "Mannequin / Tunic Fitting Target"
@@ -197,7 +220,7 @@ def run():
         panel_height,
     )
     scene = create_fitting_scene()
-    scene.AvatarProxy = target
+    _assign_drape_source(doc, target)
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(front_piece)
     Gui.Selection.addSelection(back_piece)
@@ -466,7 +489,7 @@ def run():
         App.Rotation(),
     )
     shape_probe.ViewObject.Visibility = False
-    scene.AvatarProxy = shape_probe
+    _assign_drape_source(doc, shape_probe)
     doc.recompute()
     from freecad_cloth.avatar.FittingCommands import create_arrangement_anchor
 
@@ -511,18 +534,18 @@ def run():
     if "Stale anchor:" not in str(probe_obj.Label):
         msg = "stale B-rep anchor was not marked visibly in the viewport"
         raise RuntimeError(msg)
-    scene.AvatarProxy = target
+    _assign_drape_source(doc, target)
     doc.recompute()
     controller._points()
 
     # Exercise the actual avatar skeleton rebuild path. Select a triangle that
     # moves strongly under a manual joint rotation, then prove the saved barycentric
     # anchor follows that same triangle when the avatar mesh is rebuilt.
-    from freecad_cloth.avatar.avatar_commands import set_avatar_joint
+    from freecad_cloth.avatar.AvatarCommands import set_avatar_joint
     from freecad_cloth.avatar.FittingCommands import _mesh_anchor_local_position
 
     avatar = target
-    scene.AvatarProxy = avatar
+    _assign_drape_source(doc, avatar)
     doc.recompute()
 
     def _mesh_snapshot(mesh_target):

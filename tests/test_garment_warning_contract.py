@@ -40,7 +40,8 @@ def test_simulation_cross_scope_dependencies_are_global_and_outputs_have_garment
     assert 'App::PropertyLinkListGlobal", "ClothPieces"' in source
     assert 'App::PropertyLinkListGlobal", "DrapePanels"' in source
     assert 'App::PropertyLinkGlobal", "DrapeTarget"' in source
-    assert 'App::PropertyLinkGlobal", "AvatarProxy"' in " ".join(source.split())
+    assert 'App::PropertyLinkGlobal", "AvatarProxy"' not in " ".join(source.split())
+    assert "create_avatar_collision" not in source
     assert 'link_garment_object(scene, "Simulation", doc)' in source
     assert 'link_garment_object(panel_a, "SimulationOutput", doc)' in source
     assert 'link_garment_object(panel_b, "SimulationOutput", doc)' in source

@@ -331,7 +331,12 @@ class _NativePBDVertexData(Protocol):
 
 
 class _NativePBDIndexedFaceMesh(Protocol):
-    """Describe the indexed triangle mesh representation used by collision geometry."""
+    """Project-owned structural contract for the compiled pypbd indexed-face mesh.
+
+    The upstream runtime exposes native bindings but does not provide a Python
+    stub for this interface. These method descriptions are local contracts for
+    the calls Cloth makes; they are not auto-generated upstream documentation.
+    """
 
     def initMesh(self, _vertex_count: int, _edge_count: int, _face_count: int) -> None:
         """Allocate native indexed-face mesh storage.

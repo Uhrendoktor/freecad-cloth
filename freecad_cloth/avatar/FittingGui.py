@@ -669,10 +669,8 @@ class ViewportAnchorPicker:
         """Return the target currently authoritative for this fitting scene."""
         scene = self.panel.scene
         doc = getattr(scene, "Document", None)
-        candidate = getattr(scene, "AvatarProxy", None)
-        if candidate is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            candidate = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        candidate = getattr(drape_target, "SourceObject", None)
         if candidate is None or not getattr(candidate, "Name", ""):
             return {}
         return {str(candidate.Name): candidate}
@@ -928,10 +926,8 @@ class FittingTaskPanel:
             if doc is not None
             else ()
         )
-        target = getattr(self.scene, "AvatarProxy", None)
-        if target is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            target = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
         stale = sum(
             arrangement_anchor_status(point)

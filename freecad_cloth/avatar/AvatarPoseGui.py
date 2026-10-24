@@ -9,7 +9,7 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 import contextlib
 import math
 
-from freecad_cloth.avatar.avatar_properties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
+from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.shared.viewport_gizmo_style import (
     ACTIVE_COLOR,
     JOINT_COLOR,
@@ -1326,8 +1326,9 @@ class AvatarPoseTaskPanel:
         Returns:
             Avatar parameter object containing staged joint rotations and measurements.
         """
-        from freecad_cloth.avatar.avatar_commands import _parameters
+        from freecad_cloth.avatar.AvatarCommands import _parameters
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
+from freecad_cloth.avatar.AvatarProperties import SHAPE_PROPERTY_MAP
 
         stored = _parameters(self.avatar)
         measurements = dict(stored.measurements)
@@ -1353,7 +1354,7 @@ class AvatarPoseTaskPanel:
             float(getattr(self.avatar, "SkinOffset", 0.0)),
             current_pose,
             4,
-            float(getattr(self.avatar, "GenderBlend", 0.5)),
+            float(getattr(self.avatar, SHAPE_PROPERTY_MAP["gender"], 0.5)),
             float(getattr(self.avatar, "BreastSize", 0.0)),
             dict(stored.phenotype_overrides),
             dict(stored.local_change_overrides),
@@ -1392,7 +1393,7 @@ class AvatarPoseTaskPanel:
         """Rebuild the mannequin preview from the staged pose values."""
         if self.avatar is None:
             return
-        from freecad_cloth.avatar.avatar_commands import _mesh_data
+        from freecad_cloth.avatar.AvatarCommands import _mesh_data
         from freecad_cloth.avatar.AvatarModel import generate_mesh
 
         try:
@@ -1466,7 +1467,7 @@ class AvatarPoseTaskPanel:
         """
         if self.avatar is None:
             return False
-        from freecad_cloth.avatar.avatar_commands import rebuild_avatar
+        from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
         from freecad_cloth.avatar.SkeletonPose import joint_rotations_to_json
 
         self.avatar.JointPoseJSON = joint_rotations_to_json(
@@ -1485,7 +1486,7 @@ class AvatarPoseTaskPanel:
             True to allow FreeCAD to close the task panel.
         """
         try:
-            from freecad_cloth.avatar.avatar_commands import rebuild_avatar
+            from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
 
             rebuild_avatar()
         finally:

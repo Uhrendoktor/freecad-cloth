@@ -12,25 +12,13 @@ from hypothesis import strategies as st
 from PIL import Image
 from pydantic import ValidationError
 
+from tests.support.assertions import require as _require
+
 from freecad_cloth.common.ValidationModels import PngCaptureMetrics
 from freecad_cloth.common.VisualCaptureValidation import (
     png_has_visible_content,
     validate_png_capture,
 )
-
-
-def _require(*, condition: bool, message: str) -> None:
-    """Raise a descriptive failure when a visual-capture expectation is false.
-
-    Args:
-        condition: Boolean outcome of the validation expectation.
-        message: Failure description to show when the outcome is false.
-
-    Raises:
-        AssertionError: If the visual-capture expectation is not satisfied.
-    """
-    if not condition:
-        raise AssertionError(message)
 
 
 def _write_png(

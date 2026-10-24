@@ -18,7 +18,6 @@ _ROLE_TO_GROUP = {
     "SewingNetwork": "Sewing",
     "FabricMaterial": "Fabric",
     "Avatar": "Avatar",
-    "AvatarCollision": "Avatar",
     "DrapeTarget": "Avatar",
     "Simulation": "Simulation",
     "SimulationOutput": "Simulation",
@@ -150,8 +149,8 @@ def ensure_garment_hierarchy(doc, label="Garment"):
 def link_garment_object(obj, role, doc=None):
     """Link an existing object into the active native Garment hierarchy.
 
-    This is intentionally a no-op for standalone documents so legacy creation
-    paths retain their previous document shape.
+    This is intentionally a no-op when no Garment root exists, keeping
+    standalone object creation a first-class workflow.
     """
     if obj is None:
         return None

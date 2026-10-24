@@ -5,10 +5,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fixtures.garment_fixtures import mirrored_pair, multi_piece, two_piece_rectangle
-from freecad_cloth.avatar.AvatarCollision import (
-    AvatarSpec,
-    CollisionSurface,
-)
+from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     PatternMark,
@@ -32,10 +29,10 @@ def test_svg_units_and_stable_ids():
     assert 'height="50mm"' in svg
 
 
-def test_avatar_contract():
+def test_collision_surface_contract():
+    """Validate the neutral collision surface and its geometric centroid."""
     surface = CollisionSurface(((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 1, 2),), thickness=1.0)
-    avatar = AvatarSpec("fixture", collision=surface)
-    avatar.validate()
+    surface.validate()
     assert surface.center == (1 / 3, 1 / 3, 0.0)
 
 

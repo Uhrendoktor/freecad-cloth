@@ -482,9 +482,9 @@ def test_workflow_actions_use_immutable_release_pins() -> None:
 
 
 def test_avatar_commands_do_not_depend_on_simulation_package() -> None:
-    """Keep avatar command code independent of simulation modules."""
+    """Keep avatar command code independent of the simulation command layer."""
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "avatar" / "avatar_commands.py").read_text(encoding="utf-8")
+    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
     require(
         condition=("freecad_cloth.simulation.SimulationObjects" not in source),
         message="test_avatar_commands_do_not_depen...: required condition failed",
@@ -702,10 +702,10 @@ def test_neutral_collision_contract_is_singleton() -> None:
         condition=("class CollisionSurface" in source),
         message="test_neutral_collision_contract_i...: required condition failed",
     )
-    avatar = (root / "freecad_cloth" / "avatar" / "AvatarCollision.py").read_text(encoding="utf-8")
+    avatar_collision = root / "freecad_cloth" / "avatar" / "AvatarCollision.py"
     require(
-        condition=("class CollisionSurface" not in avatar),
-        message="test_neutral_collision_contract_i...: required condition failed",
+        condition=(not avatar_collision.is_file() and "class CollisionSurface" in source),
+        message="CollisionSurface must have one implementation in shared.collision and no avatar proxy module",
     )
 
 
@@ -762,4 +762,29 @@ def test_python_sources_do_not_import_removed_architecture_modules() -> None:
     require(
         condition=(not offenders),
         message="test_python_sources_do_not_import...: required condition failed",
+    )
+
+
+def test_avatar_modules_have_one_camel_case_implementation_name() -> None:
+    """Reject compatibility aliases and parallel lowercase avatar module files."""
+    root = Path(__file__).resolve().parents[1]
+    avatar = root / "freecad_cloth" / "avatar"
+    simulation = root / "freecad_cloth" / "simulation"
+    required = (
+        avatar / "AvatarCommands.py",
+        avatar / "AvatarProperties.py",
+        simulation / "FittingHandoff.py",
+    )
+    forbidden = (
+        avatar / "avatar_commands.py",
+        avatar / "avatar_properties.py",
+        avatar / "_avatar_compat.py",
+        avatar / "AvatarCollision.py",
+        simulation / "fitting_handoff.py",
+    )
+    require(
+        condition=all(path.is_file() for path in required) and all(
+            not path.exists() for path in forbidden
+        ),
+        message="domain modules must have one canonical CamelCase implementation path",
     )

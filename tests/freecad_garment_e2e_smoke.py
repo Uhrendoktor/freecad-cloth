@@ -756,8 +756,9 @@ def run_acceptance():
         Gui.runCommand("ClothFitting_AssignAvatar", 0)
         _events()
         doc.recompute()
-        if fitting.AvatarProxy is None:
-            msg = "public fitting avatar assignment did not persist the canonical avatar"
+        drape_target = doc.getObject("DrapeTarget")
+        if drape_target is None or drape_target.SourceObject is None:
+            msg = "public fitting avatar assignment did not persist the canonical DrapeTarget source"
             raise RuntimeError(msg)
         print("drape-target=passed type=Mannequin", flush=True)
 

@@ -71,10 +71,10 @@ def test_surface_anchor_is_invalidated_when_fitting_target_changes():
 
     old_target = SimpleNamespace(Name="OldMannequin")
     new_target = SimpleNamespace(Name="ReplacementMannequin")
-    scene = SimpleNamespace(FittingType="FittingScene", AvatarProxy=new_target)
+    scene = SimpleNamespace(FittingType="FittingScene")
     document = SimpleNamespace(
         Objects=[scene],
-        getObject=lambda name: None,
+        getObject=lambda name: SimpleNamespace(SourceObject=new_target) if name == "DrapeTarget" else None,
     )
     point = SimpleNamespace(
         AnchorGeometrySignature="previous-geometry-signature",

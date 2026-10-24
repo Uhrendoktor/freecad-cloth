@@ -337,10 +337,10 @@ def _run_control_cube():
         from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
         set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
-        if scene.AvatarProxy.SourceObject is not None and hasattr(
-            scene.AvatarProxy.SourceObject, "ViewObject"
+        if scene.DrapeTarget.SourceObject is not None and hasattr(
+            scene.DrapeTarget.SourceObject, "ViewObject"
         ):
-            scene.AvatarProxy.SourceObject.ViewObject.Visibility = False
+            scene.DrapeTarget.SourceObject.ViewObject.Visibility = False
         piece = _build_piece(
             doc,
             "CubeCloth",
@@ -358,7 +358,7 @@ def _run_control_avatar():
     doc = App.newDocument("PositionBasedDynamicsContactControlAvatar")
     try:
         scene = _build_scene(doc)
-        avatar = scene.AvatarProxy.SourceObject
+        avatar = scene.DrapeTarget.SourceObject
         if avatar is None:
             msg = "control-0a-avatar requires the production avatar source"
             raise RuntimeError(msg)

@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Enforce descriptive, complete Python documentation without lint suppressions.
+"""Enforce descriptive Python documentation without inline lint suppression comments.
 
 Every tracked Python source and stub is checked. Ruff enforces type annotations and
 the full compatible lint rule set; this contract verifies prose for function

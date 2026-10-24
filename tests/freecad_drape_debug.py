@@ -273,7 +273,7 @@ def run():
 
     doc = App.newDocument("ClothDrapeDebug")
     scene = create_quality_simulation_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     if avatar is None:
         msg = "production avatar missing"
         raise RuntimeError(msg)

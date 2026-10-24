@@ -26,7 +26,7 @@ def test_avatar_panel_groups_cover_all_editable_measurements():
 def test_avatar_panel_shape_fields_match_persistent_command_properties():
     assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == AvatarCommands.SHAPE_PROPERTY_MAP
     assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == {
-        "gender": "GenderBlend",
+        "gender": "Gender",
         "breast_size": "BreastSize",
     }
     assert callable(AvatarTaskPanel._shape_changed)
@@ -90,7 +90,7 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
 
 
-def test_avatar_panel_keeps_legacy_pose_and_skeleton_paths_secondary():
+def test_avatar_panel_keeps_optional_pose_and_skeleton_paths_secondary():
     # These are runtime defaults/configuration, not source-text requirements.
     assert "t_pose" in AvatarCommands.Pose.VALID_PRESETS
     assert "standing" in AvatarCommands.Pose.VALID_PRESETS

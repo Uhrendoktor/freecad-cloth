@@ -9,8 +9,8 @@ for validation and AvatarService remains the solver-neutral downstream API.
 import contextlib
 from typing import ClassVar, Protocol
 
-from freecad_cloth.avatar.avatar_properties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
-from freecad_cloth.avatar.avatar_properties import (
+from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
+from freecad_cloth.avatar.AvatarProperties import (
     SHAPE_PROPERTY_MAP as AVATAR_SHAPE_PROPERTY_MAP,
 )
 
@@ -344,7 +344,7 @@ class AvatarTaskPanel:
             return
         with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
-        from freecad_cloth.avatar.avatar_commands import pose_avatar
+        from freecad_cloth.avatar.AvatarCommands import pose_avatar
 
         pose_avatar(self.avatar)
 
@@ -828,7 +828,7 @@ class AvatarTaskPanel:
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
         self.gender_slider.blockSignals(True)
-        self.gender_slider.setValue(round(100.0 * float(getattr(self.avatar, "GenderBlend", 0.5))))
+        self.gender_slider.setValue(round(100.0 * float(getattr(self.avatar, AVATAR_SHAPE_PROPERTY_MAP["gender"], 0.5))))
         self.gender_slider.blockSignals(False)
         self.breast_slider.blockSignals(True)
         self.breast_slider.setValue(round(100.0 * float(getattr(self.avatar, "BreastSize", 0.0))))
@@ -1089,7 +1089,7 @@ class AvatarTaskPanel:
             )
             return False
         try:
-            from freecad_cloth.avatar.avatar_commands import apply_avatar_parameters
+            from freecad_cloth.avatar.AvatarCommands import apply_avatar_parameters
 
             apply_avatar_parameters(
                 self.avatar,
@@ -1183,7 +1183,7 @@ class AvatarTaskPanel:
 
     def _rebuild_geometry(self):
         """Rebuild the mannequin geometry from the staged parameters."""
-        from freecad_cloth.avatar.avatar_commands import rebuild_avatar
+        from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
 
         rebuild_avatar()
 

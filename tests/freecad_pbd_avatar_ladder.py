@@ -212,7 +212,7 @@ def _checkpoint_record(
 
 def _build_avatar_scene(doc):
     scene = _build_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     if avatar is None:
         msg = "diagnostic avatar scene has no production ClothAvatar"
         raise RuntimeError(msg)

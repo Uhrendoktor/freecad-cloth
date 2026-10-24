@@ -42,7 +42,7 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
-    avatar = getattr(getattr(scene, "AvatarProxy", None), "SourceObject", None)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     if avatar is None or not hasattr(avatar, "Mesh"):
         msg = "Realtime preview fixture requires the production avatar mesh"
         raise RuntimeError(msg)

@@ -15,7 +15,7 @@ from freecad_cloth.sewing.workbench import (
     ClothSewingWorkbench,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
-from tests.support.assertions import require_not_none
+from tests.support.assertions import require as _require, require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -24,20 +24,6 @@ EXPECTED_WORKBENCHES = {
     "Cloth Sewing": "Sewing operations and avatar fitting",
     "Cloth Simulation": "3D cloth assembly and simulation",
 }
-
-
-def _require(condition: object, message: str) -> None:
-    """Raise a clear test failure when a workbench contract is violated.
-
-    Args:
-        condition: Predicate that must hold for the contract to pass.
-        message: Human-readable reason to report when the predicate is false.
-
-    Raises:
-        AssertionError: When the expected condition does not hold.
-    """
-    if not condition:
-        raise AssertionError(message)
 
 
 def test_workbench_resources_are_stable() -> None:
