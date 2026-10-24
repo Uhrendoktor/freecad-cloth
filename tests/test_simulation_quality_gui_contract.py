@@ -1,10 +1,14 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for simulation quality task-panel state management."""
 
+from collections.abc import Callable
 from types import SimpleNamespace
+from typing import cast
+
+import pytest
 
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-from tests.support.assertions import require
+from tests.support.assertions import require, require_not_none
 
 
 def _scene() -> SimpleNamespace:
@@ -23,6 +27,39 @@ def _scene() -> SimpleNamespace:
     values["Document"] = SimpleNamespace(recompute=lambda: None)
     return SimpleNamespace(**values)
 
+
+
+def _panel_method(
+    panel: SimulationQualityTaskPanel,
+    name: str,
+) -> Callable[..., object]:
+    """Retrieve a panel method by name for behavior-focused contract tests.
+
+    Args:
+        panel: Task panel whose behavior is under test.
+        name: Method name exposed by the panel.
+
+    Returns:
+        The bound panel method as a callable.
+    """
+    return cast("Callable[..., object]", getattr(panel, name))
+
+
+def _snapshot(panel: SimulationQualityTaskPanel) -> dict[str, object]:
+    """Return the panel's captured values for snapshot contract checks.
+
+    Args:
+        panel: Task panel whose snapshot was captured.
+
+    Returns:
+        The captured snapshot mapping.
+
+    """
+    snapshot = cast("dict[str, object] | None", getattr(panel, "_snapshot", None))
+    return require_not_none(
+        snapshot,
+        message="Snapshot capture must initialize the snapshot state.",
+    )
 
 def test_snapshot_property_set_is_unique_and_covers_persistent_controls() -> None:
     """Keep the snapshot schema unique and cover persisted quality controls."""
@@ -50,10 +87,8 @@ def test_capture_snapshot_records_only_existing_scene_properties() -> None:
     scene = _scene()
     del scene.PinMode
     panel.scene = scene
-    panel._capture_snapshot()
-    snapshot = panel._snapshot
-    if snapshot is None:
-        raise RuntimeError("Snapshot capture must initialize the snapshot state.")
+    _panel_method(panel, "_capture_snapshot")()
+    snapshot = _snapshot(panel)
     require(
         condition="PinMode" not in snapshot,
         message="Snapshot capture must skip absent scene properties.",
@@ -64,23 +99,29 @@ def test_capture_snapshot_records_only_existing_scene_properties() -> None:
     )
 
 
-def test_restore_snapshot_reverts_all_captured_values_and_recomputes() -> None:
+def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Restore captured values and recompute the document exactly once."""
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     scene = _scene()
     panel.scene = scene
-    panel._load_widgets_only = lambda: None
-    panel._refresh = lambda *args: None
-    panel._capture_snapshot()
-    snapshot = panel._snapshot
-    if snapshot is None:
-        raise RuntimeError("Snapshot capture must initialize the snapshot state.")
-    original = dict(snapshot)
+
+    def load_widgets_only() -> None:
+        """Stand in for widget synchronization during snapshot restoration."""
+
+    def refresh(message: str | None = None) -> None:
+        """Stand in for UI refresh during snapshot restoration."""
+
+    monkeypatch.setattr(panel, "_load_widgets_only", load_widgets_only)
+    monkeypatch.setattr(panel, "_refresh", refresh)
+    _panel_method(panel, "_capture_snapshot")()
+    original = dict(_snapshot(panel))
     scene.Steps = 999
     scene.FabricDensity = 999
     recomputes: list[str] = []
     scene.Document.recompute = lambda: recomputes.append("recompute")
-    panel._restore_snapshot()
+    _panel_method(panel, "_restore_snapshot")()
     require(
         condition=scene.Steps == original["Steps"],
         message="Restoring a snapshot must restore the step count.",
@@ -95,13 +136,26 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes() -> None:
     )
 
 
-def test_accept_refreshes_the_panel_baseline_after_parameter_changes() -> None:
+def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Refresh the panel snapshot after accepting edited parameters."""
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     panel.scene = _scene()
     calls: list[str] = []
-    panel._parameters_changed = lambda: calls.append("parameters")
-    panel._capture_snapshot = lambda: calls.append("snapshot")
+
+    def parameters_changed() -> None:
+        """Record parameter refresh in the fake panel."""
+
+        calls.append("parameters")
+
+    def capture_snapshot() -> None:
+        """Record snapshot capture in the fake panel."""
+
+        calls.append("snapshot")
+
+    monkeypatch.setattr(panel, "_parameters_changed", parameters_changed)
+    monkeypatch.setattr(panel, "_capture_snapshot", capture_snapshot)
     require(
         condition=panel.accept() is True,
         message="Accepting the panel must report success.",
@@ -112,18 +166,46 @@ def test_accept_refreshes_the_panel_baseline_after_parameter_changes() -> None:
     )
 
 
-def test_reject_restores_snapshot_before_closing_dialog() -> None:
+def test_reject_restores_snapshot_before_closing_dialog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Restore original values before the rejected task panel closes."""
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     panel.scene = _scene()
     calls: list[str] = []
-    panel._restore_snapshot = lambda: calls.append("restore")
-    panel.Gui = SimpleNamespace(
-        activeDocument=lambda: object(),
-        Control=SimpleNamespace(
-            activeDialog=lambda: object(),
-            closeDialog=lambda: calls.append("close"),
+
+    def restore_snapshot() -> None:
+        """Record snapshot restoration in the fake panel."""
+
+        calls.append("restore")
+
+    def active_document() -> object:
+        """Return a non-null fake active document."""
+
+        return object()
+
+    def active_dialog() -> object:
+        """Return a non-null fake active dialog."""
+
+        return object()
+
+    def close_dialog() -> None:
+        """Record closing the fake task-panel dialog."""
+
+        calls.append("close")
+
+    monkeypatch.setattr(panel, "_restore_snapshot", restore_snapshot)
+    monkeypatch.setattr(
+        panel,
+        "Gui",
+        SimpleNamespace(
+            activeDocument=active_document,
+            Control=SimpleNamespace(
+                activeDialog=active_dialog,
+                closeDialog=close_dialog,
+            ),
         ),
+        raising=False,
     )
     require(
         condition=panel.reject() is True,
