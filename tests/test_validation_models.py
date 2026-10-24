@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for numerical and geometry input schemas."""
 
 from __future__ import annotations

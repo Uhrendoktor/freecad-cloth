@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Measure sustained cadence of the production FreeCAD realtime-preview callback."""
 
 from __future__ import annotations
@@ -9,12 +10,14 @@ import os
 import platform
 import sys
 import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -41,7 +44,8 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
 
     avatar = getattr(getattr(scene, "AvatarProxy", None), "SourceObject", None)
     if avatar is None or not hasattr(avatar, "Mesh"):
-        raise RuntimeError("Realtime preview fixture requires the production avatar mesh")
+        msg = "Realtime preview fixture requires the production avatar mesh"
+        raise RuntimeError(msg)
     bounds = avatar.Mesh.BoundBox
     body_width = float(bounds.XMax - bounds.XMin)
     body_depth = float(bounds.YMax - bounds.YMin)
@@ -202,11 +206,14 @@ def _timing_summary(values: list[float]) -> dict[str, float | int | None]:
 def main() -> None:
     """Exercise the real Qt preview timer and gate its sustained frame interval."""
     if FRAMES < 120:
-        raise ValueError("CLOTH_REALTIME_FRAMES must be at least 120")
+        msg = "CLOTH_REALTIME_FRAMES must be at least 120"
+        raise ValueError(msg)
     if WARMUP_FRAMES < 30:
-        raise ValueError("CLOTH_REALTIME_WARMUP_FRAMES must be at least 30")
+        msg = "CLOTH_REALTIME_WARMUP_FRAMES must be at least 30"
+        raise ValueError(msg)
     if TIMEOUT_MS < 1000:
-        raise ValueError("CLOTH_REALTIME_TIMEOUT_MS must be at least 1000")
+        msg = "CLOTH_REALTIME_TIMEOUT_MS must be at least 1000"
+        raise ValueError(msg)
 
     try:
         from PySide import QtWidgets
@@ -219,7 +226,8 @@ def main() -> None:
     qt_core = _qt()
     app = QtWidgets.QApplication.instance()
     if app is None:
-        raise RuntimeError("Realtime benchmark requires the FreeCAD Qt application")
+        msg = "Realtime benchmark requires the FreeCAD Qt application"
+        raise RuntimeError(msg)
 
     doc = App.newDocument("ClothRealtimeBenchmark")
     preview = None
@@ -240,7 +248,8 @@ def main() -> None:
         proxy = scene.Proxy
         backend = proxy._base_or_restore().backend
         if backend is None:
-            raise RuntimeError("Realtime preview did not initialize its solver backend")
+            msg = "Realtime preview did not initialize its solver backend"
+            raise RuntimeError(msg)
 
         stage_names = (
             "advance_preview_frame",
@@ -337,7 +346,8 @@ def main() -> None:
         try:
             timer.timeout.disconnect()
         except (RuntimeError, TypeError) as exc:
-            raise RuntimeError("Could not instrument the production preview timer") from exc
+            msg = "Could not instrument the production preview timer"
+            raise RuntimeError(msg) from exc
 
         event_loop = qt_core.QEventLoop()
         last_tick_at: float | None = None

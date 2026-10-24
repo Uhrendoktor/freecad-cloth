@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral sewing constraints derived from pattern seams."""
 
 from math import hypot
@@ -29,9 +30,11 @@ class SewingConstraintSet:
         """Validate this value and raise ValueError when its state is invalid."""
         for stitch in self.stitches:
             if stitch.vertex_a == stitch.vertex_b:
-                raise ValueError("a stitch cannot connect a vertex to itself")
+                msg = "a stitch cannot connect a vertex to itself"
+                raise ValueError(msg)
             if stitch.rest_length < 0:
-                raise ValueError("stitch rest length cannot be negative")
+                msg = "stitch rest length cannot be negative"
+                raise ValueError(msg)
 
 
 def build_sewing_constraints(
@@ -45,13 +48,17 @@ def build_sewing_constraints(
     """Map corresponding seam samples to mesh boundary vertices."""
     seam.validate()
     if samples < 2:
-        raise ValueError("seam samples must be at least 2")
+        msg = "seam samples must be at least 2"
+        raise ValueError(msg)
     if not seam.piece_a.strip() or not seam.piece_b.strip():
-        raise ValueError("seam piece names must not be empty")
+        msg = "seam piece names must not be empty"
+        raise ValueError(msg)
     if seam.edge_a < 0 or seam.edge_a >= len(pattern_a.segments):
-        raise ValueError("seam edge_a is outside pattern topology")
+        msg = "seam edge_a is outside pattern topology"
+        raise ValueError(msg)
     if seam.edge_b < 0 or seam.edge_b >= len(pattern_b.segments):
-        raise ValueError("seam edge_b is outside pattern topology")
+        msg = "seam edge_b is outside pattern topology"
+        raise ValueError(msg)
     seg_a, seg_b = pattern_a.segments[seam.edge_a], pattern_b.segments[seam.edge_b]
     boundary_a = mesh_a.boundary_vertex_indices
     boundary_b = mesh_b.boundary_vertex_indices
@@ -73,7 +80,8 @@ def build_sewing_constraints(
 
 def _nearest_boundary_vertex(mesh: TriangleMesh, indices, point):
     if not indices:
-        raise ValueError("mesh has no boundary vertices")
+        msg = "mesh has no boundary vertices"
+        raise ValueError(msg)
     return min(
         indices, key=lambda i: hypot(mesh.vertices[i][0] - point[0], mesh.vertices[i][1] - point[1])
     )

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for simulation quality task-panel state management."""
 
 from types import SimpleNamespace
@@ -31,7 +32,7 @@ def test_snapshot_property_set_is_unique_and_covers_persistent_controls():
 def test_capture_snapshot_records_only_existing_scene_properties():
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     scene = _scene()
-    delattr(scene, "PinMode")
+    del scene.PinMode
     panel.scene = scene
     panel._capture_snapshot()
     assert "PinMode" not in panel._snapshot

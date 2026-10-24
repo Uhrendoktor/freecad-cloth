@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical native FreeCAD Pattern -> Sewing -> Simulation acceptance workflow."""
 
 import contextlib
@@ -41,11 +42,13 @@ def process_events():
 
 def activate(name, toolbar, commands):
     if name not in Gui.listWorkbenches():
-        raise AssertionError(f"workbench is not registered: {name}")
+        msg = f"workbench is not registered: {name}"
+        raise AssertionError(msg)
     Gui.activateWorkbench(name)
     process_events()
     if Gui.activeWorkbench().name() != name:
-        raise AssertionError(f"expected active workbench {name}")
+        msg = f"expected active workbench {name}"
+        raise AssertionError(msg)
     window = Gui.getMainWindow()
     visible = (
         []
@@ -55,7 +58,8 @@ def activate(name, toolbar, commands):
         ]
     )
     if toolbar not in visible:
-        raise AssertionError(f"toolbar is not visible: {toolbar}")
+        msg = f"toolbar is not visible: {toolbar}"
+        raise AssertionError(msg)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
         raise AssertionError("commands missing from {}: {}".format(name, ",".join(missing)))
@@ -66,7 +70,8 @@ def show_panel(panel, label):
     Gui.Control.showDialog(panel)
     process_events()
     if not getattr(panel, "form", None) or not panel.form.isVisible():
-        raise AssertionError(f"task panel did not become visible: {label}")
+        msg = f"task panel did not become visible: {label}"
+        raise AssertionError(msg)
     log(f"task-panel visible={label}")
 
 
@@ -100,7 +105,8 @@ def create_native_sketch(piece):
     process_events()
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or getattr(sketch, "GeometryAuthority", "") != "Sketcher":
-        raise AssertionError("PatternPiece did not acquire native Sketcher authority")
+        msg = "PatternPiece did not acquire native Sketcher authority"
+        raise AssertionError(msg)
     return sketch
 
 
@@ -145,18 +151,21 @@ def run():
         sleeve_b_sketch = create_native_sketch(sleeve_b)
         for sketch in (front_sketch, back_sketch, sleeve_a_sketch, sleeve_b_sketch):
             if getattr(sketch, "GeometryAuthority", "") != "Sketcher":
-                raise AssertionError("Sketcher authority was not persisted")
+                msg = "Sketcher authority was not persisted"
+                raise AssertionError(msg)
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(front)
         process_events()
         if "ClothPattern_CreateDrafting" in Gui.listCommands():
-            raise AssertionError("legacy PatternDrafting command is still publicly registered")
+            msg = "legacy PatternDrafting command is still publicly registered"
+            raise AssertionError(msg)
         show_panel(PatternPieceTaskPanel(front), "Pattern Piece")
         close_panel()
         Gui.runCommand("ClothPattern_EditSketch", 0)
         process_events()
         if Gui.activeDocument().getInEdit() is None:
-            raise AssertionError("public Pattern Edit Sketch command did not enter native Sketcher")
+            msg = "public Pattern Edit Sketch command did not enter native Sketcher"
+            raise AssertionError(msg)
         Gui.activeDocument().resetEdit()
         process_events()
 
@@ -186,7 +195,8 @@ def run():
         operations = [
             obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingOperation"
         ]
-        assert len(operations) == 1 and operations[0].Status == "Valid"
+        assert len(operations) == 1
+        assert operations[0].Status == "Valid"
         operation = operations[0]
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(operation)
@@ -198,14 +208,16 @@ def run():
         assert panel.accept() is True
         close_panel()
         doc.recompute()
-        assert operation.StitchCount == 12 and operation.Alignment == "uniform"
+        assert operation.StitchCount == 12
+        assert operation.Alignment == "uniform"
         select_edges(
             (sleeve_a, 0), (sleeve_a, 1), (sleeve_a, 2), (sleeve_b, 0), (sleeve_b, 1), (sleeve_b, 2)
         )
         Gui.runCommand("ClothSewing_CreateMNSewing", 0)
         process_events()
         networks = [obj for obj in doc.Objects if getattr(obj, "SewingType", "") == "SewingNetwork"]
-        assert len(networks) == 1 and len(networks[0].Seams) == 3
+        assert len(networks) == 1
+        assert len(networks[0].Seams) == 3
         network = networks[0]
 
         activate(
@@ -221,7 +233,8 @@ def run():
         scene.QualityPreset = "Fast"
         scene.Steps = 4
         doc.recompute()
-        assert int(scene.ParticleCount) > 0 and scene.FiniteState
+        assert int(scene.ParticleCount) > 0
+        assert scene.FiniteState
         working_particles = int(scene.ParticleCount)
         initial_signature = scene.Proxy.source_signature
         Gui.Selection.clearSelection()
@@ -249,19 +262,16 @@ def run():
         operation = doc.getObject(operation_name)
         network = doc.getObject(network_name)
         scene = doc.getObject("ClothSimulation")
-        assert (
-            front is not None
-            and operation is not None
-            and network is not None
-            and scene is not None
-        )
+        assert front is not None
+        assert operation is not None
+        assert network is not None
+        assert scene is not None
         assert getattr(front, "GeometryAuthority", "") == "Sketcher"
-        assert (
-            operation.Seam is not None
-            and operation.PieceA is not None
-            and operation.PieceB is not None
-        )
-        assert len(network.Seams) == 3 and scene.ClothPieces
+        assert operation.Seam is not None
+        assert operation.PieceA is not None
+        assert operation.PieceB is not None
+        assert len(network.Seams) == 3
+        assert scene.ClothPieces
 
         before_length = float(operation.LengthA)
         before_signature = scene.Proxy.source_signature
@@ -270,7 +280,8 @@ def run():
         after_length = float(operation.LengthA)
         after_signature = scene.Proxy.source_signature
         assert abs(after_length - before_length) > 1e-6
-        assert after_signature != before_signature and operation.Status == "Length mismatch"
+        assert after_signature != before_signature
+        assert operation.Status == "Length mismatch"
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(scene)
         process_events()
@@ -279,7 +290,8 @@ def run():
         scene.QualityPreset = "Balanced"
         scene.Steps = 2
         doc.recompute()
-        assert int(scene.ParticleCount) > 0 and scene.FiniteState
+        assert int(scene.ParticleCount) > 0
+        assert scene.FiniteState
         log("three PatternPieces plus sleeves: OK")
         log("native Sketcher authority: OK")
         log("persisted seam and M:N sewing network: OK")
@@ -298,7 +310,7 @@ def run():
             App.closeDocument(doc.Name)
         if path:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
         try:
             window = Gui.getMainWindow()
             if window is not None:

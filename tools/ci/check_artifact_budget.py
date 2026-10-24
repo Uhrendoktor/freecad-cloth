@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Check the accumulated artifact size for the current GitHub Actions run."""
 
 from __future__ import annotations
@@ -5,11 +6,13 @@ from __future__ import annotations
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping
-from typing import TypeAlias, cast
+from typing import TypeAlias, cast, TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
 
 JSONValue: TypeAlias = str | int | float | bool | list["JSONValue"] | dict[str, "JSONValue"] | None
 
@@ -19,12 +22,23 @@ PAGE_SIZE = 100
 
 
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
-    """Return the accumulated stored size of workflow artifacts in bytes."""
+    """Return the accumulated stored size of workflow artifacts in bytes.
+
+    Args:
+        artifacts: Workflow artifact records containing stored byte sizes.
+
+    Returns:
+        Total stored artifact size measured in bytes.
+
+    Raises:
+        ValueError: Raised when an artifact has an invalid stored byte size.
+    """
     total = 0
     for artifact in artifacts:
         size = artifact.get("size_in_bytes")
         if not isinstance(size, int) or size < 0:
-            raise ValueError(f"artifact has invalid size_in_bytes: {artifact!r}")
+            msg = f"artifact has invalid size_in_bytes: {artifact!r}"
+            raise ValueError(msg)
         total += size
     return total
 
@@ -32,7 +46,20 @@ def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
 def fetch_artifact_page(
     repository: str, run_id: int, token: str, page: int
 ) -> list[Mapping[str, object]]:
-    """Fetch one paginated workflow-artifact response."""
+    """Fetch one paginated workflow-artifact response.
+
+    Args:
+        repository: Owner and repository name for the workflow run.
+        run_id: Identifier of the workflow run to inspect.
+        token: GitHub API token used for authentication.
+        page: One-based artifact page number to request.
+
+    Returns:
+        Artifact records returned for the requested page.
+
+    Raises:
+        RuntimeError: Raised when the API request or response is invalid.
+    """
     query = urlencode({"per_page": PAGE_SIZE, "page": page})
     url = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?{query}"
     request = Request(
@@ -45,27 +72,41 @@ def fetch_artifact_page(
     )
     try:
         with urlopen(request, timeout=20) as response:
-            payload = cast(JSONValue, json.load(response))
+            payload = cast("JSONValue", json.load(response))
     except (HTTPError, URLError) as exc:
-        raise RuntimeError(f"GitHub artifact API request failed: {exc}") from exc
+        msg = f"GitHub artifact API request failed: {exc}"
+        raise RuntimeError(msg) from exc
     except json.JSONDecodeError as exc:
-        raise RuntimeError("GitHub artifact API returned invalid JSON") from exc
+        msg = "GitHub artifact API returned invalid JSON"
+        raise RuntimeError(msg) from exc
 
     if not isinstance(payload, dict):
-        raise RuntimeError("GitHub artifact API response must be an object")
+        msg = "GitHub artifact API response must be an object"
+        raise RuntimeError(msg)
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
-        raise RuntimeError("GitHub artifact API response has no artifact list")
+        msg = "GitHub artifact API response has no artifact list"
+        raise RuntimeError(msg)
     normalized: list[Mapping[str, object]] = []
     for item in artifacts:
         if not isinstance(item, dict):
-            raise RuntimeError("GitHub artifact API returned a malformed artifact list")
+            msg = "GitHub artifact API returned a malformed artifact list"
+            raise RuntimeError(msg)
         normalized.append(item)
     return normalized
 
 
 def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, object]]:
-    """Fetch every artifact belonging to one workflow run."""
+    """Fetch every artifact belonging to one workflow run.
+
+    Args:
+        repository: Owner and repository name for the workflow run.
+        run_id: Identifier of the workflow run to inspect.
+        token: GitHub API token used for authentication.
+
+    Returns:
+        All artifact records from the workflow run.
+    """
     artifacts: list[Mapping[str, object]] = []
     page = 1
     while True:
@@ -77,7 +118,11 @@ def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mappin
 
 
 def main() -> int:
-    """Enforce the 10 MB accumulated artifact budget."""
+    """Enforce the 10 MB accumulated artifact budget.
+
+    Returns:
+        Process status indicating whether the artifact budget was satisfied.
+    """
     repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     run_id_text = os.environ.get("GITHUB_RUN_ID", "").strip()

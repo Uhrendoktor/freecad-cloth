@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the FreeCAD GUI registration boundary.
 
 GUI rendering itself belongs to FreeCAD end-to-end coverage. This suite tests the
@@ -111,7 +112,8 @@ def test_sewing_command_group_validator_rejects_invalid_groups():
         except ValueError as exc:
             assert marker in str(exc)
         else:
-            raise AssertionError(f"invalid command groups were accepted: {marker}")
+            msg = f"invalid command groups were accepted: {marker}"
+            raise AssertionError(msg)
 
 
 def test_workbench_registration_is_idempotent():

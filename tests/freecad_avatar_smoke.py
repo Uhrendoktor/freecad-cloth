@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD runtime smoke coverage for the humanoid mesh avatar."""
 
 import sys
@@ -7,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import FreeCAD as App
 
-from freecad_cloth.avatar.AvatarCommands import (
+from freecad_cloth.avatar.avatar_commands import (
     create_avatar,
     set_avatar_measurements,
     set_avatar_pose,

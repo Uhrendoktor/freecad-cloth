@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Screenshot-backed avatar complexity ladder for the diagnostic harness.
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 avatar ladder manifest.
@@ -8,25 +9,31 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
 
-# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_HELPER_DIR = Path(__file__).resolve().parent / "support"
-if str(_HELPER_DIR) not in sys.path:
-    sys.path.insert(0, str(_HELPER_DIR))
+# Add the tests directory so the shared bootstrap is importable in FreeCAD AppRun.
+_TEST_DIR = Path(__file__).resolve().parent
+if str(_TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(_TEST_DIR))
+_ladder_bootstrap = importlib.import_module("freecad_pbd_ladder_bootstrap")
+(
+    _REPO_ROOT,
+    _HELPER_DIR,
+    OUT,
+    _BOOT_LOG,
+    _TRACE_HANDLE,
+) = _ladder_bootstrap.initialize_ladder(__file__, "avatar")
 
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
-OUT.mkdir(parents=True, exist_ok=True)
-_BOOT_LOG = OUT / "avatar-ladder-bootstrap.log"
-_TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
 
+def _boot(message: str) -> None:
+    """Append a startup checkpoint to this ladder run trace.
 
-def _boot(message):
+    Args:
+        message: Short description of the import or initialization checkpoint.
+    """
     _TRACE_HANDLE.write(str(message) + "\n")
     _TRACE_HANDLE.flush()
 
@@ -54,6 +61,8 @@ except (AttributeError, OSError, RuntimeError, ValueError) as exc:
     _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
 
 _boot("before-support-helper-import")
+from itertools import starmap
+
 from pbd_contact_helpers import build_piece as _build_piece
 from pbd_contact_helpers import build_scene as _build_scene
 from pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
@@ -92,7 +101,11 @@ def _surface_signed_clearance(
     if proximity_mesh is not None:
         try:
             import numpy as np
-            import trimesh  # noqa: F401
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                msg = "trimesh.Trimesh is unavailable"
+                raise ImportError(msg)
 
             if points:
                 trace("before-trimesh-nearest")
@@ -159,7 +172,8 @@ def _avatar_screenshot(view, path):
     _events()
     _screenshot(view, path)
     if not _avatar_png_has_visible_content(path):
-        raise RuntimeError(f"PNG capture contains no visible rendered content: {path}")
+        msg = f"PNG capture contains no visible rendered content: {path}"
+        raise RuntimeError(msg)
 
 
 def _checkpoint_record(
@@ -200,19 +214,21 @@ def _build_avatar_scene(doc):
     scene = _build_scene(doc)
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     if avatar is None:
-        raise RuntimeError("diagnostic avatar scene has no production ClothAvatar")
+        msg = "diagnostic avatar scene has no production ClothAvatar"
+        raise RuntimeError(msg)
     if str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("diagnostic avatar target is not the production ClothAvatar")
+        msg = "diagnostic avatar target is not the production ClothAvatar"
+        raise RuntimeError(msg)
     target = getattr(scene, "DrapeTarget", None)
     if target is None or getattr(target, "SourceObject", None) is not avatar:
-        raise RuntimeError(
-            "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
-        )
+        msg = "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
+        raise RuntimeError(msg)
     status = __import__(
         "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
     ).target_status(target)
     if status["state"] != "ready":
-        raise RuntimeError(f"diagnostic avatar DrapeTarget is not ready: {status}")
+        msg = f"diagnostic avatar DrapeTarget is not ready: {status}"
+        raise RuntimeError(msg)
     avatar.ViewObject.Visibility = True
     with contextlib.suppress(AttributeError, TypeError, ValueError):
         avatar.ViewObject.Transparency = 70
@@ -229,7 +245,8 @@ def _build_avatar_scene(doc):
             None,
         )
         if raw is None:
-            raise RuntimeError(f"diagnostic avatar is missing arrangement point {name}")
+            msg = f"diagnostic avatar is missing arrangement point {name}"
+            raise RuntimeError(msg)
         point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
 
@@ -243,11 +260,10 @@ def _build_avatar_scene(doc):
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    target_vertices = [App.Vector(*vertex) for vertex in getattr(target_surface, "vertices", ())]
+    target_vertices = list(starmap(App.Vector, getattr(target_surface, "vertices", ())))
     if not target_vertices:
-        raise RuntimeError(
-            "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
-        )
+        msg = "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
+        raise RuntimeError(msg)
     x_mid_target = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     target_y_candidates = [
         float(point.y)
@@ -383,17 +399,20 @@ def _run_ladder_case(case_id):
 
         base = scene.Proxy._base_or_restore()
         if base.backend is None:
-            raise RuntimeError(f"{case_id} did not build a PositionBasedDynamics backend")
+            msg = f"{case_id} did not build a PositionBasedDynamics backend"
+            raise RuntimeError(msg)
         collision_surface = getattr(
             base.backend,
             "solver_collision_surface",
             getattr(base, "collision_surface", None),
         )
         if collision_surface is None:
-            raise RuntimeError(f"{case_id} did not expose a collision surface")
+            msg = f"{case_id} did not expose a collision surface"
+            raise RuntimeError(msg)
         solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
         if solver_triangles <= 0:
-            raise RuntimeError(f"{case_id} has no solver collision triangles")
+            msg = f"{case_id} has no solver collision triangles"
+            raise RuntimeError(msg)
         positions = _positions_tuple(base.backend)
         panel_triangles = tuple(
             triangle
@@ -453,7 +472,8 @@ def _run_ladder_case(case_id):
 
         view = Gui.activeDocument().activeView()
         if view is None:
-            raise RuntimeError(f"{case_id} has no active FreeCAD view")
+            msg = f"{case_id} has no active FreeCAD view"
+            raise RuntimeError(msg)
         images = {}
         checkpoints = []
         for step in CHECKPOINTS:

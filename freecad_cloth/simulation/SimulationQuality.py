@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Persistable simulation-quality and fabric parameter model.
 
 This module is deliberately FreeCAD-independent.  FreeCAD document objects can
@@ -7,13 +8,16 @@ store the values returned by ``preset`` and the simulation backend can consume
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import replace
 from math import isfinite
+from typing import TYPE_CHECKING
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 @pydantic_dataclass(frozen=True)
@@ -40,12 +44,14 @@ def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
     except (TypeError, ValueError):
         values = ()
     if len(values) < 3:
-        raise ValueError("color_rgb must contain at least three channels")
+        msg = "color_rgb must contain at least three channels"
+        raise ValueError(msg)
     values = values[:3]
     if any(item > 1.0 for item in values) and all(0.0 <= item <= 255.0 for item in values):
         values = tuple(item / 255.0 for item in values)
     if any(not 0.0 <= item <= 1.0 for item in values):
-        raise ValueError("color_rgb channels must be between 0 and 1 or 0 and 255")
+        msg = "color_rgb channels must be between 0 and 1 or 0 and 255"
+        raise ValueError(msg)
     return values[0], values[1], values[2]
 
 
@@ -67,22 +73,29 @@ class FabricMaterial:
     def validate(self) -> FabricMaterial:
         """Validate this value and raise ValueError when its state is invalid."""
         if not isfinite(self.density_g_m2) or self.density_g_m2 <= 0:
-            raise ValueError("density must be positive and finite")
+            msg = "density must be positive and finite"
+            raise ValueError(msg)
         if not isfinite(self.thickness_mm) or self.thickness_mm <= 0:
-            raise ValueError("thickness must be positive and finite")
+            msg = "thickness must be positive and finite"
+            raise ValueError(msg)
         for name in ("stretch", "shear", "bend"):
             value = getattr(self, name)
             if not 0 <= value <= 1:
-                raise ValueError(f"{name} must be between 0 and 1")
+                msg = f"{name} must be between 0 and 1"
+                raise ValueError(msg)
         if not 0 <= self.friction <= 1:
-            raise ValueError("friction must be between 0 and 1")
+            msg = "friction must be between 0 and 1"
+            raise ValueError(msg)
         normalize_color_rgb(self.color_rgb)
         if not 0 <= self.specular <= 1:
-            raise ValueError("specular must be between 0 and 1")
+            msg = "specular must be between 0 and 1"
+            raise ValueError(msg)
         if not 0 <= self.roughness <= 1:
-            raise ValueError("roughness must be between 0 and 1")
+            msg = "roughness must be between 0 and 1"
+            raise ValueError(msg)
         if not 0 <= self.transparency <= 100:
-            raise ValueError("transparency must be between 0 and 100 percent")
+            msg = "transparency must be between 0 and 100 percent"
+            raise ValueError(msg)
         return self
 
     @property
@@ -97,7 +110,8 @@ def preset(name: str) -> SimulationQuality:
     try:
         return QUALITY_PRESETS[str(name)]
     except KeyError as exc:
-        raise ValueError(f"unknown simulation quality preset: {name!r}") from exc
+        msg = f"unknown simulation quality preset: {name!r}"
+        raise ValueError(msg) from exc
 
 
 def apply_quality(

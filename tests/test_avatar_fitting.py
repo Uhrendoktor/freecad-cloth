@@ -1,6 +1,9 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import contextlib
 import json
+import math
 import os
+import pathlib
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -186,12 +189,12 @@ class AvatarFittingTests(unittest.TestCase):
         z_span = max(v[2] for v in fitted.vertices) - min(v[2] for v in fitted.vertices)
         self.assertAlmostEqual(z_span, 1750.0)
         self.assertAlmostEqual(x_span, 440.0 + 1.5 * 310.0, delta=1e-6)
-        self.assertAlmostEqual(y_span, 980.0 / 3.141592653589793, delta=1e-6)
+        self.assertAlmostEqual(y_span, 980.0 / math.pi, delta=1e-6)
         self.assertLess(x_span / z_span, 0.6)
         self.assertLess(y_span / z_span, 0.25)
 
     def test_avatar_mesh_adapter_preserves_indexed_provider_topology(self) -> None:
-        from freecad_cloth.avatar.AvatarCommands import _mesh_data
+        from freecad_cloth.avatar.avatar_commands import _mesh_data
 
         calls = []
         created = []
@@ -331,7 +334,8 @@ class AvatarFittingTests(unittest.TestCase):
             candidate = current.with_measurements(chest=original_chest + 80.0)
 
             def fail_provider_geometry(*_args: object) -> NoReturn:
-                raise RuntimeError("synthetic geometry failure")
+                msg = "synthetic geometry failure"
+                raise RuntimeError(msg)
 
             with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
                 AvatarCommands.apply_avatar_parameters(
@@ -353,7 +357,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarTargetInvalidation")
         try:
@@ -394,7 +398,7 @@ class AvatarFittingTests(unittest.TestCase):
             import FreeCAD as App
         except ModuleNotFoundError:
             self.skipTest("FreeCAD Python module is unavailable in the non-GUI test runner")
-        from freecad_cloth.avatar.AvatarCommands import create_avatar, rebuild_avatar
+        from freecad_cloth.avatar.avatar_commands import create_avatar, rebuild_avatar
 
         doc = App.newDocument("AvatarAcceptance")
         path = None
@@ -453,17 +457,17 @@ class AvatarFittingTests(unittest.TestCase):
                 App.closeDocument(doc.Name)
             if path:
                 with contextlib.suppress(OSError):
-                    os.unlink(path)
+                    pathlib.Path(path).unlink()
 
 
 def test_fitting_stage_status_without_simulation_is_not_actionable():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     assert fitting_stage_status(None) == ("No simulation scene selected.", False)
 
 
 def test_fitting_stage_status_reports_unarranged_scene():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     doc = type("Doc", (), {"Objects": ()})()
     simulation = type("Simulation", (), {"Document": doc})()
@@ -475,7 +479,7 @@ def test_fitting_stage_status_reports_unarranged_scene():
 
 
 def test_fitting_stage_status_reports_saved_arrangement_state():
-    from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+    from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
     fitting = type(
         "Fitting",

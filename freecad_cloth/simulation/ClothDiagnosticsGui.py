@@ -1,7 +1,13 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
 
 
-def _qt():
+def _qt() -> tuple[object, object, object]:
+    """Load the FreeCAD host and supported Qt widget module.
+
+    Returns:
+        Application, GUI, and QtWidgets modules in that order.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -13,7 +19,14 @@ def _qt():
 
 
 def _scene(doc):
-    """Return the authoritative cloth simulation object used by diagnostics."""
+    """Find the authoritative cloth simulation object in a FreeCAD document.
+
+    Args:
+        doc: Active or stored FreeCAD document to inspect.
+
+    Returns:
+        The canonical cloth simulation object, or None when no scene exists.
+    """
     return next(
         (
             obj
@@ -26,27 +39,42 @@ def _scene(doc):
     )
 
 
-def _simulation_data(scene):
+def _simulation_data(scene: object) -> tuple:
+    """Collect validated per-panel diagnostics from the current simulation.
+
+    Args:
+        scene: Authoritative simulation object with persistent drape target data.
+
+    Returns:
+        Tuples containing a panel, its triangle indices, and computed face metrics.
+
+    Raises:
+        RuntimeError: If simulation state or the target contract prevents diagnostics.
+    """
     from freecad_cloth.simulation.ClothDiagnostics import analyze_mesh
 
     if not bool(getattr(scene, "FiniteState", True)):
-        raise RuntimeError("diagnostics blocked: simulation state is non-finite")
+        msg = "diagnostics blocked: simulation state is non-finite"
+        raise RuntimeError(msg)
     target = getattr(scene, "DrapeTarget", None)
     if target is None:
-        raise RuntimeError("diagnostics blocked: no persistent DrapeTarget is assigned")
+        msg = "diagnostics blocked: no persistent DrapeTarget is assigned"
+        raise RuntimeError(msg)
     try:
         from freecad_cloth.simulation.DrapeTarget import target_status
 
         status = target_status(target)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        raise RuntimeError(f"diagnostics blocked: cannot inspect DrapeTarget: {exc}") from exc
+        msg = f"diagnostics blocked: cannot inspect DrapeTarget: {exc}"
+        raise RuntimeError(msg) from exc
     if status["state"] != "ready":
         raise RuntimeError("diagnostics blocked: {}".format(status["message"]))
     proxy = getattr(scene, "Proxy", None)
     backend = getattr(proxy, "backend", None)
     initial = getattr(backend, "_initial", None)
     if backend is None or initial is None:
-        raise RuntimeError("run or step the simulation before opening diagnostics")
+        msg = "run or step the simulation before opening diagnostics"
+        raise RuntimeError(msg)
     system = getattr(backend, "system", None)
     if system is not None:
         current = tuple(p.position() for p in system.particles)
@@ -62,11 +90,20 @@ def _simulation_data(scene):
         result = analyze_mesh(rest, current, triangles, stretch_limit=max(stretch_limit, 1e-6))
         panels.append((panel, triangles, result))
     if not panels:
-        raise RuntimeError("simulation has no diagnostic mesh panels")
+        msg = "simulation has no diagnostic mesh panels"
+        raise RuntimeError(msg)
     return panels
 
 
-def _metric_range(values):
+def _metric_range(values: tuple[float, ...]) -> tuple[float, float]:
+    """Compute a display range with a non-zero span for uniform values.
+
+    Args:
+        values: Per-face metric values used to colour the diagnostic mesh.
+
+    Returns:
+        Lower and upper display bounds.
+    """
     if not values:
         return 0.0, 1.0
     lo, hi = min(values), max(values)
@@ -75,7 +112,17 @@ def _metric_range(values):
     return lo, hi
 
 
-def _metric_color(value, lo, hi):
+def _metric_color(value: float, lo: float, hi: float) -> tuple[float, float, float]:
+    """Map one normalized metric value to an RGB overlay colour.
+
+    Args:
+        value: Metric value being visualized.
+        lo: Lower endpoint of the metric range.
+        hi: Upper endpoint of the metric range.
+
+    Returns:
+        RGB triple interpolated across the diagnostic colour ramp.
+    """
     # Blue -> green -> red ramp, normalized for a clear diagnostic overlay.
     t = max(0.0, min(1.0, (float(value) - lo) / (hi - lo)))
     if t < 0.5:
@@ -85,8 +132,20 @@ def _metric_color(value, lo, hi):
     return (q, 1.0 - q, 0.0)
 
 
-def create_diagnostic_map(scene, metric="stress"):
-    """Create a derived Mesh::Feature colored by one diagnostic metric."""
+def create_diagnostic_map(scene: object, metric: str = "stress") -> tuple:
+    """Create a derived Mesh::Feature coloured by one diagnostic metric.
+
+    Args:
+        scene: Simulation object whose panel meshes should be visualized.
+        metric: Diagnostic metric name used to select face colours.
+
+    Returns:
+        The created diagnostic mesh objects.
+
+    Raises:
+        RuntimeError: If diagnostic inputs are invalid or no mesh facets can be mapped.
+        ValueError: If the metric name is unsupported.
+    """
     _App, _Gui, _QtWidgets = _qt()
     from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
@@ -127,7 +186,14 @@ def create_diagnostic_map(scene, metric="stress"):
 
 
 class DiagnosticsTaskPanel:
+    """FreeCAD task panel for displaying and exporting cloth diagnostics."""
+
     def __init__(self, scene):
+        """Initialize metric selection, status display, and task-panel controls.
+
+        Args:
+            scene: Authoritative cloth simulation object being inspected.
+        """
         _App, _Gui, QtWidgets = _qt()
         self.scene = scene
         self.form = QtWidgets.QWidget()
@@ -163,6 +229,7 @@ class DiagnosticsTaskPanel:
         apply_panel_style(self.form)
 
     def refresh(self):
+        """Refresh metric availability, aggregate values, and status messaging."""
         from freecad_cloth.common.UiDesign import set_status
 
         try:
@@ -193,6 +260,7 @@ class DiagnosticsTaskPanel:
             return []
 
     def export_data(self):
+        """Export aggregated diagnostic metrics to a user-selected JSON file."""
         from freecad_cloth.common.UiDesign import set_status
 
         try:
@@ -200,7 +268,8 @@ class DiagnosticsTaskPanel:
 
             panels = _simulation_data(self.scene)
             if not panels:
-                raise RuntimeError("simulation has no diagnostic results")
+                msg = "simulation has no diagnostic results"
+                raise RuntimeError(msg)
             _App, _Gui, QtWidgets = _qt()
             path, _selected = QtWidgets.QFileDialog.getSaveFileName(
                 self.form, "Export Cloth Analysis", "", "JSON (*.json)"
@@ -217,6 +286,7 @@ class DiagnosticsTaskPanel:
             return []
 
     def create_map(self):
+        """Create and report the current metric's derived face-colour map."""
         from freecad_cloth.common.UiDesign import set_status
 
         try:
@@ -232,30 +302,57 @@ class DiagnosticsTaskPanel:
             return []
 
     def accept(self):
+        """Accept and close the diagnostic task panel."""
         return True
 
     def reject(self):
+        """Close the diagnostic task panel without modifying simulation state."""
         _App, Gui, _QtWidgets = _qt()
         if Gui.activeDocument() and Gui.Control.activeDialog():
             Gui.Control.closeDialog()
         return True
 
     def getStandardButtons(self):
+        """Return the close button used by this read-only diagnostic panel.
+
+        Returns:
+            Qt button flag for closing the task panel.
+        """
         _App, _Gui, QtWidgets = _qt()
         return QtWidgets.QDialogButtonBox.Close
 
 
-def show_diagnostics(scene=None):
+def show_diagnostics(scene: object | None = None) -> object:
+    """Open diagnostics for the supplied or active simulation scene.
+
+    Args:
+        scene: Optional simulation object; the active document scene is used by default.
+
+    Returns:
+        The diagnostic task-panel instance.
+
+    Raises:
+        ValueError: If neither an explicit scene nor an active simulation exists.
+    """
     App, Gui, _QtWidgets = _qt()
     scene = scene or _scene(App.ActiveDocument) if App.ActiveDocument else None
     if scene is None:
-        raise ValueError("create a Cloth Simulation before opening diagnostics")
+        msg = "create a Cloth Simulation before opening diagnostics"
+        raise ValueError(msg)
     panel = DiagnosticsTaskPanel(scene)
     Gui.Control.showDialog(panel)
     return panel
 
 
-def _merge_results(panels):
+def _merge_results(panels: tuple) -> object:
+    """Combine per-panel diagnostics into one aggregate result.
+
+    Args:
+        panels: Sequence of panel, triangle, and result triples from scene analysis.
+
+    Returns:
+        DiagnosticResult containing concatenated metric arrays and aggregate extrema.
+    """
     from freecad_cloth.simulation.ClothDiagnostics import DiagnosticResult
 
     strain = tuple(value for _panel, _triangles, result in panels for value in result.strain)

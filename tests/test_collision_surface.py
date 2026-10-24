@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless behavioral tests for the neutral collision-surface value object."""
 
 import pytest

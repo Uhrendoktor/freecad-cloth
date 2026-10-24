@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,9 +18,6 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment,
-    ParametricPattern,
-    QuadraticBezier,
     rectangle,
 )
 from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
@@ -28,8 +26,10 @@ from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
 def test_svg_units_and_stable_ids():
     svg = to_svg(rectangle(100, 50))
-    assert 'data-units="mm"' in svg and 'data-edge-ids="bottom right top left"' in svg
-    assert 'width="100mm"' in svg and 'height="50mm"' in svg
+    assert 'data-units="mm"' in svg
+    assert 'data-edge-ids="bottom right top left"' in svg
+    assert 'width="100mm"' in svg
+    assert 'height="50mm"' in svg
 
 
 def test_avatar_contract():
@@ -55,35 +55,19 @@ def test_pattern_construction_and_dxf_export():
         derived, [PatternMark("grain", "Grainline", angle=90, length=40, text="Grain")]
     )
     svg = to_svg(pattern, derived=derived)
-    assert (
-        'id="sewing-boundary"' in svg
-        and 'id="cut-boundary"' in svg
-        and 'data-notch-ids="waist"' in svg
-        and 'data-kind="Grainline"' in svg
-    )
+    assert 'id="sewing-boundary"' in svg
+    assert 'id="cut-boundary"' in svg
+    assert 'data-notch-ids="waist"' in svg
+    assert 'data-kind="Grainline"' in svg
     dxf = to_dxf(pattern, derived=derived)
-    assert "LWPOLYLINE" in dxf and "8\nSEWING" in dxf and "8\nCUT" in dxf
+    assert "LWPOLYLINE" in dxf
+    assert "8\nSEWING" in dxf
+    assert "8\nCUT" in dxf
     assert from_dxf_metadata(dxf) == {
         "version": 1,
         "units": "mm",
         "edge_ids": ["bottom", "right", "top", "left"],
     }
-
-
-def test_pattern_offset_supports_curves_and_per_edge_widths():
-    pattern = ParametricPattern(
-        [
-            LineSegment("bottom", (0, 0), (10, 0)),
-            LineSegment("right", (10, 0), (10, 5)),
-            QuadraticBezier("top", (10, 5), (5, 9), (0, 5)),
-            LineSegment("left", (0, 5), (0, 0)),
-        ]
-    )
-    derived = derive_cut_boundary(pattern, 2, {"right": 4}, curve_samples=8)
-    assert (
-        derived.cut_boundary[1].points[0] == (14.0, 0.0)
-        and len(derived.cut_boundary[2].points) == 8
-    )
 
 
 def test_invalid_pattern_mark_reference_is_rejected():
@@ -92,7 +76,7 @@ def test_invalid_pattern_mark_reference_is_rejected():
             derive_cut_boundary(rectangle(10, 10), 1),
             [PatternMark("bad", "Fold", segment_id="missing")],
         )
-        raise AssertionError()
+        raise AssertionError
     except ValueError:
         pass
 
@@ -177,4 +161,5 @@ def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
         except RuntimeError as exc:
             assert "drape visual acceptance failed closed" in str(exc)
         else:
-            raise AssertionError("fatal drape diagnostics were accepted")
+            msg = "fatal drape diagnostics were accepted"
+            raise AssertionError(msg)

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent manual forward-kinematics posing for the mannequin.
 
 The pose editor uses the pinned MakeHuman joint hierarchy and skinning weights.
@@ -9,10 +10,12 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable, Iterable, Mapping
-from typing import NotRequired, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping
 
 
 class JointRotationInput(TypedDict):
@@ -77,11 +80,13 @@ class JointRotation:
     def validate(self) -> JointRotation:
         """Validate the joint name and bounded Euler angles."""
         if self.bone not in CONTROLLABLE_BONES:
-            raise ValueError(f"unsupported mannequin joint: {self.bone}")
+            msg = f"unsupported mannequin joint: {self.bone}"
+            raise ValueError(msg)
         for axis in ("x", "y", "z"):
             value = float(getattr(self, axis))
             if not -180.0 <= value <= 180.0:
-                raise ValueError(f"{self.bone}.{axis} must be between -180 and 180 degrees")
+                msg = f"{self.bone}.{axis} must be between -180 and 180 degrees"
+                raise ValueError(msg)
         return self
 
     def mirrored(self) -> JointRotation:
@@ -106,7 +111,8 @@ def normalize_joint_rotations(
         elif isinstance(rotation, dict):
             item = JointRotation(**rotation)
         else:
-            raise TypeError("joint rotations must contain JointRotation or mapping values")
+            msg = "joint rotations must contain JointRotation or mapping values"
+            raise TypeError(msg)
         item.validate()
         values[item.bone] = item
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
@@ -150,16 +156,20 @@ def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
     data = json.loads(raw)
     if isinstance(data, dict) and "joints" in data:
         if data.get("schema_version", 1) != 1:
-            raise ValueError("unsupported mannequin joint-pose schema version")
+            msg = "unsupported mannequin joint-pose schema version"
+            raise ValueError(msg)
         if data.get("units", "deg") != "deg":
-            raise ValueError("mannequin joint poses must use degrees")
+            msg = "mannequin joint poses must use degrees"
+            raise ValueError(msg)
         data = data["joints"]
     if not isinstance(data, dict):
-        raise ValueError("mannequin joint pose JSON must contain a joints object")
+        msg = "mannequin joint pose JSON must contain a joints object"
+        raise ValueError(msg)
     rotations = []
     for bone, values in data.items():
         if not isinstance(values, dict):
-            raise ValueError(f"joint pose for {bone} must be an object")
+            msg = f"joint pose for {bone} must be an object"
+            raise ValueError(msg)
         rotations.append(
             JointRotation(
                 str(bone),

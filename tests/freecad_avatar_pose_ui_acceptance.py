@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
 import faulthandler
@@ -123,7 +124,8 @@ def _capture_pose_screen(path, panel, view):
     screen = None if app is None else app.primaryScreen()
     window = Gui.getMainWindow()
     if app is None or screen is None or window is None:
-        raise RuntimeError("FreeCAD main window/screen is unavailable for Pose Mode screenshot")
+        msg = "FreeCAD main window/screen is unavailable for Pose Mode screenshot"
+        raise RuntimeError(msg)
 
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
@@ -150,14 +152,16 @@ def _capture_pose_screen(path, panel, view):
 
     pixmap = screen.grabWindow(int(window.winId()))
     if pixmap.isNull():
-        raise RuntimeError("FreeCAD main-window screenshot is null")
+        msg = "FreeCAD main-window screenshot is null"
+        raise RuntimeError(msg)
     width, height = int(pixmap.width()), int(pixmap.height())
     if (width, height) != (1280, 720):
         raise RuntimeError(
             "Pose Mode screenshot dimensions are %dx%d, expected 1280x720" % (width, height)
         )
     if not pixmap.save(str(path)):
-        raise RuntimeError("failed to save Pose Mode UI screenshot")
+        msg = "failed to save Pose Mode UI screenshot"
+        raise RuntimeError(msg)
 
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
@@ -267,7 +271,7 @@ def run():
         trace.flush()
 
     progress("start")
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
     from freecad_cloth.avatar.SkeletonPose import joint_rotations_from_json
 
@@ -375,12 +379,15 @@ def run():
     progress("panel-shown")
     view = Gui.activeDocument().activeView()
     if not getattr(panel.form, "isVisible", lambda: False)():
-        raise RuntimeError("Pose Mode task panel did not become visible")
+        msg = "Pose Mode task panel did not become visible"
+        raise RuntimeError(msg)
     progress("controller-activated")
     if panel.controller.view is None:
-        raise RuntimeError("Pose Mode did not activate a FreeCAD 3D view")
+        msg = "Pose Mode did not activate a FreeCAD 3D view"
+        raise RuntimeError(msg)
     if panel.controller.gizmo is None:
-        raise RuntimeError("Pose Mode did not create a usable pose control")
+        msg = "Pose Mode did not create a usable pose control"
+        raise RuntimeError(msg)
     progress("pivy-coin-loaded-before-capability=%s" % ("pivy.coin" in sys.modules))
     fallback = getattr(panel.controller.gizmo, "is_fallback", False)
     runtime_error = getattr(panel.controller, "viewport_runtime_error", None)
@@ -403,23 +410,27 @@ def run():
         panel.controller.gizmo_mode != "native"
         or panel.controller.gizmo_style != "axis-rings-cones"
     ):
-        raise RuntimeError(
+        msg = (
             "Pose Mode did not install the required native axis-ring/cone gizmo "
             f"(mode={gizmo_mode!r}, style={getattr(panel.controller, 'gizmo_style', None)!r}, "
             f"error={getattr(panel.controller, 'gizmo_style_error', None)!r})"
         )
+        raise RuntimeError(msg)
     if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
-        raise RuntimeError("Pose Mode did not install the visible joint/bone overlay")
+        msg = "Pose Mode did not install the visible joint/bone overlay"
+        raise RuntimeError(msg)
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
     visible_bones = len(panel.controller._skeleton_segments)
     if visible_bones <= len(CONTROLLABLE_BONES):
-        raise RuntimeError(
+        msg = (
             "Pose Mode overlay does not contain the complete authored skeleton "
             f"(visible={visible_bones}, controllable={len(CONTROLLABLE_BONES)})"
         )
+        raise RuntimeError(msg)
     if panel.controller.gizmo_separator is None or panel.controller.gizmo_transform is None:
-        raise RuntimeError("Pose Mode did not install the selected-joint gizmo scene nodes")
+        msg = "Pose Mode did not install the selected-joint gizmo scene nodes"
+        raise RuntimeError(msg)
     from freecad_cloth.avatar.AnnyAvatarBackend import build_avatar_shape_mesh
     from freecad_cloth.avatar.HierarchicalPose import _manual_pose_state
 
@@ -439,9 +450,8 @@ def run():
     generated_records = _point_records(generated_vertices, precision=7)
     expected_records = _point_records(expected_mesh.vertices, precision=7)
     if [item[0] for item in generated_records] != [item[0] for item in expected_records]:
-        raise RuntimeError(
-            "Public avatar mesh generator differs from the independent authored FK result"
-        )
+        msg = "Public avatar mesh generator differs from the independent authored FK result"
+        raise RuntimeError(msg)
 
     # FreeCAD's Mesh storage can coalesce coincident coordinates that remain
     # duplicated in the provider's indexed triangle mesh. Compare distinct
@@ -504,21 +514,25 @@ def run():
         )
     panel.controller.select_joint("upperarm01.L")
     if str(panel.skeleton_joint_index) != "upperarm01.L":
-        raise RuntimeError("Pose Mode failed to select the screenshot fixture shoulder joint")
+        msg = "Pose Mode failed to select the screenshot fixture shoulder joint"
+        raise RuntimeError(msg)
     if panel.joint_list_widget.isVisible():
-        raise RuntimeError("Pose Mode exposed the joint-list fallback by default")
+        msg = "Pose Mode exposed the joint-list fallback by default"
+        raise RuntimeError(msg)
     try:
         from PySide import QtWidgets
     except ImportError:
         from PySide2 import QtWidgets
     if panel.form.findChildren(QtWidgets.QSlider):
-        raise RuntimeError("Pose Mode retained redundant slider-based primary controls")
+        msg = "Pose Mode retained redundant slider-based primary controls"
+        raise RuntimeError(msg)
     panel.symmetry.setChecked(True)
     panel.angle_snap.setChecked(True)
     panel.joint_list_toggle.setChecked(True)
     _events()
     if not panel.joint_list_widget.isVisible():
-        raise RuntimeError("Pose Mode Joint list fallback did not expand")
+        msg = "Pose Mode Joint list fallback did not expand"
+        raise RuntimeError(msg)
     panel.joint_list_toggle.setChecked(False)
     _events()
     metrics = _capture_pose_screen(
@@ -540,7 +554,8 @@ def run():
 
     selected = str(panel.skeleton_joint_index)
     if not selected:
-        raise RuntimeError("Pose Mode did not select a default joint")
+        msg = "Pose Mode did not select a default joint"
+        raise RuntimeError(msg)
 
     # Pivy mouse callbacks are unavailable in this FreeCAD/SWIG build.
     # Select the joint through the controller API, then edit Exact angles using
@@ -549,7 +564,8 @@ def run():
     # Do not resize it again here: some FreeCAD task-panel builds recreate child widgets.
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD main window is unavailable for Pose Mode GIF recording")
+        msg = "FreeCAD main window is unavailable for Pose Mode GIF recording"
+        raise RuntimeError(msg)
     panel.controller.select_joint("upperarm01.L")
     _events()
     recorder = UiGifRecorder(
@@ -584,7 +600,8 @@ def run():
         recorder.hold(900)
         pose_after_edit = panel._staged_joint_rotations.get("upperarm01.L")
         if pose_after_edit is None or abs(float(pose_after_edit.y) - 35.0) > 1e-4:
-            raise RuntimeError("Exact angles keyboard input did not stage the expected rotation")
+            msg = "Exact angles keyboard input did not stage the expected rotation"
+            raise RuntimeError(msg)
     finally:
         if recorder._started:
             recorder.stop()
@@ -600,15 +617,18 @@ def run():
     )
     after = _bounds(avatar.Mesh)
     if before == after:
-        raise RuntimeError("interactive pose preview did not change mannequin geometry")
+        msg = "interactive pose preview did not change mannequin geometry"
+        raise RuntimeError(msg)
 
     staged = panel._staged_joint_rotations
     left = staged.get("upperarm01.L")
     right = staged.get("upperarm01.R")
     if left is None or right is None:
-        raise RuntimeError("symmetry did not stage both shoulder joints")
+        msg = "symmetry did not stage both shoulder joints"
+        raise RuntimeError(msg)
     if float(left.y) != -35.0 or float(right.y) != 35.0:
-        raise RuntimeError("symmetry produced the wrong mirrored shoulder rotation")
+        msg = "symmetry produced the wrong mirrored shoulder rotation"
+        raise RuntimeError(msg)
 
     panel.angle_snap.setChecked(True)
     panel._stage_joint_rotation(
@@ -621,14 +641,16 @@ def run():
     )
     exact = panel._staged_joint_rotations.get("lowerarm01.L")
     if exact is None or float(exact.y) != 41.0:
-        raise RuntimeError("Exact angle fallback unexpectedly inherited 5 degree snapping")
+        msg = "Exact angle fallback unexpectedly inherited 5 degree snapping"
+        raise RuntimeError(msg)
 
     panel.accept()
     persisted_payload = str(avatar.JointPoseJSON)
     persisted = joint_rotations_from_json(persisted_payload)
     persisted_bones = {rotation.bone for rotation in persisted}
     if not {"upperarm01.L", "upperarm01.R"} <= persisted_bones:
-        raise RuntimeError("accepted pose was not persisted in JointPoseJSON")
+        msg = "accepted pose was not persisted in JointPoseJSON"
+        raise RuntimeError(msg)
 
     panel2 = AvatarPoseTaskPanel(avatar)
     panel2._stage_joint_rotation(
@@ -639,12 +661,15 @@ def run():
         preview=True,
     )
     if str(avatar.JointPoseJSON) != persisted_payload:
-        raise RuntimeError("preview unexpectedly mutated persistent JointPoseJSON")
+        msg = "preview unexpectedly mutated persistent JointPoseJSON"
+        raise RuntimeError(msg)
     panel2.reject()
     if str(avatar.JointPoseJSON) != persisted_payload:
-        raise RuntimeError("Cancel failed to restore persistent pose state")
+        msg = "Cancel failed to restore persistent pose state"
+        raise RuntimeError(msg)
     if panel2.controller.view is not None or panel2.controller.gizmo is not None:
-        raise RuntimeError("Cancel failed to remove Pose Mode viewport state")
+        msg = "Cancel failed to remove Pose Mode viewport state"
+        raise RuntimeError(msg)
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/avatar-pose-ui.log").write_text(

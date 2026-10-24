@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject runtime rewriting or generated execution of checked-in Python source."""
 
 from __future__ import annotations
@@ -27,7 +28,14 @@ INLINE_PYTHON_EDIT = re.compile(
 
 
 def _target_names(target: ast.expr) -> set[str]:
-    """Return simple variable names assigned by one assignment target."""
+    """Return simple variable names assigned by one assignment target.
+
+    Args:
+        target: Syntax node representing an assignment target.
+
+    Returns:
+        Names of variables bound by the target expression.
+    """
     if isinstance(target, ast.Name):
         return {target.id}
     if isinstance(target, (ast.Tuple, ast.List)):
@@ -39,7 +47,14 @@ def _target_names(target: ast.expr) -> set[str]:
 
 
 def _contains_python_path_literal(node: ast.AST) -> bool:
-    """Recognize path expressions that explicitly identify a Python source file."""
+    """Recognize path expressions that explicitly identify a Python source file.
+
+    Args:
+        node: Syntax node to inspect for source-path literals.
+
+    Returns:
+        Whether the expression refers to a Python source path.
+    """
     for child in ast.walk(node):
         if (
             isinstance(child, ast.Constant)
@@ -53,7 +68,14 @@ def _contains_python_path_literal(node: ast.AST) -> bool:
 
 
 def _read_method_receiver(node: ast.AST) -> ast.expr | None:
-    """Return the receiver of a read call, if this node represents file reading."""
+    """Return the receiver of a read call, if this node represents file reading.
+
+    Args:
+        node: Syntax node being tested as a file-read call.
+
+    Returns:
+        Receiver expression for a recognized read call, or None.
+    """
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
         return None
     if node.func.attr not in READ_METHODS:
@@ -62,11 +84,27 @@ def _read_method_receiver(node: ast.AST) -> ast.expr | None:
 
 
 def _names_used(node: ast.AST) -> set[str]:
+    """Collect every referenced identifier contained in a syntax node.
+
+    Args:
+        node: Syntax subtree whose identifier references should be collected.
+
+    Returns:
+        Set of names used by the subtree.
+    """
     return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
 
 
 def _checked_in_source_handles(tree: ast.Module, python_path_names: set[str]) -> set[str]:
-    """Find file handles opened from known Python paths inside with statements."""
+    """Find file handles opened from known Python paths inside with statements.
+
+    Args:
+        tree: Parsed module syntax tree to inspect.
+        python_path_names: Identifiers known to refer to Python source paths.
+
+    Returns:
+        Names bound to file handles opened from checked-in source paths.
+    """
     names: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.With, ast.AsyncWith)):
@@ -90,7 +128,16 @@ def _is_checked_in_source_expression(
     source_names: set[str],
     python_path_names: set[str],
 ) -> bool:
-    """Return whether an expression reads unchanged text from a known Python file."""
+    """Return whether an expression reads unchanged text from a known Python file.
+
+    Args:
+        expression: Expression whose source provenance is being checked.
+        source_names: Identifiers known to hold text read from source files.
+        python_path_names: Identifiers known to refer to Python source paths.
+
+    Returns:
+        Whether the expression can be traced to checked-in Python source.
+    """
     if isinstance(expression, ast.Name):
         return expression.id in source_names
     receiver = _read_method_receiver(expression)
@@ -101,7 +148,15 @@ def _is_checked_in_source_expression(
 
 
 def python_source_rewrite_violations(source_text: str, path: str = "<source>") -> tuple[str, ...]:
-    """Find Python-source replacement, file-write, and dynamic execution patterns."""
+    """Find Python-source replacement, file-write, and dynamic execution patterns.
+
+    Args:
+        source_text: Python source code to inspect.
+        path: Filename used to label any diagnostic.
+
+    Returns:
+        Source-rewriting policy violations found in the module.
+    """
     try:
         tree = ast.parse(source_text, filename=path)
     except SyntaxError as error:
@@ -259,7 +314,15 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
 
 
 def workflow_source_rewrite_violations(text: str, path: str = "<workflow>") -> tuple[str, ...]:
-    """Reject inline shell commands that rewrite tracked source/configuration files."""
+    """Reject inline shell commands that rewrite tracked source/configuration files.
+
+    Args:
+        text: Workflow or shell text to inspect.
+        path: Filename used to label any diagnostic.
+
+    Returns:
+        Source-rewriting violations detected in the workflow text.
+    """
     violations: list[str] = []
     for pattern in INLINE_EDIT_COMMANDS:
         match = pattern.search(text)
@@ -278,7 +341,11 @@ def workflow_source_rewrite_violations(text: str, path: str = "<workflow>") -> t
 
 
 def _policy_files() -> tuple[Path, ...]:
-    """Return repository Python sources and executable CI configuration files."""
+    """Return repository Python sources and executable CI configuration files.
+
+    Returns:
+        Sorted paths covered by the source-rewriting policy.
+    """
     python_files = [
         path
         for path in ROOT.rglob("*.py")
@@ -292,7 +359,11 @@ def _policy_files() -> tuple[Path, ...]:
 
 
 def main() -> int:
-    """Scan the repository and fail closed on forbidden source manipulation."""
+    """Scan the repository and fail closed on forbidden source manipulation.
+
+    Returns:
+        Process status indicating whether the source-rewriting policy passed.
+    """
     errors: list[str] = []
     for path in _policy_files():
         relative = path.relative_to(ROOT).as_posix()

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate GUI artifact evidence produced by FreeCAD acceptance tests."""
 
 from __future__ import annotations
@@ -58,7 +59,14 @@ REQUIRED_LOG_MARKERS = {
 
 
 def main() -> int:
-    """Validate a captured GUI artifact without trusting the producer log."""
+    """Validate a captured GUI artifact without trusting the producer log.
+
+    Raises:
+        SystemExit: When required screenshots, animation frames, GIFs, or log markers are missing.
+
+    Returns:
+        Process status indicating whether the selected acceptance evidence is valid.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted((*CASES, *LOG_CASES)))
     args = parser.parse_args()
@@ -66,19 +74,22 @@ def main() -> int:
     if args.case in LOG_CASES:
         log_path = LOG_CASES[args.case]
         if not log_path.is_file() or not log_path.stat().st_size:
-            raise SystemExit(f"missing acceptance progress log: {log_path}")
+            msg = f"missing acceptance progress log: {log_path}"
+            raise SystemExit(msg)
         log_text = log_path.read_text(encoding="utf-8")
         missing = tuple(
             marker for marker in REQUIRED_LOG_MARKERS[args.case] if marker not in log_text
         )
         if missing:
-            raise SystemExit(f"{args.case}: missing progress markers: {missing}")
+            msg = f"{args.case}: missing progress markers: {missing}"
+            raise SystemExit(msg)
         print(f"{args.case}=validated markers={len(REQUIRED_LOG_MARKERS[args.case])}")
         return 0
 
     image = CASES[args.case]
     if not image.is_file() or not image.stat().st_size:
-        raise SystemExit(f"missing acceptance screenshot: {image}")
+        msg = f"missing acceptance screenshot: {image}"
+        raise SystemExit(msg)
 
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
@@ -92,12 +103,14 @@ def main() -> int:
     )
     for gif in REQUIRED_GIFS.get(args.case, ()):
         if not gif.is_file() or not gif.stat().st_size:
-            raise SystemExit(f"missing acceptance GIF: {gif}")
+            msg = f"missing acceptance GIF: {gif}"
+            raise SystemExit(msg)
         print(f"{args.case}-gif=validated path={gif} bytes={gif.stat().st_size}")
 
     for frame in REQUIRED_FRAMES.get(args.case, ()):
         if not frame.is_file() or not frame.stat().st_size:
-            raise SystemExit(f"missing acceptance animation frame: {frame}")
+            msg = f"missing acceptance animation frame: {frame}"
+            raise SystemExit(msg)
         frame_metrics = validate_png_capture(
             frame,
             expected_width=1280,

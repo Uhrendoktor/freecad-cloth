@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Single weighted-FK pipeline for the MakeHuman mannequin and Pose Mode."""
 
 from __future__ import annotations
@@ -31,7 +32,14 @@ Mapper = Callable[[Point], Point]
 
 
 def _identity_point(point: Point) -> Point:
-    """Preserve a library-fitted point in FreeCAD's millimetre coordinate frame."""
+    """Normalize a fitted point to FreeCAD's millimetre coordinate frame.
+
+    Args:
+        point: Coordinate triple returned by the avatar fitting library.
+
+    Returns:
+        The same coordinates converted to Python floats.
+    """
     return (float(point[0]), float(point[1]), float(point[2]))
 
 
@@ -40,13 +48,32 @@ def _make_anny_rig_mapper(
     rig_vertices: tuple[Point, ...],
     skeleton: dict,
 ) -> Mapper:
-    """Map stable MakeHuman source points to the same indices in fitted Anny space."""
+    """Build a point mapper from the source rig to fitted Anny coordinates.
+
+    Args:
+        source_vertices: Original MakeHuman rig points in their stable index order.
+        rig_vertices: Fitted Anny rig points aligned with the source vertex indices.
+        skeleton: Skeleton joint definitions used to preserve fitted joint centres.
+
+    Returns:
+        Callable that maps known source vertices and joint centres to fitted points.
+
+    Raises:
+        HumanoidMeshError: If the source and fitted rigs have different vertex counts.
+    """
     if len(source_vertices) != len(rig_vertices):
-        raise HumanoidMeshError(
-            "Anny's fitted vertices do not match the original MakeHuman rig index space."
-        )
+        msg = "Anny's fitted vertices do not match the original MakeHuman rig index space."
+        raise HumanoidMeshError(msg)
 
     def average(points: list[Point]) -> Point:
+        """Compute the centroid of a non-empty list of 3D points.
+
+        Args:
+            points: Coordinates whose component-wise mean is required.
+
+        Returns:
+            The component-wise mean point.
+        """
         count = float(len(points))
         return (
             sum(point[0] for point in points) / count,
@@ -81,6 +108,14 @@ def _make_anny_rig_mapper(
     }
 
     def map_point(point: Point) -> Point:
+        """Map a source joint centre or vertex into fitted Anny space.
+
+        Args:
+            point: Point expressed in the original MakeHuman coordinate frame.
+
+        Returns:
+            Fitted coordinate when the point has a mapping, otherwise the input point.
+        """
         key = _identity_point(point)
         if key in mapped_joint_centres:
             return mapped_joint_centres[key]
@@ -112,7 +147,17 @@ def _arm_pose_configuration(
     skeleton: dict,
     mapper: Mapper,
 ) -> tuple[tuple[JointRotation, ...], dict[str, Point]]:
-    """Express arm fields as rotations in the same fitted skeleton space."""
+    """Compute baseline arm rotations and their pivots in fitted skeleton space.
+
+    Args:
+        parameters: Validated measurements and pose fields for the avatar.
+        source_vertices: Rest coordinates for the source mannequin rig.
+        skeleton: Loaded joint hierarchy and vertex memberships.
+        mapper: Mapping from source points into fitted Anny coordinates.
+
+    Returns:
+        Joint rotations and the pivot coordinates associated with those rotations.
+    """
     rotations: list[JointRotation] = []
     pivots: dict[str, Point] = {}
     shoulder_z = float(parameters.measurement("height")) * 0.76
@@ -153,6 +198,17 @@ def _effective_pose_configuration(
     tuple[JointRotation, ...],
     dict[str, Point],
 ]:
+    """Combine the preset arm pose with explicit manual joint rotations.
+
+    Args:
+        parameters: Validated avatar measurements and current pose settings.
+        source_vertices: Rest coordinates for the source mannequin rig.
+        skeleton: Loaded joint hierarchy and vertex memberships.
+        mapper: Mapping from source points into fitted Anny coordinates.
+
+    Returns:
+        Effective rotations and pivots, followed by their baseline counterparts.
+    """
     base_rotations, base_pivots = _arm_pose_configuration(
         parameters, source_vertices, skeleton, mapper
     )
@@ -173,7 +229,14 @@ def pose_world_state(
     Mapper,
     dict[str, AffineTransform],
 ]:
-    """Return the exact rig transforms used to deform the visible mannequin."""
+    """Build the fitted coordinate mapper and transforms for the current avatar pose.
+
+    Args:
+        parameters: Validated measurements, shape settings, and pose rotations.
+
+    Returns:
+        Source rig vertices, skeleton data, point mapper, and effective bone transforms.
+    """
     source_vertices = _load_source_vertices()
     rig_vertices = build_avatar_rig_vertices(parameters)
     skeleton = load_makehuman_skeleton()
@@ -194,7 +257,15 @@ def _manual_pose_state(
     MeshData,
     tuple[dict[str, AffineTransform], dict[str, AffineTransform]],
 ]:
-    """Generate mesh and landmark transforms through one weighted-FK pipeline."""
+    """Generate the posed mesh and baseline/effective landmark transforms together.
+
+    Args:
+        parameters: Validated measurements, shape settings, and pose rotations.
+        mesh: Base topology to retain while replacing its vertices with posed coordinates.
+
+    Returns:
+        Posed mesh and paired baseline/effective bone-transform dictionaries.
+    """
     source_mesh = mesh
     source_vertices = _load_source_vertices()
     rig_vertices = build_avatar_rig_vertices(parameters)
@@ -233,7 +304,15 @@ def _manual_pose_state(
 
 
 def _build_manual_mesh(parameters: AvatarParameters, mesh: MeshData) -> MeshData:
-    """Build the mannequin with the same FK system used by Pose Mode."""
+    """Build the mannequin with the shared weighted-forward-kinematics system.
+
+    Args:
+        parameters: Validated measurements, shape settings, and pose rotations.
+        mesh: Base mesh whose topology will be retained.
+
+    Returns:
+        Validated mesh with vertices transformed by the effective pose.
+    """
     posed, _transforms = _manual_pose_state(parameters, mesh)
     return posed
 
@@ -243,7 +322,16 @@ def transform_landmarks(
     baseline_transforms: dict[str, AffineTransform],
     effective_transforms: dict[str, AffineTransform],
 ) -> tuple[Landmark, ...]:
-    """Transform parameter landmarks between the base and effective FK poses."""
+    """Transform parameter landmarks from the base pose into the effective pose.
+
+    Args:
+        landmarks: Named points originally expressed in the base mannequin frame.
+        baseline_transforms: Bone transforms for the pose before manual joint edits.
+        effective_transforms: Bone transforms after applying manual joint edits.
+
+    Returns:
+        Landmarks with applicable points transformed into the effective pose.
+    """
     result: list[Landmark] = []
     for landmark in landmarks:
         bone_name = LANDMARK_BONES.get(landmark.name)
@@ -262,7 +350,14 @@ def transform_landmarks(
 
 
 def build_hierarchical_avatar_mesh(parameters: AvatarParameters) -> MeshData:
-    """Build the mannequin with the shared weighted-FK deformation system."""
+    """Build the mannequin using the shared weighted-forward-kinematics system.
+
+    Args:
+        parameters: Validated avatar measurements, shape settings, and pose rotations.
+
+    Returns:
+        Validated mannequin mesh in the effective pose.
+    """
     return _build_manual_mesh(
         parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False)
     )
@@ -275,7 +370,14 @@ def generate_hierarchical_mesh(
     tuple[tuple[int, int, int], ...],
     tuple[Landmark, ...],
 ]:
-    """Return the compact mesh and landmarks from the authoritative FK state."""
+    """Generate mesh coordinates and transformed landmarks from the authoritative FK state.
+
+    Args:
+        parameters: Validated avatar measurements, shape settings, and pose rotations.
+
+    Returns:
+        Compact vertices, triangular faces, and landmarks in the effective pose.
+    """
     mesh, (baseline_transforms, effective_transforms) = _manual_pose_state(
         parameters, build_avatar_shape_mesh(parameters, include_skin_offset=False)
     )

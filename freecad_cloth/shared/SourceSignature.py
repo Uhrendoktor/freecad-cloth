@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic source signatures shared by Cloth domains.
 
 This module intentionally depends only on the Python standard library so

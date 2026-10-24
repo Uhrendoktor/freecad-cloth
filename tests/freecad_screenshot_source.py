@@ -1,11 +1,15 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic FreeCAD GUI acceptance and six-side cloth visual audit."""
 
 import contextlib
 import importlib.util
 import json
 import os
+import pathlib
 import sys
 import traceback
+from collections.abc import Callable
+from typing import cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -18,8 +22,16 @@ except ImportError:
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+_arc_through_midpoint: Callable[[object, object, object, object], object] = cast(
+    "Callable[[object, object, object, object], object]",
+    getattr(
+        importlib.import_module("tests.support.freecad_arc_geometry"),
+        "arc_through_midpoint",
+    ),
+)
+
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-os.makedirs(OUT, exist_ok=True)
+pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "gui-progress.log")
 MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
 METRICS = os.path.join(OUT, "drape-visual-metrics.json")
@@ -27,7 +39,7 @@ TUNIC_PRODUCTION_AUDIT = os.environ.get("CLOTH_TUNIC_AUDIT_PROFILE") == "product
 
 
 def log(message):
-    with open(LOG, "a", encoding="utf-8") as handle:
+    with pathlib.Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
@@ -54,7 +66,8 @@ def _dialog_text(dialog):
 def ensure_task_view_visible():
     window = Gui.getMainWindow()
     if window is None:
-        raise RuntimeError("FreeCAD main window is unavailable")
+        msg = "FreeCAD main window is unavailable"
+        raise RuntimeError(msg)
     for dock in window.findChildren(QtWidgets.QDockWidget):
         if dock.objectName() == "Tasks" or "task" in str(dock.windowTitle()).lower():
             dock.show()
@@ -81,7 +94,8 @@ def validate_task(panel, name, required):
     dock = ensure_task_view_visible()
     dialog = Gui.Control.activeDialog()
     if dialog is None:
-        raise RuntimeError(f"{name} did not open an active public task dialog")
+        msg = f"{name} did not open an active public task dialog"
+        raise RuntimeError(msg)
     texts = []
     for target in (panel, dialog, dock):
         if target is None:
@@ -115,12 +129,14 @@ def close_task():
 
 def activate(name, toolbar, commands):
     if name not in Gui.listWorkbenches():
-        raise RuntimeError(f"workbench is not registered: {name}")
+        msg = f"workbench is not registered: {name}"
+        raise RuntimeError(msg)
     Gui.activateWorkbench(name)
     events()
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD main window is not visible")
+        msg = "FreeCAD main window is not visible"
+        raise RuntimeError(msg)
     for bar in window.findChildren(QtWidgets.QToolBar):
         if bar.windowTitle() == toolbar:
             bar.show()
@@ -133,7 +149,8 @@ def activate(name, toolbar, commands):
 def save(name, state, proof):
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD main window unavailable for screenshot")
+        msg = "FreeCAD main window unavailable for screenshot"
+        raise RuntimeError(msg)
     window.show()
     window.raise_()
     window.activateWindow()
@@ -142,11 +159,13 @@ def save(name, state, proof):
     image = window.grab()
     path = os.path.join(OUT, name)
     if image.isNull() or (image.width(), image.height()) != (1280, 720):
-        raise RuntimeError(f"invalid GUI capture for {state}")
-    if not image.save(path) or os.path.getsize(path) < 20000:
-        raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
-    with open(MANIFEST, "a", encoding="utf-8") as handle:
+        msg = f"invalid GUI capture for {state}"
+        raise RuntimeError(msg)
+    if not image.save(path) or pathlib.Path(path).stat().st_size < 20000:
+        msg = f"failed or suspiciously small screenshot: {path}"
+        raise RuntimeError(msg)
+    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
@@ -155,24 +174,27 @@ def save_view(name, state, proof):
     document = Gui.activeDocument()
     view = document.activeView() if document is not None else None
     if view is None:
-        raise RuntimeError("FreeCAD active 3D view is unavailable for screenshot")
+        msg = "FreeCAD active 3D view is unavailable for screenshot"
+        raise RuntimeError(msg)
     events()
     view.redraw()
     events()
     path = os.path.join(OUT, name)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pathlib.Path(os.path.dirname(path)).mkdir(exist_ok=True, parents=True)
     view.saveImage(path, 1280, 720, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
-        raise RuntimeError(f"failed or suspiciously small 3D-view screenshot: {path}")
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
-    with open(MANIFEST, "a", encoding="utf-8") as handle:
+    if not pathlib.Path(path).is_file() or pathlib.Path(path).stat().st_size < 5000:
+        msg = f"failed or suspiciously small 3D-view screenshot: {path}"
+        raise RuntimeError(msg)
+    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
 def load_and_run(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load acceptance module: {path}")
+        msg = f"cannot load acceptance module: {path}"
+        raise RuntimeError(msg)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.run_acceptance()
@@ -182,8 +204,8 @@ GARMENT_E2E_LOG = os.environ.get("CLOTH_GARMENT_E2E_LOG", "/workspace/artifacts/
 
 
 def run_canonical_acceptance():
-    os.makedirs(os.path.dirname(GARMENT_E2E_LOG), exist_ok=True)
-    with open(GARMENT_E2E_LOG, "w", encoding="utf-8"):
+    pathlib.Path(os.path.dirname(GARMENT_E2E_LOG)).mkdir(exist_ok=True, parents=True)
+    with pathlib.Path(GARMENT_E2E_LOG).open("w", encoding="utf-8"):
         pass
     for path, name, marker in (
         (
@@ -204,7 +226,7 @@ def run_canonical_acceptance():
     ):
         if name == "freecad_garment_e2e_smoke":
             with (
-                open(GARMENT_E2E_LOG, "a", encoding="utf-8") as handle,
+                pathlib.Path(GARMENT_E2E_LOG).open("a", encoding="utf-8") as handle,
                 contextlib.redirect_stdout(handle),
             ):
                 load_and_run(os.path.join(ROOT, path), name)
@@ -259,7 +281,8 @@ def _seam_lateral_snapshot(proxy, center_x):
     reader = getattr(backend, "positions", None)
     pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
     if not callable(reader) or not pairs_by_seam:
-        raise RuntimeError("seam lateral diagnostic requires solver position and pair provenance")
+        msg = "seam lateral diagnostic requires solver position and pair provenance"
+        raise RuntimeError(msg)
     positions = tuple(reader())
 
     def x_value(point):
@@ -271,7 +294,8 @@ def _seam_lateral_snapshot(proxy, center_x):
         for index_a, index_b in pairs:
             a, b = int(index_a), int(index_b)
             if not (0 <= a < len(positions) and 0 <= b < len(positions)):
-                raise RuntimeError("seam lateral diagnostic found an invalid solver particle index")
+                msg = "seam lateral diagnostic found an invalid solver particle index"
+                raise RuntimeError(msg)
             offsets.append(0.5 * (x_value(positions[a]) + x_value(positions[b])) - float(center_x))
         if not offsets:
             raise RuntimeError(
@@ -291,13 +315,15 @@ def _seam_lateral_snapshot(proxy, center_x):
 def _post_drape_seam_gap(stitch_pairs, positions):
     """Measure the gap on the exact particle pairs passed to the solver."""
     if not stitch_pairs:
-        raise ValueError("solver stitch pair provenance is required")
+        msg = "solver stitch pair provenance is required"
+        raise ValueError(msg)
     from math import dist
 
     maximum = 0.0
     for a_index, b_index in stitch_pairs:
         if not (0 <= int(a_index) < len(positions) and 0 <= int(b_index) < len(positions)):
-            raise ValueError("solver stitch pair is outside backend particle positions")
+            msg = "solver stitch pair is outside backend particle positions"
+            raise ValueError(msg)
         a = positions[int(a_index)]
         b = positions[int(b_index)]
         maximum = max(
@@ -316,7 +342,8 @@ def _seam_coherence(panels, seam_records, proxy=None):
             "method": "solver-stitch-pairs",
         }
     if proxy is None or not getattr(proxy, "seam_stitch_pairs", None):
-        raise RuntimeError("seam diagnostics require exact solver stitch-pair provenance")
+        msg = "seam diagnostics require exact solver stitch-pair provenance"
+        raise RuntimeError(msg)
     positions = tuple(proxy.backend.positions())
     stitch_pairs_by_seam = proxy.seam_stitch_pairs
     records = []
@@ -326,13 +353,15 @@ def _seam_coherence(panels, seam_records, proxy=None):
         seam_id = str(getattr(seam, "SeamId", getattr(seam, "Label", "")))
         stitch_pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
         if not stitch_pairs:
-            raise RuntimeError(f"solver stitch-pair provenance missing for seam {seam_id}")
+            msg = f"solver stitch-pair provenance missing for seam {seam_id}"
+            raise RuntimeError(msg)
         gap = _post_drape_seam_gap(stitch_pairs, positions)
         sample_count = max(sample_count, len(stitch_pairs))
         edge_a_id = str(getattr(seam, "EdgeAId", "")).strip()
         edge_b_id = str(getattr(seam, "EdgeBId", "")).strip()
         if not edge_a_id or not edge_b_id:
-            raise RuntimeError(f"semantic seam edge identity is missing for {seam_id}")
+            msg = f"semantic seam edge identity is missing for {seam_id}"
+            raise RuntimeError(msg)
         ids_a = tuple(
             str(value)
             for value in (getattr(getattr(piece_a, "Sketch", None), "SemanticEdgeIds", ()) or ())
@@ -342,9 +371,8 @@ def _seam_coherence(panels, seam_records, proxy=None):
             for value in (getattr(getattr(piece_b, "Sketch", None), "SemanticEdgeIds", ()) or ())
         )
         if edge_a_id not in ids_a or edge_b_id not in ids_b:
-            raise RuntimeError(
-                "semantic seam edge identity is not present on its authoritative Sketch"
-            )
+            msg = "semantic seam edge identity is not present on its authoritative Sketch"
+            raise RuntimeError(msg)
         records.append(
             {
                 "seam": seam_id,
@@ -402,7 +430,8 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
         vertices = tuple(getattr(surface, "vertices", ()) or ())
         triangles = tuple(getattr(surface, "triangles", ()) or ())
         if not vertices or not triangles:
-            raise RuntimeError("authoritative collision surface has no inside/outside topology")
+            msg = "authoritative collision surface has no inside/outside topology"
+            raise RuntimeError(msg)
 
         # Avoid Trimesh/Rtree's native contains query in the embedded FreeCAD host.
         # The vectorized NumPy ray-parity path preserves the strict vertex-inside gate.
@@ -421,7 +450,8 @@ def _inside_target_count(points, target, collision_surface=None, solver_collisio
                 chunk_size=4,
             )
         )
-    raise RuntimeError("mannequin target does not expose an inside/outside collision test")
+    msg = "mannequin target does not expose an inside/outside collision test"
+    raise RuntimeError(msg)
 
 
 def write_drape_metrics(
@@ -590,116 +620,8 @@ def write_drape_metrics(
         "panels": records,
         "seam_coherence": _seam_coherence(panels, seam_records, proxy=proxy),
     }
-    with open(METRICS, "w", encoding="utf-8") as handle:
+    with pathlib.Path(METRICS).open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
-
-
-def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
-    """Build a minor native circular arc through an explicit on-arc point."""
-    import math
-
-    sx, sy = float(start.x), float(start.y)
-    ex, ey = float(end.x), float(end.y)
-    mx, my = float(midpoint.x), float(midpoint.y)
-    start_sq = sx * sx + sy * sy
-    end_sq = ex * ex + ey * ey
-    middle_sq = mx * mx + my * my
-    determinant = 2.0 * (sx * (ey - my) + ex * (my - sy) + mx * (sy - ey))
-    if abs(determinant) <= 1e-9:
-        raise RuntimeError("tunic armhole points are collinear; cannot construct an arc")
-
-    center_x = (start_sq * (ey - my) + end_sq * (my - sy) + middle_sq * (sy - ey)) / determinant
-    center_y = (start_sq * (mx - ex) + end_sq * (sx - mx) + middle_sq * (ex - sx)) / determinant
-    radius = math.hypot(sx - center_x, sy - center_y)
-    if not math.isfinite(radius) or radius <= 1e-9:
-        raise RuntimeError("tunic armhole circle has an invalid radius")
-
-    def curve_value(curve: object, parameter_value: float) -> object:
-        getter = getattr(curve, "valueAt", None)
-        if not callable(getter):
-            getter = getattr(curve, "value", None)
-        if not callable(getter):
-            raise RuntimeError("tunic armhole curve has no native parameter evaluator")
-        return getter(float(parameter_value))
-
-    tau = 2.0 * math.pi
-    selected = None
-    for normal_z in (1.0, -1.0):
-        circle = Part.Circle(
-            App.Vector(center_x, center_y, 0.0),
-            App.Vector(0.0, 0.0, normal_z),
-            radius,
-        )
-        # Derive parameters from the native circle basis instead of assuming
-        # which global direction its X axis uses for either normal orientation.
-        zero_point = curve_value(circle, 0.0)
-        quarter_point = curve_value(circle, math.pi / 2.0)
-        axis_x = (
-            (float(zero_point.x) - center_x) / radius,
-            (float(zero_point.y) - center_y) / radius,
-        )
-        axis_y = (
-            (float(quarter_point.x) - center_x) / radius,
-            (float(quarter_point.y) - center_y) / radius,
-        )
-
-        def parameter(
-            point_x: float,
-            point_y: float,
-            axis_x: tuple[float, float] = axis_x,
-            axis_y: tuple[float, float] = axis_y,
-        ) -> float:
-            dx = point_x - center_x
-            dy = point_y - center_y
-            return (
-                math.atan2(
-                    dx * axis_y[0] + dy * axis_y[1],
-                    dx * axis_x[0] + dy * axis_x[1],
-                )
-                % tau
-            )
-
-        start_angle = parameter(sx, sy)
-        end_angle = parameter(ex, ey)
-        middle_angle = parameter(mx, my)
-        sweep = (end_angle - start_angle) % tau
-        middle_sweep = (middle_angle - start_angle) % tau
-        if sweep > 1e-9 and middle_sweep <= sweep + 1e-9:
-            selected = (circle, normal_z, start_angle, sweep, middle_sweep)
-            break
-
-    if selected is None:
-        raise RuntimeError("tunic armhole points do not define a consistent circular sweep")
-    circle, normal_z, start_angle, sweep, middle_sweep = selected
-    if sweep >= math.pi:
-        raise RuntimeError(
-            "tunic armhole through-point selects a major arc: sweep-rad=%.6f" % sweep
-        )
-
-    arc = Part.ArcOfCircle(circle, start_angle, start_angle + sweep)
-    checks = (
-        ("start", start, start_angle),
-        ("end", end, start_angle + sweep),
-        ("midpoint", midpoint, start_angle + middle_sweep),
-    )
-    for role, expected, parameter_value in checks:
-        actual = curve_value(arc, parameter_value)
-        error = math.hypot(float(actual.x) - float(expected.x), float(actual.y) - float(expected.y))
-        if error > 1e-5:
-            raise RuntimeError(
-                "tunic armhole arc lost authored %s: error-mm=%.6f "
-                "normal-z=%.0f expected=(%.4f,%.4f) actual=(%.4f,%.4f)"
-                % (
-                    role,
-                    error,
-                    normal_z,
-                    float(expected.x),
-                    float(expected.y),
-                    float(actual.x),
-                    float(actual.y),
-                )
-            )
-    return arc
 
 
 def _polyline_distance_fraction(
@@ -731,8 +653,7 @@ def _polyline_distance_fraction(
         nearest_y = float(start[1]) + fraction * dy
         distance = math.hypot(float(point[0]) - nearest_x, float(point[1]) - nearest_y)
         candidate = (distance, (offset + fraction * length) / total)
-        if candidate < best:
-            best = candidate
+        best = min(best, candidate)
     return best
 
 
@@ -750,7 +671,8 @@ def _neckline_boundary_particles(
 
     samples = tuple((float(sample[0]), float(sample[1])) for sample in boundary.samples)
     if len(samples) < 2:
-        raise RuntimeError("canonical tunic neckline source edge has fewer than two samples")
+        msg = "canonical tunic neckline source edge has fewer than two samples"
+        raise RuntimeError(msg)
 
     placement = getattr(piece, "Placement", None)
     inverse = placement.inverse() if placement is not None else None
@@ -845,21 +767,22 @@ def _make_tunic_sketch(
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
-        raise RuntimeError(
-            "canonical tunic shoulders must slope downward from neckline to shoulder tip"
-        )
+        msg = "canonical tunic shoulders must slope downward from neckline to shoulder tip"
+        raise RuntimeError(msg)
     if not (armhole_z < neckline_scoop_z < shoulder_z):
-        raise RuntimeError(
-            "canonical tunic neckline scoop must cut below the shoulders and above the armholes"
-        )
+        msg = "canonical tunic neckline scoop must cut below the shoulders and above the armholes"
+        raise RuntimeError(msg)
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
-        raise RuntimeError("canonical tunic armhole opening is too narrow")
+        msg = "canonical tunic armhole opening is too narrow"
+        raise RuntimeError(msg)
     if shoulder_z - armhole_z < 0.20 * float(garment_height):
-        raise RuntimeError("canonical tunic armhole opening is too shallow")
+        msg = "canonical tunic armhole opening is too shallow"
+        raise RuntimeError(msg)
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
         if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
-            raise RuntimeError("canonical tunic pattern lost bilateral symmetry")
+            msg = "canonical tunic pattern lost bilateral symmetry"
+            raise RuntimeError(msg)
 
     # The armholes are free, inward-scooped edges. They must not be sewn shut.
     geometry = []
@@ -919,7 +842,8 @@ def _make_tunic_sketch(
         if not callable(evaluator):
             evaluator = getattr(curve, "value", None)
         if not callable(evaluator):
-            raise RuntimeError("tunic armhole native curve has no parameter evaluator")
+            msg = "tunic armhole native curve has no parameter evaluator"
+            raise RuntimeError(msg)
         native_samples = tuple(
             evaluator(first + parameter_span * fraction / 8.0) for fraction in range(9)
         )
@@ -927,7 +851,8 @@ def _make_tunic_sketch(
         start_xy, end_xy = native_xy[0], native_xy[-1]
         vertical_span = end_xy[1] - start_xy[1]
         if abs(vertical_span) <= 1e-9:
-            raise RuntimeError("tunic armhole native curve has a horizontal endpoint chord")
+            msg = "tunic armhole native curve has a horizontal endpoint chord"
+            raise RuntimeError(msg)
         inward = -1.0 if index == 2 else 1.0
         deviations = tuple(
             inward
@@ -976,7 +901,8 @@ def _adopt_sketch(sketch, name, allowance, grainline):
     doc = App.ActiveDocument
     doc.recompute()
     if piece.Sketch is not sketch:
-        raise RuntimeError("Cloth PatternPiece did not retain the selected native Sketcher source")
+        msg = "Cloth PatternPiece did not retain the selected native Sketcher source"
+        raise RuntimeError(msg)
     return piece
 
 
@@ -1096,9 +1022,8 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
     if not seam_records:
-        raise RuntimeError(
-            "canonical tunic sewing view needs the simulation's semantic seam records"
-        )
+        msg = "canonical tunic sewing view needs the simulation's semantic seam records"
+        raise RuntimeError(msg)
 
     pieces = (front, back)
     original_piece_placements = {
@@ -1213,7 +1138,8 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
             str(getattr(sewing, "Status", "")) != "Valid"
             or getattr(getattr(sewing, "Shape", None), "isNull", lambda: True)()
         ):
-            raise RuntimeError("canonical tunic Sewing operation is invalid")
+            msg = "canonical tunic Sewing operation is invalid"
+            raise RuntimeError(msg)
 
         panel = SewingTaskPanel(sewing)
         show_task(
@@ -1294,17 +1220,21 @@ def _validate_authoritative_tunic_seams(
     """Fail unless every authored seam's actual solver stitch pairs converge."""
     positions = tuple(scene.Proxy._base_or_restore().backend.positions())
     if not positions:
-        raise RuntimeError("PositionBasedDynamics backend returned no simulated particle positions")
+        msg = "PositionBasedDynamics backend returned no simulated particle positions"
+        raise RuntimeError(msg)
     stitch_pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
     if not stitch_pairs_by_seam:
-        raise RuntimeError("authoritative seam check has no exact solver stitch provenance")
+        msg = "authoritative seam check has no exact solver stitch provenance"
+        raise RuntimeError(msg)
 
     seam_gap_records = []
     for seam, piece_a, piece_b in seam_records:
         if not str(getattr(seam, "EdgeAId", "")).startswith(f"{piece_a.PieceId}:edge:"):
-            raise RuntimeError("authoritative tunic seam lost semantic A-edge identity")
+            msg = "authoritative tunic seam lost semantic A-edge identity"
+            raise RuntimeError(msg)
         if not str(getattr(seam, "EdgeBId", "")).startswith(f"{piece_b.PieceId}:edge:"):
-            raise RuntimeError("authoritative tunic seam lost semantic B-edge identity")
+            msg = "authoritative tunic seam lost semantic B-edge identity"
+            raise RuntimeError(msg)
         seam_id = str(seam.SeamId)
         pairs = tuple(stitch_pairs_by_seam.get(seam_id, ()))
         if not pairs:
@@ -1386,7 +1316,8 @@ def _run_production_tunic_drape(
     from freecad_cloth.simulation import RealtimePreview
 
     if "ClothRealtimePreview" not in Gui.listCommands():
-        raise RuntimeError("Realtime Cloth Preview GUI command is not registered")
+        msg = "Realtime Cloth Preview GUI command is not registered"
+        raise RuntimeError(msg)
     preview_fields = (
         "ParticleDistance",
         "SolverIterations",
@@ -1399,9 +1330,8 @@ def _run_production_tunic_drape(
     scene.Document.recompute()
     preview_backend = getattr(scene.Proxy._base_or_restore(), "backend", None)
     if getattr(preview_backend, "name", None) != "position-based-dynamics":
-        raise RuntimeError(
-            "Realtime Cloth Preview did not select the PositionBasedDynamics backend"
-        )
+        msg = "Realtime Cloth Preview did not select the PositionBasedDynamics backend"
+        raise RuntimeError(msg)
     deadline = monotonic() + 2.0
     while int(scene.Steps) <= 0 and monotonic() < deadline:
         events()
@@ -1410,11 +1340,13 @@ def _run_production_tunic_drape(
     preview_steps = int(scene.Steps)
     if preview_steps <= 0:
         RealtimePreview.stop_realtime_preview()
-        raise RuntimeError("Realtime Cloth Preview timer did not advance the simulation")
+        msg = "Realtime Cloth Preview timer did not advance the simulation"
+        raise RuntimeError(msg)
     Gui.runCommand("ClothRealtimePreview")
     if int(scene.Steps) != 0:
         RealtimePreview.stop_realtime_preview()
-        raise RuntimeError("Realtime Cloth Preview did not reset steps on stop")
+        msg = "Realtime Cloth Preview did not reset steps on stop"
+        raise RuntimeError(msg)
     for name, value in preview_saved.items():
         if getattr(scene, name) != value:
             raise RuntimeError("Realtime Cloth Preview did not restore %s" % name)
@@ -1423,7 +1355,8 @@ def _run_production_tunic_drape(
     active_backend = scene.Proxy._base_or_restore().backend
     collision = getattr(active_backend, "_collision_surface", None)
     if collision is None:
-        raise RuntimeError("tunic PBD backend has no active mannequin collision surface")
+        msg = "tunic PBD backend has no active mannequin collision surface"
+        raise RuntimeError(msg)
     voxel_mm = float(getattr(active_backend, "_collision_voxel_mm", -1.0))
     configured_mm = float(getattr(active_backend, "_collision_configured_tolerance_mm", -1.0))
     effective_mm = float(getattr(active_backend, "_collision_effective_tolerance_mm", -1.0))
@@ -1450,7 +1383,8 @@ def _run_production_tunic_drape(
             "tunic configured PBD collision tolerance must be 2 mm, got %.3f" % configured_mm
         )
     if abs(effective_mm - max(configured_mm, thickness_mm, 0.5 * voxel_mm)) > 1e-6:
-        raise RuntimeError("tunic PBD effective collision tolerance does not match its inputs")
+        msg = "tunic PBD effective collision tolerance does not match its inputs"
+        raise RuntimeError(msg)
     if resolution != expected_resolution:
         raise RuntimeError(
             "tunic PBD SDF resolution %r does not match configured 8 mm voxel resolution %r"
@@ -1530,7 +1464,9 @@ def _run_production_tunic_drape(
                 )
             )
 
-    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    pathlib.Path(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")).mkdir(
+        exist_ok=True, parents=True
+    )
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -1598,18 +1534,19 @@ def simulation():
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     target = scene.DrapeTarget
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("visual fixture did not create the production ClothAvatar")
+        msg = "visual fixture did not create the production ClothAvatar"
+        raise RuntimeError(msg)
     if target is None:
-        raise RuntimeError("visual fixture did not create DrapeTarget")
+        msg = "visual fixture did not create DrapeTarget"
+        raise RuntimeError(msg)
     target_source = getattr(target, "SourceObject", None)
     if target_source is not avatar:
-        raise RuntimeError(
-            "visual fixture DrapeTarget does not reference the production ClothAvatar"
-        )
+        msg = "visual fixture DrapeTarget does not reference the production ClothAvatar"
+        raise RuntimeError(msg)
     if TUNIC_PRODUCTION_AUDIT:
         from dataclasses import replace as replace_dataclass
 
-        from freecad_cloth.avatar.AvatarCommands import _parameters, apply_avatar_parameters
+        from freecad_cloth.avatar.avatar_commands import _parameters, apply_avatar_parameters
 
         initial_parameters = _parameters(avatar)
         near_t_pose = replace_dataclass(
@@ -1640,7 +1577,8 @@ def simulation():
         float(getattr(target, "CollisionThickness", 0.0)),
     )
     if not target_surface.vertices or not target_surface.triangles:
-        raise RuntimeError("canonical tunic DrapeTarget has no authoritative collision triangles")
+        msg = "canonical tunic DrapeTarget has no authoritative collision triangles"
+        raise RuntimeError(msg)
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
     def arrangement_world(name):
@@ -1653,7 +1591,8 @@ def simulation():
             None,
         )
         if raw is None:
-            raise RuntimeError(f"canonical tunic is missing avatar arrangement point {name}")
+            msg = f"canonical tunic is missing avatar arrangement point {name}"
+            raise RuntimeError(msg)
         point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
 
@@ -1693,9 +1632,8 @@ def simulation():
             or left_vertical > 0.22 * left_span
             or right_vertical > 0.22 * right_span
         ):
-            raise RuntimeError(
-                "tunic mannequin FK mesh is not near-T-pose: wrists are not near shoulder height"
-            )
+            msg = "tunic mannequin FK mesh is not near-T-pose: wrists are not near shoulder height"
+            raise RuntimeError(msg)
         pose_view = Gui.activeDocument().activeView()
         pose_view.viewFront()
         pose_view.fitAll()
@@ -1747,9 +1685,8 @@ def simulation():
                 )
             ]
             if not projected_target_ys:
-                raise RuntimeError(
-                    "canonical tunic torso silhouette does not overlap DrapeTarget projections"
-                )
+                msg = "canonical tunic torso silhouette does not overlap DrapeTarget projections"
+                raise RuntimeError(msg)
             target_front_y = min(projected_target_ys)
             target_back_y = max(projected_target_ys)
             if side == "front":
@@ -1757,7 +1694,8 @@ def simulation():
             elif side == "back":
                 y = target_back_y + clearance
             else:
-                raise ValueError("tunic target-relative side must be front or back")
+                msg = "tunic target-relative side must be front or back"
+                raise ValueError(msg)
             log(
                 "tunic-placement-depth side=%s projected-target-y=[%.2f, %.2f] "
                 "panel-y=%.2f clearance-mm=%.2f torso-x=[%.2f, %.2f] projected-vertices=%d"
@@ -1778,7 +1716,8 @@ def simulation():
         elif side == "back":
             y = (shoulder_left.y + shoulder_right.y) / 2.0 + clearance
         else:
-            raise ValueError("tunic target-relative side must be front or back")
+            msg = "tunic target-relative side must be front or back"
+            raise ValueError(msg)
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
 
     def make_piece(name, side, neckline_ratio, neckline_drop):
@@ -1927,10 +1866,12 @@ def simulation():
     )
     back_edge_ids = tuple(str(value) for value in getattr(back.Sketch, "SemanticEdgeIds", ()) or ())
     if len(front_edge_ids) < 8 or len(back_edge_ids) < 8:
-        raise RuntimeError("canonical tunic sketches have no complete semantic edge map")
+        msg = "canonical tunic sketches have no complete semantic edge map"
+        raise RuntimeError(msg)
     required_indices = (1, 3, 5, 7)
     if any(not front_edge_ids[index] or not back_edge_ids[index] for index in required_indices):
-        raise RuntimeError("canonical tunic fixture is missing authored semantic edge IDs")
+        msg = "canonical tunic fixture is missing authored semantic edge IDs"
+        raise RuntimeError(msg)
 
     from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
 
@@ -2080,7 +2021,8 @@ def simulation():
     proxy = scene.Proxy
     base_proxy_getter = getattr(proxy, "_base_or_restore", None)
     if not callable(base_proxy_getter):
-        raise RuntimeError("canonical tunic simulation cannot invalidate its cached scene")
+        msg = "canonical tunic simulation cannot invalidate its cached scene"
+        raise RuntimeError(msg)
     # Explicitly invalidate the initial demo signature; touch() alone retained its backend.
     base_proxy_getter().source_signature = None
     scene.touch()
@@ -2092,7 +2034,8 @@ def simulation():
     proxy = scene.Proxy
     base_proxy_getter = getattr(proxy, "_base_or_restore", None)
     if not callable(base_proxy_getter):
-        raise RuntimeError("canonical tunic simulation cannot rebuild its authored panels")
+        msg = "canonical tunic simulation cannot rebuild its authored panels"
+        raise RuntimeError(msg)
     base_proxy_getter().source_signature = None
     proxy.execute(scene)
     status = target_status(target)
@@ -2103,14 +2046,16 @@ def simulation():
     proxy = scene.Proxy
     backend = getattr(proxy, "backend", None)
     if backend is None:
-        raise RuntimeError("canonical tunic did not build a simulation backend")
+        msg = "canonical tunic did not build a simulation backend"
+        raise RuntimeError(msg)
     particle_positions = tuple(
         tuple(float(value) for value in position) for position in backend.positions()
     )
     panel_indices = getattr(proxy, "panel_indices", {})
     panel_objects = tuple(getattr(scene, "DrapePanels", ()))
     if len(panel_objects) < 2:
-        raise RuntimeError("canonical tunic did not create one drape mesh per panel")
+        msg = "canonical tunic did not create one drape mesh per panel"
+        raise RuntimeError(msg)
     neckline_midpoints = []
     panel_boundary_edges = getattr(proxy, "panel_boundary_edges", {})
     panel_piece_names = getattr(proxy, "panel_piece_names", {})
@@ -2255,9 +2200,11 @@ def simulation():
         )
 
     if str(getattr(scene, "PinMode", "")) != "None":
-        raise RuntimeError("canonical tunic must use PinMode=None for seam convergence")
+        msg = "canonical tunic must use PinMode=None for seam convergence"
+        raise RuntimeError(msg)
     if list(getattr(scene, "PinSelection", ())) != []:
-        raise RuntimeError("canonical tunic PinMode=None retained explicit PinSelection values")
+        msg = "canonical tunic PinMode=None retained explicit PinSelection values"
+        raise RuntimeError(msg)
     solver_pins = tuple(sorted(int(index) for index in getattr(backend, "_pin_indices", ())))
     if not solver_pins:
         system = getattr(backend, "system", None)
@@ -2282,10 +2229,11 @@ def simulation():
     except (ImportError, ValueError):
         initial_clearance = None
     if initial_clearance is None or float(initial_clearance) < float(clearance):
-        raise RuntimeError(
+        msg = (
             "canonical tunic step-0 target clearance is below configured separation: "
             f"{float(initial_clearance or 0.0):.2f} mm < {float(clearance):.2f} mm"
         )
+        raise RuntimeError(msg)
     log("pin-mode=None solver-pins=0")
     log("seam-world-x-step0=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
     log("target-collision-mode=mesh")
@@ -2320,7 +2268,8 @@ def simulation():
         int(getattr(avatar, "MeshVertexCount", 0)) <= 100
         or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100
     ):
-        raise RuntimeError("visual fixture does not contain a real humanoid mesh")
+        msg = "visual fixture does not contain a real humanoid mesh"
+        raise RuntimeError(msg)
     activate("ClothSimulationWorkbench", "Cloth Simulation", ["ClothSimulation_Edit"])
     simulation_panel = SimulationQualityTaskPanel(scene)
     task_dock = show_task(
@@ -2399,7 +2348,9 @@ def simulation():
     task_dock.show()
     task_dock.raise_()
     events()
-    os.makedirs(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames"), exist_ok=True)
+    pathlib.Path(os.path.join(OUT, "cloth-tunic-mannequin-motion-frames")).mkdir(
+        exist_ok=True, parents=True
+    )
     task_dock.hide()
     events()
     view.setCameraType("Orthographic")
@@ -2430,7 +2381,8 @@ def simulation():
         task_dock.raise_()
         events()
     if int(scene.Steps) != 90 or float(scene.SimulatedTime) <= 0.0 or not bool(scene.FiniteState):
-        raise RuntimeError("simulation did not reach a finite 90-step state")
+        msg = "simulation did not reach a finite 90-step state"
+        raise RuntimeError(msg)
     log("seam-world-x-step90=" + json.dumps(_seam_lateral_snapshot(proxy, x_mid), sort_keys=True))
 
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
@@ -2439,16 +2391,18 @@ def simulation():
     expected_seam_ids = {str(seam.SeamId) for seam, _piece_a, _piece_b in seam_records}
     rendered_seam_ids = set(getattr(overlay, "rendered_seam_ids", ()))
     if overlay is None or not expected_seam_ids or not expected_seam_ids <= rendered_seam_ids:
-        raise RuntimeError(
+        msg = (
             "simulation seam overlay is not rendering exact solver stitch pairs: "
             f"expected={sorted(expected_seam_ids)!r} rendered={sorted(rendered_seam_ids)!r}"
         )
+        raise RuntimeError(msg)
     log(
         "simulation-seam-overlay=passed ids=%s source=solver-stitch-pairs"
         % sorted(rendered_seam_ids)
     )
     if any(panel.Mesh.CountFacets <= 10 for panel in scene.DrapePanels):
-        raise RuntimeError("draped tunic panel mesh is empty")
+        msg = "draped tunic panel mesh is empty"
+        raise RuntimeError(msg)
     from freecad_cloth.simulation.ClothDiagnosticsGui import (
         DiagnosticsTaskPanel,
         create_diagnostic_map,
@@ -2470,7 +2424,8 @@ def simulation():
     events()
     diagnostic_maps = create_diagnostic_map(scene, "stress")
     if not diagnostic_maps:
-        raise RuntimeError("valid draped tunic produced no diagnostic stress map")
+        msg = "valid draped tunic produced no diagnostic stress map"
+        raise RuntimeError(msg)
     for diagnostic in diagnostic_maps:
         diagnostic.ViewObject.Visibility = True
     log("diagnostic-map=passed metric=stress maps=%d" % len(diagnostic_maps))
@@ -2481,7 +2436,8 @@ def simulation():
     except RuntimeError as exc:
         log(f"diagnostic-stale-guard=passed message={exc!s}")
     else:
-        raise RuntimeError("diagnostics created a map from a non-finite simulation state")
+        msg = "diagnostics created a map from a non-finite simulation state"
+        raise RuntimeError(msg)
     finally:
         scene.FiniteState = original_finite
     view.viewFront()
@@ -2532,10 +2488,11 @@ def simulation():
             actual_q = tuple(float(value) for value in restored_orientation.Q)
             rotation_agreement = abs(sum(a * b for a, b in zip(expected_q, actual_q, strict=True)))
             if rotation_agreement < 1.0 - 1e-8:
-                raise RuntimeError(
+                msg = (
                     "draped front camera rotation does not match arranged screenshot "
                     f"(quaternion agreement={rotation_agreement:.12f})"
                 )
+                raise RuntimeError(msg)
             log("camera-draped-front=" + json.dumps(_camera_snapshot(view), sort_keys=True))
         save(
             f"cloth-simulation-draped-{direction}.png",
@@ -2551,7 +2508,7 @@ def simulation():
             )
     from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
-    with open(METRICS, encoding="utf-8") as handle:
+    with pathlib.Path(METRICS).open(encoding="utf-8") as handle:
         # This fixture is intentionally unpinned: gravity may place the free-draped
         # hem below the authored hip reference without indicating detachment, collapse,
         # or collision failure. Keep those other fail-closed diagnostics authoritative.
@@ -2569,7 +2526,8 @@ def simulation():
 def main():
     log("script-start")
     if Gui.getMainWindow() is None or not Gui.getMainWindow().isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
+        msg = "FreeCAD GUI did not launch"
+        raise RuntimeError(msg)
     Gui.getMainWindow().show()
     events()
     events()

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD commands for selecting and editing a persistent draping/collision target."""
 
 import contextlib
@@ -18,7 +19,8 @@ def _selected_source():
     for obj in Gui.Selection.getSelection():
         if hasattr(obj, "Shape") or hasattr(obj, "Mesh"):
             return obj
-    raise ValueError("select a FreeCAD shape or mesh as the drape target")
+    msg = "select a FreeCAD shape or mesh as the drape target"
+    raise ValueError(msg)
 
 
 def _target(doc):
@@ -47,9 +49,11 @@ def _attach_to_simulation(doc, source, target):
 def set_drape_target_source(scene, source, thickness=2.0, deflection=1.0):
     """Assign a persistent collision source through the target-neutral API."""
     if scene is None or not _is_simulation_scene(scene):
-        raise ValueError("expected a ClothSimulation scene")
+        msg = "expected a ClothSimulation scene"
+        raise ValueError(msg)
     if source is None:
-        raise ValueError("a drape target source is required")
+        msg = "a drape target source is required"
+        raise ValueError(msg)
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
     doc = scene.Document
@@ -94,7 +98,7 @@ def create_drape_target_from_selection(deflection=1.0, thickness=2.0):
 def create_mannequin_drape_target():
     import FreeCAD as App
 
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
     from freecad_cloth.simulation.DrapeTarget import (
         DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
         assign_drape_target,
@@ -130,10 +134,12 @@ def edit_drape_target():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("create a document before editing the drape target")
+        msg = "create a document before editing the drape target"
+        raise ValueError(msg)
     target = _target(doc)
     if target is None:
-        raise ValueError("create a drape target first")
+        msg = "create a drape target first"
+        raise ValueError(msg)
     return show_drape_target_task(target)
 
 
@@ -145,7 +151,8 @@ def refresh_drape_target():
 
     doc = App.ActiveDocument
     if doc is None or _target(doc) is None:
-        raise ValueError("create a drape target first")
+        msg = "create a drape target first"
+        raise ValueError(msg)
     target = refresh_drape_target(_target(doc))
     doc.recompute()
     return target
@@ -156,7 +163,8 @@ def set_drape_target_enabled(enabled=True):
 
     doc = App.ActiveDocument
     if doc is None or _target(doc) is None:
-        raise ValueError("create a drape target first")
+        msg = "create a drape target first"
+        raise ValueError(msg)
     target = _target(doc)
     target.Enabled = bool(enabled)
     doc.recompute()
@@ -172,7 +180,8 @@ def show_diagnostics():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("create a simulation before opening diagnostics")
+        msg = "create a simulation before opening diagnostics"
+        raise ValueError(msg)
     _ACTIVE_DIAGNOSTICS_TASK_PANEL = show_panel()
     return _ACTIVE_DIAGNOSTICS_TASK_PANEL
 

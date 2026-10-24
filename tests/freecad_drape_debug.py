@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Fast visual/structural A-B audit for the canonical tunic drape.
 
 Runs the production cloth avatar + native Sketcher tunic fixture with the selected
@@ -9,10 +10,15 @@ and full GUI acceptance suite.
 from __future__ import annotations
 
 import contextlib
+import importlib
 import json
 import math
 import os
+import sys
+from collections.abc import Callable
+from itertools import starmap
 from pathlib import Path
+from typing import cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -24,6 +30,16 @@ except ImportError:
     from PySide2 import QtWidgets
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+_arc_through_midpoint: Callable[[object, object, object, object], object] = cast(
+    "Callable[[object, object, object, object], object]",
+    getattr(
+        importlib.import_module("tests.support.freecad_arc_geometry"),
+        "arc_through_midpoint",
+    ),
+)
+
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))
 OUT.mkdir(parents=True, exist_ok=True)
 STEPS = [0, 5, 10, 20, 30]
@@ -60,114 +76,6 @@ def close_task():
         pass
 
 
-def _arc_through_midpoint(Part: object, start: object, end: object, midpoint: object) -> object:
-    """Build a minor native circular arc through an explicit on-arc point."""
-    import math
-
-    sx, sy = float(start.x), float(start.y)
-    ex, ey = float(end.x), float(end.y)
-    mx, my = float(midpoint.x), float(midpoint.y)
-    start_sq = sx * sx + sy * sy
-    end_sq = ex * ex + ey * ey
-    middle_sq = mx * mx + my * my
-    determinant = 2.0 * (sx * (ey - my) + ex * (my - sy) + mx * (sy - ey))
-    if abs(determinant) <= 1e-9:
-        raise RuntimeError("tunic armhole points are collinear; cannot construct an arc")
-
-    center_x = (start_sq * (ey - my) + end_sq * (my - sy) + middle_sq * (sy - ey)) / determinant
-    center_y = (start_sq * (mx - ex) + end_sq * (sx - mx) + middle_sq * (ex - sx)) / determinant
-    radius = math.hypot(sx - center_x, sy - center_y)
-    if not math.isfinite(radius) or radius <= 1e-9:
-        raise RuntimeError("tunic armhole circle has an invalid radius")
-
-    def curve_value(curve: object, parameter_value: float) -> object:
-        getter = getattr(curve, "valueAt", None)
-        if not callable(getter):
-            getter = getattr(curve, "value", None)
-        if not callable(getter):
-            raise RuntimeError("tunic armhole curve has no native parameter evaluator")
-        return getter(float(parameter_value))
-
-    tau = 2.0 * math.pi
-    selected = None
-    for normal_z in (1.0, -1.0):
-        circle = Part.Circle(
-            App.Vector(center_x, center_y, 0.0),
-            App.Vector(0.0, 0.0, normal_z),
-            radius,
-        )
-        # Derive parameters from the native circle basis instead of assuming
-        # which global direction its X axis uses for either normal orientation.
-        zero_point = curve_value(circle, 0.0)
-        quarter_point = curve_value(circle, math.pi / 2.0)
-        axis_x = (
-            (float(zero_point.x) - center_x) / radius,
-            (float(zero_point.y) - center_y) / radius,
-        )
-        axis_y = (
-            (float(quarter_point.x) - center_x) / radius,
-            (float(quarter_point.y) - center_y) / radius,
-        )
-
-        def parameter(
-            point_x: float,
-            point_y: float,
-            axis_x: tuple[float, float] = axis_x,
-            axis_y: tuple[float, float] = axis_y,
-        ) -> float:
-            dx = point_x - center_x
-            dy = point_y - center_y
-            return (
-                math.atan2(
-                    dx * axis_y[0] + dy * axis_y[1],
-                    dx * axis_x[0] + dy * axis_x[1],
-                )
-                % tau
-            )
-
-        start_angle = parameter(sx, sy)
-        end_angle = parameter(ex, ey)
-        middle_angle = parameter(mx, my)
-        sweep = (end_angle - start_angle) % tau
-        middle_sweep = (middle_angle - start_angle) % tau
-        if sweep > 1e-9 and middle_sweep <= sweep + 1e-9:
-            selected = (circle, normal_z, start_angle, sweep, middle_sweep)
-            break
-
-    if selected is None:
-        raise RuntimeError("tunic armhole points do not define a consistent circular sweep")
-    circle, normal_z, start_angle, sweep, middle_sweep = selected
-    if sweep >= math.pi:
-        raise RuntimeError(
-            "tunic armhole through-point selects a major arc: sweep-rad=%.6f" % sweep
-        )
-
-    arc = Part.ArcOfCircle(circle, start_angle, start_angle + sweep)
-    checks = (
-        ("start", start, start_angle),
-        ("end", end, start_angle + sweep),
-        ("midpoint", midpoint, start_angle + middle_sweep),
-    )
-    for role, expected, parameter_value in checks:
-        actual = curve_value(arc, parameter_value)
-        error = math.hypot(float(actual.x) - float(expected.x), float(actual.y) - float(expected.y))
-        if error > 1e-5:
-            raise RuntimeError(
-                "tunic armhole arc lost authored %s: error-mm=%.6f "
-                "normal-z=%.0f expected=(%.4f,%.4f) actual=(%.4f,%.4f)"
-                % (
-                    role,
-                    error,
-                    normal_z,
-                    float(expected.x),
-                    float(expected.y),
-                    float(actual.x),
-                    float(actual.y),
-                )
-            )
-    return arc
-
-
 def _make_tunic_sketch(
     doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop
 ):
@@ -190,19 +98,22 @@ def _make_tunic_sketch(
         (x_offset + 0.26 * panel_width, armhole_z),
     ]
     if not (armhole_z < shoulder_z < neck_z):
-        raise RuntimeError("debug tunic shoulders must fall outward from neckline")
+        msg = "debug tunic shoulders must fall outward from neckline"
+        raise RuntimeError(msg)
     if not (armhole_z < neckline_scoop_z < shoulder_z):
-        raise RuntimeError(
-            "debug tunic neckline must scoop below the shoulders and above the armholes"
-        )
+        msg = "debug tunic neckline must scoop below the shoulders and above the armholes"
+        raise RuntimeError(msg)
     if points[3][0] - points[2][0] < 0.15 * float(panel_width):
-        raise RuntimeError("debug tunic armhole is too narrow")
+        msg = "debug tunic armhole is too narrow"
+        raise RuntimeError(msg)
     if shoulder_z - armhole_z < 0.20 * h:
-        raise RuntimeError("debug tunic armhole is too shallow")
+        msg = "debug tunic armhole is too shallow"
+        raise RuntimeError(msg)
     center_x = 0.5 * float(hem_width)
     for left, right in ((0, 1), (2, 7), (3, 6), (4, 5)):
         if abs((points[left][0] + points[right][0]) - 2.0 * center_x) > 1e-9:
-            raise RuntimeError("debug tunic profile lost canonical bilateral symmetry")
+            msg = "debug tunic profile lost canonical bilateral symmetry"
+            raise RuntimeError(msg)
     sketch = doc.addObject("Sketcher::SketchObject", name)
     armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
     side_ease_mm = 4.0
@@ -261,7 +172,7 @@ def _style_mesh(obj):
 
 def _debug_line(doc, name, points, color, width=4.0):
     feature = doc.addObject("Part::Feature", name)
-    feature.Shape = Part.makePolygon([App.Vector(*p) for p in points])
+    feature.Shape = Part.makePolygon(list(starmap(App.Vector, points)))
     try:
         feature.ViewObject.LineColor = color
         feature.ViewObject.LineWidth = width
@@ -364,7 +275,8 @@ def run():
     scene = create_quality_simulation_scene(doc)
     avatar = getattr(scene.AvatarProxy, "SourceObject", None)
     if avatar is None:
-        raise RuntimeError("production avatar missing")
+        msg = "production avatar missing"
+        raise RuntimeError(msg)
     box = avatar.Mesh.BoundBox
     y_span = box.YMax - box.YMin
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -496,14 +408,16 @@ def run():
     base = scene.Proxy._base_or_restore()
     backend = getattr(base, "backend", None)
     if backend is None:
-        raise RuntimeError("production simulation backend missing")
+        msg = "production simulation backend missing"
+        raise RuntimeError(msg)
     stitches = (
         tuple((int(c.a), int(c.b)) for c in getattr(backend.system, "stitches", ()))
         if hasattr(backend, "system")
         else tuple(getattr(backend, "_stitches", ()))
     )
     if not stitches:
-        raise RuntimeError("production seam graph produced no stitches")
+        msg = "production seam graph produced no stitches"
+        raise RuntimeError(msg)
     backend.pin(pins)
     backend.set_stitches(stitches, compliance=0.0)
     target_vertices = [tuple(v) for v in avatar.Mesh.Points]

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
 
 import os
@@ -24,13 +25,13 @@ if ROOT not in sys.path:
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
-os.makedirs(OUT, exist_ok=True)
+Path(OUT).mkdir(exist_ok=True, parents=True)
 LOG = os.path.join(OUT, "avatar-gui-progress.log")
 TURNTABLE_FRAMES = max(12, min(72, int(os.environ.get("CLOTH_TURNTABLE_FRAMES", "72"))))
 
 
 def log(message):
-    with open(LOG, "a", encoding="utf-8") as handle:
+    with Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
@@ -51,7 +52,8 @@ def wait_for_gui_ready(timeout_seconds=15.0):
             return window
         events()
         time.sleep(0.05)
-    raise RuntimeError(f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s")
+    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
+    raise RuntimeError(msg)
 
 
 def hide_task_docks(window):
@@ -80,19 +82,20 @@ def zoom_for_direction(view, direction):
 def save_png(view, path, width=1280, height=720, state="capture"):
     """Render only the 3D view so README images are unobstructed model evidence."""
     view.saveImage(path, width, height, "White")
-    if not os.path.isfile(path) or os.path.getsize(path) < 5000:
-        raise RuntimeError(f"failed or suspiciously small screenshot: {path}")
-    with open(path, "rb") as handle:
+    if not Path(path).is_file() or Path(path).stat().st_size < 5000:
+        msg = f"failed or suspiciously small screenshot: {path}"
+        raise RuntimeError(msg)
+    with Path(path).open("rb") as handle:
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
-        raise RuntimeError(f"invalid PNG capture for {state}")
+        msg = f"invalid PNG capture for {state}"
+        raise RuntimeError(msg)
     rendered_width = int.from_bytes(header[16:20], "big")
     rendered_height = int.from_bytes(header[20:24], "big")
     if (rendered_width, rendered_height) != (width, height):
-        raise RuntimeError(
-            f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
-        )
-    log("screenshot=%s state=%s bytes=%d" % (path, state, os.path.getsize(path)))
+        msg = f"invalid rendered dimensions for {state}: {rendered_width}x{rendered_height}"
+        raise RuntimeError(msg)
+    log("screenshot=%s state=%s bytes=%d" % (path, state, Path(path).stat().st_size))
 
 
 def avatar_center(avatar):
@@ -107,7 +110,7 @@ def avatar_center(avatar):
 
 def render_turntable(view, center, frame_dir, frame_count=72):
     """Render a complete 360-degree horizontal camera orbit around the avatar."""
-    os.makedirs(frame_dir, exist_ok=True)
+    Path(frame_dir).mkdir(exist_ok=True, parents=True)
     view.setCameraType("Orthographic")
     view.viewRear()
     view.fitAll()
@@ -120,7 +123,8 @@ def render_turntable(view, center, frame_dir, frame_count=72):
     base_offset = base_position - center_coin
     radius = base_offset.length()
     if radius <= 0:
-        raise RuntimeError("avatar turntable camera radius is zero")
+        msg = "avatar turntable camera radius is zero"
+        raise RuntimeError(msg)
 
     up = coin.SbVec3f(0.0, 0.0, 1.0)
     camera.pointAt(center_coin, up)
@@ -212,7 +216,7 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
     """Render real HM08 mannequin examples at one orthographic scale."""
     from PIL import Image, ImageDraw, ImageFont
 
-    from freecad_cloth.avatar.AvatarCommands import _rebuild
+    from freecad_cloth.avatar.avatar_commands import _rebuild
 
     profiles = _body_shape_gallery_profiles()
 
@@ -399,7 +403,8 @@ def render_body_shape_gallery(doc, view, avatar, output, initial_profile_applied
 
     gallery.save(output_path, format="PNG", optimize=True)
     if output_path.stat().st_size < 20000:
-        raise RuntimeError("body-shape gallery is suspiciously small")
+        msg = "body-shape gallery is suspiciously small"
+        raise RuntimeError(msg)
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
     metrics = validate_png_capture(
@@ -438,19 +443,18 @@ def main():
         "documentation",
         "documentation-turntable",
     ):
-        raise RuntimeError(
-            "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
-        )
+        msg = "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
+        raise RuntimeError(msg)
     log("avatar-script-mode=%s" % mode)
     window = wait_for_gui_ready()
 
     init_gui = os.path.join(ROOT, "InitGui.py")
-    with open(init_gui, encoding="utf-8") as handle:
-        exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
+    with Path(init_gui).open(encoding="utf-8") as handle:
+        exec(handle.read(), globals(), globals())
     events()
     hide_task_docks(window)
 
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
 
     doc = App.newDocument("ClothAvatarVisualAudit")
     try:
@@ -473,12 +477,14 @@ def main():
         else:
             avatar = create_avatar(attach_collision=False, doc=doc)
         if str(getattr(avatar, "AvatarStatus", "")) != "Valid":
-            raise RuntimeError("avatar provider did not produce a valid mesh")
+            msg = "avatar provider did not produce a valid mesh"
+            raise RuntimeError(msg)
         if (
             int(getattr(avatar, "MeshVertexCount", 0)) <= 100
             or int(getattr(avatar, "MeshTriangleCount", 0)) <= 100
         ):
-            raise RuntimeError("avatar visual fixture does not contain a real humanoid mesh")
+            msg = "avatar visual fixture does not contain a real humanoid mesh"
+            raise RuntimeError(msg)
         if mode != "gallery":
             avatar.ViewObject.DisplayMode = "Flat Lines"
             avatar.ViewObject.ShapeColor = (0.72, 0.72, 0.72)

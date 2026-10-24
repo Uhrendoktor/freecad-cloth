@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from pathlib import Path
 
 from freecad_cloth.shared.collision import surface_from_triangles
@@ -45,7 +46,8 @@ def test_pinned_pinned_stitch_rejects_nonzero_initial_separation():
         assert "impossible pinned-pinned sewing constraint" in message
         assert "seam=TunicRightShoulder" in message
     else:
-        raise AssertionError("physically impossible pinned-pinned stitch was accepted")
+        msg = "physically impossible pinned-pinned stitch was accepted"
+        raise AssertionError(msg)
 
 
 def test_pinned_pinned_stitch_allows_numerical_zero():

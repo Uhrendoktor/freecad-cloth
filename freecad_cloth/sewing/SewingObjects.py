@@ -1,17 +1,20 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD document objects for sewing operations."""
 
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable, Sequence
 from math import atan2, degrees, hypot
-from types import ModuleType
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     correspondence_status_label,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+    from types import ModuleType
 
 
 class _NativePoint(Protocol):
@@ -196,7 +199,8 @@ def _edge_polyline(piece: object, edge: int, sample_count: int = 64) -> list[tup
             pass
     points = _outline_points(piece)
     if edge < 0 or edge >= len(points):
-        raise ValueError(f"seam edge {edge} is outside the pattern boundary")
+        msg = f"seam edge {edge} is outside the pattern boundary"
+        raise ValueError(msg)
     return [points[edge], points[(edge + 1) % len(points)]]
 
 
@@ -207,7 +211,8 @@ def _polyline_length(points: Sequence[tuple[float, float]]) -> float:
 def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> tuple[float, float]:
     """Sample a polyline at normalized arc length."""
     if not points:
-        raise ValueError("cannot sample an empty edge")
+        msg = "cannot sample an empty edge"
+        raise ValueError(msg)
     if len(points) == 1:
         return points[0]
     fraction = min(1.0, max(0.0, float(fraction)))
@@ -264,10 +269,11 @@ def _seam_edge_index(
             if len(native_indices) != 1:
                 from freecad_cloth.pattern.SeamReference import MissingEdgeReference
 
-                raise MissingEdgeReference(
+                msg = (
                     f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
                     f"found {len(native_indices)}"
                 )
+                raise MissingEdgeReference(msg)
             return native_indices[0]
         return int(record["ordinal"])
     return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))
@@ -277,7 +283,8 @@ def _seam_length(piece: object, seam: object, prefix: str) -> float:
     start = float(getattr(seam, "StartA" if prefix == "A" else "StartB"))
     end = float(getattr(seam, "EndA" if prefix == "A" else "EndB"))
     if not 0 <= start <= 1 or not 0 <= end <= 1 or start >= end:
-        raise ValueError("seam parameters must be normalized with positive extent")
+        msg = "seam parameters must be normalized with positive extent"
+        raise ValueError(msg)
     edge = _seam_edge_index(piece, seam, prefix)
     return _edge_length(piece, edge) * (end - start)
 
@@ -304,11 +311,11 @@ def _edge_points(
     local1 = vector_factory(p1[0], p1[1], z)
     placement = getattr(piece, "Placement", None)
     if placement is not None:
-        native_placement = cast(_NativePlacement, placement)
-        return native_placement.multVec(cast(_NativePoint, local0)), native_placement.multVec(
-            cast(_NativePoint, local1)
+        native_placement = cast("_NativePlacement", placement)
+        return native_placement.multVec(cast("_NativePoint", local0)), native_placement.multVec(
+            cast("_NativePoint", local1)
         )
-    return cast(_NativePoint, local0), cast(_NativePoint, local1)
+    return cast("_NativePoint", local0), cast("_NativePoint", local1)
 
 
 def _resolved_edge(piece: object, seam: object, prefix: str) -> int:
@@ -333,7 +340,8 @@ def _edge_samples(
         vector_factory = App.Vector
 
     if count < 2:
-        raise ValueError("correspondence requires at least two samples")
+        msg = "correspondence requires at least two samples"
+        raise ValueError(msg)
     points = _edge_polyline(piece, edge)
     values = []
     for i in range(count):
@@ -341,9 +349,9 @@ def _edge_samples(
         p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
         value = vector_factory(p[0], p[1], z)
         placement = getattr(piece, "Placement", None)
-        native_value = cast(_NativePoint, value)
+        native_value = cast("_NativePoint", value)
         values.append(
-            cast(_NativePlacement, placement).multVec(native_value)
+            cast("_NativePlacement", placement).multVec(native_value)
             if placement is not None and transform_to_world
             else native_value
         )
@@ -405,10 +413,12 @@ def _seam_correspondence(
 ) -> list[tuple[_NativePoint, _NativePoint]]:
     """Build deterministic A/B stitch points from the same semantic seam."""
     if count < 2:
-        raise ValueError("correspondence requires at least two samples")
+        msg = "correspondence requires at least two samples"
+        raise ValueError(msg)
     alignment = str(alignment or "endpoints")
     if alignment not in ("endpoints", "uniform"):
-        raise ValueError(f"unsupported sewing alignment: {alignment}")
+        msg = f"unsupported sewing alignment: {alignment}"
+        raise ValueError(msg)
     edge_a = _resolved_edge(piece_a, seam, "A")
     edge_b = _resolved_edge(piece_b, seam, "B")
     a_points = _edge_samples(

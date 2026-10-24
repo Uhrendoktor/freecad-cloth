@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless model used to assemble deterministic inputs for PositionBasedDynamics.
 
 This module deliberately contains no physics integration or collision solver.
@@ -68,7 +69,8 @@ def distance(a: Particle, b: Particle) -> float:
     """Return a finite Euclidean distance between two particles."""
     result = dist(a.position(), b.position())
     if not isfinite(result):
-        raise ValueError("particle distance must be finite")
+        msg = "particle distance must be finite"
+        raise ValueError(msg)
     return result
 
 
@@ -86,7 +88,8 @@ class ClothSystem:
         self.particles: list[Particle] = []
         for particle in raw_particles:
             if not isinstance(particle, Particle):
-                raise TypeError("particles must be Particle instances")
+                msg = "particles must be Particle instances"
+                raise TypeError(msg)
             # Particle is mutable; revalidate at the solver-system boundary.
             ParticleInput.model_validate(
                 {"x": particle.x, "y": particle.y, "z": particle.z, "inv_mass": particle.inv_mass}
@@ -97,7 +100,8 @@ class ClothSystem:
         self.constraints: list[DistanceConstraint] = []
         for constraint in raw_constraints:
             if not isinstance(constraint, DistanceConstraint):
-                raise TypeError("constraints must be DistanceConstraint instances")
+                msg = "constraints must be DistanceConstraint instances"
+                raise TypeError(msg)
             self._validate_constraint_indices(constraint)
             self.constraints.append(constraint)
         self.stitches: list[DistanceConstraint] = []
@@ -169,14 +173,16 @@ class ClothSystem:
         """Append sewing constraints, deriving zero-rest length from particle positions."""
         compliance = validate_finite_number(compliance)
         if compliance < 0.0:
-            raise ValueError("compliance must be non-negative")
+            msg = "compliance must be non-negative"
+            raise ValueError(msg)
         for pair in pairs:
             if isinstance(pair, DistanceConstraint):
                 constraint = pair
             else:
                 values = tuple(pair)
                 if len(values) != 2:
-                    raise ValueError("stitch pairs must contain exactly two particle indices")
+                    msg = "stitch pairs must contain exactly two particle indices"
+                    raise ValueError(msg)
                 validated = ParticlePairInput.model_validate({"a": values[0], "b": values[1]})
                 constraint = DistanceConstraint(validated.a, validated.b, 0.0, compliance)
             self._validate_constraint_indices(constraint)
@@ -187,7 +193,8 @@ class ClothSystem:
         for raw_index in indices:
             index = ParticleIndexInput.model_validate({"index": raw_index}).index
             if index >= len(self.particles):
-                raise ValueError("pin index outside system")
+                msg = "pin index outside system"
+                raise ValueError(msg)
             self.pins[index] = self.particles[index].position()
             self.particles[index].inv_mass = 0.0
 
@@ -195,7 +202,8 @@ class ClothSystem:
         """Reject constraints that reference missing particles."""
         count = len(self.particles)
         if constraint.a >= count or constraint.b >= count:
-            raise ValueError("constraint particle index outside system")
+            msg = "constraint particle index outside system"
+            raise ValueError(msg)
 
     def finite(self) -> bool:
         """Return whether particle state and constraint parameters remain finite."""

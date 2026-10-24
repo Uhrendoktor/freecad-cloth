@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Simulation workbench."""
 
 from collections.abc import Callable
@@ -14,7 +15,7 @@ def create_simulation():
 
 def create_quality_simulation_scene(doc):
     """Create a quality-controlled simulation scene and its explicit mannequin target."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.DrapeTarget import DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
     from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
@@ -119,10 +120,12 @@ def _require_simulation():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("no active document")
+        msg = "no active document"
+        raise RuntimeError(msg)
     scene = _find_simulation(doc)
     if scene is None:
-        raise RuntimeError("no Cloth Simulation object in active document")
+        msg = "no Cloth Simulation object in active document"
+        raise RuntimeError(msg)
     return doc, scene
 
 
@@ -132,7 +135,8 @@ def simulate_selected(steps=None):
     _require_drape_target_ready(doc)
     count = int(steps if steps is not None else 1)
     if count < 1:
-        raise ValueError("steps must be positive")
+        msg = "steps must be positive"
+        raise ValueError(msg)
     scene.Steps = int(scene.Steps) + count
     doc.recompute()
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay

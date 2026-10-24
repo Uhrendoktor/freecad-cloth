@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run the canonical Python/FreeCAD validation suite inside the CI image."""
 
 from __future__ import annotations
@@ -135,7 +136,11 @@ GROUPS = {
 
 
 def validate_test_routing() -> None:
-    """Fail closed when a pytest module is missing from or duplicated across groups."""
+    """Fail closed when a pytest module is missing from or duplicated across groups.
+
+    Raises:
+        SystemExit: Raised when test modules are stale, missing from all groups, or duplicated.
+    """
     routed = Counter(Path(test).as_posix() for tests in GROUPS.values() for test in tests)
     existing = {path.as_posix() for path in Path("tests").glob("test_*.py")}
     stale = sorted(path for path in routed if not Path(path).is_file())
@@ -157,7 +162,14 @@ def validate_test_routing() -> None:
 
 
 def main() -> int:
-    """Run the canonical Python validation suite."""
+    """Run the canonical Python validation suite.
+
+    Raises:
+        SystemExit: Raised when the requested validation group contains missing test files.
+
+    Returns:
+        Process status indicating whether the selected test group passed.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("group", choices=sorted(GROUPS))
     cli_args = list(sys.argv[1:])

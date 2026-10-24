@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD/Xvfb acceptance and visual evidence for viewport-picked anchors and Arrange."""
 
 import json
@@ -8,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from itertools import starmap
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -23,9 +26,11 @@ def _capture_screen(path):
         from PySide2 import QtWidgets
     app = QtWidgets.QApplication.instance()
     if app is None or app.primaryScreen() is None:
-        raise RuntimeError("Qt primary screen is unavailable for Interactive Arrange screenshot")
+        msg = "Qt primary screen is unavailable for Interactive Arrange screenshot"
+        raise RuntimeError(msg)
     if not app.primaryScreen().grabWindow(0).save(path):
-        raise RuntimeError("failed to save Interactive Arrange UI screenshot")
+        msg = "failed to save Interactive Arrange UI screenshot"
+        raise RuntimeError(msg)
 
 
 def _screen(view, vector):
@@ -36,7 +41,7 @@ def _screen(view, vector):
 
 def _create_demo_avatar(doc):
     """Create the same production mannequin used by fitting and simulation."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from freecad_cloth.avatar.avatar_commands import create_avatar
 
     target = create_avatar(attach_collision=False, doc=doc, object_name="TunicArrangeMannequin")
     target.Label = "Mannequin / Tunic Fitting Target"
@@ -48,17 +53,20 @@ def _create_demo_avatar(doc):
 def _mesh_surface_pick(target, x_fraction, z_fraction, side):
     """Return a real triangle centroid on the mannequin's front or back torso."""
     if side not in {"front", "back"}:
-        raise ValueError("side must be 'front' or 'back'")
+        msg = "side must be 'front' or 'back'"
+        raise ValueError(msg)
     vertices, triangles = target.Mesh.Topology
     if not vertices or not triangles:
-        raise RuntimeError("the mannequin has no mesh triangles for a surface snap")
+        msg = "the mannequin has no mesh triangles for a surface snap"
+        raise RuntimeError(msg)
 
     bounds = target.Mesh.BoundBox
     width = float(bounds.XMax - bounds.XMin)
     height = float(bounds.ZMax - bounds.ZMin)
     depth = float(bounds.YMax - bounds.YMin)
     if min(width, height, depth) <= 0.0:
-        raise RuntimeError("the mannequin mesh has invalid bounds")
+        msg = "the mannequin mesh has invalid bounds"
+        raise RuntimeError(msg)
 
     center_x = float(bounds.XMin) + float(x_fraction) * width
     center_z = float(bounds.ZMin) + float(z_fraction) * height
@@ -122,7 +130,7 @@ def _create_demo_tunic_piece(
         (-half_width, 0.0, half_height * 0.35),
     ]
     wire = Part.makePolygon(
-        [App.Vector(*point) for point in outline_points] + [App.Vector(*outline_points[0])]
+        list(starmap(App.Vector, outline_points)) + [App.Vector(*outline_points[0])]
     )
     shape = Part.Face(wire).extrude(App.Vector(0.0, float(extrusion_sign) * 3.0, 0.0))
     piece = doc.addObject("Part::Feature", object_name)
@@ -245,7 +253,8 @@ def run():
             anchor_recorder.stop()
 
     if len(scene.ArrangementPointObjects) != 2:
-        raise RuntimeError("surface picking did not create exactly two tunic snap anchors")
+        msg = "surface picking did not create exactly two tunic snap anchors"
+        raise RuntimeError(msg)
     anchor_objects = {}
     for name, wrap, _world, subelement in pick_specs:
         point_obj = next(
@@ -272,7 +281,8 @@ def run():
 
     overlay = controller._anchor_overlay
     if overlay is None:
-        raise RuntimeError("Interactive Arrange did not create an attachment-point overlay")
+        msg = "Interactive Arrange did not create an attachment-point overlay"
+        raise RuntimeError(msg)
     if overlay.getNumChildren() != len(anchor_objects) + 1:
         raise RuntimeError(
             "attachment-point overlay does not contain every marker: "
@@ -282,7 +292,8 @@ def run():
     if bool(depth_state.getField("test").getValue()) or bool(
         depth_state.getField("write").getValue()
     ):
-        raise RuntimeError("attachment-point overlay is still depth-tested or writes depth")
+        msg = "attachment-point overlay is still depth-tested or writes depth"
+        raise RuntimeError(msg)
     for index, point_obj in enumerate(anchor_objects.values(), start=1):
         marker = overlay.getChild(index)
         if marker.getNumChildren() != 2:
@@ -371,7 +382,8 @@ def run():
                 piece.Label + " did not snap to its mannequin anchor: " + repr(actual)
             )
         if controller._snap_indicator is not None:
-            raise RuntimeError("snap marker remained after placement commit")
+            msg = "snap marker remained after placement commit"
+            raise RuntimeError(msg)
         saved = tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)
         matching = [value for value in saved if value.piece_id == str(piece.PieceId)]
         if len(matching) != 1 or matching[0].position != expected:
@@ -398,7 +410,8 @@ def run():
             recorder.stop()
 
     if len(tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)) != 2:
-        raise RuntimeError("fitting scene did not persist both tunic panel placements")
+        msg = "fitting scene did not persist both tunic panel placements"
+        raise RuntimeError(msg)
     point_obj = anchor_objects["TunicFrontAnchor"]
 
     # Whole-object transforms must move the anchor with its target, not invalidate it
@@ -440,7 +453,8 @@ def run():
             strict=True,
         )
     ):
-        raise RuntimeError("anchor marker is not coincident with the transformed target")
+        msg = "anchor marker is not coincident with the transformed target"
+        raise RuntimeError(msg)
 
     # Keep geometry-invalidation coverage on a separate B-rep target; the public
     # demonstration above deliberately uses the real mesh mannequin.
@@ -472,7 +486,8 @@ def run():
         None,
     )
     if probe_obj is None or arrangement_anchor_status(probe_obj) != "valid":
-        raise RuntimeError("B-rep geometry-staleness probe could not establish a valid anchor")
+        msg = "B-rep geometry-staleness probe could not establish a valid anchor"
+        raise RuntimeError(msg)
     changed_shape = Part.makeCompound(
         [shape_probe.Shape.copy(), Part.makeSphere(2.0, App.Vector(100.0, 0.0, 0.0))]
     )
@@ -491,9 +506,11 @@ def run():
             )
         )
     if probe_obj in controller._points():
-        raise RuntimeError("a stale B-rep surface anchor remained available for snapping")
+        msg = "a stale B-rep surface anchor remained available for snapping"
+        raise RuntimeError(msg)
     if "Stale anchor:" not in str(probe_obj.Label):
-        raise RuntimeError("stale B-rep anchor was not marked visibly in the viewport")
+        msg = "stale B-rep anchor was not marked visibly in the viewport"
+        raise RuntimeError(msg)
     scene.AvatarProxy = target
     doc.recompute()
     controller._points()
@@ -501,7 +518,7 @@ def run():
     # Exercise the actual avatar skeleton rebuild path. Select a triangle that
     # moves strongly under a manual joint rotation, then prove the saved barycentric
     # anchor follows that same triangle when the avatar mesh is rebuilt.
-    from freecad_cloth.avatar.AvatarCommands import set_avatar_joint
+    from freecad_cloth.avatar.avatar_commands import set_avatar_joint
     from freecad_cloth.avatar.FittingCommands import _mesh_anchor_local_position
 
     avatar = target
@@ -519,7 +536,8 @@ def run():
     set_avatar_joint("upperarm01.L", y=30.0)
     posed_vertices, posed_triangles = _mesh_snapshot(avatar)
     if len(posed_triangles) != len(rest_triangles):
-        raise RuntimeError("avatar skeleton edit unexpectedly changed mesh facet count")
+        msg = "avatar skeleton edit unexpectedly changed mesh facet count"
+        raise RuntimeError(msg)
 
     def facet_centroid(
         vertices: tuple[tuple[float, float, float], ...],
@@ -547,12 +565,14 @@ def run():
     posed_centroid = facet_centroid(posed_vertices, posed_triangles, moved_triangle_index)
     movement_score = sum((posed_centroid[axis] - rest_centroid[axis]) ** 2 for axis in range(3))
     if movement_score <= 1e-4:
-        raise RuntimeError("manual skeleton edit did not deform any avatar surface facet")
+        msg = "manual skeleton edit did not deform any avatar surface facet"
+        raise RuntimeError(msg)
 
     set_avatar_joint("upperarm01.L", y=0.0)
     reset_vertices, reset_triangles = _mesh_snapshot(avatar)
     if len(reset_triangles) != len(rest_triangles):
-        raise RuntimeError("reset avatar pose changed surface facet count")
+        msg = "reset avatar pose changed surface facet count"
+        raise RuntimeError(msg)
     triangle_weights = (0.2, 0.3, 0.5)
     reset_triangle = reset_triangles[moved_triangle_index]
     local_pick = tuple(
@@ -574,7 +594,8 @@ def run():
         value for value in records if value["name"] == "SkeletonSurfaceAnchor"
     )
     if int(mesh_anchor_record.get("triangle_index", -1)) != moved_triangle_index:
-        raise RuntimeError("surface picker did not persist the selected avatar triangle")
+        msg = "surface picker did not persist the selected avatar triangle"
+        raise RuntimeError(msg)
     mesh_anchor_obj = doc.getObject("ArrangementPoint_SkeletonSurfaceAnchor")
     rest_anchor = (
         float(mesh_anchor_obj.X),
@@ -585,7 +606,8 @@ def run():
     # This calls the production avatar rebuild and its fitting-anchor refresh hook.
     set_avatar_joint("upperarm01.L", y=30.0)
     if arrangement_anchor_status(mesh_anchor_obj) != "valid":
-        raise RuntimeError("skeleton posing incorrectly invalidated a compatible mesh anchor")
+        msg = "skeleton posing incorrectly invalidated a compatible mesh anchor"
+        raise RuntimeError(msg)
     expected_local = _mesh_anchor_local_position(avatar, mesh_anchor_record)
     expected_world = avatar.Placement.multVec(App.Vector(*expected_local))
     posed_anchor = (
@@ -607,17 +629,22 @@ def run():
             + repr((posed_anchor, expected_pose_point))
         )
     if sum((posed_anchor[index] - rest_anchor[index]) ** 2 for index in range(3)) <= 1e-4:
-        raise RuntimeError("avatar skeleton edit left the surface anchor at its old position")
+        msg = "avatar skeleton edit left the surface anchor at its old position"
+        raise RuntimeError(msg)
     if mesh_anchor_obj not in controller._points():
-        raise RuntimeError("a valid posed-avatar anchor was excluded from snapping")
+        msg = "a valid posed-avatar anchor was excluded from snapping"
+        raise RuntimeError(msg)
 
     panel.reject()
     if controller._mouse_callback is not None or controller._location_callback is not None:
-        raise RuntimeError("Interactive Arrange callbacks were not removed")
+        msg = "Interactive Arrange callbacks were not removed"
+        raise RuntimeError(msg)
     if controller._anchor_overlay is not None or controller._anchor_visibility:
-        raise RuntimeError("Interactive Arrange did not remove/restore its anchor overlay state")
+        msg = "Interactive Arrange did not remove/restore its anchor overlay state"
+        raise RuntimeError(msg)
     if any(not bool(obj.ViewObject.Visibility) for obj in anchor_objects.values()):
-        raise RuntimeError("persistent anchor marker visibility was not restored after Arrange")
+        msg = "persistent anchor marker visibility was not restored after Arrange"
+        raise RuntimeError(msg)
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
     Path("artifacts/interactive-arrange.log").write_text(

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject test-time monkeypatching and global module replacement."""
 
 from __future__ import annotations
@@ -9,6 +10,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _is_sys_modules(node: ast.AST) -> bool:
+    """Identify an AST attribute expression that names the sys.modules attribute.
+
+    Args:
+        node: Expression to classify.
+
+    Returns:
+        True when the node is the sys.modules attribute, otherwise False.
+    """
     return (
         isinstance(node, ast.Attribute)
         and node.attr == "modules"
@@ -18,6 +27,14 @@ def _is_sys_modules(node: ast.AST) -> bool:
 
 
 def _targets(node: ast.AST) -> tuple[ast.AST, ...]:
+    """Extract assignment targets from an AST mutation statement.
+
+    Args:
+        node: Assignment, deletion, or augmented-assignment node to inspect.
+
+    Returns:
+        All target expressions exposed by the node, or an empty tuple when none exist.
+    """
     if isinstance(node, ast.Assign):
         return tuple(node.targets)
     if isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.Delete)):
@@ -29,7 +46,15 @@ def _targets(node: ast.AST) -> tuple[ast.AST, ...]:
 
 
 def python_monkeypatch_violations(source: str, filename: str = "<source>") -> tuple[str, ...]:
-    """Return forbidden fixture, mock patch, import cache, and module rewrites."""
+    """Report prohibited monkeypatching and module-replacement patterns.
+
+    Args:
+        source: Python source text to parse and inspect.
+        filename: Display name used for source-location diagnostics.
+
+    Returns:
+        Sorted, duplicate-free violation descriptions for the supplied source.
+    """
     try:
         tree = ast.parse(source, filename=filename)
     except SyntaxError as exc:
@@ -117,7 +142,14 @@ def python_monkeypatch_violations(source: str, filename: str = "<source>") -> tu
 
 
 def repository_violations(root: Path = ROOT) -> tuple[str, ...]:
-    """Audit every tracked-style Python source under the repository root."""
+    """Scan repository Python sources for prohibited monkeypatching patterns.
+
+    Args:
+        root: Repository directory whose Python files will be audited.
+
+    Returns:
+        Sorted violation descriptions for all readable Python files under the root.
+    """
     violations: list[str] = []
     for path in sorted(root.rglob("*.py")):
         if any(part in {".git", ".venv", "__pycache__"} for part in path.parts):
@@ -133,7 +165,14 @@ def repository_violations(root: Path = ROOT) -> tuple[str, ...]:
 
 
 def main() -> int:
-    """Fail CI when prohibited monkeypatching patterns are found."""
+    """Run the repository monkeypatch policy gate.
+
+    Raises:
+        SystemExit: If one or more prohibited mutation patterns are found.
+
+    Returns:
+        Zero when all inspected Python sources satisfy the policy.
+    """
     violations = repository_violations()
     if violations:
         raise SystemExit("\n".join(violations))

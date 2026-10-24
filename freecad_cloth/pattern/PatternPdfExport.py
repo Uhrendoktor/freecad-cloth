@@ -1,11 +1,12 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Dependency-free deterministic tiled 1:1 vector PDF export for sewing patterns."""
 
 from __future__ import annotations
 
 import base64
 import json
-from collections.abc import Callable
 from math import ceil, cos, isfinite, radians, sin
+from typing import TYPE_CHECKING
 
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternExport import (
@@ -15,6 +16,9 @@ from freecad_cloth.pattern.PatternExport import (
     _validate_units,
 )
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _MM_TO_PT = 72.0 / 25.4
 _HEADER_MM = 10.0
@@ -28,7 +32,8 @@ _PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
 
 def _number(value: float) -> str:
     if not isfinite(value):
-        raise ValueError("PDF coordinates must be finite")
+        msg = "PDF coordinates must be finite"
+        raise ValueError(msg)
     if abs(value) < 0.000005:
         value = 0.0
     return f"{value:.5f}".rstrip("0").rstrip(".") or "0"
@@ -134,23 +139,27 @@ def _document_bytes(
 def from_pdf_metadata(pdf: bytes) -> dict[str, object]:
     """Read the deterministic Cloth metadata comment embedded in an exported PDF."""
     if not isinstance(pdf, bytes) or not pdf.startswith(b"%PDF-1.4"):
-        raise ValueError("PDF is not a supported Cloth pattern export")
+        msg = "PDF is not a supported Cloth pattern export"
+        raise ValueError(msg)
     marker = b"%ClothPatternMetadata:"
     line = next((item for item in pdf.splitlines() if item.startswith(marker)), None)
     if line is None:
-        raise ValueError("PDF does not contain cloth-pattern metadata")
+        msg = "PDF does not contain cloth-pattern metadata"
+        raise ValueError(msg)
     try:
         payload = base64.b64decode(line[len(marker) :], validate=True)
         metadata = json.loads(payload.decode("ascii"))
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError("PDF contains invalid cloth-pattern metadata") from exc
+        msg = "PDF contains invalid cloth-pattern metadata"
+        raise ValueError(msg) from exc
     if (
         metadata.get("version") != 1
         or metadata.get("units") != "mm"
         or metadata.get("scale") != 1.0
         or not metadata.get("edge_ids")
     ):
-        raise ValueError("PDF contains unsupported or incomplete cloth-pattern metadata")
+        msg = "PDF contains unsupported or incomplete cloth-pattern metadata"
+        raise ValueError(msg)
     return metadata
 
 
@@ -175,22 +184,28 @@ def to_pdf(
     """
     normalized_units = _validate_units(units)
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
     if derived is not None and derived.sewing_boundary is not pattern:
-        raise ValueError("derived pattern belongs to a different sewing boundary")
+        msg = "derived pattern belongs to a different sewing boundary"
+        raise ValueError(msg)
     if not isfinite(seam_allowance) or seam_allowance < 0:
-        raise ValueError("seam allowance must be finite and non-negative")
+        msg = "seam allowance must be finite and non-negative"
+        raise ValueError(msg)
     paper_key = str(paper_size).strip().lower().replace("us ", "")
     paper_key = {"a4": "A4", "letter": "Letter"}.get(paper_key, "")
     if not paper_key:
-        raise ValueError("paper_size must be 'A4' or 'Letter'")
+        msg = "paper_size must be 'A4' or 'Letter'"
+        raise ValueError(msg)
     paper_width_mm, paper_height_mm = _PAPER_SIZES_MM[paper_key]
     margin = float(margin_mm)
     overlap = float(overlap_mm)
     if not isfinite(margin) or margin < 5.0:
-        raise ValueError("PDF margin must be finite and at least 5 mm")
+        msg = "PDF margin must be finite and at least 5 mm"
+        raise ValueError(msg)
     if not isfinite(overlap) or overlap < 8.0:
-        raise ValueError("PDF overlap must be finite and at least 8 mm for registration marks")
+        msg = "PDF overlap must be finite and at least 8 mm for registration marks"
+        raise ValueError(msg)
 
     content_left = margin
     content_bottom = margin + _FOOTER_MM
@@ -199,9 +214,11 @@ def to_pdf(
     usable_width = content_right - content_left
     usable_height = content_top - content_bottom
     if usable_width <= 40.0 or usable_height <= _CALIBRATION_MM:
-        raise ValueError("paper size and margins leave no usable pattern area")
+        msg = "paper size and margins leave no usable pattern area"
+        raise ValueError(msg)
     if overlap >= min(usable_width, usable_height):
-        raise ValueError("PDF overlap must be smaller than the printable tile area")
+        msg = "PDF overlap must be smaller than the printable tile area"
+        raise ValueError(msg)
     stride_x = usable_width - overlap
     stride_y = usable_height - overlap
 
@@ -220,9 +237,11 @@ def to_pdf(
         if mark.text:
             bound_points.extend(((x, y - 1.0), (x + max(2.0, len(mark.text) * 1.8), y + 2.0)))
     if not bound_points:
-        raise ValueError("pattern has no geometry to export")
+        msg = "pattern has no geometry to export"
+        raise ValueError(msg)
     if any(not isfinite(value) for point in bound_points for value in point):
-        raise ValueError("pattern contains non-finite geometry")
+        msg = "pattern contains non-finite geometry"
+        raise ValueError(msg)
     min_x = min(point[0] for point in bound_points)
     max_x = max(point[0] for point in bound_points)
     min_y = min(point[1] for point in bound_points)
@@ -230,7 +249,8 @@ def to_pdf(
     extent_width = max_x - min_x
     extent_height = max_y - min_y
     if extent_width <= 0.0 or extent_height <= 0.0:
-        raise ValueError("pattern must have non-zero extent")
+        msg = "pattern must have non-zero extent"
+        raise ValueError(msg)
 
     columns = _tile_count(extent_width, usable_width, stride_x)
     rows = _tile_count(extent_height, usable_height, stride_y)
@@ -459,5 +479,6 @@ def validate_pdf_export(
         overlap_mm=overlap_mm,
     )
     if exported != expected:
-        raise ValueError("PDF does not match the deterministic authoritative pattern output")
+        msg = "PDF does not match the deterministic authoritative pattern output"
+        raise ValueError(msg)
     return {"format": "pdf", "valid": True, "metadata": from_pdf_metadata(exported)}

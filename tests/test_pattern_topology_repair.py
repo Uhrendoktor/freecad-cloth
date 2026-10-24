@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from types import SimpleNamespace
 
 import pytest
@@ -52,7 +53,8 @@ def test_missing_reference_can_be_explicitly_mapped_to_current_edge():
     seam.EdgeASignature = "missing"
     target = current_edge_candidates(seam, "A")[2]["id"]
     plan = build_repair_plan([(seam, "A", target)])
-    assert len(plan) == 1 and plan[0][2]["id"] == target
+    assert len(plan) == 1
+    assert plan[0][2]["id"] == target
 
 
 def test_repair_target_must_be_a_current_semantic_edge():

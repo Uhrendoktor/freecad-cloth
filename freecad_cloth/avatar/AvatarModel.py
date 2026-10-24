@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent parametric human avatar model.
 
 Saved anthropometric measurements remain authoritative. The visible mesh is
@@ -117,11 +118,13 @@ class Pose:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if self.preset not in self.VALID_PRESETS:
-            raise ValueError(f"unsupported avatar pose: {self.preset}")
+            msg = f"unsupported avatar pose: {self.preset}"
+            raise ValueError(msg)
         for name in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"):
             value = float(getattr(self, name))
             if not -90.0 <= value <= 90.0:
-                raise ValueError(f"{name} must be between -90 and 90 degrees")
+                msg = f"{name} must be between -90 and 90 degrees"
+                raise ValueError(msg)
         normalize_joint_rotations(self.joint_rotations)
 
 
@@ -176,46 +179,59 @@ class AvatarParameters:
     def validate(self) -> None:
         """Validate this value and raise ValueError when its state is invalid."""
         if self.schema_version != 4:
-            raise ValueError("unsupported avatar schema version")
+            msg = "unsupported avatar schema version"
+            raise ValueError(msg)
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
             raise ValueError("missing avatar measurements: {}".format(", ".join(sorted(missing))))
         for name, (low, high) in LIMITS.items():
             value = float(self.measurements[name])
             if not low <= value <= high:
-                raise ValueError(
-                    f"avatar measurement {name} must be between {low:.0f} and {high:.0f} mm"
-                )
+                msg = f"avatar measurement {name} must be between {low:.0f} and {high:.0f} mm"
+                raise ValueError(msg)
         if self.measurements["underbust"] > self.measurements["chest"]:
-            raise ValueError("underbust circumference cannot exceed chest circumference")
+            msg = "underbust circumference cannot exceed chest circumference"
+            raise ValueError(msg)
         if self.measurements["inseam"] >= self.measurements["height"]:
-            raise ValueError("inseam must be shorter than height")
+            msg = "inseam must be shorter than height"
+            raise ValueError(msg)
         if not 0 <= float(self.skin_offset) <= 50:
-            raise ValueError("skin offset must be between 0 and 50 mm")
+            msg = "skin offset must be between 0 and 50 mm"
+            raise ValueError(msg)
         if not 0.0 <= float(self.gender) <= 1.0:
-            raise ValueError("gender blend must be between 0 (feminine) and 1 (masculine)")
+            msg = "gender blend must be between 0 (feminine) and 1 (masculine)"
+            raise ValueError(msg)
         if not 0.0 <= float(self.breast_size) <= 1.0:
-            raise ValueError("breast size must be between 0 and 1")
+            msg = "breast size must be between 0 and 1"
+            raise ValueError(msg)
         if any(not name.strip() for name in self.phenotype_overrides):
-            raise ValueError("Anny phenotype override names cannot be empty")
+            msg = "Anny phenotype override names cannot be empty"
+            raise ValueError(msg)
         if any(name in {"gender", "cupsize"} for name in self.phenotype_overrides):
-            raise ValueError("gender and cupsize are controlled by the primary body-shape sliders")
+            msg = "gender and cupsize are controlled by the primary body-shape sliders"
+            raise ValueError(msg)
         for name, value in self.phenotype_overrides.items():
             if not math.isfinite(value) or not 0.0 <= value <= 1.0:
-                raise ValueError(f"Anny phenotype override {name!r} must be between 0 and 1")
+                msg = f"Anny phenotype override {name!r} must be between 0 and 1"
+                raise ValueError(msg)
         if any(not name.strip() for name in self.local_change_overrides):
-            raise ValueError("Anny morph override names cannot be empty")
+            msg = "Anny morph override names cannot be empty"
+            raise ValueError(msg)
         if "breast-volume-vert-up" in self.local_change_overrides:
-            raise ValueError("breast fullness is controlled by the primary body-shape slider")
+            msg = "breast fullness is controlled by the primary body-shape slider"
+            raise ValueError(msg)
         for name, value in self.local_change_overrides.items():
             if not math.isfinite(value) or not -1.0 <= value <= 1.0:
-                raise ValueError(f"Anny local morph override {name!r} must be between -1 and 1")
+                msg = f"Anny local morph override {name!r} must be between -1 and 1"
+                raise ValueError(msg)
         if self.mass_target_kg is not None and (
             not math.isfinite(self.mass_target_kg) or not 25.0 <= self.mass_target_kg <= 250.0
         ):
-            raise ValueError("target body mass must be between 25 and 250 kg")
+            msg = "target body mass must be between 25 and 250 kg"
+            raise ValueError(msg)
         if not isinstance(self.pose, Pose):
-            raise TypeError("pose must be a Pose")
+            msg = "pose must be a Pose"
+            raise TypeError(msg)
         self.pose.validate()
 
     def measurement(self, name: str) -> float:
@@ -278,10 +294,12 @@ class AvatarParameters:
         """Load avatar parameters and migrate legacy pose and shape defaults."""
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
-            raise ValueError("avatar presets must use millimetres")
+            msg = "avatar presets must use millimetres"
+            raise ValueError(msg)
         source_version = int(data.get("schema_version", 1))
         if source_version not in (1, 2, 3, 4):
-            raise ValueError("unsupported avatar schema version")
+            msg = "unsupported avatar schema version"
+            raise ValueError(msg)
         p = data.get("pose", {})
         preset = str(p.get("preset", "standing"))
         if source_version == 1:
@@ -319,10 +337,12 @@ class AvatarParameters:
         if not isinstance(phenotype_overrides, dict) or not isinstance(
             local_change_overrides, dict
         ):
-            raise ValueError("Anny overrides must contain parameter-to-number objects")
+            msg = "Anny overrides must contain parameter-to-number objects"
+            raise ValueError(msg)
         clad_targets = data.get("clad_targets", {}) if source_version >= 4 else {}
         if not isinstance(clad_targets, dict):
-            raise ValueError("clad_targets must be an object")
+            msg = "clad_targets must be an object"
+            raise ValueError(msg)
         mass_target = clad_targets.get("mass_kg")
         return cls(
             data.get("measurements", {}),
@@ -349,7 +369,7 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
     ankle_z = float(m["ankle"]) / 2.0
     shoulder_half = float(m["shoulder"]) / 2.0
     # Hip circumference changes the pelvis envelope, not the leg stance width.
-    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * 3.141592653589793) * 0.42)
+    leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * math.pi) * 0.42)
     side_y = 230.0 if params.pose.preset == "sitting" else 0.0
     knees = {
         "left": (-leg_x, side_y, pelvis_z - 15.0)
@@ -367,10 +387,10 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right"),
     ):
         angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
-        a = angle * 3.141592653589793 / 180.0
+        a = angle * math.pi / 180.0
         ex = side * shoulder_half + side * 125.0 * __import__("math").cos(a)
         ez = shoulder_z - 125.0 * __import__("math").sin(a)
-        fa = (angle - elbow_value) * 3.141592653589793 / 180.0
+        fa = (angle - elbow_value) * math.pi / 180.0
         wx = ex + side * 120.0 * __import__("math").cos(fa)
         wz = ez - 120.0 * __import__("math").sin(fa)
         wrists[label] = (wx, 0.0, wz)

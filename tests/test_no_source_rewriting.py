@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for the repository-wide source-rewriting policy."""
 
 from __future__ import annotations

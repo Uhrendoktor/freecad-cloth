@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -204,7 +205,8 @@ def test_native_curve_shape_change_with_same_endpoints_is_changed_reference():
     except ChangedEdgeReference:
         pass
     else:
-        raise AssertionError("native curve shape change must be a Changed reference")
+        msg = "native curve shape change must be a Changed reference"
+        raise AssertionError(msg)
     assert resolve_edge_reference_status(reference, [second_edge]) == (False, "changed")
 
 
@@ -283,7 +285,8 @@ def test_open_sketch_boundary_fails_with_diagnostic():
     except ValueError as exc:
         assert "open" in str(exc)
         return
-    raise AssertionError("open Sketcher boundary was accepted")
+    msg = "open Sketcher boundary was accepted"
+    raise AssertionError(msg)
 
 
 def test_ambiguous_sketch_boundary_fails_with_diagnostic():
@@ -305,7 +308,8 @@ def test_ambiguous_sketch_boundary_fails_with_diagnostic():
     except ValueError as exc:
         assert "ambiguous" in str(exc)
         return
-    raise AssertionError("ambiguous Sketcher boundary was accepted")
+    msg = "ambiguous Sketcher boundary was accepted"
+    raise AssertionError(msg)
 
 
 def test_disconnected_sketch_boundaries_fail_with_diagnostic():
@@ -328,7 +332,8 @@ def test_disconnected_sketch_boundaries_fail_with_diagnostic():
     except ValueError as exc:
         assert "disconnected" in str(exc)
         return
-    raise AssertionError("disconnected Sketcher boundaries were accepted")
+    msg = "disconnected Sketcher boundaries were accepted"
+    raise AssertionError(msg)
 
 
 def test_sketch_semantic_ids_survive_raw_integer_seam_resolution():
@@ -360,7 +365,8 @@ def test_unresolvable_string_reference_fails_closed():
         PatternIR.from_graph(graph)
     except ValueError:
         return
-    raise AssertionError("invalid seam reference was accepted")
+    msg = "invalid seam reference was accepted"
+    raise AssertionError(msg)
 
 
 if __name__ == "__main__":

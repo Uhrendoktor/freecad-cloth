@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral tests for the native DrapeTarget task-panel frontend."""
 
 from types import SimpleNamespace

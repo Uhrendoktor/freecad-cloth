@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI smoke test for the Cloth Pattern Design workbench."""
 
 import importlib

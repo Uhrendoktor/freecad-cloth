@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused behavior coverage for shared FreeCAD boundary adapters."""
 
 from types import SimpleNamespace

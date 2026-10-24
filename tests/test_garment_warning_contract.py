@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for FreeCAD Garment hierarchy/link-scope fixes."""
 
 from pathlib import Path
@@ -51,7 +52,8 @@ def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters() -> None:
     assert '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"' in source
     assert "group.addObject(marker)" in source
     assert "doc.removeObject(name)" in source
-    assert "name.startswith(" in source and '"ArrangementPoint_"' in source
+    assert "name.startswith(" in source
+    assert '"ArrangementPoint_"' in source
     assert 'name.startswith("BoundingVolume_")' in source
     start = source.index("class _FittingProxy")
     end = source.index("COMMANDS", start)

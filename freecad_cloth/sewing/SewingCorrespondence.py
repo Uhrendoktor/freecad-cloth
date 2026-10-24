@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver- and FreeCAD-independent curved seam correspondence helpers.
 
 The Sewing workbench stores seam topology elsewhere.  This module only answers
@@ -187,11 +188,13 @@ def arc_length_vertex_indices(
     for first, second in zip(points, points[1:], strict=False):
         next_distance = cumulative[-1] + math.dist(first, second)
         if not math.isfinite(next_distance):
-            raise ValueError("arc-length sampling total length must be finite")
+            msg = "arc-length sampling total length must be finite"
+            raise ValueError(msg)
         cumulative.append(next_distance)
     total = cumulative[-1]
     if total <= 0.0:
-        raise ValueError("arc-length sampling needs a positive total length")
+        msg = "arc-length sampling needs a positive total length"
+        raise ValueError(msg)
 
     sample_count = min(count, len(values))
     last = len(values) - 1
@@ -226,7 +229,8 @@ def arc_length_vertex_indices(
         last_index = min(last, last_index + deficit)
 
     if last_index - first_index + 1 < sample_count:
-        raise ValueError("arc-length sampling needs more distinct edge vertices")
+        msg = "arc-length sampling needs more distinct edge vertices"
+        raise ValueError(msg)
 
     result = []
     for sample in range(sample_count):
@@ -268,11 +272,14 @@ def map_parameter(
 ) -> float:
     """Map a normalized parameter from seam A to seam B deterministically."""
     if not math.isfinite(float(parameter_a)):
-        raise ValueError("seam parameter must be finite")
+        msg = "seam parameter must be finite"
+        raise ValueError(msg)
     if not _range_is_valid(start_a, end_a) or not _range_is_valid(start_b, end_b):
-        raise ValueError("seam parameter ranges must satisfy 0 <= start < end <= 1")
+        msg = "seam parameter ranges must satisfy 0 <= start < end <= 1"
+        raise ValueError(msg)
     if not 0.0 <= parameter_a <= 1.0:
-        raise ValueError("seam parameter must be in [0, 1]")
+        msg = "seam parameter must be in [0, 1]"
+        raise ValueError(msg)
 
     local = (parameter_a - start_a) / (end_a - start_a)
     local = min(1.0, max(0.0, local))

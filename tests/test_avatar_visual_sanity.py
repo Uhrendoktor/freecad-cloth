@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import unittest
 
 from freecad_cloth.avatar.AvatarVisualSanity import AvatarVisualSanityError, inspect_avatar_mesh

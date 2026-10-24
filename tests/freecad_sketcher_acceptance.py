@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD/Xvfb acceptance for native Sketcher pattern authoring."""
 
 import math
@@ -52,14 +53,16 @@ def _wait_for_task_close():
         QtCore.QTimer.singleShot(0, loop.quit)
         loop.exec()
         QtWidgets.QApplication.processEvents()
-    raise RuntimeError("task dialog did not close after staged sewing Commit/Cancel")
+    msg = "task dialog did not close after staged sewing Commit/Cancel"
+    raise RuntimeError(msg)
 
 
 def _activate(name, commands):
     Gui.activateWorkbench(name)
     _events()
     if Gui.activeWorkbench().name() != name:
-        raise RuntimeError(f"failed to activate {name}")
+        msg = f"failed to activate {name}"
+        raise RuntimeError(msg)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
         raise RuntimeError("commands are not registered: {}".format(",".join(missing)))
@@ -83,7 +86,8 @@ def _make_curved_piece_sketch(piece, doc):
 
     sketch = piece.Sketch
     if sketch is None:
-        raise RuntimeError("PatternPiece did not create a native Sketcher sketch")
+        msg = "PatternPiece did not create a native Sketcher sketch"
+        raise RuntimeError(msg)
     sketch.Constraints = []
     geometry = [
         Part.LineSegment(App.Vector(0, 0, 0), App.Vector(100, 0, 0)),
@@ -109,21 +113,26 @@ def _make_curved_piece_sketch(piece, doc):
     sketch.renameConstraint(height_index, "PieceHeight")
     doc.recompute()
     if sketch.Shape.isNull() or piece.Shape.isNull():
-        raise RuntimeError("curved PatternPiece did not produce native geometry")
+        msg = "curved PatternPiece did not produce native geometry"
+        raise RuntimeError(msg)
     if (
         _constraint_type(sketch, width_index) != "Distance"
         or _constraint_type(sketch, height_index) != "Distance"
     ):
-        raise RuntimeError("native dimensional constraints were not retained")
+        msg = "native dimensional constraints were not retained"
+        raise RuntimeError(msg)
     if (
         _constraint_name(sketch, width_index) != "PieceWidth"
         or _constraint_name(sketch, height_index) != "PieceHeight"
     ):
-        raise RuntimeError("named Sketcher dimensions were not retained")
+        msg = "named Sketcher dimensions were not retained"
+        raise RuntimeError(msg)
     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
-        raise RuntimeError("named Sketcher height did not initialize to the expected value")
+        msg = "named Sketcher height did not initialize to the expected value"
+        raise RuntimeError(msg)
     if abs(float(sketch.getDatum(width_index)) - 100.0) > 1e-6:
-        raise RuntimeError("named width dimension did not initialize as expected")
+        msg = "named width dimension did not initialize as expected"
+        raise RuntimeError(msg)
     return sketch, width_index, height_index
 
 
@@ -145,7 +154,8 @@ def _exercise_constraint_families(doc, reference_sketch):
     audit.addGeometry(lines, False)
     audit.toggleConstruction(2)
     if not bool(audit.GeometryFacadeList[2].Construction):
-        raise RuntimeError("native construction geometry flag was not retained")
+        msg = "native construction geometry flag was not retained"
+        raise RuntimeError(msg)
 
     equal_index = audit.addConstraint(Sketcher.Constraint("Equal", 0, 1))
     audit.addConstraint(Sketcher.Constraint("Horizontal", 0))
@@ -166,23 +176,28 @@ def _exercise_constraint_families(doc, reference_sketch):
         (audit_scaled, "Distance"),
     ):
         if _constraint_type(audit, index) != expected:
-            raise RuntimeError(f"missing native {expected} constraint")
+            msg = f"missing native {expected} constraint"
+            raise RuntimeError(msg)
     doc.recompute()
     if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
-        raise RuntimeError("native Sketcher expression did not evaluate")
+        msg = "native Sketcher expression did not evaluate"
+        raise RuntimeError(msg)
     if (
         _constraint_name(audit, audit_span) != "AuditSpan"
         or _constraint_name(audit, audit_scaled) != "AuditScaled"
     ):
-        raise RuntimeError("named native Sketcher expression drivers were not retained")
+        msg = "named native Sketcher expression drivers were not retained"
+        raise RuntimeError(msg)
 
     geometry_count = len(audit.Geometry)
     audit.addExternal(reference_sketch.Name, "Edge1")
     if len(audit.Geometry) != geometry_count:
-        raise RuntimeError("external geometry unexpectedly became owned sketch geometry")
+        msg = "external geometry unexpectedly became owned sketch geometry"
+        raise RuntimeError(msg)
     external = getattr(audit, "ExternalGeometry", ())
     if not external:
-        raise RuntimeError("native external geometry reference was not persisted in the sketch")
+        msg = "native external geometry reference was not persisted in the sketch"
+        raise RuntimeError(msg)
     doc.recompute()
     return audit, audit_span, audit_scaled
 
@@ -192,7 +207,7 @@ def _stage(name):
     print(message, flush=True)
     stage_file = os.environ.get("SKETCHER_STAGE_FILE")
     if stage_file:
-        with open(stage_file, "a", encoding="utf-8") as handle:
+        with Path(stage_file).open("a", encoding="utf-8") as handle:
             handle.write(message + "\n")
             handle.flush()
 
@@ -200,9 +215,11 @@ def _stage(name):
 def _bootstrap_workbenches():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI main window must be visible before workbench acceptance")
+        msg = "FreeCAD GUI main window must be visible before workbench acceptance"
+        raise RuntimeError(msg)
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not loaded by FreeCAD startup")
+        msg = "ClothPatternWorkbench was not loaded by FreeCAD startup"
+        raise RuntimeError(msg)
 
 
 def _record(message):
@@ -210,7 +227,7 @@ def _record(message):
     print(line, flush=True)
     stage_file = os.environ.get("SKETCHER_STAGE_FILE")
     if stage_file:
-        with open(stage_file, "a", encoding="utf-8") as handle:
+        with Path(stage_file).open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
             handle.flush()
 
@@ -219,7 +236,8 @@ def run_acceptance():
     _stage("process-start")
     window = Gui.getMainWindow()
     if window is None:
-        raise RuntimeError("FreeCAD GUI main window is not available")
+        msg = "FreeCAD GUI main window is not available"
+        raise RuntimeError(msg)
     window.show()
     _events()
     _stage("gui-ready")
@@ -241,11 +259,13 @@ def run_acceptance():
         doc.recompute()
         pieces = _pattern_pieces(doc)
         if len(pieces) != 2:
-            raise RuntimeError("public Pattern command did not create two PatternPiece objects")
+            msg = "public Pattern command did not create two PatternPiece objects"
+            raise RuntimeError(msg)
         if any(getattr(piece, "Sketch", None) is None for piece in pieces):
-            raise RuntimeError(
+            msg = (
                 "public Pattern command did not create one native Sketcher source per PatternPiece"
             )
+            raise RuntimeError(msg)
         _record("two-native-pattern-pieces")
         curved, mate = pieces
         curved.Placement.Base.x = -130
@@ -253,7 +273,8 @@ def run_acceptance():
         curved_sketch, width_index, height_index = _make_curved_piece_sketch(curved, doc)
         reference = mate.Sketch
         if reference is None:
-            raise RuntimeError("second PatternPiece has no native Sketcher source")
+            msg = "second PatternPiece has no native Sketcher source"
+            raise RuntimeError(msg)
         _audit, audit_span, audit_scaled = _exercise_constraint_families(doc, reference)
         _record("sketch-geometry-and-constraints")
 
@@ -262,7 +283,8 @@ def run_acceptance():
         Gui.runCommand("ClothPattern_EditSketch", 0)
         _events()
         if not Gui.activeDocument().getInEdit():
-            raise RuntimeError("public Pattern Edit Sketch command did not enter native Sketcher")
+            msg = "public Pattern Edit Sketch command did not enter native Sketcher"
+            raise RuntimeError(msg)
         Gui.activeDocument().resetEdit()
         _events()
         _record("pattern-sketch-edit-passed")
@@ -282,19 +304,20 @@ def run_acceptance():
         doc.recompute()
         seam = next((obj for obj in doc.Objects if getattr(obj, "SeamId", "")), None)
         if seam is None or str(seam.Status) != "Valid":
-            raise RuntimeError(
-                "public Sewing command did not create a valid seam from native Sketch edges"
-            )
+            msg = "public Sewing command did not create a valid seam from native Sketch edges"
+            raise RuntimeError(msg)
         _record("seam-created")
 
         from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
 
         staged_panel = get_active_staged_sewing_task_panel()
         if staged_panel is None:
-            raise RuntimeError("staged sewing task panel was not retained after seam Preview")
+            msg = "staged sewing task panel was not retained after seam Preview"
+            raise RuntimeError(msg)
         commit_button = getattr(staged_panel, "commit_button", None)
         if commit_button is None or not bool(commit_button.isEnabled()):
-            raise RuntimeError("staged seam Commit button is not available/enabled")
+            msg = "staged seam Commit button is not available/enabled"
+            raise RuntimeError(msg)
         commit_button.click()
         _stage("seam-commit-returned-to-qt")
 
@@ -304,7 +327,8 @@ def run_acceptance():
                 _wait_for_task_close()
                 has_pending = getattr(doc, "hasPendingTransaction", None)
                 if callable(has_pending) and bool(has_pending()):
-                    raise RuntimeError("staged seam Commit left a pending document transaction")
+                    msg = "staged seam Commit left a pending document transaction"
+                    raise RuntimeError(msg)
                 _record("seam-created-and-committed")
                 original_piece_id = str(curved.PieceId)
                 original_width = float(curved_sketch.getDatum(width_index))
@@ -314,9 +338,8 @@ def run_acceptance():
                 Gui.Selection.addSelection(seam)
                 Gui.runCommand("ClothSewing_FocusSeam3D", 0)
                 if seam.Shape.isNull():
-                    raise RuntimeError(
-                        "seam focus command did not retain world-space presentation geometry"
-                    )
+                    msg = "seam focus command did not retain world-space presentation geometry"
+                    raise RuntimeError(msg)
                 from freecad_cloth.sewing.SewingView import seam_color_map
 
                 expected_seam_rgb = tuple(seam_color_map([seam_id])[seam_id])
@@ -325,19 +348,16 @@ def run_acceptance():
                     abs(actual - expected) > 1e-6
                     for actual, expected in zip(actual_seam_rgb, expected_seam_rgb, strict=False)
                 ):
-                    raise RuntimeError(
-                        f"seam focus command did not preserve deterministic seam color: actual={actual_seam_rgb!r} expected={expected_seam_rgb!r}"
-                    )
+                    msg = f"seam focus command did not preserve deterministic seam color: actual={actual_seam_rgb!r} expected={expected_seam_rgb!r}"
+                    raise RuntimeError(msg)
                 seam_box = seam.Shape.BoundBox
                 placed_piece_box = curved.Shape.BoundBox
                 if seam_box.XMax < placed_piece_box.XMin or seam_box.XMin > placed_piece_box.XMax:
-                    raise RuntimeError(
-                        "seam presentation is outside the placed PatternPiece coordinate system"
-                    )
+                    msg = "seam presentation is outside the placed PatternPiece coordinate system"
+                    raise RuntimeError(msg)
                 if abs(float(seam_box.XMin)) < 1e-6 and abs(float(seam_box.XMax)) < 1e-6:
-                    raise RuntimeError(
-                        "seam presentation appears to remain at the source Sketcher origin"
-                    )
+                    msg = "seam presentation appears to remain at the source Sketcher origin"
+                    raise RuntimeError(msg)
                 _record("seam-world-space-validated")
                 seam_vertices = tuple(vertex.Point for vertex in seam.Shape.Vertexes)
 
@@ -356,25 +376,25 @@ def run_acceptance():
                 )
                 for expected in world_edge_endpoints:
                     if not _has_vertex(expected):
-                        raise RuntimeError(
-                            f"seam presentation does not contain the placed/world-space Sketcher seam endpoint: {expected}"
-                        )
+                        msg = f"seam presentation does not contain the placed/world-space Sketcher seam endpoint: {expected}"
+                        raise RuntimeError(msg)
                 local_mate_start = App.Vector(0, 0, 0.4)
                 if _has_vertex(local_mate_start):
-                    raise RuntimeError(
-                        "seam presentation still contains the mate Sketcher endpoint in local coordinates"
-                    )
+                    msg = "seam presentation still contains the mate Sketcher endpoint in local coordinates"
+                    raise RuntimeError(msg)
                 Gui.runCommand("ClothSewing_EditSeamSideA", 0)
                 if not Gui.activeDocument().getInEdit():
-                    raise RuntimeError("seam Sketcher-side command did not enter native Sketcher")
+                    msg = "seam Sketcher-side command did not enter native Sketcher"
+                    raise RuntimeError(msg)
                 selection = Gui.Selection.getSelectionEx()
                 sketch_selection = [item for item in selection if item.Object is curved.Sketch]
                 if not sketch_selection or "Edge3" not in tuple(
                     sketch_selection[-1].SubElementNames
                 ):
-                    raise RuntimeError(
+                    msg = (
                         "seam Sketcher-side command did not select the authoritative semantic edge"
                     )
+                    raise RuntimeError(msg)
                 Gui.activeDocument().resetEdit()
                 _events()
 
@@ -394,72 +414,67 @@ def run_acceptance():
                         None,
                     )
                     if curved is None or curved.Sketch is None:
-                        raise RuntimeError(
-                            "PatternPiece native Sketcher source did not survive save/reload"
-                        )
+                        msg = "PatternPiece native Sketcher source did not survive save/reload"
+                        raise RuntimeError(msg)
                     sketch = curved.Sketch
                     if str(curved.GeometryAuthority) != "Sketcher":
-                        raise RuntimeError("Sketcher authority flag did not survive save/reload")
+                        msg = "Sketcher authority flag did not survive save/reload"
+                        raise RuntimeError(msg)
                     if str(sketch.GeometryAuthority) != "Sketcher":
-                        raise RuntimeError("Sketcher source authority did not survive save/reload")
+                        msg = "Sketcher source authority did not survive save/reload"
+                        raise RuntimeError(msg)
                     if tuple(str(item) for item in sketch.SemanticEdgeIds) != semantic_ids:
-                        raise RuntimeError("Cloth semantic edge ids did not survive save/reload")
+                        msg = "Cloth semantic edge ids did not survive save/reload"
+                        raise RuntimeError(msg)
                     if abs(float(sketch.getDatum(width_index)) - original_width) > 1e-6:
-                        raise RuntimeError(
-                            "named width dimensional constraint did not survive save/reload"
-                        )
+                        msg = "named width dimensional constraint did not survive save/reload"
+                        raise RuntimeError(msg)
                     if abs(float(sketch.getDatum(height_index)) - 50.0) > 1e-6:
-                        raise RuntimeError(
-                            "named height dimensional constraint did not survive save/reload"
-                        )
+                        msg = "named height dimensional constraint did not survive save/reload"
+                        raise RuntimeError(msg)
                     if (
                         _constraint_name(sketch, width_index) != "PieceWidth"
                         or _constraint_name(sketch, height_index) != "PieceHeight"
                     ):
-                        raise RuntimeError(
-                            "named PatternPiece Sketcher dimensions did not survive save/reload"
-                        )
+                        msg = "named PatternPiece Sketcher dimensions did not survive save/reload"
+                        raise RuntimeError(msg)
                     audit = reloaded.getObject("SketchConstraintAudit")
                     if audit is None or not getattr(audit, "ExternalGeometry", ()):
-                        raise RuntimeError(
-                            "external Sketcher reference did not survive save/reload"
-                        )
+                        msg = "external Sketcher reference did not survive save/reload"
+                        raise RuntimeError(msg)
                     if not bool(audit.GeometryFacadeList[2].Construction):
-                        raise RuntimeError(
-                            "construction geometry state did not survive save/reload"
-                        )
+                        msg = "construction geometry state did not survive save/reload"
+                        raise RuntimeError(msg)
                     if (
                         _constraint_name(audit, audit_span) != "AuditSpan"
                         or _constraint_name(audit, audit_scaled) != "AuditScaled"
                     ):
-                        raise RuntimeError(
-                            "named expression driver constraints did not survive save/reload"
-                        )
+                        msg = "named expression driver constraints did not survive save/reload"
+                        raise RuntimeError(msg)
                     if abs(float(audit.getDatum(audit_scaled)) - 20.0) > 1e-6:
-                        raise RuntimeError(
-                            "native Sketcher expression result did not survive save/reload"
-                        )
+                        msg = "native Sketcher expression result did not survive save/reload"
+                        raise RuntimeError(msg)
                     audit.setDatum(audit_span, App.Units.Quantity("60 mm"))
                     reloaded.recompute()
                     if abs(float(audit.getDatum(audit_scaled)) - 30.0) > 1e-6:
-                        raise RuntimeError(
-                            "native Sketcher expression did not propagate after save/reload"
-                        )
+                        msg = "native Sketcher expression did not propagate after save/reload"
+                        raise RuntimeError(msg)
 
                     sketch.setDatum(width_index, App.Units.Quantity("120 mm"))
                     reloaded.recompute()
                     if abs(float(sketch.getDatum(width_index)) - 120.0) > 1e-6:
-                        raise RuntimeError("native Sketcher seam dimension edit did not apply")
+                        msg = "native Sketcher seam dimension edit did not apply"
+                        raise RuntimeError(msg)
                     changed_seam = next(
                         (obj for obj in reloaded.Objects if getattr(obj, "SeamId", "") == seam_id),
                         None,
                     )
                     if changed_seam is None:
-                        raise RuntimeError("seam did not survive save/reload")
+                        msg = "seam did not survive save/reload"
+                        raise RuntimeError(msg)
                     if str(changed_seam.Status) == "Valid":
-                        raise RuntimeError(
-                            "native Sketcher edit did not invalidate downstream seam"
-                        )
+                        msg = "native Sketcher edit did not invalidate downstream seam"
+                        raise RuntimeError(msg)
                     _record("reload-and-invalidation-passed")
                     App.closeDocument(reloaded.Name)
                     doc = None
@@ -471,7 +486,7 @@ def run_acceptance():
                 print(callback_traceback, flush=True)
                 stage_file = os.environ.get("SKETCHER_STAGE_FILE")
                 if stage_file:
-                    with open(stage_file, "a", encoding="utf-8") as handle:
+                    with Path(stage_file).open("a", encoding="utf-8") as handle:
                         handle.write("callback-traceback-begin\\n")
                         handle.write(callback_traceback)
                         if not callback_traceback.endswith("\\n"):

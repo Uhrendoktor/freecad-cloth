@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """3D surface authoring bridge for Cloth Pattern.
 
 The surface pen is intentionally an authoring frontend, not a second pattern
@@ -13,14 +14,18 @@ changing the viewport or PatternPiece authority boundaries.
 
 from __future__ import annotations
 
-import collections.abc
 import contextlib
 import json
 import math
+from itertools import starmap
+from typing import TYPE_CHECKING
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
+
+if TYPE_CHECKING:
+    import collections.abc
 
 Point3 = tuple[float, float, float]
 Vector3 = Point3
@@ -69,13 +74,15 @@ def _length(a: Vector3) -> float:
 def _normalize(a: Vector3) -> Vector3:
     length = _length(a)
     if length <= 1e-12:
-        raise ValueError("surface points do not define a usable direction")
+        msg = "surface points do not define a usable direction"
+        raise ValueError(msg)
     return _scale(a, 1.0 / length)
 
 
 def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
     if not points:
-        raise ValueError("at least one point is required")
+        msg = "at least one point is required"
+        raise ValueError(msg)
     count = float(len(points))
     return (
         sum(point[0] for point in points) / count,
@@ -201,14 +208,18 @@ def surface_segments_from_anchor_kinds(
     values = tuple((float(point[0]), float(point[1])) for point in points)
     point_kinds = tuple(str(kind).lower() for kind in kinds)
     if len(values) < 3:
-        raise ValueError("surface boundary needs at least three points")
+        msg = "surface boundary needs at least three points"
+        raise ValueError(msg)
     if len(point_kinds) != len(values):
-        raise ValueError("surface boundary point types do not match the point count")
+        msg = "surface boundary point types do not match the point count"
+        raise ValueError(msg)
     if any(kind not in {"corner", "curve"} for kind in point_kinds):
-        raise ValueError("surface boundary point type must be corner or curve")
+        msg = "surface boundary point type must be corner or curve"
+        raise ValueError(msg)
     corners = [index for index, kind in enumerate(point_kinds) if kind == "corner"]
     if len(corners) < 3:
-        raise ValueError("surface boundary needs at least three corner points")
+        msg = "surface boundary needs at least three corner points"
+        raise ValueError(msg)
 
     segments = []
     count = len(values)
@@ -263,7 +274,8 @@ class SurfaceAnchor:
         """Restore a surface anchor from its serialized mapping."""
         kind = str(value.get("kind", "corner")).lower()
         if kind not in {"corner", "curve"}:
-            raise ValueError(f"unsupported surface anchor point type: {kind}")
+            msg = f"unsupported surface anchor point type: {kind}"
+            raise ValueError(msg)
         return cls(_as_point3(value["point"]), _as_point3(value["normal"]), kind)
 
 
@@ -279,17 +291,21 @@ class FlattenedSurfacePatch:
     def validate(self, tolerance_mm: float) -> FlattenedSurfacePatch:
         """Validate topology, area, and allowed planar deviation."""
         if len(self.points) < 3:
-            raise ValueError("surface patch needs at least three distinct points")
+            msg = "surface patch needs at least three distinct points"
+            raise ValueError(msg)
         if polygon_self_intersects(self.points):
-            raise ValueError("surface patch self-intersects after flattening")
+            msg = "surface patch self-intersects after flattening"
+            raise ValueError(msg)
         if abs(polygon_area_2d(self.points)) <= 1e-6:
-            raise ValueError("surface patch has negligible 2D area")
+            msg = "surface patch has negligible 2D area"
+            raise ValueError(msg)
         limit = max(0.0, float(tolerance_mm))
         if self.max_deviation_mm > limit + 1e-9:
-            raise ValueError(
+            msg = (
                 "surface patch is too curved for the bounded planar MVP: "
                 f"{self.max_deviation_mm:.2f} mm deviation exceeds {limit:.2f} mm tolerance"
             )
+            raise ValueError(msg)
         return self
 
 
@@ -305,7 +321,8 @@ def flatten_surface_patch(
     """
     values = tuple(_as_point3(point) for point in points)
     if len(values) < 3:
-        raise ValueError("surface patch needs at least three points")
+        msg = "surface patch needs at least three points"
+        raise ValueError(msg)
     center = _centroid(values)
 
     # Use the strongest non-collinear local triangle instead of a polygon Newell
@@ -475,20 +492,21 @@ def close_surface_stroke(
     """Validate and normalize a closed surface boundary."""
     values = tuple(anchors)
     if len(values) < 4:
-        raise ValueError(
-            "surface boundary needs at least three distinct points and a closing sample"
-        )
+        msg = "surface boundary needs at least three distinct points and a closing sample"
+        raise ValueError(msg)
     limit = max(0.0, float(tolerance_mm))
     distance = _length(_sub(values[-1].point, values[0].point))
     if distance > limit + 1e-9:
-        raise ValueError(
+        msg = (
             "surface boundary is open; return to the first surface point "
             f"within {limit:.1f} mm before finishing (current gap: {distance:.1f} mm)"
         )
+        raise ValueError(msg)
     boundary = values[:-1]
     unique = {tuple(round(float(value), 6) for value in anchor.point) for anchor in boundary}
     if len(unique) < 3:
-        raise ValueError("surface boundary needs at least three distinct points")
+        msg = "surface boundary needs at least three distinct points"
+        raise ValueError(msg)
     return boundary
 
 
@@ -545,18 +563,21 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
 
     target = getattr(surface_draft, "Target", None)
     if target is None:
-        raise ValueError("surface draft has no target")
+        msg = "surface draft has no target"
+        raise ValueError(msg)
     expected = str(getattr(surface_draft, "TargetSignature", ""))
     if expected and expected != _target_signature(target):
         surface_draft.Status = "Stale surface target"
-        raise ValueError("surface draft target changed; redraw the surface before extraction")
+        msg = "surface draft target changed; redraw the surface before extraction"
+        raise ValueError(msg)
     try:
         anchors = tuple(
             SurfaceAnchor.from_json(value)
             for value in json.loads(str(getattr(surface_draft, "AnchorsJSON", "[]")))
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise ValueError("surface draft contains invalid anchor data") from exc
+        msg = "surface draft contains invalid anchor data"
+        raise ValueError(msg) from exc
     closure_tolerance = float(getattr(surface_draft, "ClosureTolerance", DEFAULT_CLOSE_DISTANCE_MM))
     anchors = close_surface_stroke(anchors, closure_tolerance)
     patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
@@ -568,7 +589,8 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a FreeCAD document before extracting a pattern")
+        msg = "open a FreeCAD document before extracting a pattern"
+        raise ValueError(msg)
     existing_count = len(
         [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
     )
@@ -731,7 +753,7 @@ class SurfacePenController:
             coords.point.setValues(
                 0,
                 len(points),
-                [coin.SbVec3f(*point) for point in points],
+                list(starmap(coin.SbVec3f, points)),
             )
             line = coin.SoLineSet()
             line.numVertices.setValue(len(points))
@@ -760,10 +782,12 @@ class SurfacePenController:
             return
         active = self.Gui.activeDocument()
         if active is None:
-            raise RuntimeError("an active FreeCAD document is required")
+            msg = "an active FreeCAD document is required"
+            raise RuntimeError(msg)
         self.view = active.activeView()
         if self.view is None:
-            raise RuntimeError("an active FreeCAD 3D view is required")
+            msg = "an active FreeCAD 3D view is required"
+            raise RuntimeError(msg)
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
@@ -869,7 +893,8 @@ class SurfacePenController:
         import Part
 
         if len(self.anchors) < 3:
-            raise ValueError("reference-point mode needs at least three points")
+            msg = "reference-point mode needs at least three points"
+            raise ValueError(msg)
         patch = flatten_surface_patch([anchor.point for anchor in self.anchors], tolerance_mm)
         points = list(patch.points)
         min_x = min(point[0] for point in points)
@@ -913,7 +938,8 @@ class SurfacePenController:
             self._last_screen = None
         document = self.App.ActiveDocument
         if document is None:
-            raise RuntimeError("an active document is required")
+            msg = "an active document is required"
+            raise RuntimeError(msg)
         if self.input_mode == "references":
             return self._finish_reference_points(document, tolerance_mm)
         closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
@@ -922,7 +948,8 @@ class SurfacePenController:
         else:
             simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
             if len(simplified) < 3:
-                raise ValueError("surface stroke simplified to fewer than three points")
+                msg = "surface stroke simplified to fewer than three points"
+                raise ValueError(msg)
             by_point = {
                 tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed
             }
@@ -1085,12 +1112,12 @@ def start_surface_pen():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a garment document before starting the 3D Pattern Pen")
+        msg = "open a garment document before starting the 3D Pattern Pen"
+        raise RuntimeError(msg)
     target, source = _surface_target_from_document(doc, Gui)
     if target is None or source is None:
-        raise ValueError(
-            "select a mannequin/drape target or create one before starting the 3D Pattern Pen"
-        )
+        msg = "select a mannequin/drape target or create one before starting the 3D Pattern Pen"
+        raise ValueError(msg)
     controller = SurfacePenController(target, source)
     panel = SurfacePenTaskPanel(controller)
     panel.controller.status_callback = panel.update_status

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Remove stale unprotected branches, completed runs, and unreferenced PBD images safely."""
 
 from __future__ import annotations
@@ -5,10 +6,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import string
 import subprocess
-from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 PAGE_SIZE = 100
 BRANCH_RETENTION_DAYS = 7
@@ -21,18 +26,36 @@ PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 
 def gh_json(*args: str) -> object:
-    """Run a GitHub CLI command and parse its JSON output."""
+    """Run a GitHub CLI command and parse its JSON output.
+
+    Args:
+        args: Arguments passed to the GitHub CLI invocation.
+
+    Returns:
+        Parsed JSON value written to standard output.
+    """
     result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=10)
     return json.loads(result.stdout)
 
 
 def gh_delete(*args: str) -> None:
-    """Delete a GitHub resource through the GitHub CLI."""
+    """Delete a GitHub resource through the GitHub CLI.
+
+    Args:
+        args: Arguments identifying the GitHub resource to delete.
+    """
     subprocess.run(["gh", *args], check=True, timeout=10)
 
 
 def epoch(value: str) -> float:
-    """Convert an ISO-8601 timestamp to a Unix epoch."""
+    """Convert an ISO-8601 timestamp to a Unix epoch.
+
+    Args:
+        value: ISO-8601 date and time to convert.
+
+    Returns:
+        Unix epoch timestamp representing the supplied date and time.
+    """
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
@@ -43,9 +66,24 @@ def paginated_api_items(
     page_size: int = PAGE_SIZE,
     fetch_json: Callable[..., object] | None = None,
 ) -> Iterator[dict[str, object]]:
-    """Yield every item from a paginated GitHub API list endpoint."""
+    """Yield every item from a paginated GitHub API list endpoint.
+
+    Args:
+        endpoint: GitHub API path for the paginated collection.
+        collection_key: Optional object key containing the collection.
+        page_size: Maximum number of items requested on each page.
+        fetch_json: Optional CLI-compatible JSON loader; defaults to the GitHub CLI.
+
+    Yields:
+        Individual object records returned by the API.
+
+    Raises:
+        ValueError: Raised when the requested page size is not positive.
+        RuntimeError: Raised when an API response has an invalid collection shape.
+    """
     if page_size <= 0:
-        raise ValueError("page size must be positive")
+        msg = "page size must be positive"
+        raise ValueError(msg)
     load_json = gh_json if fetch_json is None else fetch_json
     page = 1
     while True:
@@ -56,13 +94,16 @@ def paginated_api_items(
             items = payload
         else:
             if not isinstance(payload, dict):
-                raise RuntimeError(f"GitHub API response for {endpoint} must be an object")
+                msg = f"GitHub API response for {endpoint} must be an object"
+                raise RuntimeError(msg)
             items = payload.get(collection_key)
         if not isinstance(items, list):
-            raise RuntimeError(f"GitHub API response for {endpoint} has no item list")
+            msg = f"GitHub API response for {endpoint} has no item list"
+            raise RuntimeError(msg)
         for item in items:
             if not isinstance(item, dict):
-                raise RuntimeError(f"GitHub API response for {endpoint} contains a non-object item")
+                msg = f"GitHub API response for {endpoint} contains a non-object item"
+                raise RuntimeError(msg)
             yield item
         if len(items) < page_size:
             return
@@ -72,7 +113,15 @@ def paginated_api_items(
 def stale_completed_runs(
     runs: list[dict[str, object]], cutoff_epoch: float
 ) -> list[dict[str, object]]:
-    """Return runs older than the retention cutoff, oldest first."""
+    """Return runs older than the retention cutoff, oldest first.
+
+    Args:
+        runs: Workflow-run records to filter by creation time.
+        cutoff_epoch: Unix timestamp marking the retention boundary.
+
+    Returns:
+        Expired run records sorted from oldest to newest.
+    """
     stale = [
         run
         for run in runs
@@ -83,7 +132,14 @@ def stale_completed_runs(
 
 
 def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
-    """Return commit activity time, preferring commit creation over original authorship."""
+    """Return commit activity time, preferring commit creation over original authorship.
+
+    Args:
+        commit_data: Commit metadata containing author and committer timestamps.
+
+    Returns:
+        Unix timestamp for the best available commit activity date, or None.
+    """
     committer = commit_data.get("committer")
     date = committer.get("date") if isinstance(committer, dict) else None
     if not isinstance(date, str):
@@ -103,9 +159,23 @@ def branch_activity_epochs(
 
     Missing or unverifiable commit data raises before the caller can select any
     branch for deletion, so a partial GitHub response cannot turn into cleanup.
+
+    Args:
+        repo: Owner and repository name whose commit objects are queried.
+        commit_shas: Full commit SHA values whose activity dates must be verified.
+        batch_size: Maximum number of commit objects included in one GraphQL request.
+        fetch_json: Optional CLI-compatible JSON loader for deterministic tests.
+
+    Returns:
+        Mapping from each verified commit SHA to its Unix activity timestamp.
+
+    Raises:
+        ValueError: If batch_size is not positive.
+        RuntimeError: If a SHA is malformed or GitHub omits verifiable commit data.
     """
     if batch_size <= 0:
-        raise ValueError("branch commit query batch size must be positive")
+        msg = "branch commit query batch size must be positive"
+        raise ValueError(msg)
     if not commit_shas:
         return {}
 
@@ -118,8 +188,9 @@ def branch_activity_epochs(
         aliases: dict[str, str] = {}
         fields: list[str] = []
         for index, sha in enumerate(batch):
-            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
-                raise RuntimeError(f"invalid branch commit SHA: {sha!r}")
+            if len(sha) != 40 or any(char not in string.hexdigits for char in sha):
+                msg = f"invalid branch commit SHA: {sha!r}"
+                raise RuntimeError(msg)
             alias = f"commit{index}"
             aliases[alias] = sha
             fields.append(
@@ -134,23 +205,28 @@ def branch_activity_epochs(
         )
         payload = load_json("api", "graphql", "-f", f"query={query}")
         if not isinstance(payload, dict):
-            raise RuntimeError("GitHub GraphQL returned a non-object branch activity response")
+            msg = "GitHub GraphQL returned a non-object branch activity response"
+            raise RuntimeError(msg)
         if payload.get("errors"):
-            raise RuntimeError("GitHub GraphQL could not verify branch activity")
+            msg = "GitHub GraphQL could not verify branch activity"
+            raise RuntimeError(msg)
         data = payload.get("data")
         repository_data = data.get("repository") if isinstance(data, dict) else None
         if not isinstance(repository_data, dict):
-            raise RuntimeError("GitHub GraphQL omitted branch activity repository data")
+            msg = "GitHub GraphQL omitted branch activity repository data"
+            raise RuntimeError(msg)
 
         for alias, sha in aliases.items():
             commit_data = repository_data.get(alias)
             if not isinstance(commit_data, dict):
-                raise RuntimeError(f"commit activity missing for branch head {sha}")
+                msg = f"commit activity missing for branch head {sha}"
+                raise RuntimeError(msg)
             committed_date = commit_data.get("committedDate")
             authored_date = commit_data.get("authoredDate")
             date = committed_date if isinstance(committed_date, str) else authored_date
             if not isinstance(date, str):
-                raise RuntimeError(f"commit activity is unverifiable for branch head {sha}")
+                msg = f"commit activity is unverifiable for branch head {sha}"
+                raise RuntimeError(msg)
             activity_epochs[sha] = epoch(date)
     return activity_epochs
 
@@ -165,12 +241,19 @@ def closed_pr_head_shas_by_branch(
     *,
     api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
 ) -> dict[str, set[str]]:
-    """Find recent branch heads that exactly match closed PR heads.
+    """Identify recent branch refs that still match a closed PR head exactly.
 
-    Such refs have no open review and have not advanced since the PR closed, so
-    they are eligible for removal even if their commit timestamp is recent.
-    Evidence refs, protected refs, the default branch, and open PR heads are
-    excluded from these lookups.
+    Args:
+        repo: Full owner/repository name used to query pull requests.
+        branches: Branch records containing names, protection flags, and current SHAs.
+        open_heads: Branch names currently referenced by open pull requests.
+        default_branch: Repository default branch, which must always be retained.
+        activity_epochs: Commit SHA to most-recent-activity epoch mapping.
+        cutoff_epoch: Earliest activity epoch recent enough to inspect for closed PRs.
+        api_items_loader: Optional paginator override used by deterministic API tests.
+
+    Returns:
+        Eligible branch names mapped to the exact closed-PR head SHAs they match.
     """
     load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
     owner = repo.split("/", maxsplit=1)[0]
@@ -225,6 +308,17 @@ def stale_unprotected_branches(
 
     Open pull-request heads and branches with missing activity evidence are
     retained. Results are ordered oldest first for predictable bounded cleanup.
+
+    Args:
+        branches: Branch records returned by GitHub for the repository.
+        open_heads: Branch names used by currently open pull requests.
+        default_branch: Repository's default branch name, which must be retained.
+        activity_epochs: Verified commit activity times keyed by full commit SHA.
+        cutoff_epoch: Unix timestamp before which a branch is considered stale.
+        closed_pr_head_shas: Exact closed-PR head SHAs eligible despite recent activity.
+
+    Returns:
+        Unprotected stale branch records sorted by verified commit activity time.
     """
     stale: list[tuple[float, dict[str, object]]] = []
     for branch in branches:
@@ -255,12 +349,26 @@ def stale_unprotected_branches(
 
 
 def pbd_validation_tag(dockerfile_contents: bytes) -> str:
-    """Return the immutable image tag used by the canonical workflow."""
+    """Return the immutable image tag used by the canonical workflow.
+
+    Args:
+        dockerfile_contents: Exact Dockerfile bytes used to build the image.
+
+    Returns:
+        Stable hexadecimal tag derived from the Dockerfile contents.
+    """
     return hashlib.sha256(dockerfile_contents).hexdigest()[:32]
 
 
 def package_version_tags(version: dict[str, object]) -> set[str] | None:
-    """Return container tags, or None when the API omitted tag metadata."""
+    """Return container tags, or None when the API omitted tag metadata.
+
+    Args:
+        version: Container package version record returned by GitHub.
+
+    Returns:
+        Set of string tags, or None when tag metadata is missing or malformed.
+    """
     metadata = version.get("metadata")
     container = metadata.get("container") if isinstance(metadata, dict) else None
     tags = container.get("tags") if isinstance(container, dict) else None
@@ -270,7 +378,14 @@ def package_version_tags(version: dict[str, object]) -> set[str] | None:
 
 
 def package_version_activity_epoch(version: dict[str, object]) -> float | None:
-    """Use updated_at when present so a recently republished tag gets a grace period."""
+    """Use updated_at when present so a recently republished tag gets a grace period.
+
+    Args:
+        version: Container package version metadata from GitHub.
+
+    Returns:
+        Unix timestamp for the version's latest activity, or None.
+    """
     activity = version.get("updated_at") or version.get("created_at")
     return epoch(activity) if isinstance(activity, str) else None
 
@@ -278,7 +393,16 @@ def package_version_activity_epoch(version: dict[str, object]) -> float | None:
 def stale_package_versions(
     versions: list[dict[str, object]], protected_tags: set[str], cutoff_epoch: float
 ) -> list[dict[str, object]]:
-    """Return old package versions whose tags are not used by protected refs or runs."""
+    """Return old package versions whose tags are not used by protected refs or runs.
+
+    Args:
+        versions: Container package versions examined for retention.
+        protected_tags: Image tags still referenced by protected commits or runs.
+        cutoff_epoch: Unix timestamp marking the package retention boundary.
+
+    Returns:
+        Unprotected package versions older than the retention cutoff.
+    """
     stale = []
     for version in versions:
         tags = package_version_tags(version)
@@ -299,9 +423,24 @@ def dockerfile_tags_for_shas(
     batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
     fetch_json: Callable[..., object] | None = None,
 ) -> set[str]:
-    """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA."""
+    """Resolve protected Dockerfile tags with batched GraphQL queries instead of one REST call per SHA.
+
+    Args:
+        repo: Owner and repository name containing the Dockerfile history.
+        protected_shas: Commit identifiers whose Dockerfile contents are protected.
+        batch_size: Maximum number of commit objects queried at once.
+        fetch_json: Optional CLI-compatible JSON loader for deterministic tests.
+
+    Returns:
+        Image tags derived from Dockerfile contents at all protected commits.
+
+    Raises:
+        ValueError: Raised when the GraphQL batch size is not positive.
+        RuntimeError: Raised when a protected commit cannot be verified.
+    """
     if batch_size <= 0:
-        raise ValueError("Dockerfile query batch size must be positive")
+        msg = "Dockerfile query batch size must be positive"
+        raise ValueError(msg)
     if not protected_shas:
         return set()
 
@@ -314,8 +453,9 @@ def dockerfile_tags_for_shas(
         aliases: dict[str, str] = {}
         fields: list[str] = []
         for index, sha in enumerate(batch):
-            if len(sha) != 40 or any(char not in "0123456789abcdefABCDEF" for char in sha):
-                raise RuntimeError(f"invalid protected commit SHA: {sha!r}")
+            if len(sha) != 40 or any(char not in string.hexdigits for char in sha):
+                msg = f"invalid protected commit SHA: {sha!r}"
+                raise RuntimeError(msg)
             alias = f"file{index}"
             aliases[alias] = sha
             fields.append(
@@ -330,19 +470,23 @@ def dockerfile_tags_for_shas(
         )
         payload = load_json("api", "graphql", "-f", f"query={query}")
         if not isinstance(payload, dict):
-            raise RuntimeError("GitHub GraphQL returned a non-object response")
+            msg = "GitHub GraphQL returned a non-object response"
+            raise RuntimeError(msg)
         if payload.get("errors"):
-            raise RuntimeError("GitHub GraphQL could not verify protected Dockerfile contents")
+            msg = "GitHub GraphQL could not verify protected Dockerfile contents"
+            raise RuntimeError(msg)
         data = payload.get("data")
         repository_data = data.get("repository") if isinstance(data, dict) else None
         if not isinstance(repository_data, dict):
-            raise RuntimeError("GitHub GraphQL omitted the protected repository data")
+            msg = "GitHub GraphQL omitted the protected repository data"
+            raise RuntimeError(msg)
 
         for alias, sha in aliases.items():
             blob = repository_data.get(alias)
             dockerfile_text = blob.get("text") if isinstance(blob, dict) else None
             if not isinstance(dockerfile_text, str):
-                raise RuntimeError(f"Dockerfile content missing for protected ref {sha}")
+                msg = f"Dockerfile content missing for protected ref {sha}"
+                raise RuntimeError(msg)
             tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
     return tags
 
@@ -356,7 +500,22 @@ def cleanup_pbd_package_versions(
     api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
     delete_resource: Callable[..., None] | None = None,
 ) -> dict[str, object]:
-    """Prune only old PBD image versions unused by main, open PRs, or retained/active runs."""
+    """Prune only old PBD image versions unused by main, open PRs, or retained/active runs.
+
+    Args:
+        repo: Owner and repository name containing the PBD package.
+        protected_shas: Commit identifiers that keep corresponding image tags in use.
+        cutoff_epoch: Unix timestamp marking the image retention boundary.
+        dockerfile_tags_resolver: Optional callback that returns tags protected by commit SHAs.
+        api_items_loader: Optional paginated API iterator used to list package versions.
+        delete_resource: Optional CLI-compatible callback for deleting stale versions.
+
+    Returns:
+        Cleanup counts and a status describing the package-retention outcome.
+
+    Raises:
+        RuntimeError: Raised when a required package version identifier is invalid.
+    """
     result: dict[str, object] = {
         "status": "not_started",
         "versions_seen": 0,
@@ -390,7 +549,8 @@ def cleanup_pbd_package_versions(
         for version in selected:
             version_id = version.get("id")
             if not isinstance(version_id, int):
-                raise RuntimeError("GitHub returned a package version without an integer ID")
+                msg = "GitHub returned a package version without an integer ID"
+                raise RuntimeError(msg)
             phase = f"delete_package_version_{version_id}"
             delete_api_resource(
                 "api",
@@ -420,7 +580,20 @@ def cleanup_pbd_package_versions(
 
 
 def main() -> int:
-    """Remove stale unprotected branches, runs, and unreferenced PBD image versions."""
+    """Run repository retention cleanup and report a non-secret summary.
+
+    GitHub CLI credentials and the repository name come from the workflow environment.
+    Branch deletion is fail-closed: all candidate activity is verified before deletion.
+    Package cleanup reports unverifiable states instead of deleting possibly active images.
+
+    Returns:
+        Zero after the retention pass completes, including recoverable package-cleanup errors.
+
+    Raises:
+        KeyError: If the required REPO environment variable is absent.
+        RuntimeError: If repository metadata, branch activity, or a resource identifier is invalid.
+        subprocess.CalledProcessError: If a required GitHub CLI request fails.
+    """
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
@@ -443,7 +616,8 @@ def main() -> int:
         repository_data.get("default_branch") if isinstance(repository_data, dict) else None
     )
     if not isinstance(default_branch, str):
-        raise RuntimeError("GitHub repository metadata omitted the default branch")
+        msg = "GitHub repository metadata omitted the default branch"
+        raise RuntimeError(msg)
 
     branches = list(paginated_api_items(f"repos/{repo}/branches"))
     branch_shas: set[str] = set()
@@ -476,7 +650,8 @@ def main() -> int:
     for branch in selected_branches:
         name = branch.get("name")
         if not isinstance(name, str):
-            raise RuntimeError("GitHub returned a stale branch without a name")
+            msg = "GitHub returned a stale branch without a name"
+            raise RuntimeError(msg)
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
         removed_branches += 1
 
@@ -490,7 +665,8 @@ def main() -> int:
     for run in selected:
         run_id = run.get("id")
         if not isinstance(run_id, int):
-            raise RuntimeError("GitHub returned a completed workflow run without an integer ID")
+            msg = "GitHub returned a completed workflow run without an integer ID"
+            raise RuntimeError(msg)
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}")
 
     # Images used by the current main branch, open PRs, or retained/active runs are protected.

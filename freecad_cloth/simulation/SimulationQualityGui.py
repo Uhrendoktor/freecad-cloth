@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD task panel for simulation quality and fabric controls."""
 
 
@@ -285,7 +286,7 @@ class SimulationQualityTaskPanel:
             )
 
     def _refresh_fitting_stage(self):
-        from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
+        from freecad_cloth.simulation.fitting_handoff import fitting_stage_status
 
         message, can_reset = fitting_stage_status(self.scene)
         self.fitting_status.setText(message)
@@ -309,7 +310,7 @@ class SimulationQualityTaskPanel:
             )
             return
         try:
-            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            from freecad_cloth.simulation.fitting_handoff import open_arrange_fit_from_simulation
 
             open_arrange_fit_from_simulation(self.scene)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -324,7 +325,7 @@ class SimulationQualityTaskPanel:
             return
         try:
             from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
-            from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
+            from freecad_cloth.simulation.fitting_handoff import open_arrange_fit_from_simulation
 
             fitting = open_arrange_fit_from_simulation(self.scene)
             snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
@@ -334,7 +335,7 @@ class SimulationQualityTaskPanel:
 
     def reset_arrangement(self):
         try:
-            from freecad_cloth.simulation.FittingHandoff import reset_arrangement_from_simulation
+            from freecad_cloth.simulation.fitting_handoff import reset_arrangement_from_simulation
 
             reset_arrangement_from_simulation()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

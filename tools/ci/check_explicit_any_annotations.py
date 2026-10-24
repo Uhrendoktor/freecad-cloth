@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reject explicit ``Any`` references in repository Python sources.
 
 Ruff ANN401 handles function annotations. This syntax-aware gate catches explicit
@@ -10,8 +11,11 @@ from __future__ import annotations
 import ast
 import os
 import sys
-from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 ROOT = Path(__file__).resolve().parents[2]
 _TYPE_MODULES = frozenset({"typing", "typing_extensions"})
@@ -36,7 +40,16 @@ def _contains_explicit_any(
     any_names: set[str],
     typing_modules: set[str],
 ) -> bool:
-    """Return whether type syntax references an imported Any name or typing.Any."""
+    """Return whether type syntax references an imported Any name or typing.Any.
+
+    Args:
+        node: AST subtree representing annotation syntax to inspect.
+        any_names: Imported names that refer to an explicit Any symbol.
+        typing_modules: Aliases bound to typing or typing_extensions modules.
+
+    Returns:
+        Whether the subtree contains an explicit Any reference.
+    """
     pending = [node]
     while pending:
         current = pending.pop()
@@ -59,7 +72,14 @@ def _contains_explicit_any(
 
 
 def _type_comment_roots(comment: str) -> tuple[ast.AST, ...]:
-    """Parse an assignment type comment or a legacy function-signature comment."""
+    """Parse an assignment type comment or a legacy function-signature comment.
+
+    Args:
+        comment: Type comment text attached to an assignment or function.
+
+    Returns:
+        Parsed syntax roots for supported comment expressions, or an empty tuple.
+    """
     try:
         return (ast.parse(comment, mode="eval").body,)
     except SyntaxError:
@@ -92,6 +112,13 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
     expose ``Any`` without an explicit symbol reference. Quoted forward
     annotations and type comments are parsed only in annotation-related fields;
     ordinary user-facing strings are not interpreted as type syntax.
+
+    Args:
+        source: Python source text to inspect for explicit Any references.
+        filename: Filename included in parse diagnostics and policy violations.
+
+    Returns:
+        Sorted, unique diagnostics for syntax errors or prohibited Any references.
     """
     try:
         tree = ast.parse(source, filename=filename, type_comments=True)
@@ -124,7 +151,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id in any_names:
             violations.append(
-                f"{filename}:{node.lineno}: explicit Any reference is prohibited; "
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
         elif (
@@ -134,7 +161,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             and node.value.id in typing_modules
         ):
             violations.append(
-                f"{filename}:{node.lineno}: explicit {node.value.id}.Any reference is prohibited; "
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit {node.value.id}.Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
 
@@ -148,7 +175,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             annotation_fields.append(node.annotation)
 
         violations.extend(
-            f"{filename}:{getattr(annotation, 'lineno', node.lineno)}: "
+            f"{filename}:{getattr(annotation, 'lineno', getattr(node, 'lineno', 1))}: "
             "stringified annotation references explicit Any; use a concrete type, "
             "object with narrowing, or a Protocol"
             for annotation in annotation_fields
@@ -172,7 +199,14 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
 
 
 def python_files(root: Path = ROOT) -> Iterator[Path]:
-    """Yield Python source files in deterministic order, excluding generated trees."""
+    """Yield Python source files in deterministic order, excluding generated trees.
+
+    Args:
+        root: Directory tree to scan for Python source files.
+
+    Yields:
+        Python source paths in stable order, excluding generated directories.
+    """
     for directory, names, files in os.walk(root):
         names[:] = sorted(name for name in names if name not in _IGNORED_DIRECTORIES)
         for name in sorted(files):
@@ -181,7 +215,11 @@ def python_files(root: Path = ROOT) -> Iterator[Path]:
 
 
 def main() -> int:
-    """Check every repository Python source and fail with actionable locations."""
+    """Check every repository Python source and fail with actionable locations.
+
+    Returns:
+        Process status indicating whether the explicit-Any policy is satisfied.
+    """
     violations: list[str] = []
     count = 0
     for path in python_files():
