@@ -161,7 +161,7 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
             ),
         ),
     )
-    panel_data = {
+    panel_data: dict[str, object] = {
         "piece-a": {
             "boundary_edges": ((0, 1, 2),),
             "positions": (

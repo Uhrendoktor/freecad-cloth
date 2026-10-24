@@ -11,6 +11,7 @@ from tests.support.assertions import require
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
     from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -460,7 +461,7 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
         simulation_objects.SimulationProxy,
     )
     proxy = simulation_proxy_type()
-    proxy.backend = object()
+    proxy.backend = cast("PositionBasedDynamicsBackend", object())
     proxy.panel_indices = {"panel": (1, 2)}
     proxy.seam_stitch_pairs = {"seam": ((0, 1),)}
     proxy.source_signature = ("derived",)

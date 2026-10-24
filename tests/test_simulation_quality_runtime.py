@@ -105,7 +105,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     base.collision_surface = "collision"
     base.last_steps = 0
     published = []
-    proxy._publish_state = lambda obj, state: published.append((obj, state))
+    proxy._publish_state = lambda obj, base: published.append((obj, base))
 
     proxy.advance_preview_frame(scene)
 
