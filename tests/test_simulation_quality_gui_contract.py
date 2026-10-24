@@ -113,6 +113,8 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
     def refresh(message: str | None = None) -> None:
         """Stand in for UI refresh during snapshot restoration."""
 
+        _ = message
+
     monkeypatch.setattr(panel, "_load_widgets_only", load_widgets_only)
     monkeypatch.setattr(panel, "_refresh", refresh)
     _panel_method(panel, "_capture_snapshot")()
