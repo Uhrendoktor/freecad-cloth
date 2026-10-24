@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Never, cast
 
 import pytest
+from tests.support.assertions import require
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
@@ -26,7 +27,6 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
     WorkflowStep,
     build_workflow_checklist,
 )
-from tests.support.assertions import require
 
 
 _EXPECTED_QUALITY_NAMES = ("Fast", "Balanced", "Final")
