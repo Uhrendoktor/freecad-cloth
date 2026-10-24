@@ -460,7 +460,7 @@ def test_simulation_proxy_serializes_only_rebuildable_metadata() -> None:
         simulation_objects.SimulationProxy,
     )
     proxy = simulation_proxy_type()
-    proxy.backend = object()
+    proxy.backend = cast("PositionBasedDynamicsBackend", object())
     proxy.panel_indices = {"panel": (1, 2)}
     proxy.seam_stitch_pairs = {"seam": ((0, 1),)}
     proxy.source_signature = ("derived",)
