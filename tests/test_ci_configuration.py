@@ -38,16 +38,13 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message="The GUI matrix must run the simulation-quality acceptance gate.",
+        message="GUI matrix must invoke the simulation-quality acceptance validator.",
     )
     require(
         condition=(
             '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
         ),
-        message=(
-            'Expected ( \'"simulation-quality": '
-            'Path("artifacts/simulation-quality-readiness.png")\' in validator ).'
-        ),
+        message="Validator must register the simulation-quality readiness artifact.",
     )
     stale_image_contract = (
         '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
@@ -62,11 +59,11 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="simulation-quality-stale-target.png" in acceptance,
-        message='Expected "simulation-quality-stale-target.png" in acceptance.',
+        message="Expected \"simulation-quality-stale-target.png\" in acceptance.",
     )
     require(
         condition='property("workflowState") != "blocked"' in acceptance,
-        message='Expected \'property("workflowState") != "blocked"\' in acceptance.',
+        message="Expected 'property(\"workflowState\") != \"blocked\"' in acceptance.",
     )
     require(
         condition='if __name__ == "__main__"' not in acceptance,
@@ -78,11 +75,11 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="os._exit(0)" in acceptance,
-        message='Expected "os._exit(0)" in acceptance.',
+        message="Expected \"os._exit(0)\" in acceptance.",
     )
     require(
         condition="os._exit(1)" in acceptance,
-        message='Expected "os._exit(1)" in acceptance.',
+        message="Expected \"os._exit(1)\" in acceptance.",
     )
 
 
@@ -103,7 +100,7 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
     )
     require(
         condition=pyproject.count("freecad_application_timeout_seconds") == 1,
-        message='Expected pyproject.count("freecad_application_timeout_seconds") == 1.',
+        message="Expected pyproject.count(\"freecad_application_timeout_seconds\") == 1.",
     )
 
 
@@ -123,7 +120,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     require(
         condition=workflow.count("timeout-seconds:") == 1,
-        message='Expected workflow.count("timeout-seconds:") == 1.',
+        message="Expected workflow.count(\"timeout-seconds:\") == 1.",
     )
     require(
         condition='timeout-seconds: "360"' in simulation_ladder,
@@ -131,7 +128,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     require(
         condition="freecad_application_timeout_seconds" not in workflow,
-        message='Expected "freecad_application_timeout_seconds" not in workflow.',
+        message="Expected \"freecad_application_timeout_seconds\" not in workflow.",
     )
     require(
         condition='default: "120"' in action,
@@ -139,11 +136,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     require(
         condition="timeout-seconds: ${{ inputs.timeout-seconds }}" in action,
-        message='Expected "timeout-seconds: ${{ inputs.timeout-seconds }}" in action.',
+        message="Expected \"timeout-seconds: ${{ inputs.timeout-seconds }}\" in action.",
     )
     require(
         condition="FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action,
-        message='Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action.',
+        message="Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS=\" in action.",
     )
     require(
         condition='default: "120"' in container_action,
@@ -151,7 +148,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     require(
         condition="maximum 360 seconds" in container_action,
-        message='Expected "maximum 360 seconds" in container_action.',
+        message="Expected \"maximum 360 seconds\" in container_action.",
     )
     require(
         condition='if [ "$timeout_seconds" -gt 360 ]; then' in container_action,
@@ -159,15 +156,15 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     require(
         condition="FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner,
-        message='Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner.',
+        message="Expected \"FREECAD_APPLICATION_TIMEOUT_SECONDS\" in runner.",
     )
     require(
         condition="420" not in container_action,
-        message='Expected "420" not in container_action.',
+        message="Expected \"420\" not in container_action.",
     )
     require(
         condition="--no-deps -e ." in action,
-        message='Expected "--no-deps -e ." in action.',
+        message="Expected \"--no-deps -e .\" in action.",
     )
     require(
         condition='"numpy>=1.26,<3"' in action,
@@ -183,15 +180,18 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     require(
         condition="install --disable-pip-version-check -e ." not in action,
-        message='Expected "install --disable-pip-version-check -e ." not in action.',
+        message="Expected \"install --disable-pip-version-check -e .\" not in action.",
     )
     require(
         condition="configured_timeout_seconds()" in runner,
-        message='Expected "configured_timeout_seconds()" in runner.',
+        message="Expected \"configured_timeout_seconds()\" in runner.",
     )
     require(
         condition="--extra-index-url https://download.pytorch.org/whl/cpu" in workflow,
-        message=('Expected "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow.'),
+        message=(
+            "Expected \"--extra-index-url https://download.pytorch.org/whl/cpu\" in "
+            "workflow."
+        ),
     )
     require(
         condition='"torch==2.8.0+cpu"' in workflow,
@@ -208,15 +208,15 @@ def test_timeout_contract_is_documented() -> None:
 
     require(
         condition="CI configuration" in docs,
-        message='Expected "CI configuration" in docs.',
+        message="Expected \"CI configuration\" in docs.",
     )
     require(
         condition="pyproject.toml" in configuration,
-        message='Expected "pyproject.toml" in configuration.',
+        message="Expected \"pyproject.toml\" in configuration.",
     )
     require(
         condition="freecad_application_timeout_seconds" in configuration,
-        message='Expected "freecad_application_timeout_seconds" in configuration.',
+        message="Expected \"freecad_application_timeout_seconds\" in configuration.",
     )
 
 
@@ -229,19 +229,19 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
 
     require(
         condition="GH_TOKEN: ${{ github.token }}" in cleanup,
-        message='Expected "GH_TOKEN: ${{ github.token }}" in cleanup.',
+        message="Expected \"GH_TOKEN: ${{ github.token }}\" in cleanup.",
     )
     require(
         condition="actions: write" in cleanup,
-        message='Expected "actions: write" in cleanup.',
+        message="Expected \"actions: write\" in cleanup.",
     )
     require(
         condition="contents: write" in cleanup,
-        message='Expected "contents: write" in cleanup.',
+        message="Expected \"contents: write\" in cleanup.",
     )
     require(
         condition="packages: write" in cleanup,
-        message='Expected "packages: write" in cleanup.',
+        message="Expected \"packages: write\" in cleanup.",
     )
 
 
@@ -294,15 +294,15 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
 
     require(
         condition="python tools/check_dead_code.py" in quality,
-        message='Expected "python tools/check_dead_code.py" in quality.',
+        message="Expected \"python tools/check_dead_code.py\" in quality.",
     )
     require(
         condition="xargs -r python tools/check_dead_code.py" not in quality,
-        message='Expected "xargs -r python tools/check_dead_code.py" not in quality.',
+        message="Expected \"xargs -r python tools/check_dead_code.py\" not in quality.",
     )
     require(
         condition="changed-python.txt" not in quality,
-        message='Expected "changed-python.txt" not in quality.',
+        message="Expected \"changed-python.txt\" not in quality.",
     )
 
 
@@ -342,12 +342,12 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message='Expected args[:3] == ("api", "graphql", "-f").',
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
         )
         query_arg = args[3]
         require(
             condition=query_arg.startswith("query="),
-            message='Expected query_arg.startswith("query=").',
+            message="Expected query_arg.startswith(\"query=\").",
         )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(
@@ -392,7 +392,6 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     Raises:
         AssertionError: If cleanup accepts a missing protected Dockerfile blob.
     """
-
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
 
@@ -404,7 +403,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
         """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message='Expected args[:3] == ("api", "graphql", "-f").',
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
         )
         return {"data": {"repository": {"file0": None}}}
 
@@ -415,7 +414,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     except RuntimeError as exc:
         require(
             condition="Dockerfile content missing" in str(exc),
-            message='Expected "Dockerfile content missing" in str(exc).',
+            message="Expected \"Dockerfile content missing\" in str(exc).",
         )
     else:
         msg = "missing protected Dockerfile content must fail closed"
@@ -439,11 +438,11 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         """
         require(
             condition=repo_name == "Uhrendoktor/freecad-cloth",
-            message='Expected repo_name == "Uhrendoktor/freecad-cloth".',
+            message="Expected repo_name == \"Uhrendoktor/freecad-cloth\".",
         )
         require(
             condition=protected_shas == {"1" * 40},
-            message='Expected protected_shas == {"1" * 40}.',
+            message="Expected protected_shas == {\"1\" * 40}.",
         )
         return {"protected-dockerfile-tag"}
 
@@ -484,24 +483,25 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
 
     require(
         condition=result["status"] == "passed",
-        message='Expected result["status"] == "passed".',
+        message="Expected result[\"status\"] == \"passed\".",
     )
     require(
         condition=result["versions_seen"] == 0,
-        message='Expected result["versions_seen"] == 0.',
+        message="Expected result[\"versions_seen\"] == 0.",
     )
     require(
         condition=result["deleted"] == 0,
-        message='Expected result["deleted"] == 0.',
+        message="Expected result[\"deleted\"] == 0.",
     )
     require(
         condition=(
-            requested_endpoints
-            == ["user/packages/container/freecad-cloth%2Fpbd-validation/versions"]
+            requested_endpoints == [
+                "user/packages/container/freecad-cloth%2Fpbd-validation/versions"
+            ]
         ),
         message=(
             "Expected ( requested_endpoints == [ "
-            '"user/packages/container/freecad-cloth%2Fpbd-validation/versions" ] ).'
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions\" ] )."
         ),
     )
     require(
@@ -541,7 +541,7 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
 
     require(
         condition=[version["id"] for version in stale] == [1],
-        message='Expected [version["id"] for version in stale] == [1].',
+        message="Expected [version[\"id\"] for version in stale] == [1].",
     )
 
 
@@ -613,20 +613,19 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
     )
     require(
         condition=result["status"] == "passed",
-        message='Expected result["status"] == "passed".',
+        message="Expected result[\"status\"] == \"passed\".",
     )
     require(
         condition=result["versions_seen"] == 1,
-        message='Expected result["versions_seen"] == 1.',
+        message="Expected result[\"versions_seen\"] == 1.",
     )
     require(
         condition=result["deleted"] == 1,
-        message='Expected result["deleted"] == 1.',
+        message="Expected result[\"deleted\"] == 1.",
     )
     require(
         condition=(
-            deleted
-            == [
+            deleted == [
                 (
                     "api",
                     "--method",
@@ -636,8 +635,8 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
             ]
         ),
         message=(
-            'Expected ( deleted == [ ( "api", "--method", "DELETE", '
-            '"user/packages/container/freecad-cloth%2Fpbd-validation/versions/11", ) ] ).'
+            "Expected ( deleted == [ ( \"api\", \"--method\", \"DELETE\", "
+            "\"user/packages/container/freecad-cloth%2Fpbd-validation/versions/11\", ) ] )."
         ),
     )
 
@@ -675,7 +674,7 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
     require(
         condition=items == [{"id": 1}, {"id": 2}, {"id": 3}],
-        message='Expected items == [{"id": 1}, {"id": 2}, {"id": 3}].',
+        message="Expected items == [{\"id\": 1}, {\"id\": 2}, {\"id\": 3}].",
     )
     require(
         condition=requested_pages == [1, 2],
@@ -709,12 +708,13 @@ def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
 
     require(
         condition=(
-            maintenance_cleanup.branch_activity_epoch(commit_data)
-            == maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
+            maintenance_cleanup.branch_activity_epoch(commit_data) == maintenance_cleanup.epoch(
+                "2026-10-01T00:00:00Z"
+            )
         ),
         message=(
             "Expected ( maintenance_cleanup.branch_activity_epoch(commit_data) == "
-            'maintenance_cleanup.epoch( "2026-10-01T00:00:00Z" ) ).'
+            "maintenance_cleanup.epoch( \"2026-10-01T00:00:00Z\" ) )."
         ),
     )
 
@@ -756,12 +756,12 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message='Expected args[:3] == ("api", "graphql", "-f").',
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
         )
         query_arg = args[3]
         require(
             condition=query_arg.startswith("query="),
-            message='Expected query_arg.startswith("query=").',
+            message="Expected query_arg.startswith(\"query=\").",
         )
         query = query_arg.removeprefix("query=")
         aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
@@ -780,8 +780,7 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
 
     require(
         condition=(
-            activities
-            == {
+            activities == {
                 "1" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
                 "2" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
                 "3" * 40: maintenance_cleanup.epoch("2026-09-01T00:00:00Z"),
@@ -790,12 +789,12 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
             }
         ),
         message=(
-            'Expected ( activities == { "1" * 40: '
-            'maintenance_cleanup.epoch("2026-07-01T00:00:00Z"), "2" * 40: '
-            'maintenance_cleanup.epoch("2026-08-01T00:00:00Z"), "3" * 40: '
-            'maintenance_cleanup.epoch("2026-09-01T00:00:00Z"), "4" * 40: '
-            'maintenance_cleanup.epoch("2026-10-01T00:00:00Z"), "5" * 40: '
-            'maintenance_cleanup.epoch("2026-10-05T00:00:00Z"), } ).'
+            "Expected ( activities == { \"1\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-07-01T00:00:00Z\"), \"2\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-08-01T00:00:00Z\"), \"3\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-09-01T00:00:00Z\"), \"4\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-01T00:00:00Z\"), \"5\" * 40: "
+            "maintenance_cleanup.epoch(\"2026-10-05T00:00:00Z\"), } )."
         ),
     )
     require(
@@ -810,7 +809,6 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     Raises:
         AssertionError: If missing commit activity is accepted.
     """
-
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock response that omits a requested commit object.
 
@@ -822,7 +820,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
         """
         require(
             condition=args[:3] == ("api", "graphql", "-f"),
-            message='Expected args[:3] == ("api", "graphql", "-f").',
+            message="Expected args[:3] == (\"api\", \"graphql\", \"-f\").",
         )
         return {"data": {"repository": {"commit0": None}}}
 
@@ -833,7 +831,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     except RuntimeError as exc:
         require(
             condition="commit activity missing" in str(exc),
-            message='Expected "commit activity missing" in str(exc).',
+            message="Expected \"commit activity missing\" in str(exc).",
         )
     else:
         msg = "missing branch activity must fail closed"
@@ -905,21 +903,20 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 
     require(
         condition=matched == {"fix/closed-pr-head": {"1" * 40}},
-        message='Expected matched == {"fix/closed-pr-head": {"1" * 40}}.',
+        message="Expected matched == {\"fix/closed-pr-head\": {\"1\" * 40}}.",
     )
     require(
         condition=(
-            endpoints
-            == [
+            endpoints == [
                 "repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head",
                 "repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-work",
             ]
         ),
         message=(
             "Expected ( endpoints == [ "
-            '"repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head", '
-            '"repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-wor'
-            'k", ] ).'
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Fclosed-pr-head\", "
+            "\"repos/owner/repo/pulls?state=closed&head=owner:fix%2Frecent-unsubmitted-wor"
+            "k\", ] )."
         ),
     )
 
@@ -984,15 +981,14 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
 
     require(
         condition=(
-            [branch["name"] for branch in stale]
-            == [
+            [branch["name"] for branch in stale] == [
                 "maintenance/old-closed-work",
                 "fix/old-closed-work",
             ]
         ),
         message=(
-            'Expected ( [branch["name"] for branch in stale] == [ '
-            '"maintenance/old-closed-work", "fix/old-closed-work", ] ).'
+            "Expected ( [branch[\"name\"] for branch in stale] == [ "
+            "\"maintenance/old-closed-work\", \"fix/old-closed-work\", ] )."
         ),
     )
 
@@ -1010,7 +1006,7 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
     require(
         condition=[run["id"] for run in stale] == [1, 2],
-        message='Expected [run["id"] for run in stale] == [1, 2].',
+        message="Expected [run[\"id\"] for run in stale] == [1, 2].",
     )
 
 
@@ -1027,8 +1023,10 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     )
     require(
         condition=(
-            ('xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"')
-            in quality
+            (
+                'xargs -0 -r python -m ruff format --check < '
+                '"$RUNNER_TEMP/python-files.zlist"'
+            ) in quality
         ),
         message=(
             "Expected ( ( 'xargs -0 -r python -m ruff format --check < ' "
@@ -1039,24 +1037,24 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         condition='xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality,
         message=(
             "Expected 'xargs -0 -r python -m ruff check < "
-            '"$RUNNER_TEMP/python-files.zlist"\' in quality.'
+            "\"$RUNNER_TEMP/python-files.zlist\"' in quality."
         ),
     )
     require(
         condition="python -m ruff check --fix" not in quality,
-        message='Expected "python -m ruff check --fix" not in quality.',
+        message="Expected \"python -m ruff check --fix\" not in quality.",
     )
     require(
         condition="xargs -r python -m ruff check <" not in quality,
-        message='Expected "xargs -r python -m ruff check <" not in quality.',
+        message="Expected \"xargs -r python -m ruff check <\" not in quality.",
     )
     require(
         condition="pyright -p pyrightconfig.agent-strict.json" not in quality,
-        message='Expected "pyright -p pyrightconfig.agent-strict.json" not in quality.',
+        message="Expected \"pyright -p pyrightconfig.agent-strict.json\" not in quality.",
     )
     require(
         condition="python tools/ci/check_pydantic_models.py" in quality,
-        message='Expected "python tools/ci/check_pydantic_models.py" in quality.',
+        message="Expected \"python tools/ci/check_pydantic_models.py\" in quality.",
     )
     require(
         condition='path: "freecad_cloth tests tools/ci"' in workflow,
@@ -1079,27 +1077,27 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
 
     require(
         condition=config["typeCheckingMode"] == "standard",
-        message='Expected config["typeCheckingMode"] == "standard".',
+        message="Expected config[\"typeCheckingMode\"] == \"standard\".",
     )
     require(
         condition=config["include"] == ["."],
-        message='Expected config["include"] == ["."].',
+        message="Expected config[\"include\"] == [\".\"].",
     )
     require(
         condition=not config.get("exclude"),
-        message='Expected not config.get("exclude").',
+        message="Expected not config.get(\"exclude\").",
     )
     require(
         condition=not (ROOT / "pyrightconfig.agent-strict.json").exists(),
-        message='Expected not (ROOT / "pyrightconfig.agent-strict.json").exists().',
+        message="Expected not (ROOT / \"pyrightconfig.agent-strict.json\").exists().",
     )
     require(
         condition=quality.count("pyright -p ") == 1,
-        message='Expected quality.count("pyright -p ") == 1.',
+        message="Expected quality.count(\"pyright -p \") == 1.",
     )
     require(
         condition=config["strict"] == list(strict_core),
-        message='Expected config["strict"] == list(strict_core).',
+        message="Expected config[\"strict\"] == list(strict_core).",
     )
 
 
@@ -1117,7 +1115,7 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
 
     require(
         condition="CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation,
-        message='Expected "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation.',
+        message="Expected \"CLOTH_AVATAR_SCREENSHOT_MODE=documentation\" in gallery_invocation.",
     )
     require(
         condition=(
@@ -1131,19 +1129,19 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     )
     require(
         condition="CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow,
-        message='Expected "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow.',
+        message="Expected \"CLOTH_DOC_AVATAR_FIT_STEPS:\" in workflow.",
     )
     require(
         condition="FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation,
-        message='Expected "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation.',
+        message="Expected \"FREECAD_CLOTH_ANNY_FIT_STEPS=18\" not in gallery_invocation.",
     )
     require(
         condition="freecad_application_timeout_seconds" not in gallery_job,
-        message='Expected "freecad_application_timeout_seconds" not in gallery_job.',
+        message="Expected \"freecad_application_timeout_seconds\" not in gallery_job.",
     )
     require(
         condition="timeout-minutes: 12" in gallery_job,
-        message='Expected "timeout-minutes: 12" in gallery_job.',
+        message="Expected \"timeout-minutes: 12\" in gallery_job.",
     )
 
 
@@ -1172,7 +1170,7 @@ def test_main_publication_checks_out_source_before_local_publisher_action() -> N
     )
     require(
         condition="persist-credentials: false" in publisher_job,
-        message='Expected "persist-credentials: false" in publisher_job.',
+        message="Expected \"persist-credentials: false\" in publisher_job.",
     )
 
 
@@ -1189,11 +1187,12 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
     # artifact ZIP retains blanket-example/motion-*.png rather than flattening it.
     require(
         condition="artifact-path: docs/images/generated/**" in blanket_job,
-        message='Expected "artifact-path: docs/images/generated/**" in blanket_job.',
+        message="Expected \"artifact-path: docs/images/generated/**\" in blanket_job.",
     )
     require(
         condition="artifact-path: docs/images/generated/blanket-example/**" not in blanket_job,
         message=(
-            'Expected "artifact-path: docs/images/generated/blanket-example/**" not in blanket_job.'
+            "Expected \"artifact-path: docs/images/generated/blanket-example/**\" not in "
+            "blanket_job."
         ),
     )
