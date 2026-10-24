@@ -97,7 +97,7 @@ def validate_pinned_stitch_pairs(
         if a not in pinned or b not in pinned:
             continue
         pa, pb = normalized_positions[a], normalized_positions[b]
-        separation = sum((pa[index] - pb[index]) ** 2 for index in range(3)) ** 0.5
+        separation = sum((pa[index] - pb[index]) ** 2 for index in range(POSITION_COMPONENT_COUNT)) ** 0.5
         if separation > epsilon:
             msg = (
                 "impossible pinned-pinned sewing constraint: "
@@ -114,7 +114,7 @@ class ClothSimulationBackend(ABC):
 
     @property
     def solver_collision_surface(self) -> CollisionSurface | None:
-        """Return the collision surface registered with the backend.
+        """The collision surface registered with the backend.
 
         Returns:
             The registered collision surface, or None when no surface is configured.
@@ -207,7 +207,7 @@ class ClothSimulationBackend(ABC):
     @property
     @abstractmethod
     def time(self) -> float:
-        """Return elapsed simulation time in seconds.
+        """Elapsed simulation time in seconds.
 
         Returns:
             Elapsed simulation time since the backend's input state was constructed.

@@ -57,14 +57,14 @@ PYRIGHT_EXPECTED_INCLUDE = (".",)
 PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/cloth_backend.py",
     "freecad_cloth/simulation/ClothSolver.py",
 )
 
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
-    "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
+    "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/cloth_backend.py freecad_cloth/simulation/ClothSolver.py",
     "python tools/ci/check_changed_python_types.py",
 )
 

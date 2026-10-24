@@ -1073,7 +1073,7 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     strict_core = (
         "freecad_cloth/simulation/DrapeFailureClassifier.py",
-        "freecad_cloth/simulation/ClothBackend.py",
+        "freecad_cloth/simulation/cloth_backend.py",
         "freecad_cloth/simulation/ClothSolver.py",
     )
 

@@ -152,7 +152,7 @@ def test_canonical_workflow_contains_all_blocking_type_gates() -> None:
         condition=config["strict"]
         == [
             "freecad_cloth/simulation/DrapeFailureClassifier.py",
-            "freecad_cloth/simulation/ClothBackend.py",
+            "freecad_cloth/simulation/cloth_backend.py",
             "freecad_cloth/simulation/ClothSolver.py",
         ],
         message="Only the reviewed simulation modules may use strict-mode overrides.",
@@ -205,7 +205,7 @@ def test_pyright_coverage_matches_the_reviewed_staged_inventory() -> None:
 def test_pyright_coverage_guard_detects_a_narrowed_include_set() -> None:
     """Catch future edits that silently reduce the Pyright include set."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["include"] = ["freecad_cloth/simulation/ClothBackend.py"]
+    config["include"] = ["freecad_cloth/simulation/cloth_backend.py"]
     violations = pyright_coverage_contract_violations(json.dumps(config))
     require(
         condition=violations == ("<Pyright include scope must cover the entire repository>",),

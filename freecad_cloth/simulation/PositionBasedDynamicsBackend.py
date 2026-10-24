@@ -25,7 +25,7 @@ from freecad_cloth.common.ValidationModels import (
     validate_finite_number,
 )
 from freecad_cloth.shared.collision import CollisionSurface
-from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
+from freecad_cloth.simulation.cloth_backend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 if TYPE_CHECKING:

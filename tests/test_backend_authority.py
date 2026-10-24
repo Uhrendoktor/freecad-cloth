@@ -21,7 +21,7 @@ def test_backend_boundary_is_small_and_solver_neutral():
 
 
 def test_pbd_is_the_only_runtime_backend_implementation():
-    backend_source = (ROOT / "freecad_cloth" / "simulation" / "ClothBackend.py").read_text(
+    backend_source = (ROOT / "freecad_cloth" / "simulation" / "cloth_backend.py").read_text(
         encoding="utf-8"
     )
     pbd_source = (
