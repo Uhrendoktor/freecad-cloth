@@ -2,20 +2,15 @@
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
 from types import ModuleType, SimpleNamespace
-from typing import NoReturn, Protocol, cast
+from typing import TYPE_CHECKING, NoReturn, cast
+
+if TYPE_CHECKING:
+    from tests.support.pbd_contact_helpers import _EventApplication
 
 import pytest
 
 from tests.support.assertions import require
 from tests.support.pbd_contact_helpers import events, nearest_surface_distance
-
-
-class _EventApplicationStub(Protocol):
-    """Describe only the Qt event-processing method needed by the helper test."""
-
-    def processEvents(self) -> None:
-        """Process pending GUI events for the test double."""
-        ...
 
 
 def test_surface_distance_fallback_uses_spatial_index() -> None:
@@ -53,7 +48,7 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
     gui = ModuleType("FreeCADGui")
     gui.__dict__["updateGui"] = lambda: calls.append("gui-update")
     application = cast(
-        "_EventApplicationStub",
+        "_EventApplication",
         SimpleNamespace(processEvents=lambda: calls.append("qt-events")),
     )
 
