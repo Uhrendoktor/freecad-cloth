@@ -4,7 +4,7 @@
 from collections.abc import Callable
 from math import isclose
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, ClassVar, NoReturn, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
 from freecad_cloth.simulation.SimulationQualityRuntime import (
@@ -170,10 +170,9 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         time: ClassVar[float] = 0.25
 
         def __init__(self) -> None:
-            """Initialize the call log for the recording-only backend."""
-            self.calls: list[
-                tuple[float, int, tuple[float, float, float], object]
-            ] = []
+            """Initialize the call log and publication-read count."""
+            self.calls: list[tuple[float, int, tuple[float, float, float], object]] = []
+            self.position_reads = 0
 
         def step(
             self,
@@ -192,15 +191,22 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
             """
             self.calls.append((dt, iterations, gravity, surface))
 
-        @staticmethod
-        def positions() -> NoReturn:
-            """Fail if the preview test attempts real mesh publication."""
-            msg = "preview publication should be stubbed in this focused test"
-            raise AssertionError(msg)
+        def positions(self) -> tuple[tuple[float, float, float], ...]:
+            """Return no vertices while recording the publication read.
+
+            Returns:
+                An empty position sequence because the scene has no display panels.
+            """
+            self.position_reads += 1
+            return ()
 
         @staticmethod
         def finite() -> bool:
-            """Report finite state because this test double has no solver state."""
+            """Report finite state because this test double has no solver state.
+
+            Returns:
+                True because the fake backend contains no non-finite particle values.
+            """
             return True
 
     scene = SimpleNamespace(
@@ -232,18 +238,6 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     base.backend = cast("PositionBasedDynamicsBackend", backend)
     base.collision_surface = _COLLISION_SENTINEL
     base.last_steps = 0
-    published: list[tuple[object, SimulationProxy]] = []
-
-    def record_publication(obj: object, base: SimulationProxy) -> None:
-        """Record the publication call without building native meshes.
-
-        Args:
-            obj: Scene object passed by the preview proxy.
-            base: Existing simulation state owned by the proxy.
-        """
-        published.append((obj, base))
-
-    setattr(proxy, "_publish_state", record_publication)
     proxy.advance_preview_frame(scene)
 
     require(
@@ -259,8 +253,8 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         message="A preview frame must advance the backend once with the authoritative surface.",
     )
     require(
-        condition=published == [(scene, base)],
-        message="A preview frame must publish the updated scene and base state once.",
+        condition=backend.position_reads == 1,
+        message="A preview frame must publish the solved state exactly once.",
     )
     require(
         condition=base.last_steps == _EXPECTED_PREVIEW_STEPS,
@@ -270,7 +264,6 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
 def test_quality_proxy_keeps_solver_stitch_provenance() -> None:
     """Preserve seam stitch provenance when the quality proxy delegates to its base."""
-
     proxy = QualitySimulationProxy()
     base = SimpleNamespace(seam_stitch_pairs=_SEAM_PROVENANCE.copy())
     _private_callable(proxy, "_sync_seam_stitch_provenance")(base)
