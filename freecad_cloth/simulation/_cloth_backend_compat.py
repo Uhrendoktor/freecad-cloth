@@ -22,7 +22,7 @@ class _LegacyClothBackend(ModuleType):
         backend_module = import_module(".cloth_backend", package_name)
         modules[self.__name__] = backend_module
         package = modules[package_name]
-        package.ClothBackend = backend_module
+        package.__dict__["ClothBackend"] = backend_module
         return getattr(backend_module, name)
 
 

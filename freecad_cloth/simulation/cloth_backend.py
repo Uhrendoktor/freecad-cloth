@@ -97,7 +97,9 @@ def validate_pinned_stitch_pairs(
         if a not in pinned or b not in pinned:
             continue
         pa, pb = normalized_positions[a], normalized_positions[b]
-        separation = sum((pa[index] - pb[index]) ** 2 for index in range(POSITION_COMPONENT_COUNT)) ** 0.5
+        separation = sum(
+            (pa[index] - pb[index]) ** 2 for index in range(POSITION_COMPONENT_COUNT)
+        ) ** 0.5
         if separation > epsilon:
             msg = (
                 "impossible pinned-pinned sewing constraint: "
