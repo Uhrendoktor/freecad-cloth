@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify material, tessellation, solver, and readiness contracts."""
 
-from math import dist
 from itertools import pairwise
+from math import dist
 from types import SimpleNamespace
 from typing import Never, cast
 
@@ -26,6 +26,7 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
     WorkflowStep,
     build_workflow_checklist,
 )
+
 from tests.support.assertions import require
 
 
