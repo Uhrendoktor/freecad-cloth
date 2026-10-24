@@ -28,7 +28,6 @@ def _scene() -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
-
 def _panel_method(
     panel: SimulationQualityTaskPanel,
     name: str,
@@ -60,6 +59,7 @@ def _snapshot(panel: SimulationQualityTaskPanel) -> dict[str, object]:
         snapshot,
         message="Snapshot capture must initialize the snapshot state.",
     )
+
 
 def test_snapshot_property_set_is_unique_and_covers_persistent_controls() -> None:
     """Keep the snapshot schema unique and cover persisted quality controls."""
@@ -112,7 +112,6 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
 
     def refresh(message: str | None = None) -> None:
         """Stand in for UI refresh during snapshot restoration."""
-
         _ = message
 
     monkeypatch.setattr(panel, "_load_widgets_only", load_widgets_only)
@@ -148,12 +147,10 @@ def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
 
     def parameters_changed() -> None:
         """Record parameter refresh in the fake panel."""
-
         calls.append("parameters")
 
     def capture_snapshot() -> None:
         """Record snapshot capture in the fake panel."""
-
         calls.append("snapshot")
 
     monkeypatch.setattr(panel, "_parameters_changed", parameters_changed)
@@ -178,22 +175,18 @@ def test_reject_restores_snapshot_before_closing_dialog(
 
     def restore_snapshot() -> None:
         """Record snapshot restoration in the fake panel."""
-
         calls.append("restore")
 
     def active_document() -> object:
         """Return a non-null fake active document."""
-
         return object()
 
     def active_dialog() -> object:
         """Return a non-null fake active dialog."""
-
         return object()
 
     def close_dialog() -> None:
         """Record closing the fake task-panel dialog."""
-
         calls.append("close")
 
     monkeypatch.setattr(panel, "_restore_snapshot", restore_snapshot)
