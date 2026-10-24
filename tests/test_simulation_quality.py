@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify material, tessellation, solver, and readiness contracts."""
 
+from itertools import pairwise
 from math import dist
 from types import SimpleNamespace
 from typing import Never, cast
@@ -44,6 +45,14 @@ _MINIMUM_REFINED_TRIANGLES = 100
 _MINIMUM_BOUNDARY_CHAIN_POINTS = 2
 _MAXIMUM_EDGE_SPAN_MM = 20.000001
 _PROXY_SCHEMA_VERSION = 1
+_COLOR_NORMALIZATION_MESSAGE = (
+    "Color normalization must support FreeCAD channel formats "
+    "and reject invalid channels."
+)
+_BOUNDARY_CONTRACT_MESSAGE = (
+    "Refinement must preserve authored boundaries "
+    "and materially tessellate the piece."
+)
 _PINNED_STITCH_ERROR_PATTERN = (
     r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
     r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm"
@@ -86,6 +95,7 @@ def test_quality_presets_are_monotonic_and_distinct() -> None:
         message="Quality presets must remain distinct and ordered from coarse to fine.",
     )
 
+
 def test_material_defaults_and_solver_parameters() -> None:
     """Preserve default material measurements and the Final solver controls."""
     material = FabricMaterial()
@@ -111,28 +121,30 @@ def test_material_defaults_and_solver_parameters() -> None:
         message="The Final preset and default fabric must retain canonical solver parameters.",
     )
 
+
 def test_material_validation_rejects_invalid_values() -> None:
     """Reject material parameters outside supported physical ranges."""
     invalid = (
-        ("density_g_m2", lambda: FabricMaterial(density_g_m2=0).validate()),
-        ("thickness_mm", lambda: FabricMaterial(thickness_mm=0).validate()),
-        ("stretch", lambda: FabricMaterial(stretch=1.1).validate()),
-        ("shear", lambda: FabricMaterial(shear=-0.1).validate()),
-        ("bend", lambda: FabricMaterial(bend=2).validate()),
-        ("friction", lambda: FabricMaterial(friction=-1).validate()),
+        (lambda: FabricMaterial(density_g_m2=0).validate(), "density must be positive"),
+        (lambda: FabricMaterial(thickness_mm=0).validate(), "thickness must be positive"),
+        (lambda: FabricMaterial(stretch=1.1).validate(), "stretch must be between"),
+        (lambda: FabricMaterial(shear=-0.1).validate(), "shear must be between"),
+        (lambda: FabricMaterial(bend=2).validate(), "bend must be between"),
+        (lambda: FabricMaterial(friction=-1).validate(), "friction must be between"),
     )
-    for _field, construct in invalid:
-        with pytest.raises(ValueError):
+    for construct, expected_message in invalid:
+        with pytest.raises(ValueError, match=expected_message):
             construct()
+
 
 def test_material_validation_rejects_nonfinite_density_and_thickness() -> None:
     """Reject non-finite density and thickness measurements."""
-    for field in ("density_g_m2", "thickness_mm"):
-        for value in (float("nan"), float("inf"), float("-inf")):
-            with (
-                pytest.raises(ValueError, match="positive and finite"),
-            ):
-                FabricMaterial(**{field: value}).validate()
+    for value in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="density must be positive and finite"):
+            FabricMaterial(density_g_m2=value).validate()
+        with pytest.raises(ValueError, match="thickness must be positive and finite"):
+            FabricMaterial(thickness_mm=value).validate()
+
 
 def test_material_presentation_defaults_and_validation() -> None:
     """Preserve presentation defaults and reject malformed display values."""
@@ -157,30 +169,33 @@ def test_material_presentation_defaults_and_validation() -> None:
         condition=(material.validate() is material),
         message="Material presentation defaults must stay stable and malformed values must fail.",
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least three channels"):
         FabricMaterial(color_rgb=cast("tuple[float, float, float]", (1.0, 0.0))).validate()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="roughness must be between"):
         FabricMaterial(roughness=1.1).validate()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="transparency must be between"):
         FabricMaterial(transparency=101).validate()
+
 
 def test_material_color_normalizes_freecad_property_color_shapes() -> None:
     """Normalize FreeCAD RGBA and byte-channel colors into RGB floats."""
     require(
         condition=(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)) == (0.72, 0.34, 0.46)),
-        message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
+        message=_COLOR_NORMALIZATION_MESSAGE,
     )
     require(
         condition=(normalize_color_rgb((184, 87, 117, 255)) == _EXPECTED_BYTE_COLOR),
-        message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
+        message=_COLOR_NORMALIZATION_MESSAGE,
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="color_rgb channels must be between"):
         normalize_color_rgb((300, 0, 0))
+
 
 def test_unknown_quality_rejected() -> None:
     """Reject a quality name outside the supported preset set."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unknown simulation quality preset"):
         preset("Ultra")
+
 
 def test_quality_discretization_increases_with_smaller_particle_distance() -> None:
     """Refine the mesh when target particle distance decreases."""
@@ -190,6 +205,7 @@ def test_quality_discretization_increases_with_smaller_particle_distance() -> No
         condition=(fine > coarse),
         message="Smaller particle distance must increase mesh discretization.",
     )
+
 
 def test_pattern_mesh_density_changes_with_particle_distance() -> None:
     """Show that finer particle spacing generates more mesh points."""
@@ -201,6 +217,7 @@ def test_pattern_mesh_density_changes_with_particle_distance() -> None:
         condition=(len(fine[0]) > len(coarse[0])),
         message="Finer particle spacing must produce more mesh vertices.",
     )
+
 
 def test_quality_seam_edges_have_interior_particles() -> None:
     """Populate refined seam boundaries with interior edge particles."""
@@ -216,10 +233,15 @@ def test_quality_seam_edges_have_interior_particles() -> None:
         message="Refined seam edges must contain interior particles within the spacing budget.",
     )
     for edge in boundary:
+        maximum_edge_span = max(
+            dist(positions[first], positions[second])
+            for first, second in pairwise(edge)
+        )
         require(
-            condition=(max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)) <= _MAXIMUM_EDGE_SPAN_MM),
+            condition=(maximum_edge_span <= _MAXIMUM_EDGE_SPAN_MM),
             message="Refined seam edges must contain interior particles within the spacing budget.",
         )
+
 
 def test_refinement_preserves_authored_boundary_and_materially_tessellates() -> None:
     """Preserve authored edge endpoints while refining faces and vertices."""
@@ -230,33 +252,36 @@ def test_refinement_preserves_authored_boundary_and_materially_tessellates() -> 
     # boundary chains; refinement adds interior vertices and triangles.
     require(
         condition=(len(boundary) == len(piece.outline)),
-        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        message=_BOUNDARY_CONTRACT_MESSAGE,
     )
     require(
         condition=(len(triangles) > _MINIMUM_REFINED_TRIANGLES),
-        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        message=_BOUNDARY_CONTRACT_MESSAGE,
     )
     require(
         condition=(sum(len(chain) for chain in boundary) > len(piece.outline)),
-        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        message=_BOUNDARY_CONTRACT_MESSAGE,
     )
     require(
         condition=(len(positions) > len(piece.outline)),
-        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        message=_BOUNDARY_CONTRACT_MESSAGE,
     )
     for edge_index, chain in enumerate(boundary):
+        expected_start = piece.outline[edge_index]
+        expected_end = piece.outline[(edge_index + 1) % len(piece.outline)]
         require(
             condition=(len(chain) >= _MINIMUM_BOUNDARY_CHAIN_POINTS),
-            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+            message=_BOUNDARY_CONTRACT_MESSAGE,
         )
         require(
-            condition=(positions[chain[0]][:2] == piece.outline[edge_index]),
-            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+            condition=(positions[chain[0]][:2] == expected_start),
+            message=_BOUNDARY_CONTRACT_MESSAGE,
         )
         require(
-            condition=(positions[chain[-1]][:2] == piece.outline[(edge_index + 1) % len(piece.outline)]),
-            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+            condition=(positions[chain[-1]][:2] == expected_end),
+            message=_BOUNDARY_CONTRACT_MESSAGE,
         )
+
 
 def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict() -> None:
     """Keep rebuildable solver state out of serialized proxy attributes."""
@@ -279,12 +304,14 @@ def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict() -> No
         message="Solver state must stay out of serialization and be reset after restore.",
     )
 
+
 def test_pinned_pinned_stitch_rejects_nonzero_initial_separation() -> None:
     """Reject a pinned stitch whose initial endpoints are far apart."""
     positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
     records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
     with pytest.raises(ValueError, match=_PINNED_STITCH_ERROR_PATTERN):
         validate_pinned_stitch_pairs(positions, (0, 1), records)
+
 
 def test_pinned_pinned_stitch_allows_numerical_zero() -> None:
     """Allow pinned stitch separation within numerical-zero tolerance."""
