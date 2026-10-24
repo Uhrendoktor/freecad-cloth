@@ -1,10 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify material, tessellation, solver, and readiness contracts."""
 
-import unittest
+import pytest
 from math import dist
 from types import SimpleNamespace
-from typing import Never
+from typing import Never, cast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
@@ -24,179 +24,269 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
     WorkflowStep,
     build_workflow_checklist,
 )
+from tests.support.assertions import require
 
 
-class SimulationQualityTests(unittest.TestCase):
-    """Test quality presets, material settings, tessellation, and solver contracts."""
+_EXPECTED_QUALITY_NAMES = ("Fast", "Balanced", "Final")
+_EXPECTED_FINAL_PARTICLE_DISTANCE_MM = 2.0
+_EXPECTED_FINAL_ITERATIONS = 16
+_EXPECTED_FINAL_SUBSTEPS = 2
+_EXPECTED_DENSITY_G_M2 = 150.0
+_EXPECTED_THICKNESS_MM = 0.5
+_EXPECTED_SPECULAR = 0.25
+_EXPECTED_ROUGHNESS = 0.65
+_EXPECTED_TRANSPARENCY = 0.0
+_EXPECTED_BYTE_COLOR = (184 / 255.0, 87 / 255.0, 117 / 255.0)
+_MINIMUM_EDGE_PARTICLES = 3
+_EXPECTED_BOUNDARY_EDGE_COUNT = 4
+_MINIMUM_REFINED_TRIANGLES = 100
+_MINIMUM_BOUNDARY_CHAIN_POINTS = 2
+_MAXIMUM_EDGE_SPAN_MM = 20.000001
+_PROXY_SCHEMA_VERSION = 1
 
-    def test_quality_presets_are_monotonic_and_distinct(self) -> None:
-        """Keep presets ordered from fast/coarse to final/fine."""
-        self.assertEqual(set(QUALITY_PRESETS), {"Fast", "Balanced", "Final"})
-        self.assertGreater(preset("Fast").particle_distance, preset("Balanced").particle_distance)
-        self.assertGreater(preset("Balanced").particle_distance, preset("Final").particle_distance)
-        self.assertLess(preset("Fast").solver_iterations, preset("Final").solver_iterations)
 
-    def test_material_defaults_and_solver_parameters(self) -> None:
-        """Preserve default material measurements and the Final solver controls."""
-        material = FabricMaterial()
-        params = solver_parameters(preset("Final"), material)
-        self.assertEqual(params["particle_distance"], 2.0)
-        self.assertEqual(params["iterations"], 16)
-        self.assertEqual(params["substeps"], 2)
-        self.assertEqual(params["density_g_m2"], 150.0)
-        self.assertEqual(params["thickness_mm"], 0.5)
+def _quality_piece_object(piece: PatternPiece) -> SimpleNamespace:
+    """Adapt an authored piece to the minimal mesh-builder document contract.
 
-    def test_material_validation_rejects_invalid_values(self) -> None:
-        """Reject material parameters outside supported physical ranges."""
-        invalid = [
-            ("density_g_m2", 0),
-            ("thickness_mm", 0),
-            ("stretch", 1.1),
-            ("shear", -0.1),
-            ("bend", 2),
-            ("friction", -1),
-        ]
-        for field, value in invalid:
-            with self.subTest(field=field), self.assertRaises(ValueError):
+    Args:
+        piece: Authored pattern piece whose identity and outline are preserved.
+
+    Returns:
+        A FreeCAD-like namespace exposing the outline, identifier, and placement.
+    """
+    return SimpleNamespace(
+        SewingOutline=repr(piece.outline),
+        DraftingBoundary=repr(piece.outline),
+        PieceId=piece.id,
+        Placement=None,
+    )
+
+
+def test_quality_presets_are_monotonic_and_distinct() -> None:
+    """Keep presets ordered from fast/coarse to final/fine."""
+    require(
+        condition=(set(QUALITY_PRESETS) == {"Fast", "Balanced", "Final"}),
+        message="Quality presets must remain distinct and ordered from coarse to fine.",
+    )
+    require(
+        condition=(preset("Fast").particle_distance > preset("Balanced").particle_distance),
+        message="Quality presets must remain distinct and ordered from coarse to fine.",
+    )
+    require(
+        condition=(preset("Balanced").particle_distance > preset("Final").particle_distance),
+        message="Quality presets must remain distinct and ordered from coarse to fine.",
+    )
+    require(
+        condition=(preset("Fast").solver_iterations < preset("Final").solver_iterations),
+        message="Quality presets must remain distinct and ordered from coarse to fine.",
+    )
+
+def test_material_defaults_and_solver_parameters() -> None:
+    """Preserve default material measurements and the Final solver controls."""
+    material = FabricMaterial()
+    params = solver_parameters(preset("Final"), material)
+    require(
+        condition=(params["particle_distance"] == _EXPECTED_FINAL_PARTICLE_DISTANCE_MM),
+        message="The Final preset and default fabric must retain canonical solver parameters.",
+    )
+    require(
+        condition=(params["iterations"] == _EXPECTED_FINAL_ITERATIONS),
+        message="The Final preset and default fabric must retain canonical solver parameters.",
+    )
+    require(
+        condition=(params["substeps"] == _EXPECTED_FINAL_SUBSTEPS),
+        message="The Final preset and default fabric must retain canonical solver parameters.",
+    )
+    require(
+        condition=(params["density_g_m2"] == _EXPECTED_DENSITY_G_M2),
+        message="The Final preset and default fabric must retain canonical solver parameters.",
+    )
+    require(
+        condition=(params["thickness_mm"] == _EXPECTED_THICKNESS_MM),
+        message="The Final preset and default fabric must retain canonical solver parameters.",
+    )
+
+def test_material_validation_rejects_invalid_values() -> None:
+    """Reject material parameters outside supported physical ranges."""
+    invalid = [
+        ("density_g_m2", 0),
+        ("thickness_mm", 0),
+        ("stretch", 1.1),
+        ("shear", -0.1),
+        ("bend", 2),
+        ("friction", -1),
+    ]
+    for field, value in invalid:
+        with pytest.raises(ValueError):
+            FabricMaterial(**{field: value}).validate()
+
+def test_material_validation_rejects_nonfinite_density_and_thickness() -> None:
+    """Reject non-finite density and thickness measurements."""
+    for field in ("density_g_m2", "thickness_mm"):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with (
+                pytest.raises(ValueError, match="positive and finite"),
+            ):
                 FabricMaterial(**{field: value}).validate()
 
-    def test_material_validation_rejects_nonfinite_density_and_thickness(self) -> None:
-        """Reject non-finite density and thickness measurements."""
-        for field in ("density_g_m2", "thickness_mm"):
-            for value in (float("nan"), float("inf"), float("-inf")):
-                with (
-                    self.subTest(field=field, value=value),
-                    self.assertRaisesRegex(ValueError, "positive and finite"),
-                ):
-                    FabricMaterial(**{field: value}).validate()
+def test_material_presentation_defaults_and_validation() -> None:
+    """Preserve presentation defaults and reject malformed display values."""
+    material = FabricMaterial()
+    require(
+        condition=(material.color_rgb == (0.72, 0.34, 0.46)),
+        message="Material presentation defaults must stay stable and malformed values must fail.",
+    )
+    require(
+        condition=(material.specular == _EXPECTED_SPECULAR),
+        message="Material presentation defaults must stay stable and malformed values must fail.",
+    )
+    require(
+        condition=(material.roughness == _EXPECTED_ROUGHNESS),
+        message="Material presentation defaults must stay stable and malformed values must fail.",
+    )
+    require(
+        condition=(material.transparency == _EXPECTED_TRANSPARENCY),
+        message="Material presentation defaults must stay stable and malformed values must fail.",
+    )
+    require(
+        condition=(material.validate() is material),
+        message="Material presentation defaults must stay stable and malformed values must fail.",
+    )
+    with pytest.raises(ValueError):
+        FabricMaterial(color_rgb=cast("tuple[float, float, float]", (1.0, 0.0))).validate()
+    with pytest.raises(ValueError):
+        FabricMaterial(roughness=1.1).validate()
+    with pytest.raises(ValueError):
+        FabricMaterial(transparency=101).validate()
 
-    def test_material_presentation_defaults_and_validation(self) -> None:
-        """Preserve presentation defaults and reject malformed display values."""
-        material = FabricMaterial()
-        self.assertEqual(material.color_rgb, (0.72, 0.34, 0.46))
-        self.assertEqual(material.specular, 0.25)
-        self.assertEqual(material.roughness, 0.65)
-        self.assertEqual(material.transparency, 0.0)
-        self.assertIs(material.validate(), material)
-        with self.assertRaises(ValueError):
-            FabricMaterial(color_rgb=(1.0, 0.0)).validate()
-        with self.assertRaises(ValueError):
-            FabricMaterial(roughness=1.1).validate()
-        with self.assertRaises(ValueError):
-            FabricMaterial(transparency=101).validate()
+def test_material_color_normalizes_freecad_property_color_shapes() -> None:
+    """Normalize FreeCAD RGBA and byte-channel colors into RGB floats."""
+    require(
+        condition=(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)) == (0.72, 0.34, 0.46)),
+        message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
+    )
+    require(
+        condition=(normalize_color_rgb((184, 87, 117, 255)) == (184 / 255.0, 87 / 255.0, 117 / 255.0)),
+        message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
+    )
+    with pytest.raises(ValueError):
+        normalize_color_rgb((300, 0, 0))
 
-    def test_material_color_normalizes_freecad_property_color_shapes(self) -> None:
-        """Normalize FreeCAD RGBA and byte-channel colors into RGB floats."""
-        self.assertEqual(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)), (0.72, 0.34, 0.46))
-        self.assertEqual(
-            normalize_color_rgb((184, 87, 117, 255)), (184 / 255.0, 87 / 255.0, 117 / 255.0)
+def test_unknown_quality_rejected() -> None:
+    """Reject a quality name outside the supported preset set."""
+    with pytest.raises(ValueError):
+        preset("Ultra")
+
+def test_quality_discretization_increases_with_smaller_particle_distance() -> None:
+    """Refine the mesh when target particle distance decreases."""
+    coarse = quality_discretization(4, 320.0, preset("Fast").particle_distance)
+    fine = quality_discretization(4, 320.0, preset("Final").particle_distance)
+    require(
+        condition=(fine > coarse),
+        message="Smaller particle distance must increase mesh discretization.",
+    )
+
+def test_pattern_mesh_density_changes_with_particle_distance() -> None:
+    """Show that finer particle spacing generates more mesh points."""
+    piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
+    piece_obj = _quality_piece_object(piece)
+    coarse = quality_piece_mesh(piece_obj, 100.0, 20.0)
+    fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
+    require(
+        condition=(len(fine[0]) > len(coarse[0])),
+        message="Finer particle spacing must produce more mesh vertices.",
+    )
+
+def test_quality_seam_edges_have_interior_particles() -> None:
+    """Populate refined seam boundaries with interior edge particles."""
+    piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
+    piece_obj = _quality_piece_object(piece)
+    positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+    require(
+        condition=(len(boundary) == _EXPECTED_BOUNDARY_EDGE_COUNT),
+        message="Refined seam edges must contain interior particles within the spacing budget.",
+    )
+    require(
+        condition=all(len(edge) >= _MINIMUM_EDGE_PARTICLES for edge in boundary),
+        message="Refined seam edges must contain interior particles within the spacing budget.",
+    )
+    for edge in boundary:
+        require(
+            condition=(max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)) <= 20.000001),
+            message="Refined seam edges must contain interior particles within the spacing budget.",
         )
-        with self.assertRaises(ValueError):
-            normalize_color_rgb((300, 0, 0))
 
-    def test_unknown_quality_rejected(self) -> None:
-        """Reject a quality name outside the supported preset set."""
-        with self.assertRaises(ValueError):
-            preset("Ultra")
+def test_refinement_preserves_authored_boundary_and_materially_tessellates() -> None:
+    """Preserve authored edge endpoints while refining faces and vertices."""
+    piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
+    piece_obj = _quality_piece_object(piece)
+    positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
+    # Constrained Delaunay preserves the authored outline as semantic
+    # boundary chains; refinement adds interior vertices and triangles.
+    require(
+        condition=(len(boundary) == len(piece.outline)),
+        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+    )
+    require(
+        condition=(len(triangles) > _MINIMUM_REFINED_TRIANGLES),
+        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+    )
+    require(
+        condition=(sum(len(chain) for chain in boundary) > len(piece.outline)),
+        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+    )
+    require(
+        condition=(len(positions) > len(piece.outline)),
+        message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+    )
+    for edge_index, chain in enumerate(boundary):
+        require(
+            condition=(len(chain) >= _MINIMUM_BOUNDARY_CHAIN_POINTS),
+            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        )
+        require(
+            condition=(positions[chain[0]][:2] == piece.outline[edge_index]),
+            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        )
+        require(
+            condition=(positions[chain[-1]][:2] == piece.outline[(edge_index + 1) % len(piece.outline)]),
+            message="Refinement must preserve authored boundaries and materially tessellate the piece.",
+        )
 
-    def test_quality_discretization_increases_with_smaller_particle_distance(self) -> None:
-        """Refine the mesh when target particle distance decreases."""
-        coarse = quality_discretization(4, 320.0, preset("Fast").particle_distance)
-        fine = quality_discretization(4, 320.0, preset("Final").particle_distance)
-        self.assertGreater(fine, coarse)
+def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict() -> None:
+    """Keep rebuildable solver state out of serialized proxy attributes."""
+    proxy = QualitySimulationProxy()
+    require(
+        condition=(proxy.__getstate__() == {"schema": _PROXY_SCHEMA_VERSION}),
+        message="Solver state must stay out of serialization and be reset after restore.",
+    )
+    require(
+        condition=("_base" not in proxy.__dict__),
+        message="Solver state must stay out of serialization and be reset after restore.",
+    )
+    require(
+        condition=(proxy.last_steps == 0),
+        message="Solver state must stay out of serialization and be reset after restore.",
+    )
+    proxy.onDocumentRestored(None)
+    require(
+        condition=(proxy.last_steps == 0),
+        message="Solver state must stay out of serialization and be reset after restore.",
+    )
 
-    def test_pattern_mesh_density_changes_with_particle_distance(self) -> None:
-        """Show that finer particle spacing generates more mesh points."""
-        piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
-        piece_obj = type(
-            "Piece",
-            (),
-            {
-                "SewingOutline": repr(piece.outline),
-                "DraftingBoundary": repr(piece.outline),
-                "PieceId": piece.id,
-                "Placement": None,
-            },
-        )()
-        coarse = quality_piece_mesh(piece_obj, 100.0, 20.0)
-        fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
-        self.assertGreater(len(fine[0]), len(coarse[0]))
-
-    def test_quality_seam_edges_have_interior_particles(self) -> None:
-        """Populate refined seam boundaries with interior edge particles."""
-        piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
-        piece_obj = type(
-            "Piece",
-            (),
-            {
-                "SewingOutline": repr(piece.outline),
-                "DraftingBoundary": repr(piece.outline),
-                "PieceId": piece.id,
-                "Placement": None,
-            },
-        )()
-        positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
-        self.assertEqual(len(boundary), 4)
-        self.assertTrue(all(len(edge) >= 3 for edge in boundary))
-        for edge in boundary:
-            self.assertLessEqual(
-                max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)),
-                20.000001,
-            )
-
-    def test_refinement_preserves_authored_boundary_and_materially_tessellates(self) -> None:
-        """Preserve authored edge endpoints while refining faces and vertices."""
-        piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
-        piece_obj = type(
-            "Piece",
-            (),
-            {
-                "SewingOutline": repr(piece.outline),
-                "DraftingBoundary": repr(piece.outline),
-                "PieceId": piece.id,
-                "Placement": None,
-            },
-        )()
-        positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
-        # Constrained Delaunay preserves the authored outline as semantic
-        # boundary chains; refinement adds interior vertices and triangles.
-        self.assertEqual(len(boundary), len(piece.outline))
-        self.assertGreater(len(triangles), 100)
-        self.assertGreater(sum(len(chain) for chain in boundary), len(piece.outline))
-        self.assertGreater(len(positions), len(piece.outline))
-        for edge_index, chain in enumerate(boundary):
-            self.assertGreaterEqual(len(chain), 2)
-            self.assertEqual(positions[chain[0]][:2], piece.outline[edge_index])
-            self.assertEqual(
-                positions[chain[-1]][:2],
-                piece.outline[(edge_index + 1) % len(piece.outline)],
-            )
-
-    def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self) -> None:
-        """Keep rebuildable solver state out of serialized proxy attributes."""
-        proxy = QualitySimulationProxy()
-        self.assertEqual(proxy.__getstate__(), {"schema": 1})
-        self.assertNotIn("_base", proxy.__dict__)
-        self.assertEqual(proxy.last_steps, 0)
-        proxy.onDocumentRestored(None)
-        self.assertEqual(proxy.last_steps, 0)
-
-    def test_pinned_pinned_stitch_rejects_nonzero_initial_separation(self) -> None:
-        """Reject a pinned stitch whose initial endpoints are far apart."""
-        positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
-        records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
-        with self.assertRaisesRegex(
-            ValueError,
-            r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
-            r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm",
-        ):
-            validate_pinned_stitch_pairs(positions, (0, 1), records)
-
-    def test_pinned_pinned_stitch_allows_numerical_zero(self) -> None:
-        """Allow pinned stitch separation within numerical-zero tolerance."""
-        positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
-        records = (("test-seam", "A", "B", ((0, 1),)),)
+def test_pinned_pinned_stitch_rejects_nonzero_initial_separation() -> None:
+    """Reject a pinned stitch whose initial endpoints are far apart."""
+    positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
+    records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
+    with pytest.raises(ValueError, match=r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
+        r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm"):
         validate_pinned_stitch_pairs(positions, (0, 1), records)
+
+def test_pinned_pinned_stitch_allows_numerical_zero() -> None:
+    """Allow pinned stitch separation within numerical-zero tolerance."""
+    positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
+    records = (("test-seam", "A", "B", ((0, 1),)),)
+    validate_pinned_stitch_pairs(positions, (0, 1), records)
 
 
 def _readiness_piece(name: str) -> SimpleNamespace:
@@ -284,10 +374,22 @@ def _readiness_rows(
 def test_readiness_missing_scene_explains_first_steps_and_blocks_simulation() -> None:
     """A missing scene produces setup guidance and blocks simulation."""
     rows = {step.key: step for step in build_workflow_checklist(None)}
-    assert rows["patterns"].state == "next"
-    assert rows["target"].state == "blocked"
-    assert rows["simulation"].state == "blocked"
-    assert "Cloth Pattern" in rows["patterns"].message
+    require(
+        condition=rows["patterns"].state == "next",
+        message="A missing scene must direct users to setup and block simulation.",
+    )
+    require(
+        condition=rows["target"].state == "blocked",
+        message="A missing scene must direct users to setup and block simulation.",
+    )
+    require(
+        condition=rows["simulation"].state == "blocked",
+        message="A missing scene must direct users to setup and block simulation.",
+    )
+    require(
+        condition="Cloth Pattern" in rows["patterns"].message,
+        message="A missing scene must direct users to setup and block simulation.",
+    )
 
 
 def test_readiness_distinguishes_unassigned_document_pieces() -> None:
@@ -295,21 +397,48 @@ def test_readiness_distinguishes_unassigned_document_pieces() -> None:
     piece = _readiness_piece("Front")
     scene = _readiness_scene((), (piece,))
     rows = _readiness_rows(scene, "stale")
-    assert rows["patterns"].state == "next"
-    assert "exist in the document" in rows["patterns"].message
-    assert rows["target"].state == "blocked"
-    assert rows["simulation"].state == "blocked"
+    require(
+        condition=rows["patterns"].state == "next",
+        message="Unassigned pieces must be distinguished and simulation must remain blocked.",
+    )
+    require(
+        condition="exist in the document" in rows["patterns"].message,
+        message="Unassigned pieces must be distinguished and simulation must remain blocked.",
+    )
+    require(
+        condition=rows["target"].state == "blocked",
+        message="Unassigned pieces must be distinguished and simulation must remain blocked.",
+    )
+    require(
+        condition=rows["simulation"].state == "blocked",
+        message="Unassigned pieces must be distinguished and simulation must remain blocked.",
+    )
 
 
 def test_readiness_unsewn_multi_piece_setup_is_reviewable() -> None:
     """Missing sewing prompts a review without hard-blocking diagnostic cases."""
     scene = _readiness_scene((_readiness_piece("Front"), _readiness_piece("Back")))
     rows = _readiness_rows(scene)
-    assert rows["patterns"].state == "ready"
-    assert rows["sewing"].state == "review"
-    assert rows["target"].state == "ready"
-    assert rows["simulation"].state == "ready"
-    assert "unsewn tests remain valid" in rows["sewing"].message
+    require(
+        condition=rows["patterns"].state == "ready",
+        message="Unsewn multi-piece setup must remain reviewable without blocking simulation.",
+    )
+    require(
+        condition=rows["sewing"].state == "review",
+        message="Unsewn multi-piece setup must remain reviewable without blocking simulation.",
+    )
+    require(
+        condition=rows["target"].state == "ready",
+        message="Unsewn multi-piece setup must remain reviewable without blocking simulation.",
+    )
+    require(
+        condition=rows["simulation"].state == "ready",
+        message="Unsewn multi-piece setup must remain reviewable without blocking simulation.",
+    )
+    require(
+        condition="unsewn tests remain valid" in rows["sewing"].message,
+        message="Unsewn multi-piece setup must remain reviewable without blocking simulation.",
+    )
 
 
 def test_readiness_reports_fully_placed_sewn_garment() -> None:
@@ -328,9 +457,18 @@ def test_readiness_reports_fully_placed_sewn_garment() -> None:
         PiecePlacements=(object(), object()),
     )
     rows = _readiness_rows(_readiness_scene((front, back), (seam,), fitting=fitting))
-    assert rows["sewing"].state == "ready"
-    assert rows["arrangement"].state == "ready"
-    assert "2 saved placement(s)" in rows["arrangement"].message
+    require(
+        condition=rows["sewing"].state == "ready",
+        message="Sewn pieces with saved placements must report readiness.",
+    )
+    require(
+        condition=rows["arrangement"].state == "ready",
+        message="Sewn pieces with saved placements must report readiness.",
+    )
+    require(
+        condition="2 saved placement(s)" in rows["arrangement"].message,
+        message="Sewn pieces with saved placements must report readiness.",
+    )
 
 
 def test_readiness_target_inspection_failure_blocks_simulation() -> None:
@@ -345,7 +483,8 @@ def test_readiness_target_inspection_failure_blocks_simulation() -> None:
         Raises:
             RuntimeError: Always, emulating a stale collision-cache inspection failure.
         """
-        raise RuntimeError("stale collision cache")
+        msg = "stale collision cache"
+        raise RuntimeError(msg)
 
     rows = {
         step.key: step
@@ -354,10 +493,15 @@ def test_readiness_target_inspection_failure_blocks_simulation() -> None:
             target_status_fn=fail,
         )
     }
-    assert rows["target"].state == "blocked"
-    assert rows["simulation"].state == "blocked"
-    assert "stale collision cache" in rows["target"].message
-
-
-if __name__ == "__main__":
-    unittest.main()
+    require(
+        condition=rows["target"].state == "blocked",
+        message="A target inspection error must block simulation and preserve its diagnostic.",
+    )
+    require(
+        condition=rows["simulation"].state == "blocked",
+        message="A target inspection error must block simulation and preserve its diagnostic.",
+    )
+    require(
+        condition="stale collision cache" in rows["target"].message,
+        message="A target inspection error must block simulation and preserve its diagnostic.",
+    )
