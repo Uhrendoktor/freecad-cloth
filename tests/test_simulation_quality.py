@@ -26,6 +26,7 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
     WorkflowStep,
     build_workflow_checklist,
 )
+
 from tests.support.assertions import require
 
 
@@ -45,14 +46,8 @@ _MINIMUM_REFINED_TRIANGLES = 100
 _MINIMUM_BOUNDARY_CHAIN_POINTS = 2
 _MAXIMUM_EDGE_SPAN_MM = 20.000001
 _PROXY_SCHEMA_VERSION = 1
-_COLOR_NORMALIZATION_MESSAGE = (
-    "Color normalization must support FreeCAD channel formats "
-    "and reject invalid channels."
-)
-_BOUNDARY_CONTRACT_MESSAGE = (
-    "Refinement must preserve authored boundaries "
-    "and materially tessellate the piece."
-)
+_COLOR_NORMALIZATION_MESSAGE = "Normalize supported color formats and reject invalid channels."
+_BOUNDARY_CONTRACT_MESSAGE = "Preserve authored boundaries and require material tessellation."
 _PINNED_STITCH_ERROR_PATTERN = (
     r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
     r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm"
@@ -234,8 +229,7 @@ def test_quality_seam_edges_have_interior_particles() -> None:
     )
     for edge in boundary:
         maximum_edge_span = max(
-            dist(positions[first], positions[second])
-            for first, second in pairwise(edge)
+            dist(positions[first], positions[second]) for first, second in pairwise(edge)
         )
         require(
             condition=(maximum_edge_span <= _MAXIMUM_EDGE_SPAN_MM),
