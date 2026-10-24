@@ -38,16 +38,13 @@ def test_simulation_quality_readiness_has_native_gui_and_screenshot_gates() -> N
     )
     require(
         condition="python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix,
-        message='Expected "python3 tools/ci/validate_acceptance.py simulation-quality" in gui_matrix.',
+        message="GUI matrix must invoke the simulation-quality acceptance validator.",
     )
     require(
         condition=(
             '"simulation-quality": Path("artifacts/simulation-quality-readiness.png")' in validator
         ),
-        message=(
-            "Expected ( '\"simulation-quality\": "
-            "Path(\"artifacts/simulation-quality-readiness.png\")' in validator )."
-        ),
+        message="Validator must register the simulation-quality readiness artifact.",
     )
     stale_image_contract = (
         '"simulation-quality": (Path("artifacts/simulation-quality-stale-target.png"),)'
