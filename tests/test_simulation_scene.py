@@ -183,13 +183,13 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
         },
     }
     seam_pair_records = cast(
-        "Callable[[PatternIR, dict[str, object]], tuple[object, object]]",
+        "Callable[[PatternIR, dict[str, object], int], tuple[object, object]]",
         getattr(SimulationObjects, _SEAM_PAIR_RECORDS_NAME),
     )
     pairs, records = seam_pair_records(
         pattern,
         panel_data,
-        seam_samples=_EXPECTED_SEAM_SAMPLE_COUNT,
+        _EXPECTED_SEAM_SAMPLE_COUNT,
     )
 
     require(
@@ -275,13 +275,14 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
         DrapePanels=[],
     )
     proxy = SimulationObjects.SimulationProxy()
-    proxy.backend = cast("PositionBasedDynamicsBackend", FakeBackend())
+    fake_backend = FakeBackend()
+    proxy.backend = cast("PositionBasedDynamicsBackend", fake_backend)
     proxy.collision_surface = object()
     proxy.source_signature = _simulation_signature()(scene, [])
     proxy.execute(scene)
 
     require(
-        condition=proxy.backend.calls
+        condition=fake_backend.calls
         == [
             (
                 scene.TimeStep,
