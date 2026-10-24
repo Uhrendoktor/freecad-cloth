@@ -392,6 +392,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
     Raises:
         AssertionError: If cleanup accepts a missing protected Dockerfile blob.
     """
+
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
 
@@ -809,6 +810,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
     Raises:
         AssertionError: If missing commit activity is accepted.
     """
+
     def fake_gh_json(*args: str) -> dict[str, object]:
         """Return a mock response that omits a requested commit object.
 
