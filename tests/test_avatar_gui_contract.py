@@ -39,6 +39,7 @@ def test_parent_panel_has_no_duplicate_pose_state():
 
     assert not hasattr(AvatarTaskPanel, "POSE_FIELDS")
     assert not hasattr(AvatarTaskPanel, "_pose_property")
+    assert not hasattr(AvatarTaskPanel, "_rebuild_geometry")
     assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
 
 

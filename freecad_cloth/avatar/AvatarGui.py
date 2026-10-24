@@ -217,7 +217,6 @@ class AvatarTaskPanel:
 
         controls = QtWidgets.QHBoxLayout()
         self.apply_button = QtWidgets.QPushButton("Apply & Rebuild")
-        self.rebuild_button = self.apply_button  # Compatibility alias; do not duplicate the action.
         self.fit_button = QtWidgets.QPushButton("Fit view")
         from freecad_cloth.common.UiDesign import mark_button
 
@@ -724,7 +723,6 @@ class AvatarTaskPanel:
         if self.avatar is None:
             self.status.setText("Create a Cloth Human Mannequin first.")
             self.apply_button.setEnabled(False)
-            self.rebuild_button.setEnabled(False)
             self.fit_button.setEnabled(False)
             for button in self.provider_buttons.values():
                 button.setEnabled(False)
@@ -763,6 +761,16 @@ class AvatarTaskPanel:
             current_provider = "makehuman-hm08"
         self.provider_buttons[current_provider].setChecked(True)
         self._refresh_provider_source()
+        self.mass_target_enabled.blockSignals(True)
+        self.mass_target_enabled.setChecked(mass_target is not None)
+        self.mass_target_enabled.blockSignals(False)
+        self.mass_target.blockSignals(True)
+        self.mass_target.setValue(70.0 if mass_target is None else float(mass_target))
+        self.mass_target.blockSignals(False)
+        self.mass_target.setEnabled(mass_target is not None)
+        self.skin_offset.blockSignals(True)
+        self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
+        self.skin_offset.blockSignals(False)
         self.show_measurements.setChecked(bool(getattr(self.avatar, "Landmarks", [])))
         self._update_arrangement_points()
         self._update_landmarks()
@@ -961,12 +969,6 @@ class AvatarTaskPanel:
         if self._dimension_controller is not None:
             self._dimension_controller.refresh()
         return True
-
-    def _rebuild_geometry(self):
-        """Rebuild the mannequin geometry from the staged parameters."""
-        from freecad_cloth.avatar.AvatarCommands import rebuild_avatar
-
-        rebuild_avatar()
 
     def _update_arrangement_points(self):
         """Refresh persisted garment arrangement points attached to the avatar."""

@@ -119,7 +119,7 @@ class _FallbackGizmo:
 
 
 class _NativeGizmoHandle:
-    """Compatibility wrapper exposing the legacy controller gizmo surface."""
+    """Adapt native dragger state to the controller's active-state interface."""
 
     is_fallback = False
     is_visual = True
