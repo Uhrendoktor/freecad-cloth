@@ -294,36 +294,6 @@ def create_pattern_piece_task():
     show_pattern_piece_task()
 
 
-def create_pattern_drafting():
-    """Explicit legacy compatibility hook for old PatternDrafting documents.
-
-    This helper is intentionally not part of the command list or normal
-    FreeCAD command registration. New authoring uses native Sketcher.
-    """
-    import FreeCAD as App
-    import FreeCADGui as Gui
-
-    from freecad_cloth.pattern.PatternGui import show_pattern_drafting_task
-
-    obj = next(
-        (
-            o
-            for o in Gui.Selection.getSelection()
-            if getattr(o, "PatternType", "") == "PatternPiece"
-        ),
-        None,
-    )
-    if obj is None:
-        pieces = [
-            o for o in App.ActiveDocument.Objects if getattr(o, "PatternType", "") == "PatternPiece"
-        ]
-        obj = pieces[0] if pieces else None
-    if obj is None:
-        msg = "create a pattern piece before opening the drafting canvas"
-        raise ValueError(msg)
-    return show_pattern_drafting_task(obj)
-
-
 def show_pattern_2d():
     """Switch the active document to a top-down 2D drafting view."""
     import FreeCAD as App
@@ -526,8 +496,6 @@ class _PatternExportCommand:
         }
 
 
-# Compatibility-only: keep create_pattern_drafting available for explicit
-# migration/legacy document handling, but never expose it as a normal command.
 COMMANDS = [
     "ClothPattern_CreateGarment",
     "ClothPattern_CreatePieceTask",

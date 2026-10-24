@@ -3,7 +3,6 @@
 
 import json
 from collections.abc import Callable, Sequence
-from contextlib import suppress
 from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
@@ -191,42 +190,25 @@ def _set_prop(obj: _AvatarFeature, kind: str, name: str, group: str, value: obje
     setattr(obj, name, value)
 
 
-def _ensure_pose_preset_property(obj: _AvatarFeature) -> None:
-    """Upgrade the pose preset enumeration while preserving the user's choice.
-
-    Args:
-        obj: Existing avatar object whose pose preset property is migrated.
-    """
-    current = str(getattr(obj, "PosePreset", "standing"))
-    presets = ["standing", "sewing", "sitting", "t_pose"]
-    _set_prop(obj, "App::PropertyEnumeration", "PosePreset", "Pose", presets)
-    obj.PosePreset = current if current in presets else "standing"
-
-
 def _parameters(obj: _AvatarFeature) -> AvatarParameters:
-    """Reconstruct validated avatar parameters from persisted FreeCAD properties.
+    """Reconstruct validated avatar parameters from the current persisted schema.
 
     Args:
-        obj: Avatar object containing measurements, pose, and shape overrides.
+        obj: Avatar object containing the complete current property schema.
 
     Returns:
         Parameter model representing the saved avatar state.
+
+    Raises:
+        ValueError: If the saved parameter JSON violates the current schema.
+        TypeError: If a persistent property has an invalid type.
     """
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
-    preset = str(getattr(obj, "PosePreset", "standing"))
-    preset_defaults = Pose(preset)
-    fallback = {
-        "left_arm_angle": float(preset_defaults.left_arm_angle),
-        "right_arm_angle": float(preset_defaults.right_arm_angle),
-        "left_elbow_angle": float(preset_defaults.left_elbow_angle),
-        "right_elbow_angle": float(preset_defaults.right_elbow_angle),
-    }
+    preset = str(obj.PosePreset)
     angles = {
-        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name])) for name in fallback
+        name: float(getattr(obj, property_name))
+        for name, property_name in POSE_PROPERTY_MAP.items()
     }
-
-    payload = str(getattr(obj, "ParametersJSON", "") or "")
-
     pose = Pose(
         preset,
         angles["left_arm_angle"],
@@ -235,28 +217,24 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         angles["right_elbow_angle"],
         tuple(joint_rotations_from_json(obj.JointPoseJSON)),
     )
-    shape_payload = {}
+
+    payload = str(obj.ParametersJSON or "")
     phenotype_overrides = {}
     local_change_overrides = {}
     mass_target_kg = None
     if payload:
-        with suppress(TypeError, ValueError):
-            stored_parameters = AvatarParameters.from_json(payload)
-            shape_payload = json.loads(payload).get("shape", {})
-            phenotype_overrides = dict(stored_parameters.phenotype_overrides)
-            local_change_overrides = dict(stored_parameters.local_change_overrides)
-            mass_target_kg = stored_parameters.mass_target_kg
-    gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
-    breast_size = float(
-        getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
-    )
+        stored_parameters = AvatarParameters.from_json(payload)
+        phenotype_overrides = dict(stored_parameters.phenotype_overrides)
+        local_change_overrides = dict(stored_parameters.local_change_overrides)
+        mass_target_kg = stored_parameters.mass_target_kg
+
     return AvatarParameters(
         values,
         float(obj.SkinOffset),
         pose,
         4,
-        gender,
-        breast_size,
+        float(getattr(obj, SHAPE_PROPERTY_MAP["gender"])),
+        float(getattr(obj, SHAPE_PROPERTY_MAP["breast_size"])),
         phenotype_overrides,
         local_change_overrides,
         mass_target_kg,
@@ -413,9 +391,9 @@ def _rebuild(
     params = _parameters(obj) if params is None else params
     params.validate()
     if provider_id is None:
-        provider_id = str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+        provider_id = str(obj.AvatarProviderId)
     if provider_source is _MISSING:
-        provider_source = getattr(obj, "ProviderSource", None)
+        provider_source = obj.ProviderSource
 
     # All potentially fallible geometry/provider work happens before any
     # persistent avatar properties or derived mesh are changed.
@@ -438,9 +416,6 @@ def _rebuild(
     obj.PosePreset = params.pose.preset
     obj.SkinOffset = params.skin_offset
     for name, property_name in SHAPE_PROPERTY_MAP.items():
-        _set_prop(
-            obj, "App::PropertyFloat", property_name, "Body shape", 0.5 if name == "gender" else 0.0
-        )
         setattr(obj, property_name, float(getattr(params, name)))
     for name, value in (
         ("left_arm_angle", params.pose.left_arm_angle),
@@ -462,10 +437,7 @@ def _rebuild(
     obj.MeshVertexCount = len(vertices)
     obj.MeshTriangleCount = len(triangles)
     obj.Landmarks = landmark_records
-    if not hasattr(obj, "AvatarRevision"):
-        _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
-    obj.AvatarRevision = int(getattr(obj, "AvatarRevision", 0)) + 1
-    _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
+    obj.AvatarRevision = int(obj.AvatarRevision) + 1
     obj.ArrangementPoints = arrangement_records
     _style_mannequin(obj)
     obj.Document.recompute()
@@ -501,7 +473,6 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
 
     """
     _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
-    _set_prop(obj, "App::PropertyString", "SchemaVersion", "Avatar", "1")
     _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
     obj.AvatarProviderId = "makehuman-hm08"
     _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
@@ -528,12 +499,13 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
             float(getattr(default_pose, name)),
         )
     _set_prop(
-        obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", joint_rotations_to_json(()))
+        obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_rotations_to_json(())
     )
     _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
     _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
     _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
     _set_prop(obj, "App::PropertyStringList", "ArrangementPoints", "Fitting", [])
+    _set_prop(obj, "App::PropertyInteger", "AvatarRevision", "Avatar", 0)
     _set_prop(obj, "App::PropertyString", "AvatarMeshProvider", "Avatar", "")
     _set_prop(obj, "App::PropertyString", "AvatarMeshSource", "Avatar", "")
     _set_prop(obj, "App::PropertyString", "AvatarMeshLicense", "Avatar", "")
@@ -580,52 +552,6 @@ def create_avatar(
         obj = cast("_AvatarFeature", doc.addObject("Mesh::Feature", object_name))
         obj.Label = "Cloth Human Avatar"
         _initialize_avatar_properties(obj)
-    else:
-        _ensure_pose_preset_property(obj)
-        _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
-        if not str(getattr(obj, "AvatarProviderId", "")):
-            obj.AvatarProviderId = "makehuman-hm08"
-        _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
-        _set_prop(
-            obj,
-            "App::PropertyFloat",
-            SHAPE_PROPERTY_MAP["gender"],
-            "Body shape",
-            float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], 0.5)),
-        )
-        _set_prop(
-            obj,
-            "App::PropertyFloat",
-            SHAPE_PROPERTY_MAP["breast_size"],
-            "Body shape",
-            float(getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], 0.0)),
-        )
-        default_pose = Pose(str(getattr(obj, "PosePreset", "standing")))
-        for name, prop in POSE_PROPERTY_MAP.items():
-            if not hasattr(obj, prop):
-                _set_prop(
-                    obj,
-                    "App::PropertyAngle",
-                    prop,
-                    "Pose",
-                    float(getattr(default_pose, name)),
-                )
-        for name, default in (
-            ("AvatarMeshProvider", ""),
-            ("AvatarMeshSource", ""),
-            ("AvatarMeshLicense", ""),
-            ("GarmentState", "Bare mannequin / provider geometry only"),
-        ):
-            _set_prop(obj, "App::PropertyString", name, "Avatar", default)
-        _set_prop(obj, "App::PropertyInteger", "MeshVertexCount", "Avatar", 0)
-        _set_prop(obj, "App::PropertyInteger", "MeshTriangleCount", "Avatar", 0)
-        _set_prop(
-            obj,
-            "App::PropertyInteger",
-            "AvatarRevision",
-            "Avatar",
-            int(getattr(obj, "AvatarRevision", 0)),
-        )
     _rebuild(obj, params=params)
     if attach_collision:
         _ensure_drape_target(obj)
@@ -704,7 +630,6 @@ def rebuild_avatar() -> _AvatarFeature:
     if obj is None:
         msg = "create a Cloth Avatar first"
         raise ValueError(msg)
-    _ensure_pose_preset_property(obj)
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
@@ -722,7 +647,6 @@ def edit_avatar() -> _AvatarFeature:
     if doc is None:
         doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
-    _ensure_pose_preset_property(obj)
     from freecad_cloth.avatar import AvatarGui as avatar_gui
     return avatar_gui.show_avatar_task(obj)
 
@@ -741,7 +665,6 @@ def pose_avatar() -> _AvatarFeature:
     if doc is None:
         doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
-    _ensure_pose_preset_property(obj)
     from freecad_cloth.avatar import AvatarPoseGui as avatar_pose_gui
     return avatar_pose_gui.show_avatar_pose_task(obj)
 
@@ -797,7 +720,6 @@ def set_avatar_pose(pose: str) -> _AvatarFeature:
         msg = "open a document before changing avatar pose"
         raise ValueError(msg)
     obj = _avatar(doc) or create_avatar()
-    _ensure_pose_preset_property(obj)
     current = _parameters(obj)
     # Choosing a named preset means starting from that pose's canonical baseline,
     # just as the Pose Mode buttons do; do not carry unrelated manual rotations over.

@@ -5,13 +5,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern import PatternCommands
-from freecad_cloth.pattern.PatternDrafting import (
-    add_point,
-    bounds,
-    parse_points,
-    remove_point,
-    serialize_points,
-)
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternSketch import (
     _is_axis_aligned_rectangle,
@@ -153,18 +146,7 @@ def test_edit_sketch_enters_native_editor_for_selected_piece():
     assert "ClothPattern_EditSketch" in PatternCommands.COMMANDS
 
 
-def test_polygon_drafting_round_trip_and_editing():
-    points = ((0.0, 0.0), (80.0, 0.0), (100.0, 40.0), (40.0, 70.0), (0.0, 50.0))
-    encoded = serialize_points(points)
-    assert parse_points(encoded) == points
-    edited = add_point(points, 90.0, 20.0, 2)
-    assert len(edited) == 6
-    edited = remove_point(edited, 2)
-    assert edited == points
-    assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
-
-
-def test_parameterized_outline_seeds_native_sketch_creation():
+def test_parameterized_outline_provides_native_sketch_seed_metadata():
     from freecad_cloth.pattern.SketchAuthority import _piece_model
 
     parameterized = type(
@@ -191,7 +173,6 @@ if __name__ == "__main__":
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
     test_native_sketch_adoption_command_is_public()
     test_edit_sketch_enters_native_editor_for_selected_piece()
-    test_polygon_drafting_round_trip_and_editing()
     test_parameterized_outline_seeds_native_sketch_creation()
     print("pattern sketch tests passed")
 
