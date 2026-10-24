@@ -148,28 +148,38 @@ def joint_rotations_to_json(
     )
 
 
-def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
-    """Deserialize persistent joint rotations, accepting legacy empty values."""
-    raw = str(payload or "").strip()
-    if not raw:
-        return ()
-    data = json.loads(raw)
-    if isinstance(data, dict) and "joints" in data:
-        if data.get("schema_version", 1) != 1:
-            msg = "unsupported mannequin joint-pose schema version"
-            raise ValueError(msg)
-        if data.get("units", "deg") != "deg":
-            msg = "mannequin joint poses must use degrees"
-            raise ValueError(msg)
-        data = data["joints"]
+def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
+    """Deserialize the required versioned joint-pose JSON document.
+
+    Args:
+        payload: JSON encoded by joint_rotations_to_json.
+
+    Returns:
+        Validated joint rotations in canonical bone order.
+
+    Raises:
+        ValueError: If the payload is invalid JSON or uses an unsupported schema.
+        TypeError: If the JSON root or joints member has the wrong type.
+    """
+    data = json.loads(payload)
     if not isinstance(data, dict):
-        msg = "mannequin joint pose JSON must contain a joints object"
+        msg = "mannequin joint pose JSON must be an object"
+        raise TypeError(msg)
+    if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
+        msg = "unsupported mannequin joint-pose schema version"
         raise ValueError(msg)
+    if data.get("units") != "deg":
+        msg = "mannequin joint poses must use degrees"
+        raise ValueError(msg)
+    joints = data.get("joints")
+    if not isinstance(joints, dict):
+        msg = "mannequin joint pose JSON must contain a joints object"
+        raise TypeError(msg)
     rotations = []
-    for bone, values in data.items():
+    for bone, values in joints.items():
         if not isinstance(values, dict):
             msg = f"joint pose for {bone} must be an object"
-            raise ValueError(msg)
+            raise TypeError(msg)
         rotations.append(
             JointRotation(
                 str(bone),

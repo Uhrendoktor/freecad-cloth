@@ -368,11 +368,7 @@ def _apply_front_breast_fullness(
     breast_size: float,
     height_mm: float,
 ) -> tuple[tuple[float, float, float], ...]:
-    """Add a smooth anterior projection to the visible chest vertices only.
-
-    Anny's breast-volume-vert-up target primarily alters vertical fullness. The
-    Cloth control also promises forward projection, so add a broad smooth Y offset
-    in the canonical Z-up / +Y-anterior frame, limited to the chest and two lobes.
+    """Add a smooth anterior projection to visible chest vertices using NumPy.
 
     Args:
         vertices: Indexed mannequin surface points expressed in millimetres.
@@ -383,21 +379,27 @@ def _apply_front_breast_fullness(
         Surface vertices with the localized anterior correction applied.
     """
     strength = max(0.0, min(1.0, float(breast_size)))
-    if strength <= 0.0 or not math.isfinite(height_mm) or height_mm <= 0.0:
+    if strength <= 0.0 or not math.isfinite(height_mm) or height_mm <= 0.0 or not vertices:
         return vertices
-
-    adjusted: list[tuple[float, float, float]] = []
-    for x_mm, y_mm, z_mm in vertices:
-        normalized_z = z_mm / height_mm
-        if 0.60 <= normalized_z <= 0.76 and abs(x_mm) < 190.0:
-            front_weight = _smoothstep_weight(-18.0, 28.0, y_mm)
-            vertical_weight = math.exp(-0.5 * ((normalized_z - 0.685) / 0.030) ** 2)
-            lateral_weight = max(
-                math.exp(-0.5 * ((x_mm - center_x) / 58.0) ** 2) for center_x in (-72.0, 72.0)
-            )
-            y_mm += 62.0 * strength * front_weight * vertical_weight * lateral_weight
-        adjusted.append((x_mm, y_mm, z_mm))
-    return tuple(adjusted)
+    points = np.asarray(vertices, dtype=np.float64).copy()
+    normalized_z = points[:, 2] / height_mm
+    chest_mask = (
+        (normalized_z >= 0.60)
+        & (normalized_z <= 0.76)
+        & (np.abs(points[:, 0]) < 190.0)
+    )
+    if not bool(chest_mask.any()):
+        return vertices
+    chest = points[chest_mask]
+    chest_z = normalized_z[chest_mask]
+    front_factor = np.clip((chest[:, 1] + 18.0) / 46.0, 0.0, 1.0)
+    front_weight = front_factor * front_factor * (3.0 - 2.0 * front_factor)
+    vertical_weight = np.exp(-0.5 * ((chest_z - 0.685) / 0.030) ** 2)
+    lateral_weight = np.exp(
+        -0.5 * ((chest[:, 0, None] - np.asarray((-72.0, 72.0))) / 58.0) ** 2
+    ).max(axis=1)
+    points[chest_mask, 1] += 62.0 * strength * front_weight * vertical_weight * lateral_weight
+    return tuple(tuple(float(value) for value in point) for point in points)
 
 
 def _canonicalize_anny_vertices(
@@ -673,6 +675,11 @@ def _fit_anny_body(
         )
         for name in model.phenotype_labels
     }
+
+    cupsize_control = phenotype_kwargs.get("cupsize")
+    if cupsize_control is None:
+        msg = "Anny does not expose its independent cupsize phenotype."
+        raise AnnyAvatarBackendError(msg)
 
     local_kwargs = {
         name: torch.tensor(
@@ -966,20 +973,7 @@ def _fit_anny_body(
                     value.clamp_(-1.0, 1.0)
 
     model = cast("_AnnyCallableModel", body.model)
-    if phenotype_kwargs is None:
-        msg = "Anny did not preserve the fitted phenotype tensors."
-        raise AnnyAvatarBackendError(msg)
-    if local_kwargs is None:
-        msg = "Anny did not preserve the fitted morph tensors."
-        raise AnnyAvatarBackendError(msg)
-    cupsize_control = phenotype_kwargs.get("cupsize")
-    if cupsize_control is None:
-        msg = "Anny did not expose its independent cupsize phenotype."
-        raise AnnyAvatarBackendError(msg)
-    breast_volume_control = local_kwargs.get(_BREAST_LOCAL_CHANGE)
-    if breast_volume_control is None:
-        msg = "Anny did not expose its breast-volume shape target."
-        raise AnnyAvatarBackendError(msg)
+    breast_volume_control = local_kwargs[_BREAST_LOCAL_CHANGE]
     # Cupsize provides the parametric phenotype; the localized volume target makes
     # that edit visible on the rig-compatible HM08 surface. Apply both after fitting
     # so the anthropometry optimizer cannot absorb the requested fullness.

@@ -234,7 +234,7 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         angles["right_arm_angle"],
         angles["left_elbow_angle"],
         angles["right_elbow_angle"],
-        tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
+        tuple(joint_rotations_from_json(obj.JointPoseJSON)),
     )
     shape_payload = {}
     phenotype_overrides = {}
@@ -529,7 +529,7 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
             float(getattr(default_pose, name)),
         )
     _set_prop(
-        obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", "{}")
+        obj, "App::PropertyString", "JointPoseJSON", "Pose", getattr(obj, "JointPoseJSON", joint_rotations_to_json(()))
     )
     _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
     _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")

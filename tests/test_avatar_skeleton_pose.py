@@ -64,6 +64,21 @@ def test_joint_rotations_round_trip_is_deterministic():
     assert json.loads(payload)["units"] == "deg"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "",
+        "{}",
+        json.dumps({"upperarm01.L": {"x": 15.0}}),
+        json.dumps({"schema_version": 1, "units": "rad", "joints": {}}),
+    ),
+)
+def test_joint_rotation_parser_rejects_unversioned_payloads(payload):
+    """Reject empty, unversioned, raw-map, and wrong-unit pose JSON."""
+    with pytest.raises((ValueError, TypeError)):
+        joint_rotations_from_json(payload)
+
+
 def test_pose_and_avatar_parameters_persist_manual_joints():
     params = AvatarParameters(
         pose=Pose(

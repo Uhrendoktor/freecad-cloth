@@ -71,10 +71,6 @@ class ParametricAvatarProvider(AvatarProvider):
         return self._service.landmarks()
 
 
-# Descriptive alias for callers that should not depend on the legacy class name.
-HumanoidMeshAvatarProvider = ParametricAvatarProvider
-
-
 class FreeCADGeometryAvatarProvider(AvatarProvider):
     """Adapter for an imported/native FreeCAD body without a hard dependency.
 

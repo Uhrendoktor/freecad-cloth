@@ -19,6 +19,8 @@ import re
 from pathlib import Path
 from typing import cast
 
+from freecad_cloth.common.ValidationModels import validate_finite_number
+
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
 
@@ -245,23 +247,12 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
             "findings": [],
         }
 
-    def finite_number(value: object) -> float | None:
-        """Convert a numeric metric to float while rejecting booleans and invalid values.
-
-        Args:
-            value: Candidate value from the drape metrics payload.
-
-        Returns:
-            Finite floating-point value, or None when the value is invalid.
-        """
-        if isinstance(value, bool) or not isinstance(value, (float, int)):
-            return None
-        number = float(value)
-        return number if math.isfinite(number) else None
-
-    hem_z = finite_number(metrics.get("hem_z"))
-    shoulder_z = finite_number(metrics.get("shoulder_z"))
-    target_height = finite_number(metrics.get("target_height"))
+    try:
+        hem_z = validate_finite_number(metrics.get("hem_z"))
+        shoulder_z = validate_finite_number(metrics.get("shoulder_z"))
+        target_height = validate_finite_number(metrics.get("target_height"))
+    except (TypeError, ValueError):
+        hem_z = shoulder_z = target_height = None
     if hem_z is None or shoulder_z is None or target_height is None or target_height <= 0:
         return {
             "state": "not_assessed",
@@ -278,8 +269,11 @@ def _fit_assessment(metrics_payload: object) -> dict[str, object]:
         panel = cast("dict[str, object]", raw_panel)
         bounds_value = panel.get("bounds")
         if isinstance(bounds_value, list) and len(bounds_value) >= 6:
-            low = finite_number(bounds_value[4])
-            high = finite_number(bounds_value[5])
+            try:
+                low = validate_finite_number(bounds_value[4])
+                high = validate_finite_number(bounds_value[5])
+            except (TypeError, ValueError):
+                low = high = None
             if low is not None and high is not None and low <= high:
                 minimum_z.append(low)
                 maximum_z.append(high)

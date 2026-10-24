@@ -1212,7 +1212,7 @@ class AvatarPoseTaskPanel:
         )
 
         self._staged_joint_rotations = joint_rotation_map(
-            joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
+            joint_rotations_from_json(self.avatar.JointPoseJSON)
         )
         current_preset = str(getattr(self.avatar, "PosePreset", "standing"))
         self._staged_pose_preset = current_preset

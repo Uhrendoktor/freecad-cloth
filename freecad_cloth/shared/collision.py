@@ -4,6 +4,7 @@
 from collections.abc import Iterable
 from numbers import Real
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
@@ -36,11 +37,8 @@ class CollisionSurface:
         count = len(self.vertices)
         if not count:
             return (0.0, 0.0, 0.0)
-        return (
-            sum(vertex[0] for vertex in self.vertices) / count,
-            sum(vertex[1] for vertex in self.vertices) / count,
-            sum(vertex[2] for vertex in self.vertices) / count,
-        )
+        center = np.asarray(self.vertices, dtype=np.float64).mean(axis=0)
+        return tuple(float(value) for value in center)
 
     def with_thickness(self, thickness: float) -> "CollisionSurface":
         """Return the same surface with a different collision thickness."""

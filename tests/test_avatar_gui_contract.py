@@ -33,16 +33,13 @@ def test_avatar_panel_shape_fields_match_persistent_command_properties():
     assert callable(AvatarTaskPanel._toggle_dimension_gizmo)
 
 
-def test_avatar_panel_pose_fields_match_command_pose_schema():
-    assert tuple(key for key, _label in AvatarTaskPanel.POSE_FIELDS) == (
-        "left_arm_angle",
-        "right_arm_angle",
-        "left_elbow_angle",
-        "right_elbow_angle",
-    )
-    assert {
-        key: AvatarTaskPanel._pose_property(key) for key, _label in AvatarTaskPanel.POSE_FIELDS
-    } == AvatarCommands.POSE_PROPERTY_MAP
+def test_parent_panel_has_no_duplicate_pose_state():
+    """Keep posing in the dedicated editor rather than hidden parent-panel controls."""
+    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+
+    assert not hasattr(AvatarTaskPanel, "POSE_FIELDS")
+    assert not hasattr(AvatarTaskPanel, "_pose_property")
+    assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
 
 
 def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
@@ -90,13 +87,3 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
 
 
-def test_avatar_panel_keeps_optional_pose_and_skeleton_paths_secondary():
-    # These are runtime defaults/configuration, not source-text requirements.
-    assert "t_pose" in AvatarCommands.Pose.VALID_PRESETS
-    assert "standing" in AvatarCommands.Pose.VALID_PRESETS
-    assert "sewing" in AvatarCommands.Pose.VALID_PRESETS
-    assert "sitting" in AvatarCommands.Pose.VALID_PRESETS
-    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
-
-    assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
-    assert AvatarTaskPanel.POSE_FIELDS

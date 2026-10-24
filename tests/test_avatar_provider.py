@@ -6,7 +6,6 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.AvatarProvider import (
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
-    HumanoidMeshAvatarProvider,
     ParametricAvatarProvider,
     provider_from_target,
 )
@@ -40,7 +39,6 @@ class AvatarProviderTests(unittest.TestCase):
             provider.info,
             AvatarProviderInfo("makehuman-hm08", "MakeHuman HM08 humanoid mesh", "high"),
         )
-        self.assertIs(HumanoidMeshAvatarProvider, ParametricAvatarProvider)
         collision = provider.collision_surface()
         self.assertIsInstance(collision, CollisionSurface)
         self.assertEqual((collision.vertices, collision.triangles), provider.surface())

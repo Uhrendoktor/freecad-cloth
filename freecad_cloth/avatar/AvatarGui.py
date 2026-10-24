@@ -91,12 +91,6 @@ class AvatarTaskPanel:
         ("shirt_length", "Shirt length"),
         ("back_neck_to_waist", "Back neck to waist"),
     )
-    POSE_FIELDS = (
-        ("left_arm_angle", "Left arm"),
-        ("right_arm_angle", "Right arm"),
-        ("left_elbow_angle", "Left elbow bend"),
-        ("right_elbow_angle", "Right elbow bend"),
-    )
     PROVIDERS = (
         ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
         (
@@ -146,7 +140,6 @@ class AvatarTaskPanel:
         content = QtWidgets.QWidget()
         content_layout = QtWidgets.QVBoxLayout(content)
         self._boxes = {}
-        self._pose_boxes = {}
         self._measurement_groups = []
         self._advanced_controls_built = False
         self._advanced_phenotype_overrides = {}
@@ -189,68 +182,6 @@ class AvatarTaskPanel:
         provider_layout.addWidget(self.provider_source)
         provider_layout.addWidget(self.provider_source_label)
         content_layout.addWidget(provider)
-
-        pose = QtWidgets.QGroupBox("Pose")
-        pose_layout = QtWidgets.QFormLayout(pose)
-        self.pose = QtWidgets.QComboBox()
-        self.pose.addItems(("standing", "sewing", "sitting", "t_pose"))
-        self.pose.setToolTip("Choose the saved fitting pose.")
-        pose_layout.addRow("Preset", self.pose)
-        for key, label in self.POSE_FIELDS:
-            box = QtWidgets.QDoubleSpinBox()
-            box.setRange(-90.0, 90.0)
-            box.setDecimals(1)
-            box.setSuffix(" deg")
-            box.setToolTip("Staged joint angle. Preset changes remain editable.")
-            pose_layout.addRow(label, box)
-            self._pose_boxes[key] = box
-        content_layout.addWidget(pose)
-        self._legacy_pose_group = pose
-        pose.setVisible(False)
-
-        skeleton = QtWidgets.QGroupBox("Skeleton pose")
-        skeleton_layout = QtWidgets.QFormLayout(skeleton)
-        hint = QtWidgets.QLabel(
-            "Manual FK. Edit a joint in mannequin space; child bones follow the authored skeleton."
-        )
-        hint.setWordWrap(True)
-        skeleton_layout.addRow(hint)
-        self.skeleton_joint = QtWidgets.QComboBox()
-        from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
-
-        for bone, label in CONTROLLABLE_JOINTS:
-            self.skeleton_joint.addItem(label, bone)
-        self.skeleton_joint.setToolTip(
-            "Select a MakeHuman-authored joint and edit its Euler rotation."
-        )
-        skeleton_layout.addRow("Joint", self.skeleton_joint)
-        self.skeleton_x = QtWidgets.QDoubleSpinBox()
-        self.skeleton_y = QtWidgets.QDoubleSpinBox()
-        self.skeleton_z = QtWidgets.QDoubleSpinBox()
-        for label, box in (
-            ("X rotation", self.skeleton_x),
-            ("Y rotation", self.skeleton_y),
-            ("Z rotation", self.skeleton_z),
-        ):
-            box.setRange(-180.0, 180.0)
-            box.setDecimals(1)
-            box.setSuffix(" deg")
-            box.setToolTip("Staged joint rotation in degrees.")
-            skeleton_layout.addRow(label, box)
-        self.skeleton_symmetry = QtWidgets.QCheckBox("Symmetry")
-        self.skeleton_symmetry.setChecked(True)
-        self.skeleton_symmetry.setToolTip(
-            "Mirror bilateral joint edits across the mannequin center plane."
-        )
-        skeleton_layout.addRow(self.skeleton_symmetry)
-        self.reset_skeleton_button = QtWidgets.QPushButton("Reset skeleton pose")
-        self.reset_skeleton_button.setToolTip(
-            "Clear manual joint rotations and return to the preset baseline."
-        )
-        skeleton_layout.addRow(self.reset_skeleton_button)
-        content_layout.addWidget(skeleton)
-        self._legacy_skeleton_group = skeleton
-        skeleton.setVisible(False)
 
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
@@ -302,21 +233,12 @@ class AvatarTaskPanel:
 
         self._loading = True
         self._dirty = False
-        self._staged_joint_rotations = {}
         try:
             self._load()
         finally:
             self._loading = False
         for box in self._boxes.values():
             box.valueChanged.connect(self._staged_changed)
-        for box in self._pose_boxes.values():
-            box.valueChanged.connect(self._staged_changed)
-        self.pose.currentTextChanged.connect(self._preset_changed)
-        self.skeleton_joint.currentIndexChanged.connect(self._load_selected_joint)
-        for box in (self.skeleton_x, self.skeleton_y, self.skeleton_z):
-            box.valueChanged.connect(self._joint_changed)
-        self.skeleton_symmetry.toggled.connect(self._symmetry_changed)
-        self.reset_skeleton_button.clicked.connect(self._reset_skeleton_pose)
         self.provider_source.clicked.connect(self._use_selected_provider_source)
         self.skin_offset.valueChanged.connect(self._staged_changed)
         self.show_measurements.toggled.connect(self._landmarks_visibility_changed)
@@ -841,54 +763,10 @@ class AvatarTaskPanel:
             current_provider = "makehuman-hm08"
         self.provider_buttons[current_provider].setChecked(True)
         self._refresh_provider_source()
-        self.pose.blockSignals(True)
-        self.pose.setCurrentText(str(getattr(self.avatar, "PosePreset", "standing")))
-        self.pose.blockSignals(False)
-        from freecad_cloth.avatar.AvatarModel import Pose
-
-        pose_defaults = Pose(str(self.pose.currentText()))
-        pose_values = {
-            "left_arm_angle": float(pose_defaults.left_arm_angle),
-            "right_arm_angle": float(pose_defaults.right_arm_angle),
-            "left_elbow_angle": float(pose_defaults.left_elbow_angle),
-            "right_elbow_angle": float(pose_defaults.right_elbow_angle),
-        }
-        for key, box in self._pose_boxes.items():
-            box.blockSignals(True)
-            box.setValue(float(getattr(self.avatar, self._pose_property(key), pose_values[key])))
-            box.blockSignals(False)
-        self.mass_target_enabled.blockSignals(True)
-        self.mass_target_enabled.setChecked(mass_target is not None)
-        self.mass_target_enabled.blockSignals(False)
-        self.mass_target.blockSignals(True)
-        self.mass_target.setValue(70.0 if mass_target is None else float(mass_target))
-        self.mass_target.blockSignals(False)
-        self.mass_target.setEnabled(mass_target is not None)
-        self.skin_offset.blockSignals(True)
-        self.skin_offset.setValue(float(getattr(self.avatar, "SkinOffset", 3.0)))
-        self.skin_offset.blockSignals(False)
-        self._load_skeleton_pose()
         self.show_measurements.setChecked(bool(getattr(self.avatar, "Landmarks", [])))
         self._update_arrangement_points()
         self._update_landmarks()
         self._refresh_status()
-
-    @staticmethod
-    def _pose_property(key):
-        """Translate a pose key to the matching FreeCAD property name.
-
-        Args:
-            key: Canonical pose field used by the document schema.
-
-        Returns:
-            The document property name associated with the pose key.
-        """
-        return {
-            "left_arm_angle": "LeftArmAngle",
-            "right_arm_angle": "RightArmAngle",
-            "left_elbow_angle": "LeftElbowAngle",
-            "right_elbow_angle": "RightElbowAngle",
-        }[key]
 
     def _provider_id(self):
         """Return the provider identifier currently selected by the task panel.
@@ -947,20 +825,6 @@ class AvatarTaskPanel:
             )
         self.provider_source_label.setText(text)
         self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
-
-    def _preset_changed(self, preset):
-        """Apply a changed pose preset to the staged avatar parameters."""
-        if self._loading:
-            return
-        from freecad_cloth.avatar.AvatarModel import Pose
-
-        defaults = Pose(str(preset))
-        for name in ("left_arm_angle", "right_arm_angle"):
-            box = self._pose_boxes[name]
-            box.blockSignals(True)
-            box.setValue(float(getattr(defaults, name)))
-            box.blockSignals(False)
-        self._staged_changed()
 
     def _update_shape_labels(self):
         """Keep slider readouts explicit, including the neutral gender midpoint."""
@@ -1034,34 +898,17 @@ class AvatarTaskPanel:
         """Create a validated parameter model from the current controls.
 
         Returns:
-            Avatar parameters containing the currently staged measurements, shape values and pose.
+            Avatar parameters containing current measurements, shape values, and the saved pose.
         """
+        from freecad_cloth.avatar.AvatarCommands import _parameters
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
 
         values = {key: box.value() for key, box in self._boxes.items()}
-        pose = Pose(
-            str(self.pose.currentText()),
-            *(
-                self._pose_boxes[key].value()
-                for key in (
-                    "left_arm_angle",
-                    "right_arm_angle",
-                    "left_elbow_angle",
-                    "right_elbow_angle",
-                )
-            ),
-        )
+        pose = Pose() if self.avatar is None else _parameters(self.avatar).pose
         return AvatarParameters(
             values,
             self.skin_offset.value(),
-            Pose(
-                pose.preset,
-                pose.left_arm_angle,
-                pose.right_arm_angle,
-                pose.left_elbow_angle,
-                pose.right_elbow_angle,
-                tuple(self._staged_joint_rotations.values()),
-            ),
+            pose,
             4,
             self.gender_slider.value() / 100.0,
             self.breast_slider.value() / 100.0,
@@ -1114,74 +961,6 @@ class AvatarTaskPanel:
         if self._dimension_controller is not None:
             self._dimension_controller.refresh()
         return True
-
-    def _load_skeleton_pose(self):
-        """Load stored joint rotations into the pose editor controls."""
-        from freecad_cloth.avatar.SkeletonPose import joint_rotation_map, joint_rotations_from_json
-
-        rotations = joint_rotations_from_json(getattr(self.avatar, "JointPoseJSON", ""))
-        self._staged_joint_rotations = joint_rotation_map(rotations)
-        self._load_selected_joint()
-
-    def _load_selected_joint(self, _index=0):
-        """Refresh the controls for the newly selected skeleton joint."""
-        bone = str(self.skeleton_joint.currentData())
-        rotation = self._staged_joint_rotations.get(bone)
-        values = (
-            (0.0, 0.0, 0.0)
-            if rotation is None
-            else (
-                float(rotation.x),
-                float(rotation.y),
-                float(rotation.z),
-            )
-        )
-        for box, value in zip(
-            (self.skeleton_x, self.skeleton_y, self.skeleton_z), values, strict=False
-        ):
-            box.blockSignals(True)
-            box.setValue(value)
-            box.blockSignals(False)
-
-    def _joint_changed(self):
-        """Apply a manual rotation change to the selected skeleton joint."""
-        from freecad_cloth.avatar.SkeletonPose import JointRotation
-
-        bone = str(self.skeleton_joint.currentData())
-        rotation = JointRotation(
-            bone, self.skeleton_x.value(), self.skeleton_y.value(), self.skeleton_z.value()
-        ).validate()
-        values = dict(self._staged_joint_rotations)
-        values[bone] = rotation
-        if self.skeleton_symmetry.isChecked():
-            mirrored = rotation.mirrored()
-            if mirrored.bone != rotation.bone:
-                values[mirrored.bone] = mirrored
-        self._staged_joint_rotations = values
-        self._staged_changed()
-
-    def _symmetry_changed(self, checked):
-        """Reflect joint rotation changes across the selected symmetry partner."""
-        if not checked:
-            return
-        bone = str(self.skeleton_joint.currentData())
-        rotation = self._staged_joint_rotations.get(bone)
-        if rotation is None:
-            return
-        mirrored = rotation.mirrored()
-        if mirrored.bone == rotation.bone:
-            return
-        self._staged_joint_rotations = {
-            **self._staged_joint_rotations,
-            mirrored.bone: mirrored,
-        }
-        self._staged_changed()
-
-    def _reset_skeleton_pose(self):
-        """Reset all staged skeleton joint rotations to the neutral pose."""
-        self._staged_joint_rotations = {}
-        self._load_selected_joint()
-        self._staged_changed()
 
     def _rebuild_geometry(self):
         """Rebuild the mannequin geometry from the staged parameters."""
