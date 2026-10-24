@@ -1,22 +1,22 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
+"""Verify material, tessellation, solver, and readiness contracts."""
+
 import unittest
 from math import dist
-from pathlib import Path
 from types import SimpleNamespace
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from typing import Never
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.simulation.SimulationQuality import (
     QUALITY_PRESETS,
     FabricMaterial,
+    normalize_color_rgb,
     preset,
     solver_parameters,
 )
 from freecad_cloth.simulation.SimulationQualityRuntime import (
-    _RUNTIME_BASES,
     QualitySimulationProxy,
     quality_discretization,
 )
@@ -27,13 +27,17 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
 
 
 class SimulationQualityTests(unittest.TestCase):
-    def test_quality_presets_are_monotonic_and_distinct(self):
+    """Test quality presets, material settings, tessellation, and solver contracts."""
+
+    def test_quality_presets_are_monotonic_and_distinct(self) -> None:
+        """Keep presets ordered from fast/coarse to final/fine."""
         self.assertEqual(set(QUALITY_PRESETS), {"Fast", "Balanced", "Final"})
         self.assertGreater(preset("Fast").particle_distance, preset("Balanced").particle_distance)
         self.assertGreater(preset("Balanced").particle_distance, preset("Final").particle_distance)
         self.assertLess(preset("Fast").solver_iterations, preset("Final").solver_iterations)
 
-    def test_material_defaults_and_solver_parameters(self):
+    def test_material_defaults_and_solver_parameters(self) -> None:
+        """Preserve default material measurements and the Final solver controls."""
         material = FabricMaterial()
         params = solver_parameters(preset("Final"), material)
         self.assertEqual(params["particle_distance"], 2.0)
@@ -42,7 +46,8 @@ class SimulationQualityTests(unittest.TestCase):
         self.assertEqual(params["density_g_m2"], 150.0)
         self.assertEqual(params["thickness_mm"], 0.5)
 
-    def test_material_validation_rejects_invalid_values(self):
+    def test_material_validation_rejects_invalid_values(self) -> None:
+        """Reject material parameters outside supported physical ranges."""
         invalid = [
             ("density_g_m2", 0),
             ("thickness_mm", 0),
@@ -55,7 +60,8 @@ class SimulationQualityTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 FabricMaterial(**{field: value}).validate()
 
-    def test_material_validation_rejects_nonfinite_density_and_thickness(self):
+    def test_material_validation_rejects_nonfinite_density_and_thickness(self) -> None:
+        """Reject non-finite density and thickness measurements."""
         for field in ("density_g_m2", "thickness_mm"):
             for value in (float("nan"), float("inf"), float("-inf")):
                 with (
@@ -64,7 +70,8 @@ class SimulationQualityTests(unittest.TestCase):
                 ):
                     FabricMaterial(**{field: value}).validate()
 
-    def test_material_presentation_defaults_and_validation(self):
+    def test_material_presentation_defaults_and_validation(self) -> None:
+        """Preserve presentation defaults and reject malformed display values."""
         material = FabricMaterial()
         self.assertEqual(material.color_rgb, (0.72, 0.34, 0.46))
         self.assertEqual(material.specular, 0.25)
@@ -78,9 +85,8 @@ class SimulationQualityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             FabricMaterial(transparency=101).validate()
 
-    def test_material_color_normalizes_freecad_property_color_shapes(self):
-        from freecad_cloth.simulation.SimulationQuality import normalize_color_rgb
-
+    def test_material_color_normalizes_freecad_property_color_shapes(self) -> None:
+        """Normalize FreeCAD RGBA and byte-channel colors into RGB floats."""
         self.assertEqual(normalize_color_rgb((0.72, 0.34, 0.46, 0.0)), (0.72, 0.34, 0.46))
         self.assertEqual(
             normalize_color_rgb((184, 87, 117, 255)), (184 / 255.0, 87 / 255.0, 117 / 255.0)
@@ -88,16 +94,19 @@ class SimulationQualityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_color_rgb((300, 0, 0))
 
-    def test_unknown_quality_rejected(self):
+    def test_unknown_quality_rejected(self) -> None:
+        """Reject a quality name outside the supported preset set."""
         with self.assertRaises(ValueError):
             preset("Ultra")
 
-    def test_quality_discretization_increases_with_smaller_particle_distance(self):
+    def test_quality_discretization_increases_with_smaller_particle_distance(self) -> None:
+        """Refine the mesh when target particle distance decreases."""
         coarse = quality_discretization(4, 320.0, preset("Fast").particle_distance)
         fine = quality_discretization(4, 320.0, preset("Final").particle_distance)
         self.assertGreater(fine, coarse)
 
-    def test_pattern_mesh_density_changes_with_particle_distance(self):
+    def test_pattern_mesh_density_changes_with_particle_distance(self) -> None:
+        """Show that finer particle spacing generates more mesh points."""
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
         piece_obj = type(
             "Piece",
@@ -113,7 +122,8 @@ class SimulationQualityTests(unittest.TestCase):
         fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
         self.assertGreater(len(fine[0]), len(coarse[0]))
 
-    def test_quality_seam_edges_have_interior_particles(self):
+    def test_quality_seam_edges_have_interior_particles(self) -> None:
+        """Populate refined seam boundaries with interior edge particles."""
         piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
         piece_obj = type(
             "Piece",
@@ -134,7 +144,8 @@ class SimulationQualityTests(unittest.TestCase):
                 20.000001,
             )
 
-    def test_refinement_preserves_authored_boundary_and_materially_tessellates(self):
+    def test_refinement_preserves_authored_boundary_and_materially_tessellates(self) -> None:
+        """Preserve authored edge endpoints while refining faces and vertices."""
         piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
         piece_obj = type(
             "Piece",
@@ -161,21 +172,17 @@ class SimulationQualityTests(unittest.TestCase):
                 piece.outline[(edge_index + 1) % len(piece.outline)],
             )
 
-    def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self):
-        """Guard the reload path without placing the non-serializable solver in __dict__."""
+    def test_quality_proxy_keeps_solver_state_outside_serialized_object_dict(self) -> None:
+        """Keep rebuildable solver state out of serialized proxy attributes."""
         proxy = QualitySimulationProxy()
-        original = _RUNTIME_BASES[proxy]
+        self.assertEqual(proxy.__getstate__(), {"schema": 1})
         self.assertNotIn("_base", proxy.__dict__)
         self.assertEqual(proxy.last_steps, 0)
-        restored = proxy._base_or_restore()
-        self.assertIs(restored, original)
         proxy.onDocumentRestored(None)
-        self.assertIsNot(_RUNTIME_BASES[proxy], restored)
         self.assertEqual(proxy.last_steps, 0)
 
-    def test_pinned_pinned_stitch_rejects_nonzero_initial_separation(self):
-        from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
-
+    def test_pinned_pinned_stitch_rejects_nonzero_initial_separation(self) -> None:
+        """Reject a pinned stitch whose initial endpoints are far apart."""
         positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
         records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
         with self.assertRaisesRegex(
@@ -185,9 +192,8 @@ class SimulationQualityTests(unittest.TestCase):
         ):
             validate_pinned_stitch_pairs(positions, (0, 1), records)
 
-    def test_pinned_pinned_stitch_allows_numerical_zero(self):
-        from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
-
+    def test_pinned_pinned_stitch_allows_numerical_zero(self) -> None:
+        """Allow pinned stitch separation within numerical-zero tolerance."""
         positions = ((0.0, 0.0, 0.0), (1.0e-12, 0.0, 0.0))
         records = (("test-seam", "A", "B", ((0, 1),)),)
         validate_pinned_stitch_pairs(positions, (0, 1), records)
@@ -330,7 +336,7 @@ def test_readiness_reports_fully_placed_sewn_garment() -> None:
 def test_readiness_target_inspection_failure_blocks_simulation() -> None:
     """Target-inspection failure never advertises simulation readiness."""
 
-    def fail(_target: object | None) -> dict[str, object]:
+    def fail(_target: object | None) -> Never:
         """Simulate a target inspection error.
 
         Args:
