@@ -107,6 +107,7 @@ def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
 
 def test_clad_body_pose_parameterization_is_normalized_for_anny_forward() -> None:
     """Normalize clad-body's pose spelling before its forward call reaches Anny."""
+
     class FakeModel:
         def forward(self, *, pose_parameterization: str) -> str:
             return pose_parameterization

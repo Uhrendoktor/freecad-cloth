@@ -629,6 +629,7 @@ def create_avatar(
     if attach_collision:
         _ensure_drape_target(obj)
     from freecad_cloth.common import GarmentDocument as garment_document
+
     garment_document.link_garment_object(obj, "Avatar", doc)
     doc.recompute()
     return obj

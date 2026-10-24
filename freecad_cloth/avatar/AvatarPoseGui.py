@@ -789,7 +789,8 @@ class SkeletonPoseController:
                 math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
             )
         self.panel.status.setText(
-            f"Rotating {self.panel._joint_label(self.selected_bone)} — release to keep the staged pose; Cancel restores it."
+            f"Rotating {self.panel._joint_label(self.selected_bone)} — "
+            "release to keep the staged pose; Cancel restores it."
         )
 
     def _dragger_quaternion(self, dragger):
@@ -842,7 +843,8 @@ class SkeletonPoseController:
         self._active_gizmo_axis = None
         if self.selected_bone:
             self.panel.status.setText(
-                f"{self.panel._joint_label(self.selected_bone)} posed. Click Apply & Rebuild to keep the change."
+                f"{self.panel._joint_label(self.selected_bone)} posed. "
+                "Click Apply & Rebuild to keep the change."
             )
             self.refresh_overlay()
 
@@ -1320,7 +1322,8 @@ class AvatarPoseTaskPanel:
         if preview:
             self._preview_rebuild()
         self.status.setText(
-            f"{self._joint_label(bone)} staged at X {rotation.x:.0f}° Y {rotation.y:.0f}° Z {rotation.z:.0f}°."
+            f"{self._joint_label(bone)} staged at X {rotation.x:.0f}° "
+            f"Y {rotation.y:.0f}° Z {rotation.z:.0f}°."
         )
 
     def _staged_parameters(self):
@@ -1331,6 +1334,7 @@ class AvatarPoseTaskPanel:
         """
         from freecad_cloth.avatar.AvatarCommands import _parameters
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
+
         stored = _parameters(self.avatar)
         measurements = dict(stored.measurements)
         preset = str(getattr(self, "_staged_pose_preset", stored.pose.preset))

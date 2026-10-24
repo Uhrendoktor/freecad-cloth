@@ -23,6 +23,7 @@ class _SimulationScene(Protocol):
 
     DrapeTarget: object
 
+
 _ACTIVE_DIAGNOSTICS_TASK_PANEL = None
 
 
@@ -241,7 +242,9 @@ _HANDLERS = {
     "ClothDrape_Diagnostics": show_diagnostics,
 }
 _TOOLTIPS = {
-    "ClothDrape_CreateTarget": "Use the selected FreeCAD shape or mesh as the persistent drape target",
+    "ClothDrape_CreateTarget": (
+        "Use the selected FreeCAD shape or mesh as the persistent drape target"
+    ),
     "ClothDrape_CreateMannequinTarget": "Create or select the Cloth mannequin as the drape target",
     "ClothDrape_EditTarget": "Edit the persistent drape target and collision quality settings",
     "ClothDrape_RefreshTarget": "Rebuild collision geometry from the current drape target source",

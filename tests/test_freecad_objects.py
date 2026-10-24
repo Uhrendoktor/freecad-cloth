@@ -115,43 +115,76 @@ def test_drape_target_is_the_only_persistent_collision_authority() -> None:
         document.recompute()
 
         simulation = create_simulation_scene(document)
+        assigned_source = set_drape_target_source(
+            simulation, body, thickness=2.0, deflection=1.0
+        )
         require(
-            set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0) is body,
-            "DrapeTarget assignment must return its source object.",
+            condition=assigned_source is body,
+            message="DrapeTarget assignment must return its source object.",
         )
         target = document.getObject("DrapeTarget")
-        require(target is not None, "DrapeTarget must be created.")
-        require(target.SourceObject == body, "DrapeTarget must own the collision source.")
-        require(simulation.DrapeTarget == target, "Simulation must reference DrapeTarget.")
+        require(
+            condition=target is not None,
+            message="DrapeTarget must be created.",
+        )
+        require(
+            condition=target.SourceObject == body,
+            message="DrapeTarget must own the collision source.",
+        )
+        require(
+            condition=simulation.DrapeTarget == target,
+            message="Simulation must reference DrapeTarget.",
+        )
 
         fitting = create_fitting_scene()
         require(
-            "AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ()),
-            "FittingScene must not store a duplicate AvatarProxy link.",
+            condition="AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            message="FittingScene must not store a duplicate AvatarProxy link.",
         )
         require(
-            "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ()),
-            "DrapeTarget ownership must remain at the document/simulation boundary.",
+            condition="DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            message="DrapeTarget ownership must remain at the document/simulation boundary.",
         )
         require(
-            document.getObject("AvatarCollision") is None,
-            "No compatibility collision proxy may be created.",
+            condition=document.getObject("AvatarCollision") is None,
+            message="No compatibility collision proxy may be created.",
         )
         document.recompute()
-        require(document.getObject("DrapeTarget") == target, "Recompute must preserve the target.")
-        require(target.SourceObject == body, "Recompute must preserve the authoritative source.")
-
         require(
-            set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5) is body,
-            "Updating collision settings must keep the same source.",
+            condition=document.getObject("DrapeTarget") == target,
+            message="Recompute must preserve the target.",
         )
-        require(simulation.DrapeTarget == target, "Updating settings must preserve target identity.")
-        require(target.SourceObject == body, "Updating settings must preserve target ownership.")
-        require(float(target.CollisionThickness) == 3.0, "Thickness must be stored on DrapeTarget.")
-        require(float(target.CollisionDeflection) == 0.5, "Deflection must be stored on DrapeTarget.")
         require(
-            document.getObject("AvatarCollision") is None,
-            "No duplicate proxy may be introduced.",
+            condition=target.SourceObject == body,
+            message="Recompute must preserve the authoritative source.",
+        )
+
+        updated_source = set_drape_target_source(
+            simulation, body, thickness=3.0, deflection=0.5
+        )
+        require(
+            condition=updated_source is body,
+            message="Updating collision settings must keep the same source.",
+        )
+        require(
+            condition=simulation.DrapeTarget == target,
+            message="Updating settings must preserve target identity.",
+        )
+        require(
+            condition=target.SourceObject == body,
+            message="Updating settings must preserve target ownership.",
+        )
+        require(
+            condition=float(target.CollisionThickness) == 3.0,
+            message="Thickness must be stored on DrapeTarget.",
+        )
+        require(
+            condition=float(target.CollisionDeflection) == 0.5,
+            message="Deflection must be stored on DrapeTarget.",
+        )
+        require(
+            condition=document.getObject("AvatarCollision") is None,
+            message="No duplicate proxy may be introduced.",
         )
     finally:
         if document.Name in App.listDocuments():

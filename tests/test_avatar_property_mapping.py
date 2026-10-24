@@ -40,6 +40,7 @@ def test_shape_properties_are_generated_from_model_field_metadata() -> None:
         message="shape property names must be derived from AvatarParameters field metadata.",
     )
 
+
 def test_pose_properties_cover_all_pose_angle_fields() -> None:
     """Ensure FreeCAD pose properties track every angle field on the Pose model."""
     expected = {
