@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify material, tessellation, solver, and readiness contracts."""
 
-from itertools import pairwise
 from math import dist
+from itertools import pairwise
 from types import SimpleNamespace
 from typing import Never, cast
 
