@@ -4,7 +4,6 @@
 import json
 from collections.abc import Callable, Sequence
 from contextlib import suppress
-from importlib import import_module
 from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
@@ -283,9 +282,9 @@ def _mesh_data(
         A native Mesh object with the provider's shared vertex topology preserved.
     """
     if app_module is None:
-        app_module = import_module("FreeCAD")
+        import FreeCAD as app_module
     if mesh_module is None:
-        mesh_module = import_module("Mesh")
+        import Mesh as mesh_module
 
     native = mesh_module.Mesh()
     vectors = list(starmap(app_module.Vector, vertices))
@@ -568,7 +567,9 @@ def create_avatar(
     Returns:
         The created or updated avatar feature.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = cast(
         "_FreeCADDocument",
@@ -691,7 +692,9 @@ def rebuild_avatar() -> _AvatarFeature:
     Raises:
         ValueError: If no document is active or the document has no avatar feature.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -711,7 +714,9 @@ def edit_avatar() -> _AvatarFeature:
     Returns:
         The task-panel instance shown by FreeCAD.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -728,7 +733,9 @@ def pose_avatar() -> _AvatarFeature:
     Returns:
         The pose task-panel instance shown by FreeCAD.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -751,7 +758,9 @@ def set_avatar_measurements(**changes: float) -> _AvatarFeature:
     Raises:
         ValueError: If there is no active document or a measurement name is unknown.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -779,7 +788,9 @@ def set_avatar_pose(pose: str) -> _AvatarFeature:
     Raises:
         ValueError: If there is no active document.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -822,7 +833,9 @@ def set_avatar_joint(
     Raises:
         ValueError: If no document is active or the joint rotation is invalid.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -869,7 +882,9 @@ def set_avatar_provider(provider_id: str, source: object | None = None) -> _Avat
     Raises:
         ValueError: If no document is active or the provider/source is unsupported.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -907,7 +922,9 @@ def set_avatar_skin_offset(offset: float) -> _AvatarFeature:
     Raises:
         ValueError: If no document is active or the resulting parameters are invalid.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     if doc is None:
@@ -941,7 +958,9 @@ def avatar_measurement(name: str) -> float:
     Raises:
         ValueError: If no active avatar exists or the measurement name is unknown.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     avatar = None if doc is None else _avatar(doc)
@@ -960,7 +979,9 @@ def avatar_arrangement_points() -> object:
     Raises:
         ValueError: If there is no active avatar in the current document.
     """
-    app = cast("_FreeCADApplication", import_module("FreeCAD"))
+    import FreeCAD as App
+
+    app = cast("_FreeCADApplication", App)
 
     doc = app.ActiveDocument
     avatar = None if doc is None else _avatar(doc)
@@ -995,7 +1016,7 @@ _HANDLERS = {
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:
-    gui = import_module("FreeCADGui")
+    import FreeCADGui as gui
     from freecad_cloth.common import CommandAdapter as command_adapter
     command_adapter.register_commands(gui, _HANDLERS)
 except (ImportError, AttributeError):
