@@ -1,10 +1,11 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify material, tessellation, solver, and readiness contracts."""
 
-import pytest
 from math import dist
 from types import SimpleNamespace
 from typing import Never, cast
+
+import pytest
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
@@ -43,6 +44,10 @@ _MINIMUM_REFINED_TRIANGLES = 100
 _MINIMUM_BOUNDARY_CHAIN_POINTS = 2
 _MAXIMUM_EDGE_SPAN_MM = 20.000001
 _PROXY_SCHEMA_VERSION = 1
+_PINNED_STITCH_ERROR_PATTERN = (
+    r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
+    r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm"
+)
 
 
 def _quality_piece_object(piece: PatternPiece) -> SimpleNamespace:
@@ -65,7 +70,7 @@ def _quality_piece_object(piece: PatternPiece) -> SimpleNamespace:
 def test_quality_presets_are_monotonic_and_distinct() -> None:
     """Keep presets ordered from fast/coarse to final/fine."""
     require(
-        condition=(set(QUALITY_PRESETS) == {"Fast", "Balanced", "Final"}),
+        condition=(set(QUALITY_PRESETS) == set(_EXPECTED_QUALITY_NAMES)),
         message="Quality presets must remain distinct and ordered from coarse to fine.",
     )
     require(
@@ -108,17 +113,17 @@ def test_material_defaults_and_solver_parameters() -> None:
 
 def test_material_validation_rejects_invalid_values() -> None:
     """Reject material parameters outside supported physical ranges."""
-    invalid = [
-        ("density_g_m2", 0),
-        ("thickness_mm", 0),
-        ("stretch", 1.1),
-        ("shear", -0.1),
-        ("bend", 2),
-        ("friction", -1),
-    ]
-    for field, value in invalid:
+    invalid = (
+        ("density_g_m2", lambda: FabricMaterial(density_g_m2=0).validate()),
+        ("thickness_mm", lambda: FabricMaterial(thickness_mm=0).validate()),
+        ("stretch", lambda: FabricMaterial(stretch=1.1).validate()),
+        ("shear", lambda: FabricMaterial(shear=-0.1).validate()),
+        ("bend", lambda: FabricMaterial(bend=2).validate()),
+        ("friction", lambda: FabricMaterial(friction=-1).validate()),
+    )
+    for _field, construct in invalid:
         with pytest.raises(ValueError):
-            FabricMaterial(**{field: value}).validate()
+            construct()
 
 def test_material_validation_rejects_nonfinite_density_and_thickness() -> None:
     """Reject non-finite density and thickness measurements."""
@@ -166,7 +171,7 @@ def test_material_color_normalizes_freecad_property_color_shapes() -> None:
         message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
     )
     require(
-        condition=(normalize_color_rgb((184, 87, 117, 255)) == (184 / 255.0, 87 / 255.0, 117 / 255.0)),
+        condition=(normalize_color_rgb((184, 87, 117, 255)) == _EXPECTED_BYTE_COLOR),
         message="Color normalization must support FreeCAD channel formats and reject invalid channels.",
     )
     with pytest.raises(ValueError):
@@ -212,7 +217,7 @@ def test_quality_seam_edges_have_interior_particles() -> None:
     )
     for edge in boundary:
         require(
-            condition=(max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)) <= 20.000001),
+            condition=(max(dist(positions[a], positions[b]) for a, b in zip(edge, edge[1:], strict=False)) <= _MAXIMUM_EDGE_SPAN_MM),
             message="Refined seam edges must contain interior particles within the spacing budget.",
         )
 
@@ -278,8 +283,7 @@ def test_pinned_pinned_stitch_rejects_nonzero_initial_separation() -> None:
     """Reject a pinned stitch whose initial endpoints are far apart."""
     positions = ((0.0, 0.0, 0.0), (327.943695, 0.0, 0.0))
     records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
-    with pytest.raises(ValueError, match=r"impossible pinned-pinned sewing constraint: seam=TunicRightShoulder "
-        r"particle_a=0 particle_b=1 initial_separation=327\.943695000 mm"):
+    with pytest.raises(ValueError, match=_PINNED_STITCH_ERROR_PATTERN):
         validate_pinned_stitch_pairs(positions, (0, 1), records)
 
 def test_pinned_pinned_stitch_allows_numerical_zero() -> None:
