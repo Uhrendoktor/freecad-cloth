@@ -26,7 +26,6 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
     WorkflowStep,
     build_workflow_checklist,
 )
-
 from tests.support.assertions import require
 
 
