@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from freecad_cloth.shared.collision import CollisionSurface
+if TYPE_CHECKING:
+    from freecad_cloth.shared.collision import CollisionSurface
 
 PINNED_STITCH_EPSILON_MM = 1.0e-9
+POSITION_COMPONENT_COUNT = 3
 type Position = tuple[float, float, float]
 
 
@@ -22,7 +24,11 @@ class PositionProvider(Protocol):
     """Expose a position-like value through a method."""
 
     def position(self) -> Sequence[float]:
-        """Return the three-dimensional position."""
+        """Return the three-dimensional position.
+
+        Returns:
+            The position coordinates in the provider's native length units.
+        """
         ...
 
 
@@ -31,10 +37,20 @@ type StitchRecord = tuple[str, str, str, Iterable[tuple[int, int]]]
 
 
 def _position_tuple(value: PositionInput) -> Position:
-    """Normalize a tuple-like or provider-backed position into three floats."""
+    """Normalize an input position to three floating-point coordinates.
+
+    Args:
+        value: Coordinates or a provider object exposing a position method.
+
+    Returns:
+        Three floating-point coordinates in FreeCAD millimetres.
+
+    Raises:
+        ValueError: If the supplied coordinates do not contain exactly three values.
+    """
     position = value.position() if isinstance(value, PositionProvider) else value
     values = tuple(float(component) for component in position)
-    if len(values) != 3:
+    if len(values) != POSITION_COMPONENT_COUNT:
         msg = "simulation stitch positions must be three-dimensional"
         raise ValueError(msg)
     return (values[0], values[1], values[2])
@@ -47,7 +63,18 @@ def validate_pinned_stitch_pairs(
     *,
     epsilon: float = PINNED_STITCH_EPSILON_MM,
 ) -> None:
-    """Reject impossible non-zero stitches between already pinned particles."""
+    """Reject impossible non-zero stitches between already pinned particles.
+
+    Args:
+        positions: Initial particle positions used to measure seam-pair separation.
+        pinned_indices: Particle indices that are constrained to remain stationary.
+        seam_pair_records: Seam identities and particle pairs supplied to the solver.
+        epsilon: Maximum accepted initial separation for pinned pairs, in millimetres.
+
+    Raises:
+        ValueError: If epsilon is negative, a pair index is invalid, or pinned particles violate
+            the maximum permitted separation.
+    """
     normalized_positions = tuple(_position_tuple(value) for value in positions)
     pinned = frozenset(int(index) for index in pinned_indices)
     if epsilon < 0.0:
@@ -87,7 +114,11 @@ class ClothSimulationBackend(ABC):
 
     @property
     def solver_collision_surface(self) -> CollisionSurface | None:
-        """Return the collision surface registered with the backend."""
+        """Return the collision surface registered with the backend.
+
+        Returns:
+            The registered collision surface, or None when no surface is configured.
+        """
         return None
 
     @abstractmethod
@@ -98,17 +129,38 @@ class ClothSimulationBackend(ABC):
         gravity: Position = (0.0, 0.0, -9810.0),
         surface: CollisionSurface | None = None,
     ) -> None:
-        """Advance the simulation by one time step."""
+        """Advance the simulation by one time step.
+
+        Args:
+            dt: Duration of the simulation step in seconds.
+            iterations: Number of solver iterations for this step.
+            gravity: Gravity vector in FreeCAD millimetres per second squared.
+            surface: Optional collision surface to use for this step.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not implement simulation stepping.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def reset(self) -> None:
-        """Reset solver state to its last constructed input."""
+        """Reset solver state to its last constructed input.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not implement solver reset.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def pin(self, indices: Iterable[int]) -> None:
-        """Replace the set of pinned particle indices."""
+        """Replace the set of pinned particle indices.
+
+        Args:
+            indices: Particle indices that the backend should hold fixed.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not implement particle pinning.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -117,21 +169,50 @@ class ClothSimulationBackend(ABC):
         pairs: Iterable[tuple[int, int]],
         compliance: float = 0.0,
     ) -> None:
-        """Replace the sewing constraints."""
+        """Replace the sewing constraints.
+
+        Args:
+            pairs: Particle-index pairs that define sewing constraints.
+            compliance: Constraint compliance value used by the backend.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not implement sewing constraints.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def positions(self) -> tuple[Position, ...]:
-        """Return current particle positions in FreeCAD millimetres."""
+        """Return current particle positions in FreeCAD millimetres.
+
+        Returns:
+            Particle coordinates in solver order, expressed in FreeCAD millimetres.
+
+        Raises:
+            NotImplementedError: If a concrete backend cannot provide particle positions.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def finite(self) -> bool:
-        """Report whether all solver positions are within the accepted finite bound."""
+        """Report whether all solver positions are within the accepted finite bound.
+
+        Returns:
+            True when all solver positions satisfy the backend's finite-value contract.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not implement the finite-state check.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def time(self) -> float:
-        """Return elapsed simulation time in seconds."""
+        """Return elapsed simulation time in seconds.
+
+        Returns:
+            Elapsed simulation time since the backend's input state was constructed.
+
+        Raises:
+            NotImplementedError: If a concrete backend does not expose simulation time.
+        """
         raise NotImplementedError
