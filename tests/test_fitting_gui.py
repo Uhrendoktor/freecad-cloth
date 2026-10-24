@@ -74,7 +74,9 @@ def test_surface_anchor_is_invalidated_when_fitting_target_changes():
     scene = SimpleNamespace(FittingType="FittingScene")
     document = SimpleNamespace(
         Objects=[scene],
-        getObject=lambda name: SimpleNamespace(SourceObject=new_target) if name == "DrapeTarget" else None,
+        getObject=lambda name: (
+            SimpleNamespace(SourceObject=new_target) if name == "DrapeTarget" else None
+        ),
     )
     point = SimpleNamespace(
         AnchorGeometrySignature="previous-geometry-signature",

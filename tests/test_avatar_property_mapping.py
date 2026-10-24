@@ -24,15 +24,21 @@ def test_measurement_properties_are_generated_from_model_measurements() -> None:
     )
 
 
-def test_shape_properties_use_model_field_names() -> None:
-    """Keep the persisted shape-property names generated from avatar model fields."""
-    field_names = {field.name for field in fields(AvatarParameters)}
+def test_shape_properties_are_generated_from_model_field_metadata() -> None:
+    """Ensure shape properties derive from canonical model-field metadata."""
+    expected = {
+        field.name: "".join(part.capitalize() for part in field.name.split("_"))
+        for field in fields(AvatarParameters)
+        if field.metadata.get("freecad_property_group") == "shape"
+    }
     require(
-        condition=SHAPE_PROPERTY_MAP == {"gender": "Gender", "breast_size": "BreastSize"}
-        and set(SHAPE_PROPERTY_MAP) <= field_names,
-        message="shape property names must be generated from the model's shape fields",
+        condition=expected == {"gender": "Gender", "breast_size": "BreastSize"},
+        message="shape fields must carry stable FreeCAD grouping metadata on the model.",
     )
-
+    require(
+        condition=SHAPE_PROPERTY_MAP == expected,
+        message="shape property names must be derived from AvatarParameters field metadata.",
+    )
 
 def test_pose_properties_cover_all_pose_angle_fields() -> None:
     """Ensure FreeCAD pose properties track every angle field on the Pose model."""

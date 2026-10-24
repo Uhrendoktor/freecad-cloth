@@ -85,7 +85,6 @@ class _FreeCADGui(Protocol):
         ...
 
 
-
 class _DrapeTarget(Protocol):
     """Describe collision settings on the persisted drape target."""
 

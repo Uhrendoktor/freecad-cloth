@@ -9,7 +9,10 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 import contextlib
 import math
 
-from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
+from freecad_cloth.avatar.AvatarProperties import (
+    PROPERTY_MAP as AVATAR_PROPERTY_MAP,
+    SHAPE_PROPERTY_MAP,
+)
 from freecad_cloth.shared.viewport_gizmo_style import (
     ACTIVE_COLOR,
     JOINT_COLOR,
@@ -1328,8 +1331,6 @@ class AvatarPoseTaskPanel:
         """
         from freecad_cloth.avatar.AvatarCommands import _parameters
         from freecad_cloth.avatar.AvatarModel import AvatarParameters, Pose
-from freecad_cloth.avatar.AvatarProperties import SHAPE_PROPERTY_MAP
-
         stored = _parameters(self.avatar)
         measurements = dict(stored.measurements)
         preset = str(getattr(self, "_staged_pose_preset", stored.pose.preset))

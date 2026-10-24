@@ -149,9 +149,9 @@ class AvatarParameters:
     # 0 = feminine, 0.5 = neutral, 1 = masculine. This is a body-shape
     # blend, not a claim about identity; downstream geometry uses it as one
     # normalized morphology control.
-    gender: float = 0.5
+    gender: float = field(default=0.5, metadata={"freecad_property_group": "shape"})
     # Additional breast projection beyond the neutral base shape, 0..1.
-    breast_size: float = 0.0
+    breast_size: float = field(default=0.0, metadata={"freecad_property_group": "shape"})
     phenotype_overrides: dict[str, float] = field(default_factory=dict)
     local_change_overrides: dict[str, float] = field(default_factory=dict)
     mass_target_kg: float | None = None
@@ -297,7 +297,10 @@ class AvatarParameters:
             msg = "avatar presets must use millimetres"
             raise ValueError(msg)
         schema_version = data.get("schema_version")
-        if type(schema_version) is not int or schema_version != 4:
+        if type(schema_version) is not int:
+            msg = "avatar schema_version must be an integer"
+            raise TypeError(msg)
+        if schema_version != 4:
             msg = "unsupported avatar schema version; expected version 4"
             raise ValueError(msg)
         p = data.get("pose", {})
@@ -320,17 +323,20 @@ class AvatarParameters:
         )
         shape = data.get("shape", {})
         anny_overrides = data.get("anny_overrides", {})
+        if not isinstance(anny_overrides, dict):
+            msg = "Anny overrides must be an object"
+            raise TypeError(msg)
         phenotype_overrides = anny_overrides.get("phenotypes", {})
         local_change_overrides = anny_overrides.get("local_changes", {})
         if not isinstance(phenotype_overrides, dict) or not isinstance(
             local_change_overrides, dict
         ):
             msg = "Anny overrides must contain parameter-to-number objects"
-            raise ValueError(msg)
+            raise TypeError(msg)
         clad_targets = data.get("clad_targets", {})
         if not isinstance(clad_targets, dict):
             msg = "clad_targets must be an object"
-            raise ValueError(msg)
+            raise TypeError(msg)
         mass_target = clad_targets.get("mass_kg")
         return cls(
             data.get("measurements", {}),

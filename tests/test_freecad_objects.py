@@ -1,4 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+"""Native FreeCAD object contract tests for pattern and drape-target behavior."""
+
 import math
 import os
 import sys
@@ -16,6 +18,8 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import contextlib
+
+from support.assertions import require
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternObjects import (
@@ -96,7 +100,7 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
-def test_drape_target_is_the_only_persistent_collision_authority():
+def test_drape_target_is_the_only_persistent_collision_authority() -> None:
     """Ensure fitting and simulation share DrapeTarget without a proxy object."""
     if App is None or Part is None:
         return
@@ -111,29 +115,49 @@ def test_drape_target_is_the_only_persistent_collision_authority():
         document.recompute()
 
         simulation = create_simulation_scene(document)
-        assert set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0) is body
+        require(
+            set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0) is body,
+            "DrapeTarget assignment must return its source object.",
+        )
         target = document.getObject("DrapeTarget")
-        assert target is not None
-        assert target.SourceObject == body
-        assert simulation.DrapeTarget == target
+        require(target is not None, "DrapeTarget must be created.")
+        require(target.SourceObject == body, "DrapeTarget must own the collision source.")
+        require(simulation.DrapeTarget == target, "Simulation must reference DrapeTarget.")
 
         fitting = create_fitting_scene()
-        assert "AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ())
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
-        assert document.getObject("AvatarCollision") is None
+        require(
+            "AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            "FittingScene must not store a duplicate AvatarProxy link.",
+        )
+        require(
+            "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            "DrapeTarget ownership must remain at the document/simulation boundary.",
+        )
+        require(
+            document.getObject("AvatarCollision") is None,
+            "No compatibility collision proxy may be created.",
+        )
         document.recompute()
-        assert document.getObject("DrapeTarget") is target
-        assert target.SourceObject == body
+        require(document.getObject("DrapeTarget") == target, "Recompute must preserve the target.")
+        require(target.SourceObject == body, "Recompute must preserve the authoritative source.")
 
-        assert set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5) is body
-        assert simulation.DrapeTarget == target
-        assert target.SourceObject == body
-        assert float(target.CollisionThickness) == 3.0
-        assert float(target.CollisionDeflection) == 0.5
-        assert document.getObject("AvatarCollision") is None
+        require(
+            set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5) is body,
+            "Updating collision settings must keep the same source.",
+        )
+        require(simulation.DrapeTarget == target, "Updating settings must preserve target identity.")
+        require(target.SourceObject == body, "Updating settings must preserve target ownership.")
+        require(float(target.CollisionThickness) == 3.0, "Thickness must be stored on DrapeTarget.")
+        require(float(target.CollisionDeflection) == 0.5, "Deflection must be stored on DrapeTarget.")
+        require(
+            document.getObject("AvatarCollision") is None,
+            "No duplicate proxy may be introduced.",
+        )
     finally:
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
+
+
 
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:

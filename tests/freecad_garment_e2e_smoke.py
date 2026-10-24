@@ -758,7 +758,9 @@ def run_acceptance():
         doc.recompute()
         drape_target = doc.getObject("DrapeTarget")
         if drape_target is None or drape_target.SourceObject is None:
-            msg = "public fitting avatar assignment did not persist the canonical DrapeTarget source"
+            msg = (
+                "public fitting avatar assignment did not persist the canonical DrapeTarget source"
+            )
             raise RuntimeError(msg)
         print("drape-target=passed type=Mannequin", flush=True)
 

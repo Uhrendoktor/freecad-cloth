@@ -37,14 +37,13 @@ def _property_name(name: str) -> str:
     return "".join(part.capitalize() for part in name.split("_"))
 
 
-PROPERTY_MAP = {
-    name: _measurement_property_name(name) for name in DEFAULT_MEASUREMENTS
-}
-_SHAPE_FIELDS = ("gender", "breast_size")
+PROPERTY_MAP = {name: _measurement_property_name(name) for name in DEFAULT_MEASUREMENTS}
+_SHAPE_PROPERTY_GROUP = "shape"
+_SHAPE_PROPERTY_GROUP_METADATA_KEY = "freecad_property_group"
 SHAPE_PROPERTY_MAP = {
     field.name: _property_name(field.name)
     for field in fields(AvatarParameters)
-    if field.name in _SHAPE_FIELDS
+    if field.metadata.get(_SHAPE_PROPERTY_GROUP_METADATA_KEY) == _SHAPE_PROPERTY_GROUP
 }
 POSE_PROPERTY_MAP = {
     field.name: _property_name(field.name)

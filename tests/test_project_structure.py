@@ -705,7 +705,10 @@ def test_neutral_collision_contract_is_singleton() -> None:
     avatar_collision = root / "freecad_cloth" / "avatar" / "AvatarCollision.py"
     require(
         condition=(not avatar_collision.is_file() and "class CollisionSurface" in source),
-        message="CollisionSurface must have one implementation in shared.collision and no avatar proxy module",
+        message=(
+            "CollisionSurface must have one implementation in shared.collision "
+            "and no avatar proxy module"
+        ),
     )
 
 
@@ -783,8 +786,7 @@ def test_avatar_modules_have_one_camel_case_implementation_name() -> None:
         simulation / "fitting_handoff.py",
     )
     require(
-        condition=all(path.is_file() for path in required) and all(
-            not path.exists() for path in forbidden
-        ),
+        condition=all(path.is_file() for path in required)
+        and all(not path.exists() for path in forbidden),
         message="domain modules must have one canonical CamelCase implementation path",
     )

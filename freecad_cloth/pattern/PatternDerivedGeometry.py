@@ -356,4 +356,3 @@ def _offset_polyline(
     if last_distance < first_distance:
         result.reverse()
     return result
-

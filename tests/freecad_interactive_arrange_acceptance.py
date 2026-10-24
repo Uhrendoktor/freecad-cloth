@@ -19,8 +19,7 @@ import Part
 from tests.support.freecad_input import UiGifRecorder
 
 
-
-def _assign_drape_source(doc, source):
+def _assign_drape_source(doc: object, source: object) -> object:
     """Assign a test source through the persistent DrapeTarget.
 
     Args:
@@ -41,6 +40,7 @@ def _assign_drape_source(doc, source):
     drape_target.CollisionThickness = 2.0
     assign_drape_target(drape_target, source, target_type)
     return drape_target
+
 
 def _capture_screen(path):
     try:

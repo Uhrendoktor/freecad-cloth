@@ -1022,9 +1022,7 @@ def _fit_anny_body(
         # All other local and global shape controls are now frozen.
         for name, value in local_kwargs.items():
             value.requires_grad_(name in hip_change_names)
-        hip_parameters = [
-            value for name, value in local_kwargs.items() if name in hip_change_names
-        ]
+        hip_parameters = [value for name, value in local_kwargs.items() if name in hip_change_names]
         _hip_name, hip_key, hip_target = hip_targets[0]
         hip_target_value = torch.tensor(hip_target, dtype=torch.float32)
         hip_optimizer = torch.optim.Adam(hip_parameters, lr=0.035)

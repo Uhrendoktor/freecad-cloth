@@ -2,8 +2,26 @@
 """FreeCAD commands for selecting and editing a persistent draping/collision target."""
 
 import contextlib
+from collections.abc import Sequence
+from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+
+
+class _FreeCADDocument(Protocol):
+    """FreeCAD document members required to attach a persistent drape target."""
+
+    Objects: Sequence[object]
+
+    def recompute(self) -> None:
+        """Recompute the document after target links are assigned."""
+        ...
+
+
+class _SimulationScene(Protocol):
+    """Simulation scene property owned by the canonical target model."""
+
+    DrapeTarget: object
 
 _ACTIVE_DIAGNOSTICS_TASK_PANEL = None
 
@@ -34,16 +52,16 @@ def _is_simulation_scene(obj):
     )
 
 
-def _attach_to_simulation(doc, source, target):
+def _attach_to_simulation(doc: _FreeCADDocument, target: object) -> None:
     """Attach the one persistent DrapeTarget to every simulation scene in the document.
 
     Args:
         doc: FreeCAD document containing the target and any simulation scenes.
-        source: Geometry source assigned to the target.
         target: Persistent target object created or updated by the caller.
     """
-    for scene in (obj for obj in doc.Objects if _is_simulation_scene(obj)):
-        scene.DrapeTarget = target
+    for scene in doc.Objects:
+        if _is_simulation_scene(scene):
+            cast("_SimulationScene", scene).DrapeTarget = target
     doc.recompute()
 
 
@@ -70,7 +88,7 @@ def set_drape_target_source(scene, source, thickness=2.0, deflection=1.0):
         target.CollisionDeflection = float(deflection)
         target.CollisionThickness = float(thickness)
         assign_drape_target(target, source, target_type)
-    _attach_to_simulation(doc, source, target)
+    _attach_to_simulation(doc, target)
     if hasattr(scene, "DrapeTarget"):
         scene.DrapeTarget = target
     doc.recompute()
@@ -91,7 +109,7 @@ def create_drape_target_from_selection(deflection=1.0, thickness=2.0):
         target.CollisionDeflection = float(deflection)
         target.CollisionThickness = float(thickness)
         assign_drape_target(target, source, "FreeCAD Geometry")
-    _attach_to_simulation(doc, source, target)
+    _attach_to_simulation(doc, target)
     doc.recompute()
     return target
 

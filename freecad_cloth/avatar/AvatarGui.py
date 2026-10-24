@@ -828,7 +828,9 @@ class AvatarTaskPanel:
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
         self.gender_slider.blockSignals(True)
-        self.gender_slider.setValue(round(100.0 * float(getattr(self.avatar, AVATAR_SHAPE_PROPERTY_MAP["gender"], 0.5))))
+        self.gender_slider.setValue(
+            round(100.0 * float(getattr(self.avatar, AVATAR_SHAPE_PROPERTY_MAP["gender"], 0.5)))
+        )
         self.gender_slider.blockSignals(False)
         self.breast_slider.blockSignals(True)
         self.breast_slider.setValue(round(100.0 * float(getattr(self.avatar, "BreastSize", 0.0))))

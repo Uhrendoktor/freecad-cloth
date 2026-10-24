@@ -76,11 +76,26 @@ class _FreeCADDocument(Protocol):
     Objects: Sequence[object]
 
     def addObject(self, object_type: str, object_name: str) -> object:
-        """Create a native document object using FreeCAD's API."""
+        """Create a native document object using FreeCAD's API.
+
+        Args:
+            object_type: Native FreeCAD object type identifier.
+            object_name: Internal document name for the new object.
+
+        Returns:
+            The newly created document object.
+        """
         ...
 
     def getObject(self, object_name: str) -> object | None:
-        """Return a document object by its internal name, if present."""
+        """Return a document object by its internal name, if present.
+
+        Args:
+            object_name: Internal document name to look up.
+
+        Returns:
+            The matching document object, or None when no object has that name.
+        """
         ...
 
     recompute: Callable[[], None]
@@ -110,7 +125,16 @@ class _AvatarFeature(_AvatarFeatureView, Protocol):
     ArrangementPoints: list[str]
 
     def addProperty(self, kind: str, name: str, group: str) -> object:
-        """Register a property on the FreeCAD feature."""
+        """Register a property on the FreeCAD feature.
+
+        Args:
+            kind: FreeCAD property type identifier.
+            name: Attribute name to register on the feature.
+            group: Property-editor group that contains the attribute.
+
+        Returns:
+            The native property-registration result.
+        """
         ...
 
 
@@ -120,7 +144,14 @@ class _FreeCADApplication(Protocol):
     ActiveDocument: _FreeCADDocument | None
 
     def newDocument(self, name: str) -> _FreeCADDocument:
-        """Create a FreeCAD document with the requested internal name."""
+        """Create a FreeCAD document with the requested internal name.
+
+        Args:
+            name: Internal name for the new document.
+
+        Returns:
+            The created document, which becomes the active document.
+        """
         ...
 
 
@@ -354,6 +385,7 @@ def _refresh_drape_target_status(obj: _AvatarFeature) -> None:
         return
     typed_target = cast("_DrapeTarget", target)
     from freecad_cloth.simulation import DrapeTarget as drape_target
+
     status = drape_target.target_status(typed_target)
     typed_target.TargetStatus = status["state"]
     typed_target.InvalidationReason = status["reason"]
@@ -595,7 +627,7 @@ def create_avatar(
         )
     _rebuild(obj, params=params)
     if attach_collision:
-            _ensure_drape_target(obj)
+        _ensure_drape_target(obj)
     from freecad_cloth.common import GarmentDocument as garment_document
     garment_document.link_garment_object(obj, "Avatar", doc)
     doc.recompute()
