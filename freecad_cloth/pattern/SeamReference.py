@@ -172,6 +172,11 @@ def resolve_edge_reference(
         msg = f"semantic edge reference {reference.edge_id} has no current geometry"
         raise ChangedEdgeReference(msg)
     native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
+    if match.get("provenance") is not None and not native_reference:
+        msg = (
+            f"semantic edge reference {reference.edge_id} lacks native Sketcher provenance"
+        )
+        raise ChangedEdgeReference(msg)
     provenance = match.get("provenance") if native_reference else None
     current = edge_signature(points, provenance=provenance)
     if current != reference.signature:

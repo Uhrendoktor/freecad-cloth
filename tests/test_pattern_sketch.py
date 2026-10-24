@@ -164,15 +164,15 @@ def test_polygon_drafting_round_trip_and_editing():
     assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
 
 
-def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
+def test_parameterized_outline_seeds_native_sketch_creation():
     from freecad_cloth.pattern.SketchAuthority import _piece_model
 
-    legacy = type(
-        "LegacyPatternPiece",
+    parameterized = type(
+        "ParameterizedPatternPiece",
         (),
         {
-            "Label": "Legacy Front",
-            "PieceId": "legacy-front",
+            "Label": "Front",
+            "PieceId": "front",
             "DraftingBoundary": "[(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]",
             "Width": 120.0,
             "Height": 70.0,
@@ -180,9 +180,9 @@ def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
             "GrainlineAngle": 0.0,
         },
     )()
-    piece = _piece_model(legacy)
+    piece = _piece_model(parameterized)
     assert piece.outline == [(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]
-    assert piece.id == "legacy-front"
+    assert piece.id == "front"
 
 
 if __name__ == "__main__":
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     test_native_sketch_adoption_command_is_public()
     test_edit_sketch_enters_native_editor_for_selected_piece()
     test_polygon_drafting_round_trip_and_editing()
-    test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
+    test_parameterized_outline_seeds_native_sketch_creation()
     print("pattern sketch tests passed")
 
 

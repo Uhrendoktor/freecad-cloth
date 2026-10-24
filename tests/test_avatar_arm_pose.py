@@ -10,7 +10,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
 )
 
 
-class AvatarHipPoseTests(unittest.TestCase):
+class AvatarArmPoseTests(unittest.TestCase):
     def test_geometric_fallback_covers_lower_arm_envelope_without_source_weights(self):
         height = 1750.0
         self.assertEqual(_arm_pose_weight(260.0, height * 0.50, 170.0, height), 1.0)

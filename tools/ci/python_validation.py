@@ -21,7 +21,7 @@ GROUPS = {
         "tests/test_avatar_visual_sanity.py",
         "tests/test_drape_visual_sanity.py",
         "tests/test_cloth_solver.py",
-        "tests/test_avatar_hip_pose.py",
+        "tests/test_avatar_arm_pose.py",
         "tests/test_avatar_model.py",
         "tests/test_avatar_orientation.py",
         "tests/test_avatar_pose_fidelity.py",

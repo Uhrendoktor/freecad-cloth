@@ -73,7 +73,7 @@ class _Piece:
         self.Label = piece_id
         self.Name = piece_id
         self.Sketch = sketch
-        self.GeometryAuthority = "Sketcher" if sketch is not None else "Legacy"
+        self.GeometryAuthority = "Sketcher" if sketch is not None else "PatternParameters"
 
     @property
     def SewingOutline(self):
@@ -84,31 +84,6 @@ class _Piece:
     def DraftingBoundary(self):
         msg = "Sketch-authoritative adapter accessed legacy drafting boundary"
         raise AssertionError(msg)
-
-
-class _LegacyPiece:
-    PatternType = "PatternPiece"
-    GeometryAuthority = "Legacy"
-    Sketch = None
-    Placement = None
-    SeamAllowance = 0.0
-    GrainlineAngle = 0.0
-    Width = 10.0
-    Height = 10.0
-
-    def __init__(self, piece_id):
-        self.PieceId = piece_id
-        self.Label = piece_id
-        self.Name = piece_id
-        self.SewingOutline = repr(
-            [
-                (0.0, 0.0),
-                (10.0, 0.0),
-                (10.0, 10.0),
-                (0.0, 10.0),
-            ]
-        )
-        self.DraftingBoundary = self.SewingOutline
 
 
 class _Seam:
@@ -178,7 +153,7 @@ def _square_sketch(prefix, curved=False, bend=1.0):
     return _Sketch(geometry, ids)
 
 
-def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline():
+def test_sketch_authority_resolves_to_pattern_ir_without_reading_cached_outline():
     front = _Piece("front", _square_sketch("front", curved=True))
     doc = _Doc([front])
 
@@ -223,39 +198,6 @@ def test_semantic_seam_ids_and_provenance_survive_resolution():
     assert current.stitch_group == "waist"
 
 
-def test_legacy_piece_uses_explicit_patternir_fallback():
-    legacy = _LegacyPiece("legacy")
-    resolved = resolve_simulation_pattern(_Doc([legacy]), [legacy])
-
-    assert [boundary.id for boundary in resolved.pattern.piece("legacy").boundaries] == [
-        "legacy:edge:0",
-        "legacy:edge:1",
-        "legacy:edge:2",
-        "legacy:edge:3",
-    ]
-
-
-def test_legacy_integer_seam_reference_resolves_to_semantic_id():
-    front = _LegacyPiece("front")
-    back = _LegacyPiece("back")
-    seam = _Seam(
-        "front-back",
-        "front",
-        "back",
-        "",
-        "",
-        "",
-        "",
-        edge_a=1,
-        edge_b=3,
-    )
-    resolved = resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
-    current = resolved.pattern.seams[0]
-
-    assert current.edge_a == "front:edge:1"
-    assert current.edge_b == "back:edge:3"
-
-
 def test_sketcher_authority_without_sketch_fails_closed():
     front = _Piece("front", None)
     front.GeometryAuthority = "Sketcher"
@@ -265,6 +207,17 @@ def test_sketcher_authority_without_sketch_fails_closed():
         assert "Sketch-authoritative" in str(exc)
         return
     msg = "Sketcher authority without a Sketch must not use legacy fallback"
+    raise AssertionError(msg)
+
+
+def test_pattern_parameters_without_sketch_fail_closed():
+    piece = _Piece("parameterized", None)
+    try:
+        resolve_simulation_pattern(_Doc([piece]), [piece])
+    except MissingEdgeReference as exc:
+        assert "geometry authority" in str(exc)
+        return
+    msg = "PatternParameters without a native Sketch must not be simulated"
     raise AssertionError(msg)
 
 
@@ -291,16 +244,6 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         return
     msg = "native Sketcher geometry changes must invalidate the simulation reference"
     raise AssertionError(msg)
-
-
-def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
-    front = _Piece("front", _square_sketch("front"))
-    back = _LegacyPiece("back")
-    resolved = resolve_simulation_pattern(_Doc([front, back]), [front, back])
-    pattern = resolved.pattern
-
-    assert pattern.piece("front").boundaries[0].id == "front:bottom"
-    assert pattern.piece("back").boundaries[0].id == "back:edge:0"
 
 
 def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
