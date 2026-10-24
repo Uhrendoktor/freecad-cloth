@@ -14,12 +14,12 @@ from hashlib import sha1
 from typing import TYPE_CHECKING
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
-from freecad_cloth.shared.seam_colors import (
+from freecad_cloth.shared.SeamColors import (
     register_seam_refresh_callback,
     seam_color_map,
     set_seam_color_highlighting_enabled,
 )
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,

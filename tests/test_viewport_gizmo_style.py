@@ -4,7 +4,7 @@
 import ast
 from pathlib import Path
 
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
@@ -182,7 +182,7 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             alias.asname or alias.name
             for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom)
-            and node.module == "freecad_cloth.shared.viewport_gizmo_style"
+            and node.module == "freecad_cloth.shared.ViewportGizmoStyle"
             for alias in node.names
         }
         loaded_names = {

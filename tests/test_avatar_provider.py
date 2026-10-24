@@ -9,7 +9,7 @@ from freecad_cloth.avatar.AvatarProvider import (
     ParametricAvatarProvider,
     provider_from_target,
 )
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 
 
 class _Shape:

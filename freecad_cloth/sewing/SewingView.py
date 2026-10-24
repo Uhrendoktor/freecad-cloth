@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Presentation helpers for the Sewing workbench."""
 
-from freecad_cloth.shared.seam_colors import apply_seam_colors, seam_color_map
+from freecad_cloth.shared.SeamColors import apply_seam_colors, seam_color_map
 
 __all__ = [
     "apply_seam_colors",

@@ -11,7 +11,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.AvatarService import AvatarService
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
-from freecad_cloth.shared.collision import surface_from_triangles
+from freecad_cloth.shared.Collision import surface_from_triangles
 
 
 @pydantic_dataclass(frozen=True)

@@ -4,7 +4,7 @@
 import numpy as np
 
 from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 from freecad_cloth.simulation.MeshCollisionProjector import (
     MeshCollisionProjector,

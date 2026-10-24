@@ -24,7 +24,7 @@ from freecad_cloth.common.ValidationModels import (
     PBDStepInput,
     validate_finite_number,
 )
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 

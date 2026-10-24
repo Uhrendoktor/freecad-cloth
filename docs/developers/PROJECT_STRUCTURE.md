@@ -23,7 +23,7 @@ Pattern, Sewing, Avatar and Simulation own their production domain behavior. Cro
 Canonical implementations:
 - sewing/SeamGraph.py is the only seam graph.
 - pattern/SeamReference.py is the only semantic edge-reference implementation.
-- shared/collision.py is the only collision-surface value contract.
+- shared/Collision.py is the only collision-surface value contract.
 - simulation/SimulationQualityRuntime.py is the only quality-aware runtime integration.
 
 The classic root Init.py/InitGui.py loader and the modern freecad/freecad_cloth loader are thin adapters into freecad_cloth/bootstrap.py. The shared bootstrap module owns icon-path setup, command-contract validation, and idempotent registration of all three workbenches; the adapters contain no registration or domain implementation.

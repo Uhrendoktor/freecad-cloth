@@ -6,8 +6,8 @@ import re
 import tomllib
 from pathlib import Path
 
-from freecad_cloth.shared.collision import CollisionSurface
-from freecad_cloth.shared.targets import DrapeTargetRef
+from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.shared.Targets import DrapeTargetRef
 from support.assertions import require
 
 EXPECTED_SINGLE_REGISTRATION_COUNT = 1
@@ -679,7 +679,7 @@ def test_consolidated_architecture_has_no_parallel_authority_modules() -> None:
         message="test_consolidated_architecture_ha...: required condition failed",
     )
     require(
-        condition=((root / "freecad_cloth" / "shared" / "collision.py").is_file()),
+        condition=((root / "freecad_cloth" / "shared" / "Collision.py").is_file()),
         message="test_consolidated_architecture_ha...: required condition failed",
     )
     require(
@@ -697,7 +697,7 @@ def test_consolidated_architecture_has_no_parallel_authority_modules() -> None:
 def test_neutral_collision_contract_is_singleton() -> None:
     """Keep the canonical collision surface value type in the shared package."""
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "shared" / "collision.py").read_text(encoding="utf-8")
+    source = (root / "freecad_cloth" / "shared" / "Collision.py").read_text(encoding="utf-8")
     require(
         condition=("class CollisionSurface" in source),
         message="test_neutral_collision_contract_i...: required condition failed",
@@ -790,3 +790,12 @@ def test_avatar_modules_have_one_camel_case_implementation_name() -> None:
         and all(not path.exists() for path in forbidden),
         message="domain modules must have one canonical CamelCase implementation path",
     )
+
+
+def test_shared_module_filenames_follow_camel_case_convention():
+    """Keep shared implementation modules consistent with the workbench module style."""
+    shared_dir = Path(__file__).resolve().parents[1] / "freecad_cloth" / "shared"
+    module_names = sorted(
+        path.name for path in shared_dir.glob("*.py") if path.name != "__init__.py"
+    )
+    assert all(name[0].isupper() and "_" not in name for name in module_names)

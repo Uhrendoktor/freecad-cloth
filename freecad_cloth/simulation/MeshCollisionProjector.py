@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial import KDTree
 
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

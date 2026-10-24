@@ -11,7 +11,7 @@ import contextlib
 import math
 from itertools import starmap
 
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
     SNAP_CROSSHAIR_HALF_LENGTH,
     SNAP_LINE_WIDTH,

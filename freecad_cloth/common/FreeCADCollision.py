@@ -2,8 +2,8 @@
 """FreeCAD-to-neutral collision-surface adapter."""
 
 from freecad_cloth.common.ValidationModels import validate_finite_number
-from freecad_cloth.shared.collision import CollisionSurface
-from freecad_cloth.shared.mesh_topology import orient_closed_triangle_winding
+from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.shared.MeshTopology import orient_closed_triangle_winding
 
 
 def surface_from_freecad(

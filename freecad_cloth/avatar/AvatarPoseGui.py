@@ -13,7 +13,7 @@ from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
     SHAPE_PROPERTY_MAP,
 )
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
     JOINT_COLOR,
     POSE_AXIS_COLORS,

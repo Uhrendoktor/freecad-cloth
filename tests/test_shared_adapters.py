@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
-from freecad_cloth.shared.seam_colors import (
+from freecad_cloth.shared.SeamColors import (
     apply_seam_colors,
     register_seam_refresh_callback,
     seam_color_highlighting_enabled,

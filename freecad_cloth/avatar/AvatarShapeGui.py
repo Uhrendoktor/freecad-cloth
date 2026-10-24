@@ -185,7 +185,7 @@ class AvatarDimensionController:
             coin = self._coin()
             while self.overlay.getNumChildren() > 1:
                 self.overlay.removeChild(1)
-            from freecad_cloth.shared.viewport_gizmo_style import (
+            from freecad_cloth.shared.ViewportGizmoStyle import (
                 ACTIVE_COLOR,
                 RIG_PASSIVE_COLOR,
                 SNAP_TARGET_COLOR,

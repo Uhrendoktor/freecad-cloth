@@ -5,7 +5,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 from tests.support.assertions import require
 
 if TYPE_CHECKING:

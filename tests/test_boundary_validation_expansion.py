@@ -17,7 +17,7 @@ from freecad_cloth.common.ValidationModels import (
     SimulationMeshQualityInput,
 )
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
-from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
+from freecad_cloth.shared.Collision import CollisionSurface, surface_from_triangles
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_collision_tolerance_mm,
     _pbd_collision_voxel_mm,
