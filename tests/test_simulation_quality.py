@@ -28,7 +28,6 @@ from freecad_cloth.simulation.WorkflowReadinessGui import (
 )
 from tests.support.assertions import require
 
-
 _EXPECTED_QUALITY_NAMES = ("Fast", "Balanced", "Final")
 _EXPECTED_FINAL_PARTICLE_DISTANCE_MM = 2.0
 _EXPECTED_FINAL_ITERATIONS = 16
