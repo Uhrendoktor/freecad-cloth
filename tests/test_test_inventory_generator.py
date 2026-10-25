@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for generated test-case inventory synchronization."""
 
-from tools import generate_test_inventory
 from tests.support.assertions import require
+from tools import generate_test_inventory
 
 
 def test_case_inventory_matches_ast_generated_entries() -> None:
@@ -14,8 +14,5 @@ def test_case_inventory_matches_ast_generated_entries() -> None:
     )
     require(
         condition=regenerated == current,
-        message=(
-            "test inventory case entries are stale; run "
-            "python tools/generate_test_inventory.py"
-        ),
+        message="test inventory case entries are stale; run python tools/generate_test_inventory.py",
     )

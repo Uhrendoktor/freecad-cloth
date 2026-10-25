@@ -74,17 +74,23 @@ def _test_rationale(source_path: str, test_name: str) -> str:
             "Protects fitted mannequin geometry, rig identity, and persisted shape/pose controls "
             "from coordinate or weight-mapping regressions."
         )
-    elif any(token in path for token in ("pbd", "collision", "cloth_solver", "drape", "simulation")):
+    elif any(
+        token in path for token in ("pbd", "collision", "cloth_solver", "drape", "simulation")
+    ):
         domain = (
             "Keeps solver inputs, collision/contact behavior, and diagnostic evidence consistent "
             "with authoritative scene state."
         )
-    elif any(token in path for token in ("pattern", "geometry", "mesh", "seam", "sewing", "sketcher")):
+    elif any(
+        token in path for token in ("pattern", "geometry", "mesh", "seam", "sewing", "sketcher")
+    ):
         domain = (
             "Protects authored geometry, semantic edge identity, and seam correspondence through "
             "editing, sewing, and export."
         )
-    elif any(token in path for token in ("gui", "workbench", "command", "freecad_input", "viewport")):
+    elif any(
+        token in path for token in ("gui", "workbench", "command", "freecad_input", "viewport")
+    ):
         domain = (
             "Prevents GUI callbacks, command registration, and interactive state from drifting "
             "away from the canonical model."
@@ -109,7 +115,10 @@ def _test_rationale(source_path: str, test_name: str) -> str:
             "Keeps repository policy and CI feedback trustworthy so invalid or incomplete results "
             "cannot pass review unnoticed."
         )
-    elif any(token in path for token in ("validation", "property", "model", "backend_authority", "core")):
+    elif any(
+        token in path
+        for token in ("validation", "property", "model", "backend_authority", "core")
+    ):
         domain = (
             "Rejects malformed or stale values at the owning boundary before downstream geometry "
             "or simulation consumes them."
@@ -143,6 +152,7 @@ def case_entries() -> list[str]:
                 f"**Why useful:** {useful}"
             )
     return entries
+
 
 def updated_inventory(current: str, entries: list[str]) -> str:
     """Replace the generated test-case section while preserving module entries.
@@ -183,13 +193,7 @@ def updated_inventory(current: str, entries: list[str]) -> str:
 
 
 def main() -> None:
-    """Regenerate the case-level section of the test inventory.
-
-    Raises:
-        OSError: If the inventory cannot be read or written.
-        SyntaxError: If a test file contains invalid Python syntax.
-        ValueError: If inventory generation finds no cases or invalid section order.
-    """
+    """Regenerate the case-level section of the test inventory."""
     current = INVENTORY_PATH.read_text(encoding="utf-8")
     updated = updated_inventory(current, case_entries())
     if current != updated:

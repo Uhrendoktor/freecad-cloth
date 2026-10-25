@@ -6,13 +6,6 @@ from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
 
-from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS
-from freecad_cloth.avatar.AvatarProperties import (
-    POSE_PROPERTY_MAP,
-    PROPERTY_MAP,
-    PROVIDER_IDS,
-    SHAPE_PROPERTY_MAP,
-)
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -21,7 +14,14 @@ from freecad_cloth.avatar.AvatarModel import (
     Pose,
     generate_mesh,
 )
+from freecad_cloth.avatar.AvatarProperties import (
+    POSE_PROPERTY_MAP,
+    PROPERTY_MAP,
+    PROVIDER_IDS,
+    SHAPE_PROPERTY_MAP,
+)
 from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
+from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
@@ -498,9 +498,7 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
             "Pose",
             float(getattr(default_pose, name)),
         )
-    _set_prop(
-        obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_rotations_to_json(())
-    )
+    _set_prop(obj, "App::PropertyString", "JointPoseJSON", "Pose", joint_rotations_to_json(()))
     _set_prop(obj, "App::PropertyString", "AvatarStatus", "Avatar", "Unbuilt")
     _set_prop(obj, "App::PropertyString", "ParametersJSON", "Avatar", "")
     _set_prop(obj, "App::PropertyStringList", "Landmarks", "Measurements", [])
