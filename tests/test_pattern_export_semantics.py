@@ -432,10 +432,7 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     assert metadata["paper_size"] == "A4"
     assert metadata["page_count"] == 1
     assert metadata["notch_ids"] == ["right-notch"]
-    assert (
-        validate_pdf_export(pattern, first, options)["valid"]
-        is True
-    )
+    assert validate_pdf_export(pattern, first, options)["valid"] is True
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative"):
         validate_pdf_export(pattern, first + b"tampered", options)
 
