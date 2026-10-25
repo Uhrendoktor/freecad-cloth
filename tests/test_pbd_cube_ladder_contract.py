@@ -22,7 +22,7 @@ def test_cube_ladder_contract_is_gate_and_frozen() -> None:
         assert case_id in source
 
     assert "LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)" in HELPERS
-    assert '"simulation-collision-ladder"' in HELPERS
+    assert 'purpose="simulation-collision-ladder"' in source
     assert '"release_gate_effect": "gate"' in HELPERS
     assert "seam_stitch_pairs" in HELPERS
     assert "seam_world_spans_mm" in HELPERS

@@ -197,10 +197,13 @@ def test_cube_ladder_caches_collision_proximity_mesh() -> None:
             "collision_surface,",
             "proximity_mesh,",
             "_ladder.capture_ladder_checkpoints(",
-            "for step in LADDER_CHECKPOINTS:",
-            "scene.Steps = int(step)",
         ),
         contract="cube-ladder mesh cache",
+    )
+    _require_fragments(
+        source=_HELPERS,
+        fragments=("for step in LADDER_CHECKPOINTS:", "scene.Steps = int(step)"),
+        contract="shared checkpoint capture",
     )
 
 

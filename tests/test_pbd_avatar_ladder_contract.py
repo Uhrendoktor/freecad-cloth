@@ -52,12 +52,16 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
 
     expected_shared_fragments = (
         "LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)",
-        '"simulation-avatar-ladder"',
         '"release_gate_effect": "gate"',
         '"source_triangles"',
         '"solver_triangles"',
         '"seam_world_spans_mm"',
         "first_failing_rung",
+    )
+    require_contains(
+        source=SOURCE,
+        fragment='purpose="simulation-avatar-ladder"',
+        message="Avatar ladder source must identify its manifest purpose.",
     )
     for fragment in expected_shared_fragments:
         require_contains(
