@@ -89,8 +89,22 @@ def _test_rationale(source_path: str, test_name: str) -> str:
             "Prevents GUI callbacks, command registration, and interactive state from drifting "
             "away from the canonical model."
         )
-    elif any(token in path for token in ("ci_", "runner", "artifact", "documentation", "markdown",
-                                         "project_structure", "agent_", "no_source", "no_monkey")):
+    elif any(
+        token in path
+        for token in (
+            "ci_",
+            "runner",
+            "artifact",
+            "documentation",
+            "markdown",
+            "project_structure",
+            "agent_",
+            "no_source",
+            "no_monkey",
+            "inventory",
+            "generator",
+        )
+    ):
         domain = (
             "Keeps repository policy and CI feedback trustworthy so invalid or incomplete results "
             "cannot pass review unnoticed."
