@@ -231,15 +231,11 @@ def test_surface_anchor_round_trips_point_authoring_kind() -> None:
     )
 
 
-def test_legacy_surface_anchor_json_defaults_to_corner() -> None:
-    """Verify legacy anchor JSON defaults its authoring kind to corner."""
+def test_surface_anchor_json_requires_explicit_authoring_kind() -> None:
+    """Reject serialized anchors that omit the required authoring kind."""
     payload = {"point": [1.0, 2.0, 3.0], "normal": [0.0, 0.0, 1.0]}
-    restored = SurfaceAnchor.from_json(payload)
-    expected = SurfaceAnchor((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
-    require(
-        condition=restored == expected,
-        message="Legacy anchor JSON should default the authoring kind to corner.",
-    )
+    with pytest.raises(ValueError, match="requires an explicit point type"):
+        SurfaceAnchor.from_json(payload)
 
 
 def test_surface_segments_preserve_corners_and_build_splines_for_curve_points() -> None:

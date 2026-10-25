@@ -244,7 +244,10 @@ class SurfaceAnchor:
     @classmethod
     def from_json(cls, value: dict) -> SurfaceAnchor:
         """Restore a surface anchor from its serialized mapping."""
-        kind = str(value.get("kind", "corner")).lower()
+        if "kind" not in value:
+            msg = "surface anchor JSON requires an explicit point type"
+            raise ValueError(msg)
+        kind = str(value["kind"]).lower()
         if kind not in {"corner", "curve"}:
             msg = f"unsupported surface anchor point type: {kind}"
             raise ValueError(msg)
