@@ -14,6 +14,7 @@ from freecad_cloth.shared.SeamColors import (
     set_seam_color_highlighting_enabled,
 )
 from freecad_cloth.shared.SourceSignature import source_signature
+from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 
 
 class _Vertex:
@@ -178,20 +179,7 @@ def test_freecad_collision_repairs_winding_after_native_mesh_conversion() -> Non
         _Vertex(100, 100, 100),
         _Vertex(0, 100, 100),
     )
-    triangles = (
-        (0, 2, 1),
-        (0, 3, 2),
-        (4, 5, 6),
-        (4, 6, 7),
-        (0, 1, 5),
-        (0, 5, 4),
-        (1, 2, 6),
-        (1, 6, 5),
-        (2, 3, 7),
-        (2, 7, 6),
-        (3, 0, 4),
-        (3, 4, 7),
-    )
+    triangles = CUBE_TRIANGLES
     # Simulate a facet whose direction changed as FreeCAD adapted the visible
     # avatar into its native Mesh.Topology representation.
     inconsistent = tuple(

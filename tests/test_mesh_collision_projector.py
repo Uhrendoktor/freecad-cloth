@@ -6,6 +6,7 @@ import numpy as np
 from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 from freecad_cloth.simulation.MeshCollisionProjector import (
     MeshCollisionProjector,
     project_stitched_pairs,
@@ -23,20 +24,7 @@ def _cube_surface() -> CollisionSurface:
         (100.0, 100.0, 100.0),
         (0.0, 100.0, 100.0),
     )
-    triangles = (
-        (0, 2, 1),
-        (0, 3, 2),
-        (4, 5, 6),
-        (4, 6, 7),
-        (0, 1, 5),
-        (0, 5, 4),
-        (1, 2, 6),
-        (1, 6, 5),
-        (2, 3, 7),
-        (2, 7, 6),
-        (3, 0, 4),
-        (3, 4, 7),
-    )
+    triangles = CUBE_TRIANGLES
     return CollisionSurface(vertices, triangles, thickness=0.0).validate()
 
 
