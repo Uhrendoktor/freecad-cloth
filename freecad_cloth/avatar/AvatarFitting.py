@@ -11,6 +11,32 @@ from dataclasses import field
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+_COORDINATE_COUNT = 3
+
+
+def _three_coordinates(
+    values: tuple[float, ...],
+    *,
+    error_message: str,
+) -> tuple[float, float, float]:
+    """Validate coordinate dimensionality and return a fixed-size tuple.
+
+    Args:
+        values: Parsed coordinate values from a serialized fitting record.
+        error_message: Description to use when the record has the wrong dimension.
+
+    Returns:
+        A statically fixed three-coordinate tuple.
+
+    Raises:
+        ValueError: If the tuple does not contain exactly three coordinates.
+    """
+    if len(values) != _COORDINATE_COUNT:
+        raise ValueError(error_message)
+    x_coordinate, y_coordinate, z_coordinate = values
+    return (x_coordinate, y_coordinate, z_coordinate)
+
+
 _DEFAULT_MEASUREMENTS = {
     "height": 1700.0,
     "chest": 900.0,
@@ -92,7 +118,15 @@ class PiecePlacement:
         """Provide the public from string operation."""
         piece_id, position, rotation = str(value).split("|")
         coords = tuple(float(v) for v in position.split(","))
-        result = cls(piece_id, coords, float(rotation))
+        rotation_z = float(rotation)
+        if not piece_id.strip():
+            msg = "piece id must not be empty"
+            raise ValueError(msg)
+        fixed_position = _three_coordinates(
+            coords,
+            error_message="position must contain three coordinates",
+        )
+        result = cls(piece_id, fixed_position, rotation_z)
         result.validate()
         return result
 
@@ -203,11 +237,21 @@ class BoundingVolume:
     def from_string(cls, value: str) -> "BoundingVolume":
         """Provide the public from string operation."""
         name, center, size = str(value).split("|")
-        result = cls(
-            name,
-            tuple(float(v) for v in center.split(",")),
-            tuple(float(v) for v in size.split(",")),
+        center_coordinates = tuple(float(v) for v in center.split(","))
+        size_coordinates = tuple(float(v) for v in size.split(","))
+        if not name.strip():
+            msg = "bounding volume name must not be empty"
+            raise ValueError(msg)
+        coordinate_error = "bounding volume center and size require three coordinates"
+        fixed_center = _three_coordinates(
+            center_coordinates,
+            error_message=coordinate_error,
         )
+        fixed_size = _three_coordinates(
+            size_coordinates,
+            error_message=coordinate_error,
+        )
+        result = cls(name, fixed_center, fixed_size)
         result.validate()
         return result
 
