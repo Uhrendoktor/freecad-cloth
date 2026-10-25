@@ -340,7 +340,6 @@ def target_signature(target):
     }
 
 
-
 class PBDRuntimeSnapshot(NamedTuple):
     """Validated state shared by avatar and cube diagnostic ladders."""
 
@@ -655,7 +654,6 @@ def schedule_freecad_main(callback: Callable[[], None]) -> None:
     QtCore.QTimer.singleShot(0, callback)
 
 
-
 class LadderCaseMeasurements(NamedTuple):
     """Validated state and measurements collected before a ladder case steps."""
 
@@ -790,6 +788,7 @@ def surface_signed_clearance(
         Signed and unsigned target clearance in millimetres, or (None, None) when
         neither distance-query path can provide a value.
     """
+
     def mark(message: str) -> None:
         if trace is not None:
             trace(message)
