@@ -202,7 +202,7 @@ def test_cube_ladder_caches_collision_proximity_mesh() -> None:
     )
     _require_fragments(
         source=_HELPERS,
-        fragments=("for step in LADDER_CHECKPOINTS:", "scene.Steps = int(step)"),
+        fragments=("for step in LADDER_CHECKPOINTS:", 'setattr(self.scene, "Steps", int(step))'),
         contract="shared checkpoint capture",
     )
 

@@ -13,23 +13,45 @@ import json
 from collections.abc import Sequence
 
 
-def _point_coordinates(point):
-    """Normalize iterable and FreeCAD-vector points to deterministic triples."""
+def _point_coordinates(point: object) -> tuple[float, float, float]:
+    """Normalize iterable or FreeCAD-vector coordinates into a rounded triple.
+
+    Args:
+        point: Iterable three-coordinate value or FreeCAD vector-like object.
+
+    Returns:
+        Coordinates rounded to six decimal places.
+    """
     try:
-        values = tuple(point)
+        values = tuple(point)  # type: ignore[arg-type]
     except TypeError:
         values = None
     if values is not None and len(values) >= 3:
-        return tuple(round(float(c), 6) for c in values[:3])
+        return (
+            round(float(values[0]), 6),
+            round(float(values[1]), 6),
+            round(float(values[2]), 6),
+        )
     return (
-        round(float(point.x), 6),
-        round(float(point.y), 6),
-        round(float(point.z), 6),
+        round(float(getattr(point, "x")), 6),
+        round(float(getattr(point, "y")), 6),
+        round(float(getattr(point, "z")), 6),
     )
 
 
-def _digest_surface(vertices, triangles):
-    """Return a deterministic digest of the complete collision topology."""
+def _digest_surface(
+    vertices: Sequence[object],
+    triangles: Sequence[Sequence[int]],
+) -> str:
+    """Return a deterministic SHA-256 digest of surface coordinates and topology.
+
+    Args:
+        vertices: Ordered mesh vertices, either coordinate sequences or FreeCAD vectors.
+        triangles: Ordered triangle vertex indices.
+
+    Returns:
+        Hexadecimal digest sensitive to coordinate, connectivity, and ordering changes.
+    """
     payload = {
         "vertices": [_point_coordinates(vertex) for vertex in vertices],
         "triangles": [tuple(int(i) for i in triangle) for triangle in triangles],
@@ -38,7 +60,16 @@ def _digest_surface(vertices, triangles):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _mesh_signature(target):
+def _mesh_signature(target: object) -> tuple[object, ...] | None:
+    """Return the stable authored-avatar or complete mesh-topology signature.
+
+    Args:
+        target: FreeCAD document object that may expose avatar identity or mesh topology.
+
+    Returns:
+        Authored revision fields for MakeHuman avatars, a topology digest for a
+        mesh target, or None when no usable mesh topology is exposed.
+    """
     # MakeHuman avatars retain a stable authored revision instead of depending
     # on FreeCAD's internal Mesh::Feature topology ordering across recomputes.
     if (
@@ -122,7 +153,17 @@ def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[ob
     return ("Unknown",)
 
 
-def _geometry_signature(target, deflection=1.0):
+def _geometry_signature(target: object, deflection: float = 1.0) -> tuple[object, ...]:
+    """Return the strongest available geometry-content signature.
+
+    Args:
+        target: FreeCAD document object exposing a Mesh or TopoShape.
+        deflection: Tessellation tolerance used only when BRep export is unavailable.
+
+    Returns:
+        A signature based on authored avatar identity, complete mesh topology,
+        shape bounds and content, a native shape hash, or an explicit unknown marker.
+    """
     mesh_signature = _mesh_signature(target)
     if mesh_signature is not None:
         return mesh_signature
@@ -151,8 +192,22 @@ def _geometry_signature(target, deflection=1.0):
     return ("Unknown",)
 
 
-def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
-    """Provide the public source signature operation."""
+def source_signature(
+    target: object,
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> tuple[object, ...]:
+    """Build a deterministic signature for geometry, placement, and collision settings.
+
+    Args:
+        target: FreeCAD document object whose source identity is being tracked.
+        deflection: Tessellation deflection used when stable BRep export is unavailable.
+        thickness: Collision thickness included in the signature to invalidate stale caches.
+
+    Returns:
+        A tuple containing object identity, geometry-content signature, placement,
+        deflection, and collision thickness.
+    """
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None

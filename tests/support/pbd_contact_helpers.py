@@ -248,25 +248,57 @@ def inside_outside(points, source):
     return "mixed"
 
 
-def bounds(points):
-    """Return axis-aligned bounds for a non-empty point set."""
+def bounds(points: Sequence[Sequence[float]]) -> tuple[float, float, float, float, float, float]:
+    """Return axis-aligned bounds using vectorized NumPy reductions.
+
+    Args:
+        points: Non-empty 3D coordinates.
+
+    Returns:
+        Minimum and maximum coordinates ordered as X, Y, and Z pairs.
+
+    Raises:
+        RuntimeError: If no points are supplied.
+        ValueError: If the coordinates cannot be represented as an (N, 3) array.
+    """
     if not points:
         msg = "cannot measure empty point set"
         raise RuntimeError(msg)
+    import numpy as np
+
+    coordinates = np.asarray(points, dtype=np.float64).reshape((-1, 3))
+    minimums = np.min(coordinates, axis=0)
+    maximums = np.max(coordinates, axis=0)
     return (
-        min(p[0] for p in points),
-        max(p[0] for p in points),
-        min(p[1] for p in points),
-        max(p[1] for p in points),
-        min(p[2] for p in points),
-        max(p[2] for p in points),
+        float(minimums[0]),
+        float(maximums[0]),
+        float(minimums[1]),
+        float(maximums[1]),
+        float(minimums[2]),
+        float(maximums[2]),
     )
 
 
-def centroid(points):
-    """Return the arithmetic centroid of a non-empty point set."""
-    n = float(len(points))
-    return tuple(sum(p[i] for p in points) / n for i in range(3))
+def centroid(points: Sequence[Sequence[float]]) -> tuple[float, float, float]:
+    """Return the component-wise arithmetic mean using NumPy.
+
+    Args:
+        points: Non-empty 3D coordinates.
+
+    Returns:
+        The arithmetic mean of the coordinates.
+
+    Raises:
+        RuntimeError: If no points are supplied.
+        ValueError: If the coordinates cannot be represented as an (N, 3) array.
+    """
+    if not points:
+        msg = "cannot measure an empty point set"
+        raise RuntimeError(msg)
+    import numpy as np
+
+    mean = np.mean(np.asarray(points, dtype=np.float64).reshape((-1, 3)), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def nearest_surface_distance(
