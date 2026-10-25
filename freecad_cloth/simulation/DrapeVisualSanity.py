@@ -7,6 +7,7 @@ from math import dist, isfinite
 from statistics import median
 from typing import TYPE_CHECKING
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
@@ -22,25 +23,28 @@ def maximum_box_penetration(
     points: Sequence[Point3],
     bounds: tuple[float, float, float, float, float, float],
 ) -> float:
-    """Return the deepest point inside an axis-aligned target box."""
+    """Return the greatest strictly interior depth using vectorized plane distances.
+
+    Args:
+        points: Candidate points in the target's coordinate system.
+        bounds: Axis-aligned extents ordered as xmin, xmax, ymin, ymax, zmin, zmax.
+
+    Returns:
+        Greatest distance to the nearest box face for interior points, or zero.
+    """
+    if len(points) == 0:
+        return 0.0
+    coordinates = np.asarray(points, dtype=np.float64)
     xmin, xmax, ymin, ymax, zmin, zmax = (float(value) for value in bounds)
-    return max(
-        (
-            min(
-                float(point[0]) - xmin,
-                xmax - float(point[0]),
-                float(point[1]) - ymin,
-                ymax - float(point[1]),
-                float(point[2]) - zmin,
-                zmax - float(point[2]),
-            )
-            for point in points
-            if xmin < float(point[0]) < xmax
-            and ymin < float(point[1]) < ymax
-            and zmin < float(point[2]) < zmax
-        ),
-        default=0.0,
-    )
+    lower = np.asarray((xmin, ymin, zmin), dtype=np.float64)
+    upper = np.asarray((xmax, ymax, zmax), dtype=np.float64)
+    inside = np.all((coordinates > lower) & (coordinates < upper), axis=1)
+    if not bool(inside.any()):
+        return 0.0
+    face_distances = np.minimum(coordinates - lower, upper - coordinates)
+    return float(np.maximum(face_distances[inside].min(axis=1), 0.0).max())
+
+
 
 
 @pydantic_dataclass(frozen=True)
@@ -59,36 +63,63 @@ class DrapeVisualMetrics:
 
 
 def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
-    if not vertices:
+    """Compute axis-aligned extents with NumPy reductions.
+
+    Args:
+        vertices: Finite 3D mesh vertices.
+
+    Returns:
+        Bounds ordered as xmin, xmax, ymin, ymax, zmin, zmax; zeros for empty input.
+    """
+    if len(vertices) == 0:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    xs = [float(v[0]) for v in vertices]
-    ys = [float(v[1]) for v in vertices]
-    zs = [float(v[2]) for v in vertices]
-    return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
-
-
-def _centroid(vertices: Sequence[Point3]) -> Point3:
-    count = float(len(vertices))
+    coordinates = np.asarray(vertices, dtype=np.float64)
+    minimum = coordinates.min(axis=0)
+    maximum = coordinates.max(axis=0)
     return (
-        sum(float(v[0]) for v in vertices) / count,
-        sum(float(v[1]) for v in vertices) / count,
-        sum(float(v[2]) for v in vertices) / count,
+        float(minimum[0]),
+        float(maximum[0]),
+        float(minimum[1]),
+        float(maximum[1]),
+        float(minimum[2]),
+        float(maximum[2]),
     )
 
 
-def minimum_vertex_distance(
-    source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
-) -> float | None:
-    """Return exact nearest vertex distance using the canonical SciPy KD-tree query."""
-    if not source or not target:
-        return None
+def _centroid(vertices: Sequence[Point3]) -> Point3:
+    """Compute the component-wise vertex centroid with NumPy.
 
-    # Keep the legacy keyword accepted; the exact KD-tree query no longer allocates
-    # source-by-target pairwise distance matrices, so chunk_size is not needed.
-    del chunk_size
+    Args:
+        vertices: Finite 3D mesh vertices.
+
+    Returns:
+        Arithmetic mean coordinates; the origin for empty input.
+    """
+    if len(vertices) == 0:
+        return (0.0, 0.0, 0.0)
+    center = np.asarray(vertices, dtype=np.float64).mean(axis=0)
+    return (float(center[0]), float(center[1]), float(center[2]))
+
+
+def minimum_vertex_distance(
+    source: Sequence[Point3], target: Sequence[Point3]
+) -> float | None:
+    """Return exact nearest vertex distance through the shared SciPy KD-tree query.
+
+    Args:
+        source: Candidate garment vertices.
+        target: Surface vertices of the target mesh.
+
+    Returns:
+        Exact nearest target-vertex distance, or None for an empty point set.
+    """
+    if len(source) == 0 or len(target) == 0:
+        return None
     from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
     return nearest_target_clearance(source, target)
+
+
 
 
 def point_inside_closed_mesh(
@@ -120,8 +151,6 @@ def points_inside_closed_mesh(
         return ()
     if not validated_mesh.triangles:
         return tuple(False for _ in validated_points)
-
-    import numpy as np
 
     vertex_data = np.asarray(validated_mesh.vertices, dtype=np.float64)
     faces = np.asarray(validated_mesh.triangles, dtype=np.int64).reshape((-1, 3))

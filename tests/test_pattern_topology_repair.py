@@ -13,8 +13,48 @@ from freecad_cloth.pattern.PatternTopologyRepair import (
 from freecad_cloth.pattern.SeamReference import capture_edge_reference
 
 
-def _piece(piece_id="front", points=((0, 0), (10, 0), (10, 10), (0, 10))):
-    return SimpleNamespace(PieceId=piece_id, SewingOutline=repr(points))
+def _piece(
+    piece_id: str = "front",
+    points: tuple[tuple[float, float], ...] = (
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+    ),
+) -> SimpleNamespace:
+    """Create a PatternPiece test double backed by native Sketcher lines."""
+    class Point:
+        """Coordinate value exposed by native Sketcher line geometry."""
+
+        def __init__(self, x: float, y: float) -> None:
+            self.x, self.y, self.z = float(x), float(y), 0.0
+
+    class LineSegment:
+        """Sketcher-style line recognized by the PatternIR adapter."""
+
+        def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+            self.StartPoint = Point(*start)
+            self.EndPoint = Point(*end)
+
+    geometry = tuple(
+        LineSegment(start, points[(index + 1) % len(points)])
+        for index, start in enumerate(points)
+    )
+    sketch = SimpleNamespace(
+        Geometry=geometry,
+        SemanticEdgeIds=tuple(f"{piece_id}:edge:{index}" for index in range(len(geometry))),
+        getConstruction=lambda _index: False,
+    )
+    return SimpleNamespace(
+        PieceId=piece_id,
+        Label=piece_id,
+        GeometryAuthority="Sketcher",
+        Sketch=sketch,
+        DraftingBoundary=repr(points),
+        SewingOutline=repr(points),
+        SeamAllowance=0.0,
+        GrainlineAngle=0.0,
+    )
 
 
 def _seam(piece_a, edge_a=0, piece_b=None, edge_b=0):
@@ -22,10 +62,10 @@ def _seam(piece_a, edge_a=0, piece_b=None, edge_b=0):
     records_a = current_edge_candidates(SimpleNamespace(PatternA=piece_a, PatternB=piece_b), "A")
     records_b = current_edge_candidates(SimpleNamespace(PatternA=piece_a, PatternB=piece_b), "B")
     ref_a = capture_edge_reference(
-        piece_a.PieceId, records_a[edge_a]["id"], records_a[edge_a]["points"]
+        piece_a.PieceId, records_a[edge_a]["id"], records_a[edge_a]["points"], records_a[edge_a]["provenance"]
     )
     ref_b = capture_edge_reference(
-        piece_b.PieceId, records_b[edge_b]["id"], records_b[edge_b]["points"]
+        piece_b.PieceId, records_b[edge_b]["id"], records_b[edge_b]["points"], records_b[edge_b]["provenance"]
     )
     return SimpleNamespace(
         SeamId="front-seam",

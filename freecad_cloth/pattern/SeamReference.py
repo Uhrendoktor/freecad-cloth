@@ -63,8 +63,8 @@ class EdgeReference:
         if not str(self.edge_id).strip():
             msg = "edge_id must not be empty"
             raise ValueError(msg)
-        if not str(self.signature).strip():
-            msg = "signature must not be empty"
+        if not str(self.signature).startswith(NATIVE_SIGNATURE_PREFIX):
+            msg = "signature must contain native Sketcher provenance"
             raise ValueError(msg)
 
     def as_dict(self):
@@ -90,11 +90,25 @@ class EdgeReference:
 
 
 def semantic_edge_id(piece_id: str, ordinal: int) -> str:
-    """Return the canonical fallback id used for generated polygon edges."""
+    """Return a stable ID for an indexed generated boundary edge.
+
+    Args:
+        piece_id: Persistent identity of the PatternPiece that owns the edge.
+        ordinal: Non-negative integer index assigned during boundary generation.
+
+    Returns:
+        Stable piece-scoped ID for the generated boundary edge.
+
+    Raises:
+        ValueError: If the piece identity or ordinal is invalid.
+        TypeError: If ordinal is not an integer.
+    """
     if not str(piece_id).strip():
         msg = "piece_id must not be empty"
         raise ValueError(msg)
-    ordinal = int(ordinal)
+    if isinstance(ordinal, bool) or not isinstance(ordinal, int):
+        msg = "edge ordinal must be an integer"
+        raise TypeError(msg)
     if ordinal < 0:
         msg = "edge ordinal must be non-negative"
         raise ValueError(msg)
@@ -103,41 +117,61 @@ def semantic_edge_id(piece_id: str, ordinal: int) -> str:
 
 def edge_signature(
     points: Sequence[Point],
+    provenance: object,
     precision: int = 9,
-    provenance=None,
 ) -> str:
-    """Hash an edge using legacy endpoints or native PatternIR provenance."""
+    """Hash ordered edge coordinates together with required native provenance.
+
+    Args:
+        points: Ordered 2D samples representing the edge.
+        provenance: PatternIR curve kind, parameter range, and native samples.
+        precision: Decimal precision for stable coordinate serialization.
+
+    Returns:
+        Native-versioned SHA-256 signature for the current edge.
+
+    Raises:
+        ValueError: If the edge has fewer than two points or no native provenance.
+    """
     if len(points) < 2:
         msg = "an edge needs at least two points"
+        raise ValueError(msg)
+    if provenance is None:
+        msg = "native Sketcher edge provenance is required"
         raise ValueError(msg)
     normalized = [
         (round(float(point[0]), precision), round(float(point[1]), precision)) for point in points
     ]
-    if provenance is None:
-        payload = normalized
-        prefix = ""
-    else:
-        payload = {
-            "points": normalized,
-            "provenance": _normalize_provenance(provenance, precision),
-        }
-        prefix = NATIVE_SIGNATURE_PREFIX
+    payload = {
+        "points": normalized,
+        "provenance": _normalize_provenance(provenance, precision),
+    }
     encoded = json.dumps(
         payload,
         separators=(",", ":"),
         ensure_ascii=True,
-        sort_keys=provenance is not None,
+        sort_keys=True,
     )
-    return prefix + hashlib.sha256(encoded.encode("ascii")).hexdigest()
+    return NATIVE_SIGNATURE_PREFIX + hashlib.sha256(encoded.encode("ascii")).hexdigest()
 
 
 def capture_edge_reference(
     piece_id: str,
     edge_id: str,
     points: Sequence[Point],
-    provenance=None,
+    provenance: object,
 ) -> EdgeReference:
-    """Capture semantic identity plus optional native Sketcher provenance."""
+    """Capture semantic identity plus required native Sketcher provenance.
+
+    Args:
+        piece_id: Persistent identity of the PatternPiece.
+        edge_id: Persistent identity assigned to a Sketch.Geometry edge.
+        points: Ordered 2D samples representing the current edge.
+        provenance: PatternIR curve kind, parameter range, and native samples.
+
+    Returns:
+        Immutable reference with a native-versioned geometry signature.
+    """
     return EdgeReference(
         str(piece_id),
         str(edge_id),
@@ -151,10 +185,10 @@ def resolve_edge_reference(
 ) -> Mapping[str, object]:
     """Resolve a reference against current edges without ordinal retargeting.
 
-    Each edge mapping must contain ``id`` and ``points``.  The first exact id
-    match is checked against the captured geometry signature.  A missing id or
-    changed geometry raises an explicit error rather than returning another
-    edge with a coincidentally similar ordinal.
+    Each edge mapping must contain ``id`, ``points`, and native ``provenance``.
+    The exact semantic ID is checked against the current provenance signature.
+    Missing IDs or changed geometry raise explicit errors rather than returning
+    another edge with a coincidentally similar ordinal.
     """
     candidates = [
         edge
@@ -171,13 +205,10 @@ def resolve_edge_reference(
     if points is None:
         msg = f"semantic edge reference {reference.edge_id} has no current geometry"
         raise ChangedEdgeReference(msg)
-    native_reference = str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX)
-    if match.get("provenance") is not None and not native_reference:
-        msg = (
-            f"semantic edge reference {reference.edge_id} lacks native Sketcher provenance"
-        )
+    provenance = match.get("provenance")
+    if provenance is None or not str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX):
+        msg = f"semantic edge reference {reference.edge_id} lacks native Sketcher provenance"
         raise ChangedEdgeReference(msg)
-    provenance = match.get("provenance") if native_reference else None
     current = edge_signature(points, provenance=provenance)
     if current != reference.signature:
         msg = f"semantic edge reference {reference.edge_id} geometry/provenance changed"
@@ -185,7 +216,9 @@ def resolve_edge_reference(
     return match
 
 
-def resolve_edge_reference_status(reference: EdgeReference, edges: Iterable[Mapping[str, object]]):
+def resolve_edge_reference_status(
+    reference: EdgeReference, edges: Iterable[Mapping[str, object]]
+) -> tuple[bool, str]:
     """Return ``(valid, reason)`` without raising for UI validation paths."""
     try:
         resolve_edge_reference(reference, edges)

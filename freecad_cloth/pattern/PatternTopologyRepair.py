@@ -4,6 +4,7 @@
 from freecad_cloth.pattern.PatternObjects import _edge_records
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,
@@ -29,8 +30,10 @@ def seam_reference_status(seam, side):
     signature = str(getattr(seam, "EdgeASignature" if side == "A" else "EdgeBSignature", ""))
     if piece is None or not edge_id or not signature:
         return False, "missing"
-    reference = capture_edge_reference(str(piece.PieceId), edge_id, ((0.0, 0.0), (1.0, 0.0)))
-    reference = type(reference)(reference.piece_id, reference.edge_id, signature)
+    try:
+        reference = EdgeReference(str(piece.PieceId), edge_id, signature)
+    except ValueError:
+        return False, "changed"
     try:
         resolve_edge_reference(reference, _edge_records(piece))
     except MissingEdgeReference:

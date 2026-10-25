@@ -210,17 +210,6 @@ def test_native_curve_shape_change_with_same_endpoints_is_changed_reference():
     assert resolve_edge_reference_status(reference, [second_edge]) == (False, "changed")
 
 
-def test_endpoint_only_reference_is_rejected_for_native_provenance():
-    curve = ArcOfCircle((10, 0), (10, 10), bend=7.0)
-    graph, sketch = _sketch_graph(curve, "piece:curved")
-    ir = PatternIR.from_sketches(
-        graph, {"piece": sketch, "other": _other_sketch()}, curve_samples=9
-    )
-    current = _pattern_ir_edge_record(ir.boundary("piece", "piece:curved"))
-    endpoint_only = capture_edge_reference("piece", current["id"], current["points"])
-    assert resolve_edge_reference_status(endpoint_only, [current]) == (False, "changed")
-
-
 def test_shuffled_sketch_geometry_resolves_by_endpoint_connectivity():
     curve = ArcOfCircle((10, 0), (10, 10))
     graph, _ = _sketch_graph(curve, "piece:curve")

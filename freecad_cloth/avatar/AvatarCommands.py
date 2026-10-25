@@ -1,7 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing humanoid mesh avatar commands."""
 
-import json
 from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType

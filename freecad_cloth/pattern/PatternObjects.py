@@ -8,6 +8,7 @@ from types import ModuleType
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,
@@ -260,8 +261,11 @@ def _resolve_document_edge(
         MissingEdgeReference: If the edge identity no longer exists.
         ChangedEdgeReference: If its geometry or provenance signature changed.
     """
-    reference = capture_edge_reference(piece.PieceId, edge_id, ((0.0, 0.0), (1.0, 0.0)))
-    reference = type(reference)(reference.piece_id, reference.edge_id, signature)
+    try:
+        reference = EdgeReference(str(piece.PieceId), str(edge_id), str(signature))
+    except ValueError as exc:
+        msg = f"semantic edge reference {edge_id} lacks native Sketcher provenance"
+        raise ChangedEdgeReference(msg) from exc
     records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     return resolve_edge_reference(reference, records)
 

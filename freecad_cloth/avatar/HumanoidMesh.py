@@ -666,8 +666,8 @@ def _measurement_axis_profiles(
         ("underbust", 0.64, 1.15),
         ("chest", 0.69, 1.15),
     )
-    # Reuse the canonical per-measurement ratios so clamping and band placement
-    # stay identical for both the legacy profile and its anisotropic version.
+    # Reuse canonical measurement ratios so clamping and band placement remain
+    # identical between isotropic and anisotropic scaling.
     ratios = _measurement_profile(parameters)
     lateral = [(0.42, 1.0)]
     depth = [(0.42, 1.0)]
@@ -1270,14 +1270,14 @@ def _arm_pose_weight(
     height_mm: float,
     source_weight: float | None = None,
 ) -> float:
-    """Return source-authored arm influence, with a geometric legacy fallback."""
+    """Return authored arm influence or estimate it geometrically when skin weights are absent."""
     if source_weight is not None:
         return max(0.0, min(1.0, float(source_weight)))
     pivot = abs(shoulder_pivot_x)
     lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
     nz = z / max(1.0, height_mm)
     # The articulated hand/wrist can hang well below chest height; keep the
-    # geometric fallback active through the lower arm envelope while preserving
+    # the estimated influence active through the lower arm envelope while preserving
     # the upper torso cutoff.
     vertical = _smoothstep(0.28, 0.34, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
