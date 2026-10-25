@@ -82,8 +82,7 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
     require(
         condition=len(resolution) == PBD_COLLISION_AXIS_COUNT
         and all(
-            PBD_COLLISION_MIN_CELLS <= cells <= PBD_COLLISION_MAX_CELLS
-            for cells in resolution
+            PBD_COLLISION_MIN_CELLS <= cells <= PBD_COLLISION_MAX_CELLS for cells in resolution
         ),
         message="collision-grid resolution must remain bounded on each axis.",
     )
