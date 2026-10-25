@@ -11,6 +11,10 @@ from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_
 from tests.support.assertions import require
 from tests.support.pbd_contact_helpers import events, nearest_surface_distance
 
+PBD_COLLISION_AXIS_COUNT = 3
+PBD_COLLISION_MIN_CELLS = 16
+PBD_COLLISION_MAX_CELLS = 256
+
 if TYPE_CHECKING:
     from tests.support.pbd_contact_helpers import _EventApplication
 
@@ -70,7 +74,11 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
     )
     resolution = pbd_collision_resolution(surface)
     require(
-        condition=len(resolution) == 3 and all(16 <= cells <= 256 for cells in resolution),
+        condition=len(resolution) == PBD_COLLISION_AXIS_COUNT
+        and all(
+            PBD_COLLISION_MIN_CELLS <= cells <= PBD_COLLISION_MAX_CELLS
+            for cells in resolution
+        ),
         message="collision-grid resolution must remain bounded on each axis.",
     )
     require(
@@ -79,6 +87,6 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
     )
     empty_resolution = pbd_collision_resolution(CollisionSurface(vertices=(), triangles=()))
     require(
-        condition=empty_resolution == [16, 16, 16],
+        condition=empty_resolution == [PBD_COLLISION_MIN_CELLS] * PBD_COLLISION_AXIS_COUNT,
         message="empty collision surfaces must retain the minimum grid resolution.",
     )
