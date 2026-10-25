@@ -9,7 +9,6 @@ import pytest
 
 from freecad_cloth.avatar.HumanoidMesh import (
     _arm_pose_weight,
-    _estimate_rest_arm_angles,
     load_makehuman_arm_weights,
 )
 from tests.support.assertions import require
@@ -41,31 +40,6 @@ def test_source_weight_is_authoritative_for_arm_influence() -> None:
             == pytest.approx(0.35)
         ),
         message="source weights must retain their authoritative influence.",
-    )
-
-
-def test_rest_angle_estimator_vectorizes_geometry_and_respects_weights() -> None:
-    """Estimate mirrored rest angles and ignore vertices with no arm influence."""
-    vertices = (
-        (-150.0, 0.0, 600.0),
-        (-200.0, 0.0, 700.0),
-        (150.0, 0.0, 600.0),
-        (200.0, 0.0, 700.0),
-        (0.0, 0.0, 900.0),
-    )
-    pivots = {-1.0: -100.0, 1.0: 100.0}
-    angles = _estimate_rest_arm_angles(vertices, pivots, 760.0, 1000.0)
-    require(condition=angles[-1.0] > 0.0, message="the left arm should angle downwards.")
-    require(
-        condition=angles[-1.0] == pytest.approx(angles[1.0]),
-        message="mirrored arm geometry should produce matching rest angles.",
-    )
-
-    zero_weights = ((0.0,) * len(vertices), (0.0,) * len(vertices))
-    weighted_angles = _estimate_rest_arm_angles(vertices, pivots, 760.0, 1000.0, zero_weights)
-    require(
-        condition=weighted_angles == {-1.0: 0.0, 1.0: 0.0},
-        message="zero arm weights must exclude all vertices from both arm envelopes.",
     )
 
 

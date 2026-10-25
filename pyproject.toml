@@ -108,7 +108,6 @@ ignore = [
 # These tests intentionally assert private numerical contracts; keep the exceptions file-scoped.
 "tests/test_avatar_arm_pose.py" = ["PLC2701"]
 "tests/test_avatar_fitting.py" = ["PLC0415"]
-"tests/test_pbd_contact_helpers.py" = ["PLC2701"]
 "tests/test_workbench_contract.py" = ["PLC0415"]
 
 [tool.ruff.lint.pydocstyle]

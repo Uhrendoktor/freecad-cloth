@@ -1,22 +1,27 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the package-owned Cloth workbenches."""
 
-import importlib
 from pathlib import Path
 
 from tests.support.assertions import require
 
-_WORKBENCHES = (
-    ("freecad_cloth.pattern.workbench", "ClothPatternWorkbench", "Cloth Pattern"),
-    ("freecad_cloth.sewing.workbench", "ClothSewingWorkbench", "Cloth Sewing"),
-    ("freecad_cloth.simulation.workbench", "ClothSimulationWorkbench", "Cloth Simulation"),
-)
+def _workbenches():
+    """Import workbench classes lazily so headless test collection stays import-safe."""
+    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+    from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
+
+    return (
+        (ClothPatternWorkbench, "Cloth Pattern"),
+        (ClothSewingWorkbench, "Cloth Sewing"),
+        (ClothSimulationWorkbench, "Cloth Simulation"),
+    )
 
 
 def test_workbench_metadata_and_resources_are_runtime_objects() -> None:
     """Validate user-facing workbench metadata and installed icon resources."""
-    for module_name, class_name, menu in _WORKBENCHES:
-        cls = getattr(importlib.import_module(module_name), class_name)
+    for cls, menu in _workbenches():
+        class_name = cls.__name__
         workbench = cls()
         require(
             condition=workbench.MenuText == menu,
@@ -42,8 +47,8 @@ def test_workbench_metadata_and_resources_are_runtime_objects() -> None:
 
 def test_package_workbench_initializers_are_import_safe_and_unique() -> None:
     """Verify each package workbench initializes a non-empty unique command list."""
-    for module_name, class_name, _menu in _WORKBENCHES:
-        cls = getattr(importlib.import_module(module_name), class_name)
+    for cls, _menu in _workbenches():
+        class_name = cls.__name__
         workbench = cls()
         workbench.Initialize()
         require(
