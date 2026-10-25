@@ -30,6 +30,8 @@ from freecad_cloth.avatar.HumanoidMesh import (
     load_makehuman_skeleton,
     parse_obj,
 )
+from freecad_cloth.avatar.MeshSanity import compact_mesh
+from tests.support.assertions import require
 
 
 class HumanoidMeshTests(unittest.TestCase):
@@ -323,6 +325,28 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertEqual(len(fitted.vertices), len(source.vertices))
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
+
+    def test_compact_mesh_remaps_triangle_indices_with_numpy(self) -> None:
+        """Preserve sorted source-index order when compacting mesh connectivity."""
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+            (4.0, 0.0, 0.0),
+        )
+        triangles = ((3, 1, 2), (2, 3, 2))
+
+        compact_vertices, compact_triangles = compact_mesh(vertices, triangles)
+
+        require(
+            condition=compact_vertices == (vertices[1], vertices[2], vertices[3]),
+            message="compaction must preserve the sorted source index order",
+        )
+        require(
+            condition=compact_triangles == ((2, 0, 1), (1, 2, 1)),
+            message="compaction must remap every triangle through the inverse index array",
+        )
 
     def test_explicit_local_source_does_not_require_network(self):
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")

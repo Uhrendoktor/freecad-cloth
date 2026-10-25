@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from freecad_cloth.shared.MeshTopology import orient_closed_triangle_winding
 
 if TYPE_CHECKING:
@@ -26,8 +28,15 @@ def compact_mesh(
     Returns:
         Compact vertex coordinates and remapped triangles, preserving source order.
     """
-    used = sorted({int(i) for tri in triangles for i in tri})
-    remap = {old: new for new, old in enumerate(used)}
-    compact_vertices = tuple(vertices[i] for i in used)
-    compact_triangles = tuple(tuple(remap[int(i)] for i in tri) for tri in triangles)
+    vertex_array = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    triangle_array = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    used, inverse = np.unique(triangle_array.reshape(-1), return_inverse=True)
+    compact_coordinates = vertex_array[used]
+    compact_indices = inverse.reshape(triangle_array.shape)
+    compact_vertices = tuple(
+        (float(point[0]), float(point[1]), float(point[2])) for point in compact_coordinates
+    )
+    compact_triangles = tuple(
+        (int(face[0]), int(face[1]), int(face[2])) for face in compact_indices
+    )
     return compact_vertices, compact_triangles
