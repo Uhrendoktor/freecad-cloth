@@ -12,6 +12,7 @@ from dataclasses import field
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 _COORDINATE_COUNT = 3
+_ARRANGEMENT_FIELD_COUNT = 5
 
 
 def _three_coordinates(
@@ -48,13 +49,17 @@ _DEFAULT_MEASUREMENTS = {
 
 @pydantic_dataclass(frozen=True)
 class BodyMeasurements:
-    """Public data model or service class for BodyMeasurements."""
+    """Immutable body measurements with canonical units and serialization."""
 
     values: Mapping[str, float] = field(default_factory=lambda: dict(_DEFAULT_MEASUREMENTS))
     unit: str = "mm"
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the measurement unit, names, and positive numeric values.
+
+        Raises:
+            ValueError: If the unit, mapping, name, or measurement violates the contract.
+        """
         if self.unit not in {"mm", "cm", "m"}:
             msg = "measurement unit must be mm, cm, or m"
             raise ValueError(msg)
@@ -70,12 +75,20 @@ class BodyMeasurements:
                 raise ValueError(msg)
 
     def normalized(self) -> tuple[tuple[str, float], ...]:
-        """Provide the public normalized operation."""
+        """Return measurement pairs in deterministic name order.
+
+        Returns:
+            Sorted measurement names and their values represented as floats.
+        """
         self.validate()
         return tuple(sorted((str(k), float(v)) for k, v in self.values.items()))
 
     def to_json(self) -> str:
-        """Serialize this object to JSON."""
+        """Serialize validated measurements in canonical JSON form.
+
+        Returns:
+            A stable JSON string containing the unit and sorted measurements.
+        """
         return json.dumps(
             {"unit": self.unit, "values": dict(self.normalized())},
             sort_keys=True,
@@ -84,7 +97,14 @@ class BodyMeasurements:
 
     @classmethod
     def from_json(cls, payload: str) -> "BodyMeasurements":
-        """Create an object from serialized JSON."""
+        """Restore body measurements from their JSON representation.
+
+        Args:
+            payload: JSON text containing the unit and measurement mapping.
+
+        Returns:
+            A validated body-measurement record.
+        """
         data = json.loads(str(payload))
         result = cls(data["values"], data["unit"])
         result.validate()
@@ -93,29 +113,51 @@ class BodyMeasurements:
 
 @pydantic_dataclass(frozen=True)
 class PiecePlacement:
-    """Public data model or service class for PiecePlacement."""
+    """Home position and z-axis rotation for one pattern piece."""
 
     piece_id: str
     position: tuple[float, float, float] = (0.0, 0.0, 0.0)
     rotation_z: float = 0.0
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the piece identifier and three-dimensional position.
+
+        Raises:
+            ValueError: If the identifier is blank or the position has the wrong dimension.
+        """
         if not self.piece_id.strip():
             msg = "piece id must not be empty"
             raise ValueError(msg)
-        if len(self.position) != 3:
+        if len(self.position) != _COORDINATE_COUNT:
             msg = "position must contain three coordinates"
             raise ValueError(msg)
 
     def to_string(self) -> str:
-        """Provide the public to string operation."""
+        """Serialize the placement into its stable pipe-delimited record.
+
+        Returns:
+            The piece identifier, three position coordinates, and z-axis rotation.
+        """
         self.validate()
-        return f"{self.piece_id}|{self.position[0]:.12g},{self.position[1]:.12g},{self.position[2]:.12g}|{self.rotation_z:.12g}"
+        return (
+            f"{self.piece_id}|{self.position[0]:.12g},"
+            f"{self.position[1]:.12g},{self.position[2]:.12g}|"
+            f"{self.rotation_z:.12g}"
+        )
 
     @classmethod
     def from_string(cls, value: str) -> "PiecePlacement":
-        """Provide the public from string operation."""
+        """Parse one placement from its pipe-delimited serialized record.
+
+        Args:
+            value: Record containing the piece identifier, position, and rotation.
+
+        Returns:
+            A placement with its position and rotation converted to floats.
+
+        Raises:
+            ValueError: If the identifier or position dimension is invalid.
+        """
         piece_id, position, rotation = str(value).split("|")
         coords = tuple(float(v) for v in position.split(","))
         rotation_z = float(rotation)
@@ -152,7 +194,11 @@ class ArrangementPoint:
     VALID_WRAP_DIRECTIONS = ("front", "back", "left", "right")
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the point name, wrap direction, and symmetry metadata.
+
+        Raises:
+            ValueError: If the name or wrap direction is invalid.
+        """
         if not self.name.strip():
             msg = "arrangement point name must not be empty"
             raise ValueError(msg)
@@ -164,12 +210,23 @@ class ArrangementPoint:
             raise ValueError(msg)
 
     def position(self) -> tuple[float, float, float]:
-        """Provide the public position operation."""
+        """Return the point as its three fitting-plane coordinates.
+
+        Returns:
+            The x, y, and signed plane-offset coordinates as floats.
+        """
         self.validate()
         return (float(self.x), float(self.y), float(self.offset))
 
-    def mirrored(self, name=None) -> "ArrangementPoint":
-        """Provide the public mirrored operation."""
+    def mirrored(self, name: str | None = None) -> "ArrangementPoint":
+        """Return a reflection across the avatar's vertical symmetry plane.
+
+        Args:
+            name: Optional replacement name; otherwise append the suffix .mirror.
+
+        Returns:
+            The mirrored point with its lateral direction and rotation reflected.
+        """
         self.validate()
         mirror_wrap = {"left": "right", "right": "left"}.get(
             self.wrap_direction, self.wrap_direction
@@ -185,20 +242,37 @@ class ArrangementPoint:
         )
 
     def to_string(self) -> str:
-        """Provide the public to string operation."""
+        """Serialize the point into its stable pipe-delimited record.
+
+        Returns:
+            The name, coordinates, wrap direction, rotation, and symmetry group.
+        """
         self.validate()
-        return f"{self.name}|{self.x:.12g},{self.y:.12g},{self.offset:.12g}|{self.wrap_direction}|{self.rotation_z:.12g}|{self.symmetry_group}"
+        return (
+            f"{self.name}|{self.x:.12g},{self.y:.12g},{self.offset:.12g}|"
+            f"{self.wrap_direction}|{self.rotation_z:.12g}|{self.symmetry_group}"
+        )
 
     @classmethod
     def from_string(cls, value: str) -> "ArrangementPoint":
-        """Provide the public from string operation."""
+        """Parse an arrangement point from its pipe-delimited record.
+
+        Args:
+            value: Serialized name, coordinates, wrap direction, rotation, and group.
+
+        Returns:
+            The validated point with numeric coordinates and rotation.
+
+        Raises:
+            ValueError: If the field count, coordinate count, name, or wrap direction is invalid.
+        """
         parts = str(value).split("|")
-        if len(parts) != 5:
+        if len(parts) != _ARRANGEMENT_FIELD_COUNT:
             msg = "arrangement point requires name|x,y,z|wrap|rotation|symmetry"
             raise ValueError(msg)
         name, position, wrap, rotation, symmetry = parts
         coords = tuple(float(v) for v in position.split(","))
-        if len(coords) != 3:
+        if len(coords) != _COORDINATE_COUNT:
             msg = "arrangement point position requires x, y, and offset"
             raise ValueError(msg)
         result = cls(name, coords[0], coords[1], coords[2], wrap, float(rotation), symmetry)
@@ -215,11 +289,18 @@ class BoundingVolume:
     size: tuple[float, float, float] = (100.0, 100.0, 100.0)
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the volume name, coordinate dimensions, and positive sizes.
+
+        Raises:
+            ValueError: If the name, center, or size violates the volume contract.
+        """
         if not self.name.strip():
             msg = "bounding volume name must not be empty"
             raise ValueError(msg)
-        if len(self.center) != 3 or len(self.size) != 3:
+        if (
+            len(self.center) != _COORDINATE_COUNT
+            or len(self.size) != _COORDINATE_COUNT
+        ):
             msg = "bounding volume center and size require three coordinates"
             raise ValueError(msg)
         if any(float(v) <= 0.0 for v in self.size):
@@ -227,7 +308,11 @@ class BoundingVolume:
             raise ValueError(msg)
 
     def to_string(self) -> str:
-        """Provide the public to string operation."""
+        """Serialize the axis-aligned volume into a stable record.
+
+        Returns:
+            The name, center coordinates, and size coordinates.
+        """
         self.validate()
         return "{}|{:.12g},{:.12g},{:.12g}|{:.12g},{:.12g},{:.12g}".format(
             self.name, *self.center, *self.size
@@ -235,7 +320,17 @@ class BoundingVolume:
 
     @classmethod
     def from_string(cls, value: str) -> "BoundingVolume":
-        """Provide the public from string operation."""
+        """Parse a bounding volume from its pipe-delimited record.
+
+        Args:
+            value: Serialized name, three-coordinate center, and three-coordinate size.
+
+        Returns:
+            The validated axis-aligned volume.
+
+        Raises:
+            ValueError: If the name or coordinate dimensions are invalid.
+        """
         name, center, size = str(value).split("|")
         center_coordinates = tuple(float(v) for v in center.split(","))
         size_coordinates = tuple(float(v) for v in size.split(","))
@@ -258,7 +353,7 @@ class BoundingVolume:
 
 @pydantic_dataclass(frozen=True)
 class FittingScene:
-    """Public data model or service class for FittingScene."""
+    """Immutable fitting metadata for measurements, placements, and volumes."""
 
     measurements: BodyMeasurements = field(default_factory=BodyMeasurements)
     avatar_name: str = ""
@@ -268,7 +363,11 @@ class FittingScene:
     symmetry_enabled: bool = True
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the measurements and ensure fitting record names are unique.
+
+        Raises:
+            ValueError: If a nested record is invalid or a piece, point, or volume is duplicated.
+        """
         self.measurements.validate()
         if self.avatar_name and not self.avatar_name.strip():
             msg = "avatar name must not be whitespace"
@@ -296,17 +395,29 @@ class FittingScene:
             names.add(volume.name)
 
     def placement_map(self) -> dict[str, PiecePlacement]:
-        """Return placements keyed by stable piece identifier."""
+        """Return placements keyed by their stable piece identifiers.
+
+        Returns:
+            A mapping from piece identifiers to validated placements.
+        """
         self.validate()
         return {item.piece_id: item for item in self.pieces}
 
     def arrangement_map(self) -> dict[str, ArrangementPoint]:
-        """Return arrangement points keyed by semantic name."""
+        """Return arrangement points keyed by their semantic names.
+
+        Returns:
+            A mapping from semantic landmark names to validated points.
+        """
         self.validate()
         return {item.name: item for item in self.arrangement_points}
 
     def to_json(self) -> str:
-        """Serialize this object to JSON."""
+        """Serialize the validated fitting scene into canonical JSON.
+
+        Returns:
+            Stable JSON text containing measurements and sorted fitting records.
+        """
         self.validate()
         return json.dumps(
             {
@@ -330,7 +441,14 @@ class FittingScene:
 
     @classmethod
     def from_json(cls, payload: str) -> "FittingScene":
-        """Create an object from serialized JSON."""
+        """Restore a fitting scene from its JSON representation.
+
+        Args:
+            payload: JSON text containing measurements and fitting metadata.
+
+        Returns:
+            A validated fitting-scene record.
+        """
         data = json.loads(str(payload))
         result = cls(
             BodyMeasurements.from_json(
