@@ -671,7 +671,7 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
         message='Contract failed: "CLOTH_PBD_COLLISION_VOXEL_MM" in backend',
     )
     require(
-        condition=("def _pbd_collision_resolution(surface: CollisionSurface)" in backend),
+        condition=("def pbd_collision_resolution(surface: CollisionSurface)" in backend),
         message='Contract failed: "def _pbd_collision_resolution(surface:...',
     )
     require(
