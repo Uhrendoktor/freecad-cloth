@@ -9,6 +9,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from support.freecad_mesh_geometry import opposite_top_edge_vertices
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -350,29 +355,9 @@ def main():
         scene.FabricTransparency = 12
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        boundary_vertices = tuple(
-            sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
+        top, pin_span = opposite_top_edge_vertices(
+            mesh_positions, boundary, 0.75 * blanket_width
         )
-        if not boundary_vertices:
-            msg = "blanket quality mesh has no boundary vertices"
-            raise RuntimeError(msg)
-        top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-        top_edge = tuple(
-            index
-            for index in boundary_vertices
-            if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
-        )
-        if len(top_edge) < 2:
-            msg = "blanket top edge has fewer than two boundary vertices"
-            raise RuntimeError(msg)
-        top = (
-            min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-            max(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        )
-        pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-        if pin_span < 0.75 * blanket_width:
-            msg = f"blanket pins are not opposite top-edge corners: span={pin_span:.3f}"
-            raise RuntimeError(msg)
         scene.PinSelection = [str(int(index)) for index in top]
         log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 
