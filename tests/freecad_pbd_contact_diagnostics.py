@@ -59,7 +59,9 @@ _import_progress("Part complete")
 from pbd_contact_helpers import bounds as _bounds
 from pbd_contact_helpers import build_piece as _build_piece
 from pbd_contact_helpers import build_scene as _build_scene
-from pbd_contact_helpers import configure_diagnostic_cube_target as _configure_diagnostic_cube_target
+from pbd_contact_helpers import (
+    configure_diagnostic_cube_target as _configure_diagnostic_cube_target,
+)
 from pbd_contact_helpers import centroid as _centroid
 from pbd_contact_helpers import connected_components as _connected_components
 from pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
