@@ -65,8 +65,32 @@ def _mesh_signature(target):
         return None
 
 
-def _shape_content_signature(shape, deflection=1.0):
-    """Return a persistent deterministic digest for a FreeCAD TopoShape."""
+def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[object, ...]:
+    """Return a deterministic BRep or tessellation signature for a FreeCAD shape.
+
+    Args:
+        shape: Native FreeCAD TopoShape or another object exposing geometry APIs.
+        deflection: Linear tessellation deflection used when BRep export is unavailable.
+
+    Returns:
+        A stable signature containing the BRep hash, tessellated surface digest,
+        native shape hash, or an explicit unknown marker.
+    """
+    exporter = getattr(shape, "exportBrepToString", None)
+    if callable(exporter):
+        try:
+            payload = exporter()
+            if isinstance(payload, str):
+                encoded = payload.encode("utf-8")
+            elif isinstance(payload, (bytes, bytearray, memoryview)):
+                encoded = bytes(payload)
+            else:
+                msg = "BRep exporter must return text or bytes"
+                raise TypeError(msg)
+            return ("BRepHash", hashlib.sha256(encoded).hexdigest())
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            pass
+
     tessellate = getattr(shape, "tessellate", None)
     if callable(tessellate):
         try:
@@ -86,6 +110,7 @@ def _shape_content_signature(shape, deflection=1.0):
                 )
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
+
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
