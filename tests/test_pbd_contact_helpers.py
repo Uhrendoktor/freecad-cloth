@@ -9,6 +9,10 @@ if TYPE_CHECKING:
 
 import pytest
 
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+    _pbd_collision_resolution,
+    _pbd_collision_voxel_mm,
+)
 from tests.support.assertions import require
 from tests.support.pbd_contact_helpers import events, nearest_surface_distance
 
@@ -57,4 +61,24 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
     require(
         condition=calls == ["gui-update", "qt-events"],
         message="GUI refresh must precede Qt event processing exactly once",
+    )
+
+def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -> None:
+    """Preserve bounded per-axis grid sizing while calculating spans in NumPy."""
+
+    surface = SimpleNamespace(
+        vertices=((-10.0, 1.0, 2.0), (10.0, 51.0, 4.0)),
+    )
+    voxel_mm = _pbd_collision_voxel_mm()
+    expected = [
+        max(16, min(256, int(__import__("math").ceil((span + 200.0) / voxel_mm))))
+        for span in (20.0, 50.0, 2.0)
+    ]
+    require(
+        condition=_pbd_collision_resolution(surface) == expected,
+        message="collision-grid resolution must reflect each axis span and stay within bounds.",
+    )
+    require(
+        condition=_pbd_collision_resolution(SimpleNamespace(vertices=())) == [16, 16, 16],
+        message="empty collision surfaces must retain the minimum grid resolution.",
     )

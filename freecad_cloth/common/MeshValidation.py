@@ -38,12 +38,28 @@ def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) 
 
 
 def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
+    """Compute axis-aligned bounds with NumPy when Trimesh is unavailable.
+
+    Args:
+        vertices: Finite 3D vertex coordinates.
+
+    Returns:
+        Minimum and maximum coordinates ordered as X, Y, and Z pairs.
+        Empty input returns six zeroes to preserve the diagnostic contract.
+    """
     if not vertices:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    xs = [float(vertex[0]) for vertex in vertices]
-    ys = [float(vertex[1]) for vertex in vertices]
-    zs = [float(vertex[2]) for vertex in vertices]
-    return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    minimums = coordinates.min(axis=0)
+    maximums = coordinates.max(axis=0)
+    return (
+        float(minimums[0]),
+        float(maximums[0]),
+        float(minimums[1]),
+        float(maximums[1]),
+        float(minimums[2]),
+        float(maximums[2]),
+    )
 
 
 def _triangle_areas(

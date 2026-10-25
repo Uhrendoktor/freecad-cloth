@@ -496,16 +496,12 @@ def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
         The number of SDF cells along each spatial axis.
     """
     voxel_mm = _pbd_collision_voxel_mm()
-    spans = []
-    for axis in range(3):
-        values = [float(vertex[axis]) for vertex in surface.vertices]
-        if not values:
-            spans.append(16)
-            continue
-        span_mm = max(values) - min(values)
-        cells = int(np.ceil((span_mm + 200.0) / voxel_mm))
-        spans.append(max(16, min(256, cells)))
-    return spans
+    coordinates = np.asarray(surface.vertices, dtype=np.float64).reshape((-1, 3))
+    if not coordinates.size:
+        return [16, 16, 16]
+    spans_mm = np.ptp(coordinates, axis=0)
+    cells = np.ceil((spans_mm + 200.0) / voxel_mm)
+    return np.clip(cells, 16, 256).astype(np.intp).tolist()
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:

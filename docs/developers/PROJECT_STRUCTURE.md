@@ -33,6 +33,10 @@ The repository root is reserved for FreeCAD bootstrap files, sitecustomize.py, m
 Historical internal paths are migrated at callers. A compatibility surface requires an explicit external compatibility promise and a documented removal policy.
 
 
+## Naming and compatibility
+
+Within `freecad_cloth/`, follow the existing module naming convention for the owning package; do not add alternate-name or `*_compat.py` modules merely to preserve pre-release internal paths. Rename an internal module and update its callers atomically. Tests and standalone tools use the conventional `test_*.py` and snake_case names, while production domain modules retain their established package naming. A compatibility layer is appropriate only for an explicitly promised external API with a documented removal policy.
+
 ## Loader layouts
 
 The repository supports both the classic root FreeCAD loader and the modern package loader layouts. Both delegate registration to freecad_cloth.bootstrap.initialize_workbenches, which resolves icons relative to the installation root and imports the single authoritative implementation package.
