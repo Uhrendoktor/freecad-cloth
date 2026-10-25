@@ -431,7 +431,6 @@ def inspect_pbd_runtime(
     )
 
 
-
 @dataclass(frozen=True, slots=True)
 class LadderCheckpointCapture:
     """Capture a diagnostic checkpoint with injected FreeCAD view behavior."""
