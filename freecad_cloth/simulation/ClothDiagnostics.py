@@ -9,8 +9,9 @@ by GUI, export, or headless validation code.
 import json
 import pathlib
 from collections.abc import Sequence
-from math import sqrt
 
+import numpy as np
+from numpy.typing import NDArray
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
@@ -120,66 +121,72 @@ class DiagnosticResult:
             raise ValueError(msg) from exc
 
 
-def _distance(a: Point3, b: Point3) -> float:
-    """Measure the Euclidean distance between two 3D points.
+def _average_edge_strains(
+    rest_vertices: NDArray[np.float64],
+    current_vertices: NDArray[np.float64],
+    faces: NDArray[np.intp],
+) -> NDArray[np.float64]:
+    """Compute mean safe edge strain for all faces in one NumPy operation.
 
     Args:
-        a: First point in the mesh coordinate frame.
-        b: Second point in the same coordinate frame.
+        rest_vertices: Reference coordinates with shape (N, 3).
+        current_vertices: Evaluated coordinates with shape (N, 3).
+        faces: Triangle vertex indices with shape (M, 3).
 
     Returns:
-        Straight-line distance between the supplied points.
+        One mean relative edge-length change per face. Degenerate rest edges
+        contribute zero strain, matching the scalar diagnostic contract.
     """
-    return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
+    if not faces.size:
+        return np.empty(0, dtype=np.float64)
+
+    rest_points = rest_vertices[faces]
+    current_points = current_vertices[faces]
+    rest_edges = np.stack(
+        (
+            rest_points[:, 1] - rest_points[:, 0],
+            rest_points[:, 2] - rest_points[:, 1],
+            rest_points[:, 0] - rest_points[:, 2],
+        ),
+        axis=1,
+    )
+    current_edges = np.stack(
+        (
+            current_points[:, 1] - current_points[:, 0],
+            current_points[:, 2] - current_points[:, 1],
+            current_points[:, 0] - current_points[:, 2],
+        ),
+        axis=1,
+    )
+    rest_lengths = np.linalg.norm(rest_edges, axis=2)
+    current_lengths = np.linalg.norm(current_edges, axis=2)
+    valid_edges = rest_lengths > DIAGNOSTIC_EPSILON
+    edge_strains = np.zeros_like(rest_lengths, dtype=np.float64)
+    np.divide(current_lengths, rest_lengths, out=edge_strains, where=valid_edges)
+    edge_strains[valid_edges] -= 1.0
+    return np.mean(edge_strains, axis=1, dtype=np.float64)
 
 
-def _triangle_edges(vertices: Sequence[Point3], tri: Triangle) -> tuple[float, float, float]:
-    """Measure the three edge lengths of one triangular face.
+def _fit_score_array(
+    clearances: NDArray[np.float64],
+    tolerance: float,
+    ideal: float = 0.0,
+) -> NDArray[np.float64]:
+    """Compute normalized fit scores for an array of clearances.
 
     Args:
-        vertices: Mesh vertex coordinates addressed by triangle indices.
-        tri: Three indices defining the face.
+        clearances: Per-face or per-vertex clearance values.
+        tolerance: Absolute distance over which the score falls to zero.
+        ideal: Clearance value representing a perfect fit.
 
     Returns:
-        Edge lengths in AB, BC, and CA order.
+        Fit scores in [0, 1], with the same shape as the input array.
     """
-    a, b, c = (vertices[int(i)] for i in tri)
-    return _distance(a, b), _distance(b, c), _distance(c, a)
-
-
-def _safe_strain(current: float, rest: float) -> float:
-    """Compute signed relative edge-length change with a zero-length guard.
-
-    Args:
-        current: Measured edge length after simulation.
-        rest: Reference edge length before simulation.
-
-    Returns:
-        Relative length change, or zero when the reference edge is degenerate.
-    """
-    if rest <= DIAGNOSTIC_EPSILON:
-        return 0.0
-    return current / rest - 1.0
-
-
-def _average_edge_strain(
-    rest_vertices: Sequence[Point3],
-    current_vertices: Sequence[Point3],
-    tri: Triangle,
-) -> float:
-    """Average safe relative edge strain across one triangular face.
-
-    Args:
-        rest_vertices: Reference mesh coordinates indexed by the triangle vertices.
-        current_vertices: Current mesh coordinates with the same indexing as the reference.
-        tri: Three vertex indices that define the face being measured.
-
-    Returns:
-        Mean of the three relative edge-length changes computed by the safe strain helper.
-    """
-    rest = _triangle_edges(rest_vertices, tri)
-    current = _triangle_edges(current_vertices, tri)
-    return sum(_safe_strain(c, r) for r, c in zip(rest, current, strict=False)) / 3.0
+    tolerance = abs(float(tolerance))
+    errors = np.abs(clearances - float(ideal))
+    if tolerance <= DIAGNOSTIC_EPSILON:
+        return (errors <= DIAGNOSTIC_EPSILON).astype(np.float64)
+    return np.clip(1.0 - errors / tolerance, 0.0, 1.0)
 
 
 def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
@@ -197,11 +204,8 @@ def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
     Returns:
         A normalized fit score between zero and one, inclusive.
     """
-    tolerance = abs(float(tolerance))
-    if tolerance <= DIAGNOSTIC_EPSILON:
-        return 1.0 if abs(float(clearance) - float(ideal)) <= DIAGNOSTIC_EPSILON else 0.0
-    error = abs(float(clearance) - float(ideal))
-    return max(0.0, min(1.0, 1.0 - error / tolerance))
+    values = np.asarray([float(clearance)], dtype=np.float64)
+    return float(_fit_score_array(values, tolerance, ideal)[0])
 
 
 def analyze_mesh(
@@ -249,30 +253,42 @@ def analyze_mesh(
         msg = "pressures must be per-face"
         raise ValueError(msg)
 
-    strain = tuple(_average_edge_strain(rest_vertices, current_vertices, tri) for tri in triangles)
-    stress = tuple(abs(value) / float(stretch_limit) for value in strain)
+    rest_array = np.asarray(rest_vertices, dtype=np.float64).reshape((-1, 3))
+    current_array = np.asarray(current_vertices, dtype=np.float64).reshape((-1, 3))
+    face_indices = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    strain_values = _average_edge_strains(rest_array, current_array, face_indices)
+    stress_values = np.abs(strain_values) / float(stretch_limit)
+
     if clearances is None:
-        fit = tuple(1.0 for _ in triangles)
-    elif len(clearances) == len(triangles):
-        fit = tuple(fit_score(value, fit_tolerance) for value in clearances)
+        fit_values = np.ones(len(face_indices), dtype=np.float64)
     else:
-        fit = tuple(
-            fit_score(sum(float(clearances[int(i)]) for i in tri) / 3.0, fit_tolerance)
-            for tri in triangles
+        clearance_values = np.asarray(clearances, dtype=np.float64)
+        face_clearances = (
+            clearance_values
+            if len(clearances) == len(triangles)
+            else np.mean(clearance_values[face_indices], axis=1, dtype=np.float64)
         )
-    pressure = (
-        tuple(float(value) for value in pressures)
+        fit_values = _fit_score_array(face_clearances, fit_tolerance)
+
+    pressure_values = (
+        np.asarray(pressures, dtype=np.float64)
         if pressures is not None
-        else tuple(0.0 for _ in triangles)
+        else np.zeros(len(face_indices), dtype=np.float64)
     )
-    values = strain + stress + fit + pressure
+    all_values = np.concatenate(
+        (strain_values, stress_values, fit_values, pressure_values)
+    )
+    strain = tuple(float(value) for value in strain_values)
+    stress = tuple(float(value) for value in stress_values)
+    fit = tuple(float(value) for value in fit_values)
+    pressure = tuple(float(value) for value in pressure_values)
     return DiagnosticResult(
         strain=strain,
         stress=stress,
         fit=fit,
         pressure=pressure,
-        minimum=min(values) if values else 0.0,
-        maximum=max(values) if values else 0.0,
+        minimum=float(np.min(all_values)) if all_values.size else 0.0,
+        maximum=float(np.max(all_values)) if all_values.size else 0.0,
     )
 
 

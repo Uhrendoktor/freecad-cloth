@@ -58,6 +58,14 @@ def test_stretch_is_normalized_against_fabric_limit() -> None:
         "Stress must be normalized against the 0.02 stretch limit.",
     )
 
+    degenerate_rest = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+    deformed = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0))
+    degenerate_result = analyze_mesh(degenerate_rest, deformed, ((0, 1, 2),))
+    _require(
+        degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0),
+        "A zero-length rest edge must contribute zero strain without affecting other edges.",
+    )
+
 
 def test_fit_accepts_per_vertex_clearance() -> None:
     """Check that fit scoring consumes the per-vertex clearance values."""

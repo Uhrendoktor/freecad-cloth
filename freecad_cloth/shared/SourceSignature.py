@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import cast
 
 
 def _point_coordinates(point: object) -> tuple[float, float, float]:
@@ -23,7 +24,7 @@ def _point_coordinates(point: object) -> tuple[float, float, float]:
         Coordinates rounded to six decimal places.
     """
     try:
-        values = tuple(point)  # type: ignore[arg-type]
+        values = tuple(cast(Iterable[float], point))
     except TypeError:
         values = None
     if values is not None and len(values) >= 3:
