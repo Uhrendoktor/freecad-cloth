@@ -30,7 +30,12 @@ class Notch:
     depth: float = 3.0
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate notch identity, position and positive depth.
+
+        Raises:
+            ValueError: If the identity is empty, the normalized position is outside
+                the unit interval, or the depth is not positive.
+        """
         if not self.id:
             msg = "notch ID must not be empty"
             raise ValueError(msg)
@@ -55,7 +60,12 @@ class PatternMark:
     text: str = ""
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate mark identity, kind, position and positive length.
+
+        Raises:
+            ValueError: If the identity or kind is empty, the normalized position
+                is outside the unit interval, or the mark length is not positive.
+        """
         if not self.id.strip() or not self.kind.strip():
             msg = "pattern mark ID and kind must not be empty"
             raise ValueError(msg)
@@ -69,7 +79,7 @@ class PatternMark:
 
 @pydantic_dataclass(frozen=True)
 class OffsetEdge:
-    """Public data model or service class for OffsetEdge."""
+    """One derived cut-boundary edge with its stable identity and sampled points."""
 
     id: str
     points: tuple[Point, ...]
@@ -77,7 +87,7 @@ class OffsetEdge:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class DerivedPattern:
-    """Public data model or service class for DerivedPattern."""
+    """Immutable sewing boundary, per-edge cut offsets, marks and closed contour."""
 
     sewing_boundary: ParametricPattern
     cut_boundary: tuple[OffsetEdge, ...]
@@ -93,7 +103,24 @@ def derive_cut_boundary(
     curve_samples: int = 32,
     miter_limit: float = 4.0,
 ) -> DerivedPattern:
-    """Provide the public derive cut boundary operation."""
+    """Derive seam-allowance offsets and validate the resulting cut contour.
+
+    Args:
+        pattern: Authored parametric sewing boundary whose segments define the piece.
+        width: Default outward allowance in millimetres for edges without overrides.
+        edge_widths: Optional mapping of segment IDs to per-edge allowance widths.
+        curve_samples: Number of samples used when approximating curved segments.
+        miter_limit: Maximum corner-miter extension as a multiple of allowance width.
+
+    Returns:
+        Derived geometry containing the source boundary, offset edge polylines and
+        a joined outer cut contour.
+
+    Raises:
+        ValueError: If an allowance or sampling option is invalid, an edge ID is
+            unknown, or the derived contour is invalid or self-intersecting.
+        TypeError: If the source boundary contains an unsupported segment type.
+    """
     if not isfinite(width) or width < 0:
         msg = "seam allowance width must be finite and non-negative"
         raise ValueError(msg)
@@ -160,7 +187,19 @@ def derive_cut_boundary(
 
 
 def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPattern:
-    """Add the requested notches data."""
+    """Return a derived pattern with the requested notches appended.
+
+    Args:
+        derived: Existing immutable result containing the authoritative sewing boundary.
+        notches: Notch records to validate and attach to their referenced segments.
+
+    Returns:
+        A new derived pattern that retains existing geometry and includes the notches.
+
+    Raises:
+        ValueError: If a notch is invalid, references an unknown segment, or reuses
+            an existing notch or construction-mark ID.
+    """
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.notches)
     ids = {n.id for n in result} | {m.id for m in derived.marks}
@@ -184,7 +223,19 @@ def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPat
 
 
 def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedPattern:
-    """Add the requested marks data."""
+    """Return a derived pattern with the requested construction marks appended.
+
+    Args:
+        derived: Existing immutable result containing the authoritative sewing boundary.
+        marks: Construction marks to validate and attach to their referenced segments.
+
+    Returns:
+        A new derived pattern that retains existing geometry and includes the marks.
+
+    Raises:
+        ValueError: If a mark is invalid, references an unknown segment, or reuses
+            an existing notch or construction-mark ID.
+    """
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.marks)
     ids = {n.id for n in derived.notches} | {m.id for m in result}
@@ -208,7 +259,18 @@ def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedP
 
 
 def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
-    """Provide the public notch point operation."""
+    """Resolve the boundary coordinate at a validated notch position.
+
+    Args:
+        pattern: Authored parametric boundary containing the referenced segment.
+        notch: Notch identity, segment reference, normalized position and depth.
+
+    Returns:
+        The 2D point where the notch intersects its sewing segment.
+
+    Raises:
+        ValueError: If the notch is invalid or references a missing segment.
+    """
     notch.validate()
     segment = pattern.by_id().get(notch.segment_id)
     if segment is None:
@@ -218,7 +280,19 @@ def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
 
 
 def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
-    """Provide the public mark point operation."""
+    """Resolve the boundary coordinate associated with a construction mark.
+
+    Args:
+        pattern: Authored parametric boundary containing the referenced segment.
+        mark: Construction mark to locate; an empty segment ID denotes the first
+            point of the sampled outline.
+
+    Returns:
+        The 2D point associated with the mark.
+
+    Raises:
+        ValueError: If the mark is invalid or references a missing segment.
+    """
     mark.validate()
     if not mark.segment_id:
         return pattern.sampled_outline(2)[0]
@@ -230,6 +304,18 @@ def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
 
 
 def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[list[Point]]:
+    """Sample each segment into an ordered point list for offset construction.
+
+    Args:
+        segments: Ordered line, Bezier or polyline segments of the source boundary.
+        curve_samples: Sampling density passed to curved-segment approximations.
+
+    Returns:
+        One ordered point list per source segment, with endpoints retained.
+
+    Raises:
+        TypeError: If a segment implementation is not supported by the offsetter.
+    """
     result = []
     for segment in segments:
         if isinstance(segment, LineSegment):
@@ -248,7 +334,20 @@ def _join_variable_offset_edges(
     allowances: list[float],
     miter_limit: float,
 ) -> tuple[Point, ...]:
-    """Join varying per-edge offsets with mitres or bevel connectors."""
+    """Join neighboring offset edges using bounded mitres or bevel connectors.
+
+    Args:
+        sampled: Source polyline samples used to locate each original corner.
+        cut_edges: Per-edge offset polylines in source-boundary order.
+        allowances: Effective allowance width for each corresponding source edge.
+        miter_limit: Maximum miter extension relative to the larger adjacent width.
+
+    Returns:
+        A closed contour assembled from offset edges and their corner connectors.
+
+    Raises:
+        ValueError: If fewer than three distinct cut-contour points remain.
+    """
     count = len(cut_edges)
     joints: list[tuple[Point, Point]] = []
     for index in range(count):
@@ -309,7 +408,17 @@ def _join_variable_offset_edges(
 
 
 def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
-    """Intersect two infinite 2D lines, returning None for parallel lines."""
+    """Intersect two infinite 2D lines unless their direction vectors are parallel.
+
+    Args:
+        a: Start point of the first line.
+        b: End point of the first line.
+        c: Start point of the second line.
+        d: End point of the second line.
+
+    Returns:
+        Intersection point, or None when the lines are parallel.
+    """
     ax, ay = b[0] - a[0], b[1] - a[1]
     bx, by = d[0] - c[0], d[1] - c[1]
     denominator = ax * by - ay * bx
