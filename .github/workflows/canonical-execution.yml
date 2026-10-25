@@ -149,8 +149,7 @@ jobs:
           python tools/ci/check_explicit_any_annotations.py
           python tools/ci/check_pydantic_models.py
           python tools/ci/check_no_source_rewriting.py
-          python -m pytest -q tests/test_no_source_rewriting.py \
-            tests/test_avatar_fitting_coordinate_contract.py
+          python -m pytest -q tests/test_no_source_rewriting.py tests/test_avatar_fitting_coordinate_contract.py
           pyright -p pyrightconfig.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
