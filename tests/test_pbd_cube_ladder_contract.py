@@ -2,6 +2,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+HELPERS = (ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
 
 
 def test_cube_ladder_contract_is_gate_and_frozen() -> None:
@@ -20,15 +21,17 @@ def test_cube_ladder_contract_is_gate_and_frozen() -> None:
     ):
         assert case_id in source
 
-    assert "CHECKPOINTS = (0, 1, 5, 15, 45, 90)" in source
-    assert '"simulation-collision-ladder"' in source
-    assert '"release_gate_effect": "gate"' in source
-    assert "seam_stitch_pairs" in source
-    assert "seam_world_spans_mm" in source
-    assert "first_failing_rung" in source
+    assert "LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)" in HELPERS
+    assert '"simulation-collision-ladder"' in HELPERS
+    assert '"release_gate_effect": "gate"' in HELPERS
+    assert "seam_stitch_pairs" in HELPERS
+    assert "seam_world_spans_mm" in HELPERS
+    assert "first_failing_rung" in HELPERS
     assert "CLOTH_CONTACT_DIAGNOSTICS_EXECUTE" in workflow
     assert "runpy.run_path(" not in source
-    assert "from pbd_contact_helpers import" in source
+    assert "_ladder.capture_ladder_checkpoints(" in source
+    assert "_ladder.build_ladder_case_record(" in source
+    assert "_ladder.write_ladder_manifest(" in source
     assert '_HELPER_DIR = Path(__file__).resolve().parent / "support"' in source
     assert "_REPO_ROOT = Path(__file__).resolve().parents[1]" in source
     assert "sys.path.insert(0, str(_REPO_ROOT))" in source

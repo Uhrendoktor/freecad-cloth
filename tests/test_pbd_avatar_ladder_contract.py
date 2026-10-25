@@ -7,6 +7,7 @@ from tests.support.assertions import require_contains
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
+HELPERS = (ROOT / "tests" / "support" / "pbd_contact_helpers.py").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(encoding="utf-8")
 
 
@@ -27,10 +28,7 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         )
 
     expected_source_fragments = (
-        "CHECKPOINTS = (0, 1, 5, 15, 45, 90)",
-        '"simulation-avatar-ladder"',
-        '"release_gate_effect": "gate"',
-        '"target": "avatar"',
+        'target="avatar"',
         '"AvatarType", ""',
         '"ClothAvatar"',
         '"DrapeTarget"',
@@ -38,18 +36,34 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         '"shoulder_left"',
         '"hip"',
         "solver_collision_surface",
-        '"source_triangles"',
-        '"solver_triangles"',
-        '"seam_world_spans_mm"',
         '"placement_offsets_mm"',
-        "first_failing_rung",
-        "schedule_freecad_main(_run_and_shutdown)",
+        "dispatch_ladder_entrypoint(",
+        "_ladder.schedule_freecad_main",
+        "_ladder.capture_ladder_checkpoints(",
+        "_ladder.build_ladder_case_record(",
+        "_ladder.write_ladder_manifest(",
     )
     for fragment in expected_source_fragments:
         require_contains(
             source=SOURCE,
             fragment=fragment,
             message=f"Avatar ladder source is missing required fragment {fragment!r}.",
+        )
+
+    expected_shared_fragments = (
+        "LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)",
+        '"simulation-avatar-ladder"',
+        '"release_gate_effect": "gate"',
+        '"source_triangles"',
+        '"solver_triangles"',
+        '"seam_world_spans_mm"',
+        "first_failing_rung",
+    )
+    for fragment in expected_shared_fragments:
+        require_contains(
+            source=HELPERS,
+            fragment=fragment,
+            message=f"Shared ladder helper is missing required fragment {fragment!r}.",
         )
 
     require_contains(
