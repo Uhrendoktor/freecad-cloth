@@ -486,7 +486,7 @@ def _pbd_collision_effective_tolerance_mm(
     return max(configured, thickness, representation_margin)
 
 
-def _pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
+def pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
     """Choose a bounded voxel resolution for the supplied collision surface.
 
     Args:
@@ -736,7 +736,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             mesh.addFace([a, c, b])
         mesh.buildNeighbors()
 
-        resolution = _pbd_collision_resolution(collision_surface)
+        resolution = pbd_collision_resolution(collision_surface)
         collision_voxel_mm = _pbd_collision_voxel_mm()
         configured_tolerance_mm = _pbd_collision_tolerance_mm()
         effective_tolerance_mm = _pbd_collision_effective_tolerance_mm(collision_surface)
