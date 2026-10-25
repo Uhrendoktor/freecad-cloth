@@ -8,6 +8,7 @@ import pytest
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose
 from freecad_cloth.avatar.HierarchicalPose import pose_world_state, transform_landmarks
 from freecad_cloth.avatar.HumanoidMesh import _bone_source_endpoints
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 from freecad_cloth.avatar.SkeletonPose import (
     CONTROLLABLE_BONES,
     IDENTITY,
@@ -143,7 +144,7 @@ def test_weighted_fk_rotates_a_selected_joint_and_inherits_to_child():
         (2.0, 0.0, 0.0),
     )
     rest = source
-    skeleton = {
+    skeleton: SkeletonData = {
         "bones": {
             "upperarm01.L": {"head": "h", "parent": None, "tail": "e"},
             "lowerarm01.L": {"head": "e", "parent": "upperarm01.L", "tail": "w"},
@@ -180,7 +181,7 @@ def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() ->
         (1.0, 0.0, 0.0),
         (2.0, 0.0, 0.0),
     )
-    skeleton = {
+    skeleton: SkeletonData = {
         "bones": {
             "upperarm01.L": {"head": "h", "tail": "t", "parent": None},
             "lowerarm01.L": {"head": "h", "tail": "t", "parent": None},
