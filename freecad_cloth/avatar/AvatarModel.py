@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Callable
 from dataclasses import field
+from importlib import import_module
+from typing import cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -56,6 +59,18 @@ DEFAULT_POSE_ARM_ANGLES = {
     "sitting": 25.0,
     "t_pose": 12.0,
 }
+AVATAR_SCHEMA_VERSION = 4
+POSE_ANGLE_MIN_DEGREES = -90.0
+POSE_ANGLE_MAX_DEGREES = 90.0
+SKIN_OFFSET_MAX_MM = 50.0
+MASS_TARGET_MIN_KG = 25.0
+MASS_TARGET_MAX_KG = 250.0
+_LANDMARK_ARM_DEFAULTS = {
+    "t_pose": DEFAULT_POSE_ARM_ANGLES["t_pose"],
+    "standing": DEFAULT_POSE_ARM_ANGLES["t_pose"],
+    "sewing": DEFAULT_POSE_ARM_ANGLES["sewing"],
+    "sitting": DEFAULT_POSE_ARM_ANGLES["sitting"],
+}
 
 LIMITS = {
     "height": (1200, 2300),
@@ -89,7 +104,7 @@ LIMITS = {
 
 @pydantic_dataclass(frozen=True)
 class Pose:
-    """Public data model or service class for Pose."""
+    """Pose preset and arm/joint overrides used by avatar mesh generation."""
 
     preset: str = "standing"
     left_arm_angle: float | None = None
@@ -100,6 +115,11 @@ class Pose:
     VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
+        """Resolve omitted arm angles and canonicalize the joint-rotation tuple.
+
+        Raises:
+            ValueError: If the supplied joint rotations are invalid.
+        """
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
@@ -116,36 +136,50 @@ class Pose:
         object.__setattr__(self, "joint_rotations", normalize_joint_rotations(self.joint_rotations))
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate the preset, arm angles, and joint rotations.
+
+        Raises:
+            ValueError: If the preset or an angle is invalid, or rotations are malformed.
+        """
         if self.preset not in self.VALID_PRESETS:
             msg = f"unsupported avatar pose: {self.preset}"
             raise ValueError(msg)
         for name in ("left_arm_angle", "right_arm_angle", "left_elbow_angle", "right_elbow_angle"):
             value = float(getattr(self, name))
-            if not -90.0 <= value <= 90.0:
+            if not POSE_ANGLE_MIN_DEGREES <= value <= POSE_ANGLE_MAX_DEGREES:
                 msg = f"{name} must be between -90 and 90 degrees"
                 raise ValueError(msg)
         normalize_joint_rotations(self.joint_rotations)
 
 
+Coordinate3D = tuple[float, float, float]
+
+
 @pydantic_dataclass(frozen=True)
 class Landmark:
-    """Public data model or service class for Landmark."""
+    """Semantic body landmark with a three-dimensional millimetre position."""
 
     name: str
-    position: tuple
+    position: Coordinate3D
+
+
+AvatarMesh = tuple[
+    tuple[Coordinate3D, ...],
+    tuple[tuple[int, int, int], ...],
+    tuple[Landmark, ...],
+]
 
 
 @pydantic_dataclass(frozen=True)
 class AvatarParameters:
-    """Public data model or service class for AvatarParameters."""
+    """Validated anthropometric measurements, morphology controls, and pose settings."""
 
-    measurements: dict = field(default_factory=lambda: dict(DEFAULT_MEASUREMENTS))
+    measurements: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_MEASUREMENTS))
     # The mannequin is a bare body surface by default. Cloth collision padding
     # remains a target setting rather than a visible layer on the avatar.
     skin_offset: float = 0.0
     pose: Pose = field(default_factory=Pose)
-    schema_version: int = 4
+    schema_version: int = AVATAR_SCHEMA_VERSION
     # 0 = feminine, 0.5 = neutral, 1 = masculine. This is a body-shape
     # blend, not a claim about identity; downstream geometry uses it as one
     # normalized morphology control.
@@ -157,6 +191,12 @@ class AvatarParameters:
     mass_target_kg: float | None = None
 
     def __post_init__(self) -> None:
+        """Normalize numeric fields and validate the complete avatar state.
+
+        Raises:
+            TypeError: If the pose value has the wrong type.
+            ValueError: If measurements, controls, overrides, or pose values are invalid.
+        """
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
@@ -177,13 +217,35 @@ class AvatarParameters:
         self.validate()
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
-        if self.schema_version != 4:
+        """Validate schema, measurement, morphology, override, and pose contracts.
+
+        Raises:
+            TypeError: If pose is not a Pose instance.
+            ValueError: If any avatar field violates the supported schema or value ranges.
+        """
+        if self.schema_version != AVATAR_SCHEMA_VERSION:
             msg = "unsupported avatar schema version"
             raise ValueError(msg)
+        self._validate_measurements()
+        self._validate_shape_controls()
+        self._validate_phenotype_overrides()
+        self._validate_local_change_overrides()
+        self._validate_mass_target()
+        if not isinstance(self.pose, Pose):
+            msg = "pose must be a Pose"
+            raise TypeError(msg)
+        self.pose.validate()
+
+    def _validate_measurements(self) -> None:
+        """Check completeness and anatomical limits of stored measurements.
+
+        Raises:
+            ValueError: If a measurement is missing or exceeds an anatomical constraint.
+        """
         missing = set(DEFAULT_MEASUREMENTS) - set(self.measurements)
         if missing:
-            raise ValueError("missing avatar measurements: {}".format(", ".join(sorted(missing))))
+            msg = f"missing avatar measurements: {', '.join(sorted(missing))}"
+            raise ValueError(msg)
         for name, (low, high) in LIMITS.items():
             value = float(self.measurements[name])
             if not low <= value <= high:
@@ -195,7 +257,14 @@ class AvatarParameters:
         if self.measurements["inseam"] >= self.measurements["height"]:
             msg = "inseam must be shorter than height"
             raise ValueError(msg)
-        if not 0 <= float(self.skin_offset) <= 50:
+
+    def _validate_shape_controls(self) -> None:
+        """Check normalized morphology values and collision offset.
+
+        Raises:
+            ValueError: If a body-shape control or skin offset is outside its supported range.
+        """
+        if not 0 <= float(self.skin_offset) <= SKIN_OFFSET_MAX_MM:
             msg = "skin offset must be between 0 and 50 mm"
             raise ValueError(msg)
         if not 0.0 <= float(self.gender) <= 1.0:
@@ -204,6 +273,13 @@ class AvatarParameters:
         if not 0.0 <= float(self.breast_size) <= 1.0:
             msg = "breast size must be between 0 and 1"
             raise ValueError(msg)
+
+    def _validate_phenotype_overrides(self) -> None:
+        """Check Anny phenotype override names, ownership, and normalized values.
+
+        Raises:
+            ValueError: If names are empty, controlled fields are shadowed, or values are invalid.
+        """
         if any(not name.strip() for name in self.phenotype_overrides):
             msg = "Anny phenotype override names cannot be empty"
             raise ValueError(msg)
@@ -214,6 +290,13 @@ class AvatarParameters:
             if not math.isfinite(value) or not 0.0 <= value <= 1.0:
                 msg = f"Anny phenotype override {name!r} must be between 0 and 1"
                 raise ValueError(msg)
+
+    def _validate_local_change_overrides(self) -> None:
+        """Check Anny local morph override names, ownership, and ranges.
+
+        Raises:
+            ValueError: If a name is empty, breast fullness is shadowed, or a value is invalid.
+        """
         if any(not name.strip() for name in self.local_change_overrides):
             msg = "Anny morph override names cannot be empty"
             raise ValueError(msg)
@@ -224,24 +307,48 @@ class AvatarParameters:
             if not math.isfinite(value) or not -1.0 <= value <= 1.0:
                 msg = f"Anny local morph override {name!r} must be between -1 and 1"
                 raise ValueError(msg)
+
+    def _validate_mass_target(self) -> None:
+        """Check the optional target body mass.
+
+        Raises:
+            ValueError: If the target is non-finite or outside the supported mass range.
+        """
         if self.mass_target_kg is not None and (
-            not math.isfinite(self.mass_target_kg) or not 25.0 <= self.mass_target_kg <= 250.0
+            not math.isfinite(self.mass_target_kg)
+            or not MASS_TARGET_MIN_KG <= self.mass_target_kg <= MASS_TARGET_MAX_KG
         ):
             msg = "target body mass must be between 25 and 250 kg"
             raise ValueError(msg)
-        if not isinstance(self.pose, Pose):
-            msg = "pose must be a Pose"
-            raise TypeError(msg)
-        self.pose.validate()
 
     def measurement(self, name: str) -> float:
-        """Return the requested body measurement."""
+        """Return a named body measurement in millimetres.
+
+        Args:
+            name: Measurement key from the canonical avatar schema.
+
+        Returns:
+            The requested measurement as a float.
+
+        Raises:
+            KeyError: If the name is not present in the measurement mapping.
+        """
         if name not in self.measurements:
             raise KeyError(name)
         return float(self.measurements[name])
 
     def with_measurements(self, **changes: float) -> AvatarParameters:
-        """Return a copy with updated body measurements."""
+        """Create a validated copy with updated body measurements.
+
+        Args:
+            changes: Measurement names and replacement values in millimetres.
+
+        Returns:
+            A new avatar parameter record with the updates applied.
+
+        Raises:
+            ValueError: If any updated measurement violates the schema.
+        """
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
         return AvatarParameters(
@@ -257,7 +364,11 @@ class AvatarParameters:
         )
 
     def to_json(self) -> str:
-        """Serialize this object to JSON."""
+        """Serialize avatar parameters into canonical JSON.
+
+        Returns:
+            Stable JSON text with schema, measurement, shape, and pose fields.
+        """
         self.validate()
         return json.dumps(
             {
@@ -291,7 +402,18 @@ class AvatarParameters:
 
     @classmethod
     def from_json(cls, payload: str) -> AvatarParameters:
-        """Load an avatar parameter document using the current schema version."""
+        """Load a serialized avatar parameter document.
+
+        Args:
+            payload: JSON text containing the parameter document.
+
+        Returns:
+            A validated parameter record using the current schema.
+
+        Raises:
+            TypeError: If schema or nested object fields have an invalid type.
+            ValueError: If JSON, schema version, units, or parameter values are invalid.
+        """
         data = json.loads(str(payload))
         if data.get("units", "mm") != "mm":
             msg = "avatar presets must use millimetres"
@@ -300,7 +422,7 @@ class AvatarParameters:
         if type(schema_version) is not int:
             msg = "avatar schema_version must be an integer"
             raise TypeError(msg)
-        if schema_version != 4:
+        if schema_version != AVATAR_SCHEMA_VERSION:
             msg = "unsupported avatar schema version; expected version 4"
             raise ValueError(msg)
         p = data.get("pose", {})
@@ -342,7 +464,7 @@ class AvatarParameters:
             data.get("measurements", {}),
             float(data.get("skin_offset", 0)),
             pose,
-            4,
+            AVATAR_SCHEMA_VERSION,
             float(shape.get("gender", 0.5)),
             float(shape.get("breast_size", 0.0)),
             phenotype_overrides,
@@ -351,44 +473,125 @@ class AvatarParameters:
         )
 
 
-def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
-    m = params.measurements
-    height = float(m["height"])
-    pelvis_z = min(height * 0.53, float(m["inseam"]) + 120.0)
-    waist_z = min(height * 0.62, pelvis_z + max(120.0, min(220.0, float(m["back_waist"]) * 0.35)))
-    chest_z = min(height * 0.72, waist_z + max(140.0, float(m["torso"]) * 0.42))
-    shoulder_z = min(height * 0.77, chest_z + 120.0)
-    neck_z = min(height * 0.88, shoulder_z + 100.0)
-    knee_z = max(300.0, float(m["ankle"]) / 2.0 + float(m["inseam"]) * 0.52)
-    ankle_z = float(m["ankle"]) / 2.0
-    shoulder_half = float(m["shoulder"]) / 2.0
-    # Hip circumference changes the pelvis envelope, not the leg stance width.
+def _leg_landmarks(
+    params: AvatarParameters,
+    pelvis_z: float,
+    knee_z: float,
+    ankle_z: float,
+    side_y: float,
+) -> dict[str, Coordinate3D]:
+    """Build knee and ankle landmarks for the selected pose.
+
+    Args:
+        params: Validated avatar measurements and pose.
+        pelvis_z: Vertical coordinate of the pelvis landmark.
+        knee_z: Vertical coordinate of the standing knee landmark.
+        ankle_z: Vertical coordinate of the ankle landmark.
+        side_y: Fore-aft offset used by the sitting pose.
+
+    Returns:
+        The four knee and ankle landmark coordinates in millimetres.
+    """
     leg_x = max(55.0, float(DEFAULT_MEASUREMENTS["hip"]) / (2.0 * math.pi) * 0.42)
-    side_y = 230.0 if params.pose.preset == "sitting" else 0.0
-    knees = {
-        "left": (-leg_x, side_y, pelvis_z - 15.0)
-        if params.pose.preset == "sitting"
-        else (-leg_x, 0.0, knee_z),
-        "right": (leg_x, side_y, pelvis_z - 15.0)
-        if params.pose.preset == "sitting"
-        else (leg_x, 0.0, knee_z),
+    if params.pose.preset == "sitting":
+        left_knee = (-leg_x, side_y, pelvis_z - 15.0)
+        right_knee = (leg_x, side_y, pelvis_z - 15.0)
+    else:
+        left_knee = (-leg_x, 0.0, knee_z)
+        right_knee = (leg_x, 0.0, knee_z)
+    return {
+        "knee_left": left_knee,
+        "knee_right": right_knee,
+        "ankle_left": (-leg_x, side_y, ankle_z),
+        "ankle_right": (leg_x, side_y, ankle_z),
     }
-    arm_defaults = {"t_pose": 12.0, "standing": 12.0, "sewing": 55.0, "sitting": 25.0}
-    default = arm_defaults[params.pose.preset]
-    wrists = {}
+
+
+def _resolve_landmark_arm_angle(preset: str, angle_value: float | None) -> float:
+    """Resolve a missing or legacy arm angle to the preset's landmark default.
+
+    Args:
+        preset: Supported avatar pose preset.
+        angle_value: Explicit arm angle, or None when not initialized.
+
+    Returns:
+        A numeric arm angle in degrees.
+    """
+    resolved_angle = (
+        DEFAULT_POSE_ARM_ANGLES[preset] if angle_value is None else angle_value
+    )
+    if preset != "standing" and math.isclose(
+        resolved_angle,
+        _LANDMARK_ARM_DEFAULTS["t_pose"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ):
+        return _LANDMARK_ARM_DEFAULTS[preset]
+    return resolved_angle
+
+
+def _wrist_landmarks(
+    params: AvatarParameters,
+    shoulder_half: float,
+    shoulder_z: float,
+) -> dict[str, Coordinate3D]:
+    """Compute wrist landmarks from shoulder and elbow rotations.
+
+    Args:
+        params: Validated avatar measurements and pose.
+        shoulder_half: Half of the shoulder circumference measurement.
+        shoulder_z: Vertical coordinate of the shoulder landmarks.
+
+    Returns:
+        Left and right wrist coordinates in millimetres.
+    """
+    wrists: dict[str, Coordinate3D] = {}
     for side, angle_value, elbow_value, label in (
         (-1.0, params.pose.left_arm_angle, params.pose.left_elbow_angle, "left"),
         (1.0, params.pose.right_arm_angle, params.pose.right_elbow_angle, "right"),
     ):
-        angle = default if params.pose.preset != "standing" and angle_value == 12.0 else angle_value
-        a = angle * math.pi / 180.0
-        ex = side * shoulder_half + side * 125.0 * math.cos(a)
-        ez = shoulder_z - 125.0 * math.sin(a)
-        fa = (angle - elbow_value) * math.pi / 180.0
-        wx = ex + side * 120.0 * math.cos(fa)
-        wz = ez - 120.0 * math.sin(fa)
-        wrists[label] = (wx, 0.0, wz)
-    landmarks = {
+        angle = _resolve_landmark_arm_angle(params.pose.preset, angle_value)
+        angle_radians = angle * math.pi / 180.0
+        elbow_x = side * shoulder_half + side * 125.0 * math.cos(angle_radians)
+        elbow_z = shoulder_z - 125.0 * math.sin(angle_radians)
+        forearm_radians = (angle - elbow_value) * math.pi / 180.0
+        wrist_x = elbow_x + side * 120.0 * math.cos(forearm_radians)
+        wrist_z = elbow_z - 120.0 * math.sin(forearm_radians)
+        wrists[label] = (wrist_x, 0.0, wrist_z)
+    return {"wrist_left": wrists["left"], "wrist_right": wrists["right"]}
+
+
+def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
+    """Create the standard anatomical landmark set for an avatar.
+
+    Args:
+        params: Validated avatar measurements and pose.
+
+    Returns:
+        Semantic landmarks with three-dimensional coordinates in millimetres.
+    """
+    measurements = params.measurements
+    height = float(measurements["height"])
+    pelvis_z = min(height * 0.53, float(measurements["inseam"]) + 120.0)
+    waist_z = min(
+        height * 0.62,
+        pelvis_z + max(120.0, min(220.0, float(measurements["back_waist"]) * 0.35)),
+    )
+    chest_z = min(
+        height * 0.72,
+        waist_z + max(140.0, float(measurements["torso"]) * 0.42),
+    )
+    shoulder_z = min(height * 0.77, chest_z + 120.0)
+    neck_z = min(height * 0.88, shoulder_z + 100.0)
+    knee_z = max(
+        300.0,
+        float(measurements["ankle"]) / 2.0 + float(measurements["inseam"]) * 0.52,
+    )
+    ankle_z = float(measurements["ankle"]) / 2.0
+    shoulder_half = float(measurements["shoulder"]) / 2.0
+    # Hip circumference changes the pelvis envelope, not the leg stance width.
+    side_y = 230.0 if params.pose.preset == "sitting" else 0.0
+    landmarks: dict[str, Coordinate3D] = {
         "neck": (0.0, 0.0, neck_z),
         "chest": (0.0, 0.0, chest_z),
         "underbust": (0.0, 0.0, chest_z - 75.0),
@@ -398,27 +601,32 @@ def _landmarks(params: AvatarParameters) -> tuple[Landmark, ...]:
         "crotch": (0.0, 0.0, pelvis_z - 65.0),
         "shoulder_left": (-shoulder_half, 0.0, shoulder_z),
         "shoulder_right": (shoulder_half, 0.0, shoulder_z),
-        "knee_left": knees["left"],
-        "knee_right": knees["right"],
-        "ankle_left": (-leg_x, side_y, ankle_z),
-        "ankle_right": (leg_x, side_y, ankle_z),
-        "wrist_left": wrists["left"],
-        "wrist_right": wrists["right"],
     }
+    landmarks.update(_leg_landmarks(params, pelvis_z, knee_z, ankle_z, side_y))
+    landmarks.update(_wrist_landmarks(params, shoulder_half, shoulder_z))
     return tuple(
-        Landmark(name, tuple(map(float, position))) for name, position in sorted(landmarks.items())
+        Landmark(name, (float(position[0]), float(position[1]), float(position[2])))
+        for name, position in sorted(landmarks.items())
     )
 
 
-def generate_mesh(
-    params: AvatarParameters,
-) -> tuple[
-    tuple[tuple[float, float, float], ...],
-    tuple[tuple[int, int, int], ...],
-    tuple[Landmark, ...],
-]:
-    """Return the compact mesh produced by the mannequin's shared FK pipeline."""
-    params.validate()
-    from freecad_cloth.avatar.HierarchicalPose import generate_hierarchical_mesh
+def generate_mesh(params: AvatarParameters) -> AvatarMesh:
+    """Generate the avatar mesh and semantic landmarks using the shared FK pipeline.
 
-    return generate_hierarchical_mesh(params)
+    Args:
+        params: Validated avatar measurements and pose settings.
+
+    Returns:
+        Mesh vertices, triangle indices, and semantic landmarks in millimetres.
+
+    Raises:
+        ValueError: If the avatar parameters violate their validation contract.
+    """
+    params.validate()
+    # Import lazily to avoid the AvatarModel <-> HierarchicalPose module cycle.
+    pipeline = import_module("freecad_cloth.avatar.HierarchicalPose")
+    builder = cast(
+        Callable[[AvatarParameters], AvatarMesh],
+        getattr(pipeline, "generate_hierarchical_mesh"),
+    )
+    return builder(params)
