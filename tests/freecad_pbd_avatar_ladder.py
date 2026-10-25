@@ -341,7 +341,7 @@ def _run_ladder_case(case_id):
             process_events=_ladder.events,
             orient_view=view.viewFront,
             reveal_objects=reveal_avatar,
-            capture_image=_avatar_screenshot,
+            capture_image=_ladder.screenshot,
         )
         images = {}
         checkpoints = []

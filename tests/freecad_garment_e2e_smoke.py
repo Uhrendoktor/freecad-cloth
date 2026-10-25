@@ -73,6 +73,7 @@ def _close_task():
 
 
 def _wait_task_close():
+    active = None
     for _ in range(40):
         _events()
         active = Gui.Control.activeDialog()
@@ -132,6 +133,7 @@ def _require_dialog(required, label, panel=None):
         from PySide2 import QtWidgets
     main_window = Gui.getMainWindow()
     dock = None if main_window is None else main_window.findChild(QtWidgets.QDockWidget, "Tasks")
+    dock_text = visible_text
     if dock is not None:
         dock.show()
         dock.raise_()

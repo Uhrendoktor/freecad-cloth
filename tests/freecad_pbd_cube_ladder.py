@@ -16,6 +16,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 _TEST_DIR = Path(__file__).resolve().parent

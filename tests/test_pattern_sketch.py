@@ -167,16 +167,19 @@ def test_parameterized_outline_provides_native_sketch_seed_metadata():
     assert piece.id == "front"
 
 
-if __name__ == "__main__":
-    test_pattern_sketch_module_is_headless_safe()
-    test_pattern_sketch_requires_freecad_when_called()
-    test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
-    test_native_sketch_adoption_command_is_public()
-    test_edit_sketch_enters_native_editor_for_selected_piece()
-    test_parameterized_outline_seeds_native_sketch_creation()
-    print("pattern sketch tests passed")
 
 
 def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints() -> None:
     assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
     assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))
+
+if __name__ == "__main__":
+    test_pattern_sketch_module_is_headless_safe()
+    test_pattern_sketch_requires_freecad_when_called()
+    test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
+    test_create_pattern_piece_with_sketch_does_not_duplicate_existing_native_sketch()
+    test_native_sketch_adoption_command_is_public()
+    test_edit_sketch_enters_native_editor_for_selected_piece()
+    test_parameterized_outline_provides_native_sketch_seed_metadata()
+    test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints()
+    print("pattern sketch tests passed")
