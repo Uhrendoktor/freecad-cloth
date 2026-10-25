@@ -21,7 +21,7 @@ from freecad_cloth.avatar.AvatarProperties import (
     SHAPE_PROPERTY_MAP,
 )
 from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
-from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS
+from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,

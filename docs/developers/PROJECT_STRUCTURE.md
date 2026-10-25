@@ -4,6 +4,7 @@ Implementation code lives under freecad_cloth/.
 
 freecad_cloth/
 - shared/ — neutral immutable contracts
+  - `CommandIds.py` — declarative cross-workbench command identifiers; strings only, no domain imports
 - common/ — domain-neutral infrastructure
 - pattern/ — pattern + Sketcher
 - sewing/ — sewing graph + sewing UI

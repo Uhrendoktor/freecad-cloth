@@ -31,7 +31,9 @@ def initialize_workbenches(installation_root: Path) -> None:
 
     fitting_handoff.register_fitting_handoff_commands(gui)
 
-    if not set(simulation_workbench.AVATAR_ENTRY_COMMANDS).issubset(avatar_commands.COMMANDS):
+    from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
+
+    if not set(AVATAR_ENTRY_COMMANDS).issubset(avatar_commands.COMMANDS):
         msg = "Cloth Simulation avatar menu references unregistered commands"
         raise RuntimeError(msg)
 

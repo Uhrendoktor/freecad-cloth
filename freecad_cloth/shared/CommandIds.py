@@ -1,9 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Canonical public command IDs for avatar and fitting workbench menus.
+"""Canonical command identifiers shared by workbench registration and command providers.
 
-This metadata module intentionally does not import command implementations. A
-workbench can construct its menu surface without importing domain execution code.
-The implementation modules import these tuples as their public COMMANDS lists.
+These tuples are declarative UI metadata, not command implementations. Keeping them
+in a dependency-neutral module lets workbenches register stable command IDs without
+importing another domain's code. The implementation modules expose these tuples as
+their public COMMANDS lists, while startup validation checks that registration matches.
 """
 
 AVATAR_COMMANDS = (

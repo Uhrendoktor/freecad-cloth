@@ -164,7 +164,8 @@ def test_public_command_surfaces_preserve_authoring_boundaries():
 def test_simulation_workbench_exposes_avatar_entrypoints():
     from types import SimpleNamespace
 
-    from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench
+    from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
+    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
     drape_commands = SimpleNamespace(
         register_gui_commands=lambda: True, COMMANDS=["ClothSimulation_DrapeFake"]

@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Protocol, cast
 
-from freecad_cloth.avatar.CommandIds import FITTING_COMMANDS
+from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
 
 def _drape_target_source(doc):
