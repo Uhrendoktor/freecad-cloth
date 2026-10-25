@@ -23,9 +23,7 @@ def test_native_pattern_sketch_is_relinked_into_garment_patterns() -> None:
 
 def test_fitting_pattern_links_are_explicitly_global_and_visual_sync_is_not_recursive() -> None:
     """Keep cross-scope pattern links explicit and visual synchronization non-recursive."""
-    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
     require(
         condition='App::PropertyLinkListGlobal", "PatternPieces"' in source,
         message="FittingScene pattern references must be document-global links.",

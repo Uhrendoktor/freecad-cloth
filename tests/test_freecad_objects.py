@@ -187,7 +187,6 @@ def test_drape_target_is_the_only_persistent_collision_authority() -> None:
             App.closeDocument(document.Name)
 
 
-
 def test_native_seam_reference_save_reload_curve_edit_and_missing():
     if App is None or Part is None:
         return
