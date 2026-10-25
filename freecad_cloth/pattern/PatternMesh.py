@@ -39,6 +39,8 @@ class TriangleMesh:
             msg = "mesh needs at least one triangle"
             raise ValueError(msg)
 
+        vertices: np.ndarray | None = None
+        valid_vertices = False
         try:
             vertices = np.asarray(self.vertices, dtype=np.float64)
             valid_vertices = vertices.shape == (len(self.vertices), 2) and bool(
@@ -46,7 +48,7 @@ class TriangleMesh:
             )
         except (TypeError, ValueError, OverflowError):
             valid_vertices = False
-        if not valid_vertices:
+        if vertices is None or not valid_vertices:
             msg = "mesh coordinates must be finite 2D points"
             raise ValueError(msg)
         vertex_count = len(vertices)
