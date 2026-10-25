@@ -108,7 +108,7 @@ def _test_rationale(source_path: str, test_name: str) -> str:
     return f"{domain} This case isolates `{test_name}` for precise regression triage."
 
 
-def _case_entries() -> list[str]:
+def case_entries() -> list[str]:
     """Build one documented inventory entry for every test declaration.
 
     Returns:
@@ -130,7 +130,7 @@ def _case_entries() -> list[str]:
             )
     return entries
 
-def _updated_inventory(current: str, entries: list[str]) -> str:
+def updated_inventory(current: str, entries: list[str]) -> str:
     """Replace the generated test-case section while preserving module entries.
 
     Args:
@@ -177,7 +177,7 @@ def main() -> None:
         ValueError: If inventory generation finds no cases or invalid section order.
     """
     current = INVENTORY_PATH.read_text(encoding="utf-8")
-    updated = _updated_inventory(current, _case_entries())
+    updated = updated_inventory(current, case_entries())
     if current != updated:
         INVENTORY_PATH.write_text(updated, encoding="utf-8")
 

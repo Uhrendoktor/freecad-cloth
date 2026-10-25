@@ -156,6 +156,8 @@ This inventory has one entry per test module or standalone FreeCAD acceptance sc
 - `tests/freecad_visual_examples.py` — **Goal:** Exercise the live FreeCAD visual examples scenario. **Why useful:** Covers native document, GUI, geometry, or solver behavior that a headless test cannot fully reproduce.
 - `tests/freecad_workbench_benchmark.py` — **Goal:** Exercise the live FreeCAD workbench benchmark scenario. **Why useful:** Covers native document, GUI, geometry, or solver behavior that a headless test cannot fully reproduce.
 
+- `tests/test_test_inventory_generator.py` — **Goal:** Verify the case-level test inventory regenerates deterministically from AST declarations while preserving the module-level inventory. **Why useful:** Prevents test additions or renames from silently becoming undocumented and keeps case-level pruning evidence current.
+
 ## Shared test support (not independently executed tests)
 
 - `tests/support/__init__.py` — **Goal:** Provide the init fixture/helper used by multiple tests. **Why useful:** Avoids duplicated setup and keeps host input/geometry behavior consistent across acceptance cases.
@@ -165,9 +167,9 @@ This inventory has one entry per test module or standalone FreeCAD acceptance sc
 - `tests/support/pbd_contact_helpers.py` — **Goal:** Reusable setup and inspection helpers for native PBD contact tests. **Why useful:** Prevents contact scenarios from copying solver fixtures and keeps diagnostics comparable.
 
 ## Individual test cases
-
 This section is generated from test declarations and the first descriptive line of each test docstring. Do not edit case entries manually; run `python tools/generate_test_inventory.py` to regenerate them. When a test has no docstring, its goal is derived from the function name. Each entry is separately searchable so redundant or obsolete cases can be identified during review.
 
+- `tests/test_test_inventory_generator.py::test_case_inventory_matches_ast_generated_entries` — **Goal:** Keep one documented entry for each test declaration and preserve module entries. **Why useful:** Keeps repository policy and CI feedback trustworthy so invalid or incomplete results cannot pass review unnoticed. This case isolates `test_case_inventory_matches_ast_generated_entries` for precise regression triage.
 - `tests/test_agent_context_contract.py::test_agent_context_contract_stays_compact_and_current_first` — **Goal:** Exercise agent context contract stays compact and current first. **Why useful:** Keeps repository policy and CI feedback trustworthy so invalid or incomplete results cannot pass review unnoticed. This case isolates `test_agent_context_contract_stays_compact_and_current_first` for precise regression triage.
 - `tests/test_agent_context_contract.py::test_issue_agent_metadata_is_not_project_state` — **Goal:** Exercise issue agent metadata is not project state. **Why useful:** Keeps repository policy and CI feedback trustworthy so invalid or incomplete results cannot pass review unnoticed. This case isolates `test_issue_agent_metadata_is_not_project_state` for precise regression triage.
 - `tests/test_agent_context_contract.py::test_repository_has_one_canonical_roadmap_and_no_duplicate_packaging_proposal` — **Goal:** Exercise repository has one canonical roadmap and no duplicate packaging proposal. **Why useful:** Keeps repository policy and CI feedback trustworthy so invalid or incomplete results cannot pass review unnoticed. This case isolates `test_repository_has_one_canonical_roadmap_and_no_duplicate_packaging_proposal` for precise regression triage.
