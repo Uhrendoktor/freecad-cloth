@@ -96,6 +96,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "freecad_cloth/bootstrap.py" = ["PLC0415"]
 "freecad_cloth/avatar/HumanoidMesh.py" = ["PLC0415"]
+# The package intentionally retains its established PascalCase domain-module filenames.
+"freecad_cloth/**/*.py" = ["N999"]
 "freecad_cloth/avatar/AvatarCommands.py" = ["PLC0415"]
 "freecad_cloth/avatar/AvatarGui.py" = ["PLC0415"]
 "freecad_cloth/avatar/AvatarPoseGui.py" = ["PLC0415"]

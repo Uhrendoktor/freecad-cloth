@@ -8,11 +8,14 @@ reference target before a garment simulation is evaluated.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import math
+from collections.abc import Sequence
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
+from freecad_cloth.common.ValidationModels import validate_finite_number
 
 
 class AvatarVisualSanityError(ValueError):
@@ -31,7 +34,11 @@ class AvatarVisualSanity:
 
     @property
     def state(self) -> str:
-        """Return the current state summary."""
+        """Return the current state summary.
+
+        Returns:
+            The state label used by visual acceptance checks.
+        """
         return "Valid"
 
 
@@ -74,20 +81,11 @@ def inspect_avatar_mesh(
     if not bool(np.isfinite(coordinates).all()):
         msg = "avatar vertices must contain only finite coordinates"
         raise AvatarVisualSanityError(msg)
-    try:
-        faces = np.asarray(triangles, dtype=np.intp)
-    except (OverflowError, TypeError, ValueError) as exc:
-        msg = "avatar mesh contains an invalid triangle index"
-        raise AvatarVisualSanityError(msg) from exc
     vertex_count = len(coordinates)
-    if (
-        faces.ndim != 2
-        or faces.shape[1] != 3
-        or bool(np.any(faces < 0))
-        or bool(np.any(faces >= vertex_count))
-    ):
-        msg = "avatar mesh contains an invalid triangle index"
+    if not triangle_indices_are_valid(triangles, vertex_count):
+        msg = "avatar mesh contains an invalid triangle index or connectivity"
         raise AvatarVisualSanityError(msg)
+    faces = np.asarray(triangles, dtype=np.intp)
 
     minimums = np.min(coordinates, axis=0)
     maximums = np.max(coordinates, axis=0)
@@ -96,21 +94,30 @@ def inspect_avatar_mesh(
         msg = "avatar mesh bounds must be finite"
         raise AvatarVisualSanityError(msg)
     height = float(spans[2])
-    width, depth = max(float(spans[0]), float(spans[1])), min(float(spans[0]), float(spans[1]))
+    width = max(float(spans[0]), float(spans[1]))
+    depth = min(float(spans[0]), float(spans[1]))
     if not math.isfinite(height) or height <= 0.0:
         msg = "avatar Z bounds do not contain a positive height"
         raise AvatarVisualSanityError(msg)
     if expected_height is not None:
-        expected_height = float(expected_height)
-        if not math.isfinite(expected_height) or expected_height <= 0.0:
-            msg = "expected avatar height must be positive"
+        try:
+            expected_height = validate_finite_number(expected_height)
+        except (TypeError, ValueError) as exc:
+            msg = "expected avatar height must be positive and finite"
+            raise AvatarVisualSanityError(msg) from exc
+        if expected_height <= 0.0:
+            msg = "expected avatar height must be positive and finite"
             raise AvatarVisualSanityError(msg)
         if not math.isclose(height, expected_height, rel_tol=0.02, abs_tol=1.0):
             msg = f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
             raise AvatarVisualSanityError(msg)
 
-    lateral_limit = float(max_lateral_height_ratio)
-    if not math.isfinite(lateral_limit) or lateral_limit <= 0.0:
+    try:
+        lateral_limit = validate_finite_number(max_lateral_height_ratio)
+    except (TypeError, ValueError) as exc:
+        msg = "maximum lateral-height ratio must be finite and positive"
+        raise AvatarVisualSanityError(msg) from exc
+    if lateral_limit <= 0.0:
         msg = "maximum lateral-height ratio must be finite and positive"
         raise AvatarVisualSanityError(msg)
     ratio = width / height
