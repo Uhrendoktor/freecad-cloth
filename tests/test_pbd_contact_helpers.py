@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_collision_resolution,
     _pbd_collision_voxel_mm,

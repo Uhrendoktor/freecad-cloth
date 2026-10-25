@@ -37,7 +37,9 @@ def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) 
     return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
 
-def _fallback_bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
+def _fallback_bounds(
+    vertices: Sequence[Point3],
+) -> tuple[float, float, float, float, float, float]:
     """Compute axis-aligned bounds with NumPy when Trimesh is unavailable.
 
     Args:
