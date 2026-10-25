@@ -276,7 +276,9 @@ def _run_ladder_case(case_id):
                 ),
                 rotation,
             )
-            piece = _ladder.build_piece(doc, name, placement, width=panel_width, height=panel_height)
+            piece = _ladder.build_piece(
+                doc, name, placement, width=panel_width, height=panel_height
+            )
             return piece
 
         left = make_piece("AvatarLeft", -120.0)
