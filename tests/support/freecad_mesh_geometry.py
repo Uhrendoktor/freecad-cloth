@@ -41,9 +41,7 @@ def opposite_top_edge_vertices(
     boundary_indices = np.unique(boundary_indices)
     boundary_y = coordinates[boundary_indices, 1]
     top_y = float(np.max(boundary_y))
-    top_indices = boundary_indices[
-        np.abs(boundary_y - top_y) <= _TOP_EDGE_TOLERANCE_MM
-    ]
+    top_indices = boundary_indices[np.abs(boundary_y - top_y) <= _TOP_EDGE_TOLERANCE_MM]
     if top_indices.size < _MIN_PIN_COUNT:
         msg = "blanket top edge has fewer than two boundary vertices"
         raise RuntimeError(msg)
