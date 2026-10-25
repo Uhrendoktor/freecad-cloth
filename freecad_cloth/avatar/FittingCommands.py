@@ -1053,8 +1053,6 @@ def reset_arrangement():
     doc.recompute()
     return scene
 
-
-
 def create_simulation_from_fitting() -> object:
     """Create the canonical quality simulation from the current fitting scene.
 

@@ -327,7 +327,6 @@ def _validate_metadata(data: object) -> dict[str, object]:
     return data
 
 
-
 def to_svg(
     pattern: ParametricPattern,
     curve_samples: int = 32,

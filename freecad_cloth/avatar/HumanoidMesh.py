@@ -837,6 +837,7 @@ def _estimate_rest_arm_angles(
         )
     return result
 
+
 def _is_arm_bone(name: str, side: str) -> bool:
     if not name.endswith(side):
         return False
