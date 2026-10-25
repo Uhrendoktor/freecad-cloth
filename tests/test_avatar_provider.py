@@ -35,7 +35,8 @@ class _Shape:
 
 
 class AvatarProviderTests(unittest.TestCase):
-    def test_persisted_provider_ids_are_generated_from_registered_provider_metadata(self):
+    def test_persisted_provider_ids_are_generated_from_registered_provider_metadata(self) -> None:
+        """Keep the FreeCAD selector synchronized with the built-in provider registry."""
         expected = tuple(provider.info.provider_id for provider in BUILTIN_AVATAR_PROVIDER_CLASSES)
         self.assertEqual(PROVIDER_IDS, expected)
         self.assertEqual(len(PROVIDER_IDS), len(set(PROVIDER_IDS)))

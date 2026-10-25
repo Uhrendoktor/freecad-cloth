@@ -113,11 +113,11 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         return ()
 
 
+# Single source of truth for built-in providers exposed by the persistent selector.
 BUILTIN_AVATAR_PROVIDER_CLASSES = (
     ParametricAvatarProvider,
     FreeCADGeometryAvatarProvider,
 )
-"""Built-in providers accepted by the persistent avatar provider selector."""
 
 PROVIDER_IDS = tuple(provider.info.provider_id for provider in BUILTIN_AVATAR_PROVIDER_CLASSES)
 PARAMETRIC_PROVIDER_ID = ParametricAvatarProvider.info.provider_id
