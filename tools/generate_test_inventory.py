@@ -116,8 +116,7 @@ def _test_rationale(source_path: str, test_name: str) -> str:
             "cannot pass review unnoticed."
         )
     elif any(
-        token in path
-        for token in ("validation", "property", "model", "backend_authority", "core")
+        token in path for token in ("validation", "property", "model", "backend_authority", "core")
     ):
         domain = (
             "Rejects malformed or stale values at the owning boundary before downstream geometry "
@@ -148,8 +147,7 @@ def case_entries() -> list[str]:
             goal = _test_goal(function)
             useful = _test_rationale(source_path, function.name)
             entries.append(
-                f"- `{source_path}::{function.name}` — **Goal:** {goal} "
-                f"**Why useful:** {useful}"
+                f"- `{source_path}::{function.name}` — **Goal:** {goal} **Why useful:** {useful}"
             )
     return entries
 
@@ -174,7 +172,7 @@ def updated_inventory(current: str, entries: list[str]) -> str:
     marker = f"\n{SECTION_HEADING}\n"
     section_index = current.find(marker)
     if section_index >= 0:
-        remainder = current[section_index + len(marker):]
+        remainder = current[section_index + len(marker) :]
         if re.search(r"^## ", remainder, flags=re.MULTILINE):
             msg = "the individual test-case section must remain the final inventory section"
             raise ValueError(msg)
