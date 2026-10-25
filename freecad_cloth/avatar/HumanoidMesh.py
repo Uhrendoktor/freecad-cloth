@@ -51,6 +51,14 @@ MAKEHUMAN_SKELETON_URL = (
 )
 MAKEHUMAN_SKELETON_SIZE = 117790
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
+_SHOULDER_START_HEIGHT_RATIO = 0.68
+_SHOULDER_END_HEIGHT_RATIO = 0.82
+_ARM_START_HEIGHT_RATIO = 0.50
+_ARM_END_HEIGHT_RATIO = 0.78
+_ARM_PIVOT_SEPARATION_FACTOR = 1.05
+_ARM_MIN_INFLUENCE = 0.05
+_ARM_MIN_LEVER_ARM_MM = 0.1
+_ARM_MIN_RADIAL_DISTANCE_MM = 1e-6
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 MAKEHUMAN_DATA_ENV = "FREECAD_CLOTH_MAKEHUMAN_DATA"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
@@ -746,8 +754,8 @@ def _estimate_shoulder_pivots(
         side_coordinates = side * x_coordinates
         selection = (
             (side_coordinates >= shoulder_half * 0.55)
-            & (height_ratios >= 0.68)
-            & (height_ratios <= 0.82)
+            & (height_ratios >= _SHOULDER_START_HEIGHT_RATIO)
+            & (height_ratios <= _SHOULDER_END_HEIGHT_RATIO)
         )
         lateral = np.sort(side_coordinates[selection])
         if not lateral.size:
@@ -758,6 +766,48 @@ def _estimate_shoulder_pivots(
         medial = max(shoulder_half * 0.70, min(shoulder_half * 0.99, medial))
         pivots[side] = side * medial
     return pivots
+
+
+def _estimate_side_rest_arm_angle(
+    coordinates: np.ndarray,
+    side: float,
+    rig: tuple[float, float, float],
+    influences: np.ndarray,
+) -> float:
+    """Estimate one side's downward arm angle from its weighted mesh envelope.
+
+    Args:
+        coordinates: Fitted three-dimensional mesh coordinates.
+        side: Sign identifying the left (-1) or right (+1) arm.
+        rig: Shoulder X coordinate, shoulder Z coordinate, and total height.
+        influences: Per-vertex arm-chain weights.
+
+    Returns:
+        The estimated downward arm angle in degrees, or zero when no vertices
+        qualify as part of the arm envelope.
+    """
+    pivot_x, shoulder_z, height_mm = rig
+    selected = (
+        (side * coordinates[:, 0] > side * pivot_x * _ARM_PIVOT_SEPARATION_FACTOR)
+        & (coordinates[:, 2] / max(1.0, height_mm) >= _ARM_START_HEIGHT_RATIO)
+        & (coordinates[:, 2] / max(1.0, height_mm) <= _ARM_END_HEIGHT_RATIO)
+        & (influences > _ARM_MIN_INFLUENCE)
+    )
+    if not bool(np.any(selected)):
+        return 0.0
+    samples = coordinates[selected][:, (0, 2)]
+    lever_arms = np.maximum(
+        _ARM_MIN_LEVER_ARM_MM,
+        side * (samples[:, 0] - pivot_x),
+    )
+    weight_factors = influences[selected] * lever_arms
+    center = np.average(samples, axis=0, weights=weight_factors)
+    radial_x = max(
+        _ARM_MIN_RADIAL_DISTANCE_MM,
+        side * (float(center[0]) - pivot_x),
+    )
+    downward = max(0.0, shoulder_z - float(center[1]))
+    return math.degrees(math.atan2(downward, radial_x))
 
 
 def _estimate_rest_arm_angles(
@@ -784,40 +834,24 @@ def _estimate_rest_arm_angles(
         HumanoidMeshError: If supplied arm weights do not match the vertex count.
     """
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
-    x_coordinates = coordinates[:, 0]
-    z_coordinates = coordinates[:, 2]
-    height_ratios = z_coordinates / max(1.0, height_mm)
     result = {}
     for side_index, side in enumerate((-1.0, 1.0)):
         pivot_x = shoulder_pivots.get(side, side * 0.0)
-        if arm_weights is None:
-            influences = np.ones(len(coordinates), dtype=np.float64)
-        else:
-            influences = np.asarray(arm_weights[side_index], dtype=np.float64)
-            if influences.shape != (len(coordinates),):
-                msg = "MakeHuman arm weights must match the fitted vertex count"
-                raise HumanoidMeshError(msg)
-        selected = (
-            (side * x_coordinates > side * pivot_x * 1.05)
-            & (height_ratios >= 0.50)
-            & (height_ratios <= 0.78)
-            & (influences > 0.05)
+        influences = (
+            np.ones(len(coordinates), dtype=np.float64)
+            if arm_weights is None
+            else np.asarray(arm_weights[side_index], dtype=np.float64)
         )
-        if not bool(np.any(selected)):
-            result[side] = 0.0
-            continue
-        sample_x = x_coordinates[selected]
-        sample_z = z_coordinates[selected]
-        lever_arms = np.maximum(0.1, side * (sample_x - pivot_x))
-        weight_factors = influences[selected] * lever_arms
-        total = float(np.sum(weight_factors, dtype=np.float64))
-        center_x = float(np.dot(sample_x, weight_factors) / total)
-        center_z = float(np.dot(sample_z, weight_factors) / total)
-        radial_x = max(1e-6, side * (center_x - pivot_x))
-        downward = max(0.0, shoulder_z - center_z)
-        result[side] = math.degrees(math.atan2(downward, radial_x))
+        if influences.shape != (len(coordinates),):
+            msg = "MakeHuman arm weights must match the fitted vertex count"
+            raise HumanoidMeshError(msg)
+        result[side] = _estimate_side_rest_arm_angle(
+            coordinates,
+            side,
+            (pivot_x, shoulder_z, height_mm),
+            influences,
+        )
     return result
-
 
 def _is_arm_bone(name: str, side: str) -> bool:
     if not name.endswith(side):

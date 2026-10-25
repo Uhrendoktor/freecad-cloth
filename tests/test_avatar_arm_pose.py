@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.assertions import require
+
 from freecad_cloth.avatar.HumanoidMesh import (
     _arm_pose_weight,
     _estimate_rest_arm_angles,
@@ -17,16 +19,32 @@ from freecad_cloth.avatar.HumanoidMesh import (
 def test_geometric_fallback_covers_lower_arm_envelope_without_source_weights() -> None:
     """Keep both arm envelopes controllable when source weights are absent."""
     height = 1750.0
-    assert _arm_pose_weight(260.0, height * 0.50, 170.0, height) == 1.0
-    assert _arm_pose_weight(-260.0, height * 0.50, -170.0, height) == 1.0
+    require(
+        condition=_arm_pose_weight(260.0, height * 0.50, 170.0, height) == pytest.approx(1.0)
+        and _arm_pose_weight(-260.0, height * 0.50, -170.0, height) == pytest.approx(1.0),
+        message="the geometric fallback must cover both arm envelopes.",
+    )
 
 
 def test_source_weight_is_authoritative_for_arm_influence() -> None:
     """Honor authored arm weights rather than inferring extra influence."""
     height = 1750.0
-    assert _arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0) == 0.0
-    assert _arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0) == 1.0
-    assert _arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35) == pytest.approx(0.35)
+    require(
+        condition=(
+            _arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0)
+            == pytest.approx(0.0)
+        ),
+        message="zero source weight must suppress geometric fallback.",
+    )
+    require(
+        condition=(
+            _arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0)
+            == pytest.approx(1.0)
+        )
+        and _arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35)
+        == pytest.approx(0.35),
+        message="source weights must retain their authoritative influence.",
+    )
 
 
 def test_rest_angle_estimator_vectorizes_geometry_and_respects_weights() -> None:
@@ -40,12 +58,18 @@ def test_rest_angle_estimator_vectorizes_geometry_and_respects_weights() -> None
     )
     pivots = {-1.0: -100.0, 1.0: 100.0}
     angles = _estimate_rest_arm_angles(vertices, pivots, 760.0, 1000.0)
-    assert angles[-1.0] > 0.0
-    assert angles[-1.0] == pytest.approx(angles[1.0])
+    require(condition=angles[-1.0] > 0.0, message="the left arm should angle downwards.")
+    require(
+        condition=angles[-1.0] == pytest.approx(angles[1.0]),
+        message="mirrored arm geometry should produce matching rest angles.",
+    )
 
     zero_weights = ((0.0,) * len(vertices), (0.0,) * len(vertices))
     weighted_angles = _estimate_rest_arm_angles(vertices, pivots, 760.0, 1000.0, zero_weights)
-    assert weighted_angles == {-1.0: 0.0, 1.0: 0.0}
+    require(
+        condition=weighted_angles == {-1.0: 0.0, 1.0: 0.0},
+        message="zero arm weights must exclude all vertices from both arm envelopes.",
+    )
 
 
 def test_makehuman_arm_weights_sum_only_arm_chain_bones() -> None:
@@ -66,7 +90,11 @@ def test_makehuman_arm_weights_sum_only_arm_chain_bones() -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")
         left, right = load_makehuman_arm_weights(4, str(path))
 
-    assert left[1] == pytest.approx(1.0)
-    assert right[2] == pytest.approx(0.60)
-    assert left[0] == 0.0
-    assert right[1] == 0.0
+    require(
+        condition=left[1] == pytest.approx(1.0) and right[2] == pytest.approx(0.60),
+        message="only left and right arm-chain weights should be accumulated.",
+    )
+    require(
+        condition=left[0] == pytest.approx(0.0) and right[1] == pytest.approx(0.0),
+        message="vertices outside authored arm chains must not gain influence.",
+    )
