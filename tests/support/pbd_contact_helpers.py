@@ -7,16 +7,20 @@ create documents, start timers, or open output files during import.
 
 from __future__ import annotations
 
+import json
 import math
+import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Protocol, TYPE_CHECKING
+from typing import NamedTuple, Protocol, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from types import ModuleType
 
 LADDER_STITCH_SAMPLES = 8
+LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -664,6 +668,303 @@ class LadderCaseMeasurements(NamedTuple):
     signed_before: float | None
     unsigned_before: float | None
     bounds: dict[str, float]
+
+def capture_ladder_checkpoints(
+    *,
+    capture: LadderCheckpointCapture,
+    output_directory: Path,
+    target_name: str,
+    case_id: str,
+    runtime: PBDRuntimeSnapshot,
+    record_checkpoint: Callable[
+        [int, str, tuple[tuple[float, ...], ...]], dict[str, object]
+    ],
+    progress: Callable[[str], None],
+) -> tuple[dict[int, str], list[dict[str, object]]]:
+    """Capture the shared checkpoint schedule and collect target-specific measurements.
+
+    Args:
+        capture: Configured view/document capture service.
+        output_directory: Root for this run's diagnostic artifacts.
+        target_name: Stable target name used in the artifact subdirectory.
+        case_id: Case identifier included in image paths and progress messages.
+        runtime: Validated PBD state supplying current particle positions.
+        record_checkpoint: Target-specific callback adding signed clearance and diagnostics.
+        progress: Progress logger for the owning ladder.
+
+    Returns:
+        Image paths keyed by solver step and the corresponding checkpoint records.
+    """
+    images: dict[int, str] = {}
+    checkpoints: list[dict[str, object]] = []
+    for step in LADDER_CHECKPOINTS:
+        image = output_directory / f"{target_name}-ladder" / case_id / f"step-{step:03d}.png"
+        capture.capture(step, image)
+        positions = positions_tuple(runtime.base.backend)
+        relative_image = str(image.relative_to(output_directory))
+        checkpoints.append(record_checkpoint(step, relative_image, positions))
+        images[step] = relative_image
+        progress(f"{case_id}: checkpoint={step}")
+    return images, checkpoints
+
+
+def build_ladder_case_record(
+    *,
+    target: str,
+    case_id: str,
+    spec: Mapping[str, object],
+    scene: object,
+    runtime: PBDRuntimeSnapshot,
+    measurements: LadderCaseMeasurements,
+    images: Mapping[int, str],
+    checkpoints: Sequence[Mapping[str, object]],
+    started: float,
+    target_bounds: Mapping[str, float],
+    contact_mode: str,
+    extra_control: Mapping[str, object],
+    notes: str,
+) -> dict[str, object]:
+    """Assemble the canonical evidence record shared by cube and avatar ladders.
+
+    Args:
+        target: Stable target class used in manifest records.
+        case_id: Unique ladder case identifier.
+        spec: Case configuration, including rung, piece count, pin mode, and seam mode.
+        scene: Production simulation scene whose actual settings are recorded.
+        runtime: Validated target, solver topology, and simulation state.
+        measurements: Pre-step measurements collected from authoritative scene geometry.
+        images: Checkpoint image paths keyed by solver step.
+        checkpoints: Per-step mesh, seam, and clearance evidence.
+        started: Monotonic time at which the case began.
+        target_bounds: Six axis-aligned bounds measured for the target.
+        contact_mode: Diagnostic contact label written to the manifest.
+        extra_control: Target-specific control fields beyond shared seam and bounds data.
+        notes: Human-readable explanation of the diagnostic case.
+
+    Returns:
+        A schema-compatible case record preserving solver settings and measured evidence.
+    """
+    final = checkpoints[-1]
+    maximum_penetration = max(
+        (
+            float(checkpoint["penetration_mm"])
+            for checkpoint in checkpoints
+            if checkpoint["penetration_mm"] is not None
+        ),
+        default=0.0,
+    )
+    seam_pairs_by_id = getattr(runtime.base, "seam_stitch_pairs")
+    seam_pairs = [
+        [int(left), int(right)]
+        for pairs in seam_pairs_by_id.values()
+        for left, right in pairs
+    ]
+    seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
+    case_record: dict[str, object] = {
+        "rung": int(cast(int, spec["rung"])),
+        "id": case_id,
+        "target": target,
+        "piece_count": int(cast(int, spec["piece_count"])),
+        "pin_mode": str(cast(str, spec["pin_mode"])),
+        "seam_mode": str(cast(str, spec["seam_mode"])),
+    }
+    signature = runtime.target_signature
+    record: dict[str, object] = {
+        "case_id": case_id,
+        "predecessor_case_id": None,
+        "case": case_record,
+        "solver": {
+            "backend": "pbd",
+            "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
+            "iterations": int(getattr(scene, "SolverIterations", 0)),
+            "substeps": int(getattr(scene, "SolverSubsteps", 0)),
+            "timestep_s": float(getattr(scene, "TimeStep", 0.0)),
+            "gravity_z_mm_s2": float(getattr(scene, "GravityZ", 0.0)),
+        },
+        "collision": {
+            "source_signature": signature,
+            "source_triangles": int(cast(int, signature["source_triangles"])),
+            "solver_triangles": int(runtime.solver_triangles),
+            "target_bounds": dict(target_bounds),
+            "target_topology_summary": {
+                "vertices": int(cast(int, signature["source_vertices"])),
+                "triangles": int(cast(int, signature["source_triangles"])),
+                "solver_triangles": int(runtime.solver_triangles),
+            },
+        },
+        "pre_step": {
+            "piece_bounds": [list(measurements.bounds.values())],
+            "unsigned_clearance_mm": measurements.unsigned_before,
+            "signed_clearance_mm": measurements.signed_before,
+            "seam_pairs": seam_pairs,
+            "seam_world_spans_mm": measurements.seam_pre,
+        },
+        "checkpoints": list(checkpoints),
+        "finite": all(bool(checkpoint["finite"]) for checkpoint in checkpoints),
+        "connected_components": int(cast(int, final["components"])),
+        "max_seam_gap_mm": float(cast(float, final["max_seam_gap_mm"])),
+        "final_clearance_mm": final["target_clearance_mm"],
+        "max_penetration_mm": round(maximum_penetration, 6),
+        "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
+        "first_contact_step": next(
+            (
+                int(cast(int, checkpoint["step"]))
+                for checkpoint in checkpoints
+                if checkpoint["target_clearance_mm"] is not None
+                and float(checkpoint["target_clearance_mm"]) < 0.0
+            ),
+            None,
+        ),
+        "contact_mode": contact_mode,
+        "control": {
+            "pre_step_seam_count": len(seam_pairs_by_id),
+            "pre_step_seam_pair_count": seam_pair_count,
+            "pre_step_bounds_mm": measurements.bounds,
+            **extra_control,
+        },
+        "images": [images[step] for step in LADDER_CHECKPOINTS],
+        "notes": notes,
+    }
+    return record
+
+
+def structural_ladder_checks(
+    records: Sequence[Mapping[str, object]],
+    ordered_cases: Sequence[tuple[str, int]],
+    single_piece_rungs: Sequence[int],
+    no_seam_two_piece_rungs: Sequence[int],
+) -> dict[str, object]:
+    """Validate required rung configurations and stop interpretation at the first failure.
+
+    Args:
+        records: Manifest case records already produced by the simulation.
+        ordered_cases: Expected case identifiers paired with their numeric rung.
+        single_piece_rungs: Rungs that must contain exactly one unseamed piece.
+        no_seam_two_piece_rungs: Rungs that require two pieces without seams.
+
+    Returns:
+        Validation results and the first failing rung, if any.
+    """
+    by_id = {
+        str(cast(Mapping[str, object], record["case"])["id"]): record
+        for record in records
+    }
+    checks: list[dict[str, object]] = []
+    for case_id, rung in ordered_cases:
+        record = by_id[case_id]
+        case_data = cast(Mapping[str, object], record["case"])
+        solver = cast(Mapping[str, object], record["solver"])
+        collision = cast(Mapping[str, object], record["collision"])
+        pre_step = cast(Mapping[str, object], record["pre_step"])
+        checkpoints = cast(Sequence[Mapping[str, object]], record["checkpoints"])
+        ok = (
+            bool(record["finite"])
+            and int(cast(int, case_data["rung"])) == rung
+            and solver["backend"] == "pbd"
+            and int(cast(int, solver["iterations"])) == 1
+            and int(cast(int, solver["substeps"])) == 1
+            and abs(float(cast(float, solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
+            and float(cast(float, solver["gravity_z_mm_s2"])) == 0.0
+            and int(cast(int, collision["solver_triangles"])) > 0
+            and len(checkpoints) == len(LADDER_CHECKPOINTS)
+            and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
+        )
+        piece_count = int(cast(int, case_data["piece_count"]))
+        seams = cast(Sequence[object], pre_step["seam_pairs"])
+        seam_spans = cast(Sequence[object], pre_step["seam_world_spans_mm"])
+        if rung in single_piece_rungs:
+            ok = ok and piece_count == 1 and not seams
+        elif rung in no_seam_two_piece_rungs:
+            ok = ok and piece_count == 2 and not seams
+        else:
+            ok = ok and piece_count == 2 and len(seam_spans) == 1
+        checks.append({"rung": rung, "case_id": case_id, "passed": bool(ok)})
+        if not ok:
+            break
+    first_failure = next(
+        (int(cast(int, item["rung"])) for item in checks if not bool(item["passed"])),
+        None,
+    )
+    return {
+        "checks": checks,
+        "first_failing_rung": first_failure,
+        "stop_interpretation_at_first_failure": True,
+    }
+
+
+def write_ladder_manifest(
+    *,
+    target: str,
+    purpose: str,
+    manifest_name: str,
+    strongest_alternative: str,
+    case_ids: Sequence[str],
+    ordered_cases: Sequence[tuple[str, int]],
+    single_piece_rungs: Sequence[int],
+    no_seam_two_piece_rungs: Sequence[int],
+    run_case: Callable[[str], dict[str, object]],
+    output_directory: Path,
+    boot: Callable[[str], None],
+    progress: Callable[[str], None],
+) -> int:
+    """Run the requested cases and persist the common schema-1 diagnostic manifest.
+
+    Args:
+        target: Target label used in the progress stream.
+        purpose: Schema purpose identifying the kind of ladder.
+        manifest_name: Destination filename within the diagnostic directory.
+        strongest_alternative: Competing causal explanation recorded for reviewers.
+        case_ids: Ordered rung case IDs to execute.
+        ordered_cases: Expected case identifiers paired with numeric rung values.
+        single_piece_rungs: Rungs requiring exactly one unseamed panel.
+        no_seam_two_piece_rungs: Rungs requiring two panels without a seam.
+        run_case: Callable that runs one case and returns its evidence record.
+        output_directory: Directory for diagnostic manifest and checkpoint evidence.
+        boot: Append-only bootstrap trace callback.
+        progress: Human-readable progress logger.
+
+    Returns:
+        Zero after the complete manifest has been written.
+    """
+    boot("main-entered")
+    progress(f"{target}-ladder: start")
+    records = [run_case(case_id) for case_id in case_ids]
+    manifest = {
+        "schema": 1,
+        "purpose": purpose,
+        "release_gate_effect": "gate",
+        "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
+        "solver_settings_frozen": {
+            "backend_requested": "pbd",
+            "particle_distance_mm": 24.0,
+            "iterations": 1,
+            "substeps": 1,
+            "timestep_s": 1.0 / 120.0,
+            "gravity_z_mm_s2": 0.0,
+            "gravity_mm_s2": [0.0, 0.0, 0.0],
+        },
+        "checkpoint_steps": list(LADDER_CHECKPOINTS),
+        "stop_rule": {
+            "first_failing_rung": True,
+            "human_visual_review_required": True,
+            "strongest_alternative": strongest_alternative,
+        },
+        "cases": records,
+        "structural_validation": structural_ladder_checks(
+            records,
+            ordered_cases,
+            single_piece_rungs,
+            no_seam_two_piece_rungs,
+        ),
+    }
+    path = output_directory / manifest_name
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    boot("all-cases-complete")
+    progress(f"{target}-ladder: manifest-written")
+    print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
+    return 0
+
+
 
 
 def append_optional_ladder_piece(

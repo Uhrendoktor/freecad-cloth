@@ -12,11 +12,10 @@ from __future__ import annotations
 
 import contextlib
 import faulthandler
-import json
-import os
 import sys
 import time
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 
 _TEST_DIR = Path(__file__).resolve().parent
@@ -37,8 +36,6 @@ import pbd_contact_helpers as _ladder
 _progress = _ladder.make_progress_logger(OUT / "progress.log")
 _shutdown_gui = _ladder.make_shutdown_gui(_progress)
 _boot("after-support-helper-import")
-
-CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def _surface_signed_clearance(
@@ -227,116 +224,50 @@ def _run_ladder_case(case_id):
             reveal_objects=lambda: None,
             capture_image=_ladder.screenshot,
         )
-        images = {}
-        checkpoints = []
-        for step in CHECKPOINTS:
-            image = OUT / "cube-ladder" / case_id / ("step-%03d.png" % int(step))
-            capture.capture(step, image)
-            positions = _ladder.positions_tuple(runtime.base.backend)
-            checkpoints.append(
-                _checkpoint_record(
-                    step,
-                    str(image.relative_to(OUT)),
-                    positions,
-                    runtime.panel_triangles,
-                    runtime.source_shape,
-                    runtime.collision_surface,
-                    runtime.base,
-                    measurements.proximity_mesh,
-                )
-            )
-            images[int(step)] = str(image.relative_to(OUT))
-            _progress("%s: checkpoint=%d" % (case_id, step))
-
-        final = checkpoints[-1]
-        finite = all(item["finite"] for item in checkpoints)
-        max_penetration = max(
-            (
-                float(item["penetration_mm"])
-                for item in checkpoints
-                if item["penetration_mm"] is not None
-            ),
-            default=0.0,
+        checkpoint_callback = partial(
+            _checkpoint_record,
+            panel_triangles=runtime.panel_triangles,
+            source_shape=runtime.source_shape,
+            collision_surface=runtime.collision_surface,
+            base=runtime.base,
+            proximity_mesh=measurements.proximity_mesh,
+            
         )
-        seam_world_spans = measurements.seam_pre
-        record = {
-            "case_id": case_id,
-            "predecessor_case_id": None,
-            "case": {
-                "rung": int(spec["rung"]),
-                "id": case_id,
-                "target": "cube",
-                "piece_count": int(spec["piece_count"]),
-                "pin_mode": spec["pin_mode"],
-                "seam_mode": spec["seam_mode"],
+        images, checkpoints = _ladder.capture_ladder_checkpoints(
+            capture=capture,
+            output_directory=OUT,
+            target_name="cube",
+            case_id=case_id,
+            runtime=runtime,
+            record_checkpoint=checkpoint_callback,
+            progress=_progress,
+        )
+
+        record = _ladder.build_ladder_case_record(
+            target="cube",
+            case_id=case_id,
+            spec=spec,
+            scene=scene,
+            runtime=runtime,
+            measurements=measurements,
+            images=images,
+            checkpoints=checkpoints,
+            started=started,
+            target_bounds={
+                "x_min": -90.0,
+                "x_max": 90.0,
+                "y_min": -90.0,
+                "y_max": 90.0,
+                "z_min": 0.0,
+                "z_max": 60.0,
             },
-            "solver": {
-                "backend": "pbd",
-                "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
-                "iterations": int(getattr(scene, "SolverIterations", 0)),
-                "substeps": int(getattr(scene, "SolverSubsteps", 0)),
-                "timestep_s": float(getattr(scene, "TimeStep", 0.0)),
-                "gravity_z_mm_s2": float(getattr(scene, "GravityZ", 0.0)),
-            },
-            "collision": {
-                "source_signature": runtime.target_signature,
-                "source_triangles": int(runtime.target_signature["source_triangles"]),
-                "solver_triangles": int(runtime.solver_triangles),
-                "target_bounds": {
-                    "x_min": -90.0,
-                    "x_max": 90.0,
-                    "y_min": -90.0,
-                    "y_max": 90.0,
-                    "z_min": 0.0,
-                    "z_max": 60.0,
-                },
-                "target_topology_summary": {
-                    "vertices": int(runtime.target_signature["source_vertices"]),
-                    "triangles": int(runtime.target_signature["source_triangles"]),
-                    "solver_triangles": int(runtime.solver_triangles),
-                },
-            },
-            "pre_step": {
-                "piece_bounds": [list(measurements.bounds.values())],
-                "unsigned_clearance_mm": measurements.unsigned_before,
-                "signed_clearance_mm": measurements.signed_before,
-                "seam_pairs": [
-                    [int(left), int(right)]
-                    for seam in runtime.base.seam_stitch_pairs.values()
-                    for left, right in seam
-                ],
-                "seam_world_spans_mm": seam_world_spans,
-            },
-            "checkpoints": checkpoints,
-            "finite": bool(finite),
-            "connected_components": int(final["components"]),
-            "max_seam_gap_mm": float(final["max_seam_gap_mm"]),
-            "final_clearance_mm": final["target_clearance_mm"],
-            "max_penetration_mm": round(max_penetration, 6),
-            "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
-            "first_contact_step": next(
-                (
-                    checkpoint["step"]
-                    for checkpoint in checkpoints
-                    if checkpoint["target_clearance_mm"] is not None
-                    and checkpoint["target_clearance_mm"] < 0.0
-                ),
-                None,
-            ),
-            "contact_mode": "cube-diagnostic",
-            "control": {
-                "pre_step_seam_count": len(runtime.base.seam_stitch_pairs),
-                "pre_step_seam_pair_count": sum(
-                    len(pairs) for pairs in runtime.base.seam_stitch_pairs.values()
-                ),
-                "pre_step_bounds_mm": measurements.bounds,
-            },
-            "images": [images[step] for step in CHECKPOINTS],
-            "notes": (
+            contact_mode="cube-diagnostic",
+            extra_control={},
+            notes=(
                 "progressive cube simulation ladder; fixed PositionBasedDynamics backend; "
                 "solver/collision budgets unchanged; release gate unaffected"
             ),
-        }
+        )
         _boot(f"case-complete={case_id} runtime_ms={record['runtime_ms']}")
         return record
     finally:
@@ -346,97 +277,34 @@ def _run_ladder_case(case_id):
             App.closeDocument(doc.Name)
 
 
-def _structural_ladder_checks(records):
-    by_id = {record["case"]["id"]: record for record in records}
-    checks = []
-    ordered = [
-        ("rung-1-cube-pinned", 1),
-        ("rung-2-cube-unpinned", 2),
-        ("rung-3-cube-two-piece-no-seam", 3),
-        ("rung-4-cube-two-piece-small-seam", 4),
-        ("rung-5-cube-two-piece-large-seam", 5),
-    ]
-    for case_id, rung in ordered:
-        record = by_id[case_id]
-        ok = (
-            bool(record["finite"])
-            and record["case"]["rung"] == rung
-            and record["solver"]["backend"] == "pbd"
-            and record["solver"]["iterations"] == 1
-            and record["solver"]["substeps"] == 1
-            and abs(float(record["solver"]["timestep_s"]) - (1.0 / 120.0)) < 1e-12
-            and float(record["solver"]["gravity_z_mm_s2"]) == 0.0
-            and record["collision"]["solver_triangles"] > 0
-            and len(record["checkpoints"]) == len(CHECKPOINTS)
-            and [item["step"] for item in record["checkpoints"]] == list(CHECKPOINTS)
-        )
-        if rung <= 2:
-            ok = (
-                ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
-            )
-        elif rung == 3:
-            ok = (
-                ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
-            )
-        else:
-            seam_count = len(record["pre_step"]["seam_world_spans_mm"])
-            ok = ok and record["case"]["piece_count"] == 2 and seam_count == 1
-        checks.append({"rung": rung, "case_id": case_id, "passed": bool(ok)})
-        if not ok:
-            break
-    first_failure = next(
-        (item["rung"] for item in checks if not item["passed"]),
-        None,
-    )
-    return {
-        "checks": checks,
-        "first_failing_rung": first_failure,
-        "stop_interpretation_at_first_failure": True,
-    }
-
-
-def main():
-    _boot("main-entered")
-    _progress("cube-ladder: start")
-    records = [
-        _run_ladder_case(case_id)
-        for case_id in (
+def main() -> int:
+    """Run the cube ladder and persist its schema-1 evidence manifest."""
+    return _ladder.write_ladder_manifest(
+        target="cube",
+        purpose="simulation-collision-ladder",
+        manifest_name="cube-ladder-manifest.json",
+        strongest_alternative="target/contact behavior is sound; seam/rest-state integration is causal",
+        case_ids=(
             "rung-1-cube-pinned",
             "rung-2-cube-unpinned",
             "rung-3-cube-two-piece-no-seam",
             "rung-4-cube-two-piece-small-seam",
             "rung-5-cube-two-piece-large-seam",
-        )
-    ]
-    manifest = {
-        "schema": 1,
-        "purpose": "simulation-collision-ladder",
-        "release_gate_effect": "gate",
-        "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
-        "solver_settings_frozen": {
-            "backend_requested": "pbd",
-            "particle_distance_mm": 24.0,
-            "iterations": 1,
-            "substeps": 1,
-            "timestep_s": 1.0 / 120.0,
-            "gravity_z_mm_s2": 0.0,
-            "gravity_mm_s2": [0.0, 0.0, 0.0],
-        },
-        "checkpoint_steps": list(CHECKPOINTS),
-        "stop_rule": {
-            "first_failing_rung": True,
-            "human_visual_review_required": True,
-            "strongest_alternative": "target/contact behavior is sound; seam/rest-state integration is causal",
-        },
-        "cases": records,
-        "structural_validation": _structural_ladder_checks(records),
-    }
-    path = OUT / "cube-ladder-manifest.json"
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-    _boot("all-cases-complete")
-    _progress("cube-ladder: manifest-written")
-    print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
-    return 0
+        ),
+        ordered_cases=(
+            ("rung-1-cube-pinned", 1),
+            ("rung-2-cube-unpinned", 2),
+            ("rung-3-cube-two-piece-no-seam", 3),
+            ("rung-4-cube-two-piece-small-seam", 4),
+            ("rung-5-cube-two-piece-large-seam", 5),
+        ),
+        single_piece_rungs=(1, 2),
+        no_seam_two_piece_rungs=(3,),
+        run_case=_run_ladder_case,
+        output_directory=OUT,
+        boot=_boot,
+        progress=_progress,
+    )
 
 
 def _run_and_shutdown():
