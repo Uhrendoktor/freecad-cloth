@@ -14,7 +14,7 @@ from collections.abc import Sequence
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
+from freecad_cloth.shared.MeshTopology import triangle_indices_are_valid
 from freecad_cloth.common.ValidationModels import validate_finite_number
 
 

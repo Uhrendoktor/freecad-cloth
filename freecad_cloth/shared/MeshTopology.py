@@ -6,6 +6,38 @@ from functools import lru_cache
 
 import numpy as np
 
+def triangle_indices_are_valid(
+    triangles: Sequence[Sequence[object]],
+    vertex_count: int,
+) -> bool:
+    """Return whether triangle connectivity is valid for the supplied vertices.
+
+    Args:
+        triangles: Raw triangle index data, expected to have shape (N, 3).
+        vertex_count: Number of available vertices.
+
+    Returns:
+        Whether indices are integral, in range, and distinct within each face.
+        Malformed array-like input returns False.
+    """
+    try:
+        faces = np.asarray(triangles)
+        return (
+            faces.shape == (len(triangles), 3)
+            and np.issubdtype(faces.dtype, np.integer)
+            and bool(((faces >= 0) & (faces < vertex_count)).all())
+            and bool(
+                (
+                    (faces[:, 0] != faces[:, 1])
+                    & (faces[:, 1] != faces[:, 2])
+                    & (faces[:, 0] != faces[:, 2])
+                ).all()
+            )
+        )
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return False
+
+
 
 @lru_cache(maxsize=8)
 def _closed_mesh_orientation_plan(

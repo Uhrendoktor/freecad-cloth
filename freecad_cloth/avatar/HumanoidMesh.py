@@ -32,7 +32,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     target_directory,
 )
 from freecad_cloth.avatar.SkeletonTypes import BoneData, SkeletonData
-from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
+from freecad_cloth.shared.MeshTopology import triangle_indices_are_valid
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
