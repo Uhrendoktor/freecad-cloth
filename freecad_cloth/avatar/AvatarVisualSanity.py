@@ -92,6 +92,9 @@ def inspect_avatar_mesh(
     minimums = np.min(coordinates, axis=0)
     maximums = np.max(coordinates, axis=0)
     spans = maximums - minimums
+    if not bool(np.isfinite(spans).all()):
+        msg = "avatar mesh bounds must be finite"
+        raise AvatarVisualSanityError(msg)
     height = float(spans[2])
     width, depth = max(float(spans[0]), float(spans[1])), min(
         float(spans[0]), float(spans[1])
@@ -101,7 +104,7 @@ def inspect_avatar_mesh(
         raise AvatarVisualSanityError(msg)
     if expected_height is not None:
         expected_height = float(expected_height)
-        if expected_height <= 0.0:
+        if not math.isfinite(expected_height) or expected_height <= 0.0:
             msg = "expected avatar height must be positive"
             raise AvatarVisualSanityError(msg)
         if not math.isclose(height, expected_height, rel_tol=0.02, abs_tol=1.0):

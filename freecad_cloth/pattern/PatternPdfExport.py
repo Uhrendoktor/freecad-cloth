@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Dependency-free deterministic tiled 1:1 vector PDF export for sewing patterns."""
+"""Deterministic tiled 1:1 vector PDF export for sewing patterns."""
 
 from __future__ import annotations
 
