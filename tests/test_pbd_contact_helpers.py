@@ -121,7 +121,7 @@ def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coh
         and scene.SeamSelection == []
         and scene.PinMode == "hem"
         and scene.PinSelection == []
-        and scene.StitchSamples == 8
+        and scene.StitchSamples == LADDER_STITCH_SAMPLES
         and scene.Steps == 0,
         message="the shared ladder helper must initialize common scene controls consistently",
     )
