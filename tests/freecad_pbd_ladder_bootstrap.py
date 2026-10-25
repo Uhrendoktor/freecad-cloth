@@ -82,7 +82,7 @@ def bootstrap_ladder(
 
     def boot(message: str) -> None:
         """Write one startup checkpoint to the append-only trace."""
-        trace.write(str(message) + "\\n")
+        trace.write(str(message) + "\n")
         trace.flush()
 
     boot("script-start")
@@ -116,4 +116,3 @@ def bootstrap_ladder(
         Gui,
         Part,
     )
-\n
