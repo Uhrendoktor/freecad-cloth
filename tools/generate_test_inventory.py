@@ -53,6 +53,61 @@ def _test_functions(source: Path) -> list[ast.FunctionDef | ast.AsyncFunctionDef
     return sorted(functions, key=lambda node: (node.lineno, node.col_offset))
 
 
+def _test_rationale(source_path: str, test_name: str) -> str:
+    """Explain why one test protects its owning domain contract.
+
+    Args:
+        source_path: Repository-relative path of the test module.
+        test_name: Test function or method name.
+
+    Returns:
+        A domain-specific rationale with a case-level reference for pruning.
+    """
+    path = source_path.lower()
+    if source_path.startswith("tests/freecad_"):
+        domain = (
+            "Provides live FreeCAD evidence for native document, GUI, geometry, or solver "
+            "behavior that headless tests cannot fully reproduce."
+        )
+    elif any(token in path for token in ("avatar", "humanoid", "makehuman", "anny")):
+        domain = (
+            "Protects fitted mannequin geometry, rig identity, and persisted shape/pose controls "
+            "from coordinate or weight-mapping regressions."
+        )
+    elif any(token in path for token in ("pbd", "collision", "cloth_solver", "drape", "simulation")):
+        domain = (
+            "Keeps solver inputs, collision/contact behavior, and diagnostic evidence consistent "
+            "with authoritative scene state."
+        )
+    elif any(token in path for token in ("pattern", "geometry", "mesh", "seam", "sewing", "sketcher")):
+        domain = (
+            "Protects authored geometry, semantic edge identity, and seam correspondence through "
+            "editing, sewing, and export."
+        )
+    elif any(token in path for token in ("gui", "workbench", "command", "freecad_input", "viewport")):
+        domain = (
+            "Prevents GUI callbacks, command registration, and interactive state from drifting "
+            "away from the canonical model."
+        )
+    elif any(token in path for token in ("ci_", "runner", "artifact", "documentation", "markdown",
+                                         "project_structure", "agent_", "no_source", "no_monkey")):
+        domain = (
+            "Keeps repository policy and CI feedback trustworthy so invalid or incomplete results "
+            "cannot pass review unnoticed."
+        )
+    elif any(token in path for token in ("validation", "property", "model", "backend_authority", "core")):
+        domain = (
+            "Rejects malformed or stale values at the owning boundary before downstream geometry "
+            "or simulation consumes them."
+        )
+    else:
+        domain = (
+            "Keeps the owning domain contract independently reviewable and prevents a regression "
+            "from spreading unnoticed into downstream workflows."
+        )
+    return f"{domain} This case isolates `{test_name}` for precise regression triage."
+
+
 def _case_entries() -> list[str]:
     """Build one documented inventory entry for every test declaration.
 
@@ -68,16 +123,12 @@ def _case_entries() -> list[str]:
         source_path = source.relative_to(REPOSITORY_ROOT).as_posix()
         for function in _test_functions(source):
             goal = _test_goal(function)
-            useful = (
-                f"Makes `{function.name}` independently discoverable for regression triage "
-                "and helps reviewers identify duplicate or obsolete cases."
-            )
+            useful = _test_rationale(source_path, function.name)
             entries.append(
                 f"- `{source_path}::{function.name}` — **Goal:** {goal} "
                 f"**Why useful:** {useful}"
             )
     return entries
-
 
 def _updated_inventory(current: str, entries: list[str]) -> str:
     """Replace the generated test-case section while preserving module entries.
