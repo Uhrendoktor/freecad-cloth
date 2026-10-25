@@ -11,8 +11,7 @@ def test_arm_influence_includes_lower_hanging_hand() -> None:
     shoulder_half = 220.0
     height_mm = 1750.0
     influences = tuple(
-        arm_pose_weight(260.0, z, shoulder_half, height_mm)
-        for z in (850.0, 650.0, 550.0)
+        arm_pose_weight(260.0, z, shoulder_half, height_mm) for z in (850.0, 650.0, 550.0)
     )
     assert all(influence > 0.0 for influence in influences)
 

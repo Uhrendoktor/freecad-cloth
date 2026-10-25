@@ -538,7 +538,6 @@ def from_svg_metadata(svg: str) -> dict[str, object]:
     return _validate_metadata(data)
 
 
-
 def validate_export(
     pattern: ParametricPattern,
     exported: str,

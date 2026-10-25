@@ -86,4 +86,3 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
         )
         == 1800.0
     )
-
