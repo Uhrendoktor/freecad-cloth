@@ -20,6 +20,7 @@ import math
 from itertools import starmap
 from typing import TYPE_CHECKING
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.shared.SourceSignature import source_signature
@@ -80,25 +81,32 @@ def _normalize(a: Vector3) -> Vector3:
 
 
 def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
+    """Compute a 3D centroid with NumPy's vectorized mean.
+
+    Args:
+        points: Non-empty finite 3D coordinates.
+
+    Returns:
+        The component-wise arithmetic mean of the supplied coordinates.
+
+    Raises:
+        ValueError: If no points are supplied.
+    """
     if not points:
         msg = "at least one point is required"
         raise ValueError(msg)
-    count = float(len(points))
-    return (
-        sum(point[0] for point in points) / count,
-        sum(point[1] for point in points) / count,
-        sum(point[2] for point in points) / count,
-    )
+    mean = np.mean(np.asarray(points, dtype=np.float64), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def polygon_area_2d(points: collections.abc.Sequence[Point2]) -> float:
     """Return the signed polygon area in square millimetres."""
     if len(points) < 3:
         return 0.0
-    return 0.5 * sum(
-        float(a[0]) * float(b[1]) - float(b[0]) * float(a[1])
-        for a, b in zip(points, (*points[1:], points[0]), strict=False)
-    )
+    coordinates = np.asarray(points, dtype=np.float64)
+    following = np.roll(coordinates, -1, axis=0)
+    cross_terms = coordinates[:, 0] * following[:, 1] - following[:, 0] * coordinates[:, 1]
+    return 0.5 * float(np.sum(cross_terms, dtype=np.float64))
 
 
 def _orientation(a: Point2, b: Point2, c: Point2) -> float:
@@ -323,6 +331,7 @@ def flatten_surface_patch(
     if len(values) < 3:
         msg = "surface patch needs at least three points"
         raise ValueError(msg)
+    coordinate_array = np.asarray(values, dtype=np.float64)
     center = _centroid(values)
 
     # Use the strongest non-collinear local triangle instead of a polygon Newell
@@ -330,40 +339,52 @@ def flatten_surface_patch(
     # its individual segments still define a usable projection plane; validation
     # should then report the actual self-intersection rather than a misleading
     # "no direction" error.
-    origin = values[0]
-    best_normal = (0.0, 0.0, 0.0)
-    best_length = 0.0
-    for index in range(1, len(values) - 1):
-        candidate = _cross(
-            _sub(values[index], origin),
-            _sub(values[index + 1], origin),
-        )
-        candidate_length = _length(candidate)
-        if candidate_length > best_length:
-            best_normal = candidate
-            best_length = candidate_length
-    normal = _normalize(best_normal)
+    origin = coordinate_array[0]
+    relative_to_origin = coordinate_array - origin
+    candidate_normals = np.cross(relative_to_origin[1:-1], relative_to_origin[2:])
+    candidate_lengths = np.linalg.norm(candidate_normals, axis=1)
+    best_normal = candidate_normals[int(np.argmax(candidate_lengths))]
+    normal = _normalize(tuple(float(value) for value in best_normal))
 
     # Prefer the longest centered edge as the local U axis to make the result
     # deterministic while preserving the user's dominant drawing direction.
-    candidates = []
-    for first, second in zip(values, (*values[1:], values[0]), strict=False):
-        edge = _sub(second, first)
-        projected = _sub(edge, _scale(normal, _dot(edge, normal)))
-        candidates.append(projected)
-    u = _normalize(max(candidates, key=_length))
+    edges = np.roll(coordinate_array, -1, axis=0) - coordinate_array
+    normal_array = np.asarray(normal, dtype=np.float64)
+    projected_edges = edges - np.outer(edges @ normal_array, normal_array)
+    projected_lengths = np.linalg.norm(projected_edges, axis=1)
+    u = _normalize(
+        tuple(float(value) for value in projected_edges[int(np.argmax(projected_lengths))])
+    )
     v = _normalize(_cross(normal, u))
 
-    points_2d = []
-    max_deviation = 0.0
-    for point in values:
-        relative = _sub(point, center)
-        coordinates = (_dot(relative, u), _dot(relative, v))
-        points_2d.append((round(coordinates[0], 6), round(coordinates[1], 6)))
-        max_deviation = max(max_deviation, abs(_dot(relative, normal)))
+    relative = coordinate_array - np.asarray(center, dtype=np.float64)
+    u_coordinates = relative @ np.asarray(u, dtype=np.float64)
+    v_coordinates = relative @ np.asarray(v, dtype=np.float64)
+    projected = np.column_stack((u_coordinates, v_coordinates))
+    points_2d = tuple(
+        (round(float(point[0]), 6), round(float(point[1]), 6)) for point in projected
+    )
+    max_deviation = float(np.max(np.abs(relative @ normal_array)))
 
-    patch = FlattenedSurfacePatch(tuple(points_2d), center, normal, float(max_deviation))
+    patch = FlattenedSurfacePatch(points_2d, center, normal, max_deviation)
     return patch.validate(tolerance_mm)
+
+
+def _translate_points_to_positive_coordinates(
+    points: collections.abc.Sequence[Point2],
+) -> list[Point2]:
+    """Translate a 2D point cloud to non-negative coordinates with NumPy.
+
+    Args:
+        points: Coordinates to translate without changing relative geometry.
+
+    Returns:
+        Points shifted so each coordinate's minimum is zero, rounded to 1e-6.
+    """
+    coordinates = np.asarray(points, dtype=np.float64)
+    minimums = np.min(coordinates, axis=0)
+    shifted = np.round(coordinates - minimums, decimals=6)
+    return [(float(point[0]), float(point[1])) for point in shifted]
 
 
 def _target_source(target):
@@ -596,13 +617,9 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
     )
     piece_name = str(name or f"Surface Piece {existing_count + 1}")
     piece_id = f"pattern-piece-surface-{existing_count + 1}"
-    points = list(patch.points)
     # Translate the flattened polygon to positive document coordinates without
     # changing its geometry. This keeps the default Sketcher view convenient.
-    min_x = min(point[0] for point in points)
-    min_y = min(point[1] for point in points)
-    offset = (min_x, min_y)
-    shifted = [(round(x - offset[0], 6), round(y - offset[1], 6)) for x, y in points]
+    shifted = _translate_points_to_positive_coordinates(patch.points)
     segments = surface_segments_from_anchor_kinds(shifted, [anchor.kind for anchor in anchors])
     pattern = PatternPiece(piece_name, shifted, id=piece_id)
     obj = add_pattern_piece(doc, pattern)
@@ -896,10 +913,7 @@ class SurfacePenController:
             msg = "reference-point mode needs at least three points"
             raise ValueError(msg)
         patch = flatten_surface_patch([anchor.point for anchor in self.anchors], tolerance_mm)
-        points = list(patch.points)
-        min_x = min(point[0] for point in points)
-        min_y = min(point[1] for point in points)
-        shifted = [(round(x - min_x, 6), round(y - min_y, 6)) for x, y in points]
+        shifted = _translate_points_to_positive_coordinates(patch.points)
         sketch = document.addObject(
             "Sketcher::SketchObject",
             document.getUniqueObjectName("SurfaceReferencePoints"),
