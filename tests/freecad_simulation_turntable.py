@@ -270,9 +270,7 @@ def _opposite_top_edge_pins(piece, panel_indices) -> tuple[tuple[int, int], floa
         The two global pin indices and their horizontal span in millimetres.
     """
     mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, BLANKET_PARTICLE_DISTANCE)
-    top_indices, span_mm = opposite_top_edge_vertices(
-        mesh_positions, boundary, 0.75 * BLANKET_SIZE
-    )
+    top_indices, span_mm = opposite_top_edge_vertices(mesh_positions, boundary, 0.75 * BLANKET_SIZE)
     return tuple(int(panel_indices[index]) for index in top_indices), span_mm
 
 def _nearest_pin_indices(panel_indices, positions, targets):
