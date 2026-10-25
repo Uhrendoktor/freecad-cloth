@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
+from math import ceil
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, NoReturn, cast
 
@@ -71,7 +72,7 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
     )
     voxel_mm = _pbd_collision_voxel_mm()
     expected = [
-        max(16, min(256, int(__import__("math").ceil((span + 200.0) / voxel_mm))))
+        max(16, min(256, ceil((span + 200.0) / voxel_mm)))
         for span in (20.0, 50.0, 2.0)
     ]
     require(
