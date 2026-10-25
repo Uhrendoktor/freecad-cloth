@@ -11,7 +11,6 @@ from freecad_cloth.pattern.SeamReference import (
     MissingEdgeReference,
     capture_edge_reference,
     resolve_edge_reference,
-    semantic_edge_id,
 )
 from freecad_cloth.shared.SeamColors import apply_seam_colors
 
@@ -155,29 +154,30 @@ def _edge_records(
     *,
     native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
 ):
-    """Expose native semantic edge records, with a legacy outline fallback."""
+    """Return edge records derived only from the authoritative native Sketcher boundary.
+
+    Args:
+        piece: PatternPiece object containing its linked Sketcher geometry.
+        native_edge_records_fn: Optional native reader used by focused adapter tests.
+
+    Returns:
+        Semantic edge records from the current Sketcher boundary.
+
+    Raises:
+        MissingEdgeReference: If native Sketcher authority or usable edge records are absent.
+    """
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None or str(getattr(piece, "GeometryAuthority", "")).strip() != "Sketcher":
+        msg = f"pattern piece {getattr(piece, 'PieceId', '')} has no native Sketcher authority"
+        raise MissingEdgeReference(msg)
     read_native_records = (
         _native_edge_records if native_edge_records_fn is None else native_edge_records_fn
     )
-    native = read_native_records(piece)
-    if native is not None:
-        return native
-    points = _parse_points(getattr(piece, "SewingOutline", ""))
-    drafting = _parse_points(getattr(piece, "DraftingBoundary", ""))
-    if len(drafting) > len(points):
-        points = drafting
-    if len(points) < 2:
-        return []
-    piece_id = str(getattr(piece, "PieceId", ""))
-    return [
-        {
-            "piece_id": piece_id,
-            "id": semantic_edge_id(piece_id, index),
-            "points": (points[index], points[(index + 1) % len(points)]),
-            "ordinal": index,
-        }
-        for index in range(len(points))
-    ]
+    records = read_native_records(piece)
+    if not records:
+        msg = f"pattern piece {getattr(piece, 'PieceId', '')} has no usable native Sketcher boundary"
+        raise MissingEdgeReference(msg)
+    return list(records)
 
 
 def _seam_edge_id(
@@ -188,28 +188,18 @@ def _seam_edge_id(
     native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
 ):
     """Return the semantic edge id and captured signature for a seam side."""
-    records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
-    if isinstance(edge, int) and (edge < 0 or edge >= len(records)):
-        proxy = getattr(piece, "Proxy", None)
-        execute = getattr(proxy, "execute", None)
-        if callable(execute):
-            execute(piece)
-            records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     if isinstance(edge, int):
-        native = _native_edge_record_for_sketch_index(
+        record = _native_edge_record_for_sketch_index(
             piece, edge, native_edge_records_fn=native_edge_records_fn
         )
-        if native is not None:
-            record = native
-        else:
-            if edge < 0 or edge >= len(records):
-                msg = f"seam edge {edge} is outside pattern piece {piece.PieceId}"
-                raise MissingEdgeReference(msg)
-            record = records[edge]
+        if record is None:
+            msg = f"native Sketcher seam edge {edge} has no semantic record"
+            raise MissingEdgeReference(msg)
         return record["id"], capture_edge_reference(
             piece.PieceId, record["id"], record["points"], record.get("provenance")
         ).signature
     reference_id = str(edge)
+    records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     for record in records:
         if record["id"] == reference_id:
             return reference_id, capture_edge_reference(
@@ -248,10 +238,32 @@ def refresh_edge_reference_signature(piece, edge_id):
     )
 
 
-def _resolve_document_edge(piece, edge_id, signature):
+def _resolve_document_edge(
+    piece,
+    edge_id,
+    signature,
+    *,
+    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+):
+    """Resolve a stored semantic seam reference against current Sketcher provenance.
+
+    Args:
+        piece: PatternPiece object with native Sketcher authority.
+        edge_id: Persistent semantic boundary identity.
+        signature: Geometry/provenance signature stored on the seam.
+        native_edge_records_fn: Optional native reader used by focused adapter tests.
+
+    Returns:
+        The uniquely resolved edge record.
+
+    Raises:
+        MissingEdgeReference: If the edge identity no longer exists.
+        ChangedEdgeReference: If its geometry or provenance signature changed.
+    """
     reference = capture_edge_reference(piece.PieceId, edge_id, ((0.0, 0.0), (1.0, 0.0)))
     reference = type(reference)(reference.piece_id, reference.edge_id, signature)
-    return resolve_edge_reference(reference, _edge_records(piece))
+    records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
+    return resolve_edge_reference(reference, records)
 
 
 class PatternPieceProxy:
