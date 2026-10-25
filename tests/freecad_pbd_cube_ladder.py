@@ -38,6 +38,7 @@ from freecad_pbd_ladder_bootstrap import bootstrap_ladder
 
 from pbd_contact_helpers import build_piece as _build_piece
 from pbd_contact_helpers import build_scene as _build_scene
+from pbd_contact_helpers import configure_diagnostic_cube_target as _configure_diagnostic_cube_target
 from pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
 from pbd_contact_helpers import connected_components as _connected_components
 from pbd_contact_helpers import events as _events
@@ -111,22 +112,10 @@ def _checkpoint_record(
 
 
 def _build_cube_scene(doc):
+    """Build the cube fixture and bind it to the canonical collision target."""
     scene = _build_scene(doc)
-    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
-    cube = doc.addObject("Part::Feature", "DiagnosticCube")
-    cube.Label = "Diagnostic Collision Cube"
-    cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
-    doc.recompute()
-
-    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
-
-    set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
-    if avatar is not None and hasattr(avatar, "ViewObject"):
-        avatar.ViewObject.Visibility = False
-    cube.ViewObject.Visibility = True
-    doc.recompute()
+    cube = _configure_diagnostic_cube_target(doc, scene, App, Part)
     return scene, cube
-
 
 def _add_seam(doc, piece_a, piece_b, seam_id="cube-seam"):
     from freecad_cloth.pattern.PatternModel import Seam

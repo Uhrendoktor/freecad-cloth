@@ -428,6 +428,47 @@ def inspect_pbd_runtime(
         source_shape,
     )
 
+
+def configure_diagnostic_cube_target(
+    doc: object,
+    scene: object,
+    app: ModuleType,
+    part: ModuleType,
+) -> object:
+    """Create the diagnostic cube and make it the scene's collision target.
+
+    Args:
+        doc: FreeCAD document receiving the collision-cube object.
+        scene: Production simulation scene whose target is replaced by the cube.
+        app: FreeCAD application module supplying native vectors.
+        part: FreeCAD Part module supplying box geometry.
+
+    Returns:
+        The configured cube document object.
+
+    Raises:
+        RuntimeError: If the scene has no drape target to configure.
+    """
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        msg = "diagnostic collision scene has no DrapeTarget"
+        raise RuntimeError(msg)
+    previous_source = getattr(target, "SourceObject", None)
+    cube = getattr(doc, "addObject")("Part::Feature", "DiagnosticCube")
+    cube.Label = "Diagnostic Collision Cube"
+    cube.Shape = part.makeBox(180.0, 180.0, 60.0, app.Vector(-90.0, -90.0, 0.0))
+    getattr(doc, "recompute")()
+
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+
+    set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
+    if previous_source is not None and previous_source is not cube:
+        if hasattr(previous_source, "ViewObject"):
+            previous_source.ViewObject.Visibility = False
+    cube.ViewObject.Visibility = True
+    getattr(doc, "recompute")()
+    return cube
+
 def screenshot(view, path):
     """Capture a fixed-size diagnostic PNG and reject missing or empty artifacts."""
     view.setCameraType("Orthographic")

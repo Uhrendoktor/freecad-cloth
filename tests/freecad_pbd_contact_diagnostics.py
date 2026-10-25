@@ -59,6 +59,7 @@ _import_progress("Part complete")
 from pbd_contact_helpers import bounds as _bounds
 from pbd_contact_helpers import build_piece as _build_piece
 from pbd_contact_helpers import build_scene as _build_scene
+from pbd_contact_helpers import configure_diagnostic_cube_target as _configure_diagnostic_cube_target
 from pbd_contact_helpers import centroid as _centroid
 from pbd_contact_helpers import connected_components as _connected_components
 from pbd_contact_helpers import ensure_gui_ready as _ensure_gui_ready
@@ -330,23 +331,12 @@ def _run_control_cube():
     doc = App.newDocument("PositionBasedDynamicsContactControlCube")
     try:
         scene = _build_scene(doc)
-        cube = doc.addObject("Part::Feature", "DiagnosticCube")
-        cube.Label = "Diagnostic Collision Cube"
-        cube.Shape = Part.makeBox(180.0, 180.0, 60.0, App.Vector(-90.0, -90.0, 0.0))
-        doc.recompute()
-        from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
-
-        set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
-        if scene.DrapeTarget.SourceObject is not None and hasattr(
-            scene.DrapeTarget.SourceObject, "ViewObject"
-        ):
-            scene.DrapeTarget.SourceObject.ViewObject.Visibility = False
+        cube = _configure_diagnostic_cube_target(doc, scene, App, Part)
         piece = _build_piece(
             doc,
             "CubeCloth",
             App.Placement(App.Vector(-180.0, -180.0, 58.5), App.Rotation()),
         )
-        cube.ViewObject.Visibility = True
         record = _run_case("control-0-cube", 0, scene, piece, "axonometric")
         return record
     finally:
