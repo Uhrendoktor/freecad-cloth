@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import faulthandler
+import os
 import sys
 import time
 from collections.abc import Sequence
@@ -231,7 +232,6 @@ def _run_ladder_case(case_id):
             collision_surface=runtime.collision_surface,
             base=runtime.base,
             proximity_mesh=measurements.proximity_mesh,
-            
         )
         images, checkpoints = _ladder.capture_ladder_checkpoints(
             capture=capture,

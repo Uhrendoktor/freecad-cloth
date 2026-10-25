@@ -13,7 +13,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Protocol, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -700,7 +700,7 @@ def capture_ladder_checkpoints(
     for step in LADDER_CHECKPOINTS:
         image = output_directory / f"{target_name}-ladder" / case_id / f"step-{step:03d}.png"
         capture.capture(step, image)
-        positions = positions_tuple(runtime.base.backend)
+        positions = positions_tuple(getattr(runtime.base, "backend"))
         relative_image = str(image.relative_to(output_directory))
         checkpoints.append(record_checkpoint(step, relative_image, positions))
         images[step] = relative_image
@@ -846,17 +846,17 @@ def structural_ladder_checks(
         Validation results and the first failing rung, if any.
     """
     by_id = {
-        str(cast(Mapping[str, object], record["case"])["id"]): record
+        str(cast("Mapping[str, object]", record["case"])["id"]): record
         for record in records
     }
     checks: list[dict[str, object]] = []
     for case_id, rung in ordered_cases:
         record = by_id[case_id]
         case_data = cast(Mapping[str, object], record["case"])
-        solver = cast(Mapping[str, object], record["solver"])
-        collision = cast(Mapping[str, object], record["collision"])
-        pre_step = cast(Mapping[str, object], record["pre_step"])
-        checkpoints = cast(Sequence[Mapping[str, object]], record["checkpoints"])
+        solver = cast("Mapping[str, object]", record["solver"])
+        collision = cast("Mapping[str, object]", record["collision"])
+        pre_step = cast("Mapping[str, object]", record["pre_step"])
+        checkpoints = cast("Sequence[Mapping[str, object]]", record["checkpoints"])
         ok = (
             bool(record["finite"])
             and int(cast(int, case_data["rung"])) == rung
@@ -870,8 +870,8 @@ def structural_ladder_checks(
             and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
         )
         piece_count = int(cast(int, case_data["piece_count"]))
-        seams = cast(Sequence[object], pre_step["seam_pairs"])
-        seam_spans = cast(Sequence[object], pre_step["seam_world_spans_mm"])
+        seams = cast("Sequence[object]", pre_step["seam_pairs"])
+        seam_spans = cast("Sequence[object]", pre_step["seam_world_spans_mm"])
         if rung in single_piece_rungs:
             ok = ok and piece_count == 1 and not seams
         elif rung in no_seam_two_piece_rungs:

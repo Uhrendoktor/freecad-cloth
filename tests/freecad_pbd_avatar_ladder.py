@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import contextlib
 import faulthandler
-from functools import partial
+import os
 import sys
 import time
+from functools import partial
 from itertools import starmap
 from pathlib import Path
 
@@ -350,7 +351,7 @@ def _run_ladder_case(case_id):
             collision_surface=runtime.collision_surface,
             base=runtime.base,
             proximity_mesh=measurements.proximity_mesh,
-            case_id=case_id
+            case_id=case_id,
         )
         images, checkpoints = _ladder.capture_ladder_checkpoints(
             capture=capture,
