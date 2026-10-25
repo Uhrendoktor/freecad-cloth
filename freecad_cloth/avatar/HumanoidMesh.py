@@ -105,7 +105,15 @@ class MeshData:
     triangles: tuple[tuple[StrictInt, StrictInt, StrictInt], ...]
 
     def validate(self) -> Self:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this mesh's finite coordinates and triangle indices.
+
+        Returns:
+            The same mesh after validation.
+
+        Raises:
+            HumanoidMeshError: If the mesh is empty, has invalid coordinates, or
+                contains a face with an invalid vertex index.
+        """
         if len(self.vertices) < 3 or not self.triangles:
             msg = "humanoid mesh is empty"
             raise HumanoidMeshError(msg)
@@ -1047,6 +1055,15 @@ def _make_source_fitted_mapper(
     padding is reserved for the visible surface. When the source topology is
     supplied, a section-contour pass iteratively calibrates the named torso
     rings to their requested circumference in millimetres.
+
+    Args:
+        source_vertices: Source mesh vertices used to calibrate the fit.
+        parameters: Authoritative mannequin measurements and pose settings.
+        skin_offset: Outward offset in millimetres for the visible surface.
+        source_triangles: Optional source topology for contour-based calibration.
+
+    Returns:
+        A callable mapping one source coordinate to its fitted 3D coordinate.
     """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
@@ -1114,6 +1131,14 @@ def _make_source_fitted_mapper(
     shoulder_half = float(DEFAULT_MEASUREMENTS["shoulder"]) / 2.0
 
     def transform(point: Point) -> Point:
+        """Map one source coordinate into the fitted mannequin frame.
+
+        Args:
+            point: Source-space XYZ coordinate using MakeHuman's Y-up convention.
+
+        Returns:
+            Fitted XYZ coordinate in millimetres using FreeCAD's Z-up convention.
+        """
         x, y, z = point
         normalized_z = (y - ymin) / y_span
 
@@ -1236,6 +1261,17 @@ def _make_source_fitted_mapper(
 
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
+    """Return fitted shoulder and wrist positions from authored MakeHuman bones.
+
+    Args:
+        parameters: Authoritative avatar measurements used to fit the source mesh.
+
+    Returns:
+        Left/right mappings with fitted shoulder and wrist coordinates.
+
+    Raises:
+        HumanoidMeshError: If required bones or their source vertices are missing.
+    """
     source = apply_measurement_targets(_load_source_vertices(), parameters)
     skeleton = load_makehuman_skeleton()
     triangles = load_makehuman_mesh().triangles
@@ -1258,7 +1294,19 @@ def fit_makehuman_mesh(
     parameters: AvatarParameters,
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> MeshData:
-    """Fit HM08 and pose arms using source-authored bones and skinning weights."""
+    """Fit HM08 and pose arms using source-authored bones and skinning weights.
+
+    Args:
+        mesh: Validated source mesh and triangle topology.
+        parameters: Authoritative anthropometric measurements and pose controls.
+        arm_weights: Optional per-vertex left/right arm-chain influence arrays.
+
+    Returns:
+        Fitted and posed mesh with source topology preserved.
+
+    Raises:
+        HumanoidMeshError: If mesh, authored rig data, or fitted geometry is invalid.
+    """
     mesh.validate()
     height_mm = float(parameters.measurement("height"))
     source_vertices = apply_measurement_targets(mesh.vertices, parameters)
@@ -1389,7 +1437,18 @@ def arm_pose_weight(
 def build_humanoid_mesh(
     parameters: AvatarParameters, source_path: str | os.PathLike[str] | None = None
 ) -> MeshData:
-    """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
+    """Load and fit the pinned MakeHuman mannequin for Cloth.
+
+    Args:
+        parameters: Authoritative mannequin measurements and pose settings.
+        source_path: Optional explicit mesh path for controlled imports or tests.
+
+    Returns:
+        Fitted, posed humanoid mesh in FreeCAD coordinates.
+
+    Raises:
+        HumanoidMeshError: If the source mesh cannot be loaded, validated, or fitted.
+    """
     source = load_makehuman_mesh(str(source_path) if source_path is not None else None)
     arm_weights = (
         None if source_path is not None else load_makehuman_arm_weights(len(source.vertices))
