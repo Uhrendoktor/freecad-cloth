@@ -9,58 +9,33 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
-import importlib
+
+import contextlib
+import faulthandler
+import json
 import os
 import sys
+import time
 from pathlib import Path
 
-# Add the tests directory so the shared bootstrap is importable in FreeCAD AppRun.
 _TEST_DIR = Path(__file__).resolve().parent
 if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
-_ladder_bootstrap = importlib.import_module("freecad_pbd_ladder_bootstrap")
+
+from freecad_pbd_ladder_bootstrap import bootstrap_ladder
+
 (
     _REPO_ROOT,
     _HELPER_DIR,
     OUT,
     _BOOT_LOG,
     _TRACE_HANDLE,
-) = _ladder_bootstrap.initialize_ladder(__file__, "avatar")
+    _boot,
+    App,
+    Gui,
+    Part,
+) = bootstrap_ladder(__file__, "avatar")
 
-
-def _boot(message: str) -> None:
-    """Append a startup checkpoint to this ladder run trace.
-
-    Args:
-        message: Short description of the import or initialization checkpoint.
-    """
-    _TRACE_HANDLE.write(str(message) + "\n")
-    _TRACE_HANDLE.flush()
-
-
-import contextlib
-import faulthandler
-import json
-import time
-
-_boot("script-start")
-_boot("before-import-FreeCAD")
-import FreeCAD as App
-
-_boot("import-FreeCAD-complete")
-# Keep this import after the checkpoint so slow GUI startup remains diagnosable.
-import FreeCADGui as Gui
-
-_boot("import-FreeCADGui-complete")
-_boot("import-Part-complete")
-try:
-    faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
-    faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
-    _boot("diagnostic-faulthandler-ready")
-except (AttributeError, OSError, RuntimeError, ValueError) as exc:
-    _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
-
-_boot("before-support-helper-import")
 from itertools import starmap
 
 from pbd_contact_helpers import build_piece as _build_piece
