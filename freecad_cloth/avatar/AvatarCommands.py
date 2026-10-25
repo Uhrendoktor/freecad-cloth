@@ -4,7 +4,7 @@
 from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
@@ -31,6 +31,11 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
+    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+    from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar
 
 _MISSING = object()
 ProviderGeometry = Callable[
@@ -638,11 +643,11 @@ def rebuild_avatar() -> _AvatarFeature:
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-def edit_avatar() -> _AvatarFeature:
+def edit_avatar() -> "AvatarTaskPanel":
     """Open the avatar measurement and shape editor.
 
     Returns:
-        The task-panel instance shown by FreeCAD.
+        The measurement and shape task panel displayed by FreeCAD.
     """
     import FreeCAD as App
 
@@ -657,20 +662,24 @@ def edit_avatar() -> _AvatarFeature:
     return avatar_gui.show_avatar_task(obj)
 
 
-def pose_avatar() -> _AvatarFeature:
-    """Open the focused 3D Pose Mode editor for the active mannequin.
+def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarPoseTaskPanel":
+    """Open the focused 3D Pose Mode editor for a mannequin.
+
+    Args:
+        avatar: Optional existing mannequin to edit. When omitted, use the active
+            document's mannequin or create one if none exists.
 
     Returns:
-        The pose task-panel instance shown by FreeCAD.
+        The Pose Mode task panel displayed by FreeCAD.
     """
     import FreeCAD as App
 
     app = cast("_FreeCADApplication", App)
 
-    doc = app.ActiveDocument
+    doc = avatar.Document if avatar is not None else app.ActiveDocument
     if doc is None:
         doc = app.newDocument("ClothSewing")
-    obj = _avatar(doc) or create_avatar()
+    obj = avatar if avatar is not None else (_avatar(doc) or create_avatar())
     from freecad_cloth.avatar import AvatarPoseGui as avatar_pose_gui
 
     return avatar_pose_gui.show_avatar_pose_task(obj)
@@ -938,6 +947,6 @@ try:
     import FreeCADGui as gui
     from freecad_cloth.common import CommandAdapter as command_adapter
 
-    command_adapter.register_commands(gui, _HANDLERS)
+    command_adapter.register_commands(cast("GuiCommandRegistrar", gui), _HANDLERS)
 except (ImportError, AttributeError):
     pass
