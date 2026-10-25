@@ -30,6 +30,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     resolve_target,
     target_directory,
 )
+from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
@@ -119,23 +120,7 @@ class MeshData:
             msg = "humanoid mesh contains invalid vertex coordinates"
             raise HumanoidMeshError(msg)
 
-        try:
-            triangles = np.asarray(self.triangles)
-            count = len(vertices)
-            valid_triangles = (
-                triangles.shape == (len(self.triangles), 3)
-                and np.issubdtype(triangles.dtype, np.integer)
-                and bool(((triangles >= 0) & (triangles < count)).all())
-                and bool(
-                    (
-                        (triangles[:, 0] != triangles[:, 1])
-                        & (triangles[:, 1] != triangles[:, 2])
-                        & (triangles[:, 0] != triangles[:, 2])
-                    ).all()
-                )
-            )
-        except (TypeError, ValueError, OverflowError, IndexError):
-            valid_triangles = False
+        valid_triangles = triangle_indices_are_valid(self.triangles, len(vertices))
         if not valid_triangles:
             msg = "humanoid mesh contains an invalid face"
             raise HumanoidMeshError(msg)

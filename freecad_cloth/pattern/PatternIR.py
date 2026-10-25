@@ -12,7 +12,7 @@ from math import hypot
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.ValidationModels import validate_finite_number
+from freecad_cloth.common.ValidationModels import NormalizedRange
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
@@ -118,13 +118,8 @@ class SeamIR:
             if edge_id not in {edge.id for edge in pieces[piece_id].boundaries}:
                 msg = f"seam references unknown boundary: {piece_id}:{edge_id}"
                 raise ValueError(msg)
-        for value in (self.start_a, self.end_a, self.start_b, self.end_b):
-            if not 0.0 <= value <= 1.0:
-                msg = "seam edge ranges must be normalized"
-                raise ValueError(msg)
-        if self.start_a >= self.end_a or self.start_b >= self.end_b:
-            msg = "seam ranges must have positive extent"
-            raise ValueError(msg)
+        NormalizedRange(start=self.start_a, end=self.end_a)
+        NormalizedRange(start=self.start_b, end=self.end_b)
         if self.alignment not in {"endpoints", "uniform"}:
             msg = "unsupported sewing alignment"
             raise ValueError(msg)

@@ -10,7 +10,7 @@ from dataclasses import field
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.ValidationModels import PatternPieceInput, validate_finite_number
+from freecad_cloth.common.ValidationModels import NormalizedRange, PatternPieceInput
 
 Point = tuple[float, float]
 EdgeRef = int | str
@@ -104,21 +104,14 @@ class Seam:
             if isinstance(edge, str) and not edge.strip():
                 msg = "edge identifiers must not be empty"
                 raise ValueError(msg)
-        for value in (self.start_a, self.end_a, self.start_b, self.end_b):
-            if not 0.0 <= value <= 1.0:
-                msg = "seam edge ranges must be normalized"
-                raise ValueError(msg)
-        if self.start_a >= self.end_a or self.start_b >= self.end_b:
-            msg = "seam ranges must have positive extent"
-            raise ValueError(msg)
+        NormalizedRange(start=self.start_a, end=self.end_a)
+        NormalizedRange(start=self.start_b, end=self.end_b)
         if self.alignment not in {"endpoints", "uniform"}:
             msg = "alignment must be 'endpoints' or 'uniform'"
             raise ValueError(msg)
         if self.kind not in {"plain", "dart", "gather", "pleat", "hem", "fold", "closure"}:
             msg = "unsupported seam construction kind"
             raise ValueError(msg)
-        for value in (self.start_a, self.end_a, self.start_b, self.end_b):
-            validate_finite_number(value)
         if not isinstance(self.edge_a, (int, str)) or not isinstance(self.edge_b, (int, str)):
             msg = "seam edge references must be integer indices or stable identifiers"
             raise ValueError(msg)
