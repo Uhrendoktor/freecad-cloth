@@ -7,12 +7,22 @@ import faulthandler
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import ModuleType
     from typing import TextIO
+
+
+class LadderBootstrap(NamedTuple):
+    """Runtime dependencies consumed by a standalone PBD ladder."""
+
+    output_directory: Path
+    boot: Callable[[str], None]
+    app: ModuleType
+    gui: ModuleType
+    part: ModuleType
 
 
 def initialize_ladder(
@@ -48,20 +58,11 @@ def initialize_ladder(
     trace_handle = bootstrap_log.open("a", encoding="utf-8", buffering=1)
     return repository_root, helper_directory, output_directory, bootstrap_log, trace_handle
 
+
 def bootstrap_ladder(
     script_file: str | Path,
     ladder_name: str,
-) -> tuple[
-    Path,
-    Path,
-    Path,
-    Path,
-    TextIO,
-    Callable[[str], None],
-    ModuleType,
-    ModuleType,
-    ModuleType,
-]:
+) -> LadderBootstrap:
     """Initialize trace logging and import the FreeCAD runtime through one path.
 
     Args:
@@ -105,14 +106,40 @@ def bootstrap_ladder(
     except (AttributeError, OSError, RuntimeError, ValueError) as exc:
         boot(f"diagnostic-faulthandler-unavailable={exc!r}")
     boot("before-support-helper-import")
-    return (
-        repository_root,
-        helper_directory,
-        output_directory,
-        log_path,
-        trace,
-        boot,
-        App,
-        Gui,
-        Part,
-    )
+    return LadderBootstrap(output_directory, boot, App, Gui, Part)
+
+
+def dispatch_ladder_entrypoint(
+    script_file: str | Path,
+    module_name: str,
+    callback: Callable[[], None],
+    boot: Callable[[str], None],
+    app: ModuleType,
+    schedule: Callable[[Callable[[], None]], None],
+) -> None:
+    """Run or schedule a FreeCAD ladder after the host has loaded its script.
+
+    Args:
+        script_file: Path of the standalone ladder script.
+        module_name: Module name assigned by the Python or FreeCAD host.
+        callback: Main ladder callback, including its shutdown handling.
+        boot: Append-only trace callback for startup checkpoints.
+        app: Imported FreeCAD application module.
+        schedule: FreeCAD event-loop scheduling function.
+
+    Side effects:
+        Calls the ladder directly for normal Python execution, or schedules it
+        for FreeCAD's delayed-startup callback.
+    """
+    boot(f"entrypoint-name={module_name!r}")
+    boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
+    entrypoint_name = Path(script_file).stem
+    gui_hosted = bool(getattr(app, "GuiUp", False))
+    if module_name == "__main__":
+        boot("direct-entrypoint")
+        callback()
+    elif gui_hosted or module_name == entrypoint_name:
+        boot("freecad-hosted-entrypoint")
+        boot("entrypoint:schedule-main")
+        schedule(callback)
+

@@ -833,7 +833,8 @@ def surface_signed_clearance(
                 mark(f"after-shape-isInside index={index} result={point_inside}")
                 if point_inside:
                     inside = True
-                    break
+                    if trace is None:
+                        break
             except (AttributeError, TypeError, ValueError):
                 break
     return float(-unsigned if inside else unsigned), float(unsigned)

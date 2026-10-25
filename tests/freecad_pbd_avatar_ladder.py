@@ -16,27 +16,21 @@ import json
 import os
 import sys
 import time
+from itertools import starmap
 from pathlib import Path
 
 _TEST_DIR = Path(__file__).resolve().parent
 if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
-from freecad_pbd_ladder_bootstrap import bootstrap_ladder
+from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint
 
-(
-    _REPO_ROOT,
-    _HELPER_DIR,
-    OUT,
-    _BOOT_LOG,
-    _TRACE_HANDLE,
-    _boot,
-    App,
-    Gui,
-    Part,
-) = bootstrap_ladder(__file__, "avatar")
-
-from itertools import starmap
+_BOOTSTRAP = bootstrap_ladder(__file__, "avatar")
+OUT = _BOOTSTRAP.output_directory
+_boot = _BOOTSTRAP.boot
+App = _BOOTSTRAP.app
+Gui = _BOOTSTRAP.gui
+Part = _BOOTSTRAP.part
 
 import pbd_contact_helpers as _ladder
 
@@ -307,18 +301,6 @@ def _run_ladder_case(case_id):
             clearance_measure=_surface_signed_clearance,
         )
         runtime = measurements.runtime
-        base = runtime.base
-        collision_surface = runtime.collision_surface
-        solver_triangles = runtime.solver_triangles
-        positions = runtime.positions
-        panel_triangles = runtime.panel_triangles
-        target_sig = runtime.target_signature
-        source_shape = runtime.source_shape
-        seam_pre = measurements.seam_pre
-        proximity_mesh = measurements.proximity_mesh
-        signed_before = measurements.signed_before
-        unsigned_before = measurements.unsigned_before
-        bounds = measurements.bounds
         _progress(
             (
                 "%s: pieces=%d pin=%s seam=%s source_triangles=%d "
@@ -329,11 +311,15 @@ def _run_ladder_case(case_id):
                 spec["piece_count"],
                 spec["pin_mode"],
                 spec["seam_mode"],
-                target_sig["source_triangles"],
-                solver_triangles,
-                float(signed_before if signed_before is not None else float("nan")),
-                min((item["min_span_mm"] for item in seam_pre), default=0.0),
-                max((item["max_span_mm"] for item in seam_pre), default=0.0),
+                runtime.target_signature["source_triangles"],
+                runtime.solver_triangles,
+                float(
+                    measurements.signed_before
+                    if measurements.signed_before is not None
+                    else float("nan")
+                ),
+                min((item["min_span_mm"] for item in measurements.seam_pre), default=0.0),
+                max((item["max_span_mm"] for item in measurements.seam_pre), default=0.0),
             )
         )
 
@@ -362,17 +348,17 @@ def _run_ladder_case(case_id):
         for step in CHECKPOINTS:
             image = OUT / "avatar-ladder" / case_id / ("step-%03d.png" % int(step))
             capture.capture(step, image)
-            positions = _ladder.positions_tuple(base.backend)
+            positions = _ladder.positions_tuple(runtime.base.backend)
             checkpoints.append(
                 _checkpoint_record(
                     step,
                     str(image.relative_to(OUT)),
                     positions,
-                    panel_triangles,
-                    source_shape,
-                    collision_surface,
-                    base,
-                    proximity_mesh,
+                    runtime.panel_triangles,
+                    runtime.source_shape,
+                    runtime.collision_surface,
+                    runtime.base,
+                    measurements.proximity_mesh,
                     case_id=case_id,
                 )
             )
@@ -389,7 +375,7 @@ def _run_ladder_case(case_id):
             ),
             default=0.0,
         )
-        seam_world_spans = [entry for entry in seam_pre]
+        seam_world_spans = [entry for entry in measurements.seam_pre]
         record = {
             "case_id": case_id,
             "predecessor_case_id": None,
@@ -410,9 +396,9 @@ def _run_ladder_case(case_id):
                 "gravity_z_mm_s2": float(getattr(scene, "GravityZ", 0.0)),
             },
             "collision": {
-                "source_signature": target_sig,
-                "source_triangles": int(target_sig["source_triangles"]),
-                "solver_triangles": int(solver_triangles),
+                "source_signature": runtime.target_signature,
+                "source_triangles": int(runtime.target_signature["source_triangles"]),
+                "solver_triangles": int(runtime.solver_triangles),
                 "target_bounds": {
                     "x_min": float(avatar.Mesh.BoundBox.XMin),
                     "x_max": float(avatar.Mesh.BoundBox.XMax),
@@ -422,18 +408,18 @@ def _run_ladder_case(case_id):
                     "z_max": float(avatar.Mesh.BoundBox.ZMax),
                 },
                 "target_topology_summary": {
-                    "vertices": int(target_sig["source_vertices"]),
-                    "triangles": int(target_sig["source_triangles"]),
-                    "solver_triangles": int(solver_triangles),
+                    "vertices": int(runtime.target_signature["source_vertices"]),
+                    "triangles": int(runtime.target_signature["source_triangles"]),
+                    "solver_triangles": int(runtime.solver_triangles),
                 },
             },
             "pre_step": {
-                "piece_bounds": [list(bounds.values())],
-                "unsigned_clearance_mm": unsigned_before,
-                "signed_clearance_mm": signed_before,
+                "piece_bounds": [list(measurements.bounds.values())],
+                "unsigned_clearance_mm": measurements.unsigned_before,
+                "signed_clearance_mm": measurements.signed_before,
                 "seam_pairs": [
                     [int(left), int(right)]
-                    for seam in base.seam_stitch_pairs.values()
+                    for seam in runtime.base.seam_stitch_pairs.values()
                     for left, right in seam
                 ],
                 "seam_world_spans_mm": seam_world_spans,
@@ -460,11 +446,11 @@ def _run_ladder_case(case_id):
                     "left_x": -120.0,
                     "right_x": spec["right_offset"],
                 },
-                "pre_step_seam_count": len(base.seam_stitch_pairs),
+                "pre_step_seam_count": len(runtime.base.seam_stitch_pairs),
                 "pre_step_seam_pair_count": sum(
-                    len(pairs) for pairs in base.seam_stitch_pairs.values()
+                    len(pairs) for pairs in runtime.base.seam_stitch_pairs.values()
                 ),
-                "pre_step_bounds_mm": bounds,
+                "pre_step_bounds_mm": measurements.bounds,
                 "arrangement_frame": frame,
             },
             "images": [images[step] for step in CHECKPOINTS],
@@ -587,21 +573,11 @@ def _run_and_shutdown():
     os._exit(status)
 
 
-_boot(f"entrypoint-name={__name__!r}")
-_boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
-_freecad_entrypoint_name = Path(__file__).stem
-_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))
-
-
-def _schedule_freecad_main():
-    """Schedule the ladder outside FreeCAD's delayed-startup import callback."""
-    _boot("freecad-hosted-entrypoint")
-    _boot("entrypoint:schedule-main")
-    _ladder.schedule_freecad_main(_run_and_shutdown)
-
-
-if __name__ == "__main__":
-    _boot("direct-entrypoint")
-    _run_and_shutdown()
-elif _freecad_gui_hosted or __name__ == _freecad_entrypoint_name:
-    _schedule_freecad_main()
+dispatch_ladder_entrypoint(
+    __file__,
+    __name__,
+    _run_and_shutdown,
+    _boot,
+    App,
+    _ladder.schedule_freecad_main,
+)
