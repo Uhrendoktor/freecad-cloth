@@ -10,6 +10,7 @@ from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from tests.support.assertions import require
 from tests.support.pbd_contact_helpers import (
+    LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
     configure_ladder_scene,
     events,
