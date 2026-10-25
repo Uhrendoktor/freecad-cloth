@@ -25,12 +25,12 @@ from freecad_cloth.avatar.AvatarProvider import (
     PROVIDER_IDS,
     FreeCADGeometryAvatarProvider,
 )
-from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
+from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
@@ -945,6 +945,7 @@ _HANDLERS = {
 }
 try:
     import FreeCADGui as gui
+
     from freecad_cloth.common import CommandAdapter as command_adapter
 
     command_adapter.register_commands(cast("GuiCommandRegistrar", gui), _HANDLERS)
