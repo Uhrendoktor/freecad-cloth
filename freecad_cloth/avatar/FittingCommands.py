@@ -709,7 +709,6 @@ def set_body_measurements(measurements, unit="mm"):
     return scene
 
 
-
 def assign_avatar_source(source: object | None = None) -> object:
     """Assign a selected body or mannequin as the fitting scene's avatar source.
 
@@ -749,9 +748,7 @@ def assign_avatar_source(source: object | None = None) -> object:
 
     is_mannequin = str(getattr(source, "AvatarType", "")) == "ClothAvatar"
     target_type = "Mannequin" if is_mannequin else "FreeCAD Geometry"
-    target_thickness = (
-        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if is_mannequin else 2.0
-    )
+    target_thickness = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if is_mannequin else 2.0
     target = doc.getObject("DrapeTarget")
     if target is None:
         create_drape_target(doc, source, target_type, 1.0, target_thickness)

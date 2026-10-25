@@ -176,7 +176,9 @@ def _edge_records(
     )
     records = read_native_records(piece)
     if not records:
-        msg = f"pattern piece {getattr(piece, 'PieceId', '')} has no usable native Sketcher boundary"
+        msg = (
+            f"pattern piece {getattr(piece, 'PieceId', '')} has no usable native Sketcher boundary"
+        )
         raise MissingEdgeReference(msg)
     return list(records)
 

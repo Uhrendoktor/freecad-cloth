@@ -609,9 +609,7 @@ def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     ymin = float(np.min(heights))
     ymax = float(np.max(heights))
     span = max(1e-9, ymax - ymin)
-    mapped = np.column_stack(
-        (coordinates[:, 0], coordinates[:, 2], (heights - ymin) / span)
-    )
+    mapped = np.column_stack((coordinates[:, 0], coordinates[:, 2], (heights - ymin) / span))
     return [(float(x), float(y), float(z)) for x, y, z in mapped]
 
 
@@ -1309,7 +1307,7 @@ def fit_makehuman_mesh(
         side = -1.0 if x < 0.0 else 1.0
         pivot_x = shoulder_pivots.get(side, side * shoulder_half)
         source_weight = None if arm_weights is None else arm_weights[0 if side < 0 else 1][index]
-        weight = _arm_pose_weight(x, z, pivot_x, height_mm, source_weight)
+        weight = arm_pose_weight(x, z, pivot_x, height_mm, source_weight)
         if weight <= 1e-9:
             posed.append((x, y, z))
             continue
@@ -1331,14 +1329,29 @@ def fit_makehuman_mesh(
     return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles)).validate()
 
 
-def _arm_pose_weight(
+def arm_pose_weight(
     x: float,
     z: float,
     shoulder_pivot_x: float,
     height_mm: float,
     source_weight: float | None = None,
 ) -> float:
-    """Return authored arm influence or estimate it geometrically when skin weights are absent."""
+    """Return normalized arm-chain influence for one fitted mesh vertex.
+
+    Authored skin weights are authoritative when provided. Otherwise, lateral
+    distance from the shoulder pivot and normalized vertex height produce a
+    smooth geometric fallback.
+
+    Args:
+        x: Vertex X coordinate in millimetres.
+        z: Vertex height in millimetres.
+        shoulder_pivot_x: Shoulder pivot X coordinate in millimetres.
+        height_mm: Fitted mannequin height used to normalize vertex height.
+        source_weight: Optional authored arm-chain influence.
+
+    Returns:
+        A finite influence value between zero and one.
+    """
     if source_weight is not None:
         return max(0.0, min(1.0, float(source_weight)))
     pivot = abs(shoulder_pivot_x)

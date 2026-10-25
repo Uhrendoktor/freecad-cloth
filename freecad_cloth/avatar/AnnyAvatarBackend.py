@@ -383,11 +383,7 @@ def _apply_front_breast_fullness(
         return vertices
     points = np.asarray(vertices, dtype=np.float64).copy()
     normalized_z = points[:, 2] / height_mm
-    chest_mask = (
-        (normalized_z >= 0.60)
-        & (normalized_z <= 0.76)
-        & (np.abs(points[:, 0]) < 190.0)
-    )
+    chest_mask = (normalized_z >= 0.60) & (normalized_z <= 0.76) & (np.abs(points[:, 0]) < 190.0)
     if not bool(chest_mask.any()):
         return vertices
     chest = points[chest_mask]

@@ -597,6 +597,7 @@ def apply_avatar_parameters(
     # follows the deformed surface instead of being invalidated by AvatarRevision.
     try:
         from freecad_cloth.avatar import FittingCommands as fitting_commands
+
         fitting_scene = fitting_commands._scene(obj.Document)
         drape_target = obj.Document.getObject("DrapeTarget")
         if fitting_scene is not None and getattr(drape_target, "SourceObject", None) is obj:
@@ -646,6 +647,7 @@ def edit_avatar() -> _AvatarFeature:
         doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
     from freecad_cloth.avatar import AvatarGui as avatar_gui
+
     return avatar_gui.show_avatar_task(obj)
 
 
@@ -664,6 +666,7 @@ def pose_avatar() -> _AvatarFeature:
         doc = app.newDocument("ClothSewing")
     obj = _avatar(doc) or create_avatar()
     from freecad_cloth.avatar import AvatarPoseGui as avatar_pose_gui
+
     return avatar_pose_gui.show_avatar_pose_task(obj)
 
 
@@ -928,6 +931,7 @@ _HANDLERS = {
 try:
     import FreeCADGui as gui
     from freecad_cloth.common import CommandAdapter as command_adapter
+
     command_adapter.register_commands(gui, _HANDLERS)
 except (ImportError, AttributeError):
     pass
