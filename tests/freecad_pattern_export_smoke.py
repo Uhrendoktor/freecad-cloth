@@ -18,11 +18,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from freecad_cloth.pattern.PatternCommands import get_active_pattern_export_task_panel
-from freecad_cloth.pattern.PatternExport import (
-    from_dxf_metadata,
-    from_pdf_metadata,
-    from_svg_metadata,
-)
+from freecad_cloth.pattern.PatternExport import from_dxf_metadata, from_svg_metadata
+from freecad_cloth.pattern.PatternPdfExport import from_pdf_metadata
 from freecad_cloth.pattern.PatternSvgValidation import render_svg_for_validation
 
 LOG_PATH = Path(
