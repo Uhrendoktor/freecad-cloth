@@ -1,4 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+"""Regression tests for MakeHuman-derived arm fitting and pose inputs."""
 import json
 import tempfile
 import unittest
@@ -12,12 +13,16 @@ from freecad_cloth.avatar.HumanoidMesh import (
 
 
 class AvatarArmPoseTests(unittest.TestCase):
+    """Cover source weights and the geometry-based fallback for arm poses."""
+
     def test_geometric_fallback_covers_lower_arm_envelope_without_source_weights(self):
+        """Keep both arm envelopes controllable when source weights are absent."""
         height = 1750.0
         self.assertEqual(_arm_pose_weight(260.0, height * 0.50, 170.0, height), 1.0)
         self.assertEqual(_arm_pose_weight(-260.0, height * 0.50, -170.0, height), 1.0)
 
     def test_source_weight_is_authoritative_for_arm_influence(self):
+        """Honor authored arm weights rather than inferring extra influence."""
         height = 1750.0
         self.assertEqual(_arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0), 0.0)
         self.assertEqual(_arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0), 1.0)
@@ -45,6 +50,7 @@ class AvatarArmPoseTests(unittest.TestCase):
         self.assertEqual(weighted_angles, {-1.0: 0.0, 1.0: 0.0})
 
     def test_makehuman_arm_weights_sum_only_arm_chain_bones(self):
+        """Accumulate only named arm-chain weights for each side."""
         payload = {
             "weights": {
                 "upperarm01.L": [[1, 0.25]],

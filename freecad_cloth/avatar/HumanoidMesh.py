@@ -501,11 +501,22 @@ def _joint_point(
     indices: Iterable[int],
     mapper: Callable[[Point], Point] | None = None,
 ) -> Point:
-    """Average authored joint vertices, optionally after fitting each vertex.
+    """Average authored joint vertices after optional per-vertex fitting.
 
-    Fitting the average source point is not equivalent to averaging the fitted
-    points when the mapping is nonlinear. The latter keeps rest-joint
-    locations aligned with the actual fitted surface.
+    Fitting the average source point is not equivalent to averaging fitted
+    points when the mapping is nonlinear; averaging mapped vertices keeps
+    joint locations aligned with the actual fitted surface.
+
+    Args:
+        source_vertices: Authored MakeHuman vertex coordinates.
+        indices: Indices defining the joint's contributing source vertices.
+        mapper: Optional source-to-fitted-coordinate transform.
+
+    Returns:
+        The mean mapped joint coordinate.
+
+    Raises:
+        HumanoidMeshError: If no valid source vertices define the joint.
     """
     points = [
         source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)
@@ -591,7 +602,15 @@ def _smoothstep(a: float, b: float, x: float) -> float:
 
 
 def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
-    """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
+    """Convert MakeHuman coordinates to FreeCAD's right-handed Z-up system.
+
+    Args:
+        vertices: Finite MakeHuman coordinates in the source Y-up system.
+
+    Returns:
+        Coordinates with the source Y axis mapped to vertical Z and normalized
+        to a unit height, preserving X and mapping source Z to FreeCAD Y.
+    """
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
     heights = coordinates[:, 1]
     ymin = float(np.min(heights))
@@ -707,9 +726,18 @@ def _gender_axis_profiles(
 
 
 def _estimate_shoulder_pivots(
-    vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
+    vertices: Sequence[Point], shoulder_half: float, height_mm: float
 ) -> dict[float, float]:
-    """Infer the shoulder rotation pivots from the fitted body surface."""
+    """Infer shoulder pivots from the fitted body surface.
+
+    Args:
+        vertices: Fitted body mesh coordinates.
+        shoulder_half: Expected half-width of the shoulder measurement.
+        height_mm: Fitted mannequin height in millimetres.
+
+    Returns:
+        A mapping from side (-1 or +1) to the estimated shoulder X coordinate.
+    """
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
     x_coordinates = coordinates[:, 0]
     height_ratios = coordinates[:, 2] / max(1.0, height_mm)
@@ -739,7 +767,22 @@ def _estimate_rest_arm_angles(
     height_mm: float,
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> dict[float, float]:
-    """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
+    """Estimate each HM08 arm's unposed angle from its actual A-pose geometry.
+
+    Args:
+        vertices: Fitted mesh vertex coordinates.
+        shoulder_pivots: Estimated shoulder X coordinate for each side.
+        shoulder_z: Shoulder height in millimetres.
+        height_mm: Fitted mannequin height in millimetres.
+        arm_weights: Optional per-vertex influence weights for the left and
+            right arm chains.
+
+    Returns:
+        Unposed downward arm angles in degrees, keyed by side.
+
+    Raises:
+        HumanoidMeshError: If supplied arm weights do not match the vertex count.
+    """
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
     x_coordinates = coordinates[:, 0]
     z_coordinates = coordinates[:, 2]
@@ -1204,7 +1247,7 @@ def fit_makehuman_mesh(
     pose = parameters.pose
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
-    shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
+    shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, height_mm)
     if arm_weights is not None:
         try:
             authored = _authored_arm_rig_points(parameters)
