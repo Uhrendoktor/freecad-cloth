@@ -11,11 +11,7 @@ from types import ModuleType
 
 from freecad_cloth.gui import ClothWorkbenchBase
 
-AVATAR_ENTRY_COMMANDS = (
-    "ClothFitting_CreateAvatar",
-    "ClothFitting_EditAvatar",
-    "ClothFitting_PoseAvatar",
-)
+from freecad_cloth.avatar.CommandIds import AVATAR_ENTRY_COMMANDS
 
 
 class ClothSimulationWorkbench(ClothWorkbenchBase):

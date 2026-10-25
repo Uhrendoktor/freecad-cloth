@@ -6,6 +6,8 @@ from pathlib import Path
 
 from defusedxml import ElementTree
 
+from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
+
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
     COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
@@ -94,12 +96,10 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     """Keep sewing registration complete for fitting and avatar commands."""
     workbench = ClothSewingWorkbench()
     workbench.Initialize()
-    fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
-    avatar = importlib.import_module("freecad_cloth.avatar.avatar_commands")
     expected = (
         {command for _name, group in SEWING_COMMAND_GROUPS for command in group}
-        | set(fitting.COMMANDS)
-        | set(avatar.COMMANDS)
+        | set(FITTING_COMMANDS)
+        | set(AVATAR_COMMANDS)
     )
     _require(
         set(workbench.commands) == expected,

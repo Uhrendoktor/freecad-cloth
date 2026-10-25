@@ -99,21 +99,16 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        from freecad_cloth.avatar import AvatarCommands, FittingCommands
+        from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
         from freecad_cloth.sewing import SewingCommands, SewingNetworkCommands
 
         groups = list(COMMAND_GROUPS[:3])
-        groups.append(
-            (
-                "Fitting & Avatar",
-                tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS)),
-            )
-        )
+        groups.append(("Fitting & Avatar", (*FITTING_COMMANDS, *AVATAR_COMMANDS)))
         expected = (
             SewingCommands.COMMANDS
             + SewingNetworkCommands.COMMANDS
-            + FittingCommands.COMMANDS
-            + AvatarCommands.COMMANDS
+            + list(FITTING_COMMANDS)
+            + list(AVATAR_COMMANDS)
         )
         _validate_sewing_command_groups(groups, expected)
         self.register(groups, toolbar_name=self.MenuText, toolbar_commands=TOOLBAR_COMMANDS)

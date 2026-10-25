@@ -3,6 +3,8 @@
 
 import hashlib
 import json
+
+from freecad_cloth.avatar.CommandIds import FITTING_COMMANDS
 from collections.abc import Callable
 from typing import Protocol, cast
 
@@ -1122,22 +1124,7 @@ class _FittingProxy:
         ).validate()
 
 
-COMMANDS = [
-    "ClothFitting_CreateScene",
-    "ClothFitting_InteractiveArrange",
-    "ClothFitting_SetMeasurements",
-    "ClothFitting_AssignAvatar",
-    "ClothFitting_AddPieces",
-    "ClothFitting_CreateArrangementPoint",
-    "ClothFitting_SetArrangementPoint",
-    "ClothFitting_DeleteArrangementPoint",
-    "ClothFitting_CreateBoundingVolume",
-    "ClothFitting_DeleteBoundingVolume",
-    "ClothFitting_SetSymmetry",
-    "ClothFitting_ApplyArrangementPoint",
-    "ClothFitting_ResetArrangement",
-    "ClothFitting_CreateSimulation",
-]
+COMMANDS = list(FITTING_COMMANDS)
 _COMMAND_HANDLERS = {
     "ClothFitting_CreateScene": create_fitting_scene,
     "ClothFitting_InteractiveArrange": open_interactive_arrange,

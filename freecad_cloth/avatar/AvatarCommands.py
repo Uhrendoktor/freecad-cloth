@@ -6,6 +6,7 @@ from itertools import starmap
 from types import ModuleType
 from typing import Protocol, cast
 
+from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS
 from freecad_cloth.avatar.AvatarProperties import (
     POSE_PROPERTY_MAP,
     PROPERTY_MAP,
@@ -912,17 +913,7 @@ def avatar_arrangement_points() -> object:
     return arrangement_points_from_landmarks(avatar.Landmarks)
 
 
-COMMANDS = [
-    "ClothFitting_CreateAvatar",
-    "ClothFitting_EditAvatar",
-    "ClothFitting_PoseAvatar",
-    "ClothFitting_RebuildAvatar",
-    "ClothFitting_SetAvatarMeasurements",
-    "ClothFitting_SetAvatarPose",
-    "ClothFitting_SetAvatarProvider",
-    "ClothFitting_SetAvatarJoint",
-    "ClothFitting_SetAvatarSkinOffset",
-]
+COMMANDS = list(AVATAR_COMMANDS)
 _HANDLERS = {
     "ClothFitting_CreateAvatar": create_avatar,
     "ClothFitting_EditAvatar": edit_avatar,
