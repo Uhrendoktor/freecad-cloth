@@ -2,8 +2,21 @@
 """Commands for the Cloth Simulation workbench."""
 
 from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+
+
+class _FreeCADDocument(Protocol):
+    """Minimal FreeCAD document API used by simulation-scene creation."""
+
+    def getObject(self, object_name: str) -> object | None:
+        """Return a document object by internal name, if present."""
+        ...
+
+    def recompute(self) -> None:
+        """Recompute derived document state after scene properties change."""
+        ...
 
 
 def create_simulation():
@@ -14,7 +27,7 @@ def create_simulation():
 
 
 def create_quality_simulation_scene(
-    doc: object,
+    doc: _FreeCADDocument,
     *,
     avatar_source: object | None = None,
     cloth_pieces: Sequence[object] = (),
@@ -42,11 +55,13 @@ def create_quality_simulation_scene(
     scene = create_simulation_scene(doc)
     scene.ClothPieces = list(cloth_pieces)
     if avatar_source is None:
-        avatar = doc.getObject("ClothAvatar") or create_avatar(doc=doc, attach_collision=False)
-        avatar.Label = "Cloth Human Avatar (MakeHuman)"
+        avatar = doc.getObject("ClothAvatar")
+        if avatar is None:
+            avatar = create_avatar(doc=doc, attach_collision=False)
+        setattr(avatar, "Label", "Cloth Human Avatar (MakeHuman)")
         view = getattr(avatar, "ViewObject", None)
         if view is not None:
-            view.Visibility = True
+            setattr(view, "Visibility", True)
     else:
         avatar = avatar_source
 
