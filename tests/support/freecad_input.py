@@ -37,6 +37,66 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     return QtCore, QtGui, QtTest, QtWidgets
 
 
+def wait_for_gui_ready(
+    gui: ModuleType,
+    process_events: Callable[[], None],
+    timeout_seconds: float = 15.0,
+) -> object:
+    """Wait until the FreeCAD main window is visible.
+
+    Args:
+        gui: FreeCAD GUI module that owns the main window.
+        process_events: Callback that refreshes FreeCAD and processes pending Qt events.
+        timeout_seconds: Maximum time to wait for a visible main window.
+
+    Returns:
+        The visible FreeCAD main-window object.
+
+    Raises:
+        RuntimeError: If the main window does not become visible before the timeout.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        window = gui.getMainWindow()
+        if window is not None and window.isVisible():
+            window.show()
+            process_events()
+            return window
+        process_events()
+        time.sleep(0.05)
+    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
+    raise RuntimeError(msg)
+
+
+def wait_for_task_dialog_close(
+    gui: ModuleType,
+    failure_message: str,
+    failure_type: type[Exception] = RuntimeError,
+    poll_count: int = 80,
+) -> None:
+    """Wait for FreeCAD's active task dialog to close while pumping Qt events.
+
+    Args:
+        gui: FreeCAD GUI module whose task dialog is being observed.
+        failure_message: Error text used if the dialog remains open.
+        failure_type: Exception class raised when the dialog does not close.
+        poll_count: Maximum number of event-loop polls before failing.
+
+    Raises:
+        Exception: The configured failure type if the task dialog remains open.
+    """
+    QtCore, _, _, QtWidgets = _qt_modules()
+    for _ in range(poll_count):
+        active = gui.Control.activeDialog()
+        if active is None or not bool(active):
+            return
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(0, loop.quit)
+        loop.exec()
+        QtWidgets.QApplication.processEvents()
+    raise failure_type(failure_message)
+
+
 def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> object:
     """Show and focus the FreeCAD main window before injecting GUI events."""
     _QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()

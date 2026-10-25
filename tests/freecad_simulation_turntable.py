@@ -21,6 +21,8 @@ from pivy import coin
 
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+from tests.support.freecad_input import wait_for_gui_ready
+
 
 import contextlib
 import pathlib
@@ -75,20 +77,6 @@ def _png_has_visible_content(path):
         pixel_threshold=245,
         require_all_channels_below=True,
     )
-
-
-def wait_for_gui_ready(timeout_seconds=15.0):
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        window = Gui.getMainWindow()
-        if window is not None and window.isVisible():
-            window.show()
-            events()
-            return window
-        events()
-        time.sleep(0.05)
-    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
-    raise RuntimeError(msg)
 
 
 def save_png(view, path, state):
@@ -461,7 +449,7 @@ def main():
     ).strip().lower() in {"1", "true", "yes"}
     with pathlib.Path(LOG).open("w", encoding="utf-8"):
         pass
-    window = wait_for_gui_ready()
+    window = wait_for_gui_ready(Gui, events)
     log(
         "stage=fixture-start backend=pbd collision_mode={} pbd_substeps={} steps={}".format(
             os.environ.get("CLOTH_PBD_COLLISION_MODE", "mesh"),

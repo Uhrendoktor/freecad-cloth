@@ -21,6 +21,8 @@ from pivy import coin
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+from tests.support.freecad_input import wait_for_gui_ready
+
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -40,20 +42,6 @@ def events():
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
-
-
-def wait_for_gui_ready(timeout_seconds=15.0):
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        window = Gui.getMainWindow()
-        if window is not None and window.isVisible():
-            window.show()
-            events()
-            return window
-        events()
-        time.sleep(0.05)
-    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
-    raise RuntimeError(msg)
 
 
 def hide_task_docks(window):
@@ -446,7 +434,7 @@ def main():
         msg = "CLOTH_AVATAR_SCREENSHOT_MODE must be all, turntable, turntable-validation, gallery, documentation, or documentation-turntable"
         raise RuntimeError(msg)
     log("avatar-script-mode=%s" % mode)
-    window = wait_for_gui_ready()
+    window = wait_for_gui_ready(Gui, events)
 
     init_gui = os.path.join(ROOT, "InitGui.py")
     with Path(init_gui).open(encoding="utf-8") as handle:
