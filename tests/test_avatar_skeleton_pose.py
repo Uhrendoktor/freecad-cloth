@@ -172,3 +172,34 @@ def test_controllable_joint_order_is_stable():
     assert CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head")
     assert len(CONTROLLABLE_BONES) == 18
     assert joint_rotation_map((JointRotation("head", z=15.0),))["head"].z == 15.0
+
+def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() -> None:
+    """Preserve duplicate-weight accumulation, normalization, and untouched vertices."""
+    source = (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+    )
+    skeleton = {
+        "bones": {
+            "upperarm01.L": {"head": "h", "tail": "t", "parent": None},
+            "lowerarm01.L": {"head": "h", "tail": "t", "parent": None},
+        },
+        "joints": {"h": [0], "t": [0]},
+    }
+    weights = {
+        "upperarm01.L": ((1, 0.25), (1, 0.25), (2, 2.0), (-1, 5.0), (99, 5.0)),
+        "lowerarm01.L": ((1, 0.5), (2, 1.0)),
+    }
+    posed = apply_weighted_fk(
+        source,
+        source,
+        skeleton,
+        weights,
+        lambda point: point,
+        (JointRotation("upperarm01.L", z=90.0),),
+    )
+    assert posed[0] == pytest.approx(source[0])
+    assert posed[1] == pytest.approx((0.5, 0.5, 0.0))
+    assert posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0))
+

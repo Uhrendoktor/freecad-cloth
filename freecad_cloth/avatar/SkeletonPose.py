@@ -12,6 +12,8 @@ import json
 import math
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+import numpy as np
+
 from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -350,45 +352,56 @@ def apply_weighted_fk(
     rotations: Iterable[JointRotation],
     rotation_pivots: Mapping[str, Vector] | None = None,
 ) -> tuple[Vector, ...]:
-    """Apply shared weighted-FK deformation using the same rig pivots."""
+    """Apply weighted FK using NumPy for vertex and skin-weight reductions.
+
+    Bone transforms remain computed by the canonical hierarchy. Each bone's
+    sparse vertex weights are then transformed and accumulated in array batches;
+    unweighted vertices retain their rest coordinates and overfull weights are
+    normalized exactly as in the original contract.
+
+    Args:
+        source_vertices: Source rig coordinates used to build joint transforms.
+        rest_vertices: Fitted undeformed mesh coordinates.
+        skeleton: Canonical source skeleton with joint memberships and parents.
+        weights: Sparse per-bone skin weights as vertex-index/weight pairs.
+        fit_point: Mapping from source coordinates to fitted coordinates.
+        rotations: Authored rotations to apply in the shared forward-kinematics path.
+        rotation_pivots: Optional explicit fitted-space rotation pivots per bone.
+
+    Returns:
+        The deformed vertex coordinates in original vertex-index order.
+    """
     transforms = build_bone_transforms(
         source_vertices, skeleton, fit_point, rotations, rotation_pivots
     )
-    count = len(rest_vertices)
-    accum = [[0.0, 0.0, 0.0] for _ in range(count)]
-    weight_sum = [0.0] * count
+    rest = np.asarray(rest_vertices, dtype=np.float64).reshape((-1, 3))
+    count = len(rest)
+    accumulated = np.zeros((count, 3), dtype=np.float64)
+    total_weights = np.zeros(count, dtype=np.float64)
 
     for bone_name, entries in weights.items():
+        if not entries:
+            continue
+        sparse_entries = np.asarray(entries, dtype=np.float64).reshape((-1, 2))
+        indices = sparse_entries[:, 0].astype(np.intp)
+        values = np.where(sparse_entries[:, 1] > 0.0, sparse_entries[:, 1], 0.0)
+        valid = (indices >= 0) & (indices < count) & (values > 0.0)
+        if not bool(np.any(valid)):
+            continue
+        indices = indices[valid]
+        values = values[valid]
         transform = transforms.get(bone_name, IDENTITY)
-        for index, weight in entries:
-            index = int(index)
-            if not 0 <= index < count:
-                continue
-            value = max(0.0, float(weight))
-            if value <= 0.0:
-                continue
-            px, py, pz = transform.apply(rest_vertices[index])
-            accum[index][0] += value * px
-            accum[index][1] += value * py
-            accum[index][2] += value * pz
-            weight_sum[index] += value
+        matrix = np.asarray(transform.matrix, dtype=np.float64).reshape((3, 3))
+        translation = np.asarray(transform.translation, dtype=np.float64)
+        moved = rest[indices] @ matrix.T + translation
+        np.add.at(accumulated, indices, moved * values[:, None])
+        np.add.at(total_weights, indices, values)
 
-    posed = []
-    for index, point in enumerate(rest_vertices):
-        total = weight_sum[index]
-        if total <= 1e-12:
-            posed.append(tuple(float(v) for v in point))
-            continue
-        if total > 1.0 + 1e-6:
-            scale = 1.0 / total
-            posed.append(tuple(value * scale for value in accum[index]))
-            continue
-        residual = 1.0 - total
-        posed.append(
-            (
-                accum[index][0] + residual * point[0],
-                accum[index][1] + residual * point[1],
-                accum[index][2] + residual * point[2],
-            )
-        )
-    return tuple(posed)
+    posed = rest.copy()
+    normalize = total_weights > 1.0 + 1e-6
+    blend = (total_weights > 1e-12) & ~normalize
+    posed[normalize] = accumulated[normalize] / total_weights[normalize, None]
+    posed[blend] = accumulated[blend] + (
+        1.0 - total_weights[blend, None]
+    ) * rest[blend]
+    return tuple((float(point[0]), float(point[1]), float(point[2])) for point in posed)
