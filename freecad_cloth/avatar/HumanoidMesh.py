@@ -787,10 +787,11 @@ def _estimate_side_rest_arm_angle(
         qualify as part of the arm envelope.
     """
     pivot_x, shoulder_z, height_mm = rig
+    height_ratios = coordinates[:, 2] / max(1.0, height_mm)
     selected = (
         (side * coordinates[:, 0] > side * pivot_x * _ARM_PIVOT_SEPARATION_FACTOR)
-        & (coordinates[:, 2] / max(1.0, height_mm) >= _ARM_START_HEIGHT_RATIO)
-        & (coordinates[:, 2] / max(1.0, height_mm) <= _ARM_END_HEIGHT_RATIO)
+        & (height_ratios >= _ARM_START_HEIGHT_RATIO)
+        & (height_ratios <= _ARM_END_HEIGHT_RATIO)
         & (influences > _ARM_MIN_INFLUENCE)
     )
     if not bool(np.any(selected)):
