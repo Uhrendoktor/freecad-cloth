@@ -16,6 +16,7 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
+    NATIVE_SIGNATURE_PREFIX,
     capture_edge_reference,
 )
 from freecad_cloth.sewing.SeamGraph import SeamGraph
@@ -230,42 +231,46 @@ def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
             f"{getattr(piece, 'PieceId', '')}"
         )
         raise MissingEdgeReference(msg)
-    _validate_edge_signature(
-        piece,
-        seam_obj,
-        semantic_id,
-        boundary,
-        signature_attribute,
-        True,
-    )
+    _validate_edge_signature(piece, seam_obj, semantic_id, boundary, signature_attribute)
     return semantic_id
 
 
-def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute, native):
+def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute) -> None:
+    """Require the stored seam signature to match current native PatternIR provenance.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece that owns the edge.
+        seam_obj: Persisted semantic seam object with the signature property.
+        edge_id: Stable semantic identity found in the current PatternIR boundary.
+        boundary: Current PatternIR boundary record resolved by semantic identity.
+        signature_attribute: Name of the stored side-specific signature property.
+
+    Raises:
+        ChangedEdgeReference: If the stored native provenance is missing or changed.
+    """
     stored = str(getattr(seam_obj, signature_attribute, "")).strip()
-    if native and not stored.startswith("native-v1:"):
-        raise ChangedEdgeReference(
-            "native Sketcher seam {} lacks authoritative geometry provenance for {}".format(
-                getattr(seam_obj, "SeamId", ""), edge_id
-            )
+    if not stored.startswith(NATIVE_SIGNATURE_PREFIX):
+        msg = (
+            f"native Sketcher seam {getattr(seam_obj, 'SeamId', '')} lacks "
+            f"authoritative geometry provenance for {edge_id}"
         )
-    if not stored:
-        return
+        raise ChangedEdgeReference(msg)
 
     samples = tuple(tuple(point) for point in boundary.samples)
+    if len(samples) < 2:
+        msg = f"semantic edge reference {edge_id} has fewer than two current samples"
+        raise ChangedEdgeReference(msg)
     points = (
-        (samples[0][0], samples[0][1]),
-        (samples[-1][0], samples[-1][1]),
+        (float(samples[0][0]), float(samples[0][1])),
+        (float(samples[-1][0]), float(samples[-1][1])),
     )
-    provenance = None
-    if native:
-        provenance = (
-            "PatternIR",
-            "Sketcher",
-            boundary.kind,
-            tuple(float(value) for value in boundary.parameter_range),
-            samples,
-        )
+    provenance = (
+        "PatternIR",
+        "Sketcher",
+        boundary.kind,
+        tuple(float(value) for value in boundary.parameter_range),
+        samples,
+    )
     current = capture_edge_reference(
         str(getattr(piece, "PieceId", "")),
         edge_id,
