@@ -23,6 +23,7 @@ from urllib.request import Request, urlopen
 from pydantic import StrictInt
 
 import numpy as np
+import trimesh
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -909,60 +910,64 @@ def load_makehuman_weights(
 
 
 def _section_circumference(
-    vertices: Sequence[Point],
-    triangles: Sequence[Triangle],
+    mesh: trimesh.Trimesh,
     plane: float,
     vertical_axis: int = 2,
     max_width: float | None = None,
 ) -> float:
     """Measure a closed mesh-section perimeter at a horizontal height plane.
 
-    Triangle/plane intersections form a graph of contour segments. The largest
-    centrally located closed loop is selected so disconnected limb sections do
-    not accidentally become the body circumference.
+    Trimesh performs triangle/plane intersections in vectorized code. The
+    remaining graph pass connects the smaller set of section segments,
+    selecting the largest centered closed loop so disconnected limb sections
+    do not accidentally become the body circumference.
+
+    Args:
+        mesh: Triangulated fitted body mesh to intersect with the section plane.
+        plane: Coordinate of the section plane on the chosen vertical axis.
+        vertical_axis: Coordinate axis normal to the section plane.
+        max_width: Optional maximum lateral span for an accepted loop.
+
+    Returns:
+        Perimeter of the largest centered closed contour, or zero when no valid
+        closed contour meets the selection constraints.
+
+    Raises:
+        ValueError: If vertical_axis is not one of the three coordinate axes.
     """
     if vertical_axis not in (0, 1, 2):
         msg = "vertical_axis must be 0, 1, or 2"
         raise ValueError(msg)
     axes = tuple(axis for axis in range(3) if axis != vertical_axis)
+    plane_normal = np.zeros(3, dtype=np.float64)
+    plane_normal[vertical_axis] = 1.0
+    plane_origin = np.zeros(3, dtype=np.float64)
+    plane_origin[vertical_axis] = plane
+    segments = trimesh.intersections.mesh_plane(
+        mesh,
+        plane_normal=plane_normal,
+        plane_origin=plane_origin,
+    )
+    if not len(segments):
+        return 0.0
+
     node_points: dict[tuple[int, int], tuple[float, float]] = {}
     graph: dict[tuple[int, int], set[tuple[int, int]]] = {}
     segment_seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
 
-    for tri in triangles:
-        if len(tri) != 3 or any(index < 0 or index >= len(vertices) for index in tri):
-            continue
-        tri_points = [vertices[index] for index in tri]
-        hits: dict[tuple[int, int], tuple[float, float]] = {}
-        for start, end in ((0, 1), (1, 2), (2, 0)):
-            first, second = tri_points[start], tri_points[end]
-            z0, z1 = first[vertical_axis], second[vertical_axis]
-            if (z0 < plane < z1) or (z1 < plane < z0):
-                fraction = (plane - z0) / (z1 - z0)
-            elif math.isclose(z0, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
-                z1, plane, rel_tol=0.0, abs_tol=1e-8
-            ):
-                fraction = 0.0
-            elif math.isclose(z1, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
-                z0, plane, rel_tol=0.0, abs_tol=1e-8
-            ):
-                fraction = 1.0
-            else:
-                continue
-            point = tuple(first[axis] + fraction * (second[axis] - first[axis]) for axis in axes)
-            key = (round(point[0] * 10000), round(point[1] * 10000))
-            hits.setdefault(key, point)
-        if len(hits) != 2:
-            continue
-        first_key, second_key = hits
+    for segment in segments:
+        first = (float(segment[0, axes[0]]), float(segment[0, axes[1]]))
+        second = (float(segment[1, axes[0]]), float(segment[1, axes[1]]))
+        first_key = (round(first[0] * 10000), round(first[1] * 10000))
+        second_key = (round(second[0] * 10000), round(second[1] * 10000))
         if first_key == second_key:
             continue
         edge = tuple(sorted((first_key, second_key)))
         if edge in segment_seen:
             continue
         segment_seen.add(edge)
-        node_points.setdefault(first_key, hits[first_key])
-        node_points.setdefault(second_key, hits[second_key])
+        node_points.setdefault(first_key, first)
+        node_points.setdefault(second_key, second)
         graph.setdefault(first_key, set()).add(second_key)
         graph.setdefault(second_key, set()).add(first_key)
 
@@ -1004,22 +1009,18 @@ def _section_circumference(
             previous, current = current, following
         if not closed or len(ordered) < 3:
             continue
-        points = [node_points[key] for key in ordered]
-        perimeter = sum(
-            math.hypot(
-                points[(index + 1) % len(points)][0] - point[0],
-                points[(index + 1) % len(points)][1] - point[1],
-            )
-            for index, point in enumerate(points)
+        point_array = np.asarray([node_points[key] for key in ordered], dtype=np.float64)
+        following_points = np.roll(point_array, -1, axis=0)
+        edges = following_points - point_array
+        perimeter = float(np.sum(np.linalg.norm(edges, axis=1), dtype=np.float64))
+        twice_area = np.sum(
+            point_array[:, 0] * following_points[:, 1]
+            - following_points[:, 0] * point_array[:, 1],
+            dtype=np.float64,
         )
-        twice_area = sum(
-            points[index][0] * points[(index + 1) % len(points)][1]
-            - points[(index + 1) % len(points)][0] * points[index][1]
-            for index in range(len(points))
-        )
-        area = abs(twice_area) * 0.5
-        centroid_x = sum(point[0] for point in points) / len(points)
-        width = max(point[0] for point in points) - min(point[0] for point in points)
+        area = abs(float(twice_area)) * 0.5
+        centroid_x = float(np.mean(point_array[:, 0], dtype=np.float64))
+        width = float(np.ptp(point_array[:, 0]))
         if area > 1e-5 and perimeter > 1e-5:
             loops.append((area, perimeter, abs(centroid_x), width))
 
@@ -1194,6 +1195,11 @@ def _make_source_fitted_mapper(
         )
         for _iteration in range(7):
             fitted_body = tuple(transform(point) for point in body)
+            section_mesh = trimesh.Trimesh(
+                vertices=np.asarray(fitted_body, dtype=np.float64),
+                faces=np.asarray(source_triangles, dtype=np.int64),
+                process=False,
+            )
             max_relative_error = 0.0
             for index, (name, normalized_height, lateral_exponent) in enumerate(
                 profile_parameters, start=1
@@ -1204,8 +1210,7 @@ def _make_source_fitted_mapper(
                     2.0 * _profile_scale(normalized_height, core_width_profile) + 250.0,
                 )
                 actual = _section_circumference(
-                    fitted_body,
-                    source_triangles,
+                    section_mesh,
                     normalized_height * height_mm,
                     vertical_axis=2,
                     max_width=contour_limit,

@@ -6,6 +6,8 @@ import unittest
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
+import trimesh
 from pydantic import ValidationError
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -22,6 +24,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     _make_source_fitted_mapper,
     _map_makehuman_axes,
     _reoriented_triangles,
+    _section_circumference,
     _verified_skeleton,
     _verified_weights,
     ensure_makehuman_base,
@@ -325,6 +328,36 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertEqual(len(fitted.vertices), len(source.vertices))
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
+
+    def test_section_circumference_uses_trimesh_plane_intersections(self) -> None:
+        """Measure a closed cube section using the vectorized Trimesh intersection API."""
+        vertices = (
+            (-1.0, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (-1.0, -1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+        )
+        triangles = (
+            (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
+            (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
+            (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7),
+        )
+        mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=np.asarray(triangles, dtype=np.int64),
+            process=False,
+        )
+
+        circumference = _section_circumference(mesh, 0.5)
+
+        require(
+            condition=abs(circumference - 8.0) < 1e-9,
+            message="unit cube section must have the expected square perimeter",
+        )
 
     def test_compact_mesh_remaps_triangle_indices_with_numpy(self) -> None:
         """Preserve sorted source-index order when compacting mesh connectivity."""
