@@ -77,8 +77,8 @@ def bootstrap_ladder(
         ImportError: If FreeCAD or its GUI/Part modules cannot be imported.
         OSError: If the artifact directory or startup trace cannot be created.
     """
-    repository_root, helper_directory, output_directory, log_path, trace = (
-        initialize_ladder(script_file, ladder_name)
+    repository_root, helper_directory, output_directory, log_path, trace = initialize_ladder(
+        script_file, ladder_name
     )
 
     def boot(message: str) -> None:

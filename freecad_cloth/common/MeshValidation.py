@@ -148,9 +148,7 @@ def validate_mesh(
     triangle_areas = _triangle_areas(vertices, triangles)
     faces = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
     unique_vertices = (
-        (faces[:, 0] != faces[:, 1])
-        & (faces[:, 1] != faces[:, 2])
-        & (faces[:, 2] != faces[:, 0])
+        (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 2] != faces[:, 0])
     )
     degenerate = int(np.count_nonzero(~unique_vertices | (triangle_areas == 0.0)))
 

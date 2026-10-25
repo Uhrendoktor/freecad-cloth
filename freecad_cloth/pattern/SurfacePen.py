@@ -361,9 +361,7 @@ def flatten_surface_patch(
     u_coordinates = relative @ np.asarray(u, dtype=np.float64)
     v_coordinates = relative @ np.asarray(v, dtype=np.float64)
     projected = np.column_stack((u_coordinates, v_coordinates))
-    points_2d = tuple(
-        (round(float(point[0]), 6), round(float(point[1]), 6)) for point in projected
-    )
+    points_2d = tuple((round(float(point[0]), 6), round(float(point[1]), 6)) for point in projected)
     max_deviation = float(np.max(np.abs(relative @ normal_array)))
 
     patch = FlattenedSurfacePatch(points_2d, center, normal, max_deviation)

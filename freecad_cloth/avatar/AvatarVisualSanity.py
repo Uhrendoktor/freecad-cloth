@@ -96,9 +96,7 @@ def inspect_avatar_mesh(
         msg = "avatar mesh bounds must be finite"
         raise AvatarVisualSanityError(msg)
     height = float(spans[2])
-    width, depth = max(float(spans[0]), float(spans[1])), min(
-        float(spans[0]), float(spans[1])
-    )
+    width, depth = max(float(spans[0]), float(spans[1])), min(float(spans[0]), float(spans[1]))
     if not math.isfinite(height) or height <= 0.0:
         msg = "avatar Z bounds do not contain a positive height"
         raise AvatarVisualSanityError(msg)
