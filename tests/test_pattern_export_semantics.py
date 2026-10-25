@@ -409,22 +409,14 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
     derived = add_notches(derived, [Notch("right-notch", "right", 0.5, depth=3.0)])
-    first = to_pdf(
-        pattern,
-        PdfExportOptions(
-            derived=derived,
-            piece_id="front",
-            seam_ids=("front-back",),
-            seam_allowance=5.0,
-        ),
-    )
-    second = to_pdf(
-        pattern,
+    options = PdfExportOptions(
         derived=derived,
         piece_id="front",
         seam_ids=("front-back",),
         seam_allowance=5.0,
     )
+    first = to_pdf(pattern, options)
+    second = to_pdf(pattern, options)
     assert first == second
     assert first.startswith(b"%PDF-1.4")
     assert b"/Count 1" in first
@@ -441,29 +433,11 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     assert metadata["page_count"] == 1
     assert metadata["notch_ids"] == ["right-notch"]
     assert (
-        validate_pdf_export(
-            pattern,
-            first,
-            PdfExportOptions(
-                derived=derived,
-                piece_id="front",
-                seam_ids=("front-back",),
-                seam_allowance=5.0,
-            ),
-        )["valid"]
+        validate_pdf_export(pattern, first, options)["valid"]
         is True
     )
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative"):
-        validate_pdf_export(
-            pattern,
-            first + b"tampered",
-            PdfExportOptions(
-                derived=derived,
-                piece_id="front",
-                seam_ids=("front-back",),
-                seam_allowance=5.0,
-            ),
-        )
+        validate_pdf_export(pattern, first + b"tampered", options)
 
 
 def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:

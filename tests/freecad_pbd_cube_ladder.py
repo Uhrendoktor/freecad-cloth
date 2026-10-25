@@ -117,6 +117,7 @@ def _build_cube_scene(doc):
     cube = _configure_diagnostic_cube_target(doc, scene, App, Part)
     return scene, cube
 
+
 def _add_seam(doc, piece_a, piece_b, seam_id="cube-seam"):
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
