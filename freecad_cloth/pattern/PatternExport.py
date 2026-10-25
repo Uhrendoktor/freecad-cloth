@@ -485,75 +485,6 @@ def to_dxf(
     return "\n".join(lines)
 
 
-def to_pdf(
-    pattern: ParametricPattern,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
-) -> bytes:
-    """Generate a true-scale tiled PDF with calibration and registration marks."""
-    from freecad_cloth.pattern.PatternPdfExport import to_pdf as render_pdf
-
-    return render_pdf(
-        pattern,
-        curve_samples,
-        units,
-        derived,
-        piece_id,
-        tuple(seam_ids),
-        seam_allowance,
-        paper_size=paper_size,
-        margin_mm=margin_mm,
-        overlap_mm=overlap_mm,
-    )
-
-
-def from_pdf_metadata(pdf: bytes) -> dict:
-    """Read deterministic cloth-pattern metadata from a tiled PDF."""
-    from freecad_cloth.pattern.PatternPdfExport import from_pdf_metadata as read_metadata
-
-    return read_metadata(pdf)
-
-
-def validate_pdf_export(
-    pattern: ParametricPattern,
-    exported: bytes,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
-) -> dict:
-    """Validate a PDF by deterministic regeneration from the authoritative model."""
-    from freecad_cloth.pattern.PatternPdfExport import validate_pdf_export as validate_pdf
-
-    return validate_pdf(
-        pattern,
-        exported,
-        curve_samples,
-        units,
-        derived,
-        piece_id,
-        tuple(seam_ids),
-        seam_allowance,
-        paper_size=paper_size,
-        margin_mm=margin_mm,
-        overlap_mm=overlap_mm,
-    )
-
-
 def from_dxf_metadata(dxf: str) -> dict[str, object]:
     """Read and validate canonical semantic metadata embedded in a DXF.
 
@@ -827,7 +758,25 @@ def export_pattern_piece(
     margin_mm: float = 10.0,
     overlap_mm: float = 10.0,
 ) -> dict:
-    """Write and validate an SVG/DXF/PDF export derived from an authoritative piece."""
+    """Write and validate an export derived from authoritative piece geometry.
+
+    Args:
+        piece: FreeCAD PatternPiece with native Sketch authority.
+        path: Destination path for the generated artifact.
+        export_format: Export format: SVG, DXF, or PDF.
+        units: Canonical pattern units; only millimetres are supported.
+        curve_samples: Number of samples used to resolve native curves.
+        paper_size: PDF paper format, used only for PDF exports.
+        margin_mm: Printable-page margin, used only for PDF exports.
+        overlap_mm: Tile overlap, used only for PDF exports.
+
+    Returns:
+        Format-specific deterministic validation results.
+
+    Raises:
+        ValueError: If the format, geometry authority, or export content is invalid.
+        OSError: If the destination artifact cannot be written.
+    """
     normalized_format = str(export_format).strip().lower()
     if normalized_format not in {"svg", "dxf", "pdf"}:
         msg = "format must be 'svg', 'dxf' or 'pdf'"
@@ -854,6 +803,11 @@ def export_pattern_piece(
         derived = add_marks(derived, (mark,))
     piece_id = str(getattr(piece, "PieceId", ""))
     if normalized_format == "pdf":
+        from freecad_cloth.pattern.PatternPdfExport import (
+            to_pdf,
+            validate_pdf_export,
+        )  # ruff: ignore[PLC0415]
+
         content = to_pdf(
             pattern,
             curve_samples,
