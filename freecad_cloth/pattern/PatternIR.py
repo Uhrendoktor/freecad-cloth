@@ -12,7 +12,7 @@ from math import hypot
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.ValidationModels import NormalizedRange
+from freecad_cloth.common.ValidationModels import NormalizedRange, validate_finite_number
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
