@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import NamedTuple, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping, Sequence
     from types import ModuleType
 
 
@@ -653,3 +653,246 @@ def schedule_freecad_main(callback: Callable[[], None]) -> None:
     except ImportError:
         from PySide2 import QtCore
     QtCore.QTimer.singleShot(0, callback)
+
+
+
+class LadderCaseMeasurements(NamedTuple):
+    """Validated state and measurements collected before a ladder case steps."""
+
+    runtime: PBDRuntimeSnapshot
+    seam_pre: list[dict[str, object]]
+    proximity_mesh: object | None
+    signed_before: float | None
+    unsigned_before: float | None
+    bounds: dict[str, float]
+
+
+def append_optional_ladder_piece(
+    spec: Mapping[str, object],
+    pieces: list[object],
+    create_right_piece: Callable[[], object],
+    add_seam: Callable[[object, object], None],
+) -> None:
+    """Append the optional right piece and seam specified by a ladder case.
+
+    Args:
+        spec: Manifest record defining piece count and seam mode.
+        pieces: Mutable list already containing the left panel.
+        create_right_piece: Factory for the case-specific second panel.
+        add_seam: Callback that creates a seam between two panels.
+
+    Raises:
+        ValueError: If a two-piece case has no left panel.
+    """
+    if spec.get("piece_count") != 2:
+        return
+    if not pieces:
+        msg = "two-piece ladder case requires an existing left panel"
+        raise ValueError(msg)
+    right_piece = create_right_piece()
+    pieces.append(right_piece)
+    if spec.get("seam_mode") in {"small", "large"}:
+        add_seam(pieces[0], right_piece)
+
+
+def configure_ladder_scene(
+    scene: object,
+    pieces: list[object],
+    spec: Mapping[str, object],
+) -> None:
+    """Apply common cloth, pinning, seam, and step settings to a ladder scene.
+
+    Args:
+        scene: Production simulation scene document object.
+        pieces: Case-specific one- or two-panel cloth pieces.
+        spec: Manifest record supplying the pin mode.
+    """
+    setattr(scene, "ClothPieces", pieces)
+    setattr(scene, "SeamSelection", [])
+    setattr(scene, "PinMode", str(spec["pin_mode"]))
+    setattr(scene, "PinSelection", [])
+    setattr(scene, "StitchSamples", 8)
+    setattr(scene, "Steps", 0)
+
+
+def build_proximity_mesh(collision_surface: object) -> object | None:
+    """Build an optional Trimesh acceleration mesh for surface-distance queries.
+
+    Args:
+        collision_surface: Validated surface exposing vertices and triangles.
+
+    Returns:
+        A Trimesh object when available and constructible; otherwise None.
+    """
+    try:
+        import numpy as np
+        import trimesh
+
+        return trimesh.Trimesh(
+            vertices=np.asarray(getattr(collision_surface, "vertices", ()), dtype=np.float64),
+            faces=np.asarray(getattr(collision_surface, "triangles", ()), dtype=np.int64),
+            process=False,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def position_bounds(points: Sequence[Sequence[float]]) -> dict[str, float]:
+    """Compute axis-aligned coordinate bounds using vectorized NumPy reductions.
+
+    Args:
+        points: Particle or vertex coordinates in X, Y, Z order.
+
+    Returns:
+        Minimum and maximum coordinates for each axis.
+
+    Raises:
+        ValueError: If the sequence is empty or cannot form an N-by-3 coordinate array.
+    """
+    import numpy as np
+
+    coordinates = np.asarray(points, dtype=np.float64).reshape((-1, 3))
+    if not coordinates.size:
+        msg = "cannot compute bounds for an empty PBD position set"
+        raise ValueError(msg)
+    minimum = np.min(coordinates, axis=0)
+    maximum = np.max(coordinates, axis=0)
+    return {
+        "x_min": float(minimum[0]),
+        "x_max": float(maximum[0]),
+        "y_min": float(minimum[1]),
+        "y_max": float(maximum[1]),
+        "z_min": float(minimum[2]),
+        "z_max": float(maximum[2]),
+    }
+
+
+def surface_signed_clearance(
+    points: Sequence[Sequence[float]],
+    source_shape: object | None,
+    collision_surface: object,
+    proximity_mesh: object | None = None,
+    *,
+    vector_factory: Callable[..., object] | None = None,
+    trace: Callable[[str], None] | None = None,
+) -> tuple[float | None, float | None]:
+    """Measure mesh distance and use the native target shape to infer its sign.
+
+    Args:
+        points: Particle coordinates to test against the target surface.
+        source_shape: Optional native FreeCAD shape used for inside/outside checks.
+        collision_surface: Shared collision surface used by fallback queries.
+        proximity_mesh: Optional Trimesh acceleration object.
+        vector_factory: Native point constructor required by shape.isInside.
+        trace: Optional callback for diagnostic trace markers.
+
+    Returns:
+        Signed and unsigned target clearance in millimetres, or (None, None) when
+        neither distance-query path can provide a value.
+    """
+    def mark(message: str) -> None:
+        if trace is not None:
+            trace(message)
+
+    mark(f"start points={len(points)} source_shape={source_shape is not None}")
+    unsigned: float | None = None
+    if proximity_mesh is not None:
+        try:
+            import numpy as np
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                msg = "trimesh.Trimesh is unavailable"
+                raise ImportError(msg)
+            if points:
+                mark("before-trimesh-nearest")
+                _, distances, _ = proximity_mesh.nearest.on_surface(
+                    np.asarray(points, dtype=np.float64)
+                )
+                mark("after-trimesh-nearest")
+                unsigned = float(np.min(distances)) if len(distances) else float("inf")
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            mark(f"trimesh-nearest-fallback exception={exc!r}")
+            unsigned = None
+    if unsigned is None:
+        mark("before-shared-nearest-surface-fallback")
+        unsigned = nearest_surface_distance(points, collision_surface)
+        mark(f"after-shared-nearest-surface-fallback unsigned={unsigned!r}")
+    if unsigned is None:
+        mark("clearance-unavailable")
+        return None, None
+
+    inside = False
+    if source_shape is not None and vector_factory is not None:
+        for index, point in enumerate(points):
+            try:
+                mark(f"before-shape-isInside index={index}")
+                point_inside = bool(
+                    getattr(source_shape, "isInside")(vector_factory(*point), 1e-6, True)
+                )
+                mark(f"after-shape-isInside index={index} result={point_inside}")
+                if point_inside:
+                    inside = True
+                    break
+            except (AttributeError, TypeError, ValueError):
+                break
+    return float(-unsigned if inside else unsigned), float(unsigned)
+
+
+def prepare_ladder_case(
+    scene: object,
+    source_object: object,
+    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    case_id: str,
+    require_source_shape: bool,
+    clearance_measure: Callable[
+        [Sequence[Sequence[float]], object | None, object, object | None],
+        tuple[float | None, float | None],
+    ],
+) -> LadderCaseMeasurements:
+    """Prepare common runtime state and measurements before a ladder case steps.
+
+    Args:
+        scene: Production simulation scene with the case-specific cloth settings.
+        source_object: Avatar or collision cube serving as collision target.
+        positions_converter: Adapter that copies native backend positions.
+        case_id: Stable identifier used in validation error messages.
+        require_source_shape: Whether the native target shape must be present.
+        clearance_measure: Case wrapper around the shared signed-clearance helper.
+
+    Returns:
+        Validated runtime, seam measurements, proximity mesh, initial clearance,
+        and vectorized particle bounds.
+
+    Raises:
+        RuntimeError: If the production PBD runtime or required target shape is invalid.
+        ValueError: If the runtime contains no particle positions.
+    """
+    runtime = inspect_pbd_runtime(
+        scene=scene,
+        source_object=source_object,
+        positions_converter=positions_converter,
+        case_id=case_id,
+        require_source_shape=require_source_shape,
+    )
+    base = runtime.base
+    seam_pre = seam_geometry(
+        getattr(base, "backend"),
+        getattr(base, "seam_stitch_pairs"),
+    )
+    proximity_mesh = build_proximity_mesh(runtime.collision_surface)
+    signed_before, unsigned_before = clearance_measure(
+        runtime.positions,
+        runtime.source_shape,
+        runtime.collision_surface,
+        proximity_mesh,
+    )
+    bounds = position_bounds(runtime.positions)
+    return LadderCaseMeasurements(
+        runtime,
+        seam_pre,
+        proximity_mesh,
+        signed_before,
+        unsigned_before,
+        bounds,
+    )
