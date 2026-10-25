@@ -1,13 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
-from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
-
 from __future__ import annotations
 
 from functools import lru_cache
 from itertools import starmap
 from typing import TYPE_CHECKING
+
+from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend

@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared semantic-boundary mapping and GEOS polyline projection for meshes."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from functools import lru_cache
 from typing import TYPE_CHECKING
