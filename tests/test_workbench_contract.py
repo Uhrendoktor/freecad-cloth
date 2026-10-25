@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tests.support.assertions import require
 
+
 def _workbenches():
     """Import workbench classes lazily so headless test collection stays import-safe."""
     from freecad_cloth.pattern.workbench import ClothPatternWorkbench

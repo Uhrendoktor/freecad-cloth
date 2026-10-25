@@ -115,9 +115,7 @@ def test_drape_target_is_the_only_persistent_collision_authority() -> None:
         document.recompute()
 
         simulation = create_simulation_scene(document)
-        assigned_source = set_drape_target_source(
-            simulation, body, thickness=2.0, deflection=1.0
-        )
+        assigned_source = set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0)
         require(
             condition=assigned_source is body,
             message="DrapeTarget assignment must return its source object.",
@@ -159,9 +157,7 @@ def test_drape_target_is_the_only_persistent_collision_authority() -> None:
             message="Recompute must preserve the authoritative source.",
         )
 
-        updated_source = set_drape_target_source(
-            simulation, body, thickness=3.0, deflection=0.5
-        )
+        updated_source = set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5)
         require(
             condition=updated_source is body,
             message="Updating collision settings must keep the same source.",

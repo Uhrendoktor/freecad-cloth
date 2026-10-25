@@ -23,6 +23,7 @@ def _piece(
     ),
 ) -> SimpleNamespace:
     """Create a PatternPiece test double backed by native Sketcher lines."""
+
     class Point:
         """Coordinate value exposed by native Sketcher line geometry."""
 
@@ -37,8 +38,7 @@ def _piece(
             self.EndPoint = Point(*end)
 
     geometry = tuple(
-        LineSegment(start, points[(index + 1) % len(points)])
-        for index, start in enumerate(points)
+        LineSegment(start, points[(index + 1) % len(points)]) for index, start in enumerate(points)
     )
     sketch = SimpleNamespace(
         Geometry=geometry,
@@ -62,10 +62,16 @@ def _seam(piece_a, edge_a=0, piece_b=None, edge_b=0):
     records_a = current_edge_candidates(SimpleNamespace(PatternA=piece_a, PatternB=piece_b), "A")
     records_b = current_edge_candidates(SimpleNamespace(PatternA=piece_a, PatternB=piece_b), "B")
     ref_a = capture_edge_reference(
-        piece_a.PieceId, records_a[edge_a]["id"], records_a[edge_a]["points"], records_a[edge_a]["provenance"]
+        piece_a.PieceId,
+        records_a[edge_a]["id"],
+        records_a[edge_a]["points"],
+        records_a[edge_a]["provenance"],
     )
     ref_b = capture_edge_reference(
-        piece_b.PieceId, records_b[edge_b]["id"], records_b[edge_b]["points"], records_b[edge_b]["provenance"]
+        piece_b.PieceId,
+        records_b[edge_b]["id"],
+        records_b[edge_b]["points"],
+        records_b[edge_b]["provenance"],
     )
     return SimpleNamespace(
         SeamId="front-seam",

@@ -10,9 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_native_pattern_sketch_is_relinked_into_garment_patterns() -> None:
     """Require native Sketcher objects to be linked into the canonical garment tree."""
-    source = (ROOT / "freecad_cloth" / "pattern" / "PatternSketch.py").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "freecad_cloth" / "pattern" / "PatternSketch.py").read_text(encoding="utf-8")
     require(
         condition='link_garment_object(existing, "PatternSketch", document)' in source,
         message="Existing sketches must be relinked into the Garment hierarchy.",
@@ -105,8 +103,7 @@ def test_fitting_marker_tree_groups_outputs_and_prunes_stale_adapters() -> None:
     )
     require(
         condition=(
-            '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"'
-            in source
+            '_FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"' in source
         ),
         message="The marker group must carry its expected display label.",
     )

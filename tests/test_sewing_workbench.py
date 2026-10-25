@@ -229,8 +229,22 @@ def _execute_fake_proxy(options: _ProxyOptions | None = None) -> SimpleNamespace
         Sewing operation object populated by the production proxy.
     """
     settings = _ProxyOptions() if options is None else options
-    piece_a = _piece("front", (_PolylineEdge(((0.0, 0.0), (settings.width_a, 0.0)),),))
-    piece_b = _piece("back", (_PolylineEdge(((0.0, 0.0), (settings.width_b, 0.0)),),))
+    piece_a = _piece(
+        "front",
+        (
+            _PolylineEdge(
+                ((0.0, 0.0), (settings.width_a, 0.0)),
+            ),
+        ),
+    )
+    piece_b = _piece(
+        "back",
+        (
+            _PolylineEdge(
+                ((0.0, 0.0), (settings.width_b, 0.0)),
+            ),
+        ),
+    )
     seam = _seam(
         piece_a,
         piece_b,
@@ -314,9 +328,7 @@ def test_native_shape_matching_uses_endpoints_not_shape_ordinal() -> None:
     resolved = _native_edge(
         piece,
         0,
-        native_edge_record_fn=lambda _piece, _index: {
-            "points": ((0.0, 5.0), (10.0, 5.0))
-        },
+        native_edge_record_fn=lambda _piece, _index: {"points": ((0.0, 5.0), (10.0, 5.0))},
     )
     assert resolved is expected
 
@@ -367,12 +379,8 @@ def test_seam_length_uses_selected_native_edge_range() -> None:
     piece_a = _piece("front", (_PolylineEdge(((0.0, 0.0), (100.0, 0.0))),))
     piece_b = _piece("back", (_PolylineEdge(((0.0, 0.0), (60.0, 0.0))),))
     seam = _seam(piece_a, piece_b, end_b=0.5)
-    assert _seam_length(
-        piece_a, seam, "A", resolve_document_edge_fn=_resolve_native_edge
-    ) == 100.0
-    assert _seam_length(
-        piece_b, seam, "B", resolve_document_edge_fn=_resolve_native_edge
-    ) == 30.0
+    assert _seam_length(piece_a, seam, "A", resolve_document_edge_fn=_resolve_native_edge) == 100.0
+    assert _seam_length(piece_b, seam, "B", resolve_document_edge_fn=_resolve_native_edge) == 30.0
 
 
 def test_correspondence_reverses_side_b_once() -> None:

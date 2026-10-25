@@ -79,8 +79,6 @@ def test_command_ids_exist_and_are_unique() -> None:
             )
             seen.update(commands)
 
-
-
 def test_command_handlers_match_declared_command_ids() -> None:
     """Require every declared avatar/fitting command to have one dispatch handler."""
     for module_name, handler_name in (

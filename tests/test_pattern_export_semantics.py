@@ -78,6 +78,7 @@ def _native_sketch(
     Returns:
         Sketch-like object consumable by PatternIR without importing FreeCAD.
     """
+
     class Point:
         """Coordinate value exposed by a native Sketcher endpoint."""
 
@@ -589,7 +590,12 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         assert metadata["seam_allowance_mm"] == 5.0
         assert metadata["mark_ids"] == ["piece-front:grainline"]
 
-    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.Sketch.SemanticEdgeIds)
+    assert before == (
+        piece.Label,
+        piece.SeamAllowance,
+        piece.GrainlineAngle,
+        piece.Sketch.SemanticEdgeIds,
+    )
 
 
 def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
