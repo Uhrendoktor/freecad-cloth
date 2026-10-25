@@ -24,7 +24,9 @@ def _piece_model(obj: object) -> PatternPiece:
         msg = f"Sketcher PatternPiece {getattr(obj, 'PieceId', '')} has no valid seeded boundary"
         raise ValueError(msg) from exc
     if len(outline) < 3:
-        msg = f"Sketcher PatternPiece {getattr(obj, 'PieceId', '')} needs at least three seed points"
+        msg = (
+            f"Sketcher PatternPiece {getattr(obj, 'PieceId', '')} needs at least three seed points"
+        )
         raise ValueError(msg)
     return PatternPiece(
         str(obj.Label),

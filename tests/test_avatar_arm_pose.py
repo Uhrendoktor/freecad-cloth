@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from freecad_cloth.avatar.HumanoidMesh import (
-    _arm_pose_weight,
+    arm_pose_weight,
     load_makehuman_arm_weights,
 )
 from tests.support.assertions import require
@@ -18,8 +18,8 @@ def test_geometric_fallback_covers_lower_arm_envelope_without_source_weights() -
     """Keep both arm envelopes controllable when source weights are absent."""
     height = 1750.0
     require(
-        condition=_arm_pose_weight(260.0, height * 0.50, 170.0, height) == pytest.approx(1.0)
-        and _arm_pose_weight(-260.0, height * 0.50, -170.0, height) == pytest.approx(1.0),
+        condition=arm_pose_weight(260.0, height * 0.50, 170.0, height) == pytest.approx(1.0)
+        and arm_pose_weight(-260.0, height * 0.50, -170.0, height) == pytest.approx(1.0),
         message="the geometric fallback must cover both arm envelopes.",
     )
 
@@ -28,16 +28,13 @@ def test_source_weight_is_authoritative_for_arm_influence() -> None:
     """Honor authored arm weights rather than inferring extra influence."""
     height = 1750.0
     require(
-        condition=_arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0)
-        == pytest.approx(0.0),
+        condition=arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0) == pytest.approx(0.0),
         message="zero source weight must suppress geometric fallback.",
     )
     require(
         condition=(
-            _arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0)
-            == pytest.approx(1.0)
-            and _arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35)
-            == pytest.approx(0.35)
+            arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0) == pytest.approx(1.0)
+            and arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35) == pytest.approx(0.35)
         ),
         message="source weights must retain their authoritative influence.",
     )

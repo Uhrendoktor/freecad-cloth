@@ -28,8 +28,9 @@ class AvatarStandingPoseTests(unittest.TestCase):
         }
         for schema_version in (1, 2, 3, 5):
             payload = json.dumps({**template, "schema_version": schema_version})
-            with self.subTest(schema_version=schema_version), self.assertRaisesRegex(
-                ValueError, "unsupported avatar schema version"
+            with (
+                self.subTest(schema_version=schema_version),
+                self.assertRaisesRegex(ValueError, "unsupported avatar schema version"),
             ):
                 AvatarParameters.from_json(payload)
 

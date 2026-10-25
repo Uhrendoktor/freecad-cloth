@@ -113,7 +113,6 @@ class AvatarFittingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires name"):
             ArrangementPoint.from_string("shoulder_left|-210,0,1050")
 
-
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError):
             ArrangementPoint("", wrap_direction="front").validate()

@@ -265,12 +265,13 @@ def _sample_polyline_fractions(
     spans = segment_lengths[indexes]
     offsets = targets - cumulative[indexes]
     ratios = np.divide(offsets, spans, out=np.zeros_like(offsets), where=spans > 1e-12)
-    return coordinates[indexes] + (coordinates[indexes + 1] - coordinates[indexes]) * ratios[:, None]
+    return (
+        coordinates[indexes]
+        + (coordinates[indexes + 1] - coordinates[indexes]) * ratios[:, None]
+    )
 
 
-def _sample_polyline(
-    points: Sequence[tuple[float, float]], fraction: float
-) -> tuple[float, float]:
+def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> tuple[float, float]:
     """Sample one point at normalized arc length.
 
     Args:

@@ -45,8 +45,6 @@ def maximum_box_penetration(
     return float(np.maximum(face_distances[inside].min(axis=1), 0.0).max())
 
 
-
-
 @pydantic_dataclass(frozen=True)
 class DrapeVisualMetrics:
     """Public data model or service class for DrapeVisualMetrics."""
@@ -101,9 +99,7 @@ def _centroid(vertices: Sequence[Point3]) -> Point3:
     return (float(center[0]), float(center[1]), float(center[2]))
 
 
-def minimum_vertex_distance(
-    source: Sequence[Point3], target: Sequence[Point3]
-) -> float | None:
+def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
     """Return exact nearest vertex distance through the shared SciPy KD-tree query.
 
     Args:
@@ -118,8 +114,6 @@ def minimum_vertex_distance(
     from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
     return nearest_target_clearance(source, target)
-
-
 
 
 def point_inside_closed_mesh(
