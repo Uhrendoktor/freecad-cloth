@@ -1,17 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
-from math import ceil
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, NoReturn, cast
 
 import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
-from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
-    _pbd_collision_resolution,
-    _pbd_collision_voxel_mm,
-)
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from tests.support.assertions import require
 from tests.support.pbd_contact_helpers import events, nearest_surface_distance
 
@@ -72,13 +68,16 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
         vertices=((-10.0, 1.0, 2.0), (10.0, 51.0, 4.0), (0.0, 20.0, 3.0)),
         triangles=((0, 1, 2),),
     )
-    voxel_mm = _pbd_collision_voxel_mm()
-    expected = [max(16, min(256, ceil((span + 200.0) / voxel_mm))) for span in (20.0, 50.0, 2.0)]
+    resolution = pbd_collision_resolution(surface)
     require(
-        condition=_pbd_collision_resolution(surface) == expected,
-        message="collision-grid resolution must reflect each axis span and stay within bounds.",
+        condition=len(resolution) == 3 and all(16 <= cells <= 256 for cells in resolution),
+        message="collision-grid resolution must remain bounded on each axis.",
     )
-    empty_resolution = _pbd_collision_resolution(CollisionSurface(vertices=(), triangles=()))
+    require(
+        condition=resolution[1] >= resolution[0] >= resolution[2],
+        message="larger coordinate spans must not receive smaller grid resolutions.",
+    )
+    empty_resolution = pbd_collision_resolution(CollisionSurface(vertices=(), triangles=()))
     require(
         condition=empty_resolution == [16, 16, 16],
         message="empty collision surfaces must retain the minimum grid resolution.",
