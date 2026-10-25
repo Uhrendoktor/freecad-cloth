@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from types import ModuleType
 
+LADDER_STITCH_SAMPLES = 8
+
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
     """Create a progress logger that appends to one file and mirrors stdout."""
@@ -709,7 +711,7 @@ def configure_ladder_scene(
     setattr(scene, "SeamSelection", [])
     setattr(scene, "PinMode", str(spec["pin_mode"]))
     setattr(scene, "PinSelection", [])
-    setattr(scene, "StitchSamples", 8)
+    setattr(scene, "StitchSamples", LADDER_STITCH_SAMPLES)
     setattr(scene, "Steps", 0)
 
 
