@@ -113,6 +113,17 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         return ()
 
 
+BUILTIN_AVATAR_PROVIDER_CLASSES = (
+    ParametricAvatarProvider,
+    FreeCADGeometryAvatarProvider,
+)
+"""Built-in providers accepted by the persistent avatar provider selector."""
+
+PROVIDER_IDS = tuple(provider.info.provider_id for provider in BUILTIN_AVATAR_PROVIDER_CLASSES)
+PARAMETRIC_PROVIDER_ID = ParametricAvatarProvider.info.provider_id
+FREECAD_GEOMETRY_PROVIDER_ID = FreeCADGeometryAvatarProvider.info.provider_id
+
+
 def provider_from_target(
     source, target_type="FreeCAD Geometry", parameters=None, deflection=1.0, thickness=0.0
 ):

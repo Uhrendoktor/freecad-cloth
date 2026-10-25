@@ -17,10 +17,14 @@ from freecad_cloth.avatar.AvatarModel import (
 from freecad_cloth.avatar.AvatarProperties import (
     POSE_PROPERTY_MAP,
     PROPERTY_MAP,
-    PROVIDER_IDS,
     SHAPE_PROPERTY_MAP,
 )
-from freecad_cloth.avatar.AvatarProvider import FreeCADGeometryAvatarProvider
+from freecad_cloth.avatar.AvatarProvider import (
+    FREECAD_GEOMETRY_PROVIDER_ID,
+    PARAMETRIC_PROVIDER_ID,
+    PROVIDER_IDS,
+    FreeCADGeometryAvatarProvider,
+)
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
@@ -318,15 +322,15 @@ def _provider_geometry(
         ValueError: If the provider identifier or required source object is invalid.
     """
     provider_id = (
-        str(getattr(obj, "AvatarProviderId", "makehuman-hm08"))
+        str(getattr(obj, "AvatarProviderId", PARAMETRIC_PROVIDER_ID))
         if provider_id is None
         else str(provider_id)
     )
-    if provider_id == "makehuman-hm08":
+    if provider_id == PARAMETRIC_PROVIDER_ID:
         vertices, triangles, landmarks = generate_mesh(params)
         source = "Anny parametric body model / clad-body measurements"
         return vertices, triangles, landmarks, provider_id, source, "Apache-2.0 / CC0"
-    if provider_id == "freecad-geometry":
+    if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
         source_obj = (
             getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
         )
@@ -429,7 +433,7 @@ def _rebuild(
     obj.ParametersJSON = parameters_json
     obj.AvatarStatus = "Valid"
     obj.AvatarProviderId = provider_id
-    obj.ProviderSource = provider_source if provider_id == "freecad-geometry" else None
+    obj.ProviderSource = provider_source if provider_id == FREECAD_GEOMETRY_PROVIDER_ID else None
     obj.AvatarMeshProvider = provider_id
     obj.AvatarMeshSource = source
     obj.AvatarMeshLicense = license_name
@@ -474,7 +478,7 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
     """
     _set_prop(obj, "App::PropertyString", "AvatarType", "Avatar", "ClothAvatar")
     _set_prop(obj, "App::PropertyEnumeration", "AvatarProviderId", "Avatar", list(PROVIDER_IDS))
-    obj.AvatarProviderId = "makehuman-hm08"
+    obj.AvatarProviderId = PARAMETRIC_PROVIDER_ID
     _set_prop(obj, "App::PropertyLink", "ProviderSource", "Avatar", None)
     for name, value in DEFAULT_MEASUREMENTS.items():
         _set_prop(obj, "App::PropertyLength", PROPERTY_MAP[name], "Measurements", value)
@@ -818,7 +822,7 @@ def set_avatar_provider(provider_id: str, source: object | None = None) -> _Avat
     if provider_id not in PROVIDER_IDS:
         msg = f"unsupported avatar provider: {provider_id}"
         raise ValueError(msg)
-    if provider_id == "freecad-geometry":
+    if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
         source = source or getattr(obj, "ProviderSource", None)
         if source is None or source is obj:
             msg = "a FreeCAD source object is required for the freecad-geometry provider"
@@ -924,7 +928,7 @@ _HANDLERS = {
         height=1750, chest=980, waist=820, hip=1020
     ),
     "ClothFitting_SetAvatarPose": lambda: set_avatar_pose("sewing"),
-    "ClothFitting_SetAvatarProvider": lambda: set_avatar_provider("makehuman-hm08"),
+    "ClothFitting_SetAvatarProvider": lambda: set_avatar_provider(PARAMETRIC_PROVIDER_ID),
     "ClothFitting_SetAvatarJoint": lambda: set_avatar_joint("upperarm01.L", y=-45.0, mirror=True),
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }

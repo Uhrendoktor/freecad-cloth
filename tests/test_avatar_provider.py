@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.AvatarProvider import (
+    BUILTIN_AVATAR_PROVIDER_CLASSES,
+    PROVIDER_IDS,
     AvatarProviderInfo,
     FreeCADGeometryAvatarProvider,
     ParametricAvatarProvider,
@@ -33,6 +35,11 @@ class _Shape:
 
 
 class AvatarProviderTests(unittest.TestCase):
+    def test_persisted_provider_ids_are_generated_from_registered_provider_metadata(self):
+        expected = tuple(provider.info.provider_id for provider in BUILTIN_AVATAR_PROVIDER_CLASSES)
+        self.assertEqual(PROVIDER_IDS, expected)
+        self.assertEqual(len(PROVIDER_IDS), len(set(PROVIDER_IDS)))
+
     def test_parametric_provider_is_makehuman_mesh_provider(self):
         provider = ParametricAvatarProvider(AvatarParameters())
         self.assertEqual(

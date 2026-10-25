@@ -50,4 +50,3 @@ POSE_PROPERTY_MAP = {
     for field in fields(Pose)
     if field.name.endswith("_angle")
 }
-PROVIDER_IDS = ("makehuman-hm08", "freecad-geometry")
